@@ -158,7 +158,9 @@ export async function auditPackagedElectronBoundary(packageDir) {
     throw new Error("packaged Electron application is missing app.asar")
   }
   const absoluteAsarPath = join(packageDir, asarPath)
-  const asarEntries = listPackage(absoluteAsarPath, { isPack: false }).sort()
+  const asarEntries = listPackage(absoluteAsarPath, { isPack: false })
+    .map(normalizeAsarEntry)
+    .sort()
   const expectedAsarEntries = [
     "/main.cjs",
     "/package.json",
@@ -226,6 +228,11 @@ export async function auditPackagedElectronBoundary(packageDir) {
     hasAsarUnpacked: false,
     nativeFileCount: nativeFiles.length
   }
+}
+
+export function normalizeAsarEntry(entry) {
+  const normalized = entry.replaceAll("\\", "/")
+  return normalized.startsWith("/") ? normalized : `/${normalized}`
 }
 
 export function packagedExecutable(packageDir) {

@@ -9,6 +9,7 @@ import {
   boundaryRoot,
   buildElectronBoundary,
   nativeArtifactDir,
+  normalizeAsarEntry,
   stagingDir
 } from "./build.mjs"
 import {
@@ -90,6 +91,13 @@ describe("private Electron production boundary", () => {
       "native resource differs"
     )
   }, 15_000)
+
+  it("normalizes platform-specific ASAR entry separators before auditing", () => {
+    expect(normalizeAsarEntry("/main.cjs")).toBe("/main.cjs")
+    expect(normalizeAsarEntry("\\main.cjs")).toBe("/main.cjs")
+    expect(normalizeAsarEntry("renderer.js")).toBe("/renderer.js")
+    expect(normalizeAsarEntry("../unexpected.js")).toBe("/../unexpected.js")
+  })
 
   it("freezes native sample parsing and percentile reporting", () => {
     expect(parseProofArgs([])).toEqual({ samples: 1 })

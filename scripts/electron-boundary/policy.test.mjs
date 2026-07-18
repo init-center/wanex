@@ -127,6 +127,15 @@ describe("private Electron production boundary", () => {
       boundaryRoot,
       "../../.github/workflows/native-electron-boundary.yml"
     ), "utf8")
+    expect(workflowTriggerPaths(workflow, "pull_request"))
+      .toEqual(expectedNativeWorkflowPaths)
+    expect(workflowTriggerPaths(workflow, "push"))
+      .toEqual(expectedNativeWorkflowPaths)
+    expect(workflow).toContain(
+      "concurrency:\n" +
+      "  group: native-electron-boundary-${{ github.workflow }}-${{ github.ref }}\n" +
+      "  cancel-in-progress: true"
+    )
     expect(workflow).toContain("os: macos-15")
     expect(workflow).toContain("os: windows-latest")
     expect(workflow).toContain("pnpm proof:electron-boundary -- --samples 5")
@@ -153,6 +162,40 @@ describe("private Electron production boundary", () => {
       .toBe(true)
   })
 })
+
+const expectedNativeWorkflowPaths = [
+  ".github/workflows/native-electron-boundary.yml",
+  "Cargo.lock",
+  "Cargo.toml",
+  "crates/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "apps/product-app-local/**",
+  "scripts/electron-boundary/**",
+  "scripts/native-artifact/**",
+  "packages/runtime/**",
+  "packages/storage/**"
+]
+
+function workflowTriggerPaths(workflow, trigger) {
+  const lines = workflow.split(/\r?\n/)
+  const start = lines.indexOf(`  ${trigger}:`)
+  if (start === -1) {
+    return []
+  }
+  const paths = []
+  for (const line of lines.slice(start + 1)) {
+    if (/^(?:\S|  [a-zA-Z_][a-zA-Z0-9_-]*:)/.test(line)) {
+      break
+    }
+    const match = line.match(/^ {6}- "([^"]+)"$/)
+    if (match !== null) {
+      paths.push(match[1])
+    }
+  }
+  return paths
+}
 
 function sample(artifactVerification, wallTimeMs) {
   return {

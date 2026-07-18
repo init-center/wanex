@@ -18,6 +18,23 @@ on:
       - "packages/storage/**"
   push:
     branches: [main]
+    paths:
+      - ".github/workflows/native-electron-boundary.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "apps/product-app-local/**"
+      - "scripts/electron-boundary/**"
+      - "scripts/native-artifact/**"
+      - "packages/runtime/**"
+      - "packages/storage/**"
+
+concurrency:
+  group: native-electron-boundary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   native-electron:

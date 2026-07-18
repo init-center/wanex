@@ -105,6 +105,19 @@ fn opens_empty_store_concurrently_without_duplicate_baseline() {
 fn waits_for_short_lived_sqlite_write_lock() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
+    let writer_dir = dir.path().to_path_buf();
+    let writer_opened = Arc::new(Barrier::new(2));
+    let writer_ready = Arc::new(Barrier::new(2));
+    let writer_opened_signal = Arc::clone(&writer_opened);
+    let writer_start = Arc::clone(&writer_ready);
+    let writer = std::thread::spawn(move || {
+        let service = SystemService::open(writer_dir).unwrap();
+        writer_opened_signal.wait();
+        writer_start.wait();
+        service.put_config("lock.waited", &json!({ "ok": true }))
+    });
+
+    writer_opened.wait();
     let mut locked = rusqlite::Connection::open(service.db_path()).unwrap();
     locked.pragma_update(None, "busy_timeout", 0).unwrap();
     let tx = locked.transaction().unwrap();
@@ -114,13 +127,7 @@ fn waits_for_short_lived_sqlite_write_lock() {
         [],
     )
     .unwrap();
-
-    let writer_dir = dir.path().to_path_buf();
-    let writer = std::thread::spawn(move || {
-        let service = SystemService::open(writer_dir).unwrap();
-        service.put_config("lock.waited", &json!({ "ok": true }))
-    });
-
+    writer_ready.wait();
     std::thread::sleep(Duration::from_millis(100));
     tx.commit().unwrap();
     writer.join().unwrap().unwrap();

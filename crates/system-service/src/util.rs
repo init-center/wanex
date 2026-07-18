@@ -51,13 +51,16 @@ pub(crate) fn now_ms() -> i64 {
         .as_millis() as i64
 }
 
+#[cfg(unix)]
 pub(crate) fn sync_parent_dir(path: &Path) -> Result<()> {
     if let Some(parent) = path.parent() {
-        #[cfg(unix)]
-        {
-            let dir = OpenOptions::new().read(true).open(parent)?;
-            dir.sync_all()?;
-        }
+        let dir = OpenOptions::new().read(true).open(parent)?;
+        dir.sync_all()?;
     }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub(crate) fn sync_parent_dir(_: &Path) -> Result<()> {
     Ok(())
 }

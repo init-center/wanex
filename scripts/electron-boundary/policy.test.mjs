@@ -121,6 +121,7 @@ describe("private Electron production boundary", () => {
     expect(workflow).toContain("os: macos-15")
     expect(workflow).toContain("os: windows-latest")
     expect(workflow).toContain("pnpm proof:electron-boundary -- --samples 5")
+    expect(workflow).toContain("if: success()")
     expect(workflow).toContain(
       "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
     )

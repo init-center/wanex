@@ -1,0 +1,13 @@
+{
+  "name": "@wanex/connector-adapter-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@wanex/connector": "workspace:*",
+    "@wanex/protocol": "workspace:*"
+  }
+}

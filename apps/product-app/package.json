@@ -1,0 +1,23 @@
+{
+  "name": "@wanex/product-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./backend": "./src/backend/index.ts",
+    "./surface-client": "./src/surface-client.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/app": "workspace:*",
+    "@wanex/extension": "workspace:*",
+    "@wanex/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@wanex/storage": "workspace:*"
+  }
+}

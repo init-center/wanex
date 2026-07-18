@@ -1,0 +1,24 @@
+{
+  "name": "@wanex/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./backend": "./src/backend.ts",
+    "./diagnostics": "./src/diagnostics/index.ts",
+    "./workflows/plan": "./src/workflows/plan/index.ts",
+    "./workflows/objective": "./src/workflows/objective/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs",
+    "start": "tsx ./src/main.ts"
+  },
+  "dependencies": {
+    "@wanex/extension": "workspace:*",
+    "@wanex/protocol": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "@wanex/storage": "workspace:*"
+  }
+}

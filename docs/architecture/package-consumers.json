@@ -1,0 +1,532 @@
+{
+  "schemaVersion": 1,
+  "syntheticConsumerRoles": [
+    "example",
+    "test"
+  ],
+  "packages": {
+    "@wanex/app": {
+      "consumers": [
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/cli": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/connector": {
+      "consumers": [],
+      "realConsumers": []
+    },
+    "@wanex/eval-harness": {
+      "consumers": [],
+      "realConsumers": []
+    },
+    "@wanex/extension": {
+      "consumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-tui",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-tui",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/mcp": {
+      "consumers": [],
+      "realConsumers": []
+    },
+    "@wanex/plugin": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/product-app": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-tui",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-web",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-tui",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-web",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/product-app-command-host": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/product-app-local": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/product-app-tui": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/product-app-web": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/protocol": {
+      "consumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/runtime",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage-control-plane",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/runtime",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage-control-plane",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/runtime": {
+      "consumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/storage": {
+      "consumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/runtime",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage-control-plane",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/app",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/cli",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/mcp",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/plugin",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app",
+          "field": "devDependencies"
+        },
+        {
+          "package": "@wanex/product-app-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-local",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/runtime",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/storage-control-plane",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/workspace",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/storage-control-plane": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/team": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    },
+    "@wanex/workspace": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": []
+    }
+  }
+}

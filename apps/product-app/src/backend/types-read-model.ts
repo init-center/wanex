@@ -1,0 +1,53 @@
+import type {
+  WanexAppShellExecutionReferenceCommands,
+  WanexAppShellExecutionReferenceReadResult,
+  WanexAppShellReadExecutionReferenceRequest,
+  WanexAppShellReadRecentSessionsRequest,
+  WanexAppShellReadModelCommands,
+  WanexAppShellRecentSessionRow,
+  WanexAppShellRecentSessionsReadModel,
+  WanexAppShellSessionInputProvenanceKind,
+  WanexAppShellSessionInputProvenanceReadModel,
+  WanexAppShellSessionInputProvenanceRow,
+  WanexAppShellSessionTranscriptPart,
+  WanexAppShellSessionTranscriptReadModel,
+  WanexAppShellSessionTranscriptRole,
+  WanexAppShellSessionTranscriptRow,
+  WanexAppShellSessionTranscriptRowKind
+} from "@wanex/app/backend"
+
+export interface ProductAppBackendReadModelCommands
+  extends WanexAppShellReadModelCommands,
+    WanexAppShellExecutionReferenceCommands {}
+
+export type ProductAppBackendReadExecutionReferenceRequest =
+  WanexAppShellReadExecutionReferenceRequest
+export type ProductAppBackendExecutionReferenceReadResult =
+  WanexAppShellExecutionReferenceReadResult
+
+export type ProductAppBackendReadSessionInputProvenanceRequest =
+  Parameters<WanexAppShellReadModelCommands["readSessionInputProvenance"]>[0]
+export type ProductAppBackendReadSessionTranscriptRequest =
+  Parameters<WanexAppShellReadModelCommands["readSessionTranscript"]>[0]
+export type ProductAppBackendReadRecentSessionsRequest =
+  WanexAppShellReadRecentSessionsRequest
+export type ProductAppBackendRecentSessionsReadModel =
+  WanexAppShellRecentSessionsReadModel
+export type ProductAppBackendRecentSessionRow =
+  WanexAppShellRecentSessionRow
+export type ProductAppBackendSessionInputProvenanceKind =
+  WanexAppShellSessionInputProvenanceKind
+export type ProductAppBackendSessionInputProvenanceReadModel =
+  WanexAppShellSessionInputProvenanceReadModel
+export type ProductAppBackendSessionInputProvenanceRow =
+  WanexAppShellSessionInputProvenanceRow
+export type ProductAppBackendSessionTranscriptReadModel =
+  WanexAppShellSessionTranscriptReadModel
+export type ProductAppBackendSessionTranscriptRow =
+  WanexAppShellSessionTranscriptRow
+export type ProductAppBackendSessionTranscriptRowKind =
+  WanexAppShellSessionTranscriptRowKind
+export type ProductAppBackendSessionTranscriptRole =
+  WanexAppShellSessionTranscriptRole
+export type ProductAppBackendSessionTranscriptPart =
+  WanexAppShellSessionTranscriptPart

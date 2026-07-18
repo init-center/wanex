@@ -1,0 +1,20 @@
+{
+  "@wanex/app": "public-facade",
+  "@wanex/cli": "app",
+  "@wanex/connector": "public-capability",
+  "@wanex/eval-harness": "test",
+  "@wanex/extension": "public-capability",
+  "@wanex/mcp": "public-capability",
+  "@wanex/plugin": "public-capability",
+  "@wanex/product-app": "app",
+  "@wanex/product-app-command-host": "app",
+  "@wanex/product-app-local": "app",
+  "@wanex/product-app-tui": "app",
+  "@wanex/product-app-web": "app",
+  "@wanex/protocol": "internal",
+  "@wanex/runtime": "public-facade",
+  "@wanex/storage": "public-capability",
+  "@wanex/storage-control-plane": "public-capability",
+  "@wanex/team": "public-capability",
+  "@wanex/workspace": "public-capability"
+}

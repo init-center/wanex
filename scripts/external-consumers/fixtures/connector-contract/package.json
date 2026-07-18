@@ -1,0 +1,9 @@
+{
+  "name": "wanex-external-connector-contract",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@wanex/connector": "0.0.0"
+  }
+}

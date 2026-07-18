@@ -1,0 +1,66 @@
+name: Native Electron Boundary
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/native-electron-boundary.yml"
+      - "Cargo.lock"
+      - "Cargo.toml"
+      - "crates/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "apps/product-app-local/**"
+      - "scripts/electron-boundary/**"
+      - "scripts/native-artifact/**"
+      - "packages/runtime/**"
+      - "packages/storage/**"
+  push:
+    branches: [main]
+
+jobs:
+  native-electron:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            target: darwin-arm64
+          - os: windows-latest
+            target: win32-x64
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - run: pnpm install --frozen-lockfile
+      - run: cargo fmt -- --check
+      - run: cargo test
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo build --release -p wanex-system-service
+      - run: pnpm stage:native
+      - run: pnpm check:electron-boundary
+      - run: pnpm test:electron-boundary
+      - run: pnpm proof:electron-boundary -- --samples 5
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wanex-native-electron-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            target/distribution/electron/electron-boundary-report.json
+            target/distribution/native

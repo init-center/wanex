@@ -1,0 +1,9 @@
+{
+  "name": "wanex-external-provider-tool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@wanex/runtime": "0.0.0"
+  }
+}

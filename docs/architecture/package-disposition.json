@@ -1,0 +1,646 @@
+{
+  "schemaVersion": 1,
+  "packages": {
+    "@wanex/app": {
+      "path": "packages/app",
+      "role": "public-facade",
+      "disposition": "retain",
+      "targetOwner": "@wanex/app",
+      "targetPhase": "Phase 751",
+      "rationale": "Trusted application backends need one stable public facade above Runtime.",
+      "evidence": "Product App consumes the root and Phase 744 public-facade tests prove the journey."
+    },
+    "@wanex/cli": {
+      "path": "apps/cli",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/cli",
+      "targetPhase": "Phase 751",
+      "rationale": "A separately executable CLI is a real product and lifecycle boundary.",
+      "evidence": "Its bin/start path is production-facing; it will consume only Runtime/App public entries."
+    },
+    "@wanex/connector": {
+      "path": "packages/connector",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/connector",
+      "targetPhase": "Phase 752",
+      "rationale": "External-channel contracts, host lifecycle, packaging policy, and scoped credential resolution share one optional capability owner.",
+      "evidence": "Connector, host-security, and conformance fixtures were consolidated; 33 owner tests and packlist exclusion pass."
+    },
+    "@wanex/eval-harness": {
+      "path": "packages/eval-harness",
+      "role": "test",
+      "disposition": "retain",
+      "targetOwner": "@wanex/eval-harness",
+      "targetPhase": "Phase 755",
+      "rationale": "The broad deterministic release suite is internal verification infrastructure, not a consumer SDK.",
+      "evidence": "Phase 755 external fixtures prove public SDK journeys without importing Eval; no two real consumers justify a new @wanex/testing package."
+    },
+    "@wanex/extension": {
+      "path": "packages/extension",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/extension",
+      "targetPhase": "Phase 752",
+      "rationale": "A dependency-free contribution contract and deterministic resolver have multiple independent App and Product consumers.",
+      "evidence": "The contract and static host were consolidated; App, Product command host, and Product TUI compile against the retained owner."
+    },
+    "@wanex/mcp": {
+      "path": "packages/mcp",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/mcp",
+      "targetPhase": "Phase 750",
+      "rationale": "Official MCP process/network dependencies, trust, and connection lifecycle must remain outside Runtime/App cold closure.",
+      "evidence": "Official SDK 1.29.0 adapters pass stdio and stateful Streamable HTTP list/call/error/cancel lifecycle tests while distribution audit reports no Runtime/App closure violation."
+    },
+    "@wanex/plugin": {
+      "path": "packages/plugin",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/plugin",
+      "targetPhase": "Phase 752",
+      "rationale": "Plugin trust, install, sandbox, subprocess, and worker lifecycle require one explicit optional security boundary.",
+      "evidence": "Plugin was renamed directly, Product command projection moved to its product owner, and 44 Plugin plus 8 Product host tests pass."
+    },
+    "@wanex/product-app": {
+      "path": "apps/product-app",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/product-app",
+      "targetPhase": "Phase 751",
+      "rationale": "This is the frozen validation product backend and owns product-specific read models.",
+      "evidence": "Web, local, TUI, and command-host products consume it as their common product backend."
+    },
+    "@wanex/product-app-command-host": {
+      "path": "apps/product-app-command-host",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/product-app-command-host",
+      "targetPhase": "Phase 756",
+      "rationale": "Optional plugin action execution has a distinct process, security, dependency, and lifecycle boundary outside default Product App closure.",
+      "evidence": "Distribution footprint isolates @wanex/plugin to this hot product entry, while package tests and Eval execute durable plugin actions without adding Plugin to Product App, Web, TUI, Runtime, or App defaults."
+    },
+    "@wanex/product-app-local": {
+      "path": "apps/product-app-local",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/product-app-local",
+      "targetPhase": "Phase 751",
+      "rationale": "The local executable host owns local lifecycle and distribution concerns.",
+      "evidence": "It drives the Web and local smoke entry and will absorb the thin Node Web host."
+    },
+    "@wanex/product-app-tui": {
+      "path": "apps/product-app-tui",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/product-app-tui",
+      "targetPhase": "Phase 751",
+      "rationale": "The terminal product is a distinct executable leaf with terminal-only dependencies.",
+      "evidence": "It owns the Product App TUI entry and consumes the shared product backend."
+    },
+    "@wanex/product-app-web": {
+      "path": "apps/product-app-web",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/product-app-web",
+      "targetPhase": "Phase 751",
+      "rationale": "The browser-safe product adapter has a distinct platform dependency boundary.",
+      "evidence": "Local and Node hosts consume it while it depends only on the Product App backend."
+    },
+    "@wanex/protocol": {
+      "path": "packages/protocol",
+      "role": "internal",
+      "disposition": "retain",
+      "targetOwner": "@wanex/protocol",
+      "targetPhase": "Phase 747",
+      "rationale": "Cross-language wire and durable contracts need one internal source during reconstruction.",
+      "evidence": "TS packages and the Rust system service share protocol semantics; facade audits prevent public type leakage."
+    },
+    "@wanex/runtime": {
+      "path": "packages/runtime",
+      "role": "public-facade",
+      "disposition": "retain",
+      "targetOwner": "@wanex/runtime",
+      "targetPhase": "Phase 748",
+      "rationale": "This is the product-neutral public agent execution facade.",
+      "evidence": "Phase 755 installs only @wanex/runtime in an isolated external project and proves a durable minimal-agent turn from the compiled SDK."
+    },
+    "@wanex/storage": {
+      "path": "packages/storage",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/storage",
+      "targetPhase": "Phase 746",
+      "rationale": "The package owns a transport handle and composed stores, not merely a client class.",
+      "evidence": "It is the durable boundary used across Runtime and optional capabilities; Phase 746 removes the universal inheritance chain."
+    },
+    "@wanex/storage-control-plane": {
+      "path": "packages/storage-control-plane",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/storage-control-plane",
+      "targetPhase": "Phase 755",
+      "rationale": "Authenticated server-derived store routing is an optional deployment and security boundary with an independent HTTP lifecycle.",
+      "evidence": "The Phase 755 packed external consumer proves bearer authentication, forbidden client store selection, per-subject isolation, pooled transport cleanup, and Runtime over remote HTTP."
+    },
+    "@wanex/team": {
+      "path": "packages/team",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/team",
+      "targetPhase": "Phase 752",
+      "rationale": "Conversation and coding delegation are separate policies over one optional multi-agent orchestration owner.",
+      "evidence": "Three package identities were consolidated into conversation and delegation subpaths; 23 owner tests pass."
+    },
+    "@wanex/workspace": {
+      "path": "packages/workspace",
+      "role": "public-capability",
+      "disposition": "retain",
+      "targetOwner": "@wanex/workspace",
+      "targetPhase": "Phase 752",
+      "rationale": "Filesystem mutation, review, isolation, Git, and durable workspace tasks share one optional security and release owner.",
+      "evidence": "Seven package identities were consolidated into focused Workspace modules; 43 owner tests and downstream Eval checks pass."
+    }
+  },
+  "tombstones": {
+    "@wanex/agent-context-runtime": {
+      "path": "packages/agent-context-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/context",
+      "targetPhase": "Phase 748",
+      "rationale": "Agent context compilation is a private Runtime module, not a publishing boundary.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/context; the old package was deleted without an alias."
+    },
+    "@wanex/agent-core": {
+      "path": "packages/agent-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime internal execution",
+      "targetPhase": "Phase 748",
+      "rationale": "The agent loop is inseparable from the Runtime public contract.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime internal execution; the old package was deleted without an alias."
+    },
+    "@wanex/agent-runtime": {
+      "path": "packages/agent-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/host",
+      "targetPhase": "Phase 748",
+      "rationale": "This is Runtime implementation exposed as an accidental package.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/host; the old package was deleted without an alias."
+    },
+    "@wanex/agent-worker": {
+      "path": "packages/agent-worker",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime internal execution",
+      "targetPhase": "Phase 748",
+      "rationale": "Worker implementation shares Runtime lifecycle and dependency closure.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime internal execution; the old package was deleted without an alias."
+    },
+    "@wanex/app-bootstrap": {
+      "path": "packages/app-bootstrap",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/bootstrap",
+      "targetPhase": "Phase 748",
+      "rationale": "Bootstrap is implementation split by storage transport ownership and Runtime lifecycle.",
+      "evidence": "Storage bootstrap and ownership tests now live in @wanex/runtime/bootstrap; every workspace caller was migrated and the package was deleted without an alias."
+    },
+    "@wanex/app-diagnostics": {
+      "path": "packages/app-diagnostics",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/app/diagnostics",
+      "targetPhase": "Phase 751",
+      "rationale": "App-facing diagnostic projections share App ownership and do not justify an npm package.",
+      "evidence": "Implementation and tests moved into App, all consumers use @wanex/app/diagnostics, and the old package was deleted without an alias."
+    },
+    "@wanex/app-extension-core": {
+      "path": "packages/app-extension-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/extension",
+      "targetPhase": "Phase 752",
+      "rationale": "A shared data-only contribution contract can justify one optional extension boundary.",
+      "evidence": "Implementation and owner tests moved to @wanex/extension; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/change-proposal-runtime": {
+      "path": "packages/change-proposal-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/review",
+      "targetPhase": "Phase 752",
+      "rationale": "Change proposal is one module of the optional workspace capability.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/review; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/changeset-core": {
+      "path": "packages/changeset-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/changesets",
+      "targetPhase": "Phase 752",
+      "rationale": "Changesets are internal workspace value objects rather than an independent SDK.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/changesets; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/config-core": {
+      "path": "packages/config-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/config",
+      "targetPhase": "Phase 748",
+      "rationale": "Runtime config persistence and reload share Runtime lifecycle.",
+      "evidence": "Implementation, tests, and all consumers moved to @wanex/runtime/config; the old package was deleted without an alias."
+    },
+    "@wanex/connector-adapter-reference": {
+      "path": "packages/connector-adapter-reference",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "@wanex/connector test fixtures",
+      "targetPhase": "Phase 752",
+      "rationale": "A deterministic adapter is test data, not a production package.",
+      "evidence": "Implementation and owner tests moved to @wanex/connector test fixtures; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/connector-adapter-telegram-spike": {
+      "path": "packages/connector-adapter-telegram-spike",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "external concrete connector repository",
+      "targetPhase": "Phase 745",
+      "rationale": "A fake Telegram product package cannot justify a core-monorepo boundary.",
+      "evidence": "Generic connector lifecycle, packaging, and lazy SDK behavior remain in connector contract tests."
+    },
+    "@wanex/connector-runtime": {
+      "path": "packages/connector-runtime",
+      "role": "public-capability",
+      "disposition": "delete",
+      "targetOwner": "@wanex/connector",
+      "targetPhase": "Phase 752",
+      "rationale": "Data-only adapter contracts and trusted channel supervision have different trust and dependency closures.",
+      "evidence": "Implementation and owner tests moved to @wanex/connector; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/context-memory": {
+      "path": "packages/context-memory",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/context",
+      "targetPhase": "Phase 748",
+      "rationale": "Context projection is an internal stage of agent execution.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/context; the old package was deleted without an alias."
+    },
+    "@wanex/delegation-graph-runtime": {
+      "path": "packages/delegation-graph-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/team/delegation/graph",
+      "targetPhase": "Phase 752",
+      "rationale": "Durable delegation graph policy is part of the optional team capability.",
+      "evidence": "Implementation and owner tests moved to @wanex/team/delegation/graph; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/delegation-runtime": {
+      "path": "packages/delegation-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/team/delegation",
+      "targetPhase": "Phase 752",
+      "rationale": "Delegation execution policy does not justify a package apart from team orchestration.",
+      "evidence": "Implementation and owner tests moved to @wanex/team/delegation; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/event-core": {
+      "path": "packages/event-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime internal events",
+      "targetPhase": "Phase 748",
+      "rationale": "Runtime events share session and storage lifecycle and are not independently distributed.",
+      "evidence": "Implementation, tests, and all consumers moved to @wanex/runtime internal events; the old package was deleted without an alias."
+    },
+    "@wanex/example-agent": {
+      "path": "apps/example-agent",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "scripts/external-consumers/fixtures/minimal-agent",
+      "targetPhase": "Phase 755",
+      "rationale": "An in-workspace source example cannot prove compiled SDK installation and does not justify a package identity.",
+      "evidence": "The isolated Phase 755 minimal-agent project installs only @wanex/runtime from the temporary registry, runs a durable turn, and disposes idempotently; the package was deleted without an alias."
+    },
+    "@wanex/product-app-web-node-host": {
+      "path": "apps/product-app-web-node-host",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/product-app-local/web-host",
+      "targetPhase": "Phase 756",
+      "rationale": "The thin Node HTTP/browser host shares Product App Local's deployment and lifecycle and has no independent publication or product consumer.",
+      "evidence": "Implementation and owner tests moved to Product App Local, Eval consumes its explicit web-host subpath, and the old package was deleted without an alias."
+    },
+    "@wanex/example-connector": {
+      "path": "apps/example-connector",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "external connector fixture in Phase 755",
+      "targetPhase": "Phase 748",
+      "rationale": "The connector example is synthetic and currently consumes internal composition packages.",
+      "evidence": "Deletion moved from Phase 755 to Phase 748 because retaining the synthetic app would preserve the universal composition dependency; connector conformance remains in its owner tests."
+    },
+    "@wanex/extension-host": {
+      "path": "packages/extension-host",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/extension/host",
+      "targetPhase": "Phase 752",
+      "rationale": "Contribution registration is one module of the extension contract/resolver.",
+      "evidence": "Implementation and owner tests moved to @wanex/extension/host; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/file-context-contributions": {
+      "path": "packages/file-context-contributions",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "deleted with no retained owner",
+      "targetPhase": "Phase 748",
+      "rationale": "AGENTS.md and skill discovery feed Runtime context and do not need a projection package.",
+      "evidence": "No production consumer existed; the App-extension projection and its self-only tests were deleted outright."
+    },
+    "@wanex/instruction-runtime": {
+      "path": "packages/instruction-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/context",
+      "targetPhase": "Phase 748",
+      "rationale": "Instruction discovery and projection are private context compilation modules.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/context; the old package was deleted without an alias."
+    },
+    "@wanex/llm-core": {
+      "path": "packages/llm-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/provider",
+      "targetPhase": "Phase 749",
+      "rationale": "Provider request/stream fidelity is part of Runtime execution.",
+      "evidence": "Implementation, tests, profiles, adapters, and all callers moved to @wanex/runtime/provider in Phase 749; @wanex/llm-core was deleted without an alias."
+    },
+    "@wanex/memory-runtime": {
+      "path": "packages/memory-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/memory",
+      "targetPhase": "Phase 748",
+      "rationale": "Compaction and memory maintenance are Runtime job modules.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/memory; the old package was deleted without an alias."
+    },
+    "@wanex/objective-runtime": {
+      "path": "packages/objective-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/app/workflows/objective",
+      "targetPhase": "Phase 751",
+      "rationale": "Objective automation is an explicit optional App workflow rather than a default shell command group or package.",
+      "evidence": "Implementation and owner tests moved to the explicit App workflow subpath; eager App construction and the old package were deleted."
+    },
+    "@wanex/plan-proposal-runtime": {
+      "path": "packages/plan-proposal-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/app/workflows/plan",
+      "targetPhase": "Phase 751",
+      "rationale": "Plan approval is an explicit optional App workflow rather than a default shell command group or package.",
+      "evidence": "Implementation and owner tests moved to the explicit App workflow subpath; eager App construction and the old package were deleted."
+    },
+    "@wanex/plugin-action-adapter": {
+      "path": "packages/plugin-action-adapter",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/product-app-command-host",
+      "targetPhase": "Phase 752",
+      "rationale": "Plugin action projection is host integration detail, not a standalone adapter package.",
+      "evidence": "Implementation and owner tests moved to @wanex/product-app-command-host; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/plugin-runtime": {
+      "path": "packages/plugin-runtime",
+      "role": "public-capability",
+      "disposition": "delete",
+      "targetOwner": "@wanex/plugin",
+      "targetPhase": "Phase 752",
+      "rationale": "Data-only plugin contracts and trusted subprocess/install lifecycle require separate trust closures when proven.",
+      "evidence": "Implementation and owner tests moved to @wanex/plugin; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/product-skeleton": {
+      "path": "apps/product-skeleton",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "@wanex/app public facade tests",
+      "targetPhase": "Phase 745",
+      "rationale": "The one-line skeleton duplicates the App root journey without external-consumer evidence.",
+      "evidence": "App public-facade tests retain its only useful create/run/dispose proof."
+    },
+    "@wanex/proposal-apply-runtime": {
+      "path": "packages/proposal-apply-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/review",
+      "targetPhase": "Phase 752",
+      "rationale": "Applying reviewed proposals belongs to the workspace transaction boundary.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/review; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/provider-core": {
+      "path": "packages/provider-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/provider",
+      "targetPhase": "Phase 749",
+      "rationale": "Provider profiles and execution contract are Runtime modules.",
+      "evidence": "Implementation, tests, profiles, adapters, and all callers moved to @wanex/runtime/provider in Phase 749; @wanex/provider-core was deleted without an alias."
+    },
+    "@wanex/reference-app": {
+      "path": "apps/reference-app",
+      "role": "example",
+      "disposition": "delete",
+      "targetOwner": "Runtime/App owner tests",
+      "targetPhase": "Phase 748",
+      "rationale": "A broad reference app is a synthetic consumer and obscures ownership.",
+      "evidence": "Reference-only journeys were removed; retained Runtime/App behavior remains covered by owner and black-box tests."
+    },
+    "@wanex/resource-runtime": {
+      "path": "packages/resource-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/resources",
+      "targetPhase": "Phase 748",
+      "rationale": "Artifacts and media metadata are core Runtime result/context modules.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/resources; the old package was deleted without an alias."
+    },
+    "@wanex/runtime-artifacts": {
+      "path": "packages/runtime-artifacts",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/bootstrap",
+      "targetPhase": "Phase 748",
+      "rationale": "Locating the owned system-service artifact is transport bootstrap detail.",
+      "evidence": "System-service artifact resolution and tests now live in @wanex/runtime/bootstrap; the package was deleted without an alias."
+    },
+    "@wanex/runtime-composition": {
+      "path": "packages/runtime-composition",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "deleted; canonical Runtime/App/capability owners retained",
+      "targetPhase": "Phase 748",
+      "rationale": "The universal composition package couples default runtime to optional capabilities and has only synthetic consumers.",
+      "evidence": "No real production consumer existed; composition-only modules and synthetic scenarios were deleted without a replacement umbrella."
+    },
+    "@wanex/runtime-core": {
+      "path": "packages/runtime-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/jobs",
+      "targetPhase": "Phase 748",
+      "rationale": "Runtime scheduling/config/event coordination is private Runtime implementation.",
+      "evidence": "Implementation, tests, and all consumers moved to @wanex/runtime/jobs; the old package was deleted without an alias."
+    },
+    "@wanex/runtime-host": {
+      "path": "packages/runtime-host",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/host",
+      "targetPhase": "Phase 748",
+      "rationale": "Host lifecycle is the implementation behind the Runtime facade.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/host; the old package was deleted without an alias."
+    },
+    "@wanex/secret-runtime": {
+      "path": "packages/secret-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/connector/host-security",
+      "targetPhase": "Phase 752",
+      "rationale": "A separate security package exists only if plugin and connector hosts independently consume one provider.",
+      "evidence": "Implementation and owner tests moved to @wanex/connector/host-security; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/session-core": {
+      "path": "packages/session-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/sessions",
+      "targetPhase": "Phase 748",
+      "rationale": "Session admission and projection are core Runtime modules.",
+      "evidence": "Implementation, tests, and all consumers moved to @wanex/runtime/sessions; the old package was deleted without an alias."
+    },
+    "@wanex/skill-runtime": {
+      "path": "packages/skill-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/context",
+      "targetPhase": "Phase 748",
+      "rationale": "Skill discovery is one trusted context-source module in Runtime.",
+      "evidence": "Implementation, owner tests, and all callers moved to @wanex/runtime/context; the old package was deleted without an alias."
+    },
+    "@wanex/storage-client": {
+      "path": "packages/storage-client",
+      "role": "public-capability",
+      "disposition": "delete",
+      "targetOwner": "@wanex/storage",
+      "targetPhase": "Phase 746",
+      "rationale": "The old name described a universal client rather than the transport-owning storage boundary.",
+      "evidence": "The package was directly renamed with all workspace callers migrated and no compatibility package retained."
+    },
+    "@wanex/team-conversation-runtime": {
+      "path": "packages/team-conversation-runtime",
+      "role": "public-capability",
+      "disposition": "delete",
+      "targetOwner": "@wanex/team/conversation",
+      "targetPhase": "Phase 752",
+      "rationale": "Group conversation and coding delegation share optional team execution primitives but retain policy modules.",
+      "evidence": "Implementation and owner tests moved to @wanex/team/conversation; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/tool-core": {
+      "path": "packages/tool-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/tools",
+      "targetPhase": "Phase 750",
+      "rationale": "Tool registration and durable execution are Runtime modules.",
+      "evidence": "Descriptors, policy, execution, provider projection, tests, and all callers moved to @wanex/runtime/tools; the old package was deleted without an alias."
+    },
+    "@wanex/tui-shell": {
+      "path": "apps/tui-shell",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/product-app-tui/shell",
+      "targetPhase": "Phase 752",
+      "rationale": "A separate workspace app for a shell implementation has no independent product consumer.",
+      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/shell; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/tui-shell-core": {
+      "path": "packages/tui-shell-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/product-app-tui/shell-core",
+      "targetPhase": "Phase 752",
+      "rationale": "Terminal shell coordination does not justify a package apart from the terminal dependency closure.",
+      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/shell-core; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/tui-surface-core": {
+      "path": "packages/tui-surface-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/product-app-tui/contributions",
+      "targetPhase": "Phase 752",
+      "rationale": "Terminal surface types and resolution belong with the terminal package.",
+      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/contributions; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/ui-surface-core": {
+      "path": "packages/ui-surface-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "deleted with no retained owner",
+      "targetPhase": "Phase 752",
+      "rationale": "Wanex must not preserve a custom renderer/surface protocol without official A2UI and a real consumer.",
+      "evidence": "The private UI surface protocol and its synthetic Eval scenario were deleted; Runtime media/resource handling remains."
+    },
+    "@wanex/worker-core": {
+      "path": "packages/worker-core",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/runtime/jobs",
+      "targetPhase": "Phase 748",
+      "rationale": "Worker pools, leases, and job execution are core Runtime modules.",
+      "evidence": "Implementation, tests, and all consumers moved to @wanex/runtime/jobs; the old package was deleted without an alias."
+    },
+    "@wanex/workspace-git-runtime": {
+      "path": "packages/workspace-git-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/git",
+      "targetPhase": "Phase 752",
+      "rationale": "Git/worktree behavior is one module under the workspace security boundary.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/git; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/workspace-isolation": {
+      "path": "packages/workspace-isolation",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/isolation",
+      "targetPhase": "Phase 752",
+      "rationale": "File/process isolation belongs in the optional workspace capability package.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/isolation; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/workspace-runtime": {
+      "path": "packages/workspace-runtime",
+      "role": "public-capability",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace",
+      "targetPhase": "Phase 752",
+      "rationale": "Filesystem change application is the owning optional coding-agent capability.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace; the old package was deleted without an alias in Phase 752."
+    },
+    "@wanex/workspace-task-runtime": {
+      "path": "packages/workspace-task-runtime",
+      "role": "internal",
+      "disposition": "delete",
+      "targetOwner": "@wanex/workspace/tasks",
+      "targetPhase": "Phase 752",
+      "rationale": "Workspace task orchestration is a module of the workspace capability.",
+      "evidence": "Implementation and owner tests moved to @wanex/workspace/tasks; the old package was deleted without an alias in Phase 752."
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@wanex/eval-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wanex-eval": "./src/cli.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./cli": "./src/cli.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs",
+    "eval": "tsx ./src/cli.ts"
+  },
+  "dependencies": {
+    "@wanex/app": "workspace:*",
+    "@wanex/extension": "workspace:*",
+    "@wanex/cli": "workspace:*",
+    "@wanex/plugin": "workspace:*",
+    "@wanex/product-app": "workspace:*",
+    "@wanex/product-app-command-host": "workspace:*",
+    "@wanex/product-app-local": "workspace:*",
+    "@wanex/product-app-tui": "workspace:*",
+    "@wanex/product-app-web": "workspace:*",
+    "@wanex/protocol": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "@wanex/storage": "workspace:*",
+    "@wanex/storage-control-plane": "workspace:*",
+    "@wanex/team": "workspace:*",
+    "@wanex/workspace": "workspace:*"
+  }
+}

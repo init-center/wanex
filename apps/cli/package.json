@@ -1,0 +1,22 @@
+{
+  "name": "@wanex/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wanex": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/app": "workspace:*",
+    "@wanex/protocol": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "@wanex/storage": "workspace:*"
+  }
+}

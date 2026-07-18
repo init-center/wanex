@@ -1,0 +1,171 @@
+{
+  "schemaVersion": 1,
+  "domains": {
+    "runtime": {
+      "classification": "core",
+      "owner": "@wanex/storage + @wanex/runtime",
+      "schemaCommandUnion": "RuntimeStorageRpcCommand",
+      "typescriptFiles": ["store-runtime-core.ts"],
+      "commands": [
+        "append-event", "query-events", "put-config", "get-config",
+        "write-atomic-file", "ingest-resource", "get-resource",
+        "list-resources", "create-resource-ticket",
+        "cleanup-expired-resource-tickets", "doctor"
+      ]
+    },
+    "sessions": {
+      "classification": "core",
+      "owner": "@wanex/runtime/sessions",
+      "schemaCommandUnion": "SessionsStorageRpcCommand",
+      "typescriptFiles": ["store-session.ts"],
+      "commands": [
+        "create-session", "get-session", "list-sessions",
+        "admit-session-input", "submit-session-run",
+        "interrupt-session-run", "steer-session-run",
+        "list-session-run-controls", "apply-session-run-control",
+        "list-session-inputs", "list-session-messages",
+        "append-session-message"
+      ]
+    },
+    "context": {
+      "classification": "core",
+      "owner": "@wanex/runtime/context",
+      "schemaCommandUnion": "ContextStorageRpcCommand",
+      "typescriptFiles": ["store-context.ts"],
+      "commands": [
+        "put-context-epoch", "activate-context-epoch", "clone-context-epoch",
+        "prune-context-epochs", "list-context-epochs",
+        "get-active-context-epoch", "put-context-replacement",
+        "list-context-replacements"
+      ]
+    },
+    "scheduler": {
+      "classification": "core",
+      "owner": "@wanex/runtime/jobs",
+      "schemaCommandUnion": "SchedulerStorageRpcCommand",
+      "typescriptFiles": ["store-runner.ts", "store-budget.ts", "store-job.ts"],
+      "commands": [
+        "claim-runner", "heartbeat-runner", "complete-run", "fail-run",
+        "release-runner", "cancel-run", "reserve-budget", "record-budget-usage", "commit-budget",
+        "release-budget", "get-budget-scope", "list-budget-grants",
+        "enqueue-job", "claim-job", "heartbeat-job", "complete-job",
+        "fail-job", "cancel-job", "get-job", "list-jobs"
+      ]
+    },
+    "tools": {
+      "classification": "core",
+      "owner": "@wanex/runtime/tools",
+      "schemaCommandUnion": "ToolsStorageRpcCommand",
+      "typescriptFiles": ["store-tools.ts"],
+      "commands": [
+        "begin-tool-execution", "finish-tool-execution",
+        "recover-tool-execution", "get-tool-execution",
+        "list-tool-executions"
+      ]
+    },
+    "workspace": {
+      "classification": "optional",
+      "owner": "@wanex/workspace",
+      "schemaCommandUnion": "WorkspaceStorageRpcCommand",
+      "typescriptFiles": ["store-workspace.ts"],
+      "commands": [
+        "put-workspace-change-set", "get-workspace-change-set",
+        "list-workspace-change-sets", "record-workspace-change-operation",
+        "list-workspace-change-operations", "put-workspace-change-proposal",
+        "get-workspace-change-proposal", "list-workspace-change-proposals",
+        "record-workspace-change-proposal-operation",
+        "list-workspace-change-proposal-operations"
+      ]
+    },
+    "plan": {
+      "classification": "optional",
+      "owner": "@wanex/app/workflows/plan",
+      "schemaCommandUnion": "PlanStorageRpcCommand",
+      "typescriptFiles": ["store-plan.ts"],
+      "commands": [
+        "put-plan-proposal", "get-plan-proposal", "list-plan-proposals",
+        "record-plan-proposal-operation", "list-plan-proposal-operations"
+      ]
+    },
+    "objective": {
+      "classification": "optional",
+      "owner": "@wanex/app/workflows/objective",
+      "schemaCommandUnion": "ObjectiveStorageRpcCommand",
+      "typescriptFiles": ["store-objective.ts"],
+      "commands": [
+        "put-objective-run", "get-objective-run", "list-objective-runs",
+        "record-objective-run-operation", "list-objective-run-operations",
+        "put-objective-attempt", "list-objective-attempts",
+        "put-objective-verification", "list-objective-verifications"
+      ]
+    },
+    "delegation": {
+      "classification": "optional",
+      "owner": "@wanex/team/delegation",
+      "schemaCommandUnion": "DelegationStorageRpcCommand",
+      "typescriptFiles": ["store-delegation.ts"],
+      "commands": [
+        "put-delegation-graph", "get-delegation-graph",
+        "list-delegation-graphs", "put-delegation-graph-node",
+        "get-delegation-graph-node", "list-delegation-graph-nodes",
+        "put-delegation-graph-dependency",
+        "list-delegation-graph-dependencies", "update-delegation-graph-state",
+        "update-delegation-graph-node-state",
+        "attach-delegation-graph-node-job",
+        "list-ready-delegation-graph-nodes",
+        "materialize-ready-delegation-graph-node"
+      ]
+    },
+    "team": {
+      "classification": "optional",
+      "owner": "@wanex/team/conversation",
+      "schemaCommandUnion": "TeamStorageRpcCommand",
+      "typescriptFiles": ["store-team.ts"],
+      "commands": [
+        "put-team-conversation", "get-team-conversation",
+        "list-team-conversations", "update-team-conversation-state",
+        "put-team-participant", "list-team-participants",
+        "update-team-participant-state", "append-team-turn", "list-team-turns"
+      ]
+    },
+    "plugin": {
+      "classification": "optional",
+      "owner": "@wanex/plugin-host",
+      "schemaCommandUnion": "PluginStorageRpcCommand",
+      "typescriptFiles": ["store-plugin.ts"],
+      "commands": [
+        "put-plugin-manifest", "get-plugin-manifest", "list-plugin-manifests",
+        "put-plugin-install", "get-plugin-install", "list-plugin-installs",
+        "update-plugin-install-state", "update-plugin-manifest-state",
+        "submit-plugin-action"
+      ]
+    },
+    "connector": {
+      "classification": "optional",
+      "owner": "@wanex/connector-host",
+      "schemaCommandUnion": "ConnectorStorageRpcCommand",
+      "typescriptFiles": ["store-connector.ts"],
+      "commands": [
+        "put-connector-registration", "list-connector-registrations",
+        "update-connector-registration-state", "put-connector-credential",
+        "list-connector-credentials", "revoke-connector-credential",
+        "start-connector-session", "heartbeat-connector-session",
+        "finish-connector-session", "list-connector-sessions"
+      ]
+    },
+    "channel": {
+      "classification": "optional",
+      "owner": "@wanex/connector-host/channel",
+      "schemaCommandUnion": "ChannelStorageRpcCommand",
+      "typescriptFiles": ["store-channel.ts"],
+      "commands": [
+        "put-channel-binding", "list-channel-bindings",
+        "revoke-channel-binding", "ingest-channel-inbound-event",
+        "list-channel-inbound-events", "update-channel-inbound-event-state",
+        "submit-channel-delivery", "complete-channel-delivery",
+        "fail-channel-delivery", "project-channel-inbound-event",
+        "list-channel-projections"
+      ]
+    }
+  }
+}

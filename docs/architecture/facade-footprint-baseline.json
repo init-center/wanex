@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "esbuildVersion": "0.28.1",
+  "buildOptions": {
+    "bundle": true,
+    "format": "esm",
+    "platform": "node",
+    "target": "node24",
+    "treeShaking": true,
+    "minify": false,
+    "sourcemap": false
+  },
+  "forbiddenWorkspacePackages": [
+    "@wanex/connector",
+    "@wanex/plugin",
+    "@wanex/team",
+    "@wanex/workspace",
+    "@wanex/product-app",
+    "@wanex/product-app-command-host",
+    "@wanex/product-app-local",
+    "@wanex/product-app-tui",
+    "@wanex/product-app-web"
+  ],
+  "facades": {
+    "runtime": {
+      "entry": "packages/runtime/src/index.ts",
+      "maxOutputBytes": 249716,
+      "maxInputCount": 235,
+      "allowedWorkspacePackages": [
+        "@wanex/protocol",
+        "@wanex/runtime",
+        "@wanex/storage"
+      ]
+    },
+    "app": {
+      "entry": "packages/app/src/index.ts",
+      "maxOutputBytes": 251489,
+      "maxInputCount": 237,
+      "allowedWorkspacePackages": [
+        "@wanex/app",
+        "@wanex/protocol",
+        "@wanex/runtime",
+        "@wanex/storage"
+      ]
+    }
+  }
+}

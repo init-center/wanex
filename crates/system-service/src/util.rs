@@ -1,0 +1,62 @@
+use crate::{Result, SystemServiceError};
+use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+use std::fs::OpenOptions;
+use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+pub(crate) fn current_schema_version(conn: &Connection) -> Result<i64> {
+    conn.query_row(
+        "SELECT COALESCE(MAX(version), 0) FROM schema_migration",
+        [],
+        |row| row.get(0),
+    )
+    .map_err(Into::into)
+}
+
+pub(crate) fn validate_logical_path(logical_path: &str) -> Result<()> {
+    let path = Path::new(logical_path);
+    if logical_path.is_empty()
+        || path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(SystemServiceError::InvalidLogicalPath(
+            logical_path.to_string(),
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn hex_sha256(content: &[u8]) -> String {
+    let digest = Sha256::digest(content);
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+pub(crate) fn resource_id_for_path(logical_path: &str) -> String {
+    format!("res_{}", hex_sha256(logical_path.as_bytes()))
+}
+
+pub(crate) fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system clock should be after unix epoch")
+        .as_millis() as i64
+}
+
+pub(crate) fn sync_parent_dir(path: &Path) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        #[cfg(unix)]
+        {
+            let dir = OpenOptions::new().read(true).open(parent)?;
+            dir.sync_all()?;
+        }
+    }
+    Ok(())
+}

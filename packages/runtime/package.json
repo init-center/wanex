@@ -1,0 +1,30 @@
+{
+  "name": "@wanex/runtime",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bootstrap": "./src/bootstrap/index.ts",
+    "./config": "./src/config/index.ts",
+    "./context": "./src/context/index.ts",
+    "./execution": "./src/execution/index.ts",
+    "./host": "./src/host/index.ts",
+    "./jobs": "./src/jobs/index.ts",
+    "./memory": "./src/memory/index.ts",
+    "./provider": "./src/provider/index.ts",
+    "./resources": "./src/resources/index.ts",
+    "./sessions": "./src/sessions/index.ts",
+    "./tools": "./src/tools/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/protocol": "workspace:*",
+    "@wanex/storage": "workspace:*",
+    "ajv": "8.20.0",
+    "yaml": "2.9.0"
+  }
+}

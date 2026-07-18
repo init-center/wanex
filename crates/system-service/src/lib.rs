@@ -1,0 +1,58 @@
+mod budget;
+mod channel;
+mod config;
+mod connector;
+mod context;
+mod db;
+mod delegation;
+mod doctor;
+mod error;
+mod event_store;
+mod events;
+mod messages;
+mod models;
+mod objective;
+mod plan;
+mod plugin;
+mod resources;
+mod rows;
+mod run_control;
+mod runners;
+mod scheduler;
+mod sessions;
+mod team;
+mod tools;
+mod util;
+mod workspace;
+
+use std::fs;
+use std::path::{Path, PathBuf};
+
+pub use error::{Result, SystemServiceError};
+pub use models::*;
+
+pub const SERVICE_NAME: &str = "wanex-system-service";
+pub const CURRENT_SCHEMA_VERSION: i64 = 8;
+const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
+
+#[derive(Debug)]
+pub struct SystemService {
+    root_dir: PathBuf,
+    db_path: PathBuf,
+}
+
+impl SystemService {
+    pub fn open(root_dir: impl AsRef<Path>) -> Result<Self> {
+        let root_dir = root_dir.as_ref().to_path_buf();
+        fs::create_dir_all(&root_dir)?;
+        fs::create_dir_all(root_dir.join("files"))?;
+        let db_path = root_dir.join("state.db");
+        let service = Self { root_dir, db_path };
+        service.migrate()?;
+        Ok(service)
+    }
+
+    pub fn db_path(&self) -> &Path {
+        &self.db_path
+    }
+}

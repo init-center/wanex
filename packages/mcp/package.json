@@ -1,0 +1,27 @@
+{
+  "name": "@wanex/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/client/index.ts",
+    "./server": "./src/server/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@wanex/runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "@wanex/protocol": "workspace:*",
+    "@wanex/storage": "workspace:*"
+  }
+}

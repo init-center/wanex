@@ -1,0 +1,4 @@
+[workspace]
+members = ["crates/system-service", "tools/storage-rpc-codegen"]
+default-members = ["crates/system-service"]
+resolver = "2"

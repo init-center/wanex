@@ -1,0 +1,25 @@
+{
+  "name": "@wanex/storage",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./channel": "./src/channel.ts",
+    "./connector": "./src/connector.ts",
+    "./delegation": "./src/delegation.ts",
+    "./objective": "./src/objective.ts",
+    "./plan": "./src/plan.ts",
+    "./plugin": "./src/plugin.ts",
+    "./team": "./src/team.ts",
+    "./testing": "./src/testing.ts",
+    "./workspace": "./src/workspace.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/protocol": "workspace:*"
+  }
+}

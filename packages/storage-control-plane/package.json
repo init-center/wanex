@@ -1,0 +1,17 @@
+{
+  "name": "@wanex/storage-control-plane",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/protocol": "workspace:*",
+    "@wanex/storage": "workspace:*"
+  }
+}

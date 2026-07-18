@@ -1,0 +1,10 @@
+[package]
+name = "wanex-storage-rpc-codegen"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+schemars = "0.8.22"
+serde_json = "1.0.150"
+typify = { version = "0.7.0", default-features = false }

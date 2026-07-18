@@ -1,0 +1,92 @@
+import { access, mkdir, readFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { describe, expect, it } from "vitest"
+import {
+  assertPathOutsideWorkspace,
+  expectedWanexClosure,
+  inspectExternalPackageLock,
+  withExternalFixtureRoot
+} from "./runner.mjs"
+
+const registryPackages = [
+  { manifest: { name: "@wanex/runtime", version: "0.0.0", dependencies: { "@wanex/storage": "0.0.0", ajv: "8.20.0" } } },
+  { manifest: { name: "@wanex/storage", version: "0.0.0" } }
+]
+
+describe("external consumer runner policy", () => {
+  it("derives the exact transitive Wanex closure", () => {
+    expect(expectedWanexClosure(["@wanex/runtime"], registryPackages)).toEqual({
+      "@wanex/runtime": "0.0.0",
+      "@wanex/storage": "0.0.0"
+    })
+    expect(() => expectedWanexClosure(["@wanex/missing"], registryPackages))
+      .toThrow("absent from SDK registry")
+  })
+
+  it("accepts a registry lock and rejects path or closure drift", () => {
+    const lock = fixtureLock()
+    expect(inspectExternalPackageLock({
+      lock,
+      topLevelNames: ["@wanex/runtime"],
+      expectedWanex: {
+        "@wanex/runtime": "0.0.0",
+        "@wanex/storage": "0.0.0"
+      },
+      forbiddenPaths: ["/workspace/wanex"]
+    })).toEqual([])
+
+    lock.packages["node_modules/@wanex/runtime"].version = "1.0.0"
+    lock.packages["node_modules/@wanex/runtime"].resolved = "file:/workspace/wanex/runtime.tgz"
+    expect(inspectExternalPackageLock({
+      lock,
+      topLevelNames: ["@wanex/runtime"],
+      expectedWanex: {
+        "@wanex/runtime": "0.0.0",
+        "@wanex/storage": "0.0.0"
+      },
+      forbiddenPaths: ["/workspace/wanex"]
+    })).toEqual(expect.arrayContaining([
+      "package lock contains file:",
+      "package lock contains forbidden path /workspace/wanex",
+      "installed @wanex/runtime version 1.0.0 differs from 0.0.0"
+    ]))
+  })
+
+  it("rejects workspace-contained roots and cleans external roots on failure", async () => {
+    expect(() => assertPathOutsideWorkspace("/workspace/wanex/tmp", "/workspace/wanex"))
+      .toThrow("must be outside workspace")
+
+    let createdRoot
+    await expect(withExternalFixtureRoot(join(tmpdir(), "wanex-workspace-fixture"), async (root) => {
+      createdRoot = root
+      await mkdir(join(root, "created"))
+      throw new Error("expected failure")
+    })).rejects.toThrow("expected failure")
+    await expect(access(createdRoot)).rejects.toThrow()
+  })
+})
+
+function fixtureLock() {
+  return JSON.parse(JSON.stringify({
+    name: "wanex-external-minimal-agent",
+    lockfileVersion: 3,
+    packages: {
+      "": {
+        dependencies: { "@wanex/runtime": "0.0.0" }
+      },
+      "node_modules/@wanex/runtime": {
+        version: "0.0.0",
+        resolved: "http://127.0.0.1:1234/tarballs/wanex-runtime.tgz"
+      },
+      "node_modules/@wanex/storage": {
+        version: "0.0.0",
+        resolved: "http://127.0.0.1:1234/tarballs/wanex-storage.tgz"
+      },
+      "node_modules/ajv": {
+        version: "8.20.0",
+        resolved: "https://registry.npmjs.org/ajv/-/ajv-8.20.0.tgz"
+      }
+    }
+  }))
+}

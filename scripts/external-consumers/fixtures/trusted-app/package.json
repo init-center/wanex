@@ -1,0 +1,9 @@
+{
+  "name": "wanex-external-trusted-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@wanex/app": "0.0.0"
+  }
+}

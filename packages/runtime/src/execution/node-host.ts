@@ -1,0 +1,302 @@
+import { spawn } from "node:child_process"
+import type { ChildProcessWithoutNullStreams } from "node:child_process"
+import { BoundedExecutionCapture } from "./capture.js"
+import {
+  ExecutionAbortedError,
+  ExecutionSpawnError,
+  errorMessage
+} from "./errors.js"
+import {
+  createTaskkillTreeTerminator,
+  terminateProcessTree
+} from "./process-tree.js"
+import type {
+  ExecutionCleanupStatus,
+  ExecutionHost,
+  ExecutionRequest,
+  ExecutionResult,
+  ExecutionTerminationReason,
+  NodeExecutionHostOptions,
+  WindowsTreeTerminator
+} from "./types.js"
+
+const DEFAULT_OUTPUT_LIMIT_BYTES = 64 * 1024
+const DEFAULT_MAX_OUTPUT_LIMIT_BYTES = 50 * 1024 * 1024
+const DEFAULT_MAX_STDIN_BYTES = 1024 * 1024
+const DEFAULT_TERMINATION_GRACE_MS = 250
+const DEFAULT_CLEANUP_TIMEOUT_MS = 2_000
+
+export class NodeExecutionHost implements ExecutionHost {
+  private readonly baseEnvironment: NodeJS.ProcessEnv
+  private readonly defaultOutputLimitBytes: number
+  private readonly maxOutputLimitBytes: number
+  private readonly maxStdinBytes: number
+  private readonly terminationGraceMs: number
+  private readonly cleanupTimeoutMs: number
+  private readonly platform: NodeJS.Platform
+  private readonly windowsTreeTerminator: WindowsTreeTerminator
+
+  constructor(options: NodeExecutionHostOptions = {}) {
+    this.baseEnvironment = options.baseEnvironment ?? process.env
+    this.defaultOutputLimitBytes =
+      options.defaultOutputLimitBytes ?? DEFAULT_OUTPUT_LIMIT_BYTES
+    this.maxOutputLimitBytes =
+      options.maxOutputLimitBytes ?? DEFAULT_MAX_OUTPUT_LIMIT_BYTES
+    this.maxStdinBytes = options.maxStdinBytes ?? DEFAULT_MAX_STDIN_BYTES
+    this.terminationGraceMs =
+      options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS
+    this.cleanupTimeoutMs =
+      options.cleanupTimeoutMs ?? DEFAULT_CLEANUP_TIMEOUT_MS
+    this.platform = options.platform ?? process.platform
+    this.windowsTreeTerminator =
+      options.windowsTreeTerminator ?? createTaskkillTreeTerminator()
+    validateHostOptions({
+      defaultOutputLimitBytes: this.defaultOutputLimitBytes,
+      maxOutputLimitBytes: this.maxOutputLimitBytes,
+      maxStdinBytes: this.maxStdinBytes,
+      terminationGraceMs: this.terminationGraceMs,
+      cleanupTimeoutMs: this.cleanupTimeoutMs
+    })
+  }
+
+  async execute(request: ExecutionRequest): Promise<ExecutionResult> {
+    validateRequest(request)
+    if (request.signal?.aborted === true) {
+      throw new ExecutionAbortedError()
+    }
+
+    const args = [...(request.args ?? [])]
+    const stdout = new BoundedExecutionCapture(
+      this.outputLimit(request.output?.stdoutBytes)
+    )
+    const stderr = new BoundedExecutionCapture(
+      this.outputLimit(request.output?.stderrBytes)
+    )
+    const stdin = stdinBytes(request.stdin)
+    if (stdin.byteLength > this.maxStdinBytes) {
+      throw new Error(
+        `execution stdin exceeds limit: ${stdin.byteLength} > ${this.maxStdinBytes}`
+      )
+    }
+
+    const startedAt = Date.now()
+    let child: ChildProcessWithoutNullStreams
+    try {
+      child = spawn(request.program, args, {
+        cwd: request.cwd,
+        env: {
+          ...this.baseEnvironment,
+          ...(request.environment ?? {})
+        },
+        detached: this.platform !== "win32",
+        shell: false,
+        windowsHide: true,
+        stdio: ["pipe", "pipe", "pipe"]
+      })
+    } catch (error) {
+      throw new ExecutionSpawnError(request.program, error)
+    }
+
+    child.stdout.on("data", (chunk: Buffer) => stdout.append(chunk))
+    child.stderr.on("data", (chunk: Buffer) => stderr.append(chunk))
+
+    return await new Promise<ExecutionResult>((resolve, reject) => {
+      const pid = child.pid
+      if (pid === undefined) {
+        let failed = false
+        child.once("error", (error) => {
+          failed = true
+          reject(new ExecutionSpawnError(request.program, error))
+        })
+        child.once("close", () => {
+          if (!failed) {
+            reject(
+              new ExecutionSpawnError(
+                request.program,
+                new Error("spawned process has no pid")
+              )
+            )
+          }
+        })
+        child.stdin.once("error", () => {})
+        child.stdin.end(stdin)
+        return
+      }
+      let closed = false
+      let exitCode: number | null = null
+      let signalName: NodeJS.Signals | null = null
+      let requestedTermination: Exclude<
+        ExecutionTerminationReason,
+        "exited" | "signaled"
+      > | undefined
+      let cleanup: ExecutionCleanupStatus = "not_required"
+      let cleanupError: string | undefined
+      let terminationFinished = true
+      let settled = false
+      let timeout: NodeJS.Timeout | undefined
+      let cleanupDeadline: NodeJS.Timeout | undefined
+      const closeWaiters = new Set<(closed: boolean) => void>()
+
+      const cleanupListeners = (): void => {
+        if (timeout !== undefined) clearTimeout(timeout)
+        if (cleanupDeadline !== undefined) clearTimeout(cleanupDeadline)
+        request.signal?.removeEventListener("abort", abort)
+      }
+
+      const finish = (): void => {
+        if (settled || !closed || !terminationFinished) {
+          return
+        }
+        settled = true
+        cleanupListeners()
+        const termination =
+          requestedTermination ?? (exitCode === null ? "signaled" : "exited")
+        resolve({
+          program: request.program,
+          args,
+          cwd: request.cwd,
+          pid,
+          exitCode,
+          signal: signalName,
+          termination,
+          cleanup,
+          ...(cleanupError === undefined ? {} : { cleanupError }),
+          durationMs: Date.now() - startedAt,
+          stdout: stdout.snapshot(),
+          stderr: stderr.snapshot()
+        })
+      }
+
+      const waitForClose = async (timeoutMs: number): Promise<boolean> => {
+        if (closed) return true
+        return await new Promise<boolean>((resolveWait) => {
+          const waiter = (didClose: boolean): void => {
+            clearTimeout(waitTimeout)
+            closeWaiters.delete(waiter)
+            resolveWait(didClose)
+          }
+          const waitTimeout = setTimeout(() => waiter(false), timeoutMs)
+          closeWaiters.add(waiter)
+        })
+      }
+
+      const requestTermination = (
+        reason: "timed_out" | "cancelled"
+      ): void => {
+        if (requestedTermination !== undefined || closed) {
+          return
+        }
+        requestedTermination = reason
+        cleanup = "completed"
+        terminationFinished = false
+        cleanupDeadline = setTimeout(() => {
+          cleanup = "failed"
+          cleanupError ??= "process tree did not close before cleanup deadline"
+          terminationFinished = true
+          if (!closed) {
+            closed = true
+            for (const waiter of closeWaiters) waiter(true)
+          }
+          finish()
+        }, this.cleanupTimeoutMs)
+        void terminateProcessTree({
+          child,
+          platform: this.platform,
+          graceMs: this.terminationGraceMs,
+          waitForClose,
+          windowsTreeTerminator: this.windowsTreeTerminator
+        })
+          .catch((error) => {
+            cleanup = "failed"
+            cleanupError = errorMessage(error)
+          })
+          .finally(() => {
+            terminationFinished = true
+            finish()
+          })
+      }
+
+      const abort = (): void => requestTermination("cancelled")
+      request.signal?.addEventListener("abort", abort, { once: true })
+      if (request.timeoutMs !== undefined) {
+        timeout = setTimeout(
+          () => requestTermination("timed_out"),
+          request.timeoutMs
+        )
+      }
+
+      child.once("error", (error) => {
+        if (settled) return
+        settled = true
+        cleanupListeners()
+        reject(new ExecutionSpawnError(request.program, error))
+      })
+      child.once("close", (code, closeSignal) => {
+        closed = true
+        exitCode = code
+        signalName = closeSignal
+        for (const waiter of closeWaiters) waiter(true)
+        finish()
+      })
+      child.stdin.once("error", () => {})
+      child.stdin.end(stdin)
+    })
+  }
+
+  private outputLimit(requested: number | undefined): number {
+    const limit = requested ?? this.defaultOutputLimitBytes
+    if (
+      !Number.isInteger(limit) ||
+      limit < 0 ||
+      limit > this.maxOutputLimitBytes
+    ) {
+      throw new Error(
+        `execution output limit must be between 0 and ${this.maxOutputLimitBytes}`
+      )
+    }
+    return limit
+  }
+}
+
+function validateHostOptions(host: {
+  readonly defaultOutputLimitBytes: number
+  readonly maxOutputLimitBytes: number
+  readonly maxStdinBytes: number
+  readonly terminationGraceMs: number
+  readonly cleanupTimeoutMs: number
+}): void {
+  for (const [name, value] of Object.entries(host)) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`execution host ${name} must be a non-negative integer`)
+    }
+  }
+  if (host.defaultOutputLimitBytes > host.maxOutputLimitBytes) {
+    throw new Error("execution default output limit exceeds hard maximum")
+  }
+  if (host.cleanupTimeoutMs <= host.terminationGraceMs) {
+    throw new Error("execution cleanup timeout must exceed termination grace")
+  }
+}
+
+function validateRequest(request: ExecutionRequest): void {
+  if (request.program.trim().length === 0 || request.program.includes("\0")) {
+    throw new Error("execution program must not be empty or contain NUL")
+  }
+  if (request.cwd.length === 0 || request.cwd.includes("\0")) {
+    throw new Error("execution cwd must not be empty or contain NUL")
+  }
+  if (request.args?.some((arg) => arg.includes("\0"))) {
+    throw new Error("execution args must not contain NUL")
+  }
+  if (
+    request.timeoutMs !== undefined &&
+    (!Number.isInteger(request.timeoutMs) || request.timeoutMs <= 0)
+  ) {
+    throw new Error("execution timeoutMs must be a positive integer")
+  }
+}
+
+function stdinBytes(stdin: ExecutionRequest["stdin"]): Buffer {
+  if (stdin === undefined) return Buffer.alloc(0)
+  return typeof stdin === "string" ? Buffer.from(stdin, "utf8") : Buffer.from(stdin)
+}

@@ -131,8 +131,16 @@ describe("private Electron production boundary", () => {
       "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
     )
     expect(workflow).toContain(
-      "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0"
+      "dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4"
     )
+    expect(workflow).toContain(
+      "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    )
+    const actionRefs = [...workflow.matchAll(/uses: [^@\s]+@([^\s]+)/g)]
+      .map((match) => match[1])
+    expect(actionRefs).not.toHaveLength(0)
+    expect(actionRefs.every((reference) => /^[0-9a-f]{40}$/.test(reference)))
+      .toBe(true)
   })
 })
 

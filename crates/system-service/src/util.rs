@@ -1,6 +1,7 @@
 use crate::{Result, SystemServiceError};
 use rusqlite::Connection;
 use sha2::{Digest, Sha256};
+#[cfg(unix)]
 use std::fs::OpenOptions;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};

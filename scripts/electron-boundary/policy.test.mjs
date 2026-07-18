@@ -121,7 +121,18 @@ describe("private Electron production boundary", () => {
     expect(workflow).toContain("os: macos-15")
     expect(workflow).toContain("os: windows-latest")
     expect(workflow).toContain("pnpm proof:electron-boundary -- --samples 5")
-    expect(workflow).toContain("actions/upload-artifact@v4")
+    expect(workflow).toContain(
+      "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+    )
+    expect(workflow).toContain(
+      "pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9"
+    )
+    expect(workflow).toContain(
+      "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020"
+    )
+    expect(workflow).toContain(
+      "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0"
+    )
   })
 })
 

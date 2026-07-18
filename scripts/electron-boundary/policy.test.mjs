@@ -34,6 +34,7 @@ describe("private Electron production boundary", () => {
       hasNodeModules: false
     })
     const manifest = JSON.parse(await readFile(join(stagingDir, "package.json"), "utf8"))
+    expect(manifest.author).toBe("Wanex Project")
     expect(manifest).not.toHaveProperty("dependencies")
     expect(await readFile(join(stagingDir, "main.cjs"), "utf8"))
       .not.toMatch(/(?:\bfrom\s*|\bimport\s*\()\s*["']@wanex\//)

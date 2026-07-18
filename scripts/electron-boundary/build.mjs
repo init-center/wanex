@@ -63,6 +63,7 @@ export async function buildElectronBoundary() {
     productName: "Wanex Boundary",
     version: "0.0.0",
     private: true,
+    author: "Wanex Project",
     main: "main.cjs"
   }, null, 2)}\n`, "utf8")
   return await auditElectronStaging(stagingDir)
@@ -108,7 +109,11 @@ async function hasHostElectronZip() {
 
 export async function auditElectronStaging(root = stagingDir) {
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"))
-  if (manifest.main !== "main.cjs" || manifest.type !== undefined) {
+  if (
+    manifest.main !== "main.cjs" ||
+    manifest.author !== "Wanex Project" ||
+    manifest.type !== undefined
+  ) {
     throw new Error("Electron staging manifest has an invalid entry")
   }
   if (manifest.dependencies !== undefined || manifest.devDependencies !== undefined) {

@@ -45,21 +45,20 @@ Until the Phase 757 architecture release gate:
   capabilities;
 - do not preserve incorrect package boundaries through compatibility wrappers.
 
-Phases 746-755 are complete. Phase 756 Windows And Electron Distribution is the
-current phase. Its frozen plan is in:
+Phases 746-756 are complete. Phase 757 Architecture Release Gate is the current
+phase. Its frozen plan is in:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1015-phase-756-windows-electron-distribution-plan.md`
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1016-phase-757-architecture-release-gate-plan.md`
 
 The frozen reconstruction route is in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/0999-wanex-best-practice-reconstruction-master-plan.md`
 
-Do not resume Product App feature work. Phase 756 must prove target system-
-service artifact selection, checksum verification, Electron main-process
-lifecycle, renderer privacy, Windows paths/locked-file/process cleanup, hot
-config reload, startup, and packed/unpacked size without copying monorepo or
-plugin `node_modules` trees. It requires a detailed implementation plan before
-code changes.
+Do not resume Product App feature work. Phase 757 must re-run the complete
+cross-language, generated-source, package-governance, SDK distribution,
+external-consumer, Eval, facade, and native macOS/Windows release evidence,
+then perform a fresh architecture review. It must not add product features or
+new package identities merely to satisfy the release review.
 
 ## Course-Correction Guardrail
 

@@ -62,7 +62,7 @@ export function parseProductAppLocalDemoOptions(
   const serviceBin = resolve(
     rootDir,
     flags.get("service-bin") ??
-      env.WANEX_SERVICE_BIN ??
+      env.WANEX_SYSTEM_SERVICE_BIN ??
       "target/debug/wanex-system-service"
   )
   const sessionId =

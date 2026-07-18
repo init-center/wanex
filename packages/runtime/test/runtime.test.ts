@@ -105,7 +105,7 @@ describe("@wanex/runtime", () => {
     try {
       await runtime.dispose()
       await expect(storage.core.doctor()).resolves.toMatchObject({
-        schemaVersion: 8
+        schemaVersion: 1
       })
     } finally {
       await runtime.dispose()

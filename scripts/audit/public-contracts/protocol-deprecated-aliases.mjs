@@ -23,6 +23,14 @@ export async function findProtocolDeprecatedAliasViolations(options) {
         message: `protocol source must use QueryEventsInput.after cursor semantics, not afterEventId in ${relSourceFile}`
       })
     }
+    if (/\bexport\s+type\s+Legacy[A-Za-z0-9_]*\b/.test(source)) {
+      violations.push({
+        code: "forbidden-protocol-legacy-type-alias",
+        package: "@wanex/protocol",
+        path: relSourceFile,
+        message: `protocol source must not export pre-release Legacy* type aliases in ${relSourceFile}`
+      })
+    }
     const uiSurfaceMessagePartBody = exportedInterfaceBody(source, "UiSurfaceMessagePart")
     if (uiSurfaceMessagePartBody === null) {
       continue

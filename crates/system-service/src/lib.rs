@@ -32,8 +32,8 @@ pub use error::{Result, SystemServiceError};
 pub use models::*;
 
 pub const SERVICE_NAME: &str = "wanex-system-service";
-pub const CURRENT_SCHEMA_VERSION: i64 = 8;
-const INITIAL_MIGRATION: &str = include_str!("../migrations/0001_initial.sql");
+pub const CURRENT_SCHEMA_VERSION: i64 = 1;
+const BASELINE_SCHEMA: &str = include_str!("../schema.sql");
 
 #[derive(Debug)]
 pub struct SystemService {
@@ -48,7 +48,7 @@ impl SystemService {
         fs::create_dir_all(root_dir.join("files"))?;
         let db_path = root_dir.join("state.db");
         let service = Self { root_dir, db_path };
-        service.migrate()?;
+        service.initialize_schema()?;
         Ok(service)
     }
 

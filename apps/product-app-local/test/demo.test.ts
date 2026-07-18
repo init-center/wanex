@@ -78,7 +78,7 @@ describe("Product App Local demo", () => {
       WANEX_PRODUCT_APP_WEB_SESSION_ID: "ses_env",
       WANEX_PRODUCT_APP_WEB_SEED_TEXT: "env turn",
       WANEX_PRODUCT_APP_WEB_POLL_INTERVAL_MS: "1500",
-      WANEX_SERVICE_BIN: "./target/env-binary"
+      WANEX_SYSTEM_SERVICE_BIN: "./target/env-binary"
     })
 
     expect(options).toEqual({

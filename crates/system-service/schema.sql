@@ -1,7 +1,7 @@
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE IF NOT EXISTS schema_migration (
+CREATE TABLE IF NOT EXISTS schema_metadata (
   version INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   applied_at INTEGER NOT NULL
@@ -179,12 +179,47 @@ CREATE TABLE IF NOT EXISTS session_message (
   status TEXT NOT NULL,
   content_json TEXT NOT NULL,
   provider_state_json TEXT,
+  idempotency_key TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_message_session_created
   ON session_message(session_id, created_at, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_message_idempotency
+  ON session_message(session_id, idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS tool_execution (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES session(id),
+  run_id TEXT NOT NULL,
+  input_id TEXT NOT NULL,
+  principal_id TEXT NOT NULL,
+  tool_call_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  input_json TEXT NOT NULL,
+  descriptor_json TEXT NOT NULL,
+  permission_json TEXT NOT NULL,
+  state TEXT NOT NULL,
+  attempt INTEGER NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  result_json TEXT,
+  is_error INTEGER,
+  error_json TEXT,
+  created_at INTEGER NOT NULL,
+  started_at INTEGER,
+  finished_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  UNIQUE(run_id, tool_call_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_execution_session_state
+  ON tool_execution(session_id, state, updated_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_tool_execution_run
+  ON tool_execution(run_id, updated_at, id);
 
 CREATE TABLE IF NOT EXISTS context_epoch (
   id TEXT PRIMARY KEY,
@@ -755,6 +790,20 @@ CREATE TABLE IF NOT EXISTS budget_grant (
 CREATE INDEX IF NOT EXISTS idx_budget_grant_scope_state
   ON budget_grant(scope_id, state, updated_at);
 
+CREATE TABLE IF NOT EXISTS budget_usage_entry (
+  id TEXT PRIMARY KEY,
+  grant_id TEXT NOT NULL REFERENCES budget_grant(id) ON DELETE CASCADE,
+  usage_json TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  UNIQUE(grant_id, idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_budget_usage_entry_grant
+  ON budget_usage_entry(grant_id, created_at, id);
+
 CREATE TABLE IF NOT EXISTS scheduler_job (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
@@ -784,3 +833,6 @@ CREATE INDEX IF NOT EXISTS idx_scheduler_job_ready
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_job_kind_state
   ON scheduler_job(kind, state, updated_at);
+
+INSERT INTO schema_metadata (version, name, applied_at)
+  VALUES (1, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

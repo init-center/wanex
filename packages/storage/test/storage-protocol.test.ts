@@ -13,7 +13,7 @@ describe("storage RPC protocol transport", () => {
     const wire: StorageWireTransport = {
       async exchange(request) {
         requests.push(request)
-        return success(request.request_id, { schema_version: 8 })
+        return success(request.request_id, { schema_version: 1 })
       }
     }
     const transport = new ProtocolStorageTransport(wire, {

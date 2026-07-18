@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 pub(crate) fn current_schema_version(conn: &Connection) -> Result<i64> {
     conn.query_row(
-        "SELECT COALESCE(MAX(version), 0) FROM schema_migration",
+        "SELECT COALESCE(MAX(version), 0) FROM schema_metadata",
         [],
         |row| row.get(0),
     )

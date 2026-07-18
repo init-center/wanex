@@ -69,6 +69,8 @@ describe("audit-public-contracts", () => {
 export interface QueryEventsInput {
   readonly afterEventId?: string
 }
+
+export type LegacyAuditState = "pending"
 `,
       "utf8"
     )
@@ -80,6 +82,7 @@ export interface QueryEventsInput {
       expect.arrayContaining([
         "forbidden-protocol-deprecated-annotation",
         "forbidden-protocol-after-event-id-alias",
+        "forbidden-protocol-legacy-type-alias",
         "forbidden-protocol-ui-surface-root-surface-kind",
         "forbidden-protocol-ui-surface-root-payload"
       ])

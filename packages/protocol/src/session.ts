@@ -27,14 +27,6 @@ export type SessionInputState =
   | "failed"
   | "cancelled"
 
-export type LegacySessionInputState =
-  | "pending"
-  | "claimed"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-
 export interface SessionInput {
   readonly id: SessionInputId
   readonly sessionId: SessionId
@@ -53,14 +45,6 @@ export type SessionRunState =
   | "failed"
   | "cancelled"
   | "expired"
-
-export type LegacySessionRunState =
-  | "pending"
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "interrupted"
 
 export interface SessionRun {
   readonly id: SessionRunId

@@ -4,11 +4,10 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
 export class WorkspacePathResolver {
   readonly rootDir: string
 
-  private readonly canonicalRoot: Promise<string>
+  private canonicalRoot: Promise<string> | undefined
 
   constructor(rootDir: string) {
     this.rootDir = resolve(rootDir)
-    this.canonicalRoot = realpath(this.rootDir)
   }
 
   async resolveRead(path: string): Promise<string> {
@@ -34,7 +33,7 @@ export class WorkspacePathResolver {
 
   async resolveDirectory(path?: string): Promise<string> {
     if (path === undefined || path === ".") {
-      return await this.canonicalRoot
+      return await this.getCanonicalRoot()
     }
     const candidate = await this.resolveRead(path)
     if (!(await stat(candidate)).isDirectory()) {
@@ -52,7 +51,7 @@ export class WorkspacePathResolver {
     candidate: string,
     inputPath: string
   ): Promise<void> {
-    const root = await this.canonicalRoot
+    const root = await this.getCanonicalRoot()
     let current = candidate
 
     while (true) {
@@ -78,6 +77,11 @@ export class WorkspacePathResolver {
       }
       current = parent
     }
+  }
+
+  private getCanonicalRoot(): Promise<string> {
+    this.canonicalRoot ??= realpath(this.rootDir)
+    return this.canonicalRoot
   }
 }
 

@@ -32,7 +32,7 @@ const serviceBin = join(
   import.meta.dirname,
   "../../../target/debug/wanex-system-service"
 )
-const expectedSchemaVersion = 8
+const expectedSchemaVersion = 1
 
 const tempDirs: string[] = []
 const servers: Server[] = []
@@ -1332,7 +1332,7 @@ process.stdin.on("data", () => {
     ok: true,
     value: {
       store_path: join(storeDir, "state.db"),
-      schema_version: 8,
+      schema_version: 1,
       checks: []
     }
   }) + "\\n")
@@ -1353,7 +1353,7 @@ process.stdin.on("data", () => {
     await expect(transport.exchange(wireRequest({ command: "doctor" }))).resolves.toMatchObject({
       ok: true,
       value: {
-        schema_version: 8
+        schema_version: 1
       }
     })
     await transport.close()
@@ -1380,7 +1380,7 @@ process.stdin.on("data", () => {
     ok: true,
     value: {
       store_path: join(storeDir, "state.db"),
-      schema_version: 8,
+      schema_version: 1,
       checks: []
     }
   }) + "\\n")
@@ -1405,7 +1405,7 @@ process.stdin.on("data", () => {
     await expect(transport.exchange(wireRequest({ command: "doctor" }))).resolves.toMatchObject({
       ok: true,
       value: {
-        schema_version: 8
+        schema_version: 1
       }
     })
     expect(sleeps).toEqual([7])

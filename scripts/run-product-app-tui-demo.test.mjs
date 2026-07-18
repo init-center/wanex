@@ -66,7 +66,7 @@ describe("run-product-app-tui-demo", () => {
     const demo = await createProductAppTuiDemoRun({
       forwardedArgs: ["--", "interactive"],
       env: {
-        WANEX_SERVICE_BIN: "/tmp/wanex-service-from-compat-env"
+        WANEX_SYSTEM_SERVICE_BIN: "/tmp/wanex-system-service"
       },
       createTempRoot: async () => "/tmp/wanex-product-app-tui-interactive"
     })
@@ -83,7 +83,7 @@ describe("run-product-app-tui-demo", () => {
     ])
     expect(demo.step.env).toEqual({
       WANEX_STORE_DIR: "/tmp/wanex-product-app-tui-interactive",
-      WANEX_SYSTEM_SERVICE_BIN: "/tmp/wanex-service-from-compat-env"
+      WANEX_SYSTEM_SERVICE_BIN: "/tmp/wanex-system-service"
     })
   })
 })

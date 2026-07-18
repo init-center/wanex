@@ -32,7 +32,6 @@ export interface ProductAppLocalCliEnvironment {
   readonly WANEX_PRODUCT_APP_LOCAL_ACTIVE_PROVIDER_PROFILE_ID?: string
   readonly WANEX_STORE_DIR?: string
   readonly WANEX_SYSTEM_SERVICE_BIN?: string
-  readonly WANEX_SERVICE_BIN?: string
   readonly WANEX_PROVIDER_PROFILE_ID?: string
   readonly WANEX_PROVIDER_KIND?: string
   readonly WANEX_PROVIDER_ID?: string
@@ -133,8 +132,7 @@ export function parseProductAppLocalCliOptions(
   const serviceBinInput =
     flags.get("service-bin") ??
     env.WANEX_PRODUCT_APP_LOCAL_SERVICE_BIN ??
-    env.WANEX_SYSTEM_SERVICE_BIN ??
-    env.WANEX_SERVICE_BIN
+    env.WANEX_SYSTEM_SERVICE_BIN
   const serviceBin =
     serviceBinInput === undefined
       ? resolvePath(input.artifactRoot, "target/debug/wanex-system-service")

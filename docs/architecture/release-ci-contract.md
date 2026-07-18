@@ -152,9 +152,10 @@ The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or
 `WANEX_EVAL_STORE_DIR`.
 
-For schema changes, the gate also depends on the storage migration policy:
-fresh stores and upgraded stores must report the current schema version through
-doctor before the change is release-ready.
+For schema changes, the gate also depends on the storage schema policy: fresh
+stores must report the one current baseline marker through doctor, current
+stores must reopen idempotently, and unsupported pre-release stores must be
+rejected rather than upgraded.
 
 ## Local Debugging
 

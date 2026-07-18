@@ -1,3 +1,4 @@
+use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use serde_json::json;
@@ -56,7 +57,7 @@ fn admit_input(
 }
 
 #[test]
-fn migrates_idempotently_and_reports_doctor_status() {
+fn opens_baseline_idempotently_and_reports_doctor_status() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     let reopened = SystemService::open(dir.path()).unwrap();
@@ -65,6 +66,8 @@ fn migrates_idempotently_and_reports_doctor_status() {
 
     assert_eq!(report.store_path, service.db_path());
     assert_eq!(report.schema_version, CURRENT_SCHEMA_VERSION);
+    let conn = rusqlite::Connection::open(service.db_path()).unwrap();
+    assert_eq!(schema_markers(&conn), vec![(1, "baseline".to_string())]);
     assert!(report
         .checks
         .iter()
@@ -74,6 +77,28 @@ fn migrates_idempotently_and_reports_doctor_status() {
             && check.state == DoctorCheckState::Ok
             && check.message == "5000"
     }));
+}
+
+#[test]
+fn opens_empty_store_concurrently_without_duplicate_baseline() {
+    let dir = tempdir().unwrap();
+    let barrier = Arc::new(Barrier::new(4));
+    let workers = (0..4)
+        .map(|_| {
+            let root = dir.path().to_path_buf();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                barrier.wait();
+                SystemService::open(root)
+                    .and_then(|service| service.doctor())
+                    .map(|report| report.schema_version)
+            })
+        })
+        .collect::<Vec<_>>();
+
+    for worker in workers {
+        assert_eq!(worker.join().unwrap().unwrap(), CURRENT_SCHEMA_VERSION);
+    }
 }
 
 #[test]
@@ -107,98 +132,29 @@ fn waits_for_short_lived_sqlite_write_lock() {
 }
 
 #[test]
-fn upgrades_legacy_v1_store_to_current_schema_without_losing_data() {
+fn rejects_unsupported_pre_release_store_schema() {
     let dir = tempdir().unwrap();
-    create_legacy_v1_store(dir.path());
+    create_unsupported_store(dir.path(), true);
 
-    let service = SystemService::open(dir.path()).unwrap();
-    let report = service.doctor().unwrap();
-    assert_eq!(report.schema_version, CURRENT_SCHEMA_VERSION);
-
-    let conn = rusqlite::Connection::open(service.db_path()).unwrap();
-    assert_eq!(schema_version_rows(&conn), vec![1, 2, 3, 4, 5, 6, 7, 8]);
-    assert!(table_has_column(&conn, "scheduler_job", "result_json"));
-    assert!(table_has_column(&conn, "resource", "kind"));
-    assert!(table_has_column(&conn, "resource", "origin"));
-    assert!(table_has_column(&conn, "resource", "metadata_json"));
-    assert!(table_has_column(&conn, "session_input", "origin_json"));
-    assert!(table_has_column(&conn, "session_input", "intent"));
-    assert!(table_has_column(
-        &conn,
-        "session_input",
-        "run_control_policy"
+    let error = SystemService::open(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        SystemServiceError::Invariant(message)
+            if message.contains("unsupported pre-release store schema")
     ));
-    assert!(table_has_column(&conn, "session_input", "expected_run_id"));
-    assert!(table_has_column(
-        &conn,
-        "event_log",
-        "scope_plan_proposal_id"
+}
+
+#[test]
+fn rejects_unmarked_non_empty_store() {
+    let dir = tempdir().unwrap();
+    create_unsupported_store(dir.path(), false);
+
+    let error = SystemService::open(dir.path()).unwrap_err();
+    assert!(matches!(
+        error,
+        SystemServiceError::Invariant(message)
+            if message.contains("current baseline marker is missing")
     ));
-    assert!(table_has_column(&conn, "event_log", "scope_objective_id"));
-    assert!(table_exists(&conn, "session_run_control"));
-    assert!(table_exists(&conn, "plan_proposal"));
-    assert!(table_exists(&conn, "plan_proposal_reference"));
-    assert!(table_exists(&conn, "plan_proposal_operation"));
-    assert!(table_exists(&conn, "objective_run"));
-    assert!(table_exists(&conn, "objective_reference"));
-    assert!(table_exists(&conn, "objective_run_operation"));
-    assert!(table_exists(&conn, "objective_attempt"));
-    assert!(table_exists(&conn, "objective_verification"));
-    assert!(index_exists(&conn, "idx_resource_kind_state"));
-    assert!(index_exists(&conn, "idx_resource_origin_state"));
-    assert!(index_exists(&conn, "idx_session_input_intent"));
-    assert!(index_exists(&conn, "idx_session_run_control_pending"));
-    assert!(index_exists(&conn, "idx_event_log_plan_proposal"));
-    assert!(index_exists(&conn, "idx_event_log_objective"));
-    assert!(index_exists(&conn, "idx_plan_proposal_principal_state"));
-    assert!(index_exists(&conn, "idx_plan_proposal_reference_lookup"));
-    assert!(index_exists(&conn, "idx_plan_proposal_operation_proposal"));
-    assert!(index_exists(&conn, "idx_objective_run_principal_state"));
-    assert!(index_exists(&conn, "idx_objective_reference_lookup"));
-    assert!(index_exists(&conn, "idx_objective_run_operation_objective"));
-    assert!(index_exists(&conn, "idx_objective_attempt_objective"));
-    assert!(index_exists(&conn, "idx_objective_verification_objective"));
-
-    let resource_kind: String = conn
-        .query_row(
-            "SELECT kind FROM resource WHERE id = 'res_legacy'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    let resource_origin: String = conn
-        .query_row(
-            "SELECT origin FROM resource WHERE id = 'res_legacy'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(resource_kind, "file");
-    assert_eq!(resource_origin, "system");
-
-    let job_payload: String = conn
-        .query_row(
-            "SELECT payload_json FROM scheduler_job WHERE id = 'job_legacy'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    let job_result: Option<String> = conn
-        .query_row(
-            "SELECT result_json FROM scheduler_job WHERE id = 'job_legacy'",
-            [],
-            |row| row.get(0),
-        )
-        .unwrap();
-    assert_eq!(job_payload, "{}");
-    assert_eq!(job_result, None);
-
-    let reopened = SystemService::open(dir.path()).unwrap();
-    let reopened_conn = rusqlite::Connection::open(reopened.db_path()).unwrap();
-    assert_eq!(
-        schema_version_rows(&reopened_conn),
-        vec![1, 2, 3, 4, 5, 6, 7, 8]
-    );
 }
 
 #[test]
@@ -4941,117 +4897,31 @@ fn register_test_connector(service: &SystemService, connector_id: &str, capabili
         .unwrap();
 }
 
-fn create_legacy_v1_store(root: &std::path::Path) {
+fn create_unsupported_store(root: &std::path::Path, with_marker: bool) {
     std::fs::create_dir_all(root.join("files")).unwrap();
     let conn = rusqlite::Connection::open(root.join("state.db")).unwrap();
-    conn.execute_batch(
-        "
-        PRAGMA journal_mode = WAL;
-        PRAGMA foreign_keys = ON;
-
-        CREATE TABLE schema_migration (
-          version INTEGER PRIMARY KEY,
-          name TEXT NOT NULL,
-          applied_at INTEGER NOT NULL
-        );
-
-        INSERT INTO schema_migration (version, name, applied_at)
-          VALUES (1, 'initial', 1);
-
-        CREATE TABLE resource (
-          id TEXT PRIMARY KEY,
-          logical_path TEXT NOT NULL UNIQUE,
-          absolute_path TEXT NOT NULL,
-          media_type TEXT,
-          size_bytes INTEGER NOT NULL,
-          sha256 TEXT NOT NULL,
-          state TEXT NOT NULL,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL
-        );
-
-        INSERT INTO resource (
-          id, logical_path, absolute_path, media_type, size_bytes, sha256,
-          state, created_at, updated_at
-        ) VALUES (
-          'res_legacy', 'legacy/file.txt', '/tmp/legacy/file.txt', 'text/plain',
-          2, '00', 'available', 1, 1
-        );
-
-        CREATE TABLE scheduler_job (
-          id TEXT PRIMARY KEY,
-          kind TEXT NOT NULL,
-          state TEXT NOT NULL,
-          principal_id TEXT NOT NULL,
-          payload_json TEXT NOT NULL,
-          scheduled_at INTEGER NOT NULL,
-          not_before INTEGER,
-          priority INTEGER NOT NULL,
-          attempt INTEGER NOT NULL,
-          max_attempts INTEGER NOT NULL,
-          retry_policy_json TEXT NOT NULL,
-          idempotency_key TEXT UNIQUE,
-          budget_grant_id TEXT,
-          lease_owner TEXT,
-          lease_token TEXT,
-          lease_expires_at INTEGER,
-          last_error_json TEXT,
-          created_at INTEGER NOT NULL,
-          updated_at INTEGER NOT NULL,
-          finished_at INTEGER
-        );
-
-        INSERT INTO scheduler_job (
-          id, kind, state, principal_id, payload_json, scheduled_at, priority,
-          attempt, max_attempts, retry_policy_json, created_at, updated_at
-        ) VALUES (
-          'job_legacy', 'session.run', 'ready', 'principal_legacy', '{}', 1,
-          0, 0, 1, '{\"strategy\":\"none\"}', 1, 1
-        );
-        ",
-    )
-    .unwrap();
-}
-
-fn table_has_column(conn: &rusqlite::Connection, table: &str, column: &str) -> bool {
-    let mut stmt = conn
-        .prepare(&format!("PRAGMA table_info({table})"))
+    conn.execute("CREATE TABLE orphaned_state (id TEXT PRIMARY KEY)", [])
         .unwrap();
-    let rows = stmt.query_map([], |row| row.get::<_, String>(1)).unwrap();
-    for row in rows {
-        if row.unwrap() == column {
-            return true;
-        }
+    if with_marker {
+        conn.execute_batch(
+            "CREATE TABLE schema_metadata (
+               version INTEGER PRIMARY KEY,
+               name TEXT NOT NULL,
+               applied_at INTEGER NOT NULL
+             );
+             INSERT INTO schema_metadata (version, name, applied_at)
+               VALUES (8, 'budget_usage_ledger', 1);",
+        )
+        .unwrap();
     }
-    false
 }
 
-fn table_exists(conn: &rusqlite::Connection, table: &str) -> bool {
-    let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
-            [table],
-            |row| row.get(0),
-        )
-        .unwrap();
-    count == 1
-}
-
-fn index_exists(conn: &rusqlite::Connection, index: &str) -> bool {
-    let count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = ?",
-            [index],
-            |row| row.get(0),
-        )
-        .unwrap();
-    count == 1
-}
-
-fn schema_version_rows(conn: &rusqlite::Connection) -> Vec<i64> {
+fn schema_markers(conn: &rusqlite::Connection) -> Vec<(i64, String)> {
     let mut stmt = conn
-        .prepare("SELECT version FROM schema_migration ORDER BY version")
+        .prepare("SELECT version, name FROM schema_metadata ORDER BY version")
         .unwrap();
-    let rows = stmt.query_map([], |row| row.get::<_, i64>(0)).unwrap();
+    let rows = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
+        .unwrap();
     rows.map(|row| row.unwrap()).collect()
 }

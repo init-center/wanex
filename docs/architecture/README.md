@@ -38,8 +38,8 @@ package disposition, real-consumer evidence, and physical facade ceilings.
   CI-ready verification command.
 - [Runtime Composition](runtime-composition.md): app-owned runtime composition
   and connector lifecycle guidance.
-- [Storage Migration Policy](storage-migrations.md): SQLite schema versioning,
-  upgrade, and doctor-reporting rules.
+- [Storage Schema Policy](storage-schema.md): the single pre-release SQLite
+  baseline, fail-closed marker, and doctor-reporting rules.
 
 The source design package currently lives at:
 

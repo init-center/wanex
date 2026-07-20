@@ -24,7 +24,8 @@ import {
   productAppWebDiagnostics,
   renderProductAppWebHtml,
   renderProductAppWebStylesheet,
-  productAppWebExecutionActivityFromResult
+  productAppWebExecutionActivityFromResult,
+  type ProductAppWebSnapshot
 } from "../src/index.js"
 
 const serviceBin = join(
@@ -132,7 +133,9 @@ describe("@wanex/product-app-web", () => {
 
       const polled = await tracked.pollEvents()
       expect(polled.executionActivity.state).toBe("succeeded")
-      const html = renderProductAppWebHtml(polled)
+      const html = renderProductAppWebHtml(
+        withProductAppWebMode(polled, "workbench")
+      )
       expect(html).toContain('data-execution-activity-state="succeeded"')
       expect(html).toContain('data-action="refresh-execution"')
       expect(html).not.toContain("payload")
@@ -296,19 +299,11 @@ describe("@wanex/product-app-web", () => {
       expect(html).toContain('data-product-mode="chat"')
       expect(html).toContain('data-product-theme="system"')
       expect(html).toContain('data-product-density="comfortable"')
-      expect(html).toContain('data-action="select-session"')
-      expect(html).toContain('data-action="preview-command"')
-      expect(html).toContain('data-action="execute-command"')
-      expect(html).toContain('data-action="open-workbench"')
-      expect(html).toContain('data-action="start-workbench"')
-      expect(html).toContain('name="commandId"')
-      expect(html).toContain(
-        '<select name="commandId" required>'
-      )
-      expect(html).toContain(
-        '<option value="product.agent.run">Run Agent (product.agent.run)</option>'
-      )
-      expect(html).toContain('name="inputJson"')
+      expect(html).toContain('data-mode-navigation')
+      expect(html).toContain('data-mode-tab="chat" aria-current="page"')
+      expect(html).toContain('data-mode-tab="workbench"')
+      expect(html).toContain('data-mode-tab="diagnostics"')
+      expect(countOccurrences(html, 'data-action="set-mode"')).toBe(3)
       expect(html).toContain('data-workbench-composer-kind="start"')
       expect(html).toContain('data-workbench-empty-state')
       expect(html).toContain("Start a workbench session")
@@ -319,78 +314,68 @@ describe("@wanex/product-app-web", () => {
       expect(html).toContain('data-region="workspace"')
       expect(html).toContain('data-region="left"')
       expect(html).toContain('data-region="main"')
-      expect(html).toContain('data-region="right"')
-      expect(html).toContain('data-panel="summary"')
-      expect(html).toContain('data-panel="settings"')
-      expect(html).toContain('data-provider-readiness-status="ready"')
-      expect(html).toContain('data-settings-controls')
-      expect(html).toContain('data-settings-control="layout"')
-      expect(html).toContain('data-settings-control="mode"')
-      expect(html).toContain('data-settings-control="preferences"')
-      expect(html).toContain('data-settings-control="provider-profile"')
-      expect(html).toContain('data-action="set-active-provider-profile"')
-      expect(html).toContain('data-provider-profile-list')
-      expect(html).toContain('data-provider-profile-id="product-app-web-test"')
-      expect(html).toContain('data-provider-profile-active="true"')
-      expect(html).toContain('data-provider-key-status="none"')
-      expect(html).toContain("<dt>Provider readiness</dt><dd>ready</dd>")
-      expect(html).toContain("<dt>Provider can run</dt><dd>yes</dd>")
-      expect(html).toContain('name="profileId"')
       expect(html).toContain('data-panel="sessions"')
       expect(html).toContain('data-session-empty-state')
       expect(html).toContain("No recent sessions")
       expect(html).toContain('data-panel="workbench"')
       expect(html).toContain('data-panel="provider-run-gate"')
-      expect(html).toContain('data-panel="command-preview"')
-      expect(html).toContain('data-panel="command-execution"')
-      expect(html).toContain('data-command-execution-state="empty"')
-      expect(html).toContain('data-panel="command-catalog"')
-      expect(html).toContain('data-command-catalog-state="ready"')
-      expect(html).toContain('data-command-id="product.agent.run"')
-      expect(html).toContain('data-command-source-kind="builtin"')
-      expect(html).toContain('data-command-trust="trusted"')
-      expect(html).toContain("wanex.product-app.backend.runAgentTurn")
-      expect(html).toContain("<dt>Product commands</dt><dd>15</dd>")
-      expect(html).toContain('data-command-preview-state="empty"')
-      expect(html).toContain('data-command-preview-empty-state')
-      expect(html).toContain("<dt>Command preview</dt><dd>empty</dd>")
       expect(html).toContain('data-provider-run-gate-state="ready"')
       expect(html).toContain('data-provider-can-run="true"')
       expect(html).toContain("Provider ready")
-      expect(html).toContain('data-panel="operation-status"')
-      expect(html).toContain('data-operation-state="idle"')
-      expect(html).toContain("<dt>Operation</dt><dd>idle</dd>")
       expect(html).toContain('data-workbench-state="idle"')
-      expect(html).toContain('data-diagnostics-empty-state')
-      expect(html).toContain("No diagnostics")
-      expect(html).toContain('name="sessionId"')
-      expect(html).toContain('name="layout"')
-      expect(html).toContain('<option value="single" selected>Single</option>')
-      expect(html).toContain('<option value="chat" selected>Chat</option>')
-      expect(html).toContain('<option value="system" selected>System</option>')
-      expect(html).toContain(
-        '<option value="comfortable" selected>Comfortable</option>'
-      )
-      expect(countOccurrences(html, 'data-action="set-layout"')).toBe(1)
-      expect(countOccurrences(html, 'data-action="set-mode"')).toBe(1)
-      expect(countOccurrences(html, 'data-action="update-preferences"')).toBe(1)
-      expect(countOccurrences(html, 'data-action="set-active-provider-profile"')).toBe(1)
-      expect(countOccurrences(html, 'data-action="preview-command"')).toBe(1)
+      expect(html).not.toContain('data-panel="summary"')
+      expect(html).not.toContain('data-panel="settings"')
+      expect(html).not.toContain('data-panel="actions"')
+      expect(html).not.toContain('data-panel="command-preview"')
+      expect(html).not.toContain('data-panel="command-execution"')
+      expect(html).not.toContain('data-panel="command-catalog"')
+      expect(html).not.toContain('data-panel="events"')
+      expect(html).not.toContain('data-panel="diagnostics"')
       expect(html).toContain('data-workbench-composer-state="ready"')
       expect(html).not.toContain('data-workbench-composer-state="blocked"')
-      expect(html).toContain("product-app-web-test")
-      expect(html).toContain("<dt>Storage path exposed</dt><dd>no</dd>")
       expect(html).toContain("<h1>Wanex Product App</h1>")
       expect(html).not.toContain(serviceBin)
 
+      const workbenchHtml = renderProductAppWebHtml(
+        withProductAppWebMode(snapshot, "workbench")
+      )
+      expect(workbenchHtml).toContain('data-product-mode="workbench"')
+      expect(workbenchHtml).toContain('data-panel="actions"')
+      expect(workbenchHtml).toContain('data-action="preview-command"')
+      expect(workbenchHtml).toContain('data-action="execute-command"')
+      expect(workbenchHtml).toContain('data-panel="command-preview"')
+      expect(workbenchHtml).toContain('data-panel="command-execution"')
+      expect(workbenchHtml).toContain('data-panel="execution-activity"')
+      expect(workbenchHtml).toContain('data-panel="command-catalog"')
+      expect(workbenchHtml).toContain('data-panel="provider-run-gate"')
+      expect(workbenchHtml).toContain('data-panel="workbench"')
+      expect(workbenchHtml).not.toContain('data-panel="summary"')
+      expect(workbenchHtml).not.toContain('data-panel="settings"')
+      expect(workbenchHtml).not.toContain('data-panel="events"')
+      expect(workbenchHtml).not.toContain('data-panel="diagnostics"')
+
+      const diagnosticsHtml = renderProductAppWebHtml(
+        withProductAppWebMode(snapshot, "diagnostics")
+      )
+      expect(diagnosticsHtml).toContain('data-product-mode="diagnostics"')
+      expect(diagnosticsHtml).toContain('data-panel="summary"')
+      expect(diagnosticsHtml).toContain('data-panel="settings"')
+      expect(diagnosticsHtml).toContain('data-panel="events"')
+      expect(diagnosticsHtml).toContain('data-panel="diagnostics"')
+      expect(diagnosticsHtml).not.toContain('data-panel="actions"')
+      expect(diagnosticsHtml).not.toContain('data-panel="command-preview"')
+      expect(diagnosticsHtml).not.toContain('data-panel="command-execution"')
+      expect(diagnosticsHtml).not.toContain('data-panel="command-catalog"')
+      expect(diagnosticsHtml).not.toContain('data-panel="workbench"')
+
       const emptyEventsHtml = renderProductAppWebHtml({
-        ...snapshot,
+        ...withProductAppWebMode(snapshot, "diagnostics"),
         events: {
           ok: true,
           events: []
         },
         view: {
-          ...snapshot.view,
+          ...withProductAppWebMode(snapshot, "diagnostics").view,
           eventCount: 0
         }
       })
@@ -407,6 +392,8 @@ describe("@wanex/product-app-web", () => {
       expect(stylesheet).toContain('[data-product-theme="light"]')
       expect(stylesheet).toContain('[data-product-theme="dark"]')
       expect(stylesheet).toContain('[data-product-density="compact"]')
+      expect(stylesheet).toContain('[data-mode-navigation]')
+      expect(stylesheet).toContain('[data-mode-tab][aria-current="page"]')
       expect(stylesheet).toContain('[data-region="workspace"]')
       expect(stylesheet).toContain('[data-panel="workbench"]')
       expect(stylesheet).toContain('[data-settings-controls]')
@@ -552,7 +539,9 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      const previewHtml = renderProductAppWebHtml(preview.snapshot)
+      const previewHtml = renderProductAppWebHtml(
+        withProductAppWebMode(preview.snapshot, "workbench")
+      )
       expect(previewHtml).toContain('data-panel="command-preview"')
       expect(previewHtml).toContain('data-command-preview-state="runnable"')
       expect(previewHtml).toContain(
@@ -590,7 +579,9 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      const executionHtml = renderProductAppWebHtml(execution.snapshot)
+      const executionHtml = renderProductAppWebHtml(
+        withProductAppWebMode(execution.snapshot, "workbench")
+      )
       expect(executionHtml).toContain(
         'data-command-execution-state="completed"'
       )
@@ -719,7 +710,9 @@ describe("@wanex/product-app-web", () => {
       })
 
       const snapshot = await surface.refresh()
-      const html = renderProductAppWebHtml(snapshot)
+      const html = renderProductAppWebHtml(
+        withProductAppWebMode(snapshot, "diagnostics")
+      )
 
       expect(snapshot.view.settings.profile.profiles).toEqual(
         expect.arrayContaining([
@@ -845,7 +838,9 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      const previewHtml = renderProductAppWebHtml(preview.snapshot)
+      const previewHtml = renderProductAppWebHtml(
+        withProductAppWebMode(preview.snapshot, "workbench")
+      )
       expect(previewHtml).toContain('data-command-preview-state="rejected"')
       expect(previewHtml).toContain("<dt>Reason</dt><dd>provider_not_ready</dd>")
       expect(previewHtml).toContain(
@@ -886,7 +881,11 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      expect(renderProductAppWebHtml(execution.snapshot)).toContain(
+      expect(
+        renderProductAppWebHtml(
+          withProductAppWebMode(execution.snapshot, "workbench")
+        )
+      ).toContain(
         'data-command-execution-state="rejected"'
       )
 
@@ -1014,7 +1013,9 @@ describe("@wanex/product-app-web", () => {
         ...base,
         view: buildProductAppWebViewModel(base)
       }
-      const html = renderProductAppWebHtml(projected)
+      const html = renderProductAppWebHtml(
+        withProductAppWebMode(projected, "workbench")
+      )
       const previewAction = projected.view.actions.find(
         (action) => action.id === "preview-command"
       )
@@ -1032,7 +1033,6 @@ describe("@wanex/product-app-web", () => {
       expect(html).toContain('data-command-catalog-state="unavailable"')
       expect(html).toContain("Product command catalog unavailable")
       expect(html).toContain('<input name="commandId" type="text" required>')
-      expect(html).toContain("command catalog failed: catalog offline")
     })
   })
 
@@ -1068,7 +1068,9 @@ describe("@wanex/product-app-web", () => {
         ...base,
         view: buildProductAppWebViewModel(base)
       }
-      const html = renderProductAppWebHtml(projected)
+      const html = renderProductAppWebHtml(
+        withProductAppWebMode(projected, "workbench")
+      )
 
       expect(html).toContain("&lt;b&gt;unsafe&lt;/b&gt;")
       expect(html).toContain("handler&lt;&amp;&gt;")
@@ -1285,7 +1287,7 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      expect(initial.html).toContain("<dt>Layout</dt><dd>single</dd>")
+      expect(initial.html).toContain('data-product-layout="single"')
 
       const updated = await controller.submitActionInput(
         {
@@ -1329,12 +1331,9 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      expect(updated.document.html).toContain("<dt>Layout</dt><dd>split</dd>")
+      expect(updated.document.html).toContain('data-product-layout="split"')
       expect(updated.document.html).toContain('data-operation-state="succeeded"')
       expect(updated.document.html).toContain("set-layout completed")
-      expect(updated.document.html).toContain(
-        '<option value="split" selected>Split</option>'
-      )
 
       const preferences = await controller.submitActionInput({
         action: "update-preferences",
@@ -1370,20 +1369,32 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      expect(preferences.document.html).toContain("<dt>Theme</dt><dd>dark</dd>")
-      expect(preferences.document.html).toContain(
-        "<dt>Density</dt><dd>compact</dd>"
-      )
       expect(preferences.document.html).toContain('data-product-theme="dark"')
       expect(preferences.document.html).toContain(
         'data-product-density="compact"'
       )
-      expect(preferences.document.html).toContain(
-        '<option value="dark" selected>Dark</option>'
-      )
-      expect(preferences.document.html).toContain(
-        '<option value="compact" selected>Compact</option>'
-      )
+
+      const workbench = await controller.submitActionInput({
+        action: "set-mode",
+        fields: {
+          mode: "workbench"
+        }
+      })
+      expect(workbench).toMatchObject({
+        ok: true,
+        actionResult: {
+          ok: true,
+          action: "set-mode"
+        },
+        document: {
+          snapshot: {
+            view: {
+              mode: "workbench"
+            }
+          }
+        }
+      })
+      expect(workbench.document.html).toContain('data-product-mode="workbench"')
 
       const preview = await controller.submitActionInput({
         action: "preview-command",
@@ -1448,6 +1459,7 @@ describe("@wanex/product-app-web", () => {
         document: {
           snapshot: {
             view: {
+              mode: "workbench",
               layout: "split"
             }
           }
@@ -1783,4 +1795,24 @@ async function createStoreDir(): Promise<string> {
 
 function countOccurrences(value: string, pattern: string): number {
   return value.split(pattern).length - 1
+}
+
+function withProductAppWebMode(
+  snapshot: ProductAppWebSnapshot,
+  mode: "chat" | "workbench" | "diagnostics"
+): ProductAppWebSnapshot {
+  return {
+    ...snapshot,
+    view: {
+      ...snapshot.view,
+      mode,
+      settings: {
+        ...snapshot.view.settings,
+        renderer: {
+          ...snapshot.view.settings.renderer,
+          mode
+        }
+      }
+    }
+  }
 }

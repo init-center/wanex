@@ -30,15 +30,6 @@ export {
 
 export function renderProductAppWebHtml(snapshot: ProductAppWebSnapshot): string {
   const state = snapshot.view
-  const diagnostics = state.diagnostics
-    .length === 0
-    ? `<li data-diagnostics-empty-state>No diagnostics</li>`
-    : state.diagnostics
-        .map(
-          (diagnostic) =>
-            `<li data-severity="${escapeHtml(diagnostic.severity)}">${escapeHtml(diagnostic.message)}</li>`
-        )
-        .join("")
   const actions = state.actions
     .filter(
       (action) =>
@@ -51,16 +42,6 @@ export function renderProductAppWebHtml(snapshot: ProductAppWebSnapshot): string
     )
     .map((action) => renderAction(action))
     .join("")
-  const events = snapshot.events.ok
-    ? snapshot.events.events.length === 0
-      ? `<li data-events-empty-state>No events yet</li>`
-      : snapshot.events.events
-          .map(
-            (event) =>
-              `<li data-sequence="${event.sequence}">${escapeHtml(event.type)} <span>${escapeHtml(event.command)}</span></li>`
-          )
-          .join("")
-    : ""
 
   return [
     [
@@ -84,8 +65,94 @@ export function renderProductAppWebHtml(snapshot: ProductAppWebSnapshot): string
     `<span data-provider-run-gate-state="${escapeHtml(state.providerRunGate.state)}">${escapeHtml(state.providerRunGate.message)}</span>`,
     `</div>`,
     `</header>`,
+    renderModeNavigation(state),
+    renderModeSurface(snapshot, actions),
+    `</section>`
+  ].join("")
+}
+
+function renderModeNavigation(
+  state: ProductAppWebSnapshot["view"]
+): string {
+  const modes = ["chat", "workbench", "diagnostics"]
+  const buttons = modes
+    .filter((mode) => state.settings.renderer.availableModes.includes(mode))
+    .map(
+      (mode) =>
+        `<form data-action="set-mode" data-mode-navigation-form><input type="hidden" name="action" value="set-mode"><input type="hidden" name="mode" value="${escapeHtml(mode)}"><button type="submit" data-mode-tab="${escapeHtml(mode)}"${state.mode === mode ? ' aria-current="page"' : ""}>${escapeHtml(optionLabel(mode))}</button></form>`
+    )
+    .join("")
+  return `<nav data-mode-navigation aria-label="Product view">${buttons}</nav>`
+}
+
+function renderModeSurface(
+  snapshot: ProductAppWebSnapshot,
+  actions: string
+): string {
+  const state = snapshot.view
+  if (state.mode === "chat") {
+    return [
+      `<div data-region="workspace">`,
+      `<aside data-region="left">`,
+      renderSessions(state.recentSessions),
+      `</aside>`,
+      `<main data-region="main">`,
+      renderActiveOperationStatus(snapshot),
+      renderProductAppWebProviderRunGate(state.providerRunGate),
+      renderWorkbench(snapshot.workbench, state.providerRunGate, "Conversation"),
+      `</main>`,
+      `</div>`
+    ].join("")
+  }
+  if (state.mode === "workbench") {
+    return [
+      `<div data-region="workspace">`,
+      `<aside data-region="left">`,
+      renderSessions(state.recentSessions),
+      `<nav data-panel="actions"><h2>Workbench actions</h2><div data-action-list>${actions}</div></nav>`,
+      `</aside>`,
+      `<main data-region="main">`,
+      renderProductAppWebOperationStatus(snapshot),
+      renderProductAppWebProviderRunGate(state.providerRunGate),
+      renderWorkbench(snapshot.workbench, state.providerRunGate, "Workbench"),
+      renderProductAppWebCommandPreview(state.commandPreview),
+      renderProductAppWebCommandExecution(state.commandExecution),
+      renderProductAppWebExecutionActivity(state.executionActivity),
+      renderProductAppWebCommandCatalog(state.commandCatalog),
+      `</main>`,
+      `</div>`
+    ].join("")
+  }
+  return [
     `<div data-region="workspace">`,
     `<aside data-region="left">`,
+    renderProductAppWebSummary(snapshot),
+    renderSettings(snapshot),
+    `</aside>`,
+    `<main data-region="main">`,
+    renderProductAppWebOperationStatus(snapshot),
+    `</main>`,
+    `<aside data-region="right">`,
+    renderProductAppWebEvents(snapshot),
+    renderProductAppWebDiagnostics(snapshot),
+    `</aside>`,
+    `</div>`
+  ].join("")
+}
+
+function renderActiveOperationStatus(
+  snapshot: ProductAppWebSnapshot
+): string {
+  return snapshot.view.operationStatus.state === "idle"
+    ? ""
+    : renderProductAppWebOperationStatus(snapshot)
+}
+
+function renderProductAppWebSummary(
+  snapshot: ProductAppWebSnapshot
+): string {
+  const state = snapshot.view
+  return [
     `<section data-panel="summary">`,
     `<h2>Summary</h2>`,
     `<dl>`,
@@ -104,30 +171,39 @@ export function renderProductAppWebHtml(snapshot: ProductAppWebSnapshot): string
     `<dt>Command execution</dt><dd>${escapeHtml(state.commandExecution.state)}</dd>`,
     `<dt>Execution activity</dt><dd>${escapeHtml(state.executionActivity.state)}</dd>`,
     `</dl>`,
-    `</section>`,
-    renderProductAppWebOperationStatus(snapshot),
-    renderSettings(snapshot),
-    renderSessions(state.recentSessions),
-    `<nav data-panel="actions">`,
-    `<h2>Actions</h2>`,
-    `<div data-action-list>${actions}</div>`,
-    `</nav>`,
-    `</aside>`,
-    `<main data-region="main">`,
-    renderProductAppWebCommandPreview(state.commandPreview),
-    renderProductAppWebCommandExecution(state.commandExecution),
-    renderProductAppWebExecutionActivity(state.executionActivity),
-    renderProductAppWebCommandCatalog(state.commandCatalog),
-    renderProductAppWebProviderRunGate(state.providerRunGate),
-    renderWorkbench(snapshot.workbench, state.providerRunGate),
-    `</main>`,
-    `<aside data-region="right">`,
-    `<section data-panel="events"><h2>Events</h2><ol>${events}</ol></section>`,
-    `<section data-panel="diagnostics"><h2>Diagnostics</h2><ul>${diagnostics}</ul></section>`,
-    `</aside>`,
-    `</div>`,
     `</section>`
   ].join("")
+}
+
+function renderProductAppWebEvents(
+  snapshot: ProductAppWebSnapshot
+): string {
+  const events = snapshot.events.ok
+    ? snapshot.events.events.length === 0
+      ? `<li data-events-empty-state>No events yet</li>`
+      : snapshot.events.events
+          .map(
+            (event) =>
+              `<li data-sequence="${event.sequence}">${escapeHtml(event.type)} <span>${escapeHtml(event.command)}</span></li>`
+          )
+          .join("")
+    : ""
+  return `<section data-panel="events"><h2>Events</h2><ol>${events}</ol></section>`
+}
+
+function renderProductAppWebDiagnostics(
+  snapshot: ProductAppWebSnapshot
+): string {
+  const diagnostics = snapshot.view.diagnostics
+    .length === 0
+    ? `<li data-diagnostics-empty-state>No diagnostics</li>`
+    : snapshot.view.diagnostics
+        .map(
+          (diagnostic) =>
+            `<li data-severity="${escapeHtml(diagnostic.severity)}">${escapeHtml(diagnostic.message)}</li>`
+        )
+        .join("")
+  return `<section data-panel="diagnostics"><h2>Diagnostics</h2><ul>${diagnostics}</ul></section>`
 }
 
 function renderSettings(snapshot: ProductAppWebSnapshot): string {
@@ -145,15 +221,6 @@ function renderSettings(snapshot: ProductAppWebSnapshot): string {
       values: settings.renderer.availableLayouts,
       selected: settings.renderer.layout,
       buttonLabel: "Apply layout"
-    }),
-    renderSettingsSelectForm({
-      action: "set-mode",
-      control: "mode",
-      field: "mode",
-      label: "Mode",
-      values: settings.renderer.availableModes,
-      selected: settings.renderer.mode,
-      buttonLabel: "Apply mode"
     }),
     `<form data-action="update-preferences" data-settings-control="preferences">`,
     `<input type="hidden" name="action" value="update-preferences">`,
@@ -248,7 +315,7 @@ function renderProviderProfileForm(snapshot: ProductAppWebSnapshot): string {
 }
 
 function renderSettingsSelectForm(request: {
-  readonly action: "set-layout" | "set-mode"
+  readonly action: "set-layout"
   readonly control: string
   readonly field: string
   readonly label: string
@@ -358,7 +425,8 @@ function renderSessionRow(session: ProductAppWebRecentSessionRow): string {
 
 function renderWorkbench(
   workbench: ProductAppWebWorkbenchViewModel,
-  providerRunGate: ProductAppWebProviderRunGateViewModel
+  providerRunGate: ProductAppWebProviderRunGateViewModel,
+  title = "Workbench"
 ): string {
   const rows = workbench.rows.map(renderWorkbenchRow).join("")
   const emptyState =
@@ -395,7 +463,7 @@ function renderWorkbench(
 
   return [
     `<section data-panel="workbench" data-workbench-state="${escapeHtml(workbench.state)}">`,
-    `<h2>Workbench</h2>`,
+    `<h2>${escapeHtml(title)}</h2>`,
     `<p data-workbench-session>${escapeHtml(workbench.sessionId ?? "none")}</p>`,
     message,
     `<dl>`,

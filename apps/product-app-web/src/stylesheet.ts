@@ -217,6 +217,42 @@ textarea {
   line-height: 1.2;
 }
 
+[data-mode-navigation] {
+  min-height: 48px;
+  display: flex;
+  align-items: end;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--wanex-line);
+  background: var(--wanex-panel);
+  overflow-x: auto;
+}
+
+[data-mode-navigation-form] {
+  margin: 0;
+}
+
+[data-mode-tab] {
+  min-width: 96px;
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--wanex-muted);
+}
+
+[data-mode-tab]:hover {
+  border-bottom-color: var(--wanex-line);
+}
+
+[data-mode-tab][aria-current="page"] {
+  border-bottom-color: var(--wanex-accent);
+  color: var(--wanex-text);
+  font-weight: 650;
+}
+
 [data-region="workspace"] {
   width: min(1480px, 100%);
   margin: 0 auto;
@@ -253,6 +289,27 @@ textarea {
 
 [data-product-layout="diagnostics"] [data-region="right"] {
   gap: 12px;
+}
+
+[data-product-mode="chat"] [data-region="workspace"],
+[data-product-mode="workbench"] [data-region="workspace"] {
+  width: min(1180px, 100%);
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+}
+
+[data-product-mode="chat"] [data-region="left"],
+[data-product-mode="workbench"] [data-region="left"] {
+  order: 1;
+}
+
+[data-product-mode="chat"] [data-region="main"],
+[data-product-mode="workbench"] [data-region="main"] {
+  order: 2;
+}
+
+[data-product-mode="diagnostics"] [data-region="workspace"] {
+  width: min(1480px, 100%);
+  grid-template-columns: minmax(240px, 300px) minmax(240px, 1fr) minmax(300px, 420px);
 }
 
 [data-region="left"],
@@ -556,6 +613,11 @@ dd {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  [data-product-mode="chat"] [data-region="workspace"],
+  [data-product-mode="workbench"] [data-region="workspace"] {
+    grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  }
+
   [data-region="right"] {
     grid-column: 1 / -1;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -572,7 +634,17 @@ dd {
     justify-content: flex-start;
   }
 
+  [data-mode-navigation] {
+    padding: 0 12px;
+  }
+
+  [data-mode-tab] {
+    min-width: 88px;
+  }
+
   [data-region="workspace"],
+  [data-product-mode="chat"] [data-region="workspace"],
+  [data-product-mode="workbench"] [data-region="workspace"],
   [data-region="right"] {
     grid-template-columns: minmax(0, 1fr);
   }

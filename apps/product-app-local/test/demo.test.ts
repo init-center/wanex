@@ -277,6 +277,75 @@ describe("Product App Local demo", () => {
     expect(response.document.html).toContain("Ready to send")
   })
 
+  it("keeps chat focused and exposes workbench and diagnostics explicitly", async () => {
+    const demo = await startProductAppLocalDemoHost({
+      hostname: "127.0.0.1",
+      serviceBin,
+      sessionId: "ses_demo_modes",
+      seedText: "unused mode seed",
+      seed: false,
+      open: false,
+      pollIntervalMs: 0
+    })
+    demoHosts.push(demo)
+
+    const chat = await fetchText(`${demo.url}/`)
+    expect(chat).toContain('data-product-mode="chat"')
+    expect(chat).toContain('data-panel="sessions"')
+    expect(chat).toContain('data-panel="workbench"')
+    expect(chat).not.toContain('data-panel="summary"')
+    expect(chat).not.toContain('data-panel="settings"')
+    expect(chat).not.toContain('data-panel="command-catalog"')
+    expect(chat).not.toContain('data-panel="events"')
+    expect(chat).not.toContain('data-panel="diagnostics"')
+
+    const workbench = await postJson(
+      `${demo.url}/wanex/product-app-web/request`,
+      {
+        kind: "product-app-web.request",
+        operation: "submitActionInput",
+        requestId: "demo_mode_workbench",
+        input: {
+          action: "set-mode",
+          fields: { mode: "workbench" }
+        }
+      }
+    )
+    expect(workbench).toMatchObject({
+      ok: true,
+      document: {
+        snapshot: { view: { mode: "workbench" } }
+      }
+    })
+    expect(workbench.document.html).toContain('data-panel="command-catalog"')
+    expect(workbench.document.html).toContain('data-panel="actions"')
+    expect(workbench.document.html).not.toContain('data-panel="settings"')
+
+    const diagnostics = await postJson(
+      `${demo.url}/wanex/product-app-web/request`,
+      {
+        kind: "product-app-web.request",
+        operation: "submitActionInput",
+        requestId: "demo_mode_diagnostics",
+        input: {
+          action: "set-mode",
+          fields: { mode: "diagnostics" }
+        }
+      }
+    )
+    expect(diagnostics).toMatchObject({
+      ok: true,
+      document: {
+        snapshot: { view: { mode: "diagnostics" } }
+      }
+    })
+    expect(diagnostics.document.html).toContain('data-panel="summary"')
+    expect(diagnostics.document.html).toContain('data-panel="settings"')
+    expect(diagnostics.document.html).toContain('data-panel="events"')
+    expect(diagnostics.document.html).toContain('data-panel="diagnostics"')
+    expect(diagnostics.document.html).not.toContain('data-panel="command-catalog"')
+  })
+
   it("starts the seeded demo host with the selected seeded session", async () => {
     const demo = await startProductAppLocalDemoHost({
       hostname: "127.0.0.1",
@@ -368,6 +437,28 @@ describe("Product App Local demo", () => {
       }
     })
 
+    const mode = await postJson(`${first.url}/wanex/product-app-web/request`, {
+      kind: "product-app-web.request",
+      operation: "submitActionInput",
+      requestId: "demo_persist_mode",
+      input: {
+        action: "set-mode",
+        fields: {
+          mode: "diagnostics"
+        }
+      }
+    })
+    expect(mode).toMatchObject({
+      ok: true,
+      document: {
+        snapshot: {
+          view: {
+            mode: "diagnostics"
+          }
+        }
+      }
+    })
+
     await first.close()
     demoHosts.splice(demoHosts.indexOf(first), 1)
 
@@ -384,14 +475,12 @@ describe("Product App Local demo", () => {
     demoHosts.push(second)
 
     const html = await fetchText(`${second.url}/`)
+    expect(html).toContain('data-product-mode="diagnostics"')
     expect(html).toContain("<dt>Layout</dt><dd>diagnostics</dd>")
     expect(html).toContain("<dt>Theme</dt><dd>dark</dd>")
     expect(html).toContain("<dt>Density</dt><dd>compact</dd>")
     expect(html).toContain('data-product-theme="dark"')
     expect(html).toContain('data-product-density="compact"')
-    expect(html).toContain(
-      '<option value="diagnostics" selected>Diagnostics</option>'
-    )
     expect(html).toContain('<option value="dark" selected>Dark</option>')
     expect(html).toContain('<option value="compact" selected>Compact</option>')
   })

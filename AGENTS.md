@@ -24,41 +24,37 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Current Course-Correction Route
+## Current Post-Gate Route
 
-Phase 741 completed the declarative Product App input route. The current frozen
-route is Phase 742-757 in:
+Phases 742-757 completed the architecture course correction and native release
+gate. The historical route remains in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/architecture-course-correction.md`
 
-Until the Phase 757 architecture release gate:
+Phase 758 Product App Chat-First Surface is complete. Phase 759 Post-Slice
+Product Evidence And Replan is now the current frozen phase. The completed
+Phase 758 record is in:
 
-- do not add Product App command, Web/TUI interaction, or read-model features;
-- prioritize package truth and deletion, storage facets and RPC ownership,
-  physical Runtime/App consolidation, storage RPC schema, provider streaming,
-  tool/MCP execution, compiled SDK distribution, external consumer proofs, and
-  Windows/Electron packaging;
-- production packages must not depend on apps, examples, references, skeletons,
-  or recipes;
-- internal module boundaries may remain fine-grained, but ordinary consumers
-  must converge on `@wanex/runtime` or `@wanex/app` plus explicit optional
-  capabilities;
-- do not preserve incorrect package boundaries through compatibility wrappers.
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1017-phase-758-product-app-chat-first-surface-plan.md`
 
-Phases 746-756 are complete. Phase 757 Architecture Release Gate is the current
-phase. Its frozen plan is in:
+Until Phase 759 is replanned and frozen:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1016-phase-757-architecture-release-gate-plan.md`
+- do not add another Product App microfeature or package;
+- inspect the completed chat-first product evidence and choose the next real
+  user journey before implementation;
+- preserve the mode split: chat is primary conversation, workbench and
+  diagnostics are explicit surfaces;
+- do not reopen lower Runtime/App/Storage/schema or native distribution work
+  unless the replan identifies an executable blocker.
 
 The frozen reconstruction route is in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/0999-wanex-best-practice-reconstruction-master-plan.md`
 
-Do not resume Product App feature work. Phase 757 must re-run the complete
-cross-language, generated-source, package-governance, SDK distribution,
-external-consumer, Eval, facade, and native macOS/Windows release evidence,
-then perform a fresh architecture review. It must not add product features or
-new package identities merely to satisfy the release review.
+Phase 757 evidence remains the release baseline. Phase 758 must not reopen its
+deleted package identities, compatibility code, schema migration chain, or
+native distribution decisions. The feature freeze is lifted only for the
+bounded Phase 758 user journey, not for unrelated Product App microfeatures.
 
 ## Course-Correction Guardrail
 

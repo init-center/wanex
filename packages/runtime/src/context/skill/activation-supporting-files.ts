@@ -1,4 +1,4 @@
-import { join, relative } from "node:path"
+import { join, relative, sep } from "node:path"
 import type {
   SkillFileSystem,
   SkillSource,
@@ -25,7 +25,7 @@ export async function listSkillSupportingFiles(options: {
       const path = join(directory, entry.name)
       files.push({
         path,
-        relativePath: relative(options.source.directory, path)
+        relativePath: relative(options.source.directory, path).split(sep).join("/")
       })
       if (files.length >= options.maxIndexedFiles) {
         return files

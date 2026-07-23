@@ -34,7 +34,7 @@
     },
     "app": {
       "entry": "packages/app/src/index.ts",
-      "maxOutputBytes": 1105298,
+      "maxOutputBytes": 1105333,
       "maxInputCount": 432,
       "allowedWorkspacePackages": [
         "@wanex/app",

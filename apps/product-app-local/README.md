@@ -15,7 +15,7 @@ lifecycle:
 
 The served Web request envelope covers both app-state controls and workbench
 execution. A browser, desktop wrapper, or local HTTP test can submit
-`start-workbench` through `/wanex/product-app-web/request`; execution still
+`submit-conversation` through `/wanex/product-app-web/request`; execution still
 flows through Product App/App Shell and returns a refreshed safe Web document.
 
 It is not a gateway, public server, auth layer, plugin host, connector host,
@@ -99,19 +99,19 @@ const setup = await app.providerSetup.configureProviderProfile({
   providerId: "openai-compatible",
   modelId: "gpt-4.1-mini",
   baseUrl: "https://api.example.test/v1",
-  apiKey: process.env.OPENAI_API_KEY,
+  secretRef: "env://OPENAI_API_KEY",
   makeActive: true
 })
 
-console.log(setup.profile.apiKeyRedacted)
+console.log(setup.profile.credentialConfigured)
 console.log(setup.readiness.status)
 ```
 
-`providerSetup` is trusted host API. It may receive a raw secret from a native
-host prompt, environment-backed setup flow, or product-owned secret store, but
-it returns only redacted provider profile data plus Product App provider
-readiness. The Product App Web request envelope and desktop request envelope do
-not expose provider setup or raw upsert operations.
+`providerSetup` is trusted host API. It receives only a reference created by an
+environment-backed, native-keychain, or product-owned secret store. Product
+read models expose credential readiness but never the reference or value. The
+Product App Web request envelope and desktop request envelope do not expose
+provider setup or raw upsert operations.
 
 Desktop main-process host:
 
@@ -156,7 +156,7 @@ await host.providerSetup.configureProviderProfile({
   providerId: "openai-compatible",
   modelId: "gpt-4.1-mini",
   baseUrl: "https://api.example.test/v1",
-  apiKey: process.env.OPENAI_API_KEY,
+  secretRef: "env://OPENAI_API_KEY",
   makeActive: true
 })
 ```
@@ -180,16 +180,17 @@ pnpm --filter @wanex/product-app-local start -- \
   --provider-id openai-compatible \
   --provider-model-id gpt-4.1-mini \
   --provider-base-url https://api.example.test/v1 \
-  --provider-api-key-env OPENAI_API_KEY \
+  --provider-secret-ref env://OPENAI_API_KEY \
   --service-bin ../../target/debug/wanex-system-service \
   --port 57015 \
   --summary-format json \
   --open
 ```
 
-The CLI intentionally does not accept `--provider-api-key`; pass secrets through
-`--provider-api-key-env <NAME>` or a trusted process environment variable so the
-key does not land in shell history or normal process argument listings.
+The CLI intentionally does not accept raw provider credentials. Pass a
+`--provider-secret-ref <ref>` such as `env://OPENAI_API_KEY`; only the reference
+is stored or visible in process arguments, while the value remains in the
+trusted environment or another injected secret provider.
 
 To configure provider profiles from a trusted host process and exit, add
 `--setup-provider`. This opens the local Product App lifecycle, applies the
@@ -206,7 +207,7 @@ pnpm --filter @wanex/product-app-local start -- \
   --provider-id openai-compatible \
   --provider-model-id gpt-4.1-mini \
   --provider-base-url https://api.example.test/v1 \
-  --provider-api-key-env OPENAI_API_KEY \
+  --provider-secret-ref env://OPENAI_API_KEY \
   --active-provider-profile-id local-openai \
   --setup-provider \
   --summary-format json
@@ -225,12 +226,12 @@ pnpm setup:product-app-local-provider -- \
   --provider-id openai-compatible \
   --provider-model-id gpt-4.1-mini \
   --provider-base-url https://api.example.test/v1 \
-  --provider-api-key-env OPENAI_API_KEY \
+  --provider-secret-ref env://OPENAI_API_KEY \
   --active-provider-profile-id local-openai
 ```
 
 For multiple profiles, pass a trusted catalog file or JSON value. Catalog
-profiles use `apiKeyEnv`; raw `apiKey` values are rejected:
+profiles use `secretRef`; old `apiKey` and `apiKeyEnv` fields are rejected:
 
 ```json
 {
@@ -246,7 +247,7 @@ profiles use `apiKeyEnv`; raw `apiKey` values are rejected:
       "providerId": "openai-compatible",
       "modelId": "gpt-4.1-mini",
       "baseUrl": "https://api.example.test/v1",
-      "apiKeyEnv": "OPENAI_API_KEY"
+      "secretRef": "env://OPENAI_API_KEY"
     }
   ],
   "activeProfileId": "local-openai"
@@ -263,7 +264,7 @@ pnpm --filter @wanex/product-app-local start -- \
 The inline JSON form is also available:
 
 ```bash
-WANEX_PRODUCT_APP_LOCAL_PROVIDER_PROFILES_JSON='{"profiles":[{"id":"local-fake","kind":"fake","modelId":"fake-model"},{"id":"local-openai","kind":"openai-compatible","providerId":"openai-compatible","modelId":"gpt-4.1-mini","baseUrl":"https://api.example.test/v1","apiKeyEnv":"OPENAI_API_KEY"}],"activeProfileId":"local-openai"}' \
+WANEX_PRODUCT_APP_LOCAL_PROVIDER_PROFILES_JSON='{"profiles":[{"id":"local-fake","kind":"fake","modelId":"fake-model"},{"id":"local-openai","kind":"openai-compatible","providerId":"openai-compatible","modelId":"gpt-4.1-mini","baseUrl":"https://api.example.test/v1","secretRef":"env://OPENAI_API_KEY"}],"activeProfileId":"local-openai"}' \
 OPENAI_API_KEY=... \
 pnpm --filter @wanex/product-app-local start -- --poll-interval-ms 0
 ```
@@ -393,7 +394,10 @@ console.log(snapshot.providerProfiles.activeProfileId)
 The snapshot refreshes Product App Web before returning so host-side settings
 changes are reflected in the Web view model. It includes explicit privacy flags
 and must not expose store paths, service binary paths, secrets, raw storage
-clients, or renderer mutation APIs.
+clients, provider base URLs, provider protocol-version fields, or renderer
+mutation APIs. The separate providerProfiles and providerSetup facades are
+trusted host capabilities and may retain complete configuration internally;
+their renderer and IPC projections are redacted.
 
 The handle also exposes `settings`, a trusted host facade over Product App's
 storage-backed product state:

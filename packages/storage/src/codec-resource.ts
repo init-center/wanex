@@ -5,6 +5,7 @@ import {
   type IngestResourceRequest,
   type JsonValue,
   type ListResourcesRequest,
+  type ResourceContentChunk,
   type ResourceRecord,
   type ResourceTicket,
   type ResourceTicketCleanupReceipt
@@ -110,6 +111,36 @@ export function fromRpcResourceRecord(value: JsonValue): ResourceRecord {
     height: optionalNumber(value.height, "resource.height"),
     durationMs: optionalNumber(value.duration_ms, "resource.duration_ms")
   })
+}
+
+export function fromRpcResourceContentChunk(
+  value: JsonValue
+): ResourceContentChunk {
+  if (!isRecord(value)) {
+    throw new Error("resource content chunk must be an object")
+  }
+  const contentBase64 = expectString(
+    value.content_base64,
+    "resource content chunk.content_base64"
+  )
+  const eof = value.eof
+  if (typeof eof !== "boolean") {
+    throw new Error("resource content chunk.eof must be a boolean")
+  }
+  return {
+    resourceId: expectString(
+      value.resource_id,
+      "resource content chunk.resource_id"
+    ),
+    sha256: expectString(value.sha256, "resource content chunk.sha256"),
+    totalSizeBytes: expectNumber(
+      value.total_size_bytes,
+      "resource content chunk.total_size_bytes"
+    ),
+    offset: expectNumber(value.offset, "resource content chunk.offset"),
+    content: Uint8Array.from(Buffer.from(contentBase64, "base64")),
+    eof
+  }
 }
 
 export function fromRpcResourceTicket(value: JsonValue): ResourceTicket {

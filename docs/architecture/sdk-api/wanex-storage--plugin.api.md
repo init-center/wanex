@@ -5,6 +5,14 @@
 ```ts
 
 // @public (undocumented)
+interface AcceptMediaGenerationCommand {
+    // (undocumented)
+    command: "accept-media-generation";
+    // (undocumented)
+    request: MediaGenerationAcceptWire;
+}
+
+// @public (undocumented)
 interface ActivateContextEpochCommand {
     // (undocumented)
     command: "activate-context-epoch";
@@ -51,6 +59,8 @@ interface AppendEventCommand {
 // @public (undocumented)
 interface AppendSessionMessageCommand {
     // (undocumented)
+    attempt_id: string;
+    // (undocumented)
     command: "append-session-message";
     // (undocumented)
     content: MessagePartsWire;
@@ -59,15 +69,19 @@ interface AppendSessionMessageCommand {
     // (undocumented)
     input_id: string;
     // (undocumented)
+    job_id: string;
+    // (undocumented)
     lease_token: string;
     // (undocumented)
-    role: "user" | "assistant" | "tool" | "system";
+    provider_state: JsonValue$1;
     // (undocumented)
-    run_id: string;
-    // (undocumented)
-    runner_id: string;
+    role: "assistant" | "tool" | "system";
     // (undocumented)
     session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
 }
 
 // @public (undocumented)
@@ -97,25 +111,29 @@ interface AppendTeamTurnWire {
 }
 
 // @public (undocumented)
-interface ApplySessionRunControlCommand {
+interface ApplySessionTurnControlCommand {
     // (undocumented)
-    command: "apply-session-run-control";
+    command: "apply-session-turn-control";
     // (undocumented)
-    request: ApplySessionRunControlWire;
+    request: ApplySessionTurnControlWire;
 }
 
 // @public (undocumented)
-interface ApplySessionRunControlWire {
+interface ApplySessionTurnControlWire {
+    // (undocumented)
+    attempt_id: string;
     // (undocumented)
     control_id: string;
     // (undocumented)
+    job_id: string;
+    // (undocumented)
     lease_token: string;
     // (undocumented)
-    run_id: string;
-    // (undocumented)
-    runner_id: string;
-    // (undocumented)
     session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
 }
 
 // @public (undocumented)
@@ -135,6 +153,48 @@ interface AttachDelegationGraphNodeJobWire {
 }
 
 // @public (undocumented)
+interface BeginMediaGenerationCommand {
+    // (undocumented)
+    command: "begin-media-generation";
+    // (undocumented)
+    request: MediaGenerationLeaseWire;
+}
+
+// @public (undocumented)
+interface BeginProviderInvocationCommand {
+    // (undocumented)
+    command: "begin-provider-invocation";
+    // (undocumented)
+    request: BeginProviderInvocationWire;
+}
+
+// @public (undocumented)
+interface BeginProviderInvocationWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    id: NullableString;
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    invocation_number: number;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    request_digest: string;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    step: number;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
 interface BeginToolExecutionCommand {
     // (undocumented)
     command: "begin-tool-execution";
@@ -145,6 +205,8 @@ interface BeginToolExecutionCommand {
 // @public (undocumented)
 interface BeginToolExecutionWire {
     // (undocumented)
+    attempt_id: string;
+    // (undocumented)
     descriptor: JsonValue$1;
     // (undocumented)
     idempotency_key: string;
@@ -153,17 +215,27 @@ interface BeginToolExecutionWire {
     // (undocumented)
     input_id: string;
     // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
     permission: JsonValue$1;
     // (undocumented)
     principal_id: string;
     // (undocumented)
-    run_id: string;
-    // (undocumented)
     session_id: string;
+    // (undocumented)
+    source_message_id: string;
+    // (undocumented)
+    state: "running" | "denied" | "approval_required";
     // (undocumented)
     tool_call_id: string;
     // (undocumented)
     tool_name: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
 }
 
 // @public (undocumented)
@@ -211,30 +283,24 @@ interface CancelJobWire {
 }
 
 // @public (undocumented)
-interface CancelRunCommand {
-    // (undocumented)
-    command: "cancel-run";
-    // (undocumented)
-    input_id: string;
-    // (undocumented)
-    reason: string;
-    // (undocumented)
-    run_id: string;
-    // (undocumented)
-    session_id: string;
-}
-
-// @public (undocumented)
 type ChannelBindingStateWire = "active" | "revoked";
 
 // @public (undocumented)
 type ChannelInboundEventStateWire = "received" | "projected" | "ignored" | "failed";
 
 // @public (undocumented)
-type ChannelProjectionTargetKindWire = "session.run" | "team.turn" | "workspace.task" | "ignored";
+type ChannelProjectionTargetKindWire = "session.turn" | "team.turn" | "workspace.task" | "ignored";
 
 // @public (undocumented)
 type ChannelStorageRpcCommand = PutChannelBindingCommand | ListChannelBindingsCommand | RevokeChannelBindingCommand | IngestChannelInboundEventCommand | ListChannelInboundEventsCommand | UpdateChannelInboundEventStateCommand | SubmitChannelDeliveryCommand | CompleteChannelDeliveryCommand | FailChannelDeliveryCommand | ProjectChannelInboundEventCommand | ListChannelProjectionsCommand;
+
+// @public (undocumented)
+interface CheckpointMediaGenerationCommand {
+    // (undocumented)
+    command: "checkpoint-media-generation";
+    // (undocumented)
+    request: MediaGenerationCheckpointWire;
+}
 
 // @public (undocumented)
 interface ClaimJobCommand {
@@ -252,18 +318,6 @@ interface ClaimJobWire {
     lease_ms: number;
     // (undocumented)
     worker_id: string;
-}
-
-// @public (undocumented)
-interface ClaimRunnerCommand {
-    // (undocumented)
-    command: "claim-runner";
-    // (undocumented)
-    lease_ms: number;
-    // (undocumented)
-    runner_id: string;
-    // (undocumented)
-    session_id: string;
 }
 
 // @public (undocumented)
@@ -357,21 +411,11 @@ interface CompleteJobWire {
 }
 
 // @public (undocumented)
-interface CompleteRunCommand {
+interface CompleteMediaGenerationCommand {
     // (undocumented)
-    assistant_message: NullableMessagePartsWire;
+    command: "complete-media-generation";
     // (undocumented)
-    command: "complete-run";
-    // (undocumented)
-    input_id: string;
-    // (undocumented)
-    lease_token: string;
-    // (undocumented)
-    run_id: string;
-    // (undocumented)
-    runner_id: string;
-    // (undocumented)
-    session_id: string;
+    request: MediaGenerationCompleteWire;
 }
 
 // @public (undocumented)
@@ -464,6 +508,8 @@ interface EnqueueJobWire {
     // (undocumented)
     budget_grant_id: NullableString;
     // (undocumented)
+    concurrency_key: NullableString;
+    // (undocumented)
     id: NullableString;
     // (undocumented)
     idempotency_key: NullableString;
@@ -528,24 +574,6 @@ interface FailJobWire {
 }
 
 // @public (undocumented)
-interface FailRunCommand {
-    // (undocumented)
-    command: "fail-run";
-    // (undocumented)
-    error: JsonValue$1;
-    // (undocumented)
-    input_id: string;
-    // (undocumented)
-    lease_token: string;
-    // (undocumented)
-    run_id: string;
-    // (undocumented)
-    runner_id: string;
-    // (undocumented)
-    session_id: string;
-}
-
-// @public (undocumented)
 interface FinishConnectorSessionCommand {
     // (undocumented)
     command: "finish-connector-session";
@@ -570,6 +598,44 @@ interface FinishConnectorSessionWire {
 }
 
 // @public (undocumented)
+interface FinishProviderInvocationCommand {
+    // (undocumented)
+    command: "finish-provider-invocation";
+    // (undocumented)
+    request: FinishProviderInvocationWire;
+}
+
+// @public (undocumented)
+interface FinishProviderInvocationWire {
+    // (undocumented)
+    assistant_message: NullableMessagePartsWire;
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    error: JsonValue$1;
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    invocation_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    outcome: "succeeded" | "failed_before_output" | "ambiguous";
+    // (undocumented)
+    provider_request_id: NullableString;
+    // (undocumented)
+    provider_state: JsonValue$1;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
 interface FinishToolExecutionCommand {
     // (undocumented)
     command: "finish-tool-execution";
@@ -584,11 +650,27 @@ interface FinishToolExecutionWire {
     // (undocumented)
     execution_id: string;
     // (undocumented)
+    input_id: string;
+    // (undocumented)
+    invocation_attempt_id: string;
+    // (undocumented)
     is_error: NullableBoolean;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
     // (undocumented)
     result: JsonValue$1;
     // (undocumented)
+    session_attempt_id: string;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
     state: "succeeded" | "failed" | "cancelled";
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
 }
 
 // @public (undocumented)
@@ -657,6 +739,14 @@ interface GetJobCommand {
 interface GetJobWire {
     // (undocumented)
     job_id: string;
+}
+
+// @public (undocumented)
+interface GetMediaGenerationCommand {
+    // (undocumented)
+    command: "get-media-generation";
+    // (undocumented)
+    operation_id: string;
 }
 
 // @public (undocumented)
@@ -816,20 +906,6 @@ interface HeartbeatJobWire {
 }
 
 // @public (undocumented)
-interface HeartbeatRunnerCommand {
-    // (undocumented)
-    command: "heartbeat-runner";
-    // (undocumented)
-    lease_ms: number;
-    // (undocumented)
-    lease_token: string;
-    // (undocumented)
-    runner_id: string;
-    // (undocumented)
-    session_id: string;
-}
-
-// @public (undocumented)
 interface IngestChannelInboundEventCommand {
     // (undocumented)
     command: "ingest-channel-inbound-event";
@@ -904,15 +980,17 @@ interface IngestResourceWire {
 }
 
 // @public (undocumented)
-interface InterruptSessionRunCommand {
+interface InterruptSessionTurnCommand {
     // (undocumented)
-    command: "interrupt-session-run";
+    command: "interrupt-session-turn";
     // (undocumented)
-    request: InterruptSessionRunWire;
+    request: InterruptSessionTurnWire;
 }
 
 // @public (undocumented)
-interface InterruptSessionRunWire {
+interface InterruptSessionTurnWire {
+    // (undocumented)
+    attempt_id: string;
     // (undocumented)
     idempotency_key: NullableString;
     // (undocumented)
@@ -924,9 +1002,9 @@ interface InterruptSessionRunWire {
     // (undocumented)
     reason: string;
     // (undocumented)
-    run_id: string;
-    // (undocumented)
     session_id: string;
+    // (undocumented)
+    turn_id: string;
 }
 
 // @public (undocumented)
@@ -1185,6 +1263,14 @@ interface ListJobsWire {
 }
 
 // @public (undocumented)
+interface ListMediaGenerationCommand {
+    // (undocumented)
+    command: "list-media-generation";
+    // (undocumented)
+    request: MediaGenerationListWire;
+}
+
+// @public (undocumented)
 interface ListObjectiveAttemptsCommand {
     // (undocumented)
     command: "list-objective-attempts";
@@ -1351,6 +1437,20 @@ interface ListPluginManifestsWire {
 }
 
 // @public (undocumented)
+interface ListProviderInvocationsCommand {
+    // (undocumented)
+    command: "list-provider-invocations";
+    // (undocumented)
+    request: ListProviderInvocationsWire;
+}
+
+// @public (undocumented)
+interface ListProviderInvocationsWire {
+    // (undocumented)
+    turn_id: string;
+}
+
+// @public (undocumented)
 interface ListReadyDelegationGraphNodesCommand {
     // (undocumented)
     command: "list-ready-delegation-graph-nodes";
@@ -1387,6 +1487,14 @@ interface ListResourcesWire {
 }
 
 // @public (undocumented)
+interface ListSessionAttemptsCommand {
+    // (undocumented)
+    command: "list-session-attempts";
+    // (undocumented)
+    turn_id: string;
+}
+
+// @public (undocumented)
 interface ListSessionInputsCommand {
     // (undocumented)
     command: "list-session-inputs";
@@ -1400,28 +1508,6 @@ interface ListSessionMessagesCommand {
     command: "list-session-messages";
     // (undocumented)
     session_id: string;
-}
-
-// @public (undocumented)
-interface ListSessionRunControlsCommand {
-    // (undocumented)
-    command: "list-session-run-controls";
-    // (undocumented)
-    request: ListSessionRunControlsWire;
-}
-
-// @public (undocumented)
-interface ListSessionRunControlsWire {
-    // (undocumented)
-    kind: NullableSessionRunControlKindWire;
-    // (undocumented)
-    limit: NullableInteger;
-    // (undocumented)
-    run_id: NullableString;
-    // (undocumented)
-    session_id: string;
-    // (undocumented)
-    status: NullableSessionRunControlStatusWire;
 }
 
 // @public (undocumented)
@@ -1444,6 +1530,40 @@ interface ListSessionsWire {
     updated_after: NullableInteger;
     // (undocumented)
     updated_before: NullableInteger;
+}
+
+// @public (undocumented)
+interface ListSessionTurnControlsCommand {
+    // (undocumented)
+    command: "list-session-turn-controls";
+    // (undocumented)
+    request: ListSessionTurnControlsWire;
+}
+
+// @public (undocumented)
+interface ListSessionTurnControlsWire {
+    // (undocumented)
+    attempt_id: NullableString;
+    // (undocumented)
+    kind: NullableSessionTurnControlKindWire;
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    status: NullableSessionTurnControlStatusWire;
+    // (undocumented)
+    turn_id: NullableString;
+}
+
+// @public (undocumented)
+interface ListSessionTurnsCommand {
+    // (undocumented)
+    command: "list-session-turns";
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    state: NullableSessionTurnStateWire;
 }
 
 // @public (undocumented)
@@ -1503,6 +1623,20 @@ interface ListTeamTurnsWire {
 }
 
 // @public (undocumented)
+interface ListToolExecutionAttemptsCommand {
+    // (undocumented)
+    command: "list-tool-execution-attempts";
+    // (undocumented)
+    request: ListToolExecutionAttemptsWire;
+}
+
+// @public (undocumented)
+interface ListToolExecutionAttemptsWire {
+    // (undocumented)
+    execution_id: string;
+}
+
+// @public (undocumented)
 interface ListToolExecutionsCommand {
     // (undocumented)
     command: "list-tool-executions";
@@ -1515,11 +1649,11 @@ interface ListToolExecutionsWire {
     // (undocumented)
     limit: NullableInteger;
     // (undocumented)
-    run_id: NullableString;
-    // (undocumented)
     session_id: NullableString;
     // (undocumented)
     state: NullableToolExecutionStateWire;
+    // (undocumented)
+    turn_id: NullableString;
 }
 
 // @public (undocumented)
@@ -1589,6 +1723,36 @@ interface ListWorkspaceChangeSetsWire {
 }
 
 // @public (undocumented)
+interface MarkProviderInvocationOutputCommand {
+    // (undocumented)
+    command: "mark-provider-invocation-output";
+    // (undocumented)
+    request: MarkProviderInvocationOutputWire;
+}
+
+// @public (undocumented)
+interface MarkProviderInvocationOutputWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    invocation_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    provider_request_id: NullableString;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
 interface MaterializeReadyDelegationGraphNodeCommand {
     // (undocumented)
     command: "materialize-ready-delegation-graph-node";
@@ -1624,6 +1788,128 @@ interface MaterializeReadyDelegationGraphNodeWire {
     scheduled_at: NullableInteger;
     // (undocumented)
     worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationAcceptWire {
+    // (undocumented)
+    external_operation_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    provider_checkpoint: JsonValue$1;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationCancelWire {
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    reason: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationCheckpointWire {
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    progress: JsonValue$1;
+    // (undocumented)
+    provider_checkpoint: JsonValue$1;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationCompleteWire {
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    output_resource_ids: string[];
+    // (undocumented)
+    result: JsonValue$1;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationLeaseWire {
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationListWire {
+    // (undocumented)
+    limit: NullableUnsigned32;
+    // (undocumented)
+    principal_id: NullableString;
+    // (undocumented)
+    state: NullableMediaGenerationOperationStateWire;
+}
+
+// @public (undocumented)
+type MediaGenerationOperationStateWire = "queued" | "submitting" | "polling" | "materializing" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+
+// @public (undocumented)
+interface MediaGenerationOutputsWire {
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    output_references: JsonValue$1[];
+    // (undocumented)
+    progress: JsonValue$1;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationSettleWire {
+    // (undocumented)
+    error: JsonValue$1;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    operation_id: string;
+    // (undocumented)
+    outcome: "failed" | "cancelled" | "recovery_required";
+    // (undocumented)
+    reason: NullableString;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+type MediaGenerationStorageRpcCommand = SubmitMediaGenerationCommand | BeginMediaGenerationCommand | AcceptMediaGenerationCommand | CheckpointMediaGenerationCommand | RecordMediaGenerationOutputsCommand | CompleteMediaGenerationCommand | SettleMediaGenerationCommand | RequestMediaGenerationCancelCommand | GetMediaGenerationCommand | ListMediaGenerationCommand;
+
+// @public (undocumented)
+interface MediaGenerationSubmitWire {
+    // (undocumented)
+    binding: JsonValue$1;
+    // (undocumented)
+    id: NullableString;
+    // (undocumented)
+    idempotency_key: string;
+    // (undocumented)
+    job_id: NullableString;
+    // (undocumented)
+    principal_id: string;
+    // (undocumented)
+    priority: NullableInteger;
 }
 
 // @public (undocumented)
@@ -1673,6 +1959,9 @@ type NullableInteger = number | null;
 
 // @public (undocumented)
 type NullableJsonObjectWire = JsonObjectWire | null;
+
+// @public (undocumented)
+type NullableMediaGenerationOperationStateWire = MediaGenerationOperationStateWire | null;
 
 // @public (undocumented)
 type NullableMessagePartsWire = MessagePartsWire | null;
@@ -1741,16 +2030,16 @@ type NullableSessionInputOriginWire = SessionInputOriginWire | null;
 type NullableSessionKindWire = SessionKindWire | null;
 
 // @public (undocumented)
-type NullableSessionRunControlKindWire = SessionRunControlKindWire | null;
-
-// @public (undocumented)
-type NullableSessionRunControlStatusWire = SessionRunControlStatusWire | null;
-
-// @public (undocumented)
-type NullableSessionRunModeWire = SessionRunModeWire | null;
-
-// @public (undocumented)
 type NullableSessionStatusWire = SessionStatusWire | null;
+
+// @public (undocumented)
+type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | null;
+
+// @public (undocumented)
+type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
+
+// @public (undocumented)
+type NullableSessionTurnStateWire = SessionTurnStateWire | null;
 
 // @public (undocumented)
 type NullableString = string | null;
@@ -1786,7 +2075,7 @@ type NullableWorkspaceChangeSetStateWire = WorkspaceChangeSetStateWire | null;
 type ObjectiveAttemptStateWire = "planned" | "running" | "succeeded" | "failed" | "blocked" | "cancelled";
 
 // @public (undocumented)
-type ObjectiveReferenceKindWire = "session" | "session_input" | "session_run" | "scheduler_job" | "plan_proposal" | "workspace_change_proposal" | "delegation_graph" | "resource" | "context_epoch";
+type ObjectiveReferenceKindWire = "session" | "session_input" | "session_turn" | "scheduler_job" | "plan_proposal" | "workspace_change_proposal" | "delegation_graph" | "resource" | "context_epoch";
 
 // @public (undocumented)
 type ObjectiveRunOperationWire = "start" | "record_blocked" | "mark_succeeded" | "mark_failed" | "cancel";
@@ -1810,7 +2099,7 @@ type PlanProposalOperationWire = "approve" | "reject" | "withdraw" | "request_ex
 type PlanProposalStateWire = "open" | "approved" | "rejected" | "withdrawn" | "execution_requested" | "executed" | "execution_failed";
 
 // @public (undocumented)
-type PlanReferenceKindWire = "session" | "session_input" | "session_run" | "scheduler_job" | "workspace_change_proposal" | "delegation_graph" | "delegation_graph_node" | "team_conversation" | "resource" | "context_epoch";
+type PlanReferenceKindWire = "session" | "session_input" | "session_turn" | "scheduler_job" | "workspace_change_proposal" | "delegation_graph" | "delegation_graph_node" | "team_conversation" | "resource" | "context_epoch";
 
 // @public (undocumented)
 type PlanStorageRpcCommand = PutPlanProposalCommand | GetPlanProposalCommand | ListPlanProposalsCommand | RecordPlanProposalOperationCommand | ListPlanProposalOperationsCommand;
@@ -2229,7 +2518,7 @@ interface PutObjectiveAttemptWire {
     // (undocumented)
     session_input_id: NullableString;
     // (undocumented)
-    session_run_id: NullableString;
+    session_turn_id: NullableString;
     // (undocumented)
     started_at: NullableInteger;
     // (undocumented)
@@ -2551,6 +2840,20 @@ interface QueryEventsWire {
 }
 
 // @public (undocumented)
+interface ReadResourceContentCommand {
+    // (undocumented)
+    command: "read-resource-content";
+    // (undocumented)
+    expected_sha256: string;
+    // (undocumented)
+    limit: number;
+    // (undocumented)
+    offset: number;
+    // (undocumented)
+    resource_id: string;
+}
+
+// @public (undocumented)
 interface RecordBudgetUsageCommand {
     // (undocumented)
     command: "record-budget-usage";
@@ -2570,6 +2873,14 @@ interface RecordBudgetUsageWire {
     source_id: string;
     // (undocumented)
     usage: BudgetAmountWire;
+}
+
+// @public (undocumented)
+interface RecordMediaGenerationOutputsCommand {
+    // (undocumented)
+    command: "record-media-generation-outputs";
+    // (undocumented)
+    request: MediaGenerationOutputsWire;
 }
 
 // @public (undocumented)
@@ -2665,22 +2976,6 @@ interface RecordWorkspaceChangeProposalOperationWire {
 }
 
 // @public (undocumented)
-interface RecoverToolExecutionCommand {
-    // (undocumented)
-    command: "recover-tool-execution";
-    // (undocumented)
-    request: RecoverToolExecutionWire;
-}
-
-// @public (undocumented)
-interface RecoverToolExecutionWire {
-    // (undocumented)
-    action: "retry" | "require_recovery";
-    // (undocumented)
-    execution_id: string;
-}
-
-// @public (undocumented)
 interface ReleaseBudgetCommand {
     // (undocumented)
     command: "release-budget";
@@ -2689,15 +2984,33 @@ interface ReleaseBudgetCommand {
 }
 
 // @public (undocumented)
-interface ReleaseRunnerCommand {
+interface RequestMediaGenerationCancelCommand {
     // (undocumented)
-    command: "release-runner";
+    command: "request-media-generation-cancel";
     // (undocumented)
-    lease_token: string;
+    request: MediaGenerationCancelWire;
+}
+
+// @public (undocumented)
+interface RequestSessionTurnCancelCommand {
     // (undocumented)
-    runner_id: string;
+    command: "request-session-turn-cancel";
+    // (undocumented)
+    request: RequestSessionTurnCancelWire;
+}
+
+// @public (undocumented)
+interface RequestSessionTurnCancelWire {
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    reason: string;
     // (undocumented)
     session_id: string;
+    // (undocumented)
+    turn_id: string;
 }
 
 // @public (undocumented)
@@ -2817,6 +3130,8 @@ interface RuntimeEventInputWire {
 // @public (undocumented)
 interface RuntimeEventScopeWire {
     // (undocumented)
+    attempt_id: NullableString;
+    // (undocumented)
     input_id: NullableString;
     // (undocumented)
     message_id: NullableString;
@@ -2827,22 +3142,22 @@ interface RuntimeEventScopeWire {
     // (undocumented)
     resource_id: NullableString;
     // (undocumented)
-    run_id: NullableString;
-    // (undocumented)
     session_id: NullableString;
+    // (undocumented)
+    turn_id: NullableString;
 }
 
 // @public (undocumented)
-type RuntimeStorageRpcCommand = AppendEventCommand | QueryEventsCommand | PutConfigCommand | GetConfigCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | DoctorCommand;
+type RuntimeStorageRpcCommand = AppendEventCommand | QueryEventsCommand | PutConfigCommand | GetConfigCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ReadResourceContentCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | DoctorCommand;
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 type SchedulerJobKindsWire = SchedulerJobKindWire[];
 
 // @public (undocumented)
-type SchedulerJobKindWire = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKindWire = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -2850,6 +3165,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -2897,7 +3214,7 @@ type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_
 type SchedulerJobStateWire = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
-type SchedulerStorageRpcCommand = ClaimRunnerCommand | HeartbeatRunnerCommand | CompleteRunCommand | FailRunCommand | ReleaseRunnerCommand | CancelRunCommand | ReserveBudgetCommand | CommitBudgetCommand | RecordBudgetUsageCommand | ReleaseBudgetCommand | GetBudgetScopeCommand | ListBudgetGrantsCommand | EnqueueJobCommand | ClaimJobCommand | HeartbeatJobCommand | CompleteJobCommand | FailJobCommand | CancelJobCommand | GetJobCommand | ListJobsCommand;
+type SchedulerStorageRpcCommand = ReserveBudgetCommand | CommitBudgetCommand | RecordBudgetUsageCommand | ReleaseBudgetCommand | GetBudgetScopeCommand | ListBudgetGrantsCommand | EnqueueJobCommand | ClaimJobCommand | HeartbeatJobCommand | CompleteJobCommand | FailJobCommand | CancelJobCommand | GetJobCommand | ListJobsCommand;
 
 // @public (undocumented)
 type SessionInputIntentWire = "normal" | "follow_up" | "steer" | "interrupt";
@@ -2905,7 +3222,7 @@ type SessionInputIntentWire = "normal" | "follow_up" | "steer" | "interrupt";
 // @public (undocumented)
 interface SessionInputOriginWire {
     // (undocumented)
-    kind: "interactive" | "scheduler" | "connector" | "agent" | "system" | "objective" | "plan";
+    kind: string;
     // (undocumented)
     metadata?: JsonObjectWire;
     // (undocumented)
@@ -2918,19 +3235,70 @@ interface SessionInputOriginWire {
 type SessionKindWire = "chat" | "agent";
 
 // @public (undocumented)
-type SessionRunControlKindWire = "interrupt" | "steer";
-
-// @public (undocumented)
-type SessionRunControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
-
-// @public (undocumented)
-type SessionRunModeWire = "once" | "to_completion";
-
-// @public (undocumented)
-type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | AdmitSessionInputCommand | SubmitSessionRunCommand | InterruptSessionRunCommand | SteerSessionRunCommand | ListSessionRunControlsCommand | ApplySessionRunControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | AppendSessionMessageCommand;
+type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
 
 // @public (undocumented)
 type SessionStatusWire = "active" | "archived";
+
+// @public (undocumented)
+type SessionTurnControlKindWire = "interrupt" | "steer";
+
+// @public (undocumented)
+type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+
+// @public (undocumented)
+type SessionTurnSettlementOutcomeWire = "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+type SessionTurnStateWire = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+interface SettleMediaGenerationCommand {
+    // (undocumented)
+    command: "settle-media-generation";
+    // (undocumented)
+    request: MediaGenerationSettleWire;
+}
+
+// @public (undocumented)
+interface SettleSessionTurnCommand {
+    // (undocumented)
+    command: "settle-session-turn";
+    // (undocumented)
+    request: SettleSessionTurnWire;
+}
+
+// @public (undocumented)
+interface SettleSessionTurnWire {
+    // (undocumented)
+    assistant_message: NullableMessagePartsWire;
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    error: JsonValue$1;
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    outcome: SessionTurnSettlementOutcomeWire;
+    // (undocumented)
+    provider_invocation_id: NullableString;
+    // (undocumented)
+    provider_state: JsonValue$1;
+    // (undocumented)
+    reason: NullableString;
+    // (undocumented)
+    result: JsonValue$1;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
 
 // @public (undocumented)
 interface StartConnectorSessionCommand {
@@ -2961,19 +3329,45 @@ interface StartConnectorSessionWire {
 }
 
 // @public (undocumented)
-interface SteerSessionRunCommand {
+interface StartSessionTurnAttemptCommand {
     // (undocumented)
-    command: "steer-session-run";
+    command: "start-session-turn-attempt";
     // (undocumented)
-    request: SteerSessionRunWire;
+    request: StartSessionTurnAttemptWire;
 }
 
 // @public (undocumented)
-interface SteerSessionRunWire {
+interface StartSessionTurnAttemptWire {
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
+
+// @public (undocumented)
+interface SteerSessionTurnCommand {
+    // (undocumented)
+    command: "steer-session-turn";
+    // (undocumented)
+    request: SteerSessionTurnWire;
+}
+
+// @public (undocumented)
+interface SteerSessionTurnWire {
     // (undocumented)
     content: MessagePartsWire;
     // (undocumented)
-    expected_run_id: string;
+    expected_attempt_id: string;
+    // (undocumented)
+    expected_turn_id: string;
     // (undocumented)
     idempotency_key: string;
     // (undocumented)
@@ -2983,16 +3377,14 @@ interface SteerSessionRunWire {
     // (undocumented)
     principal_id: string;
     // (undocumented)
-    provider_profile_id: NullableString;
-    // (undocumented)
     session_id: string;
 }
 
 // @public (undocumented)
-type StorageRpcCapability = "storage.runtime" | "storage.sessions" | "storage.context" | "storage.scheduler" | "storage.tools" | "storage.workspace" | "storage.plan" | "storage.objective" | "storage.delegation" | "storage.team" | "storage.plugin" | "storage.connector" | "storage.channel";
+type StorageRpcCapability = "storage.runtime" | "storage.sessions" | "storage.context" | "storage.scheduler" | "storage.tools" | "storage.workspace" | "storage.plan" | "storage.objective" | "storage.delegation" | "storage.team" | "storage.plugin" | "storage.connector" | "storage.channel" | "storage.media_generation";
 
 // @public (undocumented)
-type StorageRpcCommand = StorageRpcDescribeCommand | RuntimeStorageRpcCommand | SessionsStorageRpcCommand | ContextStorageRpcCommand | SchedulerStorageRpcCommand | ToolsStorageRpcCommand | WorkspaceStorageRpcCommand | PlanStorageRpcCommand | ObjectiveStorageRpcCommand | DelegationStorageRpcCommand | TeamStorageRpcCommand | PluginStorageRpcCommand | ConnectorStorageRpcCommand | ChannelStorageRpcCommand;
+type StorageRpcCommand = StorageRpcDescribeCommand | RuntimeStorageRpcCommand | SessionsStorageRpcCommand | ContextStorageRpcCommand | SchedulerStorageRpcCommand | ToolsStorageRpcCommand | WorkspaceStorageRpcCommand | PlanStorageRpcCommand | ObjectiveStorageRpcCommand | DelegationStorageRpcCommand | TeamStorageRpcCommand | PluginStorageRpcCommand | ConnectorStorageRpcCommand | ChannelStorageRpcCommand | MediaGenerationStorageRpcCommand;
 
 // @public (undocumented)
 interface StorageRpcDescribeCommand {
@@ -3116,6 +3508,14 @@ interface SubmitChannelDeliveryWire {
 }
 
 // @public (undocumented)
+interface SubmitMediaGenerationCommand {
+    // (undocumented)
+    command: "submit-media-generation";
+    // (undocumented)
+    request: MediaGenerationSubmitWire;
+}
+
+// @public (undocumented)
 interface SubmitPluginActionCommand {
     // (undocumented)
     command: "submit-plugin-action";
@@ -3188,21 +3588,23 @@ interface SubmitPluginActionWire {
 }
 
 // @public (undocumented)
-interface SubmitSessionRunCommand {
+interface SubmitSessionTurnCommand {
     // (undocumented)
-    command: "submit-session-run";
+    command: "submit-session-turn";
     // (undocumented)
-    request: SubmitSessionRunWire;
+    request: SubmitSessionTurnWire;
 }
 
 // @public (undocumented)
-interface SubmitSessionRunWire {
+interface SubmitSessionTurnWire {
     // (undocumented)
     budget_grant_id: NullableString;
     // (undocumented)
     content: MessagePartsWire;
     // (undocumented)
-    expected_run_id: NullableString;
+    execution_binding: JsonValue$1;
+    // (undocumented)
+    expected_turn_id: NullableString;
     // (undocumented)
     id: NullableString;
     // (undocumented)
@@ -3216,29 +3618,27 @@ interface SubmitSessionRunWire {
     // (undocumented)
     job_idempotency_key: NullableString;
     // (undocumented)
-    max_attempts: NullableInteger;
-    // (undocumented)
     max_steps: NullableInteger;
-    // (undocumented)
-    mode: NullableSessionRunModeWire;
     // (undocumented)
     not_before: NullableInteger;
     // (undocumented)
     origin: NullableSessionInputOriginWire;
     // (undocumented)
+    parent_turn_id: NullableString;
+    // (undocumented)
     principal_id: string;
     // (undocumented)
     priority: NullableInteger;
     // (undocumented)
-    provider_profile_id: NullableString;
-    // (undocumented)
-    retry_policy: NullableRetryPolicyWire;
+    regenerates_turn_id: NullableString;
     // (undocumented)
     run_control_policy: NullableRunControlPolicyWire;
     // (undocumented)
     scheduled_at: NullableInteger;
     // (undocumented)
     session_id: string;
+    // (undocumented)
+    turn_id: NullableString;
 }
 
 // @public (undocumented)
@@ -3263,10 +3663,10 @@ type TeamStorageRpcCommand = PutTeamConversationCommand | GetTeamConversationCom
 type TeamTurnKindWire = "message" | "decision" | "handoff" | "system";
 
 // @public (undocumented)
-type ToolExecutionStateWire = "running" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+type ToolExecutionStateWire = "running" | "retry_ready" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
 
 // @public (undocumented)
-type ToolsStorageRpcCommand = BeginToolExecutionCommand | FinishToolExecutionCommand | RecoverToolExecutionCommand | GetToolExecutionCommand | ListToolExecutionsCommand;
+type ToolsStorageRpcCommand = BeginToolExecutionCommand | FinishToolExecutionCommand | GetToolExecutionCommand | ListToolExecutionsCommand | ListToolExecutionAttemptsCommand;
 
 // @public (undocumented)
 type Unsigned32 = number;

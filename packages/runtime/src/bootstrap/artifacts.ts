@@ -99,6 +99,7 @@ export interface RuntimeArtifactCandidate {
 }
 
 const supportedTargets = new Map([
+  ["linux-x64", "x86_64-unknown-linux-gnu"],
   ["darwin-arm64", "aarch64-apple-darwin"],
   ["darwin-x64", "x86_64-apple-darwin"],
   ["win32-x64", "x86_64-pc-windows-msvc"]
@@ -467,7 +468,7 @@ function hasExactKeys(
 }
 
 function isNodePlatform(value: unknown): value is NodeJS.Platform {
-  return value === "darwin" || value === "win32"
+  return value === "linux" || value === "darwin" || value === "win32"
 }
 
 function isNodeArchitecture(value: unknown): value is NodeJS.Architecture {

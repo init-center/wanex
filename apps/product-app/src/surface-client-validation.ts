@@ -98,6 +98,7 @@ export function isProductAppSurfaceEvent(
     typeof value.at === "number" &&
     optionalString(value.requestId) &&
     optionalRecord(value.state) &&
+    optionalConversationEvent(value.conversation) &&
     optionalSurfaceError(value.error)
   )
 }
@@ -119,7 +120,8 @@ function isProductAppSurfaceEventType(value: unknown): boolean {
   return (
     value === "product-app.surface.command_completed" ||
     value === "product-app.surface.command_rejected" ||
-    value === "product-app.surface.state_changed"
+    value === "product-app.surface.state_changed" ||
+    value === "product-app.surface.conversation.assistant-text-delta"
   )
 }
 
@@ -142,6 +144,25 @@ function optionalRecord(value: unknown): boolean {
 
 function optionalSurfaceError(value: unknown): boolean {
   return value === undefined || isProductAppSurfaceError(value)
+}
+
+function optionalConversationEvent(value: unknown): boolean {
+  if (value === undefined) {
+    return true
+  }
+  if (!isRecord(value)) {
+    return false
+  }
+  return (
+    value.kind === "product-app.conversation.assistant-text-delta" &&
+    typeof value.sequence === "number" &&
+    typeof value.at === "number" &&
+    typeof value.operationId === "string" &&
+    typeof value.sessionId === "string" &&
+    typeof value.partId === "string" &&
+    typeof value.text === "string" &&
+    typeof value.truncated === "boolean"
+  )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

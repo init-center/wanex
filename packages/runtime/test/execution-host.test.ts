@@ -82,22 +82,47 @@ describe("@wanex/runtime/execution", () => {
       })
       const result = await host.execute({
         program: process.execPath,
-        args: [
-          "-e",
-          "const {spawn}=require('node:child_process');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});console.log(c.pid);setInterval(()=>{},1000)"
-        ],
+        args: ["-e", processTreeFixture],
         cwd,
-        timeoutMs: 100,
-        output: { stdoutBytes: 128 }
+        timeoutMs: 1_000,
+        output: { stdoutBytes: 256 }
       })
 
       expect(result).toMatchObject({
         termination: "timed_out",
         cleanup: "completed"
       })
-      const grandchildPid = Number(result.stdout.text.trim())
-      expect(Number.isInteger(grandchildPid)).toBe(true)
-      await expectProcessGone(grandchildPid)
+      const pids = processTreePids(result.stdout.text)
+      expect(pids.root).toBe(result.pid)
+      await expectProcessGone(pids.root)
+      await expectProcessGone(pids.grandchild)
+    }
+  )
+
+  it.runIf(process.platform === "win32")(
+    "kills the Windows process tree including a grandchild on timeout",
+    async () => {
+      const cwd = await tempDir()
+      const host = new NodeExecutionHost({
+        terminationGraceMs: 30,
+        cleanupTimeoutMs: 5_000
+      })
+      const result = await host.execute({
+        program: process.execPath,
+        args: ["-e", processTreeFixture],
+        cwd,
+        timeoutMs: 1_000,
+        output: { stdoutBytes: 256 }
+      })
+
+      expect(result).toMatchObject({
+        termination: "timed_out",
+        cleanup: "completed"
+      })
+      const pids = processTreePids(result.stdout.text)
+      expect(pids.root).toBe(result.pid)
+      await expectProcessGone(pids.root)
+      await expectProcessGone(pids.grandchild)
     }
   )
 
@@ -169,6 +194,13 @@ describe("@wanex/runtime/execution", () => {
   })
 })
 
+const processTreeFixture = [
+  "const {spawn}=require('node:child_process')",
+  "const grandchild=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true})",
+  "process.stdout.write(JSON.stringify({root:process.pid,grandchild:grandchild.pid})+'\\n')",
+  "setInterval(()=>{},1000)"
+].join(";")
+
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-execution-host-"))
   tempDirs.push(dir)
@@ -189,4 +221,25 @@ async function expectProcessGone(pid: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
   throw new Error(`process ${pid} is still alive`)
+}
+
+function processTreePids(output: string): {
+  readonly root: number
+  readonly grandchild: number
+} {
+  const parsed = JSON.parse(output.trim()) as {
+    readonly root?: unknown
+    readonly grandchild?: unknown
+  }
+  return {
+    root: positivePid(parsed.root, "root"),
+    grandchild: positivePid(parsed.grandchild, "grandchild")
+  }
+}
+
+function positivePid(value: unknown, name: string): number {
+  if (!Number.isInteger(value) || Number(value) <= 0) {
+    throw new Error(`process tree fixture returned invalid ${name} pid`)
+  }
+  return Number(value)
 }

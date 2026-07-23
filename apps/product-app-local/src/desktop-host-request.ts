@@ -4,6 +4,10 @@ import {
 import {
   projectProductAppDesktopMainSnapshot
 } from "./desktop-host-snapshot.js"
+import {
+  projectProductAppLocalProviderProfile,
+  projectProductAppLocalProviderProfiles
+} from "./provider-profile-read-model.js"
 import type {
   ProductAppLocalWebApp
 } from "./types.js"
@@ -58,7 +62,9 @@ export async function handleProductAppDesktopMainRequest(
           ok: true,
           operation: request.operation,
           ...optionalRequestId(request.requestId),
-          providerProfiles: await local.providerProfiles.listProviderProfiles()
+          providerProfiles: projectProductAppLocalProviderProfiles(
+            await local.providerProfiles.listProviderProfiles()
+          )
         }
       case "setActiveProviderProfile":
         return {
@@ -66,8 +72,9 @@ export async function handleProductAppDesktopMainRequest(
           ok: true,
           operation: request.operation,
           ...optionalRequestId(request.requestId),
-          providerProfile:
+          providerProfile: projectProductAppLocalProviderProfile(
             await local.providerProfiles.setActiveProviderProfile(request.input)
+          )
         }
     }
   } catch (error) {

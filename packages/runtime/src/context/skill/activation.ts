@@ -3,6 +3,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "../../tools/index.js"
+import { createToolRuntimeBinding } from "../../tools/index.js"
 import {
   activateSkill
 } from "./activation-core.js"
@@ -43,11 +44,29 @@ export class SkillActivationTool implements ToolDefinition {
   readonly risk = "read_only" as const
   readonly idempotent = true
   readonly annotations = { readOnlyHint: true, idempotentHint: true } as const
+  readonly runtimeBinding
 
   private readonly options: SkillActivationOptions
 
   constructor(options: SkillActivationOptions) {
     this.options = options
+    this.runtimeBinding = createToolRuntimeBinding({
+      implementationId: "wanex.runtime.tool.skill-activation",
+      implementationRevision: "1",
+      configuration: {
+        snapshot: {
+          status: options.snapshot.status,
+          sources: options.snapshot.sources.map((source) => ({
+            id: source.id,
+            path: source.path,
+            hash: source.hash,
+            bodyHash: source.bodyHash
+          }))
+        },
+        maxIndexedFiles: options.maxIndexedFiles ?? null,
+        supportingDirectories: options.supportingDirectories ?? []
+      }
+    })
   }
 
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {

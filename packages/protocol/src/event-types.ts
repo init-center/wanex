@@ -5,15 +5,17 @@ import type {
   ResourceId,
   RuntimeEventId,
   SessionId,
+  SessionAttemptId,
   SessionInputId,
-  SessionRunId
+  SessionTurnId
 } from "./ids.js"
 import type { JsonValue } from "./json.js"
 import { WANEX_PROTOCOL_VERSION } from "./version.js"
 
 export interface RuntimeEventScope {
   readonly sessionId?: SessionId
-  readonly runId?: SessionRunId
+  readonly turnId?: SessionTurnId
+  readonly attemptId?: SessionAttemptId
   readonly inputId?: SessionInputId
   readonly messageId?: MessageId
   readonly resourceId?: ResourceId
@@ -33,17 +35,19 @@ export interface RuntimeEvent {
 export type SessionEventType =
   | "session.created"
   | "session.input.admitted"
-  | "session.run.submitted"
-  | "session.run.claimed"
-  | "session.run.interrupt_requested"
-  | "session.run.interrupted"
-  | "session.run.steer_admitted"
-  | "session.run.steer_rejected"
+  | "session.turn.submitted"
+  | "session.turn.attempt_started"
+  | "session.turn.interrupt_requested"
+  | "session.turn.steer_accepted"
+  | "session.turn.control_applied"
+  | "session.turn.cancel_requested"
+  | "session.turn.interrupted"
+  | "session.turn.recovery_required"
   | "session.ephemeral_query.completed"
   | "session.message.appended"
-  | "session.run.completed"
-  | "session.run.failed"
-  | "session.run.cancelled"
+  | "session.turn.succeeded"
+  | "session.turn.failed"
+  | "session.turn.cancelled"
 
 export type SchedulerEventType =
   | "scheduler.job.enqueued"
@@ -63,8 +67,6 @@ export type BudgetEventType =
 export type ResourceEventType = "resource.ticket.cleanup"
 
 export type ConfigEventType = "config.updated"
-
-export type UiSurfaceEventType = "ui.surface.emitted"
 
 export type ContextEventType =
   | "context.compaction.planned"
@@ -90,7 +92,6 @@ export type KnownRuntimeEventType =
   | BudgetEventType
   | ResourceEventType
   | ConfigEventType
-  | UiSurfaceEventType
   | ContextEventType
   | PlanEventType
   | ObjectiveEventType
@@ -103,7 +104,6 @@ export type EventFamily =
   | "budget"
   | "resource"
   | "config"
-  | "ui"
   | "context"
   | "plan"
   | "objective"

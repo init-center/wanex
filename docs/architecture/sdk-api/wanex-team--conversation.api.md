@@ -89,6 +89,8 @@ interface EnqueueJobRequest {
     // (undocumented)
     readonly budgetGrantId?: string;
     // (undocumented)
+    readonly concurrencyKey?: string;
+    // (undocumented)
     readonly id?: string;
     // (undocumented)
     readonly idempotencyKey?: string;
@@ -141,7 +143,7 @@ export interface ListTeamTurnsRequest {
 }
 
 // @public (undocumented)
-type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart | UiSurfaceMessagePart;
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
 
 // @public (undocumented)
 interface MessagePartBase {
@@ -203,11 +205,24 @@ export function registerTeamRoundJobHandler(worker: WanexWorker, options: TeamRo
 type ResourceId = string;
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
     // (undocumented)
     readonly mediaType?: string;
     // (undocumented)
     readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
     readonly type: "resource";
 }
@@ -223,7 +238,7 @@ interface RetryPolicy {
 }
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -231,6 +246,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -548,74 +565,6 @@ interface ToolResultMessagePart extends MessagePartBase {
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
-}
-
-// @public (undocumented)
-interface UiSurfaceActionBridge {
-    // (undocumented)
-    readonly allowedActions?: readonly string[];
-    // (undocumented)
-    readonly kind: "runtime";
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly route: "session.input" | "plugin.action" | "tool.call" | "app.action" | (string & {});
-    // (undocumented)
-    readonly target?: JsonValue;
-}
-
-// @public (undocumented)
-interface UiSurfaceEnvelope {
-    // (undocumented)
-    readonly actionBridge?: UiSurfaceActionBridge;
-    // (undocumented)
-    readonly fallback?: UiSurfaceFallback;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly payload: JsonValue;
-    // (undocumented)
-    readonly protocol: UiSurfaceProtocol;
-    // (undocumented)
-    readonly requiredCapabilities?: readonly string[];
-    // (undocumented)
-    readonly surfaceKind: string;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-type UiSurfaceFallback = UiSurfaceTextFallback | UiSurfaceResourceFallback;
-
-// @public (undocumented)
-interface UiSurfaceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly surface: UiSurfaceEnvelope;
-    // (undocumented)
-    readonly type: "ui_surface";
-}
-
-// @public (undocumented)
-type UiSurfaceProtocol = "a2ui" | "markdown" | "html-safe" | (string & {});
-
-// @public (undocumented)
-interface UiSurfaceResourceFallback {
-    // (undocumented)
-    readonly kind: "resource";
-    // (undocumented)
-    readonly label?: string;
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
-}
-
-// @public (undocumented)
-interface UiSurfaceTextFallback {
-    // (undocumented)
-    readonly kind: "text";
-    // (undocumented)
-    readonly text: string;
 }
 
 // @public (undocumented)

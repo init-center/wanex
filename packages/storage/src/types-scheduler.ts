@@ -2,39 +2,21 @@ import type {
   BudgetGrantRecord,
   BudgetScopeRecord,
   CancelJobRequest,
-  CancelRunRequest,
   ClaimJobRequest,
   CommitBudgetRequest,
   CompleteJobRequest,
-  CompleteRunRequest,
   EnqueueJobRequest,
   FailJobRequest,
-  FailRunRequest,
   GetJobRequest,
   HeartbeatJobRequest,
   ListJobsRequest,
   RecordBudgetUsageRequest,
   RecordBudgetUsageReceipt,
   ReserveBudgetRequest,
-  RunnerClaim,
-  RunnerClaimRequest,
-  RunnerHeartbeatRequest,
   SchedulerJobRecord
 } from "@wanex/protocol"
 
 export interface SchedulerStore {
-  claimRunner(request: RunnerClaimRequest): Promise<RunnerClaim | null>
-  heartbeatRunner(
-    request: RunnerHeartbeatRequest
-  ): Promise<RunnerClaim | null>
-  completeRun(request: CompleteRunRequest): Promise<boolean>
-  failRun(request: FailRunRequest): Promise<boolean>
-  releaseRunner(request: {
-    readonly sessionId: string
-    readonly runnerId: string
-    readonly leaseToken: string
-  }): Promise<boolean>
-  cancelRun(request: CancelRunRequest): Promise<boolean>
   reserveBudget(request: ReserveBudgetRequest): Promise<BudgetGrantRecord>
   recordBudgetUsage(
     request: RecordBudgetUsageRequest

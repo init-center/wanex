@@ -19,37 +19,12 @@ export function providerOutputToIngestRequest(
     }
     case "inline_bytes":
       return commonRequest(output, output.bytes)
-    case "provider_file": {
-      const provider = requireProvider(output.provider, output.kindOfOutput)
-      const text =
-        output.placeholderText ??
-        `provider file reference: ${provider}/${output.fileId}\n`
-      return commonRequest(output, new TextEncoder().encode(text), {
-        provider,
-        providerFileId: output.fileId
-      })
-    }
-    case "remote_url": {
-      const text =
-        output.placeholderText ?? `remote resource reference: ${output.url}\n`
-      return commonRequest(output, new TextEncoder().encode(text), {
-        ...(output.provider === undefined ? {} : { provider: output.provider }),
-        sourceUrl: output.url,
-        ...(output.expiresAt === undefined
-          ? {}
-          : { sourceExpiresAt: output.expiresAt })
-      })
-    }
-    case "async_operation": {
-      const provider = requireProvider(output.provider, output.kindOfOutput)
-      const text =
-        output.placeholderText ??
-        `provider operation reference: ${provider}/${output.operationId}\n`
-      return commonRequest(output, new TextEncoder().encode(text), {
-        provider,
-        providerOperationId: output.operationId
-      })
-    }
+    case "provider_file":
+    case "remote_url":
+    case "async_operation":
+      throw new Error(
+        `${output.kindOfOutput} provider output must be materialized before resource ingest`
+      )
   }
 }
 
@@ -88,14 +63,4 @@ function kindForMediaType(mediaType: string | undefined): ResourceKind {
     return "document"
   }
   return "artifact"
-}
-
-function requireProvider(
-  provider: string | undefined,
-  outputKind: ProviderArtifactOutput["kindOfOutput"]
-): string {
-  if (provider === undefined || provider.length === 0) {
-    throw new Error(`provider is required for ${outputKind} resource output`)
-  }
-  return provider
 }

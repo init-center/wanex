@@ -1,1072 +1,770 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { afterEach, describe, expect, it } from "vitest"
-import { DeterministicContextCompiler } from "../src/context/memory/index.js"
-import { FakeProviderAdapter } from "@wanex/runtime/provider"
 import type {
-  ProviderReplayMessage,
-  ProviderRequest
-} from "@wanex/runtime/provider"
-import type { RuntimeAbortSignal } from "@wanex/protocol"
-import { WanexSessionCore } from "../src/sessions/index.js"
-import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
+  JsonValue,
+  ToolResultMessagePart
+} from "@wanex/protocol"
+import { createStorageTestStore } from "@wanex/storage/testing"
+import { WanexAgentRunner } from "../src/execution/core/index.js"
+import {
+  FakeProviderAdapter,
+  type ProviderAdapter,
+  type ProviderEvent,
+  type ProviderRequest,
+  type ProviderReplayMessage
+} from "../src/provider/index.js"
 import {
   AllowAllToolsPolicy,
-  EchoTool,
-  ToolRegistry,
-  type ToolDefinition,
-  type ToolExecutionResult,
-  type ToolInvocation
-} from "@wanex/runtime/tools"
-import { runEphemeralSideQuery, WanexAgentRunner } from "../src/execution/core/index.js"
+  createToolRuntimeBinding,
+  ToolRegistry
+} from "../src/tools/index.js"
+import {
+  createStartedTurn,
+  type StartedTurnFixture
+} from "./durable-turn-test-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
   "../../../target/debug/wanex-system-service"
 )
-
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop()
-    if (dir) {
-      await rm(dir, { recursive: true, force: true })
-    }
-  }
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
+  )
 })
 
-describe("Runtime agent runner", () => {
-  it("claims admitted input, calls provider, and persists assistant message", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_1" })
-    await session.admit({
-      id: "inp_agent_1",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_1",
-      content: [{ type: "text", id: "part_user", text: "hello" }]
-    })
-
+describe("Runtime exact turn runner", () => {
+  it("settles one exact started attempt with a canonical assistant message", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, { suffix: "runner_final" })
     const runner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "hello from fake provider"
-      }),
-      runnerId: "runner_agent",
-      leaseMs: 60_000
+      session: fixture.session,
+      provider: new FakeProviderAdapter({ responseText: "final response" })
     })
 
-    const result = await runner.runOnce({ sessionId: created.id })
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
 
-    expect(result.status).toBe("completed")
-    if (result.status !== "completed") {
-      throw new Error("expected completed result")
-    }
-    expect(result.inputId).toBe("inp_agent_1")
-
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("completed")
-
-    const messages = await session.listMessages({ sessionId: created.id })
-    expect(messages).toHaveLength(1)
-    expect(messages[0]?.content).toEqual([
-      {
-        type: "text",
-        id: "text_0",
-        text: "hello from fake provider"
-      }
+    expect(result).toMatchObject({ outcome: "succeeded", steps: 1 })
+    expect(result.settlement.turn.state).toBe("succeeded")
+    expect(result.settlement.job.state).toBe("succeeded")
+    const messages = await fixture.session.listMessages({
+      sessionId: fixture.execution.sessionId
+    })
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant"
     ])
+    expect(messages.map((message) => message.sequence)).toEqual([1, 2])
+    expect(messages.every(
+      (message) => message.turnId === fixture.execution.turnId
+    )).toBe(true)
   })
 
-  it("returns idle when no admitted input is available", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_idle" })
+  it("recovers a provider checkpoint and applies pending steering exactly once", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_steer_recovery"
+    })
+    const steer = await fixture.session.steerTurn({
+      sessionId: fixture.execution.sessionId,
+      principalId: fixture.execution.principalId,
+      expectedTurnId: fixture.execution.turnId,
+      expectedAttemptId: fixture.execution.attemptId,
+      idempotencyKey: "runner_steer_recovery",
+      content: [{
+        type: "text",
+        id: "part_runner_steer_recovery",
+        text: "adjusted after recovery"
+      }]
+    })
+    expect(steer.status).toBe("accepted")
+
+    const invocation = await fixture.session.beginProviderInvocation({
+      ...fixture.execution,
+      step: 1,
+      invocationNumber: 1,
+      requestDigest: "checkpoint:runner_steer_recovery"
+    })
+    const checkpoint = await fixture.session.finishProviderInvocation({
+      ...fixture.execution,
+      invocationId: invocation.id,
+      outcome: "succeeded",
+      assistantMessage: [{
+        type: "text",
+        id: "part_runner_checkpoint",
+        text: "checkpoint before owner loss"
+      }]
+    })
+    expect(checkpoint?.assistantMessage?.content).toMatchObject([{
+      type: "text",
+      text: "checkpoint before owner loss"
+    }])
+
+    const shortenedLease = await fixture.session.heartbeatJob({
+      jobId: fixture.execution.jobId,
+      workerId: fixture.execution.workerId,
+      leaseToken: fixture.execution.leaseToken,
+      leaseMs: 1
+    })
+    expect(shortenedLease).not.toBeNull()
+    await delay(20)
+
+    const recoveryWorkerId = "worker_runner_steer_recovery"
+    const recoveredJob = await fixture.session.claimJob({
+      workerId: recoveryWorkerId,
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    expect(recoveredJob?.id).toBe(fixture.execution.jobId)
+    if (recoveredJob?.leaseToken === undefined) {
+      throw new Error("expected recovered job lease")
+    }
+    const recovered = await fixture.session.startTurnAttempt({
+      sessionId: fixture.execution.sessionId,
+      turnId: fixture.execution.turnId,
+      inputId: fixture.execution.inputId,
+      jobId: recoveredJob.id,
+      workerId: recoveryWorkerId,
+      leaseToken: recoveredJob.leaseToken
+    })
+    const provider = new RecoverySteeringProvider()
     const runner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "unused"
-      }),
-      runnerId: "runner_idle",
-      leaseMs: 60_000
+      session: fixture.session,
+      provider
     })
 
-    await expect(runner.runOnce({ sessionId: created.id })).resolves.toEqual({
-      status: "idle",
-      sessionId: created.id
+    const result = await runner.executeTurn({
+      execution: {
+        ...fixture.execution,
+        attemptId: recovered.attempt.id,
+        workerId: recoveryWorkerId,
+        leaseToken: recoveredJob.leaseToken,
+        recovery: recovered.turn.executionBinding.recovery
+      },
+      heartbeat: async () => {}
     })
+
+    expect(result.outcome).toBe("succeeded")
+    expect(provider.calls).toBe(1)
+    expect(provider.lastUserTexts).toEqual([
+      "user runner_steer_recovery",
+      "adjusted after recovery"
+    ])
+    const messages = await fixture.session.listMessages({
+      sessionId: fixture.execution.sessionId
+    })
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant"
+    ])
+    expect(messages.map((message) => message.content)).toMatchObject([
+      [{ type: "text", text: "user runner_steer_recovery" }],
+      [{ type: "text", text: "checkpoint before owner loss" }],
+      [{ type: "text", text: "adjusted after recovery" }],
+      [{ type: "text", text: "recovered final response" }]
+    ])
+    expect(new Set(messages.map(
+      (message) => message.executionBindingDigest
+    )).size).toBe(1)
+    const controls = await fixture.session.listTurnControls({
+      sessionId: fixture.execution.sessionId,
+      turnId: fixture.execution.turnId,
+      kind: "steer"
+    })
+    expect(controls).toMatchObject([{
+      idempotencyKey: "runner_steer_recovery",
+      status: "applied",
+      attemptId: recovered.attempt.id
+    }])
   })
 
-  it("persists assistant tool calls, executes tools, and completes with tool results", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_tool" })
-    await session.admit({
-      id: "inp_agent_tool",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_tool",
-      content: [{ type: "text", id: "part_user", text: "use echo" }]
-    })
-
-    const tools = new ToolRegistry()
-    tools.register(new EchoTool())
-    const runner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "tool done",
-        toolName: "echo"
-      }),
-      tools,
-      toolPermissionPolicy: new AllowAllToolsPolicy(),
-      runnerId: "runner_tool",
-      leaseMs: 60_000
-    })
-
-    const result = await runner.runToCompletion({
-      sessionId: created.id,
+  it("continues tool calls to a final response with source-message fencing", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_tools",
       maxSteps: 4
     })
+    const tools = new ToolRegistry()
+    tools.register({
+      name: "echo",
+      description: "Echo a text value.",
+      inputSchema: {
+        type: "object",
+        required: ["text"],
+        properties: { text: { type: "string" } }
+      },
+      risk: "read_only",
+      idempotent: true,
+      runtimeBinding: createToolRuntimeBinding({
+        implementationId: "wanex.test.agent-runner.echo",
+        implementationRevision: "1"
+      }),
+      async invoke(invocation) {
+        return {
+          toolCallId: invocation.toolCallId,
+          result: { text: (invocation.input as { text: string }).text },
+          isError: false
+        }
+      }
+    })
+    const provider = new ToolThenFinalProvider()
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider,
+      tools,
+      toolPermissionPolicy: new AllowAllToolsPolicy()
+    })
 
-    expect(result.status).toBe("completed")
-    if (result.status !== "completed") {
-      throw new Error("expected completed result")
-    }
-    expect(result.steps).toBe(2)
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
 
-    const messages = await session.listMessages({ sessionId: created.id })
+    expect(result).toMatchObject({ outcome: "succeeded", steps: 2 })
+    expect(provider.calls).toBe(2)
+    const messages = await fixture.session.listMessages({
+      sessionId: fixture.execution.sessionId
+    })
     expect(messages.map((message) => message.role)).toEqual([
+      "user",
       "assistant",
       "tool",
       "assistant"
     ])
-    expect(messages[0]?.content[0]?.type).toBe("tool_call")
-    expect(messages[1]?.content[0]).toMatchObject({
-      type: "tool_result",
-      toolCallId: "call_fake_0",
+    const toolResult = messages
+      .flatMap((message) => message.content)
+      .find((part): part is ToolResultMessagePart => part.type === "tool_result")
+    expect(toolResult).toMatchObject({
+      toolCallId: "call_echo",
+      result: { text: "hello" },
       isError: false
     })
-    expect(messages[2]?.content).toEqual([
-      {
-        type: "text",
-        id: "text_0",
-        text: "tool done"
-      }
-    ])
+    const executions = await fixture.session.listToolExecutions()
+    expect(executions).toMatchObject([{
+      turnId: fixture.execution.turnId,
+      sourceMessageId: messages[1]!.id,
+      toolCallId: "call_echo",
+      state: "succeeded",
+      attemptCount: 1
+    }])
   })
 
-  it("runs provider tool calls concurrently, durably, and replays in provider order", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_parallel_tools" })
-    await session.admit({
-      id: "inp_agent_parallel_tools",
-      sessionId: created.id,
-      principalId: "principal_parallel_tools",
-      idempotencyKey: "idem_agent_parallel_tools",
-      content: [{ type: "text", id: "part_user", text: "run both tools" }]
-    })
-
-    const probe = new ToolConcurrencyProbe()
-    const tools = new ToolRegistry()
-    tools.register(new DelayedProbeTool("slow", 250, probe, false))
-    tools.register(new DelayedProbeTool("fast", 10, probe, true))
-    let statesBeforeContinuation: string[] = []
-    const provider = new ParallelToolProvider(async () => {
-      statesBeforeContinuation = (await session.listToolExecutions())
-        .map((execution) => execution.state)
-        .sort()
-    })
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      tools,
-      toolPermissionPolicy: new AllowAllToolsPolicy(),
-      toolMaxConcurrency: 2,
-      runnerId: "runner_parallel_tools",
-      leaseMs: 60_000
-    })
-
-    await expect(runner.runToCompletion({
-      sessionId: created.id,
+  it("resumes an incomplete durable tool batch before another provider call", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_resume_tools",
       maxSteps: 4
-    })).resolves.toMatchObject({ status: "completed", steps: 2 })
-
-    expect(provider.firstRequest?.tools?.map((tool) => tool.name)).toEqual([
-      "fast",
-      "slow"
-    ])
-    expect(provider.firstRequest).toMatchObject({
-      toolChoice: "auto",
-      parallelToolCalls: true
     })
-    expect(probe.maxActive).toBe(2)
-    expect(probe.completionOrder).toEqual(["fast", "slow"])
-    expect(provider.replayedToolCallIds).toEqual(["call_slow", "call_fast"])
-    expect(statesBeforeContinuation).toEqual(["failed", "succeeded"])
-
-    const executions = await session.listToolExecutions()
-    expect(executions).toHaveLength(2)
-    expect(executions.map((execution) => ({
-      toolCallId: execution.toolCallId,
-      state: execution.state,
-      principalId: execution.principalId
-    })).sort((left, right) => left.toolCallId.localeCompare(right.toolCallId))).toEqual([
-      {
-        toolCallId: "call_fast",
-        state: "failed",
-        principalId: "principal_parallel_tools"
-      },
-      {
-        toolCallId: "call_slow",
-        state: "succeeded",
-        principalId: "principal_parallel_tools"
-      }
-    ])
-  })
-
-  it("marks claimed input failed when tool calls cannot be handled", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_fail" })
-    await session.admit({
-      id: "inp_agent_fail",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_fail",
-      content: [{ type: "text", id: "part_user", text: "use unavailable tool" }]
+    const checkpoint = await seedToolCallCheckpoint(fixture, "call_resume_tools")
+    let toolCalls = 0
+    const tools = echoTools(() => {
+      toolCalls += 1
     })
-
+    const provider = new ToolThenFinalProvider()
     const runner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "unused",
-        toolName: "echo"
-      }),
-      runnerId: "runner_fail",
-      leaseMs: 60_000
-    })
-
-    await expect(
-      runner.runToCompletion({ sessionId: created.id, maxSteps: 4 })
-    ).rejects.toThrow("tool calls require a tool registry")
-
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("failed")
-
-    const nextRunner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "unused"
-      }),
-      runnerId: "runner_after_fail",
-      leaseMs: 60_000
-    })
-    await expect(nextRunner.runOnce({ sessionId: created.id })).resolves.toEqual({
-      status: "idle",
-      sessionId: created.id
-    })
-  })
-
-  it("fails the claimed run when provider work exceeds timeoutMs", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_timeout" })
-    await session.admit({
-      id: "inp_agent_timeout",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_timeout",
-      content: [{ type: "text", id: "part_user", text: "slow" }]
-    })
-
-    const provider = new SlowProviderAdapter(50)
-    const runner = new WanexAgentRunner({
-      session,
+      session: fixture.session,
       provider,
-      runnerId: "runner_timeout",
-      leaseMs: 60_000,
-      timeoutMs: 5
-    })
-
-    await expect(runner.runOnce({ sessionId: created.id })).rejects.toMatchObject({
-      detail: {
-        category: "timeout",
-        retryable: true,
-        outputObserved: false
-      }
-    })
-    expect(provider.lastSignal?.aborted).toBe(true)
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("failed")
-  })
-
-  it("records streamed provider token usage into the run budget grant", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_provider_budget" })
-    await session.admit({
-      id: "inp_agent_provider_budget",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_provider_budget",
-      content: [{ type: "text", id: "part_user", text: "meter this" }]
-    })
-    const grant = await session.reserveBudget({
-      scope: { kind: "turn", ownerId: "inp_agent_provider_budget", windowKind: "run" },
-      limit: { tokens: 7 },
-      requested: { tokens: 7 },
-      principalId: "user_agent",
-      reason: "provider usage test",
-      idempotencyKey: "budget_agent_provider"
-    })
-    const runner = new WanexAgentRunner({
-      session,
-      provider: new UsageProvider(),
-      runnerId: "runner_provider_budget",
-      leaseMs: 60_000
-    })
-
-    await expect(runner.runOnce({
-      sessionId: created.id,
-      budgetGrantId: grant.id
-    })).resolves.toMatchObject({ status: "completed" })
-    await session.commitBudget({ grantId: grant.id })
-    await expect(session.getBudgetScope(grant.scopeId)).resolves.toMatchObject({
-      usage: { tokens: 7 }
-    })
-  })
-
-  it("passes abort signals to provider completions", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_provider_signal" })
-    await session.admit({
-      id: "inp_agent_provider_signal",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_provider_signal",
-      content: [{ type: "text", id: "part_user", text: "signal" }]
-    })
-
-    const controller = new AbortController()
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      runnerId: "runner_provider_signal",
-      leaseMs: 60_000
-    })
-
-    await runner.runOnce({
-      sessionId: created.id,
-      signal: controller.signal
-    })
-
-    expect(provider.lastSignal).toBe(controller.signal)
-  })
-
-  it("does not claim input when a run starts aborted", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_pre_aborted" })
-    await session.admit({
-      id: "inp_agent_pre_aborted",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_pre_aborted",
-      content: [{ type: "text", id: "part_user", text: "abort" }]
-    })
-
-    const controller = new AbortController()
-    controller.abort()
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      runnerId: "runner_pre_aborted",
-      leaseMs: 60_000
-    })
-
-    await expect(
-      runner.runOnce({
-        sessionId: created.id,
-        signal: controller.signal
-      })
-    ).rejects.toThrow("agent run aborted")
-
-    expect(provider.calls).toBe(0)
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("admitted")
-  })
-
-  it("passes abort signals to tool invocations", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_tool_signal" })
-    await session.admit({
-      id: "inp_agent_tool_signal",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_tool_signal",
-      content: [{ type: "text", id: "part_user", text: "use tool" }]
-    })
-
-    const tools = new ToolRegistry()
-    const tool = new RecordingTool()
-    tools.register(tool)
-    const controller = new AbortController()
-    const runner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "tool signal done",
-        toolName: "record"
-      }),
       tools,
-      toolPermissionPolicy: new AllowAllToolsPolicy(),
-      runnerId: "runner_tool_signal",
-      leaseMs: 60_000
+      toolPermissionPolicy: new AllowAllToolsPolicy()
     })
 
-    await runner.runToCompletion({
-      sessionId: created.id,
-      maxSteps: 4,
-      signal: controller.signal
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
     })
 
-    expect(tool.lastSignal).toBe(controller.signal)
-  })
-
-  it("does not complete a run after its lease is cancelled", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_cancel" })
-    await session.admit({
-      id: "inp_agent_cancel",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_cancel",
-      content: [{ type: "text", id: "part_user", text: "cancel me" }]
-    })
-
-    const claim = await session.claimRunner({
-      sessionId: created.id,
-      runnerId: "runner_cancel",
-      leaseMs: 60_000
-    })
-    expect(claim).not.toBeNull()
-    await expect(
-      session.cancelRun({
-        sessionId: created.id,
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        reason: "user stop"
-      })
-    ).resolves.toBe(true)
-
-    await expect(
-      session.completeRun({
-        sessionId: created.id,
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        runnerId: claim!.runnerId,
-        leaseToken: claim!.leaseToken,
-        assistantMessage: [{ type: "text", id: "late", text: "late" }]
-      })
-    ).resolves.toBe(false)
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("cancelled")
-  })
-
-  it("returns cancelled without calling the provider when interrupted before the provider safe point", async () => {
-    const session = await createInterruptingSessionCore({
-      reason: "user stopped before provider"
-    })
-    const created = await session.create({ id: "ses_agent_interrupt_pre" })
-    await session.admit({
-      id: "inp_agent_interrupt_pre",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_interrupt_pre",
-      content: [{ type: "text", id: "part_user", text: "cancel before model" }]
-    })
-
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      runnerId: "runner_interrupt_pre",
-      leaseMs: 60_000
-    })
-
-    const result = await runner.runOnce({ sessionId: created.id })
-
-    expect(result).toMatchObject({
-      status: "cancelled",
-      sessionId: created.id,
-      inputId: "inp_agent_interrupt_pre",
-      reason: "user stopped before provider"
-    })
-    expect(provider.calls).toBe(0)
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("cancelled")
-    const controls = await session.listRunControls({
-      sessionId: created.id,
-      status: "applied"
-    })
-    expect(controls).toHaveLength(1)
-    expect(controls[0]).toMatchObject({
-      kind: "interrupt",
-      reason: "user stopped before provider"
-    })
-  })
-
-  it("applies steer controls before the provider so replay can observe them", async () => {
-    const session = await createSteeringSessionCore({
-      content: [{ type: "text", id: "part_steer", text: "answer tersely" }]
-    })
-    const created = await session.create({ id: "ses_agent_steer_pre" })
-    await session.admit({
-      id: "inp_agent_steer_pre",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_steer_pre",
-      content: [{ type: "text", id: "part_user", text: "explain runtime" }]
-    })
-
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      runnerId: "runner_steer_pre",
-      leaseMs: 60_000
-    })
-
-    const result = await runner.runOnce({ sessionId: created.id })
-
-    expect(result.status).toBe("completed")
+    expect(result).toMatchObject({ outcome: "succeeded", steps: 2 })
+    expect(toolCalls).toBe(1)
     expect(provider.calls).toBe(1)
-    const replayText = textFromReplay(provider.lastMessages)
-    expect(replayText).toContain("explain runtime")
-    expect(replayText).toContain("answer tersely")
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs.find((input) => input.intent === "steer")).toMatchObject({
-      status: "completed",
-      runControlPolicy: "steer_at_safe_point"
+    const messages = await fixture.session.listMessages({
+      sessionId: fixture.execution.sessionId
     })
-    const controls = await session.listRunControls({
-      sessionId: created.id,
-      kind: "steer"
-    })
-    expect(controls).toHaveLength(1)
-    expect(controls[0]?.status).toBe("applied")
-  })
-
-  it("does not leak unapplied control_pending inputs into provider replay", async () => {
-    const session = await createReplayAugmentingSessionCore({
-      text: "hidden control text"
-    })
-    const created = await session.create({ id: "ses_agent_control_hidden" })
-    await session.admit({
-      id: "inp_agent_control_hidden",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_control_hidden",
-      content: [{ type: "text", id: "part_user", text: "visible request" }]
-    })
-
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      runnerId: "runner_control_hidden",
-      leaseMs: 60_000
-    })
-
-    await runner.runOnce({ sessionId: created.id })
-
-    const replayText = textFromReplay(provider.lastMessages)
-    expect(replayText).toContain("visible request")
-    expect(replayText).not.toContain("hidden control text")
-  })
-
-  it("uses an optional context compiler before provider replay", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_context" })
-    await session.submitRun({
-      id: "inp_agent_context_old",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_context_old",
-      content: [{ type: "text", id: "part_old_user", text: "old request" }]
-    })
-    const firstRunner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "old assistant ".repeat(80)
-      }),
-      runnerId: "runner_context_first",
-      leaseMs: 60_000
-    })
-    await firstRunner.runOnce({ sessionId: created.id })
-    await session.submitRun({
-      id: "inp_agent_context_new",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_context_new",
-      content: [{ type: "text", id: "part_new_user", text: "new request" }]
-    })
-
-    const provider = new RecordingProvider()
-    const runner = new WanexAgentRunner({
-      session,
-      provider,
-      contextCompiler: new DeterministicContextCompiler({
-        policy: {
-          recentUserTurns: 1,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
-        }
-      }),
-      runnerId: "runner_context_second",
-      leaseMs: 60_000
-    })
-
-    await runner.runOnce({ sessionId: created.id })
-
-    const replayText = provider.lastMessages
-      .flatMap((message) => message.content)
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("\n")
-    expect(replayText).toContain("[compacted")
-    expect(replayText).toContain("new request")
-  })
-
-  it("runs ephemeral side queries against session context without durable writes", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_ephemeral" })
-    await session.admit({
-      id: "inp_agent_ephemeral_seed",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_ephemeral_seed",
-      content: [{ type: "text", id: "part_seed", text: "seed request" }]
-    })
-    const seedRunner = new WanexAgentRunner({
-      session,
-      provider: new FakeProviderAdapter({ responseText: "seed answer" }),
-      runnerId: "runner_ephemeral_seed",
-      leaseMs: 60_000
-    })
-    await seedRunner.runOnce({ sessionId: created.id })
-
-    const provider = new RecordingProvider()
-    const result = await runEphemeralSideQuery(
-      {
-        session,
-        provider
-      },
-      {
-        sessionId: created.id,
-        question: [{ type: "text", id: "part_side", text: "side question" }],
-        maxOutputTokens: 42
-      }
-    )
-
-    expect(result.output).toEqual([
-      {
-        type: "text",
-        id: "text_0",
-        text: "recorded response"
-      }
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "tool",
+      "assistant"
     ])
-    expect(result.telemetry).toMatchObject({
-      providerId: "fake",
-      modelId: "fake-model",
-      replayMessageCount: 2,
-      outputPartCount: 1
+    expect(messages[1]?.id).toBe(checkpoint.sourceMessageId)
+  })
+
+  it("reuses a settled durable tool outcome without invoking the tool again", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_reuse_tool",
+      maxSteps: 4
     })
-    expect(provider.lastMaxOutputTokens).toBe(42)
-    const replayText = textFromReplay(provider.lastMessages)
-    expect(replayText).toContain("seed request")
-    expect(replayText).toContain("seed answer")
-    expect(replayText).toContain("side question")
-    await expect(session.listInputs({ sessionId: created.id })).resolves.toHaveLength(1)
-    await expect(session.listMessages({ sessionId: created.id })).resolves.toHaveLength(1)
-    await expect(session.listJobs({ kind: "session.run" })).resolves.toHaveLength(0)
+    const checkpoint = await seedToolCallCheckpoint(fixture, "call_reuse_tool")
+    let toolCalls = 0
+    const tools = echoTools(() => {
+      toolCalls += 1
+    })
+    const permissionPolicy = new AllowAllToolsPolicy()
+    await tools.execute({
+      ...fixture.execution,
+      sourceMessageId: checkpoint.sourceMessageId,
+      call: checkpoint.call,
+      idempotencyKey: `tool:${checkpoint.sourceMessageId}:${checkpoint.call.toolCallId}`,
+      storage: fixture.session,
+      permissionPolicy
+    })
+    expect(toolCalls).toBe(1)
+    const provider = new ToolThenFinalProvider()
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider,
+      tools,
+      toolPermissionPolicy: permissionPolicy
+    })
+
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("succeeded")
+    expect(toolCalls).toBe(1)
+    expect(provider.calls).toBe(1)
+    const executions = await fixture.session.listToolExecutions()
+    expect(executions).toMatchObject([{
+      toolCallId: checkpoint.call.toolCallId,
+      state: "succeeded",
+      attemptCount: 1
+    }])
   })
 
-  it("rejects provider tool calls in ephemeral side queries", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_ephemeral_tool" })
+  it("records a retryable provider retry as invocation number two", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_provider_retry"
+    })
+    const provider = new RetryThenFinalProvider()
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider
+    })
 
-    await expect(
-      runEphemeralSideQuery(
-        {
-          session,
-          provider: new FakeProviderAdapter({
-            responseText: "unused",
-            toolName: "echo"
-          })
-        },
-        {
-          sessionId: created.id,
-          question: [{ type: "text", id: "part_side", text: "lookup" }]
-        }
-      )
-    ).rejects.toThrow("ephemeral query toolPolicy none rejected")
-    await expect(session.listInputs({ sessionId: created.id })).resolves.toHaveLength(0)
-    await expect(session.listMessages({ sessionId: created.id })).resolves.toHaveLength(0)
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("succeeded")
+    expect(provider.calls).toBe(2)
+    const invocations = await fixture.session.listProviderInvocations({
+      turnId: fixture.execution.turnId
+    })
+    expect(invocations.map((invocation) => ({
+      number: invocation.invocationNumber,
+      state: invocation.state
+    }))).toEqual([
+      { number: 1, state: "failed_before_output" },
+      { number: 2, state: "succeeded" }
+    ])
   })
 
-  it("fails closed for unsupported ephemeral side-query policies", async () => {
-    const session = await createSessionCore()
-    const provider = new RecordingProvider()
+  it("honors cancellation before resuming a durable tool batch", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_cancel_resume"
+    })
+    await seedToolCallCheckpoint(fixture, "call_cancel_resume")
+    await fixture.session.requestTurnCancel({
+      sessionId: fixture.execution.sessionId,
+      turnId: fixture.execution.turnId,
+      inputId: fixture.execution.inputId,
+      jobId: fixture.execution.jobId,
+      reason: "cancel before recovered tools"
+    })
+    let toolCalls = 0
+    const tools = echoTools(() => {
+      toolCalls += 1
+    })
+    const provider = new CountingProvider()
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider,
+      tools,
+      toolPermissionPolicy: new AllowAllToolsPolicy()
+    })
 
-    await expect(
-      runEphemeralSideQuery(
-        { session, provider },
-        {
-          question: [{ type: "text", id: "part_side", text: "side" }],
-          toolPolicy: "read"
-        } as unknown as Parameters<typeof runEphemeralSideQuery>[1]
-      )
-    ).rejects.toThrow("ephemeral query toolPolicy must be none")
-    await expect(
-      runEphemeralSideQuery(
-        { session, provider },
-        {
-          question: [{ type: "text", id: "part_side", text: "side" }],
-          contextSnapshotId: "snapshot_unimplemented"
-        }
-      )
-    ).rejects.toThrow("contextSnapshotId is not supported")
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("cancelled")
+    expect(toolCalls).toBe(0)
+    expect(provider.calls).toBe(0)
+    await expect(fixture.session.listToolExecutions()).resolves.toEqual([])
+  })
+
+  it("fails closed when a durable tool result batch does not match its calls", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_mismatched_tools"
+    })
+    await seedToolCallCheckpoint(fixture, "call_expected")
+    await fixture.session.appendMessage({
+      ...fixture.execution,
+      idempotencyKey: "turn:runner_mismatched_tools:tools",
+      role: "tool",
+      content: [{
+        type: "tool_result",
+        id: "part_wrong_result",
+        toolCallId: "call_wrong",
+        result: { ok: true },
+        isError: false
+      }]
+    })
+    const provider = new CountingProvider()
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider
+    })
+
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("recovery_required")
+    expect(result.settlement.turn.state).toBe("recovery_required")
     expect(provider.calls).toBe(0)
   })
 
-  it("filters control_pending inputs from ephemeral side-query replay", async () => {
-    const session = await createReplayAugmentingSessionCore({
-      text: "hidden ephemeral control text"
+  it("fails closed as recovery-required after observed provider output", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_ambiguous"
     })
-    const created = await session.create({ id: "ses_agent_ephemeral_hidden" })
-    await session.admit({
-      id: "inp_agent_ephemeral_hidden",
-      sessionId: created.id,
-      principalId: "user_agent",
-      idempotencyKey: "idem_agent_ephemeral_hidden",
-      content: [{ type: "text", id: "part_user", text: "visible ephemeral" }]
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider: new PartialThenErrorProvider()
     })
 
-    const provider = new RecordingProvider()
-    await runEphemeralSideQuery(
-      {
-        session,
-        provider
-      },
-      {
-        sessionId: created.id,
-        question: [{ type: "text", id: "part_side", text: "side question" }]
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("recovery_required")
+    expect(result.settlement.turn.state).toBe("recovery_required")
+    expect(result.settlement.attempt.state).toBe("recovery_required")
+    expect(result.settlement.job.state).toBe("failed")
+  })
+
+  it("fails a bounded turn that never reaches a final response", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_bounded",
+      maxSteps: 1
+    })
+    const tools = new ToolRegistry()
+    tools.register({
+      name: "echo",
+      description: "Echo.",
+      inputSchema: { type: "object" },
+      risk: "read_only",
+      idempotent: true,
+      runtimeBinding: createToolRuntimeBinding({
+        implementationId: "wanex.test.agent-runner.bounded-echo",
+        implementationRevision: "1"
+      }),
+      async invoke(invocation) {
+        return {
+          toolCallId: invocation.toolCallId,
+          result: { ok: true },
+          isError: false
+        }
       }
-    )
+    })
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider: new AlwaysToolProvider(),
+      tools,
+      toolPermissionPolicy: new AllowAllToolsPolicy()
+    })
 
-    const replayText = textFromReplay(provider.lastMessages)
-    expect(replayText).toContain("visible ephemeral")
-    expect(replayText).toContain("side question")
-    expect(replayText).not.toContain("hidden ephemeral control text")
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("failed")
+    expect(result.error?.message).toContain("exceeded maxSteps")
+    expect(result.settlement.turn.state).toBe("failed")
+  })
+
+  it("observes a durable cancellation request before invoking the provider", async () => {
+    const storage = await createStore()
+    const fixture = await createStartedTurn(storage, {
+      suffix: "runner_cancel"
+    })
+    const provider = new CountingProvider()
+    await fixture.session.requestTurnCancel({
+      sessionId: fixture.execution.sessionId,
+      turnId: fixture.execution.turnId,
+      inputId: fixture.execution.inputId,
+      jobId: fixture.execution.jobId,
+      reason: "user cancelled"
+    })
+    const runner = new WanexAgentRunner({
+      session: fixture.session,
+      provider
+    })
+
+    const result = await runner.executeTurn({
+      execution: fixture.execution,
+      heartbeat: async () => {}
+    })
+
+    expect(result.outcome).toBe("cancelled")
+    expect(provider.calls).toBe(0)
+    expect(result.settlement.turn.state).toBe("cancelled")
+    expect(result.settlement.job.state).toBe("cancelled")
   })
 })
 
-async function createSessionCore(): Promise<WanexSessionCore> {
-  return new WanexSessionCore({
-    storage: await createTestStore()
-  })
-}
-
-async function createInterruptingSessionCore(options: {
-  readonly reason: string
-}): Promise<WanexSessionCore> {
-  return new InterruptAfterClaimSessionCore({
-    storage: await createTestStore(),
-    reason: options.reason
-  })
-}
-
-async function createSteeringSessionCore(options: {
-  readonly content: [{ readonly type: "text"; readonly id: string; readonly text: string }]
-}): Promise<WanexSessionCore> {
-  return new SteerAfterClaimSessionCore({
-    storage: await createTestStore(),
-    content: options.content
-  })
-}
-
-async function createReplayAugmentingSessionCore(options: {
-  readonly text: string
-}): Promise<WanexSessionCore> {
-  return new ReplayAugmentingSessionCore({
-    storage: await createTestStore(),
-    text: options.text
-  })
-}
-
-async function createTestStore(): Promise<StorageTestStore> {
-  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-core-"))
+async function createStore() {
+  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runner-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({ kind: "local-system-service", mode: "oneshot",
+  return createStorageTestStore({
+    kind: "local-system-service",
+    mode: "oneshot",
     storeDir,
     serviceBin
   })
 }
 
-function textFromReplay(messages: readonly ProviderReplayMessage[]): string {
-  return messages
-    .flatMap((message) => message.content)
-    .filter((part) => part.type === "text")
-    .map((part) => part.text)
-    .join("\n")
+async function seedToolCallCheckpoint(
+  fixture: StartedTurnFixture,
+  toolCallId: string
+) {
+  const call = {
+    type: "tool_call" as const,
+    id: `part_${toolCallId}`,
+    toolCallId,
+    toolName: "echo",
+    input: { text: "hello" }
+  }
+  const invocation = await fixture.session.beginProviderInvocation({
+    ...fixture.execution,
+    step: 1,
+    invocationNumber: 1,
+    requestDigest: `checkpoint:${toolCallId}`
+  })
+  const receipt = await fixture.session.finishProviderInvocation({
+    ...fixture.execution,
+    invocationId: invocation.id,
+    outcome: "succeeded",
+    assistantMessage: [call]
+  })
+  if (receipt?.assistantMessage === undefined) {
+    throw new Error("expected durable assistant tool-call checkpoint")
+  }
+  return { call, sourceMessageId: receipt.assistantMessage.id }
 }
 
-class SlowProviderAdapter extends FakeProviderAdapter {
-  private readonly delayMs: number
-  lastSignal: RuntimeAbortSignal | undefined
-
-  constructor(delayMs: number) {
-    super({ responseText: "too late" })
-    this.delayMs = delayMs
-  }
-
-  override async *stream(request: ProviderRequest) {
-    this.lastSignal = request.signal
-    await new Promise((resolve) => setTimeout(resolve, this.delayMs))
-    yield* super.stream(request)
-  }
+function echoTools(onInvoke: () => void): ToolRegistry {
+  const tools = new ToolRegistry()
+  tools.register({
+    name: "echo",
+    description: "Echo a text value.",
+    inputSchema: {
+      type: "object",
+      required: ["text"],
+      properties: { text: { type: "string" } }
+    },
+    risk: "read_only",
+    idempotent: true,
+    runtimeBinding: createToolRuntimeBinding({
+      implementationId: "wanex.test.agent-runner.recovery-echo",
+      implementationRevision: "1"
+    }),
+    async invoke(invocation) {
+      onInvoke()
+      return {
+        toolCallId: invocation.toolCallId,
+        result: { text: (invocation.input as { text: string }).text },
+        isError: false
+      }
+    }
+  })
+  return tools
 }
 
-class RecordingProvider extends FakeProviderAdapter {
-  lastMessages: readonly ProviderReplayMessage[] = []
-  lastSignal: RuntimeAbortSignal | undefined
-  lastMaxOutputTokens: number | undefined
+class ToolThenFinalProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly providerId = "tool-final"
+  readonly modelId = "tool-final-model"
   calls = 0
 
-  constructor() {
-    super({ responseText: "recorded response" })
-  }
-
-  override async *stream(request: ProviderRequest) {
+  async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
     this.calls += 1
-    this.lastSignal = request.signal
-    this.lastMaxOutputTokens = request.maxOutputTokens
-    this.lastMessages = request.messages
-    yield* super.stream(request)
-  }
-}
-
-class UsageProvider extends FakeProviderAdapter {
-  constructor() {
-    super({ responseText: "metered response" })
-  }
-
-  override async *stream(request: ProviderRequest) {
-    yield { type: "usage" as const, usage: { inputTokens: 3, outputTokens: 4 } }
-    yield* super.stream(request)
-  }
-}
-
-class ParallelToolProvider extends FakeProviderAdapter {
-  firstRequest: ProviderRequest | undefined
-  replayedToolCallIds: string[] = []
-  private readonly beforeContinuation: () => Promise<void>
-
-  constructor(beforeContinuation: () => Promise<void>) {
-    super({ responseText: "parallel tools done" })
-    this.beforeContinuation = beforeContinuation
-  }
-
-  override async *stream(request: ProviderRequest) {
-    const toolResults = request.messages
-      .flatMap((message) => message.content)
-      .filter((part) => part.type === "tool_result")
-    if (toolResults.length === 0) {
-      this.firstRequest = request
-      yield { type: "tool_call_start" as const, index: 0, toolCallId: "call_slow" }
+    const hasToolResult = request.messages.some((message) =>
+      message.content.some((part) => part.type === "tool_result")
+    )
+    if (!hasToolResult) {
+      yield { type: "tool_call_start", index: 0, toolCallId: "call_echo" }
       yield {
-        type: "tool_call_delta" as const,
-        toolCallId: "call_slow",
-        toolNameDelta: "slow",
-        inputJsonDelta: "{}"
+        type: "tool_call_delta",
+        toolCallId: "call_echo",
+        toolNameDelta: "echo",
+        inputJsonDelta: JSON.stringify({ text: "hello" })
       }
-      yield { type: "tool_call_end" as const, toolCallId: "call_slow" }
-      yield { type: "tool_call_start" as const, index: 1, toolCallId: "call_fast" }
-      yield {
-        type: "tool_call_delta" as const,
-        toolCallId: "call_fast",
-        toolNameDelta: "fast",
-        inputJsonDelta: "{}"
-      }
-      yield { type: "tool_call_end" as const, toolCallId: "call_fast" }
-      yield { type: "finish" as const, reason: "tool_calls" as const }
+      yield { type: "tool_call_end", toolCallId: "call_echo" }
+      yield { type: "finish", reason: "tool_calls" }
       return
     }
-    await this.beforeContinuation()
-    this.replayedToolCallIds = toolResults.map((part) => part.toolCallId)
-    yield* super.stream(request)
-  }
-}
-
-class ToolConcurrencyProbe {
-  active = 0
-  maxActive = 0
-  readonly completionOrder: string[] = []
-  private entered = 0
-  private resolveAllEntered: () => void = () => {}
-  private readonly allEntered = new Promise<void>((resolve) => {
-    this.resolveAllEntered = resolve
-  })
-
-  async enter(): Promise<void> {
-    this.active += 1
-    this.maxActive = Math.max(this.maxActive, this.active)
-    this.entered += 1
-    if (this.entered === 2) this.resolveAllEntered()
-    await this.allEntered
-  }
-
-  leave(name: string): void {
-    this.active -= 1
-    this.completionOrder.push(name)
-  }
-}
-
-class DelayedProbeTool implements ToolDefinition {
-  readonly description = "Probe bounded parallel tool execution."
-  readonly inputSchema = { type: "object", additionalProperties: false } as const
-  readonly risk = "read_only" as const
-  readonly idempotent = true
-
-  constructor(
-    readonly name: string,
-    private readonly delayMs: number,
-    private readonly probe: ToolConcurrencyProbe,
-    private readonly shouldThrow: boolean
-  ) {}
-
-  async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
-    await this.probe.enter()
-    await new Promise((resolve) => setTimeout(resolve, this.delayMs))
-    this.probe.leave(this.name)
-    if (this.shouldThrow) throw new Error(`${this.name} failed`)
-    return {
-      toolCallId: invocation.toolCallId,
-      result: { tool: this.name },
-      isError: false
+    yield {
+      type: "text_delta",
+      partId: "part_final",
+      delta: "tool complete"
     }
+    yield { type: "finish", reason: "stop" }
+  }
+
+  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+    return messages as unknown as JsonValue[]
   }
 }
 
-class RecordingTool implements ToolDefinition {
-  readonly name = "record"
-  readonly description = "Record a test invocation."
-  readonly inputSchema = { type: "object", additionalProperties: true } as const
-  readonly risk = "read_only" as const
-  readonly idempotent = true
-  lastSignal: RuntimeAbortSignal | undefined
+class RetryThenFinalProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly providerId = "retry-final"
+  readonly modelId = "retry-final-model"
+  calls = 0
 
-  async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
-    this.lastSignal = invocation.signal
-    return {
-      toolCallId: invocation.toolCallId,
-      result: {
-        ok: true
-      },
-      isError: false
-    }
-  }
-}
-
-class InterruptAfterClaimSessionCore extends WanexSessionCore {
-  private readonly reason: string
-  private interrupted = false
-
-  constructor(options: {
-    readonly storage: StorageTestStore
-    readonly reason: string
-  }) {
-    super({ storage: options.storage })
-    this.reason = options.reason
-  }
-
-  override async claimRunner(
-    request: Parameters<WanexSessionCore["claimRunner"]>[0]
-  ): ReturnType<WanexSessionCore["claimRunner"]> {
-    const claim = await super.claimRunner(request)
-    if (claim !== null && !this.interrupted) {
-      this.interrupted = true
-      await super.interruptRun({
-        sessionId: request.sessionId,
-        runId: claim.runId,
-        reason: this.reason,
-        principalId: "user_agent",
-        idempotencyKey: `interrupt:${claim.runId}`
-      })
-    }
-    return claim
-  }
-}
-
-class SteerAfterClaimSessionCore extends WanexSessionCore {
-  private readonly content: [{ readonly type: "text"; readonly id: string; readonly text: string }]
-  private steered = false
-
-  constructor(options: {
-    readonly storage: StorageTestStore
-    readonly content: [{ readonly type: "text"; readonly id: string; readonly text: string }]
-  }) {
-    super({ storage: options.storage })
-    this.content = options.content
-  }
-
-  override async claimRunner(
-    request: Parameters<WanexSessionCore["claimRunner"]>[0]
-  ): ReturnType<WanexSessionCore["claimRunner"]> {
-    const claim = await super.claimRunner(request)
-    if (claim !== null && !this.steered) {
-      this.steered = true
-      await super.steerRun({
-        sessionId: request.sessionId,
-        principalId: "user_agent",
-        expectedRunId: claim.runId,
-        idempotencyKey: `steer:${claim.runId}`,
-        content: this.content
-      })
-    }
-    return claim
-  }
-}
-
-class ReplayAugmentingSessionCore extends WanexSessionCore {
-  private readonly text: string
-
-  constructor(options: {
-    readonly storage: StorageTestStore
-    readonly text: string
-  }) {
-    super({ storage: options.storage })
-    this.text = options.text
-  }
-
-  override async listInputs(
-    request: Parameters<WanexSessionCore["listInputs"]>[0]
-  ): ReturnType<WanexSessionCore["listInputs"]> {
-    const inputs = await super.listInputs(request)
-    return [
-      ...inputs,
-      {
-        id: "inp_synthetic_control_pending",
-        sessionId: request.sessionId,
-        principalId: "user_agent",
-        idempotencyKey: "idem_synthetic_control_pending",
-        inputType: "user",
-        content: [{ type: "text", id: "part_hidden_control", text: this.text }],
-        intent: "steer",
-        runControlPolicy: "steer_at_safe_point",
-        expectedRunId: "run_synthetic",
-        status: "control_pending",
-        createdAt: 1,
-        updatedAt: 1
+  async *stream(): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    if (this.calls === 1) {
+      yield {
+        type: "error",
+        error: {
+          category: "network",
+          message: "retryable request failure",
+          retryable: true,
+          providerId: this.providerId,
+          modelId: this.modelId,
+          phase: "request"
+        }
       }
-    ]
+      return
+    }
+    yield {
+      type: "text_delta",
+      partId: "part_retry_final",
+      delta: "done"
+    }
+    yield { type: "finish", reason: "stop" }
+  }
+
+  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+    return messages as unknown as JsonValue[]
+  }
+}
+
+class PartialThenErrorProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly providerId = "partial-error"
+  readonly modelId = "partial-error-model"
+
+  async *stream(): AsyncIterable<ProviderEvent> {
+    yield { type: "text_delta", partId: "part_partial", delta: "partial" }
+    yield {
+      type: "error",
+      error: {
+        category: "network",
+        message: "connection lost",
+        retryable: true,
+        providerId: this.providerId,
+        modelId: this.modelId,
+        phase: "stream"
+      }
+    }
+  }
+
+  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+    return messages as unknown as JsonValue[]
+  }
+}
+
+class AlwaysToolProvider extends ToolThenFinalProvider {
+  override async *stream(): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    yield {
+      type: "tool_call_start",
+      index: 0,
+      toolCallId: "call_echo_" + this.calls
+    }
+    yield {
+      type: "tool_call_delta",
+      toolCallId: "call_echo_" + this.calls,
+      toolNameDelta: "echo",
+      inputJsonDelta: "{}"
+    }
+    yield {
+      type: "tool_call_end",
+      toolCallId: "call_echo_" + this.calls
+    }
+    yield { type: "finish", reason: "tool_calls" }
+  }
+}
+
+class CountingProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly providerId = "counting"
+  readonly modelId = "counting-model"
+  calls = 0
+
+  async *stream(): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    yield { type: "finish", reason: "stop" }
+  }
+
+  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+    return messages as unknown as JsonValue[]
+  }
+}
+
+class RecoverySteeringProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly providerId = "recovery-steering"
+  readonly modelId = "recovery-steering-model"
+  calls = 0
+  lastUserTexts: string[] = []
+
+  async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    this.lastUserTexts = request.messages
+      .filter((message) => message.role === "user")
+      .flatMap((message) => message.content)
+      .flatMap((part) => part.type === "text" ? [part.text] : [])
+    yield {
+      type: "text_delta",
+      partId: "part_recovered_final",
+      delta: "recovered final response"
+    }
+    yield { type: "finish", reason: "stop" }
+  }
+
+  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+    return messages as unknown as JsonValue[]
   }
 }

@@ -165,10 +165,10 @@ function sessionIdsFromCompletedRuns(
     if (result.worker.status !== "completed" || result.job === undefined) {
       continue
     }
-    if (result.job.kind !== "session.run") {
+    if (result.job.kind !== "session.turn") {
       continue
     }
-    const sessionId = sessionIdFromSessionRunPayload(result.job.payload)
+    const sessionId = sessionIdFromSessionTurnPayload(result.job.payload)
     if (sessionId === null) {
       continue
     }
@@ -180,7 +180,7 @@ function sessionIdsFromCompletedRuns(
   return completed
 }
 
-function sessionIdFromSessionRunPayload(payload: JsonValue): SessionId | null {
+function sessionIdFromSessionTurnPayload(payload: JsonValue): SessionId | null {
   if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
     return null
   }

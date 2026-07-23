@@ -1,4 +1,5 @@
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createHash } from "node:crypto"
 import { createServer, type Server } from "node:http"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -19,6 +20,7 @@ import {
   resolveLocalStore,
   StorageTransportError,
   SystemServiceClientError,
+  type CoreStore,
   type StorageRpcCommand,
   type StorageRpcRequestEnvelope,
   type StorageTransport
@@ -36,6 +38,71 @@ const expectedSchemaVersion = 1
 
 const tempDirs: string[] = []
 const servers: Server[] = []
+
+function testTurnBinding(label: string) {
+  const profile = {
+    id: "profile_" + label,
+    kind: "fake",
+    capabilities: { input: ["text"], output: ["text"] },
+    providerId: "fake",
+    modelId: "model_" + label
+  } as const
+  const provider = {
+    profileId: profile.id,
+    profileDigest: digestJson(profile),
+    adapterId: profile.kind,
+    providerId: profile.providerId,
+    modelId: profile.modelId,
+    capabilities: profile.capabilities
+  } as const
+  const binding = {
+    createdAt: 1,
+    provider,
+    resources: [],
+    recovery: {
+      providerMaxAttempts: 1,
+      idempotentToolMaxAttempts: 1
+    }
+  }
+  return { digest: digestJson(binding), ...binding }
+}
+
+function testMediaGenerationBinding(label: string) {
+  return {
+    profileId: `media_profile_${label}`,
+    profileDigest: `media_profile_digest_${label}`,
+    adapterId: "fake-media-adapter",
+    providerId: "fake-media-provider",
+    modelId: `fake-media-model-${label}`,
+    request: {
+      prompt: `media prompt ${label}`,
+      outputModality: "image" as const,
+      inputResources: [],
+      options: null
+    },
+    requestDigest: `media_request_digest_${label}`
+  }
+}
+
+function digestJson(value: unknown): string {
+  return createHash("sha256").update(stableJson(value)).digest("hex")
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(sortJson(value))
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson)
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, item]) => [key, sortJson(item)])
+    )
+  }
+  return value
+}
 
 beforeAll(async () => {
   // The test intentionally uses the real Rust binary. Build is handled by the
@@ -66,6 +133,114 @@ afterEach(async () => {
 })
 
 describe("@wanex/storage", () => {
+  it("runs media generation operation state through one-shot storage", async () => {
+    const client = await createClient()
+    const submitted = await client.submitMediaGenerationOperation({
+      principalId: "media_storage_user",
+      idempotencyKey: "media_storage_oneshot",
+      binding: testMediaGenerationBinding("oneshot")
+    })
+    const repeated = await client.submitMediaGenerationOperation({
+      principalId: "media_storage_user",
+      idempotencyKey: "media_storage_oneshot",
+      binding: testMediaGenerationBinding("oneshot")
+    })
+    expect(repeated.operation.id).toBe(submitted.operation.id)
+    expect(repeated.job.id).toBe(submitted.job.id)
+    expect(submitted.job.kind).toBe("media.generate")
+
+    const claimed = await client.claimJob({
+      workerId: "media_storage_worker",
+      leaseMs: 60_000,
+      kinds: ["media.generate"]
+    })
+    expect(claimed).not.toBeNull()
+    const leaseToken = claimed!.leaseToken!
+    await expect(
+      client.beginMediaGenerationOperation({
+        operationId: submitted.operation.id,
+        workerId: "media_storage_worker",
+        leaseToken
+      })
+    ).resolves.toMatchObject({
+      action: "started",
+      operation: { state: "submitting" }
+    })
+    await expect(
+      client.acceptMediaGenerationOperation({
+        operationId: submitted.operation.id,
+        workerId: "media_storage_worker",
+        leaseToken,
+        externalOperationId: "external-storage-operation",
+        providerCheckpoint: { cursor: 1 }
+      })
+    ).resolves.toMatchObject({
+      state: "polling",
+      externalOperationId: "external-storage-operation"
+    })
+    await client.checkpointMediaGenerationOperation({
+      operationId: submitted.operation.id,
+      workerId: "media_storage_worker",
+      leaseToken,
+      providerCheckpoint: { cursor: 2 },
+      progress: { percent: 50 }
+    })
+    await expect(
+      client.requestMediaGenerationCancel({
+        operationId: submitted.operation.id,
+        reason: "storage test cancellation"
+      })
+    ).resolves.toMatchObject({ state: "cancel_requested" })
+    await expect(
+      client.settleMediaGenerationOperation({
+        operationId: submitted.operation.id,
+        workerId: "media_storage_worker",
+        leaseToken,
+        outcome: "cancelled",
+        reason: "storage test cancellation"
+      })
+    ).resolves.toMatchObject({ state: "cancelled" })
+    await expect(
+      client.listMediaGenerationOperations({
+        principalId: "media_storage_user"
+      })
+    ).resolves.toMatchObject([{ id: submitted.operation.id, state: "cancelled" }])
+  })
+
+  it("uses media generation operations over persistent storage", async () => {
+    const storeDir = await mkdtemp(join(tmpdir(), "wanex-storage-media-persistent-"))
+    tempDirs.push(storeDir)
+    const handle = createStorageHandle({
+      kind: "local-system-service",
+      mode: "persistent",
+      storeDir,
+      serviceBin
+    })
+    try {
+      await exerciseMediaGenerationTransport(handle.core, "persistent")
+    } finally {
+      await handle.dispose()
+    }
+  })
+
+  it("uses media generation operations over remote HTTP storage", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "wanex-storage-media-remote-"))
+    tempDirs.push(rootDir)
+    const endpoint = await startRemoteStorageFixture({
+      "media-token": join(rootDir, "media-store")
+    })
+    const handle = createStorageHandle({
+      kind: "remote-http",
+      endpoint,
+      token: "media-token"
+    })
+    try {
+      await exerciseMediaGenerationTransport(handle.core, "remote")
+    } finally {
+      await handle.dispose()
+    }
+  })
+
   it("appends and queries events through the system-service process", async () => {
     const client = await createClient()
     const event = createRuntimeEvent({
@@ -250,6 +425,49 @@ describe("@wanex/storage", () => {
     expect(fetched?.sha256).toBe(resource.sha256)
     expect(fetched?.source?.providerFileId).toBe("file_storage")
 
+    const firstChunk = await client.readResourceContent({
+      resourceId: resource.id,
+      expectedSha256: resource.sha256,
+      offset: 0,
+      limit: 5
+    })
+    expect(new TextDecoder().decode(firstChunk?.content)).toBe("fake ")
+    expect(firstChunk).toMatchObject({
+      resourceId: resource.id,
+      sha256: resource.sha256,
+      totalSizeBytes: content.byteLength,
+      offset: 0,
+      eof: false
+    })
+    const secondChunk = await client.readResourceContent({
+      resourceId: resource.id,
+      expectedSha256: resource.sha256,
+      offset: firstChunk!.content.byteLength,
+      limit: 1024
+    })
+    expect(
+      new TextDecoder().decode(
+        Uint8Array.from([...firstChunk!.content, ...secondChunk!.content])
+      )
+    ).toBe("fake png from provider")
+    expect(secondChunk?.eof).toBe(true)
+
+    await expect(
+      client.ingestResource({
+        id: resource.id,
+        logicalPath: resource.logicalPath,
+        content: new TextEncoder().encode("replacement"),
+        ...(resource.mediaType === undefined
+          ? {}
+          : { mediaType: resource.mediaType }),
+        kind: resource.kind,
+        origin: resource.origin
+      })
+    ).rejects.toThrow(/resource snapshots are immutable/)
+    await expect(
+      readFile(join(client.storeDir, "files/resources/image/storage.png"), "utf8")
+    ).resolves.toBe("fake png from provider")
+
     const listed = await client.listResources({
       kind: "image",
       origin: "model_output",
@@ -274,504 +492,438 @@ describe("@wanex/storage", () => {
       .toBe(true)
   })
 
-  it("persists session admission and runner lifecycle through the process boundary", async () => {
+  it("persists exact durable turns and canonical ordering through the process boundary", async () => {
     const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_phase2",
-      title: "Node Phase 2",
-      kind: "chat"
-    })
-    expect(session.id).toBe("ses_node_phase2")
-    expect(session.title).toBe("Node Phase 2")
-
-    const first = await client.admitSessionInput({
-      id: "inp_node_phase2_a",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_phase2",
-      content: [{ type: "text", id: "part_node", text: "hello" }],
-      origin: { kind: "interactive", sourceRef: "test-admit" },
-      intent: "follow_up"
-    })
-    const duplicate = await client.admitSessionInput({
-      id: "inp_node_phase2_b",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_phase2",
-      content: [{ type: "text", id: "part_duplicate", text: "duplicate" }]
-    })
-
-    expect(first.inputId).toBe("inp_node_phase2_a")
-    expect(duplicate.inputId).toBe(first.inputId)
-
-    const claim = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_node",
-      leaseMs: 60_000
-    })
-    expect(claim?.inputId).toBe(first.inputId)
-
-    const blocked = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_node_2",
-      leaseMs: 60_000
-    })
-    expect(blocked).toBeNull()
-
-    const completed = await client.completeRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      inputId: claim!.inputId,
-      runnerId: claim!.runnerId,
-      leaseToken: claim!.leaseToken,
-      assistantMessage: [{ type: "text", id: "part_reply", text: "done" }]
-    })
-    expect(completed).toBe(true)
-
-    const inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs).toHaveLength(1)
-    const [input] = inputs
-    expect(input?.status).toBe("completed")
-    expect(input?.origin).toEqual({
-      kind: "interactive",
-      sourceRef: "test-admit"
-    })
-    expect(input?.intent).toBe("follow_up")
-
-    const listed = await client.listSessions({
-      kind: "chat",
-      status: "active",
-      limit: 10
-    })
-    expect(listed.map((item) => item.id)).toContain(session.id)
-    await expect(
-      client.listSessions({
-        kind: "agent",
-        limit: 10
-      })
-    ).resolves.not.toEqual(expect.arrayContaining([expect.objectContaining({
-      id: session.id
-    })]))
-  })
-
-  it("submits session input and session.run job atomically through the process boundary", async () => {
-    const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_submit",
+    await client.createSession({
+      id: "ses_storage_turn",
+      title: "Storage turn",
       kind: "agent"
     })
-
-    const first = await client.submitSessionRun({
-      id: "inp_node_submit",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_submit",
-      content: [{ type: "text", id: "part_submit", text: "hello" }],
-      origin: { kind: "interactive", sourceRef: "test-submit" },
-      intent: "follow_up",
-      runControlPolicy: "queue_after_current",
-      expectedRunId: "run_expected_queue",
-      jobId: "job_node_submit",
-      mode: "to_completion",
-      maxSteps: 4,
-      priority: 3
-    })
-    const second = await client.submitSessionRun({
-      id: "inp_node_submit_duplicate",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_submit",
-      content: [{ type: "text", id: "part_duplicate", text: "ignored" }],
-      jobId: "job_node_submit_duplicate",
-      mode: "to_completion",
+    const first = await client.submitSessionTurn({
+      id: "inp_storage_turn_a",
+      turnId: "turn_storage_a",
+      sessionId: "ses_storage_turn",
+      principalId: "user_storage",
+      idempotencyKey: "idem_storage_a",
+      content: [{
+        type: "text",
+        id: "part_storage_a",
+        text: "first"
+      }],
+      jobId: "job_storage_a",
+      executionBinding: testTurnBinding("storage_a"),
       maxSteps: 4
     })
-
-    expect(first.admission.inputId).toBe("inp_node_submit")
-    expect(second.admission.inputId).toBe(first.admission.inputId)
-    expect(first.job.id).toBe("job_node_submit")
-    expect(second.job.id).toBe(first.job.id)
-    expect(first.job.kind).toBe("session.run")
-    expect(first.job.payload).toEqual({
-      sessionId: session.id,
-      mode: "to_completion",
+    const second = await client.submitSessionTurn({
+      id: "inp_storage_turn_b",
+      turnId: "turn_storage_b",
+      sessionId: "ses_storage_turn",
+      principalId: "user_storage",
+      idempotencyKey: "idem_storage_b",
+      content: [{
+        type: "text",
+        id: "part_storage_b",
+        text: "second"
+      }],
+      jobId: "job_storage_b",
+      executionBinding: testTurnBinding("storage_b"),
       maxSteps: 4
     })
-    const inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs[0]?.origin).toEqual({
-      kind: "interactive",
-      sourceRef: "test-submit"
-    })
-    expect(inputs[0]?.intent).toBe("follow_up")
-    expect(inputs[0]?.runControlPolicy).toBe("queue_after_current")
-    expect(inputs[0]?.expectedRunId).toBe("run_expected_queue")
-
     await expect(
-      client.listJobs({ kind: "session.run", state: "ready" })
-    ).resolves.toHaveLength(1)
-  })
+      client.listSessionMessages({ sessionId: "ses_storage_turn" })
+    ).resolves.toEqual([])
 
-  it("persists interrupt and steer run-control requests through the process boundary", async () => {
-    const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_run_control",
-      kind: "agent"
+    const firstJob = await client.claimJob({
+      workerId: "worker_storage_a",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    await client.admitSessionInput({
-      id: "inp_node_run_control",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_run_control_input",
-      content: [{ type: "text", id: "part_run_control", text: "work" }]
-    })
-    const claim = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_run_control",
-      leaseMs: 60_000
-    })
-    expect(claim).not.toBeNull()
-
+    expect(firstJob?.id).toBe(first.job.id)
     await expect(
-      client.steerSessionRun({
-        sessionId: session.id,
-        principalId: "user_node",
-        expectedRunId: "run_wrong",
-        idempotencyKey: "idem_node_steer_rejected",
-        content: [{ type: "text", id: "part_bad", text: "wrong" }]
+      client.claimJob({
+        workerId: "worker_storage_blocked",
+        leaseMs: 60_000,
+        kinds: ["session.turn"]
       })
-    ).rejects.toThrow("expected_run_id is not the active steerable run")
+    ).resolves.toBeNull()
+    const firstStarted = await client.startSessionTurnAttempt({
+      sessionId: first.turn.sessionId,
+      turnId: first.turn.id,
+      inputId: first.admission.inputId,
+      jobId: firstJob!.id,
+      workerId: "worker_storage_a",
+      leaseToken: firstJob!.leaseToken!
+    })
+    const inputsWhileRunning = await client.listSessionInputs({
+      sessionId: "ses_storage_turn"
+    })
+    expect(
+      inputsWhileRunning.find((input) => input.id === second.admission.inputId)
+        ?.status
+    ).toBe("admitted")
+    const firstInvocation = await client.beginProviderInvocation({
+      sessionId: first.turn.sessionId,
+      turnId: first.turn.id,
+      attemptId: firstStarted.attempt.id,
+      inputId: first.admission.inputId,
+      jobId: firstJob!.id,
+      workerId: "worker_storage_a",
+      leaseToken: firstJob!.leaseToken!,
+      step: 1,
+      invocationNumber: 1,
+      requestDigest: "storage-turn-a-request"
+    })
 
-    const interrupt = await client.interruptSessionRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      reason: "user requested stop",
-      principalId: "user_node",
-      idempotencyKey: "idem_node_interrupt",
-      origin: { kind: "interactive" },
-      metadata: { source: "test" }
+    const firstSettled = await client.settleSessionTurn({
+      sessionId: first.turn.sessionId,
+      turnId: first.turn.id,
+      attemptId: firstStarted.attempt.id,
+      inputId: first.admission.inputId,
+      jobId: firstJob!.id,
+      workerId: "worker_storage_a",
+      leaseToken: firstJob!.leaseToken!,
+      outcome: "succeeded",
+      providerInvocationId: firstInvocation.id,
+      assistantMessage: [{
+        type: "text",
+        id: "assistant_storage_a",
+        text: "reply a"
+      }],
+      providerState: [{
+        providerId: "fake",
+        modelId: "model_storage_a",
+        stateKind: "opaque",
+        replayPolicy: "optional",
+        payload: { token: "a" }
+      }],
+      result: { steps: 1 }
     })
-    const duplicateInterrupt = await client.interruptSessionRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      reason: "ignored duplicate",
-      principalId: "user_node",
-      idempotencyKey: "idem_node_interrupt"
-    })
-    expect(interrupt.status).toBe("interrupt_requested")
-    expect(duplicateInterrupt.acceptedAt).toBe(interrupt.acceptedAt)
+    expect(firstSettled.job.state).toBe("succeeded")
 
-    const steer = await client.steerSessionRun({
-      sessionId: session.id,
-      principalId: "user_node",
-      expectedRunId: claim!.runId,
-      idempotencyKey: "idem_node_steer",
-      content: [{ type: "text", id: "part_steer", text: "make it shorter" }],
-      origin: { kind: "interactive", sourceRef: "test-steer" },
-      providerProfileId: "fake-profile",
-      metadata: { tone: "concise" }
+    const secondJob = await client.claimJob({
+      workerId: "worker_storage_b",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    expect(steer.status).toBe("accepted")
+    expect(secondJob?.id).toBe(second.job.id)
+    const secondStarted = await client.startSessionTurnAttempt({
+      sessionId: second.turn.sessionId,
+      turnId: second.turn.id,
+      inputId: second.admission.inputId,
+      jobId: secondJob!.id,
+      workerId: "worker_storage_b",
+      leaseToken: secondJob!.leaseToken!
+    })
+    const secondInvocation = await client.beginProviderInvocation({
+      sessionId: second.turn.sessionId,
+      turnId: second.turn.id,
+      attemptId: secondStarted.attempt.id,
+      inputId: second.admission.inputId,
+      jobId: secondJob!.id,
+      workerId: "worker_storage_b",
+      leaseToken: secondJob!.leaseToken!,
+      step: 1,
+      invocationNumber: 1,
+      requestDigest: "storage-turn-b-request"
+    })
+    await client.settleSessionTurn({
+      sessionId: second.turn.sessionId,
+      turnId: second.turn.id,
+      attemptId: secondStarted.attempt.id,
+      inputId: second.admission.inputId,
+      jobId: secondJob!.id,
+      workerId: "worker_storage_b",
+      leaseToken: secondJob!.leaseToken!,
+      outcome: "succeeded",
+      providerInvocationId: secondInvocation.id,
+      assistantMessage: [{
+        type: "text",
+        id: "assistant_storage_b",
+        text: "reply b"
+      }]
+    })
 
-    const controls = await client.listSessionRunControls({
-      sessionId: session.id,
-      runId: claim!.runId,
-      status: "pending"
+    const messages = await client.listSessionMessages({
+      sessionId: "ses_storage_turn"
     })
-    expect(controls.map((control) => control.kind).sort()).toEqual([
-      "interrupt",
-      "steer"
+    expect(
+      messages.map((message) => [
+        message.sequence,
+        message.turnId,
+        message.role
+      ])
+    ).toEqual([
+      [1, "turn_storage_a", "user"],
+      [2, "turn_storage_a", "assistant"],
+      [3, "turn_storage_b", "user"],
+      [4, "turn_storage_b", "assistant"]
     ])
-    expect(controls.find((control) => control.kind === "steer")).toMatchObject({
-      content: [{ type: "text", id: "part_steer", text: "make it shorter" }],
-      origin: { kind: "interactive", sourceRef: "test-steer" },
-      providerProfileId: "fake-profile",
-      metadata: { tone: "concise" }
-    })
-
-    const inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs.find((input) => input.intent === "steer")).toMatchObject({
-      status: "control_pending",
-      runControlPolicy: "steer_at_safe_point",
-      expectedRunId: claim!.runId
-    })
+    expect(messages[1]?.providerState?.[0]?.payload).toEqual({ token: "a" })
   })
 
-  it("applies run-control requests atomically through the process boundary", async () => {
+  it("persists turn controls and running cancellation without premature completion", async () => {
     const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_apply_run_control",
-      kind: "agent"
+    await client.createSession({ id: "ses_storage_control", kind: "agent" })
+    const submitted = await client.submitSessionTurn({
+      id: "inp_storage_control",
+      turnId: "turn_storage_control",
+      sessionId: "ses_storage_control",
+      principalId: "user_storage_control",
+      idempotencyKey: "idem_storage_control",
+      content: [{
+        type: "text",
+        id: "part_storage_control",
+        text: "long task"
+      }],
+      jobId: "job_storage_control",
+      executionBinding: testTurnBinding("storage_control")
     })
-    await client.admitSessionInput({
-      id: "inp_node_apply_run_control",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_apply_run_control_input",
-      content: [{ type: "text", id: "part_apply", text: "work" }]
+    const job = await client.claimJob({
+      workerId: "worker_storage_control",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    const claim = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_apply_run_control",
-      leaseMs: 60_000
+    const started = await client.startSessionTurnAttempt({
+      sessionId: submitted.turn.sessionId,
+      turnId: submitted.turn.id,
+      inputId: submitted.admission.inputId,
+      jobId: job!.id,
+      workerId: "worker_storage_control",
+      leaseToken: job!.leaseToken!
     })
-    expect(claim).not.toBeNull()
 
-    await client.steerSessionRun({
-      sessionId: session.id,
-      principalId: "user_node",
-      expectedRunId: claim!.runId,
-      idempotencyKey: "idem_node_apply_steer",
-      content: [{ type: "text", id: "part_steer", text: "stay focused" }]
+    await expect(
+      client.steerSessionTurn({
+        sessionId: submitted.turn.sessionId,
+        principalId: "user_storage_control",
+        expectedTurnId: submitted.turn.id,
+        expectedAttemptId: "attempt_wrong",
+        idempotencyKey: "steer_wrong",
+        content: [{
+          type: "text",
+          id: "part_steer_wrong",
+          text: "wrong"
+        }]
+      })
+    ).rejects.toBeInstanceOf(SystemServiceClientError)
+
+    await client.steerSessionTurn({
+      sessionId: submitted.turn.sessionId,
+      principalId: "user_storage_control",
+      expectedTurnId: submitted.turn.id,
+      expectedAttemptId: started.attempt.id,
+      idempotencyKey: "steer_valid",
+      content: [{
+        type: "text",
+        id: "part_steer_valid",
+        text: "focus tests"
+      }]
     })
-    const [steer] = await client.listSessionRunControls({
-      sessionId: session.id,
-      runId: claim!.runId,
+    const [steer] = await client.listSessionTurnControls({
+      sessionId: submitted.turn.sessionId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
       kind: "steer",
       status: "pending"
     })
-    expect(steer).toBeDefined()
-    await expect(
-      client.applySessionRunControl({
-        sessionId: session.id,
-        runId: claim!.runId,
-        controlId: steer!.id,
-        runnerId: "stale_runner",
-        leaseToken: claim!.leaseToken
-      })
-    ).resolves.toBeNull()
-
-    const appliedSteer = await client.applySessionRunControl({
-      sessionId: session.id,
-      runId: claim!.runId,
+    const applied = await client.applySessionTurnControl({
+      sessionId: submitted.turn.sessionId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
       controlId: steer!.id,
-      runnerId: claim!.runnerId,
-      leaseToken: claim!.leaseToken
+      jobId: job!.id,
+      workerId: "worker_storage_control",
+      leaseToken: job!.leaseToken!
     })
-    expect(appliedSteer).toMatchObject({
-      effect: "steer_completed_input",
-      control: {
-        id: steer!.id,
-        kind: "steer",
-        status: "applied"
-      }
-    })
-    expect(appliedSteer?.control.appliedAt).toEqual(expect.any(Number))
-    let inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs.find((input) => input.intent === "steer")).toMatchObject({
-      status: "completed",
-      runControlPolicy: "steer_at_safe_point"
-    })
+    expect(applied?.effect).toBe("steer_promoted_input")
 
-    await client.interruptSessionRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      reason: "stop after steer",
-      principalId: "user_node",
-      idempotencyKey: "idem_node_apply_interrupt"
+    const cancel = await client.requestSessionTurnCancel({
+      sessionId: submitted.turn.sessionId,
+      turnId: submitted.turn.id,
+      inputId: submitted.admission.inputId,
+      jobId: submitted.job.id,
+      reason: "cancel at safe point"
     })
-    const [interrupt] = await client.listSessionRunControls({
-      sessionId: session.id,
-      runId: claim!.runId,
-      kind: "interrupt",
-      status: "pending"
+    expect(cancel.status).toBe("cancel_requested")
+    expect(cancel.turn?.state).toBe("cancel_requested")
+    expect(cancel.job?.state).toBe("running")
+    const controlEvents = await client.queryEvents({
+      scope: { sessionId: submitted.turn.sessionId },
+      limit: 20
     })
-    expect(interrupt).toBeDefined()
-    const appliedInterrupt = await client.applySessionRunControl({
-      sessionId: session.id,
-      runId: claim!.runId,
-      controlId: interrupt!.id,
-      runnerId: claim!.runnerId,
-      leaseToken: claim!.leaseToken
-    })
-    expect(appliedInterrupt).toMatchObject({
-      effect: "interrupt_cancelled_run",
-      control: {
-        id: interrupt!.id,
-        kind: "interrupt",
-        status: "applied",
-        reason: "stop after steer"
-      }
-    })
-    inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs.find((input) => input.id === claim!.inputId)?.status).toBe(
-      "cancelled"
+    expect(controlEvents.map((event) => event.type)).toEqual(
+      expect.arrayContaining([
+        "session.turn.steer_accepted",
+        "session.turn.control_applied",
+        "session.turn.cancel_requested"
+      ])
     )
-    await expect(
-      client.completeRun({
-        sessionId: session.id,
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        runnerId: claim!.runnerId,
-        leaseToken: claim!.leaseToken,
-        assistantMessage: [{ type: "text", id: "part_late", text: "late" }]
-      })
-    ).resolves.toBe(false)
-    await expect(
-      client.applySessionRunControl({
-        sessionId: session.id,
-        runId: claim!.runId,
-        controlId: interrupt!.id,
-        runnerId: claim!.runnerId,
-        leaseToken: claim!.leaseToken
-      })
-    ).resolves.toMatchObject({
-      effect: "already_resolved"
+
+    const settled = await client.settleSessionTurn({
+      sessionId: submitted.turn.sessionId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
+      inputId: submitted.admission.inputId,
+      jobId: job!.id,
+      workerId: "worker_storage_control",
+      leaseToken: job!.leaseToken!,
+      outcome: "cancelled",
+      reason: "cancel at safe point"
     })
+    expect(settled.turn.state).toBe("cancelled")
+    expect(settled.job.state).toBe("cancelled")
   })
 
-  it("fails a claimed run through the process boundary", async () => {
+  it("atomically cancels queued turns and fails claimed unstarted turns", async () => {
     const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_fail",
-      kind: "agent"
+    await client.createSession({ id: "ses_storage_queued", kind: "agent" })
+    const cancelledTurn = await client.submitSessionTurn({
+      id: "inp_storage_cancelled",
+      turnId: "turn_storage_cancelled",
+      sessionId: "ses_storage_queued",
+      principalId: "user_storage_queued",
+      idempotencyKey: "idem_storage_cancelled",
+      content: [{
+        type: "text",
+        id: "part_storage_cancelled",
+        text: "cancel"
+      }],
+      jobId: "job_storage_cancelled",
+      executionBinding: testTurnBinding("storage_cancelled")
     })
-    await client.admitSessionInput({
-      id: "inp_node_fail",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_fail",
-      content: [{ type: "text", id: "part_fail", text: "fail" }]
+    const cancelled = await client.requestSessionTurnCancel({
+      sessionId: cancelledTurn.turn.sessionId,
+      turnId: cancelledTurn.turn.id,
+      inputId: cancelledTurn.admission.inputId,
+      jobId: cancelledTurn.job.id,
+      reason: "cancel before start"
     })
-    const claim = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_fail",
-      leaseMs: 60_000
-    })
+    expect(cancelled.status).toBe("cancelled")
+    expect(cancelled.turn?.state).toBe("cancelled")
+    expect(cancelled.job?.state).toBe("cancelled")
 
-    expect(claim).not.toBeNull()
-    const failed = await client.failRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      inputId: claim!.inputId,
-      runnerId: claim!.runnerId,
-      leaseToken: claim!.leaseToken,
-      error: { message: "provider failed" }
+    const failedTurn = await client.submitSessionTurn({
+      id: "inp_storage_failed",
+      turnId: "turn_storage_failed",
+      sessionId: "ses_storage_queued",
+      principalId: "user_storage_queued",
+      idempotencyKey: "idem_storage_failed",
+      content: [{
+        type: "text",
+        id: "part_storage_failed",
+        text: "fail before promotion"
+      }],
+      jobId: "job_storage_failed",
+      executionBinding: testTurnBinding("storage_failed")
     })
-    expect(failed).toBe(true)
-
-    const inputs = await client.listSessionInputs({ sessionId: session.id })
-    expect(inputs[0]?.status).toBe("failed")
-    await expect(
-      client.claimRunner({
-        sessionId: session.id,
-        runnerId: "runner_next",
-        leaseMs: 60_000
-      })
-    ).resolves.toBeNull()
+    const claimed = await client.claimJob({
+      workerId: "worker_storage_failed",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    const failedJob = await client.failJob({
+      jobId: claimed!.id,
+      workerId: "worker_storage_failed",
+      leaseToken: claimed!.leaseToken!,
+      error: { message: "invalid handler payload" }
+    })
+    expect(failedJob?.state).toBe("failed")
+    const turns = await client.listSessionTurns({
+      sessionId: failedTurn.turn.sessionId
+    })
+    expect(turns.find((turn) => turn.id === failedTurn.turn.id)?.state).toBe(
+      "failed"
+    )
+    const inputs = await client.listSessionInputs({
+      sessionId: failedTurn.turn.sessionId
+    })
+    expect(
+      inputs.find((input) => input.id === failedTurn.admission.inputId)?.status
+    ).toBe("failed")
   })
 
   it("reserves commits releases and denies budget through the process boundary", async () => {
     const client = await createClient()
-    const grant = await client.reserveBudget({
-      scope: { kind: "session", ownerId: "ses_node_budget" },
-      limit: { tokens: 100, toolCalls: 3 },
-      requested: { tokens: 60, toolCalls: 1 },
-      principalId: "user_node",
-      reason: "agent.run",
-      idempotencyKey: "idem_node_budget_1"
+    const scope = {
+      kind: "session" as const,
+      ownerId: "ses_budget_node"
+    }
+    const limit = {
+      tokens: 100,
+      costMicros: 1_000,
+      toolCalls: 4
+    }
+    const first = await client.reserveBudget({
+      scope,
+      limit,
+      requested: {
+        tokens: 60,
+        costMicros: 200,
+        toolCalls: 1
+      },
+      principalId: "user_budget_node",
+      reason: "agent.turn",
+      idempotencyKey: "idem_budget_node_1"
     })
-
-    expect(grant.state).toBe("reserved")
     const duplicate = await client.reserveBudget({
-      scope: { kind: "session", ownerId: "ses_node_budget" },
-      limit: { tokens: 100, toolCalls: 3 },
-      requested: { tokens: 60, toolCalls: 1 },
-      principalId: "user_node",
-      reason: "agent.run",
-      idempotencyKey: "idem_node_budget_1"
+      scope,
+      limit,
+      requested: {
+        tokens: 60,
+        costMicros: 200,
+        toolCalls: 1
+      },
+      principalId: "user_budget_node",
+      reason: "agent.turn",
+      idempotencyKey: "idem_budget_node_1"
     })
-    expect(duplicate.id).toBe(grant.id)
+    expect(duplicate.id).toBe(first.id)
 
     await expect(
       client.reserveBudget({
-        scope: { kind: "session", ownerId: "ses_node_budget" },
-        limit: { tokens: 100, toolCalls: 3 },
-        requested: { tokens: 50, toolCalls: 1 },
-        principalId: "user_node",
-        reason: "agent.run",
-        idempotencyKey: "idem_node_budget_denied"
+        scope,
+        limit,
+        requested: {
+          tokens: 50,
+          costMicros: 100,
+          toolCalls: 1
+        },
+        principalId: "user_budget_node",
+        reason: "agent.turn",
+        idempotencyKey: "idem_budget_node_denied"
       })
-    ).rejects.toMatchObject({
-      name: "SystemServiceClientError",
-      code: "budget_denied"
-    } satisfies Partial<SystemServiceClientError>)
+    ).rejects.toBeInstanceOf(SystemServiceClientError)
 
-    await expect(client.recordBudgetUsage({
-      grantId: grant.id,
-      usage: { tokens: 55, toolCalls: 1 },
+    await client.recordBudgetUsage({
+      grantId: first.id,
+      usage: {
+        tokens: 55,
+        costMicros: 180,
+        toolCalls: 1
+      },
       source: "test",
-      sourceId: "storage-client",
-      idempotencyKey: "usage_storage_client"
-    })).resolves.toMatchObject({ created: true })
-    await expect(client.recordBudgetUsage({
-      grantId: grant.id,
-      usage: { tokens: 55, toolCalls: 1 },
-      source: "test",
-      sourceId: "storage-client",
-      idempotencyKey: "usage_storage_client"
-    })).resolves.toMatchObject({ created: false })
-    await expect(client.recordBudgetUsage({
-      grantId: grant.id,
-      usage: { tokens: 54, toolCalls: 1 },
-      source: "test",
-      sourceId: "storage-client",
-      idempotencyKey: "usage_storage_client"
-    })).rejects.toThrow("conflicting repeated budget usage entry")
-    await expect(client.recordBudgetUsage({
-      grantId: grant.id,
-      usage: { tokens: 6 },
-      source: "test",
-      sourceId: "over-limit",
-      idempotencyKey: "usage_storage_client_over"
-    })).rejects.toMatchObject({ code: "budget_denied" })
-    const committed = await client.commitBudget({ grantId: grant.id })
-    expect(committed?.state).toBe("committed")
-
-    const scope = await client.getBudgetScope(grant.scopeId)
-    expect(scope?.usage.tokens).toBe(55)
-    expect(scope?.usage.toolCalls).toBe(1)
-    const grants = await client.listBudgetGrants(grant.scopeId)
-    expect(grants).toHaveLength(1)
-  })
-
-  it("cancels a claimed run through the process boundary", async () => {
-    const client = await createClient()
-    const session = await client.createSession({
-      id: "ses_node_cancel",
-      kind: "agent"
+      sourceId: "budget-node-test",
+      idempotencyKey: "usage-budget-node-test"
     })
-    await client.admitSessionInput({
-      id: "inp_node_cancel",
-      sessionId: session.id,
-      principalId: "user_node",
-      idempotencyKey: "idem_node_cancel",
-      content: [{ type: "text", id: "part_cancel", text: "cancel" }]
+    await expect(client.commitBudget({ grantId: first.id })).resolves.toMatchObject({
+      state: "committed"
     })
-    const claim = await client.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_cancel",
-      leaseMs: 60_000
-    })
-    expect(claim).not.toBeNull()
 
-    await expect(
-      client.cancelRun({
-        sessionId: session.id,
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        reason: "user stop"
-      })
-    ).resolves.toBe(true)
-    await expect(
-      client.completeRun({
-        sessionId: session.id,
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        runnerId: claim!.runnerId,
-        leaseToken: claim!.leaseToken,
-        assistantMessage: [{ type: "text", id: "late", text: "late" }]
-      })
-    ).resolves.toBe(false)
+    const second = await client.reserveBudget({
+      scope,
+      limit,
+      requested: {
+        tokens: 40,
+        costMicros: 100,
+        toolCalls: 1
+      },
+      principalId: "user_budget_node",
+      reason: "agent.turn",
+      idempotencyKey: "idem_budget_node_2"
+    })
+    await expect(client.releaseBudget({ grantId: second.id })).resolves.toMatchObject({
+      state: "released"
+    })
   })
 
   it("enqueues claims retries completes and lists scheduler jobs", async () => {
@@ -2283,7 +2435,7 @@ setInterval(() => {}, 1000)
       state: "succeeded",
       sessionId: "ses_objective_storage",
       sessionInputId: "inp_objective_storage",
-      sessionRunId: "run_objective_storage",
+      sessionTurnId: "turn_objective_storage",
       schedulerJobId: "job_objective_storage",
       summary: "Verified LCP target",
       result: { lcpMs: 2300 },
@@ -2299,7 +2451,7 @@ setInterval(() => {}, 1000)
       state: "succeeded",
       sessionId: "ses_objective_storage",
       sessionInputId: "inp_objective_storage",
-      sessionRunId: "run_objective_storage",
+      sessionTurnId: "turn_objective_storage",
       schedulerJobId: "job_objective_storage",
       summary: "Verified LCP target",
       result: { lcpMs: 2300 },
@@ -2541,7 +2693,7 @@ setInterval(() => {}, 1000)
       graphId: graph.id,
       kind: "agent_task",
       principalId: "agent_storage_a",
-      payload: { sessionId: "ses_storage_materialize", mode: "once" }
+      payload: { handlerId: "handler.storage.materialize" }
     })
     const target = await client.putDelegationGraphNode({
       id: "node_storage_materialize_target",
@@ -2560,7 +2712,7 @@ setInterval(() => {}, 1000)
       graphId: graph.id,
       workerId: "orchestrator_storage",
       jobId: "job_storage_materialized_source",
-      jobKind: "session.run",
+      jobKind: "workspace.task",
       priority: 7
     })
     expect(first?.node).toMatchObject({
@@ -2570,14 +2722,14 @@ setInterval(() => {}, 1000)
     })
     expect(first?.job).toMatchObject({
       id: "job_storage_materialized_source",
-      kind: "session.run",
+      kind: "workspace.task",
       priority: 7
     })
     expect(first?.job.payload).toMatchObject({
       delegationGraphId: graph.id,
       delegationNodeId: source.id,
       nodeKind: "agent_task",
-      payload: { sessionId: "ses_storage_materialize" }
+      payload: { handlerId: "handler.storage.materialize" }
     })
 
     await expect(
@@ -2586,7 +2738,7 @@ setInterval(() => {}, 1000)
         nodeId: source.id,
         workerId: "orchestrator_storage",
         jobId: "job_storage_duplicate",
-        jobKind: "session.run"
+        jobKind: "workspace.task"
       })
     ).resolves.toBeNull()
     await expect(
@@ -3321,11 +3473,13 @@ setInterval(() => {}, 1000)
       id: "chproj_storage_session",
       inboundEventId: inbound.id,
       target: {
-        kind: "session.run",
+        kind: "session.turn",
         sessionId: "ses_storage_projection",
         principalId: "principal_storage_projection",
         inputId: "inp_storage_projection",
+        turnId: "turn_storage_projection",
         jobId: "job_storage_projection",
+        executionBinding: testTurnBinding("storage_projection"),
         content: [
           {
             type: "text",
@@ -3341,24 +3495,25 @@ setInterval(() => {}, 1000)
     expect(projection.projection).toMatchObject({
       id: "chproj_storage_session",
       inboundEventId: inbound.id,
-      targetKind: "session.run",
-      targetId: "inp_storage_projection",
+      targetKind: "session.turn",
+      targetId: "turn_storage_projection",
       targetJobId: "job_storage_projection",
       state: "projected"
     })
     expect(projection.job).toMatchObject({
       id: "job_storage_projection",
-      kind: "session.run"
+      kind: "session.turn"
     })
 
     const duplicate = await client.projectChannelInboundEvent({
       id: "ignored_projection",
       inboundEventId: inbound.id,
       target: {
-        kind: "session.run",
+        kind: "session.turn",
         sessionId: "ses_storage_projection",
         principalId: "principal_storage_projection",
-        content: [{ type: "text", id: "ignored", text: "ignored" }]
+        content: [{ type: "text", id: "ignored", text: "ignored" }],
+        executionBinding: testTurnBinding("storage_projection_duplicate")
       },
       idempotencyKey: "storage-projection-session-key"
     })
@@ -3402,6 +3557,36 @@ setInterval(() => {}, 1000)
     ])
   })
 })
+
+async function exerciseMediaGenerationTransport(
+  client: CoreStore,
+  label: string
+): Promise<void> {
+  const submitted = await client.submitMediaGenerationOperation({
+    principalId: `media_${label}_user`,
+    idempotencyKey: `media_${label}_key`,
+    binding: testMediaGenerationBinding(label)
+  })
+  expect(submitted).toMatchObject({
+    operation: {
+      state: "queued",
+      binding: { modelId: `fake-media-model-${label}` }
+    },
+    job: { kind: "media.generate", state: "ready" }
+  })
+  await expect(
+    client.getMediaGenerationOperation({ operationId: submitted.operation.id })
+  ).resolves.toMatchObject({
+    id: submitted.operation.id,
+    jobId: submitted.job.id
+  })
+  await expect(
+    client.requestMediaGenerationCancel({
+      operationId: submitted.operation.id,
+      reason: `${label} transport cancellation`
+    })
+  ).resolves.toMatchObject({ state: "cancelled" })
+}
 
 async function createClient(): Promise<StorageTestStore> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-storage-"))

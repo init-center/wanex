@@ -1,20 +1,20 @@
 import {
-  listWanexAppShellProviderProfiles,
-  readWanexAppShellActiveProviderProfile,
-  readWanexAppShellProviderProfile,
-  setWanexAppShellActiveProviderProfile,
-  upsertWanexAppShellProviderProfile
+  listWanexAppProviderProfiles,
+  readWanexAppActiveProviderProfile,
+  readWanexAppProviderProfile,
+  setWanexAppActiveProviderProfile,
+  upsertWanexAppProviderProfile
 } from "./provider-profile.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellProviderProfileCommands } from "./types-provider-profile.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppProviderProfileCommands } from "./types-provider-profile.js"
 
-export function createWanexAppShellProviderCommands(
-  context: WanexAppShellCommandContext
-): WanexAppShellProviderProfileCommands {
+export function createWanexAppProviderCommands(
+  context: WanexAppCommandContext
+): WanexAppProviderProfileCommands {
   return {
     async readActiveProviderProfile() {
       context.assertActive()
-      const profile = await readWanexAppShellActiveProviderProfile(
+      const profile = await readWanexAppActiveProviderProfile(
         context.runtime.storage
       )
       context.setActiveProviderProfileId(profile.id)
@@ -22,7 +22,7 @@ export function createWanexAppShellProviderCommands(
     },
     async setActiveProviderProfile(request) {
       context.assertActive()
-      const profile = await setWanexAppShellActiveProviderProfile({
+      const profile = await setWanexAppActiveProviderProfile({
         storage: context.runtime.storage,
         profileId: request.profileId
       })
@@ -31,7 +31,7 @@ export function createWanexAppShellProviderCommands(
     },
     async upsertProviderProfile(request) {
       context.assertActive()
-      const profile = await upsertWanexAppShellProviderProfile({
+      const profile = await upsertWanexAppProviderProfile({
         storage: context.runtime.storage,
         profile: request.profile,
         ...(request.makeActive === undefined
@@ -45,14 +45,14 @@ export function createWanexAppShellProviderCommands(
     },
     async readProviderProfile(request) {
       context.assertActive()
-      return await readWanexAppShellProviderProfile({
+      return await readWanexAppProviderProfile({
         storage: context.runtime.storage,
         profileId: request.profileId
       })
     },
     async listProviderProfiles() {
       context.assertActive()
-      const profiles = await listWanexAppShellProviderProfiles(
+      const profiles = await listWanexAppProviderProfiles(
         context.runtime.storage
       )
       context.setActiveProviderProfileId(profiles.activeProfileId)

@@ -22,10 +22,15 @@ import type {
   ProductAppWebNodeRequestHandler,
   ProductAppWebNodeRequestHandlerOptions
 } from "./types.js"
+import {
+  MAX_PRODUCT_APP_ATTACHMENT_UPLOAD_BYTES
+} from "../attachment-upload.js"
+import type { ResourceKind } from "@wanex/protocol"
 
 export type * from "./types.js"
 
 const DEFAULT_REQUEST_PATH = "/wanex/product-app-web/request"
+const DEFAULT_ATTACHMENT_PATH = "/wanex/product-app-web/attachment"
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024
 const DEFAULT_POLL_INTERVAL_MS = 2_000
 const MAX_POLL_INTERVAL_MS = 60_000
@@ -37,15 +42,22 @@ export function createProductAppWebNodeRequestHandler(
   const clientScriptPath = options.clientScriptPath ?? DEFAULT_CLIENT_SCRIPT_PATH
   const stylesheetPath = options.stylesheetPath ?? DEFAULT_STYLESHEET_PATH
   const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
+  const attachmentPath = options.attachmentPath ?? DEFAULT_ATTACHMENT_PATH
+  const maxAttachmentBytes = normalizeMaxAttachmentBytes(
+    options.maxAttachmentBytes
+  )
   const pollIntervalMs = normalizePollIntervalMs(options.pollIntervalMs)
 
   return (request, response) => {
     void handleNodeRequest({
       controller: options.controller,
+      attachments: options.attachments,
       requestPath,
       clientScriptPath,
       stylesheetPath,
       maxBodyBytes,
+      attachmentPath,
+      maxAttachmentBytes,
       pollIntervalMs,
       request,
       response
@@ -84,10 +96,13 @@ export async function listenProductAppWebNodeHost(
 
 async function handleNodeRequest(request: {
   readonly controller: ProductAppWebController
+  readonly attachments: ProductAppWebNodeRequestHandlerOptions["attachments"]
   readonly requestPath: string
   readonly clientScriptPath: string
   readonly stylesheetPath: string
   readonly maxBodyBytes: number
+  readonly attachmentPath: string
+  readonly maxAttachmentBytes: number
   readonly pollIntervalMs: number
   readonly request: IncomingMessage
   readonly response: ServerResponse
@@ -102,9 +117,24 @@ async function handleNodeRequest(request: {
           requestPath: request.requestPath,
           clientScriptPath: request.clientScriptPath,
           stylesheetPath: request.stylesheetPath,
+          attachmentPath: request.attachmentPath,
           pollIntervalMs: request.pollIntervalMs
         })
       )
+      return
+    }
+    if (path === request.attachmentPath) {
+      if (request.request.method !== "POST") {
+        sendJson(request.response, 405, {
+          ok: false,
+          error: {
+            code: "method_not_allowed",
+            message: "Product App attachment endpoint requires POST"
+          }
+        })
+        return
+      }
+      await handleAttachmentUpload(request)
       return
     }
     if (
@@ -146,13 +176,220 @@ async function handleNodeRequest(request: {
     const response = await handleProductAppWebRequest(request.controller, body)
     sendJson(request.response, 200, response)
   } catch (error) {
-    sendJson(request.response, 400, {
+    const normalized = normalizeHttpError(error)
+    sendJson(request.response, normalized.statusCode, {
       ok: false,
       error: {
-        code: "invalid_http_request",
-        message: error instanceof Error ? error.message : String(error)
+        code: normalized.code,
+        message: normalized.message
       }
     })
+  }
+}
+
+async function handleAttachmentUpload(request: {
+  readonly controller: ProductAppWebController
+  readonly attachments: ProductAppWebNodeRequestHandlerOptions["attachments"]
+  readonly maxAttachmentBytes: number
+  readonly request: IncomingMessage
+  readonly response: ServerResponse
+}): Promise<void> {
+  const contentType = header(request.request, "content-type")
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase()
+  if (contentType !== "application/octet-stream") {
+    throw new ProductAppWebHostHttpError(
+      415,
+      "unsupported_media_type",
+      "attachment request content-type must be application/octet-stream"
+    )
+  }
+  const mediaType = requiredDecodedHeader(
+    request.request,
+    "x-wanex-media-type"
+  )
+  const kind = optionalResourceKindHeader(request.request)
+  const label = optionalDecodedHeader(
+    request.request,
+    "x-wanex-attachment-label"
+  )
+  const sessionId = optionalDecodedHeader(
+    request.request,
+    "x-wanex-session-id"
+  )
+  const content = await readBinaryBody(
+    request.request,
+    request.maxAttachmentBytes
+  )
+  const uploaded = await request.attachments.uploadAttachment({
+    content,
+    mediaType,
+    ...(kind === undefined ? {} : { kind }),
+    ...(label === undefined ? {} : { label }),
+    ...(sessionId === undefined ? {} : { sessionId })
+  })
+  const document = await request.controller.refresh()
+  sendJson(request.response, 201, {
+    ok: true,
+    kind: "product-app-web.attachment-upload-response",
+    upload: uploaded,
+    document
+  })
+}
+
+async function readBinaryBody(
+  request: IncomingMessage,
+  maxBodyBytes: number
+): Promise<Uint8Array> {
+  const declaredLength = header(request, "content-length")
+  if (declaredLength !== undefined) {
+    const size = Number(declaredLength)
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new ProductAppWebHostHttpError(
+        400,
+        "invalid_content_length",
+        "attachment content-length is invalid"
+      )
+    }
+    if (size > maxBodyBytes) {
+      throw attachmentTooLarge(maxBodyBytes)
+    }
+  }
+  const chunks: Buffer[] = []
+  let totalBytes = 0
+  for await (const chunk of request) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+    totalBytes += buffer.byteLength
+    if (totalBytes > maxBodyBytes) {
+      throw attachmentTooLarge(maxBodyBytes)
+    }
+    chunks.push(buffer)
+  }
+  if (totalBytes === 0) {
+    throw new ProductAppWebHostHttpError(
+      400,
+      "empty_attachment",
+      "attachment body must not be empty"
+    )
+  }
+  return Buffer.concat(chunks)
+}
+
+function optionalResourceKindHeader(
+  request: IncomingMessage
+): ResourceKind | undefined {
+  const value = optionalDecodedHeader(request, "x-wanex-resource-kind")
+  if (value === undefined) return undefined
+  if (
+    value === "file" ||
+    value === "image" ||
+    value === "video" ||
+    value === "audio" ||
+    value === "document"
+  ) {
+    return value
+  }
+  throw new ProductAppWebHostHttpError(
+    400,
+    "invalid_attachment_header",
+    "x-wanex-resource-kind header is not supported"
+  )
+}
+
+function requiredDecodedHeader(
+  request: IncomingMessage,
+  name: string
+): string {
+  const value = optionalDecodedHeader(request, name)
+  if (value === undefined) {
+    throw new ProductAppWebHostHttpError(
+      400,
+      "missing_attachment_header",
+      `${name} header is required`
+    )
+  }
+  return value
+}
+
+function optionalDecodedHeader(
+  request: IncomingMessage,
+  name: string
+): string | undefined {
+  const value = header(request, name)
+  if (value === undefined) return undefined
+  try {
+    const decoded = decodeURIComponent(value).trim()
+    if (decoded.length === 0) {
+      throw new Error("empty")
+    }
+    return decoded
+  } catch {
+    throw new ProductAppWebHostHttpError(
+      400,
+      "invalid_attachment_header",
+      `${name} header is invalid`
+    )
+  }
+}
+
+function header(request: IncomingMessage, name: string): string | undefined {
+  const value = request.headers[name]
+  if (Array.isArray(value)) {
+    throw new ProductAppWebHostHttpError(
+      400,
+      "invalid_attachment_header",
+      `${name} header must occur once`
+    )
+  }
+  return value
+}
+
+function attachmentTooLarge(maxBodyBytes: number): ProductAppWebHostHttpError {
+  return new ProductAppWebHostHttpError(
+    413,
+    "attachment_too_large",
+    `attachment body exceeds ${maxBodyBytes} bytes`
+  )
+}
+
+function normalizeMaxAttachmentBytes(value: number | undefined): number {
+  const normalized = value ?? MAX_PRODUCT_APP_ATTACHMENT_UPLOAD_BYTES
+  if (
+    !Number.isSafeInteger(normalized) ||
+    normalized <= 0 ||
+    normalized > MAX_PRODUCT_APP_ATTACHMENT_UPLOAD_BYTES
+  ) {
+    throw new Error(
+      `maxAttachmentBytes must be an integer from 1 to ${MAX_PRODUCT_APP_ATTACHMENT_UPLOAD_BYTES}`
+    )
+  }
+  return normalized
+}
+
+class ProductAppWebHostHttpError extends Error {
+  constructor(
+    readonly statusCode: number,
+    readonly code: string,
+    message: string
+  ) {
+    super(message)
+    this.name = "ProductAppWebHostHttpError"
+  }
+}
+
+function normalizeHttpError(error: unknown): {
+  readonly statusCode: number
+  readonly code: string
+  readonly message: string
+} {
+  if (error instanceof ProductAppWebHostHttpError) {
+    return error
+  }
+  return {
+    statusCode: 400,
+    code: "invalid_http_request",
+    message: error instanceof Error ? error.message : String(error)
   }
 }
 

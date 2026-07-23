@@ -48,12 +48,13 @@ async function readSnapshot(
   now: () => number,
   homeOptions: CreateProductAppTuiSurfaceOptions["homeOptions"]
 ): Promise<ProductAppTuiSurfaceSnapshot> {
-  const [descriptor, status, home, settings, commandCatalog, events] = await Promise.all([
+  const [descriptor, status, home, settings, commandCatalog, conversation, events] = await Promise.all([
     options.client.descriptor(),
     options.client.status(),
     options.client.readHome(homeOptions),
     options.client.readSettings(),
     options.client.readProductCommands(),
+    options.client.readTrackedConversationOperation(),
     options.client.readSurfaceEvents({ limit: options.eventLimit ?? 20 })
   ])
   const base = {
@@ -64,6 +65,7 @@ async function readSnapshot(
     home,
     settings,
     commandCatalog,
+    conversation,
     events,
     diagnostics: productAppTuiDiagnostics({
       descriptor,
@@ -71,6 +73,7 @@ async function readSnapshot(
       home,
       settings,
       commandCatalog,
+      conversation,
       events
     })
   }

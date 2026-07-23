@@ -1,18 +1,18 @@
-import type { AppDiagnosticsSnapshot } from "@wanex/app/diagnostics"
-import type { WanexAppShellRunAgentTurnResult } from "./types-agent.js"
-import type { WanexAppShellOptions } from "./types-app.js"
-import type { WanexAppShellShutdownResult } from "./types-lifecycle.js"
-import type { WanexAppShellProviderProfileReadModel } from "./types-provider-profile.js"
-import type { WanexAppShellSessionInputProvenanceReadModel } from "./types-read-model.js"
+import type { AppDiagnosticsSnapshot } from "./diagnostics/index.js"
+import type { WanexAppRunAgentTurnResult } from "./types-agent.js"
+import type { WanexAppOptions } from "./types-app.js"
+import type { WanexAppShutdownResult } from "./types-lifecycle.js"
+import type { WanexAppProviderProfileReadModel } from "./types-provider-profile.js"
+import type { WanexAppSessionInputProvenanceReadModel } from "./types-read-model.js"
 
-export interface WanexAppShellSmokeRequest extends WanexAppShellOptions {
+export interface WanexAppSmokeRequest extends WanexAppOptions {
   readonly text?: string
 }
 
-export interface WanexAppShellSmokeResult {
-  readonly run: WanexAppShellRunAgentTurnResult
+export interface WanexAppSmokeResult {
+  readonly run: WanexAppRunAgentTurnResult
   readonly diagnostics: AppDiagnosticsSnapshot
-  readonly provider: WanexAppShellProviderProfileReadModel
-  readonly provenance: WanexAppShellSessionInputProvenanceReadModel
-  readonly shutdown: WanexAppShellShutdownResult
+  readonly provider: WanexAppProviderProfileReadModel
+  readonly provenance: WanexAppSessionInputProvenanceReadModel
+  readonly shutdown: WanexAppShutdownResult
 }

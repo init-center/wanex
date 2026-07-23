@@ -17,12 +17,13 @@ import {
 import {
   runProductAppSurfaceCommand
 } from "./surface-dispatch.js"
-import type {
-  ProductAppSurfaceAdapter,
-  ProductAppSurfaceCommand,
-  ProductAppSurfaceEnvelope,
-  ProductAppSurfaceError,
-  ProductAppSurfaceEvent
+import {
+  PRODUCT_APP_SURFACE_COMMANDS,
+  type ProductAppSurfaceAdapter,
+  type ProductAppSurfaceCommand,
+  type ProductAppSurfaceEnvelope,
+  type ProductAppSurfaceError,
+  type ProductAppSurfaceEvent
 } from "./types-surface.js"
 
 export interface ProductAppSurfaceAdapterOptions {
@@ -36,6 +37,14 @@ export function createProductAppSurfaceAdapter(
   options: ProductAppSurfaceAdapterOptions = {}
 ): ProductAppSurfaceAdapter {
   const events = createProductAppSurfaceEventRecorder(options.now ?? Date.now)
+  const unsubscribe = app.events.subscribeConversationEvents((conversation) => {
+    events.record({
+      type: "product-app.surface.conversation.assistant-text-delta",
+      command: PRODUCT_APP_SURFACE_COMMANDS.readTrackedConversationOperation,
+      conversation
+    })
+  })
+  let disposed = false
 
   return {
     descriptor() {
@@ -46,6 +55,13 @@ export function createProductAppSurfaceAdapter(
     },
     readSurfaceEvents(request) {
       return events.read(request)
+    },
+    async dispose() {
+      if (disposed) {
+        return
+      }
+      disposed = true
+      unsubscribe()
     }
   }
 }

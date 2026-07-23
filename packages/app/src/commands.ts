@@ -1,28 +1,34 @@
 import {
-  createWanexAppShellAgentCommands,
+  createWanexAppAgentCommands,
 } from "./commands-agent.js"
-import { createWanexAppShellContextCommands } from "./commands-context.js"
-import { createWanexAppShellExecutionReferenceCommands } from "./commands-execution-reference.js"
-import { createWanexAppShellProviderCommands } from "./commands-provider.js"
-import { createWanexAppShellSystemCommands } from "./commands-system.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellCommands } from "./types-app.js"
+import { createWanexAppContextCommands } from "./commands-context.js"
+import { createWanexAppConversationOperationCommands } from "./commands-conversation-operation.js"
+import { createWanexAppExecutionReferenceCommands } from "./commands-execution-reference.js"
+import { createWanexAppProviderCommands } from "./commands-provider.js"
+import { createWanexAppResourceCommands } from "./commands-resources.js"
+import { createWanexAppSystemCommands } from "./commands-system.js"
+import { createWanexAppMediaGenerationCommands } from "./commands-media-generation.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppCommands } from "./types-app.js"
 
-export function createWanexAppShellCommands(options: {
-  readonly context: WanexAppShellCommandContext
+export function createWanexAppCommands(options: {
+  readonly context: WanexAppCommandContext
   readonly isDisposed: () => boolean
-}): WanexAppShellCommands {
-  let commands: WanexAppShellCommands
-  const agentCommands = createWanexAppShellAgentCommands(
+}): WanexAppCommands {
+  let commands: WanexAppCommands
+  const agentCommands = createWanexAppAgentCommands(
     options.context,
     () => commands
   )
   commands = {
     ...agentCommands,
-    ...createWanexAppShellContextCommands(options.context),
-    ...createWanexAppShellExecutionReferenceCommands(options.context),
-    ...createWanexAppShellProviderCommands(options.context),
-    ...createWanexAppShellSystemCommands(options.context, options.isDisposed)
+    ...createWanexAppConversationOperationCommands(options.context),
+    ...createWanexAppMediaGenerationCommands(options.context),
+    ...createWanexAppContextCommands(options.context),
+    ...createWanexAppExecutionReferenceCommands(options.context),
+    ...createWanexAppProviderCommands(options.context),
+    ...createWanexAppResourceCommands(options.context),
+    ...createWanexAppSystemCommands(options.context, options.isDisposed)
   }
   return commands
 }

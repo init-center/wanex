@@ -2,6 +2,7 @@ import type { ProviderProfile } from "@wanex/protocol"
 import type { PrepareAgentContextOptions } from "@wanex/runtime/context"
 
 export interface CliEnvironment {
+  readonly [name: string]: string | undefined
   readonly HOME?: string
   readonly USERPROFILE?: string
   readonly WANEX_STORE_DIR?: string
@@ -91,7 +92,6 @@ export type ParsedCommand =
       readonly sessionId?: string
       readonly providerId?: string
       readonly timeoutMs?: number
-      readonly mode?: "once" | "to_completion"
       readonly maxSteps?: number
       readonly context?: CliAgentContextOptions
     }

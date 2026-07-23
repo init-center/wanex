@@ -50,7 +50,7 @@ export interface RecordObjectiveAttemptRequest {
   readonly state?: ObjectiveAttemptState
   readonly sessionId?: string
   readonly sessionInputId?: string
-  readonly sessionRunId?: string
+  readonly sessionTurnId?: string
   readonly schedulerJobId?: string
   readonly delegationGraphId?: string
   readonly planProposalId?: string

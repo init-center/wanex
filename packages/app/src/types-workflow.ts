@@ -6,28 +6,27 @@ import type {
   SessionId,
   SessionInputIntent,
   SessionInputOriginKind,
-  SubmitSessionRunReceipt
 } from "@wanex/protocol"
 import type {
-  WanexAppShellRouteWorkflowEnvelopeResult,
-  WanexAppShellWorkflowEnvelope
+  WanexAppRouteWorkflowEnvelopeResult,
+  WanexAppWorkflowEnvelope
 } from "./types-workflow-envelope.js"
 
-export interface WanexAppShellWorkflowCommands {
+export interface WanexAppWorkflowCommands {
   queueGuidedFollowUp(
-    request: WanexAppShellQueueGuidedFollowUpRequest
-  ): Promise<WanexAppShellQueueGuidedFollowUpResult>
+    request: WanexAppQueueGuidedFollowUpRequest
+  ): Promise<WanexAppQueueGuidedFollowUpResult>
   askSideQuery(
-    request: WanexAppShellAskSideQueryRequest
-  ): Promise<WanexAppShellAskSideQueryResult>
+    request: WanexAppAskSideQueryRequest
+  ): Promise<WanexAppAskSideQueryResult>
   routeWorkflowEnvelope(
-    request: WanexAppShellWorkflowEnvelope
-  ): Promise<WanexAppShellRouteWorkflowEnvelopeResult>
+    request: WanexAppWorkflowEnvelope
+  ): Promise<WanexAppRouteWorkflowEnvelopeResult>
 }
 
-export interface WanexAppShellQueueGuidedFollowUpRequest {
+export interface WanexAppQueueGuidedFollowUpRequest {
   readonly sessionId: SessionId
-  readonly activeRunId: string
+  readonly activeTurnId: string
   readonly text: string
   readonly principalId?: string
   readonly inputId?: string
@@ -37,16 +36,16 @@ export interface WanexAppShellQueueGuidedFollowUpRequest {
   readonly sourceRef?: string
 }
 
-export interface WanexAppShellQueueGuidedFollowUpResult {
+export interface WanexAppQueueGuidedFollowUpResult {
   readonly sessionId: SessionId
-  readonly activeRunId: string
+  readonly activeTurnId: string
   readonly providerProfileId: string
-  readonly input: WanexAppShellQueuedInputSummary
-  readonly job: WanexAppShellQueuedJobSummary
-  readonly receipt: SubmitSessionRunReceipt
+  readonly input: WanexAppQueuedInputSummary
+  readonly job: WanexAppQueuedJobSummary
+  readonly receipt: import("./types-conversation-operation.js").WanexAppConversationOperationReceipt
 }
 
-export interface WanexAppShellQueuedInputSummary {
+export interface WanexAppQueuedInputSummary {
   readonly inputId: string
   readonly status: "admitted"
   readonly intent: Extract<SessionInputIntent, "follow_up">
@@ -54,17 +53,17 @@ export interface WanexAppShellQueuedInputSummary {
   readonly sourceRef: string
   readonly parentRef: string
   readonly runControlPolicy: Extract<RunControlPolicy, "queue_after_current">
-  readonly expectedRunId: string
+  readonly expectedTurnId: string
 }
 
-export interface WanexAppShellQueuedJobSummary {
+export interface WanexAppQueuedJobSummary {
   readonly jobId: string
-  readonly kind: "session.run"
+  readonly kind: "session.turn"
   readonly state: SchedulerJobState
   readonly providerProfileId: string
 }
 
-export interface WanexAppShellAskSideQueryRequest {
+export interface WanexAppAskSideQueryRequest {
   readonly question: string | readonly MessagePart[]
   readonly sessionId?: SessionId
   readonly principalId?: string
@@ -72,7 +71,7 @@ export interface WanexAppShellAskSideQueryRequest {
   readonly maxOutputTokens?: number
 }
 
-export interface WanexAppShellAskSideQueryResult {
+export interface WanexAppAskSideQueryResult {
   readonly sessionId?: SessionId
   readonly answerText: string
   readonly output: readonly MessagePart[]

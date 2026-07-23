@@ -11,6 +11,7 @@ export interface ProductAppWebNodeHostDocumentOptions {
   readonly requestPath: string
   readonly clientScriptPath: string
   readonly stylesheetPath: string
+  readonly attachmentPath: string
   readonly pollIntervalMs: number
 }
 
@@ -30,7 +31,7 @@ export function renderProductAppWebNodeHostDocument(
     '<main data-wanex-product-app-web-shell>',
     options.surfaceHtml,
     "</main>",
-    `<script src="${escapeHtml(options.clientScriptPath)}" data-wanex-product-app-web-client data-request-path="${escapeHtml(options.requestPath)}" data-poll-interval-ms="${options.pollIntervalMs}"></script>`,
+    `<script src="${escapeHtml(options.clientScriptPath)}" data-wanex-product-app-web-client data-request-path="${escapeHtml(options.requestPath)}" data-attachment-path="${escapeHtml(options.attachmentPath)}" data-poll-interval-ms="${options.pollIntervalMs}"></script>`,
     "</body>",
     "</html>"
   ].join("")
@@ -47,6 +48,10 @@ export const PRODUCT_APP_WEB_BROWSER_CLIENT_SCRIPT = `(() => {
     script && script.dataset && script.dataset.requestPath
       ? script.dataset.requestPath
       : "/wanex/product-app-web/request";
+  const attachmentPath =
+    script && script.dataset && script.dataset.attachmentPath
+      ? script.dataset.attachmentPath
+      : "/wanex/product-app-web/attachment";
   const pollIntervalMs = readPollIntervalMs(
     script && script.dataset ? script.dataset.pollIntervalMs : undefined
   );
@@ -55,6 +60,7 @@ export const PRODUCT_APP_WEB_BROWSER_CLIENT_SCRIPT = `(() => {
   let surfaceVersion = 0;
   let actionInFlight = false;
   let pollInFlight = false;
+  const attachmentObjectUrls = new Map();
 
   document.addEventListener("submit", (event) => {
     const form = event.target;
@@ -65,7 +71,19 @@ export const PRODUCT_APP_WEB_BROWSER_CLIENT_SCRIPT = `(() => {
     void submitActionForm(form);
   });
 
+  document.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!(input instanceof HTMLInputElement) || !input.matches("[data-conversation-attachment-input]")) {
+      return;
+    }
+    void uploadSelectedAttachments(input);
+  });
+
+  window.addEventListener("beforeunload", revokeAllAttachmentObjectUrls);
+
 ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
+
+  decorateAttachmentPreviews(document.querySelector(SURFACE_SELECTOR));
 
   scheduleNextPoll();
 
@@ -74,6 +92,7 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
       return;
     }
     const currentSurface = document.querySelector(SURFACE_SELECTOR);
+    const composerText = readComposerText(currentSurface);
     const submitter = form.querySelector('button[type="submit"], button:not([type])');
     if (formSubmitBlocked(form, submitter)) {
       return;
@@ -82,7 +101,6 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
     actionInFlight = true;
     setBusy(currentSurface, true);
     setDisabled(submitter, true);
-    setComposerStatus(form, "submitting", "Sending...");
     try {
       const payload = await postProductAppWebRequest({
         kind: "product-app-web.request",
@@ -94,7 +112,6 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
       if (payload.ok === false) {
         const message = readErrorMessage(payload.error, "Product App request failed");
         showError(nextSurface, message);
-        setComposerStatus(nextSurface.querySelector("[data-workbench-composer]"), "error", message);
         return;
       }
       if (
@@ -107,20 +124,99 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
           ? readErrorMessage(parse.error, "Product App action failed")
           : "Product App action failed";
         showError(nextSurface, message);
-        setComposerStatus(nextSurface.querySelector("[data-workbench-composer]"), "error", message);
         return;
       }
       clearFormTextInputs(form);
+      if (actionInput.action !== "submit-conversation") {
+        restoreComposerText(nextSurface, composerText);
+      }
       restoreFocusAfterAction(nextSurface, actionInput);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       showError(document.querySelector(SURFACE_SELECTOR) || currentSurface, message);
-      setComposerStatus(form, "error", message);
     } finally {
       actionInFlight = false;
       setBusy(document.querySelector(SURFACE_SELECTOR), false);
       setDisabled(submitter, false);
     }
+  }
+
+  async function uploadSelectedAttachments(input) {
+    const files = input.files ? Array.from(input.files) : [];
+    if (files.length === 0 || actionInFlight) {
+      return;
+    }
+    const currentSurface = document.querySelector(SURFACE_SELECTOR);
+    const composerText = readComposerText(currentSurface);
+    actionInFlight = true;
+    setBusy(currentSurface, true);
+    input.disabled = true;
+    setAttachmentStatus(currentSurface, "Uploading " + files.length + " attachment(s)...");
+    try {
+      let nextSurface = currentSurface;
+      for (const file of files) {
+        const objectUrl = URL.createObjectURL(file);
+        try {
+          const payload = await postProductAttachment(file, input.dataset.sessionId);
+          const attachment = payload && payload.upload ? payload.upload.attachment : undefined;
+          if (!attachment || typeof attachment.resourceId !== "string") {
+            throw new Error("Product App host returned an invalid attachment response");
+          }
+          const previousUrl = attachmentObjectUrls.get(attachment.resourceId);
+          if (previousUrl) {
+            URL.revokeObjectURL(previousUrl);
+          }
+          attachmentObjectUrls.set(attachment.resourceId, objectUrl);
+          nextSurface = replaceSurface(payload.document.html);
+          restoreComposerText(nextSurface, composerText);
+        } catch (error) {
+          URL.revokeObjectURL(objectUrl);
+          throw error;
+        }
+      }
+      setAttachmentStatus(nextSurface, files.length + " attachment(s) ready");
+    } catch (error) {
+      showError(
+        document.querySelector(SURFACE_SELECTOR) || currentSurface,
+        error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      actionInFlight = false;
+      const activeSurface = document.querySelector(SURFACE_SELECTOR);
+      setBusy(activeSurface, false);
+      const activeInput = activeSurface
+        ? activeSurface.querySelector("[data-conversation-attachment-input]")
+        : undefined;
+      if (activeInput instanceof HTMLInputElement) {
+        activeInput.disabled = false;
+        activeInput.value = "";
+      }
+    }
+  }
+
+  async function postProductAttachment(file, sessionId) {
+    const headers = {
+      accept: "application/json",
+      "content-type": "application/octet-stream",
+      "x-wanex-media-type": encodeURIComponent(file.type || "application/octet-stream"),
+      "x-wanex-attachment-label": encodeURIComponent(file.name)
+    };
+    if (sessionId) {
+      headers["x-wanex-session-id"] = encodeURIComponent(sessionId);
+    }
+    const response = await fetch(attachmentPath, {
+      method: "POST",
+      headers,
+      body: file
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload || payload.ok !== true) {
+      throw new Error(readErrorMessage(payload && payload.error, "Attachment upload failed"));
+    }
+    if (!payload.document || typeof payload.document.html !== "string") {
+      throw new Error("Product App host returned an invalid attachment document");
+    }
+    return payload;
   }
 
   async function pollSurfaceEvents() {
@@ -220,7 +316,94 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
     currentSurface.replaceWith(nextSurface);
     surfaceVersion += 1;
     restoreScrollState(scrollState);
+    decorateAttachmentPreviews(nextSurface);
     return nextSurface;
+  }
+
+  function decorateAttachmentPreviews(surface) {
+    if (!surface) {
+      return;
+    }
+    const activeResourceIds = new Set();
+    const rows = surface.querySelectorAll("[data-conversation-attachment][data-resource-id]");
+    for (const row of rows) {
+      const resourceId = row.dataset.resourceId;
+      if (!resourceId) {
+        continue;
+      }
+      activeResourceIds.add(resourceId);
+      const objectUrl = attachmentObjectUrls.get(resourceId);
+      const target = row.querySelector("[data-conversation-attachment-preview]");
+      if (!objectUrl || !target) {
+        continue;
+      }
+      const previewKind = row.dataset.previewKind;
+      const preview = createAttachmentPreview(previewKind, objectUrl);
+      if (preview) {
+        target.replaceChildren(preview);
+      }
+    }
+    for (const entry of attachmentObjectUrls.entries()) {
+      if (!activeResourceIds.has(entry[0])) {
+        URL.revokeObjectURL(entry[1]);
+        attachmentObjectUrls.delete(entry[0]);
+      }
+    }
+  }
+
+  function createAttachmentPreview(previewKind, objectUrl) {
+    if (previewKind === "image") {
+      const image = document.createElement("img");
+      image.src = objectUrl;
+      image.alt = "Attachment preview";
+      return image;
+    }
+    if (previewKind === "audio") {
+      const audio = document.createElement("audio");
+      audio.src = objectUrl;
+      audio.controls = true;
+      return audio;
+    }
+    if (previewKind === "video") {
+      const video = document.createElement("video");
+      video.src = objectUrl;
+      video.controls = true;
+      video.muted = true;
+      return video;
+    }
+    return undefined;
+  }
+
+  function revokeAllAttachmentObjectUrls() {
+    for (const objectUrl of attachmentObjectUrls.values()) {
+      URL.revokeObjectURL(objectUrl);
+    }
+    attachmentObjectUrls.clear();
+  }
+
+  function readComposerText(surface) {
+    const textarea = surface
+      ? surface.querySelector('[data-action="submit-conversation"] textarea[name="text"]')
+      : undefined;
+    return textarea instanceof HTMLTextAreaElement ? textarea.value : "";
+  }
+
+  function restoreComposerText(surface, text) {
+    const textarea = surface
+      ? surface.querySelector('[data-action="submit-conversation"] textarea[name="text"]')
+      : undefined;
+    if (textarea instanceof HTMLTextAreaElement) {
+      textarea.value = text;
+    }
+  }
+
+  function setAttachmentStatus(surface, message) {
+    const status = surface
+      ? surface.querySelector("[data-conversation-attachment-status]")
+      : undefined;
+    if (status) {
+      status.textContent = message;
+    }
   }
 
   function captureScrollState() {
@@ -267,21 +450,7 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
   }
 
   function formSubmitBlocked(form, submitter) {
-    return (
-      form.getAttribute("data-workbench-composer-state") === "blocked" ||
-      (submitter && submitter.disabled === true)
-    );
-  }
-
-  function setComposerStatus(form, state, message) {
-    if (!form || !form.hasAttribute("data-workbench-composer")) {
-      return;
-    }
-    form.setAttribute("data-workbench-composer-state", state);
-    const status = form.querySelector("[data-workbench-composer-status]");
-    if (status) {
-      status.textContent = message;
-    }
+    return submitter && submitter.disabled === true;
   }
 
   function setSurfacePollStatus(surface, polling) {
@@ -296,7 +465,7 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
   }
 
   function clearFormTextInputs(form) {
-    if (!form || !form.hasAttribute("data-workbench-composer")) {
+    if (!form || form.getAttribute("data-action") !== "submit-conversation") {
       return;
     }
     const fields = form.querySelectorAll("textarea, input[type='text']");
@@ -381,12 +550,14 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
         return preferenceFocusTarget(surface, actionInput.fields || {});
       case "set-active-provider-profile":
         return surface.querySelector('[data-action="set-active-provider-profile"] [name="profileId"]');
-      case "start-workbench":
-      case "continue-workbench":
+      case "submit-conversation":
+      case "refresh-conversation":
+      case "cancel-conversation":
+      case "regenerate-conversation":
       case "open-workbench":
         return (
-          surface.querySelector("[data-workbench-composer] textarea") ||
-          surface.querySelector("[data-workbench-composer] button")
+          surface.querySelector('[data-action="submit-conversation"] textarea') ||
+          surface.querySelector('[data-panel="conversation"] button')
         );
       case "select-session":
         return selectedSessionButton(surface, actionInput.fields || {});

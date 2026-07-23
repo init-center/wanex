@@ -1,6 +1,6 @@
 import type { PreparedAgentContext } from "@wanex/runtime/context"
 
-export function preparedWanexAppShellAgentContextFingerprint(
+export function preparedWanexAppAgentContextFingerprint(
   prepared: PreparedAgentContext
 ): string {
   return JSON.stringify({

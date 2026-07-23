@@ -31,30 +31,166 @@ gate. The historical route remains in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/architecture-course-correction.md`
 
-Phase 758 Product App Chat-First Surface is complete. Phase 759 Post-Slice
-Product Evidence And Replan is now the current frozen phase. The completed
-Phase 758 record is in:
+Phases 758-770 are complete. The initial Phase 765 exact-input/cancellation
+audit was superseded before implementation by a deeper pre-release state-model
+audit. Phase 765 Durable Turn Contract Reconstruction and Phase 766 Exact
+Recovery Evidence And Safe Resume are complete. Phase 767 Cancellation,
+Steering, And Active Abort is also complete, including its full repository,
+SDK, Rust, and Eval release gates. The completed durable operation evidence and
+current route are in:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1017-phase-758-product-app-chat-first-surface-plan.md`
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1021-phase-762-product-local-real-provider-conversation-slice.md`
 
-Until Phase 759 is replanned and frozen:
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1022-phase-763-post-real-provider-product-evidence-and-replan.md`
 
-- do not add another Product App microfeature or package;
-- inspect the completed chat-first product evidence and choose the next real
-  user journey before implementation;
-- preserve the mode split: chat is primary conversation, workbench and
-  diagnostics are explicit surfaces;
-- do not reopen lower Runtime/App/Storage/schema or native distribution work
-  unless the replan identifies an executable blocker.
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1023-phase-764-durable-conversation-operation-foundation.md`
 
-The frozen reconstruction route is in:
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1024-phase-765-session-run-identity-binding-and-cancellation-replan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1025-reference-repository-refresh-and-wanex-revalidation.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1026-wanex-pre-release-clean-architecture-replan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1027-phase-765-durable-turn-contract-reconstruction.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1028-phase-766-exact-recovery-evidence-and-safe-resume-replan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1029-phase-766-exact-recovery-evidence-and-safe-resume.md`
+
+Phase 767 completion record:
+
+/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1030-phase-767-cancellation-steering-active-abort-replan.md
+
+Phase 768 Runtime/App Public Facade Reconstruction is complete. It directly
+replaced the duplicate thin App root and `@wanex/app/backend` identity with one
+trusted `@wanex/app` App Host, removed public `WanexAppShell*` vocabulary,
+completed the Runtime root's durable submit/read/cancel lifecycle, and proved
+configurable workers, next-turn-only provider selection, and fresh-turn
+regeneration. It added no compatibility export, schema change, package,
+gateway, or second execution authority. The implementation and verification
+record is in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1031-phase-768-runtime-app-public-facade-reconstruction.md`
+
+Phase 765 completed the following:
+
+- replace the old `session.run` model with durable inbox input, stable logical
+  turn, explicit physical attempt, canonical sequenced conversation entries,
+  and immutable execution binding;
+- keep admitted inbox work outside provider replay until atomic promotion;
+- bind exact `jobId + turnId + inputId` and use one scheduler/concurrency
+  lease instead of a separate session runner lease;
+- remove claim-next behavior, `SessionRunId`, `session_run`,
+  `session_runner_lease`, public `once | to_completion`, and generic
+  session-turn scheduler retry;
+- make a session turn a bounded to-completion operation and settle canonical
+  message, attempt, turn, input, job, budget, and events atomically;
+- persist complete provider replay state and freeze provider, context, tool,
+  permission, and environment evidence at admission;
+- remove custom UI-surface protocol concepts from Kernel; official A2UI
+  payloads travel as immutable resources for upper App/Product rendering;
+- fail closed after ambiguous provider/tool execution; automatic crash
+  continuation is limited to checkpoints proven safe by canonical evidence;
+  ambiguous provider or non-idempotent effects are never replayed
+  automatically;
+- migrate all first-party callers directly with no compatibility aliases,
+  migration chain, old fields, or dual read/write path;
+- keep the existing 18-package graph and add no execution package.
+
+Phase 767 completed the following:
+
+- keep durable cancellation, interrupt, steering, recovery classification, and
+  terminal settlement authoritative in System Service;
+- add exact process-local active abort by job and attempt only as a Runtime
+  latency mechanism, with durable-first Host commands and cross-process control
+  observation;
+- drain provider and tool cleanup before settlement, classify partial provider
+  output as `recovery_required`, and never replay ambiguous effects;
+- apply steering only at declared safe points and preserve pending steer exactly
+  once across safe owner-loss recovery;
+- serialize heartbeats, await in-flight heartbeat shutdown, and turn timeout,
+  lease loss, and host shutdown into cleanup-aware structured abort reasons;
+- expose bounded App cancel, interrupt, steer, and operation read-model
+  contracts without exposing the internal active-abort registry in the SDK;
+- retain the existing 18-package graph and pass the complete `pnpm verify`
+  release gate with all 52 Eval Harness scenarios.
+
+The historical reconstruction master plan remains in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/0999-wanex-best-practice-reconstruction-master-plan.md`
 
-Phase 757 evidence remains the release baseline. Phase 758 must not reopen its
-deleted package identities, compatibility code, schema migration chain, or
-native distribution decisions. The feature freeze is lifted only for the
-bounded Phase 758 user journey, not for unrelated Product App microfeatures.
+The completed route through Phase 770 is governed by the Phase 1026, Phase
+1028, Phase 767, Phase 768, Phase 769, and Phase 770 records above. Phase 757 evidence remains the
+distribution/package baseline: do not reopen deleted package identities,
+compatibility code, schema migration chains, or native artifact decisions.
+Phase 767 passed the pre-implementation course-correction guardrail in document
+1030; do not revive the child-specific checkpoint scope removed by Phase 1028.
+Phase 769 Product Conversation Progress And Cancel UX is complete. It replaced
+the Product blocking chat path with exact durable
+operation submit/read/cancel/regenerate commands, retains canonical App reads as
+truth, and carries only bounded provider-neutral assistant deltas through the
+existing app-owned surface transport. It adds no package, gateway, schema
+version, migration, durable delta log, renderer Storage access, compatibility
+alias, or second execution authority. The complete implementation and final
+repository verification record is in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1032-phase-769-product-conversation-progress-cancel-ux-replan.md`
+
+Phase 770 Resource-Bearing Conversation Input Fidelity is complete. The former
+broad multimodal phase mixed existing-resource conversational input with
+specialized asynchronous media generation. The corrected route first freezes
+exact resource and capability evidence, adds bounded location-neutral byte
+reads, and completes provider-native image/document input lowering. Durable
+messages contain references rather than bytes/base64, and unsupported or
+changed resources fail before provider dispatch. The complete implementation
+and final repository verification record is in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1033-phase-770-resource-bearing-conversation-input-fidelity-replan.md`
+
+Phase 771 Product Multimodal Attachment UX is complete. It is an upper Product
+journey over the frozen Runtime/App resource contract. It added bounded
+trusted-host binary upload, reference-only Product drafts, safe previews and
+removal, and canonical resource-bearing conversation submission. It added no
+package, schema table, gateway, provider upload cache, or media-generation
+contract. The implementation and final repository verification record is in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1034-phase-771-product-multimodal-attachment-ux.md`
+
+The final Phase 771 gate passed all 53 Eval Harness scenarios, package checks
+and tests, SDK compilation/consumer proofs, Rust formatting/tests/clippy, and
+distribution audits. Phase 772 Media Generation Operation Runtime and Phase
+773 Optional Capability Turn-Contract Evidence are complete. The completed
+Phase 773 record is:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1036-phase-773-optional-capability-turn-contract-evidence.md`
+
+Phase 773 retained the existing Tool Registry and permission evidence,
+normalized registered definitions, used locale-independent canonical ordering,
+kept internal evidence helpers out of the public SDK, and failed before
+provider dispatch on executable drift. Its final gate passed 55 Eval scenarios,
+212 Runtime tests, the complete compiled/packed SDK proofs, Rust checks, and
+`pnpm verify`.
+
+Phase 774 Cross-Platform And Distribution Gate is now the current
+implementation route. Its frozen plan and implementation record are:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1037-phase-774-cross-platform-distribution-gate-plan.md`
+
+Implement only the missing native evidence: Windows-safe atomic replacement,
+real process-tree proof, `linux-x64` artifact support, explicit target staging,
+two-host remote load/cancellation, native CI on Linux x64/macOS arm64/macOS
+x64/Windows x64, and enforced physical receipts for the existing headless and
+Electron boundaries. Do not turn platform evidence into Kernel concepts or
+widen cold Runtime/App dependency closure merely to simplify packaging.
+
+The local macOS arm64 implementation now includes all of those code and test
+paths without adding a package, Protocol field, Storage RPC command, schema
+version, gateway, or compatibility alias. The former narrow remote Eval,
+Electron-only workflow, and stale Runtime physical baseline were replaced
+directly. Phase 774 remains incomplete until native CI passes complete
+`pnpm verify` on Linux x64, macOS arm64, macOS x64, and Windows x64; executes
+each staged binary; executes the three Electron targets; reviews every receipt;
+freezes final target ceilings; and passes a second enforcing run.
 
 ## Course-Correction Guardrail
 
@@ -156,6 +292,33 @@ explicit, auditable course corrections rather than silent patching.
 
 - Runtime execution must not import gateway, plugin host, team conversation,
   desktop shell, React, or A2UI renderer code.
+- Admitted session input is an inbox record, not model-visible history. Provider
+  replay reads only canonical conversation entries in per-session sequence.
+- Logical turn, scheduler job, physical attempt, provider invocation, and tool
+  execution are distinct identities connected by exact durable references.
+- A logical tool execution is identified by canonical assistant message plus
+  tool call. Each physical tool invocation has its own fenced attempt; finish
+  and retry transitions require the active session-turn lease. Runtime code
+  must not choose durable recovery through an unfenced callback/action API.
+- One scheduler/concurrency lease is the execution ownership source. Do not add
+  another session lease or process-local lock that can disagree with it.
+- An admitted turn has one immutable, secret-free execution binding. Mutable
+  provider profiles, instructions, skills, tools, permissions, or environment
+  must not silently change it.
+- Durable conversation resource parts store immutable identity, digest, size,
+  kind, and media-type evidence only. They must never persist raw bytes or
+  base64 payloads.
+- Provider modalities are explicit and frozen per turn. Runtime must resolve
+  resource bytes through bounded Storage reads, verify the final digest, and
+  reject unsupported or changed content before provider dispatch.
+- Running cancellation is a durable request followed by owner/recovery
+  settlement. Do not publish terminal cancellation while effects may still be
+  active or release the session to another turn early.
+- Never automatically replay an attempt after partial provider output or an
+  ambiguous non-idempotent side effect.
+- SubAgents that use tools or need recovery run in separate durable child
+  sessions/turns. They must not write the parent transcript directly; the
+  parent merges durable delegation results at a safe boundary.
 - Provider-specific wire and replay quirks must stay in
   `@wanex/runtime/provider` adapters.
 - Runtime state must go through the storage/system-service boundary.

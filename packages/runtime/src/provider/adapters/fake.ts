@@ -1,4 +1,13 @@
-import type { TextMessagePart, ToolCallMessagePart } from "@wanex/protocol"
+import type {
+  JsonValue,
+  ProviderCapabilities,
+  TextMessagePart,
+  ToolCallMessagePart
+} from "@wanex/protocol"
+import {
+  assertProfileCapabilitiesSupported,
+  TEXT_PROVIDER_CAPABILITIES
+} from "../capabilities.js"
 import { providerErrorEvent } from "../errors.js"
 import { textContent } from "../replay.js"
 import type {
@@ -13,17 +22,24 @@ export interface FakeProviderAdapterOptions {
   readonly modelId?: string
   readonly responseText: string
   readonly toolName?: string
+  readonly capabilities?: ProviderCapabilities
 }
 
 export class FakeProviderAdapter implements ProviderAdapter {
+  readonly kind = "fake" as const
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   private readonly responseText: string
   private readonly toolName: string | undefined
 
   constructor(options: FakeProviderAdapterOptions) {
     this.providerId = options.providerId ?? "fake"
     this.modelId = options.modelId ?? "fake-model"
+    this.capabilities = assertProfileCapabilitiesSupported(
+      "fake",
+      options.capabilities ?? TEXT_PROVIDER_CAPABILITIES
+    )
     this.responseText = options.responseText
     this.toolName = options.toolName
   }
@@ -62,10 +78,27 @@ export class FakeProviderAdapter implements ProviderAdapter {
     yield { type: "finish", reason: "stop" }
   }
 
-  buildReplayMessages(messages: readonly ProviderReplayMessage[]) {
-    return messages.map((message) => ({
+  buildReplayMessages(
+    messages: readonly ProviderReplayMessage[]
+  ): JsonValue[] {
+    return messages.map((message): JsonValue => ({
       role: message.role,
-      content: textContent(message.content)
+      content: message.content.some((part) => part.type === "resource")
+        ? message.content.map((part) =>
+            part.type === "resource"
+              ? {
+                  type: "resource",
+                  resourceId: part.resourceId,
+                  kind: part.kind,
+                  mediaType: part.mediaType ?? null,
+                  sizeBytes: part.sizeBytes,
+                  sha256: part.sha256
+                }
+              : part.type === "text"
+                ? { type: "text", text: part.text }
+                : { type: part.type }
+          )
+        : textContent(message.content)
     }))
   }
 }

@@ -12,8 +12,8 @@ import {
   portError
 } from "./command-port-envelope.js"
 import {
-  dispatchProductAppBackendAgentPortCommand
-} from "./command-port-dispatch-agent.js"
+  dispatchProductAppBackendConversationPortCommand
+} from "./command-port-dispatch-conversation.js"
 import {
   dispatchProductAppBackendContextPortCommand
 } from "./command-port-dispatch-context.js"
@@ -99,9 +99,10 @@ async function dispatchParsedProductAppBackendCommandPortRequest(
     case "routeInput":
     case "routeWorkflowEnvelope":
       return await dispatchProductAppBackendRoutingPortCommand(app, request)
-    case "runAgentTurn":
-    case "continueProductWorkbenchSession":
-      return await dispatchProductAppBackendAgentPortCommand(app, request)
+    case "submitConversationOperation":
+    case "readConversationOperation":
+    case "cancelConversationOperation":
+      return await dispatchProductAppBackendConversationPortCommand(app, request)
     case "readDiagnostics":
     case "buildSupportBundle":
       return await dispatchProductAppBackendDiagnosticsPortCommand(app, request)

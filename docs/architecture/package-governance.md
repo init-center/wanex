@@ -53,17 +53,19 @@ After an intentional and documented boundary change, regenerate with:
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-The current Phase 755 baseline is:
+The current Phase 770 baseline is:
 
 | Facade | Bytes | Static inputs | Workspace packages |
 | --- | ---: | ---: | ---: |
-| `@wanex/runtime` | 246,385 | 236 | 3 |
-| `@wanex/app` | 959,631 | 415 | 4 |
+| `@wanex/runtime` | 318,358 | 239 | 3 |
+| `@wanex/app` | 1,056,298 | 423 | 4 |
 
-These are reviewed ceilings, not performance targets. Phase 755 changed App's
-`jobStatuses` projection from transient worker states to durable scheduler job
-states, adding 42 bytes without changing its 415 inputs or four-package
-closure. Runtime remained unchanged.
+These are reviewed ceilings, not performance targets. The Phase 770 review
+accepts the durable turn/active-abort path and exact provider capability and
+resource-input path in Runtime, together with the trusted conversation
+operation facade in App. The closure remains restricted to three Runtime
+workspace packages and four App workspace packages; no Product, Team, Plugin,
+Connector, Workspace, or presentation package entered either default facade.
 
 ## Audit
 

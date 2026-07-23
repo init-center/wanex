@@ -34,6 +34,16 @@ export function createVerifySteps() {
       args: ["test:native-artifact"]
     },
     {
+      name: "Native Runtime proof tests",
+      command: "pnpm",
+      args: ["test:native-runtime-proof"]
+    },
+    {
+      name: "Host distribution budget tests",
+      command: "pnpm",
+      args: ["test:host-distribution-budget"]
+    },
+    {
       name: "Electron boundary typecheck",
       command: "pnpm",
       args: ["check:electron-boundary"]

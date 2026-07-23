@@ -16,7 +16,8 @@ export function fromRpcScope(value: unknown): RuntimeEvent["scope"] {
   }
   const scope: Record<string, string> = {}
   setOptionalString(scope, "sessionId", value.session_id, "scope.session_id")
-  setOptionalString(scope, "runId", value.run_id, "scope.run_id")
+  setOptionalString(scope, "turnId", value.turn_id, "scope.turn_id")
+  setOptionalString(scope, "attemptId", value.attempt_id, "scope.attempt_id")
   setOptionalString(scope, "inputId", value.input_id, "scope.input_id")
   setOptionalString(scope, "messageId", value.message_id, "scope.message_id")
   setOptionalString(scope, "resourceId", value.resource_id, "scope.resource_id")
@@ -61,11 +62,11 @@ export function expectSessionInputState(
   if (
     status !== "admitted" &&
     status !== "control_pending" &&
-    status !== "claimed" &&
+    status !== "promoted" &&
     status !== "completed" &&
-    status !== "retry_pending" &&
     status !== "failed" &&
-    status !== "cancelled"
+    status !== "cancelled" &&
+    status !== "rejected"
   ) {
     throw new Error(`invalid input status: ${status}`)
   }

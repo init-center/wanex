@@ -2,21 +2,31 @@ import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
   AppendSessionMessageRequest,
-  CancelRunRequest,
-  CompleteRunRequest,
+  BeginProviderInvocationRequest,
   CreateSessionRequest,
-  FailRunRequest,
-  ListSessionsRequest,
+  FinishProviderInvocationReceipt,
+  FinishProviderInvocationRequest,
+  ListProviderInvocationsRequest,
+  ListSessionAttemptsRequest,
   ListSessionInputsRequest,
   ListSessionMessagesRequest,
-  RunnerClaim,
-  RunnerClaimRequest,
-  RunnerHeartbeatRequest,
+  ListSessionTurnsRequest,
+  ListSessionsRequest,
+  MarkProviderInvocationOutputRequest,
+  ProviderInvocationRecord,
+  RequestSessionTurnCancelReceipt,
+  RequestSessionTurnCancelRequest,
+  SessionAttemptRecord,
   SessionInputRecord,
   SessionMessageRecord,
   SessionRecord,
-  SubmitSessionRunReceipt,
-  SubmitSessionRunRequest
+  SessionTurnRecord,
+  SettleSessionTurnReceipt,
+  SettleSessionTurnRequest,
+  StartSessionTurnAttemptReceipt,
+  StartSessionTurnAttemptRequest,
+  SubmitSessionTurnReceipt,
+  SubmitSessionTurnRequest
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 
@@ -39,37 +49,72 @@ export class SessionCommands {
   }
 
   async admit(request: AdmitSessionInputRequest): Promise<AdmissionReceipt> {
-    assertContentNotEmpty(
-      request.content,
-      "session input content must not be empty"
-    )
+    assertContentNotEmpty(request.content, "session input content must not be empty")
     return await this.storage.admitSessionInput({
       ...request,
       inputType: request.inputType ?? "user"
     })
   }
 
-  async submitRun(
-    request: SubmitSessionRunRequest
-  ): Promise<SubmitSessionRunReceipt> {
-    assertContentNotEmpty(
-      request.content,
-      "session input content must not be empty"
-    )
+  async submitTurn(
+    request: SubmitSessionTurnRequest
+  ): Promise<SubmitSessionTurnReceipt> {
+    assertContentNotEmpty(request.content, "session input content must not be empty")
     if (request.maxSteps !== undefined && request.maxSteps <= 0) {
-      throw new Error("session run maxSteps must be positive")
+      throw new Error("session turn maxSteps must be positive")
     }
-    if (
-      request.providerProfileId !== undefined &&
-      request.providerProfileId.length === 0
-    ) {
-      throw new Error("session run providerProfileId must not be empty")
+    if (request.executionBinding.digest.length === 0) {
+      throw new Error("session turn execution binding digest must not be empty")
     }
-    return await this.storage.submitSessionRun({
+    return await this.storage.submitSessionTurn({
       ...request,
-      inputType: request.inputType ?? "user",
-      mode: request.mode ?? "once"
+      inputType: request.inputType ?? "user"
     })
+  }
+
+  async startTurnAttempt(
+    request: StartSessionTurnAttemptRequest
+  ): Promise<StartSessionTurnAttemptReceipt> {
+    return await this.storage.startSessionTurnAttempt(request)
+  }
+
+  async settleTurn(
+    request: SettleSessionTurnRequest
+  ): Promise<SettleSessionTurnReceipt> {
+    return await this.storage.settleSessionTurn(request)
+  }
+
+  async beginProviderInvocation(
+    request: BeginProviderInvocationRequest
+  ): Promise<ProviderInvocationRecord> {
+    return await this.storage.beginProviderInvocation(request)
+  }
+
+  async markProviderInvocationOutput(
+    request: MarkProviderInvocationOutputRequest
+  ): Promise<ProviderInvocationRecord | null> {
+    return await this.storage.markProviderInvocationOutput(request)
+  }
+
+  async finishProviderInvocation(
+    request: FinishProviderInvocationRequest
+  ): Promise<FinishProviderInvocationReceipt | null> {
+    return await this.storage.finishProviderInvocation(request)
+  }
+
+  async listProviderInvocations(
+    request: ListProviderInvocationsRequest
+  ): Promise<ProviderInvocationRecord[]> {
+    return await this.storage.listProviderInvocations(request)
+  }
+
+  async requestTurnCancel(
+    request: RequestSessionTurnCancelRequest
+  ): Promise<RequestSessionTurnCancelReceipt> {
+    if (request.reason.length === 0) {
+      throw new Error("cancel reason must not be empty")
+    }
+    return await this.storage.requestSessionTurnCancel(request)
   }
 
   async listInputs(
@@ -84,41 +129,23 @@ export class SessionCommands {
     return await this.storage.listSessionMessages(request)
   }
 
+  async listTurns(
+    request: ListSessionTurnsRequest
+  ): Promise<SessionTurnRecord[]> {
+    return await this.storage.listSessionTurns(request)
+  }
+
+  async listAttempts(
+    request: ListSessionAttemptsRequest
+  ): Promise<SessionAttemptRecord[]> {
+    return await this.storage.listSessionAttempts(request)
+  }
+
   async appendMessage(
     request: AppendSessionMessageRequest
   ): Promise<SessionMessageRecord | null> {
-    assertContentNotEmpty(
-      request.content,
-      "session message content must not be empty"
-    )
+    assertContentNotEmpty(request.content, "session message content must not be empty")
     return await this.storage.appendSessionMessage(request)
-  }
-
-  async claimRunner(request: RunnerClaimRequest): Promise<RunnerClaim | null> {
-    assertPositiveLease(request.leaseMs, "runner leaseMs must be positive")
-    return await this.storage.claimRunner(request)
-  }
-
-  async heartbeatRunner(
-    request: RunnerHeartbeatRequest
-  ): Promise<RunnerClaim | null> {
-    assertPositiveLease(request.leaseMs, "runner leaseMs must be positive")
-    return await this.storage.heartbeatRunner(request)
-  }
-
-  async completeRun(request: CompleteRunRequest): Promise<boolean> {
-    return await this.storage.completeRun(request)
-  }
-
-  async failRun(request: FailRunRequest): Promise<boolean> {
-    return await this.storage.failRun(request)
-  }
-
-  async cancelRun(request: CancelRunRequest): Promise<boolean> {
-    if (request.reason.length === 0) {
-      throw new Error("cancel reason must not be empty")
-    }
-    return await this.storage.cancelRun(request)
   }
 }
 

@@ -1,6 +1,7 @@
 import { WanexAgentRuntime } from "@wanex/runtime/host"
 import type { TextMessagePart } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
+import type { SecretResolverPort } from "@wanex/runtime/secrets"
 
 const DEFAULT_LEASE_MS = 60_000
 
@@ -12,11 +13,13 @@ export async function sideQueryValue(
     readonly providerId?: string
     readonly timeoutMs?: number
     readonly maxOutputTokens?: number
-  }
+  },
+  secretResolver: SecretResolverPort
 ): Promise<unknown> {
   const runtime = new WanexAgentRuntime({
     storage,
     leaseMs: DEFAULT_LEASE_MS,
+    secretResolver,
     ...(request.providerId === undefined
       ? { fakeResponseText: `Fake side response: ${request.text}` }
       : { providerProfileId: request.providerId }),

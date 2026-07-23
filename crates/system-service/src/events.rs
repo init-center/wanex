@@ -10,7 +10,8 @@ impl SystemService {
                 id,
                 event_type,
                 scope_session_id,
-                scope_run_id,
+                scope_turn_id,
+                scope_attempt_id,
                 scope_input_id,
                 scope_message_id,
                 scope_resource_id,
@@ -19,12 +20,13 @@ impl SystemService {
                 payload_json,
                 occurred_at,
                 created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 event.id,
                 event.event_type,
                 event.scope.session_id,
-                event.scope.run_id,
+                event.scope.turn_id,
+                event.scope.attempt_id,
                 event.scope.input_id,
                 event.scope.message_id,
                 event.scope.resource_id,
@@ -46,8 +48,8 @@ impl SystemService {
 
         if let Some(session_id) = query.session_id {
             let mut stmt = conn.prepare(
-                "SELECT id, event_type, scope_session_id, scope_run_id,
-                        scope_input_id, scope_message_id, scope_resource_id,
+                "SELECT id, event_type, scope_session_id, scope_turn_id,
+                        scope_attempt_id, scope_input_id, scope_message_id, scope_resource_id,
                         scope_plan_proposal_id, scope_objective_id, payload_json, occurred_at
                  FROM event_log
                  WHERE scope_session_id = ?
@@ -72,8 +74,8 @@ impl SystemService {
             collect_events(rows)
         } else if let Some(plan_proposal_id) = query.plan_proposal_id {
             let mut stmt = conn.prepare(
-                "SELECT id, event_type, scope_session_id, scope_run_id,
-                        scope_input_id, scope_message_id, scope_resource_id,
+                "SELECT id, event_type, scope_session_id, scope_turn_id,
+                        scope_attempt_id, scope_input_id, scope_message_id, scope_resource_id,
                         scope_plan_proposal_id, scope_objective_id, payload_json, occurred_at
                  FROM event_log
                  WHERE scope_plan_proposal_id = ?
@@ -98,8 +100,8 @@ impl SystemService {
             collect_events(rows)
         } else if let Some(objective_id) = query.objective_id {
             let mut stmt = conn.prepare(
-                "SELECT id, event_type, scope_session_id, scope_run_id,
-                        scope_input_id, scope_message_id, scope_resource_id,
+                "SELECT id, event_type, scope_session_id, scope_turn_id,
+                        scope_attempt_id, scope_input_id, scope_message_id, scope_resource_id,
                         scope_plan_proposal_id, scope_objective_id, payload_json, occurred_at
                  FROM event_log
                  WHERE scope_objective_id = ?
@@ -124,8 +126,8 @@ impl SystemService {
             collect_events(rows)
         } else {
             let mut stmt = conn.prepare(
-                "SELECT id, event_type, scope_session_id, scope_run_id,
-                        scope_input_id, scope_message_id, scope_resource_id,
+                "SELECT id, event_type, scope_session_id, scope_turn_id,
+                        scope_attempt_id, scope_input_id, scope_message_id, scope_resource_id,
                         scope_plan_proposal_id, scope_objective_id, payload_json, occurred_at
                  FROM event_log
                  WHERE occurred_at > ?

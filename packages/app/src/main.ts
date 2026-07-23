@@ -1,9 +1,9 @@
 import { resolve } from "node:path"
-import { runWanexAppShellSmoke } from "./smoke.js"
+import { runWanexAppSmoke } from "./smoke.js"
 
-const defaultStoreDir = resolve(process.cwd(), ".wanex-app-shell")
+const defaultStoreDir = resolve(process.cwd(), ".wanex-app")
 
-const result = await runWanexAppShellSmoke({
+const result = await runWanexAppSmoke({
   storage: {
     kind: "local-system-service",
     storeDir: process.env.WANEX_STORE_DIR ?? defaultStoreDir

@@ -1,27 +1,27 @@
-import { runWanexAppShellAgentTurn } from "./agent.js"
-import { submitWanexAppShellScheduledTick } from "./schedule.js"
+import { runWanexAppAgentTurn } from "./agent.js"
+import { submitWanexAppScheduledTick } from "./schedule.js"
 import {
-  queueWanexAppShellGuidedFollowUp
+  queueWanexAppGuidedFollowUp
 } from "./workflow-guided-follow-up.js"
-import { askWanexAppShellSideQuery } from "./workflow-side-query.js"
-import { routeWanexAppShellWorkflowEnvelope } from "./workflow-envelope.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellAgentCommands } from "./types-agent.js"
-import type { WanexAppShellCommands } from "./types-app.js"
-import type { WanexAppShellScheduleCommands } from "./types-schedule.js"
-import type { WanexAppShellWorkflowEnvelopeCommands } from "./types-workflow-envelope.js"
-import type { WanexAppShellWorkflowCommands } from "./types-workflow.js"
+import { askWanexAppSideQuery } from "./workflow-side-query.js"
+import { routeWanexAppWorkflowEnvelope } from "./workflow-envelope.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppAgentCommands } from "./types-agent.js"
+import type { WanexAppCommands } from "./types-app.js"
+import type { WanexAppScheduleCommands } from "./types-schedule.js"
+import type { WanexAppWorkflowEnvelopeCommands } from "./types-workflow-envelope.js"
+import type { WanexAppWorkflowCommands } from "./types-workflow.js"
 
-export type WanexAppShellAgentCommandGroup =
-  WanexAppShellAgentCommands &
-    WanexAppShellScheduleCommands &
-    WanexAppShellWorkflowCommands &
-    WanexAppShellWorkflowEnvelopeCommands
+export type WanexAppAgentCommandGroup =
+  WanexAppAgentCommands &
+    WanexAppScheduleCommands &
+    WanexAppWorkflowCommands &
+    WanexAppWorkflowEnvelopeCommands
 
-export function createWanexAppShellAgentCommands(
-  context: WanexAppShellCommandContext,
-  getCommands: () => WanexAppShellCommands
-): WanexAppShellAgentCommandGroup {
+export function createWanexAppAgentCommands(
+  context: WanexAppCommandContext,
+  getCommands: () => WanexAppCommands
+): WanexAppAgentCommandGroup {
   return {
     async runAgentTurn(request) {
       context.assertActive()
@@ -29,7 +29,7 @@ export function createWanexAppShellAgentCommands(
       const preparedAgentContext = await context.extensions.prepareAgentContext(
         context.agentContext.current()
       )
-      return await runWanexAppShellAgentTurn(context.runtime, {
+      return await runWanexAppAgentTurn(context.conversationOperations, {
         request,
         providerProfileId,
         ...(preparedAgentContext === undefined
@@ -40,15 +40,19 @@ export function createWanexAppShellAgentCommands(
     async queueGuidedFollowUp(request) {
       context.assertActive()
       const providerProfileId = await context.refreshActiveProviderProfileId()
-      return await queueWanexAppShellGuidedFollowUp(context.runtime, {
+      return await queueWanexAppGuidedFollowUp(
+        context.runtime,
+        context.conversationOperations,
+        {
         request,
         providerProfileId
-      })
+        }
+      )
     },
     async askSideQuery(request) {
       context.assertActive()
       const providerProfileId = await context.refreshActiveProviderProfileId()
-      return await askWanexAppShellSideQuery(context.runtime, {
+      return await askWanexAppSideQuery(context.runtime, {
         request,
         providerProfileId
       })
@@ -56,14 +60,15 @@ export function createWanexAppShellAgentCommands(
     async submitScheduledTick(request) {
       context.assertActive()
       const providerProfileId = await context.refreshActiveProviderProfileId()
-      return await submitWanexAppShellScheduledTick(context.runtime, {
+      return await submitWanexAppScheduledTick(context.runtime, {
         request,
-        providerProfileId
+        providerProfileId,
+        conversationOperations: context.conversationOperations
       })
     },
     async routeWorkflowEnvelope(request) {
       context.assertActive()
-      return await routeWanexAppShellWorkflowEnvelope(getCommands(), request)
+      return await routeWanexAppWorkflowEnvelope(getCommands(), request)
     }
   }
 }

@@ -56,20 +56,18 @@ describe("audit-public-contracts", () => {
     expect(result.report.failures).toEqual([])
   })
 
-  it("rejects deprecated protocol compatibility aliases", async () => {
+  it("rejects forbidden protocol source contracts", async () => {
     await writeFile(
       fixturePath,
       `export interface UiSurfaceMessagePart {
   readonly type: "ui_surface"
-  /** @deprecated use surface.surfaceKind */
-  readonly surfaceKind?: string
-  readonly payload?: unknown
 }
 
 export interface QueryEventsInput {
   readonly afterEventId?: string
 }
 
+/** @deprecated forbidden audit fixture */
 export type LegacyAuditState = "pending"
 `,
       "utf8"
@@ -80,11 +78,10 @@ export type LegacyAuditState = "pending"
     expect(result.code).toBe(1)
     expect(failureCodes(result.report)).toEqual(
       expect.arrayContaining([
-        "forbidden-protocol-deprecated-annotation",
-        "forbidden-protocol-after-event-id-alias",
-        "forbidden-protocol-legacy-type-alias",
-        "forbidden-protocol-ui-surface-root-surface-kind",
-        "forbidden-protocol-ui-surface-root-payload"
+        "forbidden-protocol-deprecated-contract",
+        "forbidden-protocol-event-id-cursor",
+        "forbidden-protocol-legacy-export",
+        "forbidden-protocol-ui-contract"
       ])
     )
   })
@@ -118,9 +115,9 @@ export type LegacyAuditState = "pending"
   it("rejects lower package source imports of upper app packages", async () => {
     await writeFile(
       upperAppImportFixturePath,
-      `import { createProductAppShell } from "@wanex/product-app"
+      `import { createProductApp } from "@wanex/product-app"
 
-export const auditUpperAppImportFixture = createProductAppShell
+export const auditUpperAppImportFixture = createProductApp
 `,
       "utf8"
     )

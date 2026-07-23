@@ -10,6 +10,7 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert, isRecord } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import { waitForSurfaceConversation } from "./conversation-helpers.js"
 
 export const productAppSurfaceClientContractScenario = createEvalScenario({
   id: "product.app-surface-client-contract",
@@ -49,30 +50,29 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         { commandId: "product.status" },
         { requestId: "eval_surface_client_execute" }
       )
-      const started = await client.startWorkbench(
+      const submitted = await client.submitConversationOperation(
         {
-          text: "eval surface client started"
+          text: "eval surface client submitted",
+          sessionId: "ses_eval_product_app_surface_client_direct"
         },
-        { requestId: "eval_surface_client_start" }
+        { requestId: "eval_surface_client_submit" }
+      )
+      await waitForSurfaceConversation(
+        client,
+        "ses_eval_product_app_surface_client_direct"
       )
       const run = await client.dispatchProductCommand(
         {
-          command: "runAgentTurn",
-          input: {
-            text: "eval surface client turn",
-            sessionId: "ses_eval_product_app_surface_client"
-          }
+          command: "status"
         },
         { requestId: "eval_surface_client_run" }
       )
       const opened = await client.openWorkbench({
-        sessionId: "ses_eval_product_app_surface_client"
+        sessionId: "ses_eval_product_app_surface_client_direct"
       })
-      const continued = await client.continueWorkbench(
-        {
-          text: "eval surface client continued"
-        },
-        { requestId: "eval_surface_client_continue" }
+      const operation = await client.readTrackedConversationOperation(
+        { sessionId: "ses_eval_product_app_surface_client_direct" },
+        { requestId: "eval_surface_client_operation" }
       )
       const malformedClient = createProductAppSurfaceClient({
         descriptor: () => ({ broken: true }) as never,
@@ -87,7 +87,7 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
       assert(
         descriptor.ok &&
           descriptor.value.kind === "product-app.surface-descriptor" &&
-          descriptor.value.commandCount === 18,
+          descriptor.value.commandCount === 23,
         "surface client should read the surface descriptor"
       )
       assert(
@@ -102,7 +102,7 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         commandCatalog.ok &&
           commandCatalog.command === "readProductCommands" &&
           commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ) &&
           commandCatalog.value.diagnostics.length === 0,
         "surface client should read the typed product command catalog"
@@ -114,10 +114,10 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         "surface client should execute a typed product command"
       )
       assert(
-        started.ok &&
-          isRecord(started.value) &&
-          started.value.kind === "product-app.workbench.started",
-        "surface client should start workbench"
+        submitted.ok &&
+          isRecord(submitted.value) &&
+          submitted.value.kind === "product-app.conversation-operation.found",
+        "surface client should submit a tracked conversation operation"
       )
       assert(run.ok, "surface client should dispatch product command")
       assert(
@@ -127,10 +127,10 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         "surface client should open workbench"
       )
       assert(
-        continued.ok &&
-          isRecord(continued.value) &&
-          continued.value.kind === "product-app.workbench.continued",
-        "surface client should continue workbench"
+        operation.ok &&
+          isRecord(operation.value) &&
+          operation.value.kind === "product-app.conversation-operation.found",
+        "surface client should read durable conversation progress"
       )
       assert(
         !malformedStatus.ok &&
@@ -153,10 +153,10 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         commandCatalogCount: commandCatalog.ok
           ? commandCatalog.value.commands.length
           : null,
-        hasAgentCommand:
+        hasSubmitCommand:
           commandCatalog.ok &&
           commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ),
         typedExecutionKind: typedExecution.ok
           ? typedExecution.value.kind
@@ -167,11 +167,11 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
         activeProviderProfileId: settings.ok
           ? settings.value.profile.activeProviderProfileId
           : null,
-        startedKind:
-          started.ok && isRecord(started.value) ? started.value.kind : null,
+        submittedKind:
+          submitted.ok && isRecord(submitted.value) ? submitted.value.kind : null,
         openedKind: opened.ok && isRecord(opened.value) ? opened.value.kind : null,
-        continuedKind:
-          continued.ok && isRecord(continued.value) ? continued.value.kind : null,
+        operationKind:
+          operation.ok && isRecord(operation.value) ? operation.value.kind : null,
         malformedCode: malformedStatus.ok ? null : malformedStatus.error.code,
         eventCount: events.ok ? events.events.length : null,
         stateChanged: events.ok
@@ -181,6 +181,7 @@ export const productAppSurfaceClientContractScenario = createEvalScenario({
           : false
       }
     } finally {
+      await surface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

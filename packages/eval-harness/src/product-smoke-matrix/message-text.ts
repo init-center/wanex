@@ -14,6 +14,17 @@ export function textFromMessages(
     .join("\n")
 }
 
+export function assistantTextFromMessages(
+  messages: readonly SessionMessageRecord[],
+  turnId: string
+): string {
+  return textFromMessages(
+    messages.filter(
+      (message) => message.turnId === turnId && message.role === "assistant"
+    )
+  )
+}
+
 function isTextPart(part: MessagePart): part is TextMessagePart {
   return part.type === "text"
 }

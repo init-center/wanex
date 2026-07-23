@@ -31,7 +31,7 @@ const OBJECTIVE_RUN_OPERATION_SELECT: &str = "SELECT
 
 const OBJECTIVE_ATTEMPT_SELECT: &str = "SELECT
     id, objective_id, attempt_number, state, session_id, session_input_id,
-    session_run_id, scheduler_job_id, delegation_graph_id, plan_proposal_id,
+    session_turn_id, scheduler_job_id, delegation_graph_id, plan_proposal_id,
     workspace_change_proposal_id, summary, result_json, error_json,
     metadata_json, started_at, finished_at, created_at, updated_at
  FROM objective_attempt";
@@ -66,7 +66,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -216,7 +216,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let objective = get_objective_run_tx(&tx, &request.objective_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "objective run does not exist: {}",
@@ -329,7 +329,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let _objective = get_objective_run_tx(&tx, &request.objective_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
@@ -368,7 +368,7 @@ impl SystemService {
         tx.execute(
             "INSERT INTO objective_attempt (
                 id, objective_id, attempt_number, state, session_id, session_input_id,
-                session_run_id, scheduler_job_id, delegation_graph_id, plan_proposal_id,
+                session_turn_id, scheduler_job_id, delegation_graph_id, plan_proposal_id,
                 workspace_change_proposal_id, summary, result_json, error_json,
                 metadata_json, idempotency_key, started_at, finished_at, created_at, updated_at
              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -379,7 +379,7 @@ impl SystemService {
                 state,
                 request.session_id,
                 request.session_input_id,
-                request.session_run_id,
+                request.session_turn_id,
                 request.scheduler_job_id,
                 request.delegation_graph_id,
                 request.plan_proposal_id,
@@ -401,7 +401,7 @@ impl SystemService {
             "objective.attempt.recorded",
             &EventScope {
                 session_id: request.session_id.clone(),
-                run_id: request.session_run_id.clone(),
+                turn_id: request.session_turn_id.clone(),
                 input_id: request.session_input_id.clone(),
                 plan_proposal_id: request.plan_proposal_id.clone(),
                 objective_id: Some(request.objective_id.clone()),
@@ -467,7 +467,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let _objective = get_objective_run_tx(&tx, &request.objective_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
@@ -802,8 +802,8 @@ fn validate_put_objective_attempt(request: &PutObjectiveAttempt) -> Result<()> {
         request.session_input_id.as_deref(),
     )?;
     validate_optional_nonempty(
-        "objective attempt session_run_id",
-        request.session_run_id.as_deref(),
+        "objective attempt session_turn_id",
+        request.session_turn_id.as_deref(),
     )?;
     validate_optional_nonempty(
         "objective attempt scheduler_job_id",
@@ -960,7 +960,7 @@ fn validate_existing_objective_attempt(
         || record.state != state
         || record.session_id != request.session_id
         || record.session_input_id != request.session_input_id
-        || record.session_run_id != request.session_run_id
+        || record.session_turn_id != request.session_turn_id
         || record.scheduler_job_id != request.scheduler_job_id
         || record.delegation_graph_id != request.delegation_graph_id
         || record.plan_proposal_id != request.plan_proposal_id

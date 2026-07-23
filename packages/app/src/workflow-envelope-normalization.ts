@@ -3,15 +3,15 @@ import type {
   SessionInputOrigin
 } from "@wanex/protocol"
 import type {
-  WanexAppShellNormalizedWorkflowAgentInput,
-  WanexAppShellRouteWorkflowEnvelopeErrorResult,
-  WanexAppShellWorkflowEnvelope,
-  WanexAppShellWorkflowEnvelopeNormalizationResult
+  WanexAppNormalizedWorkflowAgentInput,
+  WanexAppRouteWorkflowEnvelopeErrorResult,
+  WanexAppWorkflowEnvelope,
+  WanexAppWorkflowEnvelopeNormalizationResult
 } from "./types-workflow-envelope.js"
 
-export function normalizeWanexAppShellWorkflowEnvelope(
-  request: WanexAppShellWorkflowEnvelope
-): WanexAppShellWorkflowEnvelopeNormalizationResult {
+export function normalizeWanexAppWorkflowEnvelope(
+  request: WanexAppWorkflowEnvelope
+): WanexAppWorkflowEnvelopeNormalizationResult {
   const text = request.text.trim()
   if (text.length === 0) {
     return {
@@ -87,8 +87,8 @@ export function normalizeWanexAppShellWorkflowEnvelope(
       if (request.sessionId === undefined) {
         return invalidEnvelope("guided follow-up envelope requires sessionId")
       }
-      if (request.activeRunId.length === 0) {
-        return invalidEnvelope("guided follow-up envelope requires activeRunId")
+      if (request.activeTurnId.length === 0) {
+        return invalidEnvelope("guided follow-up envelope requires activeTurnId")
       }
       return {
         kind: "normalized",
@@ -97,7 +97,7 @@ export function normalizeWanexAppShellWorkflowEnvelope(
           sessionId: request.sessionId,
           guidedFollowUp: {
             sessionId: request.sessionId,
-            activeRunId: request.activeRunId,
+            activeTurnId: request.activeTurnId,
             text: request.text,
             ...(request.sourceRef === undefined
               ? {}
@@ -131,9 +131,9 @@ export function normalizeWanexAppShellWorkflowEnvelope(
 }
 
 function normalizeAgentEnvelope(
-  request: WanexAppShellWorkflowEnvelope,
-  agent: WanexAppShellNormalizedWorkflowAgentInput
-): WanexAppShellWorkflowEnvelopeNormalizationResult {
+  request: WanexAppWorkflowEnvelope,
+  agent: WanexAppNormalizedWorkflowAgentInput
+): WanexAppWorkflowEnvelopeNormalizationResult {
   return {
     kind: "normalized",
     envelope: {
@@ -145,8 +145,8 @@ function normalizeAgentEnvelope(
 }
 
 function validateClassifier(
-  classifier: WanexAppShellWorkflowEnvelope["classifier"]
-): WanexAppShellRouteWorkflowEnvelopeErrorResult | undefined {
+  classifier: WanexAppWorkflowEnvelope["classifier"]
+): WanexAppRouteWorkflowEnvelopeErrorResult | undefined {
   if (classifier === undefined) {
     return undefined
   }
@@ -170,7 +170,7 @@ function validateClassifier(
 
 function invalidEnvelope(
   message: string
-): WanexAppShellRouteWorkflowEnvelopeErrorResult {
+): WanexAppRouteWorkflowEnvelopeErrorResult {
   return {
     kind: "error",
     command: "routeWorkflowEnvelope",
@@ -180,7 +180,7 @@ function invalidEnvelope(
 }
 
 function classifierMetadata(
-  classifier: WanexAppShellWorkflowEnvelope["classifier"]
+  classifier: WanexAppWorkflowEnvelope["classifier"]
 ): Record<string, string | number | undefined> {
   if (classifier === undefined) {
     return {}

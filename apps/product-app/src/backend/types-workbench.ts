@@ -1,7 +1,4 @@
 import type {
-  ProductAppBackendRunAgentTurnResult
-} from "./types-app.js"
-import type {
   ProductAppBackendSessionInputProvenanceReadModel,
   ProductAppBackendSessionTranscriptReadModel
 } from "./types-read-model.js"
@@ -10,30 +7,10 @@ export interface ProductAppBackendWorkbenchCommands {
   readProductWorkbench(
     request: ProductAppBackendReadWorkbenchRequest
   ): Promise<ProductAppBackendWorkbenchReadModel>
-  continueProductWorkbenchSession(
-    request: ProductAppBackendContinueWorkbenchSessionRequest
-  ): Promise<ProductAppBackendContinueWorkbenchSessionResult>
 }
 
 export interface ProductAppBackendReadWorkbenchRequest {
   readonly sessionId: string
-}
-
-export interface ProductAppBackendContinueWorkbenchSessionRequest {
-  readonly sessionId: string
-  readonly text: string
-  readonly principalId?: string
-  readonly inputId?: string
-  readonly idempotencyKey?: string
-  readonly jobId?: string
-  readonly jobIdempotencyKey?: string
-}
-
-export interface ProductAppBackendContinueWorkbenchSessionResult {
-  readonly kind: "product-app.backend.workbench.continued"
-  readonly sessionId: string
-  readonly turn: ProductAppBackendRunAgentTurnResult
-  readonly workbench: ProductAppBackendWorkbenchReadModel
 }
 
 export interface ProductAppBackendWorkbenchReadModel {
@@ -57,7 +34,7 @@ export interface ProductAppBackendWorkbenchSummary {
 }
 
 export interface ProductAppBackendWorkbenchActions {
-  readonly continueCommandId: "product.workbench.continue"
+  readonly submitCommandId: "product.agent.submit"
   readonly transcriptCommandId: "product.transcript.read"
   readonly provenanceCommandId: "product.provenance.read"
 }

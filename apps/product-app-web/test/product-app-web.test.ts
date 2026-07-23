@@ -59,7 +59,7 @@ describe("@wanex/product-app-web", () => {
         kind: "found",
         reference: { kind: "job", id: "job_web_projection" },
         activity: {
-          kind: "app-shell.execution.job",
+          kind: "wanex-app.execution.job",
           jobKind: "plugin.action",
           state: schedulerState,
           attempt: 1,
@@ -82,10 +82,13 @@ describe("@wanex/product-app-web", () => {
 
   it("tracks command job references and refreshes them explicitly and while polling", async () => {
     await withWebSurface(async ({ app, client }) => {
-      await app.startWorkbench({
-        text: "seed tracked web execution",
-        sessionId: "ses_web_execution_activity",
-        jobId: "job_web_execution_activity"
+      await app.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "seed tracked web execution",
+          sessionId: "ses_web_execution_activity",
+          jobId: "job_web_execution_activity"
+        }
       })
       const trackedClient = {
         ...client,
@@ -120,15 +123,14 @@ describe("@wanex/product-app-web", () => {
         input: { commandId: "product.status" }
       })
       expect(executed.snapshot.executionActivity).toMatchObject({
-        state: "succeeded",
         reference: { kind: "job", id: "job_web_execution_activity" },
-        schedulerState: "succeeded"
+        state: expect.stringMatching(/^(submitted|running|succeeded)$/)
       })
 
-      const refreshed = await tracked.dispatchAction({
-        type: "refresh-execution",
-        input: { kind: "job", id: "job_web_execution_activity" }
-      })
+      const refreshed = await waitForExecutionActivity(
+        tracked,
+        "job_web_execution_activity"
+      )
       expect(refreshed.snapshot.executionActivity.state).toBe("succeeded")
 
       const polled = await tracked.pollEvents()
@@ -154,7 +156,7 @@ describe("@wanex/product-app-web", () => {
         descriptor: {
           ok: true,
           value: {
-            commandCount: 18
+            commandCount: 23
           }
         },
         view: {
@@ -175,8 +177,8 @@ describe("@wanex/product-app-web", () => {
                 profileCount: 1,
                 canRun: true,
                 attentionRequired: false,
-                requiresApiKey: false,
-                hasApiKey: false
+                requiresCredential: false,
+                credentialConfigured: false
               },
               profileCount: 1,
               profiles: [
@@ -184,7 +186,7 @@ describe("@wanex/product-app-web", () => {
                   id: "product-app-web-test",
                   modelId: "product-app-web-test-model",
                   active: true,
-                  hasApiKey: false
+                  credentialConfigured: false
                 })
               ]
             },
@@ -210,16 +212,16 @@ describe("@wanex/product-app-web", () => {
               rendererMayReceiveServiceBinaryPath: false
             }
           },
-          commandCount: 18,
-          productCommandCount: 15,
+          commandCount: 23,
+          productCommandCount: 14,
           commandCatalog: {
             kind: "product-app-web.command-catalog",
             state: "ready",
-            message: "15 product commands available",
+            message: "14 product commands available",
             rows: expect.arrayContaining([
               expect.objectContaining({
-                id: "product.agent.run",
-                handlerRef: "wanex.product-app.backend.runAgentTurn",
+                id: "product.agent.submit",
+                handlerRef: "wanex.product-app.backend.submitConversationOperation",
                 sourceKind: "builtin",
                 trust: "trusted"
               })
@@ -230,7 +232,10 @@ describe("@wanex/product-app-web", () => {
           recentSessions: [],
           workbenchState: "idle",
           workbenchRowCount: 0,
-          workbenchCanContinue: false,
+          conversationCanSubmit: true,
+          conversationCanCancel: false,
+          conversationCanRegenerate: false,
+          conversationState: "idle",
           operationStatus: {
             kind: "product-app-web.operation-status",
             state: "idle",
@@ -254,7 +259,7 @@ describe("@wanex/product-app-web", () => {
             reason: "active_profile_ready",
             activeProfileId: "product-app-web-test",
             canRun: true,
-            canSubmitWorkbench: true,
+            canSubmitConversation: true,
             attentionRequired: false,
             message: "Provider ready"
           },
@@ -284,11 +289,19 @@ describe("@wanex/product-app-web", () => {
               mutatesState: true
             }),
             expect.objectContaining({
-              id: "start-workbench",
+              id: "submit-conversation",
               mutatesState: true
             }),
             expect.objectContaining({
-              id: "continue-workbench",
+              id: "refresh-conversation",
+              mutatesState: false
+            }),
+            expect.objectContaining({
+              id: "cancel-conversation",
+              mutatesState: false
+            }),
+            expect.objectContaining({
+              id: "regenerate-conversation",
               mutatesState: true
             })
           ])
@@ -304,12 +317,12 @@ describe("@wanex/product-app-web", () => {
       expect(html).toContain('data-mode-tab="workbench"')
       expect(html).toContain('data-mode-tab="diagnostics"')
       expect(countOccurrences(html, 'data-action="set-mode"')).toBe(3)
-      expect(html).toContain('data-workbench-composer-kind="start"')
+      expect(html).toContain('data-panel="conversation"')
+      expect(html).toContain('data-conversation-state="idle"')
+      expect(html).toContain('data-action="submit-conversation"')
       expect(html).toContain('data-workbench-empty-state')
       expect(html).toContain("Start a workbench session")
-      expect(html).toContain('data-workbench-composer-status')
-      expect(html).toContain('aria-live="polite"')
-      expect(html).toContain("Ready to start")
+      expect(html).toContain('data-conversation-empty-state')
       expect(html).toContain('data-product-shell-header')
       expect(html).toContain('data-region="workspace"')
       expect(html).toContain('data-region="left"')
@@ -331,8 +344,7 @@ describe("@wanex/product-app-web", () => {
       expect(html).not.toContain('data-panel="command-catalog"')
       expect(html).not.toContain('data-panel="events"')
       expect(html).not.toContain('data-panel="diagnostics"')
-      expect(html).toContain('data-workbench-composer-state="ready"')
-      expect(html).not.toContain('data-workbench-composer-state="blocked"')
+      expect(html).toContain('<button type="submit">Send message</button>')
       expect(html).toContain("<h1>Wanex Product App</h1>")
       expect(html).not.toContain(serviceBin)
 
@@ -410,7 +422,7 @@ describe("@wanex/product-app-web", () => {
       expect(stylesheet).toContain('[data-session-empty-state]')
       expect(stylesheet).toContain('[data-events-empty-state]')
       expect(stylesheet).toContain('[data-diagnostics-empty-state]')
-      expect(stylesheet).toContain('[data-workbench-composer-state="submitting"]')
+      expect(stylesheet).toContain('[data-conversation-controls]')
       expect(stylesheet).not.toContain(serviceBin)
     })
   })
@@ -421,6 +433,7 @@ describe("@wanex/product-app-web", () => {
         profile: {
           id: "product-app-web-second-provider",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "fake",
           modelId: "product-app-web-second-model"
         }
@@ -508,7 +521,7 @@ describe("@wanex/product-app-web", () => {
       const preview = await surface.dispatchAction({
         type: "preview-command",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "hello from Product App Web preview"
           }
@@ -521,14 +534,14 @@ describe("@wanex/product-app-web", () => {
           commandPreview: {
             kind: "product-app-web.command-preview",
             state: "runnable",
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             inputAccepted: true,
             message: "Command is runnable"
           },
           view: {
             commandPreview: {
               state: "runnable",
-              commandId: "product.agent.run",
+              commandId: "product.agent.submit",
               inputAccepted: true
             },
             operationStatus: {
@@ -545,7 +558,7 @@ describe("@wanex/product-app-web", () => {
       expect(previewHtml).toContain('data-panel="command-preview"')
       expect(previewHtml).toContain('data-command-preview-state="runnable"')
       expect(previewHtml).toContain(
-        'data-command-preview-command-id="product.agent.run"'
+        'data-command-preview-command-id="product.agent.submit"'
       )
       expect(previewHtml).toContain("<dt>Input</dt><dd>accepted</dd>")
 
@@ -598,50 +611,44 @@ describe("@wanex/product-app-web", () => {
           workbench: {
             state: "ready",
             sessionId: "ses_product_app_web",
-            canContinue: true,
             summary: {
               rowCount: 0
             }
           },
           view: {
-            workbenchState: "ready",
-            workbenchCanContinue: true
+            workbenchState: "ready"
           }
         }
       })
 
-      const continued = await surface.dispatchAction({
-        type: "continue-workbench",
+      const submitted = await surface.dispatchAction({
+        type: "submit-conversation",
         input: {
-          text: "hello from Product App Web workbench"
+          text: "hello from Product App Web conversation",
+          sessionId: "ses_product_app_web"
         }
       })
-      expect(continued.ok).toBe(true)
-      expect(continued.snapshot.workbench).toMatchObject({
-        state: "ready",
+      expect(submitted.ok).toBe(true)
+      expect(submitted.snapshot.conversation).toMatchObject({
         sessionId: "ses_product_app_web",
-        canContinue: true
+        operation: {
+          kind: "product-app.conversation-operation",
+          sessionId: "ses_product_app_web"
+        }
       })
-      expect(continued.snapshot.workbench.summary.rowCount).toBeGreaterThan(0)
-      expect(continued.snapshot.workbench.summary.inputCount).toBeGreaterThan(0)
-      expect(
-        continued.snapshot.workbench.rows.some((row) =>
-          row.text.includes("hello from Product App Web workbench")
-        )
-      ).toBe(true)
-      expect(continued.snapshot.view).toMatchObject({
+      expect(submitted.snapshot.view).toMatchObject({
         sessionCount: 1,
-        selectedSessionTitle: "hello from Product App Web workbench",
+        selectedSessionTitle: "hello from Product App Web conversation",
         recentSessions: [
           expect.objectContaining({
             sessionId: "ses_product_app_web",
-            label: "hello from Product App Web workbench",
+            label: "hello from Product App Web conversation",
             selected: true,
             status: "active"
           })
         ]
       })
-      const selectSessionAction = continued.snapshot.view.actions.find(
+      const selectSessionAction = submitted.snapshot.view.actions.find(
         (action) => action.id === "select-session"
       )
       expect(selectSessionAction?.fields[0]).toMatchObject({
@@ -649,20 +656,38 @@ describe("@wanex/product-app-web", () => {
         options: [
           {
             value: "ses_product_app_web",
-            label: "hello from Product App Web workbench"
+            label: "hello from Product App Web conversation"
           }
         ]
       })
-      const continuedHtml = renderProductAppWebHtml(continued.snapshot)
-      expect(continuedHtml).toContain("data-workbench-composer")
-      expect(continuedHtml).toContain('data-session-id="ses_product_app_web"')
-      expect(continuedHtml).toContain('data-session-list')
-      expect(continuedHtml).toContain("Ready to send")
+      const submittedHtml = renderProductAppWebHtml(submitted.snapshot)
+      expect(submittedHtml).toContain('data-panel="conversation"')
+      expect(submittedHtml).toContain('data-session-id="ses_product_app_web"')
+      expect(submittedHtml).toContain('data-session-list')
+      expect(submittedHtml).toContain("hello from Product App Web conversation")
 
-      const polled = await surface.pollEvents({ limit: 5 })
+      const polled = await waitForConversationTerminal(
+        surface,
+        "ses_product_app_web"
+      )
+      expect(
+        polled.conversation.operation?.transcript.rows.some((row) =>
+          row.text.includes("hello from Product App Web conversation")
+        )
+      ).toBe(true)
+      const reconciled = await surface.dispatchAction({
+        type: "open-workbench",
+        input: { sessionId: "ses_product_app_web" }
+      })
+      expect(reconciled.snapshot.workbench.summary.rowCount).toBeGreaterThan(0)
+      expect(
+        reconciled.snapshot.workbench.rows.some((row) =>
+          row.text.includes("hello from Product App Web conversation")
+        )
+      ).toBe(true)
       expect(polled.events).toMatchObject({
         ok: true,
-        events: []
+        events: expect.any(Array)
       })
       expect(observed.map((request) => request.operation)).toEqual(
         expect.arrayContaining([
@@ -701,10 +726,11 @@ describe("@wanex/product-app-web", () => {
         profile: {
           id: "product-app-web-secret-provider",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "product-app-web-secret-model",
           baseUrl: "https://provider.example.test/v1",
-          apiKey: "product-app-web-secret-value"
+          secretRef: "env://PRODUCT_APP_WEB_SECRET"
         },
         makeActive: true
       })
@@ -719,9 +745,7 @@ describe("@wanex/product-app-web", () => {
           expect.objectContaining({
             id: "product-app-web-secret-provider",
             active: true,
-            hasApiKey: true,
-            apiKeyRedacted: "***",
-            baseUrl: "https://provider.example.test/v1"
+            credentialConfigured: true
           })
         ])
       )
@@ -732,28 +756,32 @@ describe("@wanex/product-app-web", () => {
         profileCount: 2,
         canRun: true,
         attentionRequired: false,
-        requiresApiKey: true,
-        hasApiKey: true
+        requiresCredential: true,
+        credentialConfigured: true
       })
       expect(html).toContain(
         'data-provider-profile-id="product-app-web-secret-provider"'
       )
       expect(html).toContain('data-provider-readiness-status="ready"')
       expect(html).toContain('data-provider-profile-active="true"')
-      expect(html).toContain('data-provider-key-status="redacted"')
+      expect(html).toContain('data-provider-credential-status="configured"')
       expect(html).toContain("<dt>Provider can run</dt><dd>yes</dd>")
-      expect(html).toContain("key redacted")
-      expect(html).toContain("https://provider.example.test/v1")
-      expect(html).not.toContain("product-app-web-secret-value")
+      expect(html).toContain("credential configured")
+      expect(JSON.stringify(snapshot)).not.toContain(
+        "https://provider.example.test/v1"
+      )
+      expect(html).not.toContain("https://provider.example.test/v1")
+      expect(html).not.toContain("PRODUCT_APP_WEB_SECRET")
     })
   })
 
-  it("blocks the workbench composer when provider readiness needs host setup", async () => {
+  it("blocks conversation submission when provider readiness needs host setup", async () => {
     await withWebSurface(async ({ app, surface }) => {
       await app.providerProfiles.upsertProviderProfile({
         profile: {
           id: "product-app-web-missing-key-provider",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "product-app-web-missing-key-model",
           baseUrl: "https://provider.example.test/v1"
@@ -766,30 +794,29 @@ describe("@wanex/product-app-web", () => {
 
       expect(snapshot.view.providerRunGate).toEqual({
         state: "blocked",
-        status: "missing_required_api_key",
-        reason: "active_profile_missing_api_key",
+        status: "missing_required_credential",
+        reason: "active_profile_missing_credential",
         activeProfileId: "product-app-web-missing-key-provider",
         canRun: false,
-        canSubmitWorkbench: false,
+        canSubmitConversation: false,
         attentionRequired: true,
         message: "Host setup required"
       })
       expect(snapshot.view.settings.profile.readiness).toMatchObject({
-        status: "missing_required_api_key",
+        status: "missing_required_credential",
         activeProfileId: "product-app-web-missing-key-provider",
         canRun: false,
         attentionRequired: true,
-        requiresApiKey: true,
-        hasApiKey: false
+        requiresCredential: true,
+        credentialConfigured: false
       })
       expect(html).toContain('data-panel="provider-run-gate"')
       expect(html).toContain('data-provider-run-gate-state="blocked"')
       expect(html).toContain('data-provider-can-run="false"')
       expect(html).toContain('data-provider-attention-required="true"')
       expect(html).toContain("Host setup required")
-      expect(html).toContain('data-workbench-composer-state="blocked"')
       expect(html).toContain('<textarea name="text" required disabled>')
-      expect(html).toContain('<button type="submit" disabled>Start</button>')
+      expect(html).toContain('<button type="submit" disabled>Send message</button>')
       expect(html).not.toContain('data-action="configureProviderProfile"')
       expect(html).not.toContain("apiKey")
       expect(html).not.toContain(serviceBin)
@@ -797,7 +824,7 @@ describe("@wanex/product-app-web", () => {
       const preview = await surface.dispatchAction({
         type: "preview-command",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "web preview should not bypass provider setup"
           }
@@ -809,11 +836,11 @@ describe("@wanex/product-app-web", () => {
         snapshot: {
           commandPreview: {
             state: "rejected",
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             reason: "provider_not_ready",
             inputAccepted: false,
             provider: {
-              status: "missing_required_api_key",
+              status: "missing_required_credential",
               activeProfileId: "product-app-web-missing-key-provider",
               canRun: false,
               attentionRequired: true
@@ -833,7 +860,7 @@ describe("@wanex/product-app-web", () => {
             },
             providerRunGate: {
               state: "blocked",
-              canSubmitWorkbench: false
+              canSubmitConversation: false
             }
           }
         }
@@ -844,7 +871,7 @@ describe("@wanex/product-app-web", () => {
       expect(previewHtml).toContain('data-command-preview-state="rejected"')
       expect(previewHtml).toContain("<dt>Reason</dt><dd>provider_not_ready</dd>")
       expect(previewHtml).toContain(
-        "<dt>Provider</dt><dd>missing_required_api_key</dd>"
+        "<dt>Provider</dt><dd>missing_required_credential</dd>"
       )
       expect(previewHtml).toContain("<dt>Provider can run</dt><dd>no</dd>")
       expect(previewHtml).not.toContain('data-action="configureProviderProfile"')
@@ -853,7 +880,7 @@ describe("@wanex/product-app-web", () => {
       const execution = await surface.dispatchAction({
         type: "execute-command",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "web execution should not bypass provider setup"
           }
@@ -865,11 +892,11 @@ describe("@wanex/product-app-web", () => {
         snapshot: {
           commandExecution: {
             state: "rejected",
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             reason: "provider_not_ready",
             references: [],
             provider: {
-              status: "missing_required_api_key",
+              status: "missing_required_credential",
               canRun: false
             }
           },
@@ -890,31 +917,27 @@ describe("@wanex/product-app-web", () => {
       )
 
       const submitted = await surface.dispatchAction({
-        type: "start-workbench",
+        type: "submit-conversation",
         input: {
           text: "web should not bypass provider setup"
         }
       })
       expect(submitted).toMatchObject({
         ok: true,
-        action: "start-workbench",
+        action: "submit-conversation",
         snapshot: {
-          workbench: {
-            state: "failed",
-            error: {
-              code: "provider_not_ready",
-              category: "validation"
-            }
+          conversation: {
+            state: "rejected",
+            message: expect.stringContaining("provider is not ready")
           },
           view: {
-            workbenchState: "failed",
             operationStatus: {
               state: "blocked",
-              action: "start-workbench"
+              action: "submit-conversation"
             },
             providerRunGate: {
               state: "blocked",
-              canSubmitWorkbench: false
+              canSubmitConversation: false
             }
           }
         }
@@ -927,46 +950,50 @@ describe("@wanex/product-app-web", () => {
     })
   })
 
-  it("starts a workbench session from web action input without a selected session", async () => {
+  it("submits a conversation operation without a selected session", async () => {
     await withWebSurface(async ({ surface }) => {
-      const started = await surface.dispatchAction({
-        type: "start-workbench",
+      const submitted = await surface.dispatchAction({
+        type: "submit-conversation",
         input: {
           text: "hello from Product App Web start"
         }
       })
 
-      expect(started).toMatchObject({
+      expect(submitted).toMatchObject({
         ok: true,
-        action: "start-workbench",
+        action: "submit-conversation",
         snapshot: {
-          workbench: {
-            state: "ready",
-            canContinue: true,
-            summary: {
-              inputCount: 1,
-              messageCount: 1,
-              latestUserText: "hello from Product App Web start"
+          conversation: {
+            operation: {
+              kind: "product-app.conversation-operation"
             }
           },
           view: {
-            workbenchState: "ready",
-            workbenchCanContinue: true,
             sessionCount: 1,
             selectedSessionTitle: "hello from Product App Web start"
           }
         }
       })
-      expect(started.snapshot.workbench.sessionId).toMatch(/^ses_/)
-      expect(started.snapshot.view.selectedSessionId).toBe(
-        started.snapshot.workbench.sessionId
+      expect(submitted.snapshot.conversation.sessionId).toMatch(/^ses_/)
+      expect(submitted.snapshot.view.selectedSessionId).toBe(
+        submitted.snapshot.conversation.sessionId
       )
 
-      const html = renderProductAppWebHtml(started.snapshot)
-      expect(html).toContain('data-workbench-composer-kind="continue"')
-      expect(html).toContain('data-action="continue-workbench"')
-      expect(html).toContain('data-workbench-composer-status')
-      expect(html).not.toContain('data-workbench-empty-state')
+      const terminal = await waitForConversationTerminal(
+        surface,
+        submitted.snapshot.conversation.sessionId as string
+      )
+      expect(
+        terminal.conversation.operation?.transcript.rows.some(
+          (row) =>
+            row.role === "user" &&
+            row.text === "hello from Product App Web start"
+        )
+      ).toBe(true)
+      const html = renderProductAppWebHtml(terminal)
+      expect(html).toContain('data-action="submit-conversation"')
+      expect(html).toContain('data-conversation-transcript')
+      expect(html).not.toContain('data-conversation-empty-state')
       expect(html).toContain("hello from Product App Web start")
     })
   })
@@ -1086,10 +1113,10 @@ describe("@wanex/product-app-web", () => {
       state: "ready" as const,
       message: "1 product command available",
       rows: [{
-        id: "product.agent.run",
-        name: "product.agent.run",
+        id: "product.agent.submit",
+        name: "product.agent.submit",
         title: "Run agent",
-        handlerRef: "wanex.product-app.backend.runAgentTurn",
+        handlerRef: "wanex.product-app.backend.submitConversationOperation",
         sourceKind: "builtin",
         sourceId: "wanex.product-app.backend",
         trust: "trusted",
@@ -1151,7 +1178,7 @@ describe("@wanex/product-app-web", () => {
         {
           action: "preview-command",
           fields: {
-            commandId: "  product.agent.run  ",
+            commandId: "  product.agent.submit  ",
             inputJson: "{\"text\":\"preview from form\"}"
           }
         },
@@ -1162,7 +1189,7 @@ describe("@wanex/product-app-web", () => {
       action: {
         type: "preview-command",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "preview from form"
           }
@@ -1174,7 +1201,7 @@ describe("@wanex/product-app-web", () => {
         {
           action: "preview-command",
           fields: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             inputJson: "{"
           }
         },
@@ -1191,7 +1218,7 @@ describe("@wanex/product-app-web", () => {
     expect(
       parseProductAppWebActionInput({
         action: "preview-command",
-        fields: { commandId: "product.agent.run" }
+        fields: { commandId: "product.agent.submit" }
       })
     ).toMatchObject({
       ok: false,
@@ -1223,48 +1250,54 @@ describe("@wanex/product-app-web", () => {
     })
     expect(
       parseProductAppWebActionInput({
-        action: "continue-workbench",
+        action: "submit-conversation",
         fields: {
-          text: "  continue from form  "
+          text: "  submit from form  ",
+          sessionId: "  ses_from_form  "
         }
       })
     ).toEqual({
       ok: true,
       action: {
-        type: "continue-workbench",
+        type: "submit-conversation",
         input: {
-          text: "continue from form"
+          text: "submit from form",
+          sessionId: "ses_from_form"
         }
       }
     })
     expect(
       parseProductAppWebActionInput({
-        action: "start-workbench",
+        action: "cancel-conversation",
         fields: {
-          text: "  start from form  "
+          sessionId: "ses_from_form",
+          reason: "  stop from form  "
         }
       })
     ).toEqual({
       ok: true,
       action: {
-        type: "start-workbench",
+        type: "cancel-conversation",
         input: {
-          text: "start from form"
+          sessionId: "ses_from_form",
+          reason: "stop from form"
         }
       }
     })
     expect(
       parseProductAppWebActionInput({
-        action: "continue-workbench",
+        action: "submit-conversation",
         fields: {
           text: "   "
         }
       })
-    ).toMatchObject({
-      ok: false,
-      error: {
-        code: "invalid_field",
-        field: "text"
+    ).toEqual({
+      ok: true,
+      action: {
+        type: "submit-conversation",
+        input: {
+          text: ""
+        }
       }
     })
   })
@@ -1399,7 +1432,7 @@ describe("@wanex/product-app-web", () => {
       const preview = await controller.submitActionInput({
         action: "preview-command",
         fields: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           inputJson: "{\"text\":\"controller preview\"}"
         }
       })
@@ -1410,7 +1443,7 @@ describe("@wanex/product-app-web", () => {
           action: {
             type: "preview-command",
             input: {
-              commandId: "product.agent.run",
+              commandId: "product.agent.submit",
               input: {
                 text: "controller preview"
               }
@@ -1425,12 +1458,12 @@ describe("@wanex/product-app-web", () => {
           snapshot: {
             commandPreview: {
               state: "runnable",
-              commandId: "product.agent.run"
+              commandId: "product.agent.submit"
             },
             view: {
               commandPreview: {
                 state: "runnable",
-                commandId: "product.agent.run"
+                commandId: "product.agent.submit"
               }
             }
           }
@@ -1486,32 +1519,34 @@ describe("@wanex/product-app-web", () => {
           sessionId: "ses_controller_workbench"
         }
       })
-      const continued = await controller.submitActionInput({
-        action: "continue-workbench",
+      const submitted = await controller.submitActionInput({
+        action: "submit-conversation",
         fields: {
-          text: "controller workbench turn"
+          text: "controller conversation turn",
+          sessionId: "ses_controller_workbench"
         }
       })
-      expect(continued).toMatchObject({
+      expect(submitted).toMatchObject({
         ok: true,
         actionResult: {
           ok: true,
-          action: "continue-workbench"
+          action: "submit-conversation"
         },
         document: {
           snapshot: {
-            workbench: {
-              state: "ready",
-              sessionId: "ses_controller_workbench"
+            conversation: {
+              sessionId: "ses_controller_workbench",
+              operation: {
+                kind: "product-app.conversation-operation"
+              }
             },
             view: {
-              workbenchState: "ready",
-              workbenchCanContinue: true
+              conversationState: expect.any(String)
             }
           }
         }
       })
-      expect(continued.document.html).toContain("controller workbench turn")
+      expect(submitted.document.html).toContain("controller conversation turn")
     })
   })
 
@@ -1611,34 +1646,33 @@ describe("@wanex/product-app-web", () => {
         }
       })
 
-      const startedWorkbench = await handleProductAppWebRequest(controller, {
+      const submittedConversation = await handleProductAppWebRequest(controller, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
-        requestId: "req_start_workbench",
+        requestId: "req_submit_conversation",
         input: {
-          action: "start-workbench",
+          action: "submit-conversation",
           fields: {
-            text: "request envelope started workbench"
+            text: "request envelope submitted conversation"
           }
         }
       })
-      expect(startedWorkbench).toMatchObject({
+      expect(submittedConversation).toMatchObject({
         ok: true,
         operation: "submitActionInput",
-        requestId: "req_start_workbench",
+        requestId: "req_submit_conversation",
         submitResult: {
           ok: true,
           actionResult: {
             ok: true,
-            action: "start-workbench"
+            action: "submit-conversation"
           }
         },
         document: {
           snapshot: {
-            workbench: {
-              state: "ready",
-              summary: {
-                latestUserText: "request envelope started workbench"
+            conversation: {
+              operation: {
+                kind: "product-app.conversation-operation"
               }
             }
           }
@@ -1667,31 +1701,31 @@ describe("@wanex/product-app-web", () => {
           }
         }
       })
-      const continuedWorkbench = await handleProductAppWebRequest(controller, {
+      const submittedToSelectedSession = await handleProductAppWebRequest(controller, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
-        requestId: "req_continue_workbench",
+        requestId: "req_submit_selected_conversation",
         input: {
-          action: "continue-workbench",
+          action: "submit-conversation",
           fields: {
-            text: "request envelope workbench turn"
+            text: "request envelope conversation turn",
+            sessionId: "ses_request_workbench"
           }
         }
       })
-      expect(continuedWorkbench).toMatchObject({
+      expect(submittedToSelectedSession).toMatchObject({
         ok: true,
         operation: "submitActionInput",
         submitResult: {
           ok: true,
           actionResult: {
             ok: true,
-            action: "continue-workbench"
+            action: "submit-conversation"
           }
         },
         document: {
           snapshot: {
-            workbench: {
-              state: "ready",
+            conversation: {
               sessionId: "ses_request_workbench"
             }
           }
@@ -1791,6 +1825,46 @@ async function createStoreDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-product-app-web-test-"))
   tempDirs.push(dir)
   return dir
+}
+
+async function waitForConversationTerminal(
+  surface: Awaited<ReturnType<typeof createProductAppWebSurface>>,
+  sessionId: string
+): Promise<ProductAppWebSnapshot> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const snapshot = await surface.pollEvents({ limit: 20 })
+    if (
+      snapshot.conversation.sessionId === sessionId &&
+      snapshot.conversation.operation?.capabilities.terminal === true
+    ) {
+      return snapshot
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`conversation operation did not become terminal: ${sessionId}`)
+}
+
+async function waitForExecutionActivity(
+  surface: Awaited<ReturnType<typeof createProductAppWebSurface>>,
+  jobId: string
+): Promise<{
+  readonly snapshot: ProductAppWebSnapshot
+}> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await surface.dispatchAction({
+      type: "refresh-execution",
+      input: { kind: "job", id: jobId }
+    })
+    if (
+      result.snapshot.executionActivity.state === "succeeded" ||
+      result.snapshot.executionActivity.state === "failed" ||
+      result.snapshot.executionActivity.state === "cancelled"
+    ) {
+      return result
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`execution activity did not become terminal: ${jobId}`)
 }
 
 function countOccurrences(value: string, pattern: string): number {

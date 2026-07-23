@@ -5,7 +5,7 @@ import type {
   SchedulerJobId,
   SessionId,
   SessionInputId,
-  SessionRunId,
+  SessionTurnId,
   WorkspaceChangeProposalId
 } from "./ids.js"
 import type { JsonValue } from "./json.js"
@@ -53,7 +53,7 @@ export interface ObjectiveStopPolicy {
 export type ObjectiveReferenceKind =
   | "session"
   | "session_input"
-  | "session_run"
+  | "session_turn"
   | "scheduler_job"
   | "plan_proposal"
   | "workspace_change_proposal"
@@ -103,7 +103,7 @@ export interface ObjectiveAttemptRecord {
   readonly state: ObjectiveAttemptState
   readonly sessionId?: SessionId
   readonly sessionInputId?: SessionInputId
-  readonly sessionRunId?: SessionRunId
+  readonly sessionTurnId?: SessionTurnId
   readonly schedulerJobId?: SchedulerJobId
   readonly delegationGraphId?: DelegationGraphId
   readonly planProposalId?: PlanProposalId
@@ -176,7 +176,7 @@ export interface PutObjectiveAttemptRequest {
   readonly state?: ObjectiveAttemptState
   readonly sessionId?: SessionId
   readonly sessionInputId?: SessionInputId
-  readonly sessionRunId?: SessionRunId
+  readonly sessionTurnId?: SessionTurnId
   readonly schedulerJobId?: SchedulerJobId
   readonly delegationGraphId?: DelegationGraphId
   readonly planProposalId?: PlanProposalId

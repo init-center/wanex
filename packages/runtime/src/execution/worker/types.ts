@@ -1,46 +1,45 @@
-import type { WanexAgentRunnerOptions } from "../core/index.js"
-import type { SessionId } from "@wanex/protocol"
+import type {
+  SessionTurnExecutionBinding,
+  SessionTurnId
+} from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
+import type { PreparedAgentContext } from "../../context/agent/index.js"
+import type { ProviderAdapter } from "../../provider/index.js"
+import type { SecretResolverPort } from "../../secrets/index.js"
+import type { WanexSessionCore } from "../../sessions/index.js"
 import type { WanexWorker } from "../../jobs/index.js"
 
-export type SessionRunMode = "once" | "to_completion"
-
-export interface SessionRunJobPayload {
-  readonly sessionId: SessionId
-  readonly mode?: SessionRunMode
-  readonly maxSteps?: number
-  readonly providerProfileId?: string
+export interface SessionTurnJobPayload {
+  readonly sessionId: string
+  readonly turnId: SessionTurnId
+  readonly inputId: string
 }
 
-export interface SessionRunReceipt {
-  readonly sessionId: SessionId
-  readonly status: "idle" | "completed" | "cancelled"
-  readonly mode: SessionRunMode
-  readonly inputId?: string
-  readonly runId?: string
-  readonly steps?: number
-  readonly reason?: string
+export interface ResolveSessionTurnAgentContextRequest {
+  readonly sessionId: string
+  readonly turnId: string
+  readonly inputId: string
+  readonly executionBinding?: SessionTurnExecutionBinding
+  readonly signal: AbortSignal
 }
 
-export type SessionRunHandlerOptions = Omit<
-  WanexAgentRunnerOptions,
-  "runnerId"
-> & {
-  readonly runnerId?: string
-}
+export type SessionTurnAgentContextResolver = (
+  request: ResolveSessionTurnAgentContextRequest
+) => Promise<PreparedAgentContext | undefined> | PreparedAgentContext | undefined
 
-export interface RegisterSessionRunHandlerOptions
-  extends SessionRunHandlerOptions {
-  readonly worker: WanexWorker
-}
-
-export interface ProfileSessionRunHandlerOptions
-  extends Omit<SessionRunHandlerOptions, "provider"> {
+export interface SessionTurnHandlerOptions {
+  readonly session: WanexSessionCore
   readonly storage: CoreStore
-  readonly providerProfileId?: string
+  readonly directProvider?: ProviderAdapter
+  readonly secretResolver?: SecretResolverPort
+  readonly agentContext?: PreparedAgentContext
+  readonly resolveAgentContext?: SessionTurnAgentContextResolver
+  readonly toolMaxConcurrency?: number
+  readonly timeoutMs?: number
+  readonly observeProviderEvent?: import("../../provider/index.js").ProviderEventObserver
 }
 
-export interface RegisterProfileSessionRunHandlerOptions
-  extends ProfileSessionRunHandlerOptions {
+export interface RegisterSessionTurnHandlerOptions
+  extends SessionTurnHandlerOptions {
   readonly worker: WanexWorker
 }

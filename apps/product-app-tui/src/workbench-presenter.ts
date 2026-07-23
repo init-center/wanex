@@ -22,7 +22,6 @@ export function renderProductAppTuiWorkbench(
       messageCount: 0,
       visibleTextRows: 0,
       originKinds: [],
-      continued: false,
       lines,
       text: lines.join("\n")
     }
@@ -43,17 +42,12 @@ export function renderProductAppTuiWorkbench(
       messageCount: 0,
       visibleTextRows: 0,
       originKinds: [],
-      continued: false,
       lines,
       text: lines.join("\n")
     }
   }
 
-  const workbench =
-    value.kind === "product-app.workbench.continued"
-      ? value.result.workbench
-      : value.workbench
-  const continued = value.kind === "product-app.workbench.continued"
+  const workbench = value.workbench
   const summary = workbench.summary
   const lines = [
     "Wanex Product App Workbench",
@@ -74,16 +68,9 @@ export function renderProductAppTuiWorkbench(
     `  assistant:${singleLine(summary.latestAssistantText ?? "none")}`,
     "",
     "Actions",
-    `  continue:${workbench.actions.continueCommandId}`,
+    `  submit:${workbench.actions.submitCommandId}`,
     `  transcript:${workbench.actions.transcriptCommandId}`,
-    `  provenance:${workbench.actions.provenanceCommandId}`,
-    ...(continued
-      ? [
-          "",
-          "Continued",
-          `  assistant:${singleLine(value.result.turn.assistantText)}`
-        ]
-      : [])
+    `  provenance:${workbench.actions.provenanceCommandId}`
   ]
 
   return {
@@ -104,7 +91,6 @@ export function renderProductAppTuiWorkbench(
     ...(summary.latestAssistantText === undefined
       ? {}
       : { latestAssistantText: summary.latestAssistantText }),
-    continued,
     lines,
     text: lines.join("\n")
   }

@@ -20,7 +20,8 @@ export type StorageRpcCommand =
   | TeamStorageRpcCommand
   | PluginStorageRpcCommand
   | ConnectorStorageRpcCommand
-  | ChannelStorageRpcCommand;
+  | ChannelStorageRpcCommand
+  | MediaGenerationStorageRpcCommand;
 export type RuntimeStorageRpcCommand =
   | AppendEventCommand
   | QueryEventsCommand
@@ -29,6 +30,7 @@ export type RuntimeStorageRpcCommand =
   | WriteAtomicFileCommand
   | IngestResourceCommand
   | GetResourceCommand
+  | ReadResourceContentCommand
   | ListResourcesCommand
   | CreateResourceTicketCommand
   | CleanupExpiredResourceTicketsCommand
@@ -59,13 +61,22 @@ export type SessionsStorageRpcCommand =
   | GetSessionCommand
   | ListSessionsCommand
   | AdmitSessionInputCommand
-  | SubmitSessionRunCommand
-  | InterruptSessionRunCommand
-  | SteerSessionRunCommand
-  | ListSessionRunControlsCommand
-  | ApplySessionRunControlCommand
+  | SubmitSessionTurnCommand
+  | StartSessionTurnAttemptCommand
+  | SettleSessionTurnCommand
+  | BeginProviderInvocationCommand
+  | MarkProviderInvocationOutputCommand
+  | FinishProviderInvocationCommand
+  | ListProviderInvocationsCommand
+  | RequestSessionTurnCancelCommand
+  | InterruptSessionTurnCommand
+  | SteerSessionTurnCommand
+  | ListSessionTurnControlsCommand
+  | ApplySessionTurnControlCommand
   | ListSessionInputsCommand
   | ListSessionMessagesCommand
+  | ListSessionTurnsCommand
+  | ListSessionAttemptsCommand
   | AppendSessionMessageCommand;
 export type NullableSessionKindWire = SessionKindWire | null;
 export type SessionKindWire = "chat" | "agent";
@@ -77,14 +88,24 @@ export type NullableSessionInputIntentWire = SessionInputIntentWire | null;
 export type SessionInputIntentWire = "normal" | "follow_up" | "steer" | "interrupt";
 export type NullableRunControlPolicyWire = RunControlPolicyWire | null;
 export type RunControlPolicyWire = "queue_after_current" | "abort_current_then_run" | "steer_at_safe_point";
-export type NullableSessionRunModeWire = SessionRunModeWire | null;
-export type SessionRunModeWire = "once" | "to_completion";
-export type NullableRetryPolicyWire = RetryPolicyWire | null;
+export type SessionTurnSettlementOutcomeWire =
+  "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+export type NullableMessagePartsWire = MessagePartsWire | null;
 export type NullableJsonObjectWire = JsonObjectWire | null;
-export type NullableSessionRunControlKindWire = SessionRunControlKindWire | null;
-export type SessionRunControlKindWire = "interrupt" | "steer";
-export type NullableSessionRunControlStatusWire = SessionRunControlStatusWire | null;
-export type SessionRunControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+export type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | null;
+export type SessionTurnControlKindWire = "interrupt" | "steer";
+export type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
+export type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+export type NullableSessionTurnStateWire = SessionTurnStateWire | null;
+export type SessionTurnStateWire =
+  | "queued"
+  | "running"
+  | "cancel_requested"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "recovery_required";
 export type ContextStorageRpcCommand =
   | PutContextEpochCommand
   | ActivateContextEpochCommand
@@ -99,12 +120,6 @@ export type ContextEpochStateWire = "building" | "active" | "superseded";
 export type NullableBoolean = boolean | null;
 export type ContextReplacementTierWire = "tier1_snip" | "tier2_placeholder";
 export type SchedulerStorageRpcCommand =
-  | ClaimRunnerCommand
-  | HeartbeatRunnerCommand
-  | CompleteRunCommand
-  | FailRunCommand
-  | ReleaseRunnerCommand
-  | CancelRunCommand
   | ReserveBudgetCommand
   | CommitBudgetCommand
   | RecordBudgetUsageCommand
@@ -119,12 +134,11 @@ export type SchedulerStorageRpcCommand =
   | CancelJobCommand
   | GetJobCommand
   | ListJobsCommand;
-export type NullableMessagePartsWire = MessagePartsWire | null;
 export type BudgetScopeKindWire = "session" | "turn" | "team_round" | "plugin" | "principal" | "provider_model";
 export type NullableBudgetWindowKindWire = BudgetWindowKindWire | null;
 export type BudgetWindowKindWire = "run" | "session" | "day" | "month";
 export type SchedulerJobKindWire =
-  | "session.run"
+  | "session.turn"
   | "workspace.task"
   | "team.delivery"
   | "team.round.close"
@@ -136,7 +150,9 @@ export type SchedulerJobKindWire =
   | "resource.cleanup"
   | "budget.grant_expire"
   | "provider.retry"
-  | "config.sync";
+  | "config.sync"
+  | "media.generate";
+export type NullableRetryPolicyWire = RetryPolicyWire | null;
 export type NullableSchedulerJobKindsWire = SchedulerJobKindsWire | null;
 export type SchedulerJobKindsWire = SchedulerJobKindWire[];
 export type NullableSchedulerJobStateWire = SchedulerJobStateWire | null;
@@ -146,12 +162,19 @@ export type NullableSchedulerJobKindWire = SchedulerJobKindWire | null;
 export type ToolsStorageRpcCommand =
   | BeginToolExecutionCommand
   | FinishToolExecutionCommand
-  | RecoverToolExecutionCommand
   | GetToolExecutionCommand
-  | ListToolExecutionsCommand;
+  | ListToolExecutionsCommand
+  | ListToolExecutionAttemptsCommand;
 export type NullableToolExecutionStateWire = ToolExecutionStateWire | null;
 export type ToolExecutionStateWire =
-  "running" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+  | "running"
+  | "retry_ready"
+  | "denied"
+  | "approval_required"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "recovery_required";
 export type WorkspaceStorageRpcCommand =
   | PutWorkspaceChangeSetCommand
   | GetWorkspaceChangeSetCommand
@@ -185,7 +208,7 @@ export type NullablePlanReferenceKindWire = PlanReferenceKindWire | null;
 export type PlanReferenceKindWire =
   | "session"
   | "session_input"
-  | "session_run"
+  | "session_turn"
   | "scheduler_job"
   | "workspace_change_proposal"
   | "delegation_graph"
@@ -211,7 +234,7 @@ export type NullableObjectiveReferenceKindWire = ObjectiveReferenceKindWire | nu
 export type ObjectiveReferenceKindWire =
   | "session"
   | "session_input"
-  | "session_run"
+  | "session_turn"
   | "scheduler_job"
   | "plan_proposal"
   | "workspace_change_proposal"
@@ -334,7 +357,29 @@ export type ChannelBindingStateWire = "active" | "revoked";
 export type NullableChannelInboundEventStateWire = ChannelInboundEventStateWire | null;
 export type ChannelInboundEventStateWire = "received" | "projected" | "ignored" | "failed";
 export type NullableChannelProjectionTargetKindWire = ChannelProjectionTargetKindWire | null;
-export type ChannelProjectionTargetKindWire = "session.run" | "team.turn" | "workspace.task" | "ignored";
+export type ChannelProjectionTargetKindWire = "session.turn" | "team.turn" | "workspace.task" | "ignored";
+export type MediaGenerationStorageRpcCommand =
+  | SubmitMediaGenerationCommand
+  | BeginMediaGenerationCommand
+  | AcceptMediaGenerationCommand
+  | CheckpointMediaGenerationCommand
+  | RecordMediaGenerationOutputsCommand
+  | CompleteMediaGenerationCommand
+  | SettleMediaGenerationCommand
+  | RequestMediaGenerationCancelCommand
+  | GetMediaGenerationCommand
+  | ListMediaGenerationCommand;
+export type NullableMediaGenerationOperationStateWire = MediaGenerationOperationStateWire | null;
+export type MediaGenerationOperationStateWire =
+  | "queued"
+  | "submitting"
+  | "polling"
+  | "materializing"
+  | "cancel_requested"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "recovery_required";
 export type StorageRpcCapability =
   | "storage.runtime"
   | "storage.sessions"
@@ -348,7 +393,8 @@ export type StorageRpcCapability =
   | "storage.team"
   | "storage.plugin"
   | "storage.connector"
-  | "storage.channel";
+  | "storage.channel"
+  | "storage.media_generation";
 export type StorageRpcErrorCode = StorageRpcProtocolErrorCode | StorageRpcServiceErrorCode;
 export type StorageRpcProtocolErrorCode =
   | "unsupported_storage_rpc_version"
@@ -387,7 +433,8 @@ export interface RuntimeEventInputWire {
 }
 export interface RuntimeEventScopeWire {
   session_id: NullableString;
-  run_id: NullableString;
+  turn_id: NullableString;
+  attempt_id: NullableString;
   input_id: NullableString;
   message_id: NullableString;
   resource_id: NullableString;
@@ -451,6 +498,13 @@ export interface GetResourceCommand {
   command: "get-resource";
   resource_id: string;
 }
+export interface ReadResourceContentCommand {
+  command: "read-resource-content";
+  resource_id: string;
+  expected_sha256: string;
+  offset: number;
+  limit: number;
+}
 export interface ListResourcesCommand {
   command: "list-resources";
   request: ListResourcesWire;
@@ -512,7 +566,7 @@ export interface AdmitSessionInputCommand {
   intent: NullableSessionInputIntentWire;
 }
 export interface SessionInputOriginWire {
-  kind: "interactive" | "scheduler" | "connector" | "agent" | "system" | "objective" | "plan";
+  kind: string;
   sourceRef?: string;
   parentRef?: string;
   metadata?: JsonObjectWire;
@@ -520,12 +574,13 @@ export interface SessionInputOriginWire {
 export interface JsonObjectWire {
   [k: string]: JsonValue;
 }
-export interface SubmitSessionRunCommand {
-  command: "submit-session-run";
-  request: SubmitSessionRunWire;
+export interface SubmitSessionTurnCommand {
+  command: "submit-session-turn";
+  request: SubmitSessionTurnWire;
 }
-export interface SubmitSessionRunWire {
+export interface SubmitSessionTurnWire {
   id: NullableString;
+  turn_id: NullableString;
   session_id: string;
   principal_id: string;
   idempotency_key: string;
@@ -534,71 +589,170 @@ export interface SubmitSessionRunWire {
   origin: NullableSessionInputOriginWire;
   intent: NullableSessionInputIntentWire;
   run_control_policy: NullableRunControlPolicyWire;
-  expected_run_id: NullableString;
+  expected_turn_id: NullableString;
   job_id: NullableString;
   job_idempotency_key: NullableString;
-  mode: NullableSessionRunModeWire;
+  execution_binding: JsonValue;
   max_steps: NullableInteger;
-  provider_profile_id: NullableString;
+  parent_turn_id: NullableString;
+  regenerates_turn_id: NullableString;
   scheduled_at: NullableInteger;
   not_before: NullableInteger;
   priority: NullableInteger;
-  max_attempts: NullableInteger;
-  retry_policy: NullableRetryPolicyWire;
   budget_grant_id: NullableString;
 }
-export interface RetryPolicyWire {
-  strategy: "none" | "fixed" | "exponential";
-  initial_delay_ms: NullableInteger;
-  max_delay_ms: NullableInteger;
+export interface StartSessionTurnAttemptCommand {
+  command: "start-session-turn-attempt";
+  request: StartSessionTurnAttemptWire;
 }
-export interface InterruptSessionRunCommand {
-  command: "interrupt-session-run";
-  request: InterruptSessionRunWire;
-}
-export interface InterruptSessionRunWire {
+export interface StartSessionTurnAttemptWire {
   session_id: string;
-  run_id: string;
+  turn_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+}
+export interface SettleSessionTurnCommand {
+  command: "settle-session-turn";
+  request: SettleSessionTurnWire;
+}
+export interface SettleSessionTurnWire {
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  outcome: SessionTurnSettlementOutcomeWire;
+  provider_invocation_id: NullableString;
+  assistant_message: NullableMessagePartsWire;
+  provider_state: JsonValue;
+  result: JsonValue;
+  error: JsonValue;
+  reason: NullableString;
+}
+export interface BeginProviderInvocationCommand {
+  command: "begin-provider-invocation";
+  request: BeginProviderInvocationWire;
+}
+export interface BeginProviderInvocationWire {
+  id: NullableString;
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  step: number;
+  invocation_number: number;
+  request_digest: string;
+}
+export interface MarkProviderInvocationOutputCommand {
+  command: "mark-provider-invocation-output";
+  request: MarkProviderInvocationOutputWire;
+}
+export interface MarkProviderInvocationOutputWire {
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  invocation_id: string;
+  provider_request_id: NullableString;
+}
+export interface FinishProviderInvocationCommand {
+  command: "finish-provider-invocation";
+  request: FinishProviderInvocationWire;
+}
+export interface FinishProviderInvocationWire {
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  invocation_id: string;
+  outcome: "succeeded" | "failed_before_output" | "ambiguous";
+  assistant_message: NullableMessagePartsWire;
+  provider_state: JsonValue;
+  provider_request_id: NullableString;
+  error: JsonValue;
+}
+export interface ListProviderInvocationsCommand {
+  command: "list-provider-invocations";
+  request: ListProviderInvocationsWire;
+}
+export interface ListProviderInvocationsWire {
+  turn_id: string;
+}
+export interface RequestSessionTurnCancelCommand {
+  command: "request-session-turn-cancel";
+  request: RequestSessionTurnCancelWire;
+}
+export interface RequestSessionTurnCancelWire {
+  session_id: string;
+  turn_id: string;
+  input_id: string;
+  job_id: string;
+  reason: string;
+}
+export interface InterruptSessionTurnCommand {
+  command: "interrupt-session-turn";
+  request: InterruptSessionTurnWire;
+}
+export interface InterruptSessionTurnWire {
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
   reason: string;
   principal_id: NullableString;
   idempotency_key: NullableString;
   origin: NullableSessionInputOriginWire;
   metadata: NullableJsonObjectWire;
 }
-export interface SteerSessionRunCommand {
-  command: "steer-session-run";
-  request: SteerSessionRunWire;
+export interface SteerSessionTurnCommand {
+  command: "steer-session-turn";
+  request: SteerSessionTurnWire;
 }
-export interface SteerSessionRunWire {
+export interface SteerSessionTurnWire {
   session_id: string;
   principal_id: string;
-  expected_run_id: string;
+  expected_turn_id: string;
+  expected_attempt_id: string;
   idempotency_key: string;
   content: MessagePartsWire;
   origin: NullableSessionInputOriginWire;
-  provider_profile_id: NullableString;
   metadata: NullableJsonObjectWire;
 }
-export interface ListSessionRunControlsCommand {
-  command: "list-session-run-controls";
-  request: ListSessionRunControlsWire;
+export interface ListSessionTurnControlsCommand {
+  command: "list-session-turn-controls";
+  request: ListSessionTurnControlsWire;
 }
-export interface ListSessionRunControlsWire {
+export interface ListSessionTurnControlsWire {
   session_id: string;
-  run_id: NullableString;
-  kind: NullableSessionRunControlKindWire;
-  status: NullableSessionRunControlStatusWire;
+  turn_id: NullableString;
+  attempt_id: NullableString;
+  kind: NullableSessionTurnControlKindWire;
+  status: NullableSessionTurnControlStatusWire;
   limit: NullableInteger;
 }
-export interface ApplySessionRunControlCommand {
-  command: "apply-session-run-control";
-  request: ApplySessionRunControlWire;
+export interface ApplySessionTurnControlCommand {
+  command: "apply-session-turn-control";
+  request: ApplySessionTurnControlWire;
 }
-export interface ApplySessionRunControlWire {
+export interface ApplySessionTurnControlWire {
   session_id: string;
-  run_id: string;
+  turn_id: string;
+  attempt_id: string;
   control_id: string;
-  runner_id: string;
+  job_id: string;
+  worker_id: string;
   lease_token: string;
 }
 export interface ListSessionInputsCommand {
@@ -609,16 +763,28 @@ export interface ListSessionMessagesCommand {
   command: "list-session-messages";
   session_id: string;
 }
+export interface ListSessionTurnsCommand {
+  command: "list-session-turns";
+  session_id: string;
+  state: NullableSessionTurnStateWire;
+}
+export interface ListSessionAttemptsCommand {
+  command: "list-session-attempts";
+  turn_id: string;
+}
 export interface AppendSessionMessageCommand {
   command: "append-session-message";
   session_id: string;
-  run_id: string;
+  turn_id: string;
+  attempt_id: string;
   input_id: string;
-  runner_id: string;
+  job_id: string;
+  worker_id: string;
   lease_token: string;
   idempotency_key: string;
-  role: "user" | "assistant" | "tool" | "system";
+  role: "assistant" | "tool" | "system";
   content: MessagePartsWire;
+  provider_state: JsonValue;
 }
 export interface PutContextEpochCommand {
   command: "put-context-epoch";
@@ -705,50 +871,6 @@ export interface ListContextReplacementsWire {
   policy_version: NullableString;
   epoch_id: NullableString;
 }
-export interface ClaimRunnerCommand {
-  command: "claim-runner";
-  session_id: string;
-  runner_id: string;
-  lease_ms: number;
-}
-export interface HeartbeatRunnerCommand {
-  command: "heartbeat-runner";
-  session_id: string;
-  runner_id: string;
-  lease_token: string;
-  lease_ms: number;
-}
-export interface CompleteRunCommand {
-  command: "complete-run";
-  session_id: string;
-  run_id: string;
-  input_id: string;
-  runner_id: string;
-  lease_token: string;
-  assistant_message: NullableMessagePartsWire;
-}
-export interface FailRunCommand {
-  command: "fail-run";
-  session_id: string;
-  run_id: string;
-  input_id: string;
-  runner_id: string;
-  lease_token: string;
-  error: JsonValue;
-}
-export interface ReleaseRunnerCommand {
-  command: "release-runner";
-  session_id: string;
-  runner_id: string;
-  lease_token: string;
-}
-export interface CancelRunCommand {
-  command: "cancel-run";
-  session_id: string;
-  run_id: string;
-  input_id: string;
-  reason: string;
-}
 export interface ReserveBudgetCommand {
   command: "reserve-budget";
   request: ReserveBudgetWire;
@@ -815,10 +937,16 @@ export interface EnqueueJobWire {
   scheduled_at: NullableInteger;
   not_before: NullableInteger;
   priority: NullableInteger;
+  concurrency_key: NullableString;
   max_attempts: NullableInteger;
   retry_policy: NullableRetryPolicyWire;
   idempotency_key: NullableString;
   budget_grant_id: NullableString;
+}
+export interface RetryPolicyWire {
+  strategy: "none" | "fixed" | "exponential";
+  initial_delay_ms: NullableInteger;
+  max_delay_ms: NullableInteger;
 }
 export interface ClaimJobCommand {
   command: "claim-job";
@@ -889,14 +1017,20 @@ export interface BeginToolExecutionCommand {
 }
 export interface BeginToolExecutionWire {
   session_id: string;
-  run_id: string;
+  turn_id: string;
+  attempt_id: string;
   input_id: string;
+  source_message_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
   principal_id: string;
   tool_call_id: string;
   tool_name: string;
   input: JsonValue;
   descriptor: JsonValue;
   permission: JsonValue;
+  state: "running" | "denied" | "approval_required";
   idempotency_key: string;
 }
 export interface FinishToolExecutionCommand {
@@ -904,19 +1038,19 @@ export interface FinishToolExecutionCommand {
   request: FinishToolExecutionWire;
 }
 export interface FinishToolExecutionWire {
+  session_id: string;
+  turn_id: string;
+  session_attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
   execution_id: string;
+  invocation_attempt_id: string;
   state: "succeeded" | "failed" | "cancelled";
   result: JsonValue;
   is_error: NullableBoolean;
   error: JsonValue;
-}
-export interface RecoverToolExecutionCommand {
-  command: "recover-tool-execution";
-  request: RecoverToolExecutionWire;
-}
-export interface RecoverToolExecutionWire {
-  execution_id: string;
-  action: "retry" | "require_recovery";
 }
 export interface GetToolExecutionCommand {
   command: "get-tool-execution";
@@ -928,9 +1062,16 @@ export interface ListToolExecutionsCommand {
 }
 export interface ListToolExecutionsWire {
   session_id: NullableString;
-  run_id: NullableString;
+  turn_id: NullableString;
   state: NullableToolExecutionStateWire;
   limit: NullableInteger;
+}
+export interface ListToolExecutionAttemptsCommand {
+  command: "list-tool-execution-attempts";
+  request: ListToolExecutionAttemptsWire;
+}
+export interface ListToolExecutionAttemptsWire {
+  execution_id: string;
 }
 export interface PutWorkspaceChangeSetCommand {
   command: "put-workspace-change-set";
@@ -1127,7 +1268,7 @@ export interface PutObjectiveAttemptWire {
   state: NullableObjectiveAttemptStateWire;
   session_id: NullableString;
   session_input_id: NullableString;
-  session_run_id: NullableString;
+  session_turn_id: NullableString;
   scheduler_job_id: NullableString;
   delegation_graph_id: NullableString;
   plan_proposal_id: NullableString;
@@ -1730,6 +1871,104 @@ export interface ListChannelProjectionsWire {
   target_kind: NullableChannelProjectionTargetKindWire;
   limit: NullableInteger;
 }
+export interface SubmitMediaGenerationCommand {
+  command: "submit-media-generation";
+  request: MediaGenerationSubmitWire;
+}
+export interface MediaGenerationSubmitWire {
+  id: NullableString;
+  job_id: NullableString;
+  principal_id: string;
+  idempotency_key: string;
+  binding: JsonValue;
+  priority: NullableInteger;
+}
+export interface BeginMediaGenerationCommand {
+  command: "begin-media-generation";
+  request: MediaGenerationLeaseWire;
+}
+export interface MediaGenerationLeaseWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+}
+export interface AcceptMediaGenerationCommand {
+  command: "accept-media-generation";
+  request: MediaGenerationAcceptWire;
+}
+export interface MediaGenerationAcceptWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+  external_operation_id: string;
+  provider_checkpoint: JsonValue;
+}
+export interface CheckpointMediaGenerationCommand {
+  command: "checkpoint-media-generation";
+  request: MediaGenerationCheckpointWire;
+}
+export interface MediaGenerationCheckpointWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+  provider_checkpoint: JsonValue;
+  progress: JsonValue;
+}
+export interface RecordMediaGenerationOutputsCommand {
+  command: "record-media-generation-outputs";
+  request: MediaGenerationOutputsWire;
+}
+export interface MediaGenerationOutputsWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+  output_references: JsonValue[];
+  progress: JsonValue;
+}
+export interface CompleteMediaGenerationCommand {
+  command: "complete-media-generation";
+  request: MediaGenerationCompleteWire;
+}
+export interface MediaGenerationCompleteWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+  output_resource_ids: string[];
+  result: JsonValue;
+}
+export interface SettleMediaGenerationCommand {
+  command: "settle-media-generation";
+  request: MediaGenerationSettleWire;
+}
+export interface MediaGenerationSettleWire {
+  operation_id: string;
+  worker_id: string;
+  lease_token: string;
+  outcome: "failed" | "cancelled" | "recovery_required";
+  error: JsonValue;
+  reason: NullableString;
+}
+export interface RequestMediaGenerationCancelCommand {
+  command: "request-media-generation-cancel";
+  request: MediaGenerationCancelWire;
+}
+export interface MediaGenerationCancelWire {
+  operation_id: string;
+  reason: string;
+}
+export interface GetMediaGenerationCommand {
+  command: "get-media-generation";
+  operation_id: string;
+}
+export interface ListMediaGenerationCommand {
+  command: "list-media-generation";
+  request: MediaGenerationListWire;
+}
+export interface MediaGenerationListWire {
+  principal_id: NullableString;
+  state: NullableMediaGenerationOperationStateWire;
+  limit: NullableUnsigned32;
+}
 export interface StorageRpcSuccessEnvelope {
   storage_rpc_version: StorageRpcVersion;
   request_id: StorageRpcRequestId;
@@ -1757,4 +1996,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "ee5daeea5adec04a7b839ed1908bb5aeb127b65856c07a7beea1339c54f75db9" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "7e55719f548e777b833bf5b42c94998ffe3151dd94a83cc63979680c11fd7c66" as const

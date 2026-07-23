@@ -3,6 +3,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import {
+  createToolRuntimeBinding,
   ToolRegistry,
   type ToolDefinition,
   type ToolExecutionResult,
@@ -26,6 +27,9 @@ export class WanexMcpRuntimeClient {
 
   constructor(options: WanexMcpRuntimeClientOptions) {
     if (options.id.trim().length === 0) throw new Error("MCP client id must not be empty")
+    if (options.capabilityRevision.trim().length === 0) {
+      throw new Error("MCP capabilityRevision must not be empty")
+    }
     if (
       options.requestTimeoutMs !== undefined &&
       (!Number.isInteger(options.requestTimeoutMs) || options.requestTimeoutMs <= 0)
@@ -119,6 +123,11 @@ export class WanexMcpRuntimeClient {
           ? {}
           : { openWorldHint: annotations.openWorldHint })
       },
+      runtimeBinding: createToolRuntimeBinding({
+        implementationId: `wanex.mcp.client:${this.options.id}:${remoteName}`,
+        implementationRevision: this.options.capabilityRevision,
+        configuration: mcpToolConfiguration(this.options)
+      }),
       invoke: async (invocation) => await this.invokeRemote(remoteName, invocation)
     }
   }
@@ -169,6 +178,31 @@ export class WanexMcpRuntimeClient {
       throw new Error("MCP client is not started")
     }
     return this.client
+  }
+}
+
+function mcpToolConfiguration(
+  options: WanexMcpRuntimeClientOptions
+): import("@wanex/protocol").JsonValue {
+  const transport = options.transport.kind === "stdio"
+    ? {
+        kind: options.transport.kind,
+        command: options.transport.command,
+        args: options.transport.args ?? [],
+        cwd: options.transport.cwd ?? null,
+        environmentKeys: Object.keys(options.transport.env ?? {}).sort()
+      }
+    : {
+        kind: options.transport.kind,
+        url: options.transport.url,
+        headerNames: Object.keys(options.transport.headers ?? {})
+          .map((name) => name.toLowerCase())
+          .sort()
+      }
+  return {
+    transport,
+    namePrefix: options.namePrefix ?? null,
+    requestTimeoutMs: options.requestTimeoutMs ?? null
   }
 }
 

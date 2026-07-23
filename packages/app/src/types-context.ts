@@ -1,31 +1,31 @@
 import type { AgentContextProfile } from "@wanex/runtime/context"
 import type { JsonValue } from "@wanex/protocol"
 
-export interface WanexAppShellAgentContextCommands {
+export interface WanexAppAgentContextCommands {
   setAgentContextProfile(
     profile: AgentContextProfile
-  ): Promise<WanexAppShellAgentContextProfileSetResult>
-  refreshAgentContextProfile(): Promise<WanexAppShellAgentContextProfileReloadResult>
+  ): Promise<WanexAppAgentContextProfileSetResult>
+  refreshAgentContextProfile(): Promise<WanexAppAgentContextProfileReloadResult>
   startAgentContextMonitor(
-    options?: WanexAppShellAgentContextMonitorOptions
-  ): Promise<WanexAppShellAgentContextMonitorStatus>
-  stopAgentContextMonitor(): Promise<WanexAppShellAgentContextMonitorStatus>
+    options?: WanexAppAgentContextMonitorOptions
+  ): Promise<WanexAppAgentContextMonitorStatus>
+  stopAgentContextMonitor(): Promise<WanexAppAgentContextMonitorStatus>
 }
 
-export interface WanexAppShellAgentContextStatus {
+export interface WanexAppAgentContextStatus {
   readonly configured: boolean
   readonly revision: number
-  readonly context?: WanexAppShellAgentContextSummary
+  readonly context?: WanexAppAgentContextSummary
 }
 
-export interface WanexAppShellAgentContextSummary {
+export interface WanexAppAgentContextSummary {
   readonly instructionSources: number
   readonly skillNames: readonly string[]
   readonly diagnostics: readonly string[]
   readonly activationToolRegistered: boolean
 }
 
-export interface WanexAppShellAgentContextProfileReloadResult {
+export interface WanexAppAgentContextProfileReloadResult {
   readonly key: string
   readonly reloaded: boolean
   readonly reason?: string
@@ -36,16 +36,16 @@ export interface WanexAppShellAgentContextProfileReloadResult {
   }
 }
 
-export interface WanexAppShellAgentContextProfileSetResult
-  extends WanexAppShellAgentContextProfileReloadResult {}
+export interface WanexAppAgentContextProfileSetResult
+  extends WanexAppAgentContextProfileReloadResult {}
 
-export interface WanexAppShellAgentContextMonitorOptions {
+export interface WanexAppAgentContextMonitorOptions {
   readonly intervalMs?: number
 }
 
-export interface WanexAppShellAgentContextMonitorStatus {
+export interface WanexAppAgentContextMonitorStatus {
   readonly running: boolean
   readonly intervalMs: number
   readonly refreshCount: number
-  readonly lastResult?: WanexAppShellAgentContextProfileReloadResult
+  readonly lastResult?: WanexAppAgentContextProfileReloadResult
 }

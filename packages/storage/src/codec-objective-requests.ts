@@ -99,7 +99,7 @@ export function toRpcPutObjectiveAttemptRequest(
     state: request.state ?? null,
     session_id: request.sessionId ?? null,
     session_input_id: request.sessionInputId ?? null,
-    session_run_id: request.sessionRunId ?? null,
+    session_turn_id: request.sessionTurnId ?? null,
     scheduler_job_id: request.schedulerJobId ?? null,
     delegation_graph_id: request.delegationGraphId ?? null,
     plan_proposal_id: request.planProposalId ?? null,

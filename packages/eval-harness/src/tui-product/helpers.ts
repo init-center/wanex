@@ -124,11 +124,11 @@ export function expectCompletedBridgeValue(
   assert(isRecord(bridgeResult), `${appCommand} bridge result must be an object`)
   assert(
     bridgeResult.appCommand === appCommand,
-    `${appCommand} bridge result should name the App Shell command`
+    `${appCommand} bridge result should name the App command`
   )
   assert(
     isRecord(bridgeResult.value),
-    `${appCommand} App Shell result must be an object`
+    `${appCommand} App result must be an object`
   )
   return bridgeResult.value
 }

@@ -1,5 +1,5 @@
 use crate::{Result, SystemService, BASELINE_SCHEMA, CURRENT_SCHEMA_VERSION};
-use rusqlite::Connection;
+use rusqlite::{Connection, Transaction, TransactionBehavior};
 use std::time::Duration;
 
 const SQLITE_BUSY_TIMEOUT: Duration = Duration::from_secs(5);
@@ -31,6 +31,16 @@ impl SystemService {
         conn.pragma_update(None, "foreign_keys", "ON")?;
         Ok(conn)
     }
+}
+
+pub(crate) fn begin_write_transaction(conn: &mut Connection) -> Result<Transaction<'_>> {
+    conn.transaction_with_behavior(TransactionBehavior::Deferred)
+        .map_err(Into::into)
+}
+
+pub(crate) fn begin_immediate_write_transaction(conn: &mut Connection) -> Result<Transaction<'_>> {
+    conn.transaction_with_behavior(TransactionBehavior::Immediate)
+        .map_err(Into::into)
 }
 
 fn application_table_count(conn: &Connection) -> Result<i64> {

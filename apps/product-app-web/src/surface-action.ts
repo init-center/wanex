@@ -10,11 +10,17 @@ import {
   idleProductAppWebWorkbench,
   productAppWebWorkbenchFromResult
 } from "./workbench-view.js"
+import {
+  idleProductAppWebConversation,
+  productAppWebConversationFromResult
+} from "./conversation-view.js"
 import type {
   CreateProductAppWebSurfaceOptions,
   ProductAppWebAction,
   ProductAppWebCommandPreviewViewModel,
   ProductAppWebCommandExecutionViewModel,
+  ProductAppWebConversationSourceResult,
+  ProductAppWebConversationViewModel,
   ProductAppWebExecutionActivityViewModel,
   ProductAppWebOperationStatusViewModel,
   ProductAppWebSnapshot,
@@ -28,6 +34,7 @@ export interface ProductAppWebSurfaceActionTransition {
   readonly commandPreview: ProductAppWebCommandPreviewViewModel
   readonly commandExecution: ProductAppWebCommandExecutionViewModel
   readonly executionActivity: ProductAppWebExecutionActivityViewModel
+  readonly conversation: ProductAppWebConversationViewModel
   readonly workbench: ProductAppWebWorkbenchViewModel
 }
 
@@ -46,6 +53,7 @@ export async function runProductAppWebSurfaceAction(request: {
   readonly commandPreview: ProductAppWebCommandPreviewViewModel
   readonly commandExecution: ProductAppWebCommandExecutionViewModel
   readonly executionActivity: ProductAppWebExecutionActivityViewModel
+  readonly conversation: ProductAppWebConversationViewModel
   readonly workbench: ProductAppWebWorkbenchViewModel
 }): Promise<ProductAppWebSurfaceActionTransition> {
   const actionResult = await dispatchAction(request.options, request.action)
@@ -64,6 +72,11 @@ export async function runProductAppWebSurfaceAction(request: {
   return {
     actionResult,
     operationStatus,
+    conversation: nextConversationAfterAction({
+      previous: request.conversation,
+      action: request.action,
+      actionResult
+    }),
     workbench: nextWorkbenchAfterAction({
       previous: request.workbench,
       action: request.action,
@@ -159,6 +172,17 @@ function operationStatusAfterAction(request: {
       result: request.actionResult.value,
       updatedAt
     })
+  }
+  if (isSuccessfulConversationEnvelope(request.actionResult)) {
+    const result = conversationResult(request.actionResult.value)
+    if (result.kind === "product-app.conversation-operation.rejected") {
+      return blockedOperationStatus({
+        action: request.action.type,
+        message: result.message,
+        updatedAt
+      })
+    }
+    return succeededOperationStatus(request.action.type, updatedAt)
   }
   if (isSuccessfulCommandPreviewEnvelope(request.actionResult)) {
     return commandPreviewOperationStatus({
@@ -276,10 +300,18 @@ async function dispatchAction(
       return await options.client.readExecutionReference(action.input)
     case "open-workbench":
       return await options.client.openWorkbench(action.input)
-    case "start-workbench":
-      return await options.client.startWorkbench(action.input)
-    case "continue-workbench":
-      return await options.client.continueWorkbench(action.input)
+    case "submit-conversation":
+      return await options.client.submitConversationOperation(action.input)
+    case "remove-conversation-attachment":
+      return await options.client.removeConversationAttachment(action.input)
+    case "refresh-conversation":
+      return await options.client.readTrackedConversationOperation(action.input)
+    case "cancel-conversation":
+      return await options.client.cancelTrackedConversationOperation(action.input)
+    case "regenerate-conversation":
+      return await options.client.regenerateTrackedConversationOperation(
+        action.input
+      )
   }
 }
 
@@ -375,6 +407,23 @@ function nextWorkbenchAfterAction(request: {
   return request.previous
 }
 
+function nextConversationAfterAction(request: {
+  readonly previous: ProductAppWebConversationViewModel
+  readonly action: ProductAppWebAction
+  readonly actionResult: ProductAppWebSurfaceEnvelopeLike
+}): ProductAppWebConversationViewModel {
+  if (isSuccessfulConversationEnvelope(request.actionResult)) {
+    return productAppWebConversationFromResult(
+      request.actionResult.value,
+      request.previous
+    )
+  }
+  if (request.action.type === "select-session" && request.actionResult.ok) {
+    return idleProductAppWebConversation(request.action.sessionId)
+  }
+  return request.previous
+}
+
 function nextCommandPreviewAfterAction(request: {
   readonly previous: ProductAppWebCommandPreviewViewModel
   readonly action: ProductAppWebAction
@@ -404,11 +453,35 @@ function isSuccessfulWorkbenchEnvelope(
   }
   return (
     value.value.kind === "product-app.workbench.opened" ||
-    value.value.kind === "product-app.workbench.started" ||
-    value.value.kind === "product-app.workbench.continued" ||
     value.value.kind === "product-app.workbench.no-session" ||
     value.value.kind === "product-app.workbench.failed"
   )
+}
+
+function isSuccessfulConversationEnvelope(
+  value: ProductAppWebSurfaceEnvelopeLike
+): value is ProductAppWebSurfaceEnvelopeLike & {
+  readonly ok: true
+  readonly value: ProductAppWebConversationSourceResult
+} {
+  if (!value.ok || !isRecord(value.value)) {
+    return false
+  }
+  return (
+    value.value.kind === "product-app.conversation-operation.found" ||
+    value.value.kind === "product-app.conversation-operation.untracked" ||
+    value.value.kind === "product-app.conversation-operation.missing" ||
+    value.value.kind === "product-app.conversation-operation.rejected" ||
+    value.value.kind === "product-app.conversation-operation.cancel"
+  )
+}
+
+function conversationResult(
+  result: ProductAppWebConversationSourceResult
+): Exclude<ProductAppWebConversationSourceResult, { readonly kind: "product-app.conversation-operation.cancel" }> {
+  return result.kind === "product-app.conversation-operation.cancel"
+    ? result.operation
+    : result
 }
 
 function isSuccessfulCommandPreviewEnvelope(

@@ -16,7 +16,7 @@ const THEMES = ["system", "light", "dark"] as const
 const DENSITIES = ["comfortable", "compact"] as const
 const MAX_COMMAND_ID_LENGTH = 512
 const MAX_COMMAND_PREVIEW_INPUT_JSON_LENGTH = 20_000
-const MAX_WORKBENCH_TEXT_LENGTH = 20_000
+const MAX_CONVERSATION_TEXT_LENGTH = 20_000
 
 type FieldResult<T> =
   | {
@@ -58,10 +58,16 @@ export function parseProductAppWebActionInput(
       return parseRefreshExecution(fields)
     case "open-workbench":
       return parseOpenWorkbench(fields)
-    case "start-workbench":
-      return parseStartWorkbench(fields)
-    case "continue-workbench":
-      return parseContinueWorkbench(fields)
+    case "submit-conversation":
+      return parseSubmitConversation(fields)
+    case "remove-conversation-attachment":
+      return parseRemoveConversationAttachment(fields)
+    case "refresh-conversation":
+      return parseConversationSessionAction("refresh-conversation", fields)
+    case "cancel-conversation":
+      return parseCancelConversation(fields)
+    case "regenerate-conversation":
+      return parseConversationSessionAction("regenerate-conversation", fields)
     default:
       return fail({
         code: "unknown_action",
@@ -317,11 +323,11 @@ function parseOpenWorkbench(
   })
 }
 
-function parseContinueWorkbench(
+function parseSubmitConversation(
   fields: Readonly<Record<string, unknown>>
 ): ProductAppWebActionInputParseResult {
-  const text = readRequiredText(fields, "text", {
-    maxLength: MAX_WORKBENCH_TEXT_LENGTH
+  const text = readOptionalText(fields, "text", {
+    maxLength: MAX_CONVERSATION_TEXT_LENGTH
   })
   if (!text.ok) {
     return fail(text.error)
@@ -333,23 +339,34 @@ function parseContinueWorkbench(
     return fail(sessionId.error)
   }
   return ok({
-    type: "continue-workbench",
+    type: "submit-conversation",
     input: {
-      text: text.value,
+      text: text.value ?? "",
       ...(sessionId.value === undefined ? {} : { sessionId: sessionId.value })
     }
   })
 }
 
-function parseStartWorkbench(
+function parseRemoveConversationAttachment(
   fields: Readonly<Record<string, unknown>>
 ): ProductAppWebActionInputParseResult {
-  const text = readRequiredText(fields, "text", {
-    maxLength: MAX_WORKBENCH_TEXT_LENGTH
+  const resourceId = readRequiredText(fields, "resourceId", { maxLength: 512 })
+  if (!resourceId.ok) return fail(resourceId.error)
+  const sessionId = readOptionalText(fields, "sessionId", { maxLength: 512 })
+  if (!sessionId.ok) return fail(sessionId.error)
+  return ok({
+    type: "remove-conversation-attachment",
+    input: {
+      resourceId: resourceId.value,
+      ...(sessionId.value === undefined ? {} : { sessionId: sessionId.value })
+    }
   })
-  if (!text.ok) {
-    return fail(text.error)
-  }
+}
+
+function parseConversationSessionAction(
+  type: "refresh-conversation" | "regenerate-conversation",
+  fields: Readonly<Record<string, unknown>>
+): ProductAppWebActionInputParseResult {
   const sessionId = readOptionalText(fields, "sessionId", {
     maxLength: 512
   })
@@ -357,9 +374,28 @@ function parseStartWorkbench(
     return fail(sessionId.error)
   }
   return ok({
-    type: "start-workbench",
+    type,
+    ...(sessionId.value === undefined
+      ? {}
+      : { input: { sessionId: sessionId.value } })
+  })
+}
+
+function parseCancelConversation(
+  fields: Readonly<Record<string, unknown>>
+): ProductAppWebActionInputParseResult {
+  const sessionId = readOptionalText(fields, "sessionId", { maxLength: 512 })
+  if (!sessionId.ok) {
+    return fail(sessionId.error)
+  }
+  const reason = readOptionalText(fields, "reason", { maxLength: 512 })
+  if (!reason.ok) {
+    return fail(reason.error)
+  }
+  return ok({
+    type: "cancel-conversation",
     input: {
-      text: text.value,
+      reason: reason.value ?? "user requested cancellation",
       ...(sessionId.value === undefined ? {} : { sessionId: sessionId.value })
     }
   })

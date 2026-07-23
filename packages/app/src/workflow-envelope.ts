@@ -1,18 +1,18 @@
-import type { WanexAppShellCommands } from "./types-app.js"
+import type { WanexAppCommands } from "./types-app.js"
 import type {
-  WanexAppShellRouteWorkflowEnvelopeErrorResult,
-  WanexAppShellRouteWorkflowEnvelopeResult,
-  WanexAppShellWorkflowEnvelope
+  WanexAppRouteWorkflowEnvelopeErrorResult,
+  WanexAppRouteWorkflowEnvelopeResult,
+  WanexAppWorkflowEnvelope
 } from "./types-workflow-envelope.js"
-import { normalizeWanexAppShellWorkflowEnvelope } from "./workflow-envelope-normalization.js"
+import { normalizeWanexAppWorkflowEnvelope } from "./workflow-envelope-normalization.js"
 
-export { normalizeWanexAppShellWorkflowEnvelope } from "./workflow-envelope-normalization.js"
+export { normalizeWanexAppWorkflowEnvelope } from "./workflow-envelope-normalization.js"
 
-export async function routeWanexAppShellWorkflowEnvelope(
-  commands: WanexAppShellCommands,
-  request: WanexAppShellWorkflowEnvelope
-): Promise<WanexAppShellRouteWorkflowEnvelopeResult> {
-  const normalized = normalizeWanexAppShellWorkflowEnvelope(request)
+export async function routeWanexAppWorkflowEnvelope(
+  commands: WanexAppCommands,
+  request: WanexAppWorkflowEnvelope
+): Promise<WanexAppRouteWorkflowEnvelopeResult> {
+  const normalized = normalizeWanexAppWorkflowEnvelope(request)
   if (normalized.kind === "error") {
     return normalized
   }
@@ -39,7 +39,7 @@ export async function routeWanexAppShellWorkflowEnvelope(
     kind: "agent",
     command: "runAgentTurn",
     result: await commands.runAgentTurn({
-      text: envelope.text,
+      content: [{ type: "text", text: envelope.text }],
       ...(envelope.sessionId === undefined
         ? {}
         : { sessionId: envelope.sessionId }),
@@ -48,16 +48,16 @@ export async function routeWanexAppShellWorkflowEnvelope(
       ...(agent.runControlPolicy === undefined
         ? {}
         : { runControlPolicy: agent.runControlPolicy }),
-      ...(agent.expectedRunId === undefined
+      ...(agent.expectedTurnId === undefined
         ? {}
-        : { expectedRunId: agent.expectedRunId })
+        : { expectedTurnId: agent.expectedTurnId })
     })
   }
 }
 
 function invalidEnvelopeRoute(
   message: string
-): WanexAppShellRouteWorkflowEnvelopeErrorResult {
+): WanexAppRouteWorkflowEnvelopeErrorResult {
   return {
     kind: "error",
     command: "routeWorkflowEnvelope",

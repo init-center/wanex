@@ -54,6 +54,13 @@ durable execution records. A resource-owning tool can declare that cancellation
 must drain its invocation promise before the durable terminal state is recorded;
 that tool remains responsible for a bounded cleanup promise.
 
+Every registered tool must also provide a `runtimeBinding`. The implementation
+ID and revision identify executable semantics; the optional configuration
+digest is created with `createToolRuntimeBinding()` from secret-free semantic
+configuration. Provider-visible definitions come from `registry.list()`.
+Admission/recovery evidence comes from `registry.snapshot()`, and any drift is
+rejected before provider dispatch rather than silently using a new handler.
+
 ## Minimal Use
 
 ```ts

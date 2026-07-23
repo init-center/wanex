@@ -88,6 +88,7 @@ function runtimeHostHealthDetail(
     started: health.started,
     workerCount: health.workerCount,
     memoryWorkerCount: health.memoryWorkerCount,
+    mediaGenerationWorkerCount: health.mediaGenerationWorkerCount,
     loopCount: health.loopCount,
     activeLoopCount: health.activeLoopCount,
     stoppedLoopCount: health.stoppedLoopCount,

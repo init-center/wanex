@@ -1,31 +1,83 @@
 import type { JsonValue } from "./json.js"
 import type { MessagePart } from "./message.js"
-import type { ProviderState } from "./provider.js"
+import type {
+  ProviderCapabilities,
+  ProviderProfileKind,
+  ProviderState
+} from "./provider.js"
+import type { ResourceInputEvidence } from "./resource.js"
 import type {
   RunControlPolicy,
   SessionInputIntent,
   SessionInputOrigin
 } from "./run-control.js"
-import type {
-  RetryPolicy,
-  SchedulerJobRecord
-} from "./scheduler.js"
+import type { SchedulerJobRecord } from "./scheduler.js"
 import type {
   MessageId,
   PrincipalId,
+  ProviderInvocationId,
+  SessionAttemptId,
   SessionId,
   SessionInputId,
-  SessionRunId
+  SessionTurnId
 } from "./ids.js"
 
 export type SessionInputState =
   | "admitted"
   | "control_pending"
-  | "claimed"
+  | "promoted"
   | "completed"
-  | "retry_pending"
   | "failed"
   | "cancelled"
+  | "rejected"
+
+export type SessionTurnState =
+  | "queued"
+  | "running"
+  | "cancel_requested"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "recovery_required"
+
+export type SessionAttemptState =
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "recovery_required"
+
+export interface ProviderExecutionBinding {
+  readonly profileId: string
+  readonly profileDigest: string
+  readonly adapterId: ProviderProfileKind
+  readonly providerId: string
+  readonly modelId: string
+  readonly capabilities: ProviderCapabilities
+  readonly baseUrl?: string
+  readonly secretRef?: string
+  readonly anthropicVersion?: string
+  readonly requestConfig?: Readonly<Record<string, JsonValue>>
+}
+
+export interface SessionTurnExecutionBinding {
+  readonly digest: string
+  readonly createdAt: number
+  readonly provider: ProviderExecutionBinding
+  readonly resources: readonly ResourceInputEvidence[]
+  readonly recovery: SessionTurnRecoveryBinding
+  readonly contextSnapshot?: JsonValue
+  readonly toolSnapshot?: JsonValue
+  readonly permissionSnapshot?: JsonValue
+  readonly environmentSnapshot?: JsonValue
+}
+
+export interface SessionTurnRecoveryBinding {
+  readonly providerMaxAttempts: number
+  readonly idempotentToolMaxAttempts: number
+}
 
 export interface SessionInput {
   readonly id: SessionInputId
@@ -39,20 +91,40 @@ export interface SessionInput {
   readonly createdAt: number
 }
 
-export type SessionRunState =
-  | "running"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "expired"
-
-export interface SessionRun {
-  readonly id: SessionRunId
+export interface SessionTurnRecord {
+  readonly id: SessionTurnId
   readonly sessionId: SessionId
+  readonly primaryInputId: SessionInputId
+  readonly jobId: string
+  readonly state: SessionTurnState
+  readonly executionBinding: SessionTurnExecutionBinding
+  readonly maxSteps: number
+  readonly currentAttemptId?: SessionAttemptId
+  readonly parentTurnId?: SessionTurnId
+  readonly regeneratesTurnId?: SessionTurnId
+  readonly cancelRequestedAt?: number
+  readonly cancelReason?: string
+  readonly result?: JsonValue
+  readonly error?: JsonValue
+  readonly createdAt: number
+  readonly updatedAt: number
+  readonly finishedAt?: number
+}
+
+export interface SessionAttemptRecord {
+  readonly id: SessionAttemptId
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
   readonly inputId: SessionInputId
-  readonly state: SessionRunState
-  readonly leaseOwner?: string
-  readonly leaseExpiresAt?: number
+  readonly jobId: string
+  readonly attemptNumber: number
+  readonly workerId: string
+  readonly leaseToken: string
+  readonly state: SessionAttemptState
+  readonly error?: JsonValue
+  readonly startedAt: number
+  readonly updatedAt: number
+  readonly finishedAt?: number
 }
 
 export type SessionStatus = "active" | "archived"
@@ -100,8 +172,9 @@ export interface AdmissionReceipt {
   readonly status: "admitted"
 }
 
-export interface SubmitSessionRunRequest {
+export interface SubmitSessionTurnRequest {
   readonly id?: SessionInputId
+  readonly turnId?: SessionTurnId
   readonly sessionId: SessionId
   readonly principalId: PrincipalId
   readonly idempotencyKey: string
@@ -110,23 +183,166 @@ export interface SubmitSessionRunRequest {
   readonly origin?: SessionInputOrigin
   readonly intent?: SessionInputIntent
   readonly runControlPolicy?: RunControlPolicy
-  readonly expectedRunId?: SessionRunId
+  readonly expectedTurnId?: SessionTurnId
   readonly jobId?: string
   readonly jobIdempotencyKey?: string
-  readonly mode?: "once" | "to_completion"
+  readonly executionBinding: SessionTurnExecutionBinding
   readonly maxSteps?: number
-  readonly providerProfileId?: string
+  readonly parentTurnId?: SessionTurnId
+  readonly regeneratesTurnId?: SessionTurnId
   readonly scheduledAt?: number
   readonly notBefore?: number
   readonly priority?: number
-  readonly maxAttempts?: number
-  readonly retryPolicy?: RetryPolicy
   readonly budgetGrantId?: string
 }
 
-export interface SubmitSessionRunReceipt {
+export interface SubmitSessionTurnReceipt {
   readonly admission: AdmissionReceipt
+  readonly turn: SessionTurnRecord
   readonly job: SchedulerJobRecord
+}
+
+export interface StartSessionTurnAttemptRequest {
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+}
+
+export interface StartSessionTurnAttemptReceipt {
+  readonly turn: SessionTurnRecord
+  readonly attempt: SessionAttemptRecord
+  readonly inputMessage: SessionMessageRecord
+}
+
+export type SessionTurnSettlementOutcome =
+  | "succeeded"
+  | "failed"
+  | "cancelled"
+  | "interrupted"
+  | "recovery_required"
+
+export interface SettleSessionTurnRequest {
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+  readonly outcome: SessionTurnSettlementOutcome
+  readonly providerInvocationId?: ProviderInvocationId
+  readonly assistantMessage?: readonly MessagePart[]
+  readonly providerState?: readonly ProviderState[]
+  readonly result?: JsonValue
+  readonly error?: JsonValue
+  readonly reason?: string
+}
+
+export type ProviderInvocationState =
+  | "dispatched"
+  | "output_observed"
+  | "succeeded"
+  | "failed_before_output"
+  | "ambiguous"
+
+export interface ProviderInvocationRecord {
+  readonly id: ProviderInvocationId
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly step: number
+  readonly invocationNumber: number
+  readonly executionBindingDigest: string
+  readonly requestDigest: string
+  readonly state: ProviderInvocationState
+  readonly outputObserved: boolean
+  readonly providerRequestId?: string
+  readonly assistantMessageId?: MessageId
+  readonly error?: JsonValue
+  readonly startedAt: number
+  readonly updatedAt: number
+  readonly finishedAt?: number
+}
+
+export interface BeginProviderInvocationRequest {
+  readonly id?: ProviderInvocationId
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+  readonly step: number
+  readonly invocationNumber: number
+  readonly requestDigest: string
+}
+
+export interface MarkProviderInvocationOutputRequest {
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+  readonly invocationId: ProviderInvocationId
+  readonly providerRequestId?: string
+}
+
+export interface FinishProviderInvocationRequest {
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+  readonly invocationId: ProviderInvocationId
+  readonly outcome: "succeeded" | "failed_before_output" | "ambiguous"
+  readonly assistantMessage?: readonly MessagePart[]
+  readonly providerState?: readonly ProviderState[]
+  readonly providerRequestId?: string
+  readonly error?: JsonValue
+}
+
+export interface FinishProviderInvocationReceipt {
+  readonly invocation: ProviderInvocationRecord
+  readonly assistantMessage?: SessionMessageRecord
+}
+
+export interface ListProviderInvocationsRequest {
+  readonly turnId: SessionTurnId
+}
+
+export interface SettleSessionTurnReceipt {
+  readonly turn: SessionTurnRecord
+  readonly attempt: SessionAttemptRecord
+  readonly job: SchedulerJobRecord
+  readonly assistantMessage?: SessionMessageRecord
+}
+
+export interface RequestSessionTurnCancelRequest {
+  readonly sessionId: SessionId
+  readonly turnId: SessionTurnId
+  readonly inputId: SessionInputId
+  readonly jobId: string
+  readonly reason: string
+}
+
+export interface RequestSessionTurnCancelReceipt {
+  readonly status:
+    | "cancelled"
+    | "cancel_requested"
+    | "already_terminal"
+    | "missing"
+  readonly turn?: SessionTurnRecord
+  readonly job?: SchedulerJobRecord
 }
 
 export interface SessionInputRecord {
@@ -139,7 +355,7 @@ export interface SessionInputRecord {
   readonly origin?: SessionInputOrigin
   readonly intent?: SessionInputIntent
   readonly runControlPolicy?: RunControlPolicy
-  readonly expectedRunId?: SessionRunId
+  readonly expectedTurnId?: SessionTurnId
   readonly status: SessionInputState
   readonly createdAt: number
   readonly updatedAt: number
@@ -148,78 +364,31 @@ export interface SessionInputRecord {
 export interface SessionMessageRecord {
   readonly id: MessageId
   readonly sessionId: SessionId
-  readonly runId?: SessionRunId
+  readonly sequence: number
+  readonly turnId: SessionTurnId
+  readonly attemptId?: SessionAttemptId
   readonly inputId?: SessionInputId
   readonly role: "user" | "assistant" | "tool" | "system"
   readonly status: "completed" | "failed" | "partial"
   readonly content: readonly MessagePart[]
-  readonly providerState?: ProviderState
+  readonly providerState?: readonly ProviderState[]
+  readonly executionBindingDigest: string
   readonly createdAt: number
   readonly updatedAt: number
 }
 
 export interface AppendSessionMessageRequest {
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly inputId: SessionInputId
-  readonly runnerId: string
+  readonly jobId: string
+  readonly workerId: string
   readonly leaseToken: string
   readonly idempotencyKey: string
   readonly role: "assistant" | "tool" | "system"
   readonly content: readonly MessagePart[]
-}
-
-export interface RunnerClaimRequest {
-  readonly sessionId: SessionId
-  readonly runnerId: string
-  readonly leaseMs: number
-}
-
-export interface RunnerClaim {
-  readonly sessionId: SessionId
-  readonly inputId: SessionInputId
-  readonly runId: SessionRunId
-  readonly runnerId: string
-  readonly leaseToken: string
-  readonly leaseExpiresAt: number
-}
-
-export interface RunnerHeartbeatRequest {
-  readonly sessionId: SessionId
-  readonly runnerId: string
-  readonly leaseToken: string
-  readonly leaseMs: number
-}
-
-export interface CompleteRunRequest {
-  readonly sessionId: SessionId
-  readonly runId: SessionRunId
-  readonly inputId: SessionInputId
-  readonly runnerId: string
-  readonly leaseToken: string
-  readonly assistantMessage?: readonly MessagePart[]
-}
-
-export interface FailRunRequest {
-  readonly sessionId: SessionId
-  readonly runId: SessionRunId
-  readonly inputId: SessionInputId
-  readonly runnerId: string
-  readonly leaseToken: string
-  readonly error: JsonValue
-}
-
-export interface ReleaseRunnerRequest {
-  readonly sessionId: SessionId
-  readonly runnerId: string
-  readonly leaseToken: string
-}
-
-export interface CancelRunRequest {
-  readonly sessionId: SessionId
-  readonly runId: SessionRunId
-  readonly inputId: SessionInputId
-  readonly reason: string
+  readonly providerState?: readonly ProviderState[]
 }
 
 export interface ListSessionInputsRequest {
@@ -230,12 +399,34 @@ export interface ListSessionMessagesRequest {
   readonly sessionId: SessionId
 }
 
+export interface ListSessionTurnsRequest {
+  readonly sessionId: SessionId
+  readonly state?: SessionTurnState
+}
+
+export interface ListSessionAttemptsRequest {
+  readonly turnId: SessionTurnId
+}
+
 export function isTerminalSessionInputState(
   state: SessionInputState
 ): boolean {
   return (
     state === "completed" ||
     state === "failed" ||
-    state === "cancelled"
+    state === "cancelled" ||
+    state === "rejected"
+  )
+}
+
+export function isTerminalSessionTurnState(
+  state: SessionTurnState
+): boolean {
+  return (
+    state === "succeeded" ||
+    state === "failed" ||
+    state === "cancelled" ||
+    state === "interrupted" ||
+    state === "recovery_required"
   )
 }

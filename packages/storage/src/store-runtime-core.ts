@@ -8,6 +8,8 @@ import type {
   JsonValue,
   ListResourcesRequest,
   QueryEventsInput,
+  ReadResourceContentRequest,
+  ResourceContentChunk,
   ResourceRecord,
   ResourceTicket,
   ResourceTicketCleanupReceipt,
@@ -21,6 +23,7 @@ import {
   fromRpcEvent,
   fromRpcFileRecord,
   fromRpcResourceRecord,
+  fromRpcResourceContentChunk,
   fromRpcResourceTicket,
   fromRpcResourceTicketCleanupReceipt,
   toRpcCleanupExpiredResourceTicketsRequest,
@@ -93,6 +96,19 @@ export class RuntimeStoreMethods extends RpcStoreFacetBase {
       resource_id: request.resourceId
     })
     return value === null ? null : fromRpcResourceRecord(value)
+  }
+
+  async readResourceContent(
+    request: ReadResourceContentRequest
+  ): Promise<ResourceContentChunk | null> {
+    const value = await this.callRuntime({
+      command: "read-resource-content",
+      resource_id: request.resourceId,
+      expected_sha256: request.expectedSha256,
+      offset: request.offset,
+      limit: request.limit
+    })
+    return value === null ? null : fromRpcResourceContentChunk(value)
   }
 
   async listResources(

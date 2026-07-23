@@ -1,20 +1,21 @@
 import { randomUUID } from "node:crypto"
 import { runEphemeralSideQuery } from "../core/index.js"
-import {
-  registerProfileSessionRunHandler,
-  registerSessionRunHandler
-} from "../worker/index.js"
+import { createTurnExecutionBinding } from "../turn-binding.js"
+import { registerSessionTurnHandler } from "../worker/index.js"
+import type { PreparedAgentContext } from "../../context/agent/index.js"
 import type { ContextCompiler } from "../../context/memory/index.js"
 import {
   FakeProviderAdapter,
+  requireProviderProfile,
   resolveProviderProfile,
   type ProviderAdapter
 } from "../../provider/index.js"
 import type {
   EphemeralQueryRequest,
   EphemeralQueryResult,
-  MessagePart
+  ProviderProfile
 } from "@wanex/protocol"
+import { admitUserMessage } from "../../resources/index.js"
 import {
   WanexJobRuntime,
   type RuntimeWorkerLoop,
@@ -22,9 +23,9 @@ import {
 } from "../../jobs/index.js"
 import type {
   AgentRunOnceResult,
-  SubmitAndRunUserTextResult,
-  SubmitUserTextRequest,
-  SubmitUserTextResult,
+  SubmitAndRunUserTurnResult,
+  SubmitUserTurnRequest,
+  SubmitUserTurnResult,
   WanexAgentRuntimeOptions
 } from "./types.js"
 
@@ -39,8 +40,12 @@ export class WanexAgentRuntime {
 
   private readonly defaultProviderProfileId: string | undefined
   private readonly directProvider: ProviderAdapter | undefined
+  private readonly secretResolver: WanexAgentRuntimeOptions["secretResolver"]
   private readonly contextCompiler: ContextCompiler | undefined
   private readonly timeoutMs: number | undefined
+  private readonly staticAgentContext: PreparedAgentContext | undefined
+  private readonly resolveAgentContext: WanexAgentRuntimeOptions["resolveAgentContext"]
+  private readonly recovery: WanexAgentRuntimeOptions["recovery"]
 
   constructor(options: WanexAgentRuntimeOptions) {
     const leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS
@@ -48,9 +53,7 @@ export class WanexAgentRuntime {
       options.provider ??
       (options.fakeResponseText === undefined
         ? undefined
-        : new FakeProviderAdapter({
-            responseText: options.fakeResponseText
-          }))
+        : new FakeProviderAdapter({ responseText: options.fakeResponseText }))
     this.runtime = new WanexJobRuntime({
       storage: options.storage,
       workerId: options.workerId ?? `agent_runtime_worker_${randomUUID()}`,
@@ -59,7 +62,10 @@ export class WanexAgentRuntime {
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-      kinds: ["session.run"]
+      kinds: ["session.turn"],
+      ...(options.activeAbortRegistry === undefined
+        ? {}
+        : { activeAbortRegistry: options.activeAbortRegistry })
     })
     this.storage = options.storage
     this.session = this.runtime.session
@@ -67,59 +73,31 @@ export class WanexAgentRuntime {
     this.config = this.runtime.config
     this.defaultProviderProfileId = options.providerProfileId
     this.directProvider = directProvider
-    this.contextCompiler = options.contextCompiler
+    this.secretResolver = options.secretResolver
+    this.contextCompiler =
+      options.agentContext?.contextCompiler ?? options.contextCompiler
     this.timeoutMs = options.timeoutMs
+    this.resolveAgentContext = options.resolveAgentContext
+    this.recovery = options.recovery
+    this.staticAgentContext = staticAgentContext(options)
 
-    if (directProvider !== undefined) {
-      registerSessionRunHandler({
-        worker: this.runtime.worker,
-        session: this.session,
-        provider: directProvider,
-        ...(options.tools === undefined ? {} : { tools: options.tools }),
-        ...(options.toolPermissionPolicy === undefined
-          ? {}
-          : { toolPermissionPolicy: options.toolPermissionPolicy }),
-        ...(options.toolRecoveryPolicy === undefined
-          ? {}
-          : { toolRecoveryPolicy: options.toolRecoveryPolicy }),
-        ...(options.toolMaxConcurrency === undefined
-          ? {}
-          : { toolMaxConcurrency: options.toolMaxConcurrency }),
-        ...(options.contextCompiler === undefined
-          ? {}
-          : { contextCompiler: options.contextCompiler }),
-        runnerId: options.runnerId ?? `agent_runtime_runner_${randomUUID()}`,
-        leaseMs,
-        ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-        ...(options.observeProviderEvent === undefined
-          ? {}
-          : { observeProviderEvent: options.observeProviderEvent })
-      })
-      return
-    }
-
-    registerProfileSessionRunHandler({
+    registerSessionTurnHandler({
       worker: this.runtime.worker,
       session: this.session,
       storage: options.storage,
-      ...(options.tools === undefined ? {} : { tools: options.tools }),
-      ...(options.toolPermissionPolicy === undefined
+      ...(directProvider === undefined ? {} : { directProvider }),
+      ...(options.secretResolver === undefined
         ? {}
-        : { toolPermissionPolicy: options.toolPermissionPolicy }),
-      ...(options.toolRecoveryPolicy === undefined
+        : { secretResolver: options.secretResolver }),
+      ...(this.staticAgentContext === undefined
         ? {}
-        : { toolRecoveryPolicy: options.toolRecoveryPolicy }),
+        : { agentContext: this.staticAgentContext }),
+      ...(options.resolveAgentContext === undefined
+        ? {}
+        : { resolveAgentContext: options.resolveAgentContext }),
       ...(options.toolMaxConcurrency === undefined
         ? {}
         : { toolMaxConcurrency: options.toolMaxConcurrency }),
-      ...(options.contextCompiler === undefined
-        ? {}
-        : { contextCompiler: options.contextCompiler }),
-      ...(options.providerProfileId === undefined
-        ? {}
-        : { providerProfileId: options.providerProfileId }),
-      runnerId: options.runnerId ?? `agent_runtime_runner_${randomUUID()}`,
-      leaseMs,
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
@@ -144,37 +122,57 @@ export class WanexAgentRuntime {
     )
   }
 
-  async submitUserText(
-    request: SubmitUserTextRequest
-  ): Promise<SubmitUserTextResult> {
-    if (request.text.length === 0) {
-      throw new Error("agent runtime text must not be empty")
-    }
-
+  async submitUserTurn(
+    request: SubmitUserTurnRequest
+  ): Promise<SubmitUserTurnResult> {
+    const profile = await this.resolveAdmissionProfile(request.providerProfileId)
+    const admitted = await admitUserMessage(this.storage, profile, request.content)
+    const title = request.title ?? defaultTurnTitle(request.content)
     const session =
       request.sessionId === undefined
         ? await this.session.create({
             id: `ses_${randomUUID()}`,
-            title: request.title ?? request.text,
+            title,
             kind: "agent"
           })
         : ((await this.session.get(request.sessionId)) ??
           (await this.session.create({
             id: request.sessionId,
-            title: request.title ?? request.text,
+            title,
             kind: "agent"
           })))
-
     const inputId = request.inputId ?? `inp_${randomUUID()}`
-    const providerProfileId =
-      request.providerProfileId ?? this.defaultProviderProfileId
-    const receipt = await this.session.submitRun({
+    const turnId = request.turnId ?? `turn_${randomUUID()}`
+    const agentContext =
+      (await this.resolveAgentContext?.({
+        sessionId: session.id,
+        turnId,
+        inputId,
+        signal: new AbortController().signal
+      })) ?? this.staticAgentContext
+    const executionBinding = createTurnExecutionBinding({
+      profile,
+      resources: admitted.resources,
+      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+      ...(agentContext === undefined ? {} : { agentContext })
+    })
+    const receipt = await this.session.submitTurn({
       id: inputId,
+      turnId,
       sessionId: session.id,
       principalId: request.principalId ?? "agent-runtime-user",
       idempotencyKey:
         request.idempotencyKey ?? `agent-runtime:${session.id}:${inputId}`,
-      content: [textPart("user_text", request.text)],
+      content: admitted.content,
+      executionBinding,
+      ...(request.origin === undefined ? {} : { origin: request.origin }),
+      ...(request.intent === undefined ? {} : { intent: request.intent }),
+      ...(request.runControlPolicy === undefined
+        ? {}
+        : { runControlPolicy: request.runControlPolicy }),
+      ...(request.expectedTurnId === undefined
+        ? {}
+        : { expectedTurnId: request.expectedTurnId }),
       ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
       ...(request.jobIdempotencyKey === undefined
         ? {}
@@ -182,16 +180,15 @@ export class WanexAgentRuntime {
       ...(request.budgetGrantId === undefined
         ? {}
         : { budgetGrantId: request.budgetGrantId }),
-      ...(request.mode === undefined ? {} : { mode: request.mode }),
       ...(request.maxSteps === undefined ? {} : { maxSteps: request.maxSteps }),
-      ...(providerProfileId === undefined ? {} : { providerProfileId })
+      ...(request.parentTurnId === undefined
+        ? {}
+        : { parentTurnId: request.parentTurnId }),
+      ...(request.regeneratesTurnId === undefined
+        ? {}
+        : { regeneratesTurnId: request.regeneratesTurnId })
     })
-
-    return {
-      session,
-      inputId,
-      receipt
-    }
+    return { session, inputId, turnId: receipt.turn.id, receipt }
   }
 
   async runOnce(): Promise<AgentRunOnceResult> {
@@ -199,33 +196,39 @@ export class WanexAgentRuntime {
     if (worker.status === "idle" || worker.job === null) {
       return { worker }
     }
-    return {
-      worker,
-      job: worker.job
-    }
+    return { worker, job: worker.job }
   }
 
   start(options: WorkerLoopOptions = {}): RuntimeWorkerLoop {
     return this.runtime.startWorkerLoop(options)
   }
 
-  async submitAndRunUserText(
-    request: SubmitUserTextRequest
-  ): Promise<SubmitAndRunUserTextResult> {
-    const submitted = await this.submitUserText(request)
+  async submitAndRunUserTurn(
+    request: SubmitUserTurnRequest
+  ): Promise<SubmitAndRunUserTurnResult> {
+    const submitted = await this.submitUserTurn(request)
     const run = await this.runOnce()
     const messages = await this.session.listMessages({
       sessionId: submitted.session.id
     })
-    return {
-      ...submitted,
-      run,
-      messages
-    }
+    return { ...submitted, run, messages }
   }
 
   async stop(): Promise<void> {
     await this.runtime.stop()
+  }
+
+  private async resolveAdmissionProfile(
+    providerProfileId: string | undefined
+  ): Promise<ProviderProfile> {
+    const profileId = providerProfileId ?? this.defaultProviderProfileId
+    if (profileId !== undefined) {
+      return await requireProviderProfile(this.storage, profileId)
+    }
+    if (this.directProvider !== undefined) {
+      return directProviderProfile(this.directProvider)
+    }
+    throw new Error("session turn submission requires a provider profile")
   }
 
   private async resolveEphemeralProvider(
@@ -233,7 +236,11 @@ export class WanexAgentRuntime {
   ): Promise<ProviderAdapter> {
     const profileId = providerProfileId ?? this.defaultProviderProfileId
     if (profileId !== undefined) {
-      return await resolveProviderProfile(this.storage, profileId)
+      return await resolveProviderProfile(
+        this.storage,
+        profileId,
+        this.secretResolver
+      )
     }
     if (this.directProvider !== undefined) {
       return this.directProvider
@@ -242,12 +249,53 @@ export class WanexAgentRuntime {
   }
 }
 
-type WanexRuntimeOptionsStorage = ConstructorParameters<typeof WanexJobRuntime>[0]["storage"]
+type WanexRuntimeOptionsStorage = ConstructorParameters<
+  typeof WanexJobRuntime
+>[0]["storage"]
 
-function textPart(id: string, text: string): MessagePart {
-  return {
-    type: "text",
-    id,
-    text
+function staticAgentContext(
+  options: WanexAgentRuntimeOptions
+): PreparedAgentContext | undefined {
+  if (options.agentContext !== undefined) {
+    if (
+      options.contextCompiler !== undefined ||
+      options.tools !== undefined ||
+      options.toolPermissionPolicy !== undefined
+    ) {
+      throw new Error(
+        "agentContext cannot be combined with contextCompiler, tools, or toolPermissionPolicy"
+      )
+    }
+    return options.agentContext
   }
+  if (
+    options.contextCompiler === undefined &&
+    options.tools === undefined &&
+    options.toolPermissionPolicy === undefined
+  ) {
+    return undefined
+  }
+  return {
+    ...(options.contextCompiler === undefined
+      ? {}
+      : { contextCompiler: options.contextCompiler }),
+    ...(options.tools === undefined ? {} : { tools: options.tools }),
+    ...(options.toolPermissionPolicy === undefined
+      ? {}
+      : { toolPermissionPolicy: options.toolPermissionPolicy })
+  }
+}
+
+function directProviderProfile(provider: ProviderAdapter): ProviderProfile {
+  return {
+    id: `direct:${provider.providerId}:${provider.modelId}`,
+    kind: provider.kind,
+    providerId: provider.providerId,
+    modelId: provider.modelId,
+    capabilities: provider.capabilities
+  }
+}
+
+function defaultTurnTitle(content: SubmitUserTurnRequest["content"]): string {
+  return content.find((part) => part.type === "text")?.text ?? "Resource conversation"
 }

@@ -48,6 +48,12 @@ describe("verify", () => {
     expect(stepByName(steps, "Native artifact staging tests").args).toEqual([
       "test:native-artifact"
     ])
+    expect(stepByName(steps, "Native Runtime proof tests").args).toEqual([
+      "test:native-runtime-proof"
+    ])
+    expect(stepByName(steps, "Host distribution budget tests").args).toEqual([
+      "test:host-distribution-budget"
+    ])
     expect(stepByName(steps, "Electron boundary typecheck").args).toEqual([
       "check:electron-boundary"
     ])

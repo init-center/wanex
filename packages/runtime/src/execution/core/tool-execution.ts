@@ -6,7 +6,6 @@ import type {
 import type { ToolExecutionStore } from "@wanex/storage"
 import type {
   ToolPermissionPolicy,
-  ToolRecoveryPolicy,
   ToolRegistry
 } from "../../tools/index.js"
 
@@ -15,9 +14,13 @@ export interface RunToolBatchRequest {
   readonly principalId: string
   readonly sessionId: string
   readonly inputId: string
-  readonly runId: string
+  readonly turnId: string
+  readonly attemptId: string
+  readonly sourceMessageId: string
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
   readonly permissionPolicy: ToolPermissionPolicy | undefined
-  readonly recoveryPolicy: ToolRecoveryPolicy | undefined
   readonly storage: ToolExecutionStore
   readonly signal: RuntimeAbortSignal | undefined
   readonly timeoutMs: number | undefined
@@ -36,20 +39,25 @@ export async function runToolBatch(
     request.calls,
     request.maxConcurrency,
     async (call) => {
+      if (request.signal?.aborted === true) {
+        return cancelledBeforeStart(call)
+      }
       const outcome = await tools.execute({
         principalId: request.principalId,
         sessionId: request.sessionId,
         inputId: request.inputId,
-        runId: request.runId,
+        turnId: request.turnId,
+        attemptId: request.attemptId,
+        sourceMessageId: request.sourceMessageId,
+        jobId: request.jobId,
+        workerId: request.workerId,
+        leaseToken: request.leaseToken,
         call,
-        idempotencyKey: `tool:${request.runId}:${call.toolCallId}`,
+        idempotencyKey: `tool:${request.sourceMessageId}:${call.toolCallId}`,
         storage: request.storage,
         ...(request.permissionPolicy === undefined
           ? {}
           : { permissionPolicy: request.permissionPolicy }),
-        ...(request.recoveryPolicy === undefined
-          ? {}
-          : { recoveryPolicy: request.recoveryPolicy }),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
         ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs }),
         ...(request.budgetGrantId === undefined
@@ -65,6 +73,21 @@ export async function runToolBatch(
       return outcome.result
     }
   )
+}
+
+function cancelledBeforeStart(
+  call: ToolCallMessagePart
+): ToolResultMessagePart {
+  return {
+    type: "tool_result",
+    id: "tool_result_cancelled_" + call.toolCallId,
+    toolCallId: call.toolCallId,
+    result: {
+      error: "tool_cancelled",
+      message: "tool invocation cancelled before start"
+    },
+    isError: true
+  }
 }
 
 async function mapConcurrentOrdered<T, R>(

@@ -4,12 +4,13 @@ import type {
   SchedulerJobState,
   SessionInputRecord
 } from "@wanex/protocol"
-import { runWanexAppShellAgentTurn } from "./agent.js"
-import type { BootstrappedWanexAppShellRuntime } from "./runtime.js"
+import { runWanexAppAgentTurn } from "./agent.js"
+import type { WanexAppConversationOperationController } from "./conversation-operation.js"
+import type { BootstrappedWanexAppRuntime } from "./runtime.js"
 import type {
-  WanexAppShellScheduleJobSummary,
-  WanexAppShellScheduledTickResult,
-  WanexAppShellSubmitScheduledTickRequest
+  WanexAppScheduleJobSummary,
+  WanexAppScheduledTickResult,
+  WanexAppSubmitScheduledTickRequest
 } from "./types-schedule.js"
 
 const ACTIVE_JOB_STATES = new Set<SchedulerJobState>([
@@ -21,13 +22,14 @@ const ACTIVE_JOB_STATES = new Set<SchedulerJobState>([
 
 const DEFAULT_ACTIVE_JOB_SCAN_LIMIT = 50
 
-export async function submitWanexAppShellScheduledTick(
-  runtime: BootstrappedWanexAppShellRuntime,
+export async function submitWanexAppScheduledTick(
+  runtime: BootstrappedWanexAppRuntime,
   options: {
-    readonly request: WanexAppShellSubmitScheduledTickRequest
+    readonly request: WanexAppSubmitScheduledTickRequest
     readonly providerProfileId: string
+    readonly conversationOperations: WanexAppConversationOperationController
   }
-): Promise<WanexAppShellScheduledTickResult> {
+): Promise<WanexAppScheduledTickResult> {
   const request = validateScheduledTick(options.request)
   const previousJob = await resolvePreviousActiveJob(runtime, request)
   if (previousJob !== null) {
@@ -40,41 +42,46 @@ export async function submitWanexAppShellScheduledTick(
     }
   }
 
-  const result = await runWanexAppShellAgentTurn(runtime, {
-    request: {
-      text: request.text,
-      ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
-      ...(request.principalId === undefined
-        ? {}
-        : { principalId: request.principalId }),
-      ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
-      ...(request.idempotencyKey === undefined
-        ? {}
-        : { idempotencyKey: request.idempotencyKey }),
-      ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
-      ...(request.jobIdempotencyKey === undefined
-        ? {}
-        : { jobIdempotencyKey: request.jobIdempotencyKey }),
-      origin: {
-        kind: "scheduler",
-        sourceRef: request.scheduleId,
-        metadata: compactMetadata({
-          scheduleId: request.scheduleId,
-          tickId: request.tickId,
-          nonOverlap: request.nonOverlap,
-          ...(request.classifier === undefined
-            ? {}
-            : {
-                classifierId: request.classifier.classifierId,
-                classifierLabel: request.classifier.label,
-                classifierConfidence: request.classifier.confidence
-              })
-        })
+  const result = await runWanexAppAgentTurn(
+    options.conversationOperations,
+    {
+      request: {
+        content: [{ type: "text", text: request.text }],
+        ...(request.sessionId === undefined
+          ? {}
+          : { sessionId: request.sessionId }),
+        ...(request.principalId === undefined
+          ? {}
+          : { principalId: request.principalId }),
+        ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
+        ...(request.idempotencyKey === undefined
+          ? {}
+          : { idempotencyKey: request.idempotencyKey }),
+        ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
+        ...(request.jobIdempotencyKey === undefined
+          ? {}
+          : { jobIdempotencyKey: request.jobIdempotencyKey }),
+        origin: {
+          kind: "scheduler",
+          sourceRef: request.scheduleId,
+          metadata: compactMetadata({
+            scheduleId: request.scheduleId,
+            tickId: request.tickId,
+            nonOverlap: request.nonOverlap,
+            ...(request.classifier === undefined
+              ? {}
+              : {
+                  classifierId: request.classifier.classifierId,
+                  classifierLabel: request.classifier.label,
+                  classifierConfidence: request.classifier.confidence
+                })
+          })
+        },
+        intent: "normal"
       },
-      intent: "normal"
-    },
-    providerProfileId: options.providerProfileId
-  })
+      providerProfileId: options.providerProfileId
+    }
+  )
 
   return {
     status: "submitted",
@@ -90,8 +97,8 @@ export async function submitWanexAppShellScheduledTick(
 }
 
 async function resolvePreviousActiveJob(
-  runtime: BootstrappedWanexAppShellRuntime,
-  request: WanexAppShellSubmitScheduledTickRequest
+  runtime: BootstrappedWanexAppRuntime,
+  request: WanexAppSubmitScheduledTickRequest
 ): Promise<SchedulerJobRecord | null> {
   if (request.nonOverlap !== true) {
     return null
@@ -108,7 +115,7 @@ async function resolvePreviousActiveJob(
     throw new Error("schedule active job scan limit must be a positive integer")
   }
   const jobs = await runtime.storage.listJobs({
-    kind: "session.run",
+    kind: "session.turn",
     limit: scanLimit
   })
   for (const job of jobs) {
@@ -123,13 +130,13 @@ async function resolvePreviousActiveJob(
 }
 
 function isActiveJob(job: SchedulerJobRecord): boolean {
-  return job.kind === "session.run" && ACTIVE_JOB_STATES.has(job.state)
+  return job.kind === "session.turn" && ACTIVE_JOB_STATES.has(job.state)
 }
 
 async function jobBelongsToSchedule(
-  runtime: BootstrappedWanexAppShellRuntime,
+  runtime: BootstrappedWanexAppRuntime,
   job: SchedulerJobRecord,
-  request: WanexAppShellSubmitScheduledTickRequest
+  request: WanexAppSubmitScheduledTickRequest
 ): Promise<boolean> {
   const payload = objectValue(job.payload)
   if (payload === undefined) {
@@ -146,7 +153,7 @@ async function jobBelongsToSchedule(
 
 function inputBelongsToSchedule(
   input: SessionInputRecord,
-  request: WanexAppShellSubmitScheduledTickRequest
+  request: WanexAppSubmitScheduledTickRequest
 ): boolean {
   const metadata = input.origin?.metadata
   return (
@@ -158,8 +165,8 @@ function inputBelongsToSchedule(
 }
 
 function validateScheduledTick(
-  request: WanexAppShellSubmitScheduledTickRequest
-): WanexAppShellSubmitScheduledTickRequest {
+  request: WanexAppSubmitScheduledTickRequest
+): WanexAppSubmitScheduledTickRequest {
   validateNonEmpty(request.scheduleId, "schedule id")
   validateNonEmpty(request.tickId, "schedule tick id")
   validateNonEmpty(request.text, "schedule tick text")
@@ -191,11 +198,11 @@ function validateNonEmpty(value: string, label: string): void {
 
 function projectJobSummary(
   job: SchedulerJobRecord
-): WanexAppShellScheduleJobSummary {
+): WanexAppScheduleJobSummary {
   return {
     jobId: job.id,
     state: job.state,
-    kind: "session.run",
+    kind: "session.turn",
     scheduledAt: job.scheduledAt,
     updatedAt: job.updatedAt
   }

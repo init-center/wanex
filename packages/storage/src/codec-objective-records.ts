@@ -136,9 +136,9 @@ export function fromRpcObjectiveAttemptRecord(
         value.session_input_id,
         "objective_attempt.session_input_id"
       ),
-      sessionRunId: optionalString(
-        value.session_run_id,
-        "objective_attempt.session_run_id"
+      sessionTurnId: optionalString(
+        value.session_turn_id,
+        "objective_attempt.session_turn_id"
       ),
       schedulerJobId: optionalString(
         value.scheduler_job_id,

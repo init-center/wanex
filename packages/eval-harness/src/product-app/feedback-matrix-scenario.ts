@@ -26,10 +26,11 @@ import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
 import { lines } from "../product-app-tui/helpers.js"
+import { waitForProductConversation } from "./conversation-helpers.js"
 
 const BLOCKED_PROFILE_ID = "eval-feedback-missing-key"
 const READY_PROFILE_ID = "eval-feedback-ready"
-const READY_SECRET = "eval-feedback-secret"
+const READY_SECRET_REF = "env://EVAL_FEEDBACK_SECRET"
 
 export const productAppFeedbackMatrixScenario = createEvalScenario({
   id: "product.app-feedback-matrix-contract",
@@ -55,6 +56,7 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
       providerProfile: {
         id: BLOCKED_PROFILE_ID,
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "eval-feedback-blocked-model",
         baseUrl: "https://provider.example.test/v1"
@@ -78,9 +80,14 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         client: tuiClient,
         now: () => 19_002
       })
+      const webMode = expectSubmitResponse(
+        await handleProductAppWebRequest(web, webSetModeRequest({
+          requestId: "eval_feedback_web_mode"
+        }))
+      )
 
       const blockedWeb = expectSubmitResponse(
-        await handleProductAppWebRequest(web, webStartWorkbenchRequest({
+        await handleProductAppWebRequest(web, webSubmitConversationRequest({
           requestId: "eval_feedback_web_blocked",
           text: "web should report blocked provider"
         }))
@@ -102,8 +109,8 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         surface: tui,
         input: lines([
           "ask tui should report blocked provider",
-          "preview product.agent.run {\"text\":\"tui preview should report blocked provider\"}",
-          "execute product.agent.run {\"text\":\"tui execution should report blocked provider\"}",
+          "preview product.agent.submit {\"text\":\"tui preview should report blocked provider\"}",
+          "execute product.agent.submit {\"text\":\"tui execution should report blocked provider\"}",
           "quit"
         ]),
         write(chunk) {
@@ -115,9 +122,10 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
       const trustedSetup = await providerSetup.configureProviderProfile({
         id: READY_PROFILE_ID,
         kind: "fake",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "fake",
         modelId: "eval-feedback-ready-model",
-        apiKey: READY_SECRET,
+        secretRef: READY_SECRET_REF,
         makeActive: true
       })
 
@@ -125,11 +133,17 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
       await tui.refresh()
 
       const readyWeb = expectSubmitResponse(
-        await handleProductAppWebRequest(web, webStartWorkbenchRequest({
+        await handleProductAppWebRequest(web, webSubmitConversationRequest({
           requestId: "eval_feedback_web_ready",
           text: "web should report succeeded provider"
         }))
       )
+      const readyWebSessionId = readyWeb.document.snapshot.conversation.sessionId
+      assert(
+        typeof readyWebSessionId === "string",
+        "ready Web submit should select a conversation session"
+      )
+      const settledReadyWeb = await waitForWebConversation(web, readyWebSessionId)
       const readyWebPreview = expectSubmitResponse(
         await handleProductAppWebRequest(web, webPreviewCommandRequest({
           requestId: "eval_feedback_web_preview_ready",
@@ -148,15 +162,28 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         surface: tui,
         input: lines([
           "ask tui should complete after setup",
-          "preview product.agent.run {\"text\":\"tui preview should report runnable provider\"}",
-          "execute product.agent.run {\"text\":\"tui execution should complete after setup\"}",
+          "preview product.agent.submit {\"text\":\"tui preview should report runnable provider\"}",
+          "execute product.status",
           "quit"
         ]),
         write(chunk) {
           readyTuiChunks.push(chunk)
         }
       })
-      const readyTuiOutput = readyTuiChunks.join("")
+      assert(
+        typeof readyTui.activeSessionId === "string",
+        "ready TUI submit should select a conversation session"
+      )
+      await waitForProductConversation(app, readyTui.activeSessionId)
+      const settledTuiChunks: string[] = []
+      await runProductAppTuiLineSession({
+        surface: tui,
+        input: lines(["operation", "quit"]),
+        write(chunk) {
+          settledTuiChunks.push(chunk)
+        }
+      })
+      const readyTuiOutput = `${readyTuiChunks.join("")}\n${settledTuiChunks.join("")}`
 
       const rendererSerialized = JSON.stringify([
         blockedWeb,
@@ -172,13 +199,18 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
       const trustedSerialized = JSON.stringify(trustedSetup)
 
       assert(
+        webMode.submitResult.ok &&
+          webMode.document.snapshot.view.mode === "workbench",
+        "Web feedback matrix should explicitly enter workbench mode"
+      )
+      assert(
         blockedWeb.submitResult.ok &&
           blockedWeb.document.snapshot.view.providerRunGate.state === "blocked" &&
-          blockedWeb.document.snapshot.view.providerRunGate.canSubmitWorkbench === false &&
+          blockedWeb.document.snapshot.view.providerRunGate.canSubmitConversation === false &&
           blockedWeb.document.snapshot.view.operationStatus.state === "blocked" &&
           blockedWeb.document.snapshot.view.operationStatus.action ===
-            "start-workbench" &&
-          blockedWeb.document.snapshot.workbench.state === "failed" &&
+            "submit-conversation" &&
+          blockedWeb.document.snapshot.conversation.state === "rejected" &&
           blockedWeb.document.html.includes('data-operation-state="blocked"'),
         "Web should report blocked provider execution as operationStatus=blocked"
       )
@@ -210,8 +242,7 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
           blockedTui.previewCommandCount === 1 &&
           blockedTui.executeCommandCount === 1 &&
           blockedTui.errorCount === 0 &&
-          blockedTuiOutput.includes("status:blocked") &&
-          blockedTuiOutput.includes("code:provider_not_ready") &&
+          blockedTuiOutput.includes("state:rejected") &&
           blockedTuiOutput.includes("reason:provider_not_ready"),
         "TUI should report blocked provider execution and preview as blocked outcomes"
       )
@@ -219,15 +250,14 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         trustedSetup.kind === "product-app-local.provider-setup.configured" &&
           trustedSetup.profile.id === READY_PROFILE_ID &&
           trustedSetup.profile.active === true &&
-          trustedSetup.profile.hasApiKey === true &&
-          trustedSetup.profile.apiKeyRedacted === "***" &&
+          trustedSetup.profile.credentialConfigured === true &&
           trustedSetup.readiness.status === "ready" &&
           trustedSetup.readiness.activeProfileId === READY_PROFILE_ID,
         "trusted provider setup should activate a redacted ready provider"
       )
       assert(
         readyDocument.snapshot.view.providerRunGate.state === "ready" &&
-          readyDocument.snapshot.view.providerRunGate.canSubmitWorkbench === true &&
+          readyDocument.snapshot.view.providerRunGate.canSubmitConversation === true &&
           readyDocument.snapshot.view.providerRunGate.activeProfileId ===
             READY_PROFILE_ID,
         "Web refresh should observe trusted provider setup readiness"
@@ -236,17 +266,17 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         readyWeb.submitResult.ok &&
           readyWeb.document.snapshot.view.operationStatus.state === "succeeded" &&
           readyWeb.document.snapshot.view.operationStatus.action ===
-            "start-workbench" &&
-          readyWeb.document.snapshot.workbench.state === "ready" &&
+            "submit-conversation" &&
+          settledReadyWeb.conversation.state === "succeeded" &&
           readyWeb.document.html.includes('data-operation-state="succeeded"'),
-        "Web should report a successful workbench start after trusted setup"
+        "Web should submit immediately and reconcile durable conversation success"
       )
       assert(
         readyWebPreview.submitResult.ok &&
           readyWebPreview.document.snapshot.view.commandPreview.state ===
             "runnable" &&
           readyWebPreview.document.snapshot.view.commandPreview.commandId ===
-            "product.agent.run" &&
+            "product.agent.submit" &&
           readyWebPreview.document.html.includes(
             'data-command-preview-state="runnable"'
           ),
@@ -257,7 +287,7 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
           readyWebExecution.document.snapshot.view.commandExecution.state ===
             "completed" &&
           readyWebExecution.document.snapshot.view.commandExecution.commandId ===
-            "product.agent.run" &&
+            "product.agent.submit" &&
           readyWebExecution.document.snapshot.view.operationStatus.state ===
             "succeeded",
         "Web should report completed typed command execution after setup"
@@ -268,13 +298,13 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
           readyTui.executeCommandCount === 1 &&
           readyTui.errorCount === 0 &&
           typeof readyTui.activeSessionId === "string" &&
-          readyTuiOutput.includes("Wanex Product App Agent Turn") &&
-          readyTuiOutput.includes("Fake response from eval-feedback-ready-model") &&
+          readyTuiOutput.includes("Wanex Product App Conversation") &&
+          readyTuiOutput.includes("state:succeeded") &&
           readyTuiOutput.includes("status:runnable"),
         "TUI should complete ask and report runnable preview after trusted setup"
       )
       assert(
-        !rendererSerialized.includes(READY_SECRET) &&
+        !rendererSerialized.includes(READY_SECRET_REF) &&
           !rendererSerialized.includes(storeDir) &&
           !rendererSerialized.includes(context.serviceBin) &&
           !rendererSerialized.includes("configureProviderProfile") &&
@@ -283,7 +313,7 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         "renderer-facing feedback should not expose secrets or setup APIs"
       )
       assert(
-        !trustedSerialized.includes(READY_SECRET) &&
+        !trustedSerialized.includes(READY_SECRET_REF) &&
           !trustedSerialized.includes(storeDir) &&
           !trustedSerialized.includes(context.serviceBin),
         "trusted setup result should redact secrets and local paths"
@@ -307,18 +337,19 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         readyTuiExecuteCommands: readyTui.executeCommandCount,
         readyTuiActiveSessionId: readyTui.activeSessionId,
         rendererSafe:
-          !rendererSerialized.includes(READY_SECRET) &&
+          !rendererSerialized.includes(READY_SECRET_REF) &&
           !rendererSerialized.includes("configureProviderProfile") &&
           !rendererSerialized.includes("\"apiKey\":")
       }
     } finally {
+      await productSurface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }
   }
 })
 
-function webStartWorkbenchRequest(request: {
+function webSubmitConversationRequest(request: {
   readonly requestId: string
   readonly text: string
 }) {
@@ -327,9 +358,28 @@ function webStartWorkbenchRequest(request: {
     operation: "submitActionInput" as const,
     requestId: request.requestId,
     input: {
-      action: "start-workbench",
+      action: "submit-conversation",
       fields: {
         text: request.text
+      }
+    },
+    options: {
+      pollAfterAction: false
+    }
+  }
+}
+
+function webSetModeRequest(request: {
+  readonly requestId: string
+}) {
+  return {
+    kind: "product-app-web.request" as const,
+    operation: "submitActionInput" as const,
+    requestId: request.requestId,
+    input: {
+      action: "set-mode",
+      fields: {
+        mode: "workbench"
       }
     },
     options: {
@@ -349,7 +399,7 @@ function webPreviewCommandRequest(request: {
     input: {
       action: "preview-command",
       fields: {
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         inputJson: JSON.stringify({
           text: request.text
         })
@@ -372,12 +422,29 @@ function webExecuteCommandRequest(request: {
     input: {
       action: "execute-command",
       fields: {
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         inputJson: JSON.stringify({ text: request.text })
       }
     },
     options: { pollAfterAction: false }
   }
+}
+
+async function waitForWebConversation(
+  web: Awaited<ReturnType<typeof createProductAppWebController>>,
+  sessionId: string
+) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const document = await web.pollEvents({ limit: 20 })
+    if (
+      document.snapshot.conversation.sessionId === sessionId &&
+      document.snapshot.conversation.operation?.capabilities.terminal === true
+    ) {
+      return document.snapshot
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`Web conversation did not settle: ${sessionId}`)
 }
 
 function expectSubmitResponse(

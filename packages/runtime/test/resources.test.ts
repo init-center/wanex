@@ -94,46 +94,36 @@ describe("@wanex/runtime/resources", () => {
     ).resolves.toBe("test output\n")
   })
 
-  it("records provider-file references without provider-specific shape leaks", async () => {
+  it("rejects provider-owned references before resource ingest", async () => {
     const client = await createClient()
     const runtime = new WanexResourceRuntime({ storage: client })
 
-    const record = await runtime.ingestProviderOutput({
-      kindOfOutput: "provider_file",
-      provider: "openai",
-      fileId: "file_123",
-      mediaType: "image/png",
-      origin: "provider_file",
-      label: "provider hosted image"
-    })
-
-    expect(record.kind).toBe("image")
-    expect(record.origin).toBe("provider_file")
-    expect(record.source).toEqual({
-      provider: "openai",
-      providerFileId: "file_123"
-    })
-    const placeholder = await readFile(
-      join(client.storeDir, "files", record.logicalPath),
-      "utf8"
-    )
-    expect(placeholder).toBe("provider file reference: openai/file_123\n")
+    await expect(
+      runtime.ingestProviderOutput({
+        kindOfOutput: "provider_file",
+        provider: "openai",
+        fileId: "file_123",
+        mediaType: "image/png",
+        origin: "provider_file",
+        label: "provider hosted image"
+      })
+    ).rejects.toThrow("provider_file provider output must be materialized")
   })
 
-  it("requires provider identity for provider-owned references", () => {
+  it("rejects all unmaterialized provider-owned references", () => {
     expect(() =>
       providerOutputToIngestRequest({
         kindOfOutput: "provider_file",
         fileId: "file_missing_provider"
       })
-    ).toThrow("provider is required")
+    ).toThrow("provider_file provider output must be materialized")
 
     expect(() =>
       providerOutputToIngestRequest({
         kindOfOutput: "async_operation",
         operationId: "op_missing_provider"
       })
-    ).toThrow("provider is required")
+    ).toThrow("async_operation provider output must be materialized")
   })
 
   it("uses stable sha256 based paths for identical content", () => {
@@ -161,6 +151,9 @@ describe("@wanex/runtime/resources", () => {
       type: "resource",
       id: "resource_res_image_projection",
       resourceId: "res_image_projection",
+      sha256: "sha256",
+      sizeBytes: 12,
+      kind: "image",
       mediaType: "image/png"
     })
     expect(resourceToUiDescriptor(resource)).toEqual({

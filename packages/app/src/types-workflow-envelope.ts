@@ -4,126 +4,126 @@ import type {
   SessionInputOrigin
 } from "@wanex/protocol"
 import type {
-  WanexAppShellRunAgentTurnResult
+  WanexAppRunAgentTurnResult
 } from "./types-agent.js"
 import type {
-  WanexAppShellAskSideQueryRequest,
-  WanexAppShellAskSideQueryResult,
-  WanexAppShellQueueGuidedFollowUpRequest,
-  WanexAppShellQueueGuidedFollowUpResult
+  WanexAppAskSideQueryRequest,
+  WanexAppAskSideQueryResult,
+  WanexAppQueueGuidedFollowUpRequest,
+  WanexAppQueueGuidedFollowUpResult
 } from "./types-workflow.js"
 
-export type WanexAppShellWorkflowEnvelope =
-  | WanexAppShellInteractiveWorkflowEnvelope
-  | WanexAppShellScheduledWorkflowEnvelope
-  | WanexAppShellChannelWorkflowEnvelope
-  | WanexAppShellGuidedFollowUpWorkflowEnvelope
-  | WanexAppShellSideQueryWorkflowEnvelope
+export type WanexAppWorkflowEnvelope =
+  | WanexAppInteractiveWorkflowEnvelope
+  | WanexAppScheduledWorkflowEnvelope
+  | WanexAppChannelWorkflowEnvelope
+  | WanexAppGuidedFollowUpWorkflowEnvelope
+  | WanexAppSideQueryWorkflowEnvelope
 
-export interface WanexAppShellWorkflowEnvelopeCommands {
+export interface WanexAppWorkflowEnvelopeCommands {
   routeWorkflowEnvelope(
-    request: WanexAppShellWorkflowEnvelope
-  ): Promise<WanexAppShellRouteWorkflowEnvelopeResult>
+    request: WanexAppWorkflowEnvelope
+  ): Promise<WanexAppRouteWorkflowEnvelopeResult>
 }
 
-export interface WanexAppShellClassifierHint {
+export interface WanexAppClassifierHint {
   readonly classifierId: string
   readonly label: string
   readonly confidence: number
 }
 
-interface WanexAppShellWorkflowEnvelopeBase {
+interface WanexAppWorkflowEnvelopeBase {
   readonly text: string
   readonly sessionId?: SessionId
-  readonly classifier?: WanexAppShellClassifierHint
+  readonly classifier?: WanexAppClassifierHint
 }
 
-export interface WanexAppShellInteractiveWorkflowEnvelope
-  extends WanexAppShellWorkflowEnvelopeBase {
+export interface WanexAppInteractiveWorkflowEnvelope
+  extends WanexAppWorkflowEnvelopeBase {
   readonly kind: "interactive"
   readonly sourceRef?: string
   readonly gesture?: string
 }
 
-export interface WanexAppShellScheduledWorkflowEnvelope
-  extends WanexAppShellWorkflowEnvelopeBase {
+export interface WanexAppScheduledWorkflowEnvelope
+  extends WanexAppWorkflowEnvelopeBase {
   readonly kind: "scheduled"
   readonly scheduleId: string
   readonly tickId: string
   readonly nonOverlap?: boolean
 }
 
-export interface WanexAppShellChannelWorkflowEnvelope
-  extends WanexAppShellWorkflowEnvelopeBase {
+export interface WanexAppChannelWorkflowEnvelope
+  extends WanexAppWorkflowEnvelopeBase {
   readonly kind: "channel"
   readonly connectorId: string
   readonly eventId: string
   readonly threadRef?: string
 }
 
-export interface WanexAppShellGuidedFollowUpWorkflowEnvelope
-  extends WanexAppShellWorkflowEnvelopeBase {
+export interface WanexAppGuidedFollowUpWorkflowEnvelope
+  extends WanexAppWorkflowEnvelopeBase {
   readonly kind: "guided_follow_up"
-  readonly activeRunId: string
+  readonly activeTurnId: string
   readonly sourceRef?: string
 }
 
-export interface WanexAppShellSideQueryWorkflowEnvelope
-  extends WanexAppShellWorkflowEnvelopeBase {
+export interface WanexAppSideQueryWorkflowEnvelope
+  extends WanexAppWorkflowEnvelopeBase {
   readonly kind: "side_query"
   readonly sourceRef?: string
   readonly maxOutputTokens?: number
 }
 
-export interface WanexAppShellNormalizedWorkflowEnvelope {
+export interface WanexAppNormalizedWorkflowEnvelope {
   readonly text: string
   readonly sessionId?: SessionId
-  readonly agent?: WanexAppShellNormalizedWorkflowAgentInput
-  readonly guidedFollowUp?: WanexAppShellQueueGuidedFollowUpRequest
-  readonly sideQuery?: WanexAppShellAskSideQueryRequest
+  readonly agent?: WanexAppNormalizedWorkflowAgentInput
+  readonly guidedFollowUp?: WanexAppQueueGuidedFollowUpRequest
+  readonly sideQuery?: WanexAppAskSideQueryRequest
 }
 
-export interface WanexAppShellNormalizedWorkflowAgentInput {
+export interface WanexAppNormalizedWorkflowAgentInput {
   readonly origin: SessionInputOrigin
   readonly intent?: Extract<SessionInputIntent, "normal">
   readonly runControlPolicy?: never
-  readonly expectedRunId?: never
+  readonly expectedTurnId?: never
 }
 
-export type WanexAppShellWorkflowEnvelopeNormalizationResult =
-  | WanexAppShellWorkflowEnvelopeNormalizedResult
-  | WanexAppShellRouteWorkflowEnvelopeErrorResult
+export type WanexAppWorkflowEnvelopeNormalizationResult =
+  | WanexAppWorkflowEnvelopeNormalizedResult
+  | WanexAppRouteWorkflowEnvelopeErrorResult
 
-export interface WanexAppShellWorkflowEnvelopeNormalizedResult {
+export interface WanexAppWorkflowEnvelopeNormalizedResult {
   readonly kind: "normalized"
-  readonly envelope: WanexAppShellNormalizedWorkflowEnvelope
+  readonly envelope: WanexAppNormalizedWorkflowEnvelope
 }
 
-export type WanexAppShellRouteWorkflowEnvelopeResult =
-  | WanexAppShellRouteWorkflowEnvelopeAgentResult
-  | WanexAppShellRouteWorkflowEnvelopeGuidedFollowUpResult
-  | WanexAppShellRouteWorkflowEnvelopeSideQueryResult
-  | WanexAppShellRouteWorkflowEnvelopeErrorResult
+export type WanexAppRouteWorkflowEnvelopeResult =
+  | WanexAppRouteWorkflowEnvelopeAgentResult
+  | WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult
+  | WanexAppRouteWorkflowEnvelopeSideQueryResult
+  | WanexAppRouteWorkflowEnvelopeErrorResult
 
-export interface WanexAppShellRouteWorkflowEnvelopeAgentResult {
+export interface WanexAppRouteWorkflowEnvelopeAgentResult {
   readonly kind: "agent"
   readonly command: "runAgentTurn"
-  readonly result: WanexAppShellRunAgentTurnResult
+  readonly result: WanexAppRunAgentTurnResult
 }
 
-export interface WanexAppShellRouteWorkflowEnvelopeGuidedFollowUpResult {
+export interface WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult {
   readonly kind: "guided_follow_up"
   readonly command: "queueGuidedFollowUp"
-  readonly result: WanexAppShellQueueGuidedFollowUpResult
+  readonly result: WanexAppQueueGuidedFollowUpResult
 }
 
-export interface WanexAppShellRouteWorkflowEnvelopeSideQueryResult {
+export interface WanexAppRouteWorkflowEnvelopeSideQueryResult {
   readonly kind: "side_query"
   readonly command: "askSideQuery"
-  readonly result: WanexAppShellAskSideQueryResult
+  readonly result: WanexAppAskSideQueryResult
 }
 
-export interface WanexAppShellRouteWorkflowEnvelopeErrorResult {
+export interface WanexAppRouteWorkflowEnvelopeErrorResult {
   readonly kind: "error"
   readonly command: "routeWorkflowEnvelope"
   readonly code: "empty_input" | "invalid_arguments"

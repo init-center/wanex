@@ -1,30 +1,30 @@
-import type { WanexAppShellAgentContextProfileManager } from "./context-profile.js"
+import type { WanexAppAgentContextProfileManager } from "./context-profile.js"
 import type {
-  WanexAppShellAgentContextMonitorOptions,
-  WanexAppShellAgentContextMonitorStatus,
-  WanexAppShellAgentContextProfileReloadResult
+  WanexAppAgentContextMonitorOptions,
+  WanexAppAgentContextMonitorStatus,
+  WanexAppAgentContextProfileReloadResult
 } from "./types-context.js"
 
 const MIN_CONTEXT_MONITOR_INTERVAL_MS = 100
 
-export class WanexAppShellAgentContextRefreshMonitor {
-  readonly #manager: WanexAppShellAgentContextProfileManager
+export class WanexAppAgentContextRefreshMonitor {
+  readonly #manager: WanexAppAgentContextProfileManager
   #timer: ReturnType<typeof setTimeout> | undefined
   #active: Promise<void> | undefined
   #intervalMs = 1_000
   #started = false
   #refreshCount = 0
-  #lastResult: WanexAppShellAgentContextProfileReloadResult | undefined
+  #lastResult: WanexAppAgentContextProfileReloadResult | undefined
 
   constructor(options: {
-    readonly manager: WanexAppShellAgentContextProfileManager
+    readonly manager: WanexAppAgentContextProfileManager
   }) {
     this.#manager = options.manager
   }
 
   start(
-    options: WanexAppShellAgentContextMonitorOptions = {}
-  ): WanexAppShellAgentContextMonitorStatus {
+    options: WanexAppAgentContextMonitorOptions = {}
+  ): WanexAppAgentContextMonitorStatus {
     this.#intervalMs = normalizeIntervalMs(options.intervalMs)
     if (!this.#started) {
       this.#started = true
@@ -33,7 +33,7 @@ export class WanexAppShellAgentContextRefreshMonitor {
     return this.status()
   }
 
-  async stop(): Promise<WanexAppShellAgentContextMonitorStatus> {
+  async stop(): Promise<WanexAppAgentContextMonitorStatus> {
     this.#started = false
     if (this.#timer !== undefined) {
       clearTimeout(this.#timer)
@@ -43,7 +43,7 @@ export class WanexAppShellAgentContextRefreshMonitor {
     return this.status()
   }
 
-  status(): WanexAppShellAgentContextMonitorStatus {
+  status(): WanexAppAgentContextMonitorStatus {
     return {
       running: this.#started,
       intervalMs: this.#intervalMs,

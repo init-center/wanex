@@ -11,9 +11,12 @@ import {
 import {
   buildAppDiagnosticsSnapshot,
   type AppDiagnosticsSnapshot
-} from "@wanex/app/diagnostics"
+} from "./diagnostics/index.js"
 import { WanexConfigCore } from "@wanex/runtime/config"
-import type { ContextCompiler } from "@wanex/runtime/context"
+import type {
+  ContextCompiler,
+  PreparedAgentContext
+} from "@wanex/runtime/context"
 import {
   resolveRuntimeHostDiagnostics,
   WanexRuntimeHost,
@@ -21,91 +24,93 @@ import {
   type WanexRuntimeHostBehaviorOptions
 } from "@wanex/runtime/host"
 import { createAppStore, type AppStore } from "./storage.js"
-import type { ToolPermissionPolicy, ToolRegistry } from "@wanex/runtime/tools"
+import type { SecretResolverPort } from "@wanex/runtime/secrets"
 import {
-  WanexAppShellConfigReloadController,
-  type WanexAppShellConfigPollResult,
-  type WanexAppShellConfigReloadControllerOptions,
-  type WanexAppShellConfigReloadSubscription
+  WanexAppConfigReloadController,
+  type WanexAppConfigPollResult,
+  type WanexAppConfigReloadControllerOptions,
+  type WanexAppConfigReloadSubscription
 } from "./config-reload.js"
 
-export type WanexAppShellBootstrapStorageConfig = WanexBootstrapStorageConfig
-export type WanexAppShellBootstrapLocalSystemServiceStorageConfig =
+export type WanexAppBootstrapStorageConfig = WanexBootstrapStorageConfig
+export type WanexAppBootstrapLocalSystemServiceStorageConfig =
   WanexBootstrapLocalSystemServiceStorageConfig
-export type WanexAppShellBootstrapLocalProfileStorageConfig =
+export type WanexAppBootstrapLocalProfileStorageConfig =
   WanexBootstrapLocalProfileStorageConfig
-export type WanexAppShellBootstrapRemoteHttpStorageConfig =
+export type WanexAppBootstrapRemoteHttpStorageConfig =
   WanexBootstrapRemoteHttpStorageConfig
 
-export interface BootstrapWanexAppShellRuntimeOptions
+export interface BootstrapWanexAppRuntimeOptions
   extends BootstrapWanexStorageOptions {
-  readonly app?: Omit<WanexAppShellRuntimeOptions, "storage">
+  readonly app?: Omit<WanexAppRuntimeOptions, "storage">
 }
 
-export interface BootstrappedWanexAppShellRuntime
+export interface BootstrappedWanexAppRuntime
   extends BootstrappedWanexStorage {
-  readonly app: WanexAppShellRuntime
-  readonly artifacts: BootstrappedWanexAppShellRuntimeArtifacts
+  readonly app: WanexAppRuntime
+  readonly artifacts: BootstrappedWanexAppRuntimeArtifacts
 }
 
-export type BootstrappedWanexAppShellRuntimeArtifacts = BootstrappedWanexArtifacts
+export type BootstrappedWanexAppRuntimeArtifacts = BootstrappedWanexArtifacts
 
-export interface WanexAppShellRuntimeOptions {
+export interface WanexAppRuntimeOptions {
   readonly storage: AppStore
+  readonly secretResolver?: SecretResolverPort
   readonly config?: WanexConfigCore
-  readonly hotReload?: WanexAppShellConfigReloadController
-  readonly configReloadSubscriptions?: readonly WanexAppShellConfigReloadSubscription[]
-  readonly onConfigReload?: WanexAppShellConfigReloadControllerOptions["onReload"]
-  readonly onConfigReloadError?: WanexAppShellConfigReloadControllerOptions["onError"]
+  readonly hotReload?: WanexAppConfigReloadController
+  readonly configReloadSubscriptions?: readonly WanexAppConfigReloadSubscription[]
+  readonly onConfigReload?: WanexAppConfigReloadControllerOptions["onReload"]
+  readonly onConfigReloadError?: WanexAppConfigReloadControllerOptions["onError"]
 }
 
-export interface WanexAppShellRuntime {
+export interface WanexAppRuntime {
   readonly storage: AppStore
   readonly config: WanexConfigCore
-  readonly hotReload: WanexAppShellConfigReloadController
+  readonly hotReload: WanexAppConfigReloadController
   createRuntimeHost(
-    options?: WanexAppShellRuntimeHostOptions
+    options?: WanexAppRuntimeHostOptions
   ): WanexRuntimeHost
   createRuntimeHostWithAgentContext(
-    options: WanexAppShellRuntimeHostWithAgentContextOptions
+    options: WanexAppRuntimeHostWithAgentContextOptions
   ): WanexRuntimeHost
   registerConfigReload(
-    subscription: WanexAppShellConfigReloadSubscription
+    subscription: WanexAppConfigReloadSubscription
   ): void
   refreshConfigKey(
     key: string
-  ): ReturnType<WanexAppShellConfigReloadController["refreshKey"]>
+  ): ReturnType<WanexAppConfigReloadController["refreshKey"]>
   pollConfigReloads(
-    request?: Parameters<WanexAppShellConfigReloadController["pollOnce"]>[0]
-  ): Promise<WanexAppShellConfigPollResult>
+    request?: Parameters<WanexAppConfigReloadController["pollOnce"]>[0]
+  ): Promise<WanexAppConfigPollResult>
   getDiagnostics(
-    options?: WanexAppShellDiagnosticsOptions
+    options?: WanexAppDiagnosticsOptions
   ): Promise<AppDiagnosticsSnapshot>
 }
 
-export type WanexAppShellRuntimeHostOptions = WanexRuntimeHostBehaviorOptions
+export type WanexAppRuntimeHostOptions = WanexRuntimeHostBehaviorOptions
 
-export interface WanexAppShellRuntimeHostWithAgentContextOptions {
-  readonly context: {
+export interface WanexAppRuntimeHostWithAgentContextOptions {
+  readonly context: PreparedAgentContext & {
     readonly contextCompiler: ContextCompiler
-    readonly tools?: ToolRegistry
-    readonly toolPermissionPolicy?: ToolPermissionPolicy
   }
-  readonly host?: WanexAppShellRuntimeHostOptions
+  readonly host?: Omit<
+    WanexAppRuntimeHostOptions,
+    "agentContext" | "contextCompiler" | "tools" | "toolPermissionPolicy"
+  >
 }
 
-export interface WanexAppShellDiagnosticsOptions {
+export interface WanexAppDiagnosticsOptions {
   readonly now?: number
   readonly jobLimit?: number
   readonly pluginLimit?: number
   readonly runtimeHost?: RuntimeHostDiagnosticsInput
 }
 
-export async function bootstrapWanexAppShellRuntime(
-  options: BootstrapWanexAppShellRuntimeOptions
-): Promise<BootstrappedWanexAppShellRuntime> {
+export async function bootstrapWanexAppRuntime(
+  options: BootstrapWanexAppRuntimeOptions
+): Promise<BootstrappedWanexAppRuntime> {
   const runtime = await bootstrapWanexStorage(options)
-  const app = createWanexAppShellRuntime({
+  const app = createWanexAppRuntime({
     storage: createAppStore(runtime.storage, runtime.transport),
     ...options.app
   })
@@ -115,14 +120,14 @@ export async function bootstrapWanexAppShellRuntime(
   }
 }
 
-export function createWanexAppShellRuntime(
-  options: WanexAppShellRuntimeOptions
-): WanexAppShellRuntime {
+export function createWanexAppRuntime(
+  options: WanexAppRuntimeOptions
+): WanexAppRuntime {
   const config =
     options.config ?? new WanexConfigCore({ storage: options.storage })
   const hotReload =
     options.hotReload ??
-    new WanexAppShellConfigReloadController({
+    new WanexAppConfigReloadController({
       storage: options.storage,
       config,
       ...(options.configReloadSubscriptions === undefined
@@ -142,22 +147,16 @@ export function createWanexAppShellRuntime(
     createRuntimeHost(hostOptions = {}) {
       return new WanexRuntimeHost({
         storage: options.storage,
+        ...(options.secretResolver === undefined
+          ? {}
+          : { secretResolver: options.secretResolver }),
         ...hostOptions
       })
     },
     createRuntimeHostWithAgentContext(runtimeHostOptions) {
       return this.createRuntimeHost({
         ...(runtimeHostOptions.host ?? {}),
-        contextCompiler: runtimeHostOptions.context.contextCompiler,
-        ...(runtimeHostOptions.context.tools === undefined
-          ? {}
-          : { tools: runtimeHostOptions.context.tools }),
-        ...(runtimeHostOptions.context.toolPermissionPolicy === undefined
-          ? {}
-          : {
-              toolPermissionPolicy:
-                runtimeHostOptions.context.toolPermissionPolicy
-            })
+        agentContext: runtimeHostOptions.context
       })
     },
     registerConfigReload(subscription) {

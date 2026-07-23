@@ -21,7 +21,7 @@ impl SystemService {
             .as_str();
         let scope_id = budget_scope_id(kind, &request.scope.owner_id, window_kind);
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         tx.execute(
             "INSERT INTO budget_scope (
@@ -116,7 +116,7 @@ impl SystemService {
     ) -> Result<Option<BudgetGrantRecord>> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let updated = commit_budget_grant_tx(&tx, &request.grant_id, now)?;
         tx.commit()?;
         Ok(updated)
@@ -137,7 +137,7 @@ impl SystemService {
         }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         if let Some(existing) =
             find_budget_usage_entry_tx(&tx, &request.grant_id, &request.idempotency_key)?
         {
@@ -194,7 +194,7 @@ impl SystemService {
     pub fn release_budget(&self, grant_id: &str) -> Result<Option<BudgetGrantRecord>> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let grant = get_optional_budget_grant_tx(&tx, grant_id)?;
         let Some(grant) = grant else {
             tx.commit()?;

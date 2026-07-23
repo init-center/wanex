@@ -1,7 +1,7 @@
 import type {
-  WanexAppShellSafeCommandRequest,
-  WanexAppShellSafeError
-} from "@wanex/app/backend"
+  WanexAppSafeCommandRequest,
+  WanexAppSafeError
+} from "@wanex/app"
 
 export interface ProductAppBackendResultEnvelopeCommands {
   safeCommand<T>(
@@ -10,7 +10,7 @@ export interface ProductAppBackendResultEnvelopeCommands {
 }
 
 export type ProductAppBackendSafeCommandRequest<T> =
-  WanexAppShellSafeCommandRequest<T>
+  WanexAppSafeCommandRequest<T>
 export type ProductAppBackendCommandEnvelope<T> =
   | ProductAppBackendCommandSuccessEnvelope<T>
   | ProductAppBackendCommandErrorEnvelope
@@ -28,15 +28,15 @@ export interface ProductAppBackendCommandErrorEnvelope {
 }
 
 export interface ProductAppBackendSafeError
-  extends Omit<WanexAppShellSafeError, "code"> {
+  extends Omit<WanexAppSafeError, "code"> {
   readonly code: ProductAppBackendSafeErrorCode
 }
 
 export type ProductAppBackendSafeErrorCode =
-  | WanexAppShellSafeError["code"]
+  | WanexAppSafeError["code"]
   | "unknown_command"
 export type ProductAppBackendSafeErrorCategory =
-  WanexAppShellSafeError["category"]
+  WanexAppSafeError["category"]
 
 export interface ProductAppBackendCommandPortRequest {
   readonly command: string

@@ -5,8 +5,8 @@ import type {
   AppExtensionResolvedSnapshot
 } from "@wanex/extension"
 import type {
-  ProductAppBackendAgentCommands,
   ProductAppBackendAgentContextCommands,
+  ProductAppBackendConversationCommands,
   ProductAppBackendDiagnosticsCommands,
   ProductAppBackendDiagnosticsDetailCommands,
   ProductAppBackendLifecycleCommands,
@@ -30,7 +30,10 @@ export type ProductAppBackendExtensionCommandPreviewResult =
   AppExtensionCommandPreviewResult
 
 export interface ProductAppBackendCommandRegistryRuntimeCommands
-  extends ProductAppBackendAgentCommands,
+  extends Pick<
+      ProductAppBackendConversationCommands,
+      "submitConversationOperation"
+    >,
     ProductAppBackendAgentContextCommands,
     ProductAppBackendDiagnosticsCommands,
     ProductAppBackendDiagnosticsDetailCommands,

@@ -9,8 +9,10 @@ export * from "./product-diagnostics-detail.js"
 export * from "./product-overview.js"
 export * from "./product-workbench.js"
 export * from "./product-command-registry.js"
+export type * from "./types-conversation.js"
+export type * from "./types-resources.js"
 export * from "./result-envelope.js"
 export * from "./types.js"
 export {
-  WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY as PRODUCT_APP_BACKEND_AGENT_CONTEXT_PROFILE_KEY
-} from "@wanex/app/backend"
+  WANEX_APP_AGENT_CONTEXT_PROFILE_KEY as PRODUCT_APP_BACKEND_AGENT_CONTEXT_PROFILE_KEY
+} from "@wanex/app"

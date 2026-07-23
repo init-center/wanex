@@ -4,6 +4,9 @@
 
 ```ts
 
+import { SubmitUserTurnRequest } from '@wanex/runtime/host';
+import { SubmitUserTurnResult } from '@wanex/runtime/host';
+
 // @public (undocumented)
 interface AdmissionReceipt {
     // (undocumented)
@@ -27,7 +30,7 @@ export interface DelegationExecutor {
     // (undocumented)
     runOnce(): Promise<DelegationExecutorRunOnceResult>;
     // (undocumented)
-    submitUserText(request: SubmitUserTextRequest): Promise<SubmitUserTextResult>;
+    submitUserTurn(request: DelegationSubmitUserTurnRequest): Promise<DelegationSubmitUserTurnResult>;
 }
 
 // @public (undocumented)
@@ -115,6 +118,12 @@ export interface DelegationSubmission {
 }
 
 // @public (undocumented)
+export type DelegationSubmitUserTurnRequest = SubmitUserTurnRequest;
+
+// @public (undocumented)
+export type DelegationSubmitUserTurnResult = SubmitUserTurnResult;
+
+// @public (undocumented)
 export interface DelegationSummary {
     // (undocumented)
     readonly delegationId: string;
@@ -135,8 +144,6 @@ export interface DelegationTask {
     // (undocumented)
     readonly maxSteps?: number;
     // (undocumented)
-    readonly mode?: "once" | "to_completion";
-    // (undocumented)
     readonly principalId?: string;
     // (undocumented)
     readonly prompt: string;
@@ -146,6 +153,8 @@ export interface DelegationTask {
     readonly sessionId?: SessionId;
     // (undocumented)
     readonly title?: string;
+    // (undocumented)
+    readonly turnId?: string;
 }
 
 // @public (undocumented)
@@ -182,6 +191,8 @@ export interface DelegationTaskRuntimeIds {
     readonly sessionId: SessionId;
     // (undocumented)
     readonly taskId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
@@ -192,7 +203,7 @@ export interface DelegationTaskSubmission {
     // (undocumented)
     readonly ids: DelegationTaskRuntimeIds;
     // (undocumented)
-    readonly receipt: SubmitSessionRunReceipt;
+    readonly receipt: SubmitSessionTurnReceipt;
     // (undocumented)
     readonly task: DelegationTask;
 }
@@ -219,7 +230,7 @@ interface ListJobsRequest {
 type MessageId = string;
 
 // @public (undocumented)
-type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart | UiSurfaceMessagePart;
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
 
 // @public (undocumented)
 interface MessagePartBase {
@@ -236,6 +247,47 @@ type MessagePartId = string;
 
 // @public (undocumented)
 type MessagePartVisibility = "user" | "assistant" | "internal" | "provider_replay_only";
+
+// @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
+interface ProviderExecutionBinding {
+    // (undocumented)
+    readonly adapterId: ProviderProfileKind;
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly profileDigest: string;
+    // (undocumented)
+    readonly profileId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly requestConfig?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
 
 // @public (undocumented)
 interface ProviderState {
@@ -265,11 +317,24 @@ interface ReasoningMessagePart extends MessagePartBase {
 type ResourceId = string;
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
     // (undocumented)
     readonly mediaType?: string;
     // (undocumented)
     readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
     readonly type: "resource";
 }
@@ -288,7 +353,7 @@ interface RetryPolicy {
 export function runtimeIdsForTask(delegationId: string, task: DelegationTask): DelegationTaskRuntimeIds;
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -296,6 +361,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -340,104 +407,126 @@ interface SchedulerJobRecord {
 type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
+type SessionAttemptId = string;
+
+// @public (undocumented)
 type SessionId = string;
 
 // @public (undocumented)
 type SessionInputId = string;
 
 // @public (undocumented)
-type SessionKind = "chat" | "agent";
-
-// @public (undocumented)
 interface SessionMessageRecord {
+    // (undocumented)
+    readonly attemptId?: SessionAttemptId;
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
+    readonly executionBindingDigest: string;
+    // (undocumented)
     readonly id: MessageId;
     // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
-    readonly providerState?: ProviderState;
+    readonly providerState?: readonly ProviderState[];
     // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
     // (undocumented)
-    readonly runId?: SessionRunId;
+    readonly sequence: number;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
     readonly status: "completed" | "failed" | "partial";
     // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
     readonly updatedAt: number;
 }
 
 // @public (undocumented)
-interface SessionRecord {
+interface SessionTurnExecutionBinding {
     // (undocumented)
-    readonly archivedAt?: number;
+    readonly contextSnapshot?: JsonValue;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
-    readonly id: SessionId;
+    readonly digest: string;
     // (undocumented)
-    readonly kind: SessionKind;
+    readonly environmentSnapshot?: JsonValue;
     // (undocumented)
-    readonly status: SessionStatus;
+    readonly permissionSnapshot?: JsonValue;
     // (undocumented)
-    readonly title?: string;
+    readonly provider: ProviderExecutionBinding;
+    // (undocumented)
+    readonly recovery: SessionTurnRecoveryBinding;
+    // (undocumented)
+    readonly resources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly toolSnapshot?: JsonValue;
+}
+
+// @public (undocumented)
+type SessionTurnId = string;
+
+// @public (undocumented)
+interface SessionTurnRecord {
+    // (undocumented)
+    readonly cancelReason?: string;
+    // (undocumented)
+    readonly cancelRequestedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly currentAttemptId?: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: SessionTurnId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly maxSteps: number;
+    // (undocumented)
+    readonly parentTurnId?: SessionTurnId;
+    // (undocumented)
+    readonly primaryInputId: SessionInputId;
+    // (undocumented)
+    readonly regeneratesTurnId?: SessionTurnId;
+    // (undocumented)
+    readonly result?: JsonValue;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly state: SessionTurnState;
     // (undocumented)
     readonly updatedAt: number;
 }
 
 // @public (undocumented)
-type SessionRunId = string;
+interface SessionTurnRecoveryBinding {
+    // (undocumented)
+    readonly idempotentToolMaxAttempts: number;
+    // (undocumented)
+    readonly providerMaxAttempts: number;
+}
 
 // @public (undocumented)
-type SessionStatus = "active" | "archived";
+type SessionTurnState = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 
 // @public (undocumented)
-interface SubmitSessionRunReceipt {
+interface SubmitSessionTurnReceipt {
     // (undocumented)
     readonly admission: AdmissionReceipt;
     // (undocumented)
     readonly job: SchedulerJobRecord;
-}
-
-// @public (undocumented)
-export interface SubmitUserTextRequest {
     // (undocumented)
-    readonly idempotencyKey?: string;
-    // (undocumented)
-    readonly inputId?: string;
-    // (undocumented)
-    readonly jobId?: string;
-    // (undocumented)
-    readonly jobIdempotencyKey?: string;
-    // (undocumented)
-    readonly maxSteps?: number;
-    // (undocumented)
-    readonly mode?: "once" | "to_completion";
-    // (undocumented)
-    readonly principalId?: string;
-    // (undocumented)
-    readonly providerProfileId?: string;
-    // (undocumented)
-    readonly sessionId?: SessionId;
-    // (undocumented)
-    readonly text: string;
-    // (undocumented)
-    readonly title?: string;
-}
-
-// @public (undocumented)
-export interface SubmitUserTextResult {
-    // (undocumented)
-    readonly inputId: string;
-    // (undocumented)
-    readonly receipt: SubmitSessionRunReceipt;
-    // (undocumented)
-    readonly session: SessionRecord;
+    readonly turn: SessionTurnRecord;
 }
 
 // @public (undocumented)
@@ -470,74 +559,6 @@ interface ToolResultMessagePart extends MessagePartBase {
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
-}
-
-// @public (undocumented)
-interface UiSurfaceActionBridge {
-    // (undocumented)
-    readonly allowedActions?: readonly string[];
-    // (undocumented)
-    readonly kind: "runtime";
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly route: "session.input" | "plugin.action" | "tool.call" | "app.action" | (string & {});
-    // (undocumented)
-    readonly target?: JsonValue;
-}
-
-// @public (undocumented)
-interface UiSurfaceEnvelope {
-    // (undocumented)
-    readonly actionBridge?: UiSurfaceActionBridge;
-    // (undocumented)
-    readonly fallback?: UiSurfaceFallback;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly payload: JsonValue;
-    // (undocumented)
-    readonly protocol: UiSurfaceProtocol;
-    // (undocumented)
-    readonly requiredCapabilities?: readonly string[];
-    // (undocumented)
-    readonly surfaceKind: string;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-type UiSurfaceFallback = UiSurfaceTextFallback | UiSurfaceResourceFallback;
-
-// @public (undocumented)
-interface UiSurfaceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly surface: UiSurfaceEnvelope;
-    // (undocumented)
-    readonly type: "ui_surface";
-}
-
-// @public (undocumented)
-type UiSurfaceProtocol = "a2ui" | "markdown" | "html-safe" | (string & {});
-
-// @public (undocumented)
-interface UiSurfaceResourceFallback {
-    // (undocumented)
-    readonly kind: "resource";
-    // (undocumented)
-    readonly label?: string;
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
-}
-
-// @public (undocumented)
-interface UiSurfaceTextFallback {
-    // (undocumented)
-    readonly kind: "text";
-    // (undocumented)
-    readonly text: string;
 }
 
 // @public (undocumented)

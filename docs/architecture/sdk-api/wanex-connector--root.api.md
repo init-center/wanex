@@ -6,6 +6,8 @@
 
 import { ChannelStore } from '@wanex/storage/channel';
 import { ConnectorStore } from '@wanex/storage/connector';
+import { ResolvedSecret } from '@wanex/runtime/secrets';
+import { SecretResolverPort } from '@wanex/runtime/secrets';
 import { WanexWorker } from '@wanex/runtime/jobs';
 import { WorkerRunOnceResult } from '@wanex/runtime/jobs';
 
@@ -189,10 +191,10 @@ interface ChannelProjectionRecord {
 }
 
 // @public (undocumented)
-type ChannelProjectionTarget = SessionRunProjectionTarget | TeamTurnProjectionTarget | WorkspaceTaskProjectionTarget | IgnoredProjectionTarget;
+type ChannelProjectionTarget = SessionTurnProjectionTarget | TeamTurnProjectionTarget | WorkspaceTaskProjectionTarget | IgnoredProjectionTarget;
 
 // @public (undocumented)
-type ChannelProjectionTargetKind = "session.run" | "team.turn" | "workspace.task" | "ignored";
+type ChannelProjectionTargetKind = "session.turn" | "team.turn" | "workspace.task" | "ignored";
 
 // @public (undocumented)
 export interface CompleteConnectorDeliveryRequest {
@@ -570,7 +572,7 @@ export interface ConnectorHostOptions {
     // (undocumented)
     readonly runtime: ConnectorRuntime;
     // (undocumented)
-    readonly secretResolver?: SecretResolver;
+    readonly secretResolver?: SecretResolverPort;
     // (undocumented)
     readonly sessionId?: string;
     // (undocumented)
@@ -953,6 +955,8 @@ interface EnqueueJobRequest {
     // (undocumented)
     readonly budgetGrantId?: string;
     // (undocumented)
+    readonly concurrencyKey?: string;
+    // (undocumented)
     readonly id?: string;
     // (undocumented)
     readonly idempotencyKey?: string;
@@ -1087,6 +1091,47 @@ export interface ProjectConnectorEventRequest {
 }
 
 // @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
+interface ProviderExecutionBinding {
+    // (undocumented)
+    readonly adapterId: ProviderProfileKind;
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly profileDigest: string;
+    // (undocumented)
+    readonly profileId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly requestConfig?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
+
+// @public (undocumented)
 export interface PutConnectorCredentialRefRequest {
     // (undocumented)
     readonly connectorId: string;
@@ -1122,30 +1167,24 @@ export interface RegisterConnectorRequest {
 export function requireConnectorSdk<TSdk>(options: ConnectorSdkLoadOptions<TSdk>): Promise<TSdk>;
 
 // @public (undocumented)
-interface ResolvedSecret {
+type ResourceId = string;
+
+// @public (undocumented)
+interface ResourceInputEvidence {
     // (undocumented)
-    dispose(): void;
+    readonly kind: ResourceKind;
     // (undocumented)
-    readonly disposed: boolean;
+    readonly mediaType?: string;
     // (undocumented)
-    readonly provider: string;
+    readonly resourceId: ResourceId;
     // (undocumented)
-    readonly ref: string;
+    readonly sha256: string;
     // (undocumented)
-    reveal(): string;
-    // (undocumented)
-    toJSON(): never;
+    readonly sizeBytes: number;
 }
 
 // @public (undocumented)
-interface ResolveSecretRequest {
-    // (undocumented)
-    readonly context?: SecretResolveContext;
-    // (undocumented)
-    readonly ref: string;
-    // (undocumented)
-    readonly scheme: string;
-}
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 
 // @public (undocumented)
 interface RetryPolicy {
@@ -1161,7 +1200,7 @@ interface RetryPolicy {
 export function runConnectorAdapterContractHarness(options: ConnectorAdapterContractHarnessOptions): Promise<ConnectorAdapterContractReceipt>;
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -1169,6 +1208,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -1213,42 +1254,35 @@ interface SchedulerJobRecord {
 type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
-interface SecretProvider {
+interface SessionTurnExecutionBinding {
     // (undocumented)
-    resolve(request: ResolveSecretRequest): Promise<ResolvedSecret> | ResolvedSecret;
+    readonly contextSnapshot?: JsonValue;
     // (undocumented)
-    readonly scheme: string;
+    readonly createdAt: number;
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly environmentSnapshot?: JsonValue;
+    // (undocumented)
+    readonly permissionSnapshot?: JsonValue;
+    // (undocumented)
+    readonly provider: ProviderExecutionBinding;
+    // (undocumented)
+    readonly recovery: SessionTurnRecoveryBinding;
+    // (undocumented)
+    readonly resources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly toolSnapshot?: JsonValue;
 }
 
 // @public (undocumented)
-interface SecretResolveContext {
-    // (undocumented)
-    readonly connectorId?: string;
-    // (undocumented)
-    readonly credentialId?: string;
-    // (undocumented)
-    readonly principalId?: string;
-    // (undocumented)
-    readonly signal?: AbortSignal;
-}
-
-// @public (undocumented)
-class SecretResolver {
-    constructor(providers?: readonly SecretProvider[]);
-    // (undocumented)
-    hasProvider(scheme: string): boolean;
-    // (undocumented)
-    register(provider: SecretProvider): void;
-    // (undocumented)
-    resolve(ref: string, context?: SecretResolveContext): Promise<ResolvedSecret>;
-}
-
-// @public (undocumented)
-interface SessionRunProjectionTarget {
+interface SessionTurnProjectionTarget {
     // (undocumented)
     readonly budgetGrantId?: string;
     // (undocumented)
     readonly content: JsonValue;
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
     // (undocumented)
     readonly inputId?: string;
     // (undocumented)
@@ -1256,27 +1290,33 @@ interface SessionRunProjectionTarget {
     // (undocumented)
     readonly jobId?: string;
     // (undocumented)
-    readonly kind: "session.run";
-    // (undocumented)
-    readonly maxAttempts?: number;
+    readonly kind: "session.turn";
     // (undocumented)
     readonly maxSteps?: number;
     // (undocumented)
-    readonly mode?: string;
-    // (undocumented)
     readonly notBefore?: number;
+    // (undocumented)
+    readonly parentTurnId?: string;
     // (undocumented)
     readonly principalId: PrincipalId;
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
-    readonly providerProfileId?: string;
-    // (undocumented)
-    readonly retryPolicy?: RetryPolicy;
+    readonly regeneratesTurnId?: string;
     // (undocumented)
     readonly scheduledAt?: number;
     // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId?: string;
+}
+
+// @public (undocumented)
+interface SessionTurnRecoveryBinding {
+    // (undocumented)
+    readonly idempotentToolMaxAttempts: number;
+    // (undocumented)
+    readonly providerMaxAttempts: number;
 }
 
 // @public (undocumented)

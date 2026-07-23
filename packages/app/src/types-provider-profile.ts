@@ -1,55 +1,56 @@
-import type { ProviderProfile } from "@wanex/protocol"
+import type { ProviderCapabilities, ProviderProfile } from "@wanex/protocol"
 
-export interface WanexAppShellProviderProfileOptions {
+export interface WanexAppProviderProfileOptions {
   readonly id?: string
   readonly kind?: ProviderProfile["kind"]
   readonly providerId?: string
   readonly modelId?: string
+  readonly capabilities?: ProviderCapabilities
   readonly baseUrl?: string
-  readonly apiKey?: string
+  readonly secretRef?: string
   readonly anthropicVersion?: string
 }
 
-export interface WanexAppShellProviderProfileCommands {
-  readActiveProviderProfile(): Promise<WanexAppShellProviderProfileReadModel>
+export interface WanexAppProviderProfileCommands {
+  readActiveProviderProfile(): Promise<WanexAppProviderProfileReadModel>
   setActiveProviderProfile(
-    request: WanexAppShellSetActiveProviderProfileRequest
-  ): Promise<WanexAppShellProviderProfileReadModel>
+    request: WanexAppSetActiveProviderProfileRequest
+  ): Promise<WanexAppProviderProfileReadModel>
   upsertProviderProfile(
-    request: WanexAppShellUpsertProviderProfileRequest
-  ): Promise<WanexAppShellProviderProfileReadModel>
+    request: WanexAppUpsertProviderProfileRequest
+  ): Promise<WanexAppProviderProfileReadModel>
   readProviderProfile(
-    request: WanexAppShellReadProviderProfileRequest
-  ): Promise<WanexAppShellProviderProfileReadModel | null>
-  listProviderProfiles(): Promise<WanexAppShellProviderProfileListReadModel>
+    request: WanexAppReadProviderProfileRequest
+  ): Promise<WanexAppProviderProfileReadModel | null>
+  listProviderProfiles(): Promise<WanexAppProviderProfileListReadModel>
 }
 
-export interface WanexAppShellSetActiveProviderProfileRequest {
+export interface WanexAppSetActiveProviderProfileRequest {
   readonly profileId: string
 }
 
-export interface WanexAppShellUpsertProviderProfileRequest {
+export interface WanexAppUpsertProviderProfileRequest {
   readonly profile: ProviderProfile
   readonly makeActive?: boolean
 }
 
-export interface WanexAppShellReadProviderProfileRequest {
+export interface WanexAppReadProviderProfileRequest {
   readonly profileId: string
 }
 
-export interface WanexAppShellProviderProfileReadModel {
+export interface WanexAppProviderProfileReadModel {
   readonly id: string
   readonly kind: ProviderProfile["kind"]
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   readonly baseUrl?: string
   readonly anthropicVersion?: string
-  readonly hasApiKey: boolean
-  readonly apiKeyRedacted?: string
+  readonly credentialConfigured: boolean
   readonly active: boolean
 }
 
-export interface WanexAppShellProviderProfileListReadModel {
+export interface WanexAppProviderProfileListReadModel {
   readonly activeProfileId: string
-  readonly profiles: readonly WanexAppShellProviderProfileReadModel[]
+  readonly profiles: readonly WanexAppProviderProfileReadModel[]
 }

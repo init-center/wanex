@@ -1,19 +1,26 @@
 import type {
   JsonValue,
   MessagePart,
+  ProviderCapabilities,
+  ProviderProfileKind,
   ProviderState,
+  ResourceMessagePart,
   RuntimeAbortSignal
 } from "@wanex/protocol"
 
 export interface ProviderAdapter {
+  readonly kind: ProviderProfileKind
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   stream(request: ProviderRequest): AsyncIterable<ProviderEvent>
-  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[]
+  buildReplayMessages(
+    messages: readonly ProviderReplayMessage[]
+  ): JsonValue[]
 }
 
 export interface ProviderRequest {
-  readonly messages: readonly ProviderReplayMessage[]
+  readonly messages: readonly PreparedProviderReplayMessage[]
   readonly signal?: RuntimeAbortSignal
   readonly maxOutputTokens?: number
   readonly tools?: readonly ProviderToolDefinition[]
@@ -36,6 +43,19 @@ export type ProviderToolChoice =
 export interface ProviderReplayMessage {
   readonly role: "user" | "assistant" | "tool" | "system"
   readonly content: readonly MessagePart[]
+}
+
+export interface PreparedProviderReplayMessage {
+  readonly role: ProviderReplayMessage["role"]
+  readonly content: readonly PreparedProviderReplayPart[]
+}
+
+export type PreparedProviderReplayPart =
+  | Exclude<MessagePart, ResourceMessagePart>
+  | PreparedProviderResourcePart
+
+export interface PreparedProviderResourcePart extends ResourceMessagePart {
+  readonly bytes: Uint8Array
 }
 
 export type ProviderEvent =
@@ -151,7 +171,9 @@ export interface ProviderTurnResult {
 export interface ProviderRunEvent {
   readonly sessionId: string
   readonly inputId: string
-  readonly runId: string
+  readonly turnId: string
+  readonly jobId: string
+  readonly attemptId: string
   readonly providerId: string
   readonly modelId: string
   readonly event: ProviderEvent

@@ -4,20 +4,22 @@ use crate::{
     ChannelProjectionRecord, ConnectorCredentialRecord, ConnectorRegistrationRecord,
     ConnectorSessionRecord, ContextEpochRecord, ContextReplacementRecord,
     DelegationGraphDependencyRecord, DelegationGraphNodeRecord, DelegationGraphRecord, EventScope,
-    ObjectiveAttemptRecord, ObjectiveReferenceRecord, ObjectiveRunOperationRecord,
-    ObjectiveRunRecord, ObjectiveVerificationRecord, PlanProposalOperationRecord,
-    PlanProposalRecord, PlanProposalReferenceRecord, PluginInstallRecord, PluginManifestRecord,
-    ResourceRecord, ResourceSource, Result, RuntimeEvent, SchedulerJobRecord, SessionInputRecord,
-    SessionMessageRecord, SessionRecord, SessionRunControlRecord, TeamConversationRecord,
-    TeamParticipantRecord, TeamTurnRecord, ToolExecutionRecord, WorkspaceChangeOperationRecord,
+    MediaGenerationOperationRecord, ObjectiveAttemptRecord, ObjectiveReferenceRecord,
+    ObjectiveRunOperationRecord, ObjectiveRunRecord, ObjectiveVerificationRecord,
+    PlanProposalOperationRecord, PlanProposalRecord, PlanProposalReferenceRecord,
+    PluginInstallRecord, PluginManifestRecord, ProviderInvocationRecord, ResourceRecord,
+    ResourceSource, Result, RuntimeEvent, SchedulerJobRecord, SessionAttemptRecord,
+    SessionInputRecord, SessionMessageRecord, SessionRecord, SessionTurnControlRecord,
+    SessionTurnRecord, TeamConversationRecord, TeamParticipantRecord, TeamTurnRecord,
+    ToolExecutionAttemptRecord, ToolExecutionRecord, WorkspaceChangeOperationRecord,
     WorkspaceChangeProposalOperationRecord, WorkspaceChangeProposalRecord,
     WorkspaceChangeSetRecord,
 };
 
 pub(crate) fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<RuntimeEvent> {
-    let payload_json: String = row.get(9)?;
+    let payload_json: String = row.get(10)?;
     let payload = serde_json::from_str(&payload_json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(error))
+        rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, Box::new(error))
     })?;
 
     Ok(RuntimeEvent {
@@ -25,15 +27,16 @@ pub(crate) fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<RuntimeE
         event_type: row.get(1)?,
         scope: EventScope {
             session_id: row.get(2)?,
-            run_id: row.get(3)?,
-            input_id: row.get(4)?,
-            message_id: row.get(5)?,
-            resource_id: row.get(6)?,
-            plan_proposal_id: row.get(7)?,
-            objective_id: row.get(8)?,
+            turn_id: row.get(3)?,
+            attempt_id: row.get(4)?,
+            input_id: row.get(5)?,
+            message_id: row.get(6)?,
+            resource_id: row.get(7)?,
+            plan_proposal_id: row.get(8)?,
+            objective_id: row.get(9)?,
         },
         payload,
-        occurred_at: row.get(10)?,
+        occurred_at: row.get(11)?,
     })
 }
 
@@ -68,41 +71,41 @@ pub(crate) fn row_to_session_input(
         origin,
         intent: row.get(7)?,
         run_control_policy: row.get(8)?,
-        expected_run_id: row.get(9)?,
+        expected_turn_id: row.get(9)?,
         status: row.get(10)?,
         created_at: row.get(11)?,
         updated_at: row.get(12)?,
     })
 }
 
-pub(crate) fn row_to_session_run_control(
+pub(crate) fn row_to_session_turn_control(
     row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<SessionRunControlRecord> {
-    let content_json: Option<String> = row.get(8)?;
-    let origin_json: Option<String> = row.get(10)?;
+) -> rusqlite::Result<SessionTurnControlRecord> {
+    let content_json: Option<String> = row.get(9)?;
+    let origin_json: Option<String> = row.get(11)?;
     let metadata_json: Option<String> = row.get(12)?;
     let content = content_json
-        .map(|raw| json_from_column(&raw, 8))
+        .map(|raw| json_from_column(&raw, 9))
         .transpose()?;
     let origin = origin_json
-        .map(|raw| json_from_column(&raw, 10))
+        .map(|raw| json_from_column(&raw, 11))
         .transpose()?;
     let metadata = metadata_json
         .map(|raw| json_from_column(&raw, 12))
         .transpose()?;
-    Ok(SessionRunControlRecord {
+    Ok(SessionTurnControlRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
-        run_id: row.get(2)?,
-        input_id: row.get(3)?,
-        principal_id: row.get(4)?,
-        idempotency_key: row.get(5)?,
-        kind: row.get(6)?,
-        status: row.get(7)?,
+        turn_id: row.get(2)?,
+        attempt_id: row.get(3)?,
+        input_id: row.get(4)?,
+        principal_id: row.get(5)?,
+        idempotency_key: row.get(6)?,
+        kind: row.get(7)?,
+        status: row.get(8)?,
         content,
-        reason: row.get(9)?,
+        reason: row.get(10)?,
         origin,
-        provider_profile_id: row.get(11)?,
         metadata,
         created_at: row.get(13)?,
         updated_at: row.get(14)?,
@@ -113,16 +116,16 @@ pub(crate) fn row_to_session_run_control(
 pub(crate) fn row_to_session_message(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<SessionMessageRecord> {
-    let content_json: String = row.get(6)?;
-    let provider_state_json: Option<String> = row.get(7)?;
+    let content_json: String = row.get(8)?;
+    let provider_state_json: Option<String> = row.get(9)?;
     let content = serde_json::from_str(&content_json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::new(error))
+        rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::new(error))
     })?;
     let provider_state = provider_state_json
         .map(|raw| {
             serde_json::from_str(&raw).map_err(|error| {
                 rusqlite::Error::FromSqlConversionFailure(
-                    7,
+                    9,
                     rusqlite::types::Type::Text,
                     Box::new(error),
                 )
@@ -132,14 +135,135 @@ pub(crate) fn row_to_session_message(
     Ok(SessionMessageRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
-        run_id: row.get(2)?,
-        input_id: row.get(3)?,
-        role: row.get(4)?,
-        status: row.get(5)?,
+        sequence: row.get(2)?,
+        turn_id: row.get(3)?,
+        attempt_id: row.get(4)?,
+        input_id: row.get(5)?,
+        role: row.get(6)?,
+        status: row.get(7)?,
         content,
         provider_state,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
+        execution_binding_digest: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+    })
+}
+
+pub(crate) fn row_to_session_turn(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionTurnRecord> {
+    let execution_binding_json: String = row.get(5)?;
+    let result_json: Option<String> = row.get(13)?;
+    let error_json: Option<String> = row.get(14)?;
+    Ok(SessionTurnRecord {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        primary_input_id: row.get(2)?,
+        job_id: row.get(3)?,
+        state: row.get(4)?,
+        execution_binding: json_from_column(&execution_binding_json, 5)?,
+        execution_binding_digest: row.get(6)?,
+        max_steps: row.get(7)?,
+        current_attempt_id: row.get(8)?,
+        parent_turn_id: row.get(9)?,
+        regenerates_turn_id: row.get(10)?,
+        cancel_requested_at: row.get(11)?,
+        cancel_reason: row.get(12)?,
+        result: result_json
+            .map(|raw| json_from_column(&raw, 13))
+            .transpose()?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 14))
+            .transpose()?,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        finished_at: row.get(17)?,
+    })
+}
+
+pub(crate) fn row_to_session_attempt(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<SessionAttemptRecord> {
+    let error_json: Option<String> = row.get(9)?;
+    Ok(SessionAttemptRecord {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        turn_id: row.get(2)?,
+        input_id: row.get(3)?,
+        job_id: row.get(4)?,
+        attempt_number: row.get(5)?,
+        worker_id: row.get(6)?,
+        lease_token: row.get(7)?,
+        state: row.get(8)?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 9))
+            .transpose()?,
+        started_at: row.get(10)?,
+        updated_at: row.get(11)?,
+        finished_at: row.get(12)?,
+    })
+}
+
+pub(crate) fn row_to_provider_invocation(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ProviderInvocationRecord> {
+    let error_json: Option<String> = row.get(14)?;
+    Ok(ProviderInvocationRecord {
+        id: row.get(0)?,
+        session_id: row.get(1)?,
+        turn_id: row.get(2)?,
+        attempt_id: row.get(3)?,
+        input_id: row.get(4)?,
+        job_id: row.get(5)?,
+        step: row.get(6)?,
+        invocation_number: row.get(7)?,
+        execution_binding_digest: row.get(8)?,
+        request_digest: row.get(9)?,
+        state: row.get(10)?,
+        output_observed: row.get(11)?,
+        provider_request_id: row.get(12)?,
+        assistant_message_id: row.get(13)?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 14))
+            .transpose()?,
+        started_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        finished_at: row.get(17)?,
+    })
+}
+
+pub(crate) fn row_to_media_generation_operation(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<MediaGenerationOperationRecord> {
+    let binding_json: String = row.get(5)?;
+    let checkpoint_json: Option<String> = row.get(8)?;
+    let references_json: String = row.get(9)?;
+    let resource_ids_json: String = row.get(10)?;
+    let progress_json: Option<String> = row.get(11)?;
+    let error_json: Option<String> = row.get(12)?;
+    Ok(MediaGenerationOperationRecord {
+        id: row.get(0)?,
+        job_id: row.get(1)?,
+        principal_id: row.get(2)?,
+        idempotency_key: row.get(3)?,
+        state: row.get(4)?,
+        binding: json_from_column(&binding_json, 5)?,
+        dispatch_attempt: row.get(6)?,
+        external_operation_id: row.get(7)?,
+        provider_checkpoint: checkpoint_json
+            .map(|raw| json_from_column(&raw, 8))
+            .transpose()?,
+        output_references: json_from_column(&references_json, 9)?,
+        output_resource_ids: json_from_column(&resource_ids_json, 10)?,
+        progress: progress_json
+            .map(|raw| json_from_column(&raw, 11))
+            .transpose()?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 12))
+            .transpose()?,
+        cancel_requested_at: row.get(13)?,
+        cancel_reason: row.get(14)?,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        finished_at: row.get(17)?,
     })
 }
 
@@ -407,7 +531,7 @@ pub(crate) fn row_to_objective_attempt(
         state: row.get(3)?,
         session_id: row.get(4)?,
         session_input_id: row.get(5)?,
-        session_run_id: row.get(6)?,
+        session_turn_id: row.get(6)?,
         scheduler_job_id: row.get(7)?,
         delegation_graph_id: row.get(8)?,
         plan_proposal_id: row.get(9)?,
@@ -913,16 +1037,16 @@ pub(crate) fn row_to_scheduler_job(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<SchedulerJobRecord> {
     let payload_json: String = row.get(4)?;
-    let retry_policy_json: String = row.get(10)?;
-    let result_json: Option<String> = row.get(16)?;
-    let last_error_json: Option<String> = row.get(17)?;
+    let retry_policy_json: String = row.get(11)?;
+    let result_json: Option<String> = row.get(17)?;
+    let last_error_json: Option<String> = row.get(18)?;
     let payload = json_from_column(&payload_json, 4)?;
-    let retry_policy = json_from_column(&retry_policy_json, 10)?;
+    let retry_policy = json_from_column(&retry_policy_json, 11)?;
     let result = result_json
-        .map(|raw| json_from_column(&raw, 16))
+        .map(|raw| json_from_column(&raw, 17))
         .transpose()?;
     let last_error = last_error_json
-        .map(|raw| json_from_column(&raw, 17))
+        .map(|raw| json_from_column(&raw, 18))
         .transpose()?;
     Ok(SchedulerJobRecord {
         id: row.get(0)?,
@@ -933,19 +1057,20 @@ pub(crate) fn row_to_scheduler_job(
         scheduled_at: row.get(5)?,
         not_before: row.get(6)?,
         priority: row.get(7)?,
-        attempt: row.get(8)?,
-        max_attempts: row.get(9)?,
+        concurrency_key: row.get(8)?,
+        attempt: row.get(9)?,
+        max_attempts: row.get(10)?,
         retry_policy,
-        idempotency_key: row.get(11)?,
-        budget_grant_id: row.get(12)?,
-        lease_owner: row.get(13)?,
-        lease_token: row.get(14)?,
-        lease_expires_at: row.get(15)?,
+        idempotency_key: row.get(12)?,
+        budget_grant_id: row.get(13)?,
+        lease_owner: row.get(14)?,
+        lease_token: row.get(15)?,
+        lease_expires_at: row.get(16)?,
         result,
         last_error,
-        created_at: row.get(18)?,
-        updated_at: row.get(19)?,
-        finished_at: row.get(20)?,
+        created_at: row.get(19)?,
+        updated_at: row.get(20)?,
+        finished_at: row.get(21)?,
     })
 }
 
@@ -979,35 +1104,57 @@ fn objective_references_from_json(
 pub(crate) fn row_to_tool_execution(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<ToolExecutionRecord> {
-    let input_json: String = row.get(7)?;
-    let descriptor_json: String = row.get(8)?;
-    let permission_json: String = row.get(9)?;
-    let result_json: Option<String> = row.get(13)?;
-    let error_json: Option<String> = row.get(15)?;
+    let input_json: String = row.get(8)?;
+    let descriptor_json: String = row.get(9)?;
+    let permission_json: String = row.get(10)?;
+    let result_json: Option<String> = row.get(15)?;
+    let error_json: Option<String> = row.get(17)?;
     Ok(ToolExecutionRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
-        run_id: row.get(2)?,
+        turn_id: row.get(2)?,
         input_id: row.get(3)?,
-        principal_id: row.get(4)?,
-        tool_call_id: row.get(5)?,
-        tool_name: row.get(6)?,
-        input: json_from_column(&input_json, 7)?,
-        descriptor: json_from_column(&descriptor_json, 8)?,
-        permission: json_from_column(&permission_json, 9)?,
-        state: row.get(10)?,
-        attempt: row.get(11)?,
-        idempotency_key: row.get(12)?,
+        source_message_id: row.get(4)?,
+        principal_id: row.get(5)?,
+        tool_call_id: row.get(6)?,
+        tool_name: row.get(7)?,
+        input: json_from_column(&input_json, 8)?,
+        descriptor: json_from_column(&descriptor_json, 9)?,
+        permission: json_from_column(&permission_json, 10)?,
+        state: row.get(11)?,
+        current_invocation_attempt_id: row.get(12)?,
+        attempt_count: row.get(13)?,
+        idempotency_key: row.get(14)?,
         result: result_json
-            .map(|raw| json_from_column(&raw, 13))
-            .transpose()?,
-        is_error: row.get(14)?,
-        error: error_json
             .map(|raw| json_from_column(&raw, 15))
             .transpose()?,
-        created_at: row.get(16)?,
-        started_at: row.get(17)?,
-        finished_at: row.get(18)?,
-        updated_at: row.get(19)?,
+        is_error: row.get(16)?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 17))
+            .transpose()?,
+        created_at: row.get(18)?,
+        finished_at: row.get(19)?,
+        updated_at: row.get(20)?,
+    })
+}
+
+pub(crate) fn row_to_tool_execution_attempt(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ToolExecutionAttemptRecord> {
+    let error_json: Option<String> = row.get(7)?;
+    Ok(ToolExecutionAttemptRecord {
+        id: row.get(0)?,
+        execution_id: row.get(1)?,
+        session_attempt_id: row.get(2)?,
+        job_id: row.get(3)?,
+        worker_id: row.get(4)?,
+        attempt_number: row.get(5)?,
+        state: row.get(6)?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 7))
+            .transpose()?,
+        started_at: row.get(8)?,
+        updated_at: row.get(9)?,
+        finished_at: row.get(10)?,
     })
 }

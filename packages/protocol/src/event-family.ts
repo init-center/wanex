@@ -10,9 +10,72 @@ import type {
   RuntimeEvent,
   RuntimeEventType,
   SchedulerEventType,
-  SessionEventType,
-  UiSurfaceEventType
+  SessionEventType
 } from "./event-types.js"
+
+const sessionEventTypes: Readonly<Record<SessionEventType, true>> = {
+  "session.created": true,
+  "session.input.admitted": true,
+  "session.turn.submitted": true,
+  "session.turn.attempt_started": true,
+  "session.turn.interrupt_requested": true,
+  "session.turn.steer_accepted": true,
+  "session.turn.control_applied": true,
+  "session.turn.cancel_requested": true,
+  "session.turn.interrupted": true,
+  "session.turn.recovery_required": true,
+  "session.ephemeral_query.completed": true,
+  "session.message.appended": true,
+  "session.turn.succeeded": true,
+  "session.turn.failed": true,
+  "session.turn.cancelled": true
+}
+
+const schedulerEventTypes: Readonly<Record<SchedulerEventType, true>> = {
+  "scheduler.job.enqueued": true,
+  "scheduler.job.claimed": true,
+  "scheduler.job.heartbeat": true,
+  "scheduler.job.succeeded": true,
+  "scheduler.job.retry_scheduled": true,
+  "scheduler.job.failed": true,
+  "scheduler.job.cancelled": true
+}
+
+const budgetEventTypes: Readonly<Record<BudgetEventType, true>> = {
+  "budget.grant.denied": true,
+  "budget.grant.reserved": true,
+  "budget.grant.committed": true,
+  "budget.grant.released": true
+}
+
+const resourceEventTypes: Readonly<Record<ResourceEventType, true>> = {
+  "resource.ticket.cleanup": true
+}
+
+const configEventTypes: Readonly<Record<ConfigEventType, true>> = {
+  "config.updated": true
+}
+
+const contextEventTypes: Readonly<Record<ContextEventType, true>> = {
+  "context.compaction.planned": true,
+  "context.compaction.applied": true,
+  "context.compaction.skipped": true,
+  "context.epoch.created": true,
+  "context.epoch.activated": true,
+  "context.epoch.superseded": true
+}
+
+const planEventTypes: Readonly<Record<PlanEventType, true>> = {
+  "plan.proposal.created": true,
+  "plan.proposal.operation_recorded": true
+}
+
+const objectiveEventTypes: Readonly<Record<ObjectiveEventType, true>> = {
+  "objective.run.created": true,
+  "objective.run.operation_recorded": true,
+  "objective.attempt.recorded": true,
+  "objective.verification.recorded": true
+}
 
 export function eventFamily(type: RuntimeEventType): EventFamily {
   if (isSessionEventType(type)) {
@@ -29,9 +92,6 @@ export function eventFamily(type: RuntimeEventType): EventFamily {
   }
   if (isConfigEventType(type)) {
     return "config"
-  }
-  if (isUiSurfaceEventType(type)) {
-    return "ui"
   }
   if (isContextEventType(type)) {
     return "context"
@@ -54,97 +114,49 @@ export function isKnownRuntimeEventType(
 export function isSessionEventType(
   type: RuntimeEventType
 ): type is SessionEventType {
-  return (
-    type === "session.created" ||
-    type === "session.input.admitted" ||
-    type === "session.run.submitted" ||
-    type === "session.run.claimed" ||
-    type === "session.run.interrupt_requested" ||
-    type === "session.run.interrupted" ||
-    type === "session.run.steer_admitted" ||
-    type === "session.run.steer_rejected" ||
-    type === "session.ephemeral_query.completed" ||
-    type === "session.message.appended" ||
-    type === "session.run.completed" ||
-    type === "session.run.failed" ||
-    type === "session.run.cancelled"
-  )
+  return hasEventType(sessionEventTypes, type)
 }
 
 export function isSchedulerEventType(
   type: RuntimeEventType
 ): type is SchedulerEventType {
-  return (
-    type === "scheduler.job.enqueued" ||
-    type === "scheduler.job.claimed" ||
-    type === "scheduler.job.heartbeat" ||
-    type === "scheduler.job.succeeded" ||
-    type === "scheduler.job.retry_scheduled" ||
-    type === "scheduler.job.failed" ||
-    type === "scheduler.job.cancelled"
-  )
+  return hasEventType(schedulerEventTypes, type)
 }
 
 export function isBudgetEventType(
   type: RuntimeEventType
 ): type is BudgetEventType {
-  return (
-    type === "budget.grant.denied" ||
-    type === "budget.grant.reserved" ||
-    type === "budget.grant.committed" ||
-    type === "budget.grant.released"
-  )
+  return hasEventType(budgetEventTypes, type)
 }
 
 export function isResourceEventType(
   type: RuntimeEventType
 ): type is ResourceEventType {
-  return type === "resource.ticket.cleanup"
+  return hasEventType(resourceEventTypes, type)
 }
 
 export function isConfigEventType(
   type: RuntimeEventType
 ): type is ConfigEventType {
-  return type === "config.updated"
-}
-
-export function isUiSurfaceEventType(
-  type: RuntimeEventType
-): type is UiSurfaceEventType {
-  return type === "ui.surface.emitted"
+  return hasEventType(configEventTypes, type)
 }
 
 export function isContextEventType(
   type: RuntimeEventType
 ): type is ContextEventType {
-  return (
-    type === "context.compaction.planned" ||
-    type === "context.compaction.applied" ||
-    type === "context.compaction.skipped" ||
-    type === "context.epoch.created" ||
-    type === "context.epoch.activated" ||
-    type === "context.epoch.superseded"
-  )
+  return hasEventType(contextEventTypes, type)
 }
 
 export function isPlanEventType(
   type: RuntimeEventType
 ): type is PlanEventType {
-  return (
-    type === "plan.proposal.created" ||
-    type === "plan.proposal.operation_recorded"
-  )
+  return hasEventType(planEventTypes, type)
 }
 
 export function isObjectiveEventType(
   type: RuntimeEventType
 ): type is ObjectiveEventType {
-  return (
-    type === "objective.run.created" ||
-    type === "objective.run.operation_recorded" ||
-    type === "objective.attempt.recorded" ||
-    type === "objective.verification.recorded"
-  )
+  return hasEventType(objectiveEventTypes, type)
 }
 
 export function eventHasFamily(
@@ -152,4 +164,11 @@ export function eventHasFamily(
   family: EventFamily
 ): boolean {
   return eventFamily(event.type) === family
+}
+
+function hasEventType<T extends string>(
+  eventTypes: Readonly<Record<T, true>>,
+  type: string
+): type is T {
+  return Object.hasOwn(eventTypes, type)
 }

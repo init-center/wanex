@@ -2,560 +2,416 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { DeterministicContextCompiler } from "../src/context/memory/index.js"
+import { createStorageTestStore } from "@wanex/storage/testing"
+import { WanexWorker } from "../src/jobs/index.js"
+import { registerSessionTurnHandler } from "../src/execution/worker/index.js"
+import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
 import {
   FakeProviderAdapter,
-  type ProviderRequest,
-  type ProviderReplayMessage
-} from "@wanex/runtime/provider"
-import type { RuntimeAbortSignal } from "@wanex/protocol"
-import { writeProviderProfile } from "@wanex/runtime/provider"
+  profileToJson,
+  type ProviderRequest
+} from "../src/provider/index.js"
 import { WanexSessionCore } from "../src/sessions/index.js"
-import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import {
   AllowAllToolsPolicy,
-  EchoTool,
+  createToolRuntimeBinding,
+  RiskBoundToolPolicy,
   ToolRegistry
-} from "@wanex/runtime/tools"
-import { WanexWorker } from "../src/jobs/index.js"
-import {
-  registerProfileSessionRunHandler,
-  registerSessionRunHandler
-} from "../src/execution/worker/index.js"
+} from "../src/tools/index.js"
+import { fakeProfile } from "./durable-turn-test-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
   "../../../target/debug/wanex-system-service"
 )
-
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop()
-    if (dir) {
-      await rm(dir, { recursive: true, force: true })
-    }
-  }
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
+  )
 })
 
-describe("Runtime agent worker", () => {
-  it("runs a session.run job and persists the assistant message", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_worker_once" })
-    await session.admit({
-      id: "inp_agent_worker_once",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_once",
-      content: [{ type: "text", id: "part_user", text: "hello" }]
+describe("session.turn worker handler", () => {
+  it("claims the exact job, starts its attempt, and settles the transcript", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    await session.create({ id: "ses_worker_turn", kind: "agent" })
+    const submitted = await session.submitTurn({
+      id: "inp_worker_turn",
+      turnId: "turn_worker_turn",
+      sessionId: "ses_worker_turn",
+      principalId: "principal_worker_turn",
+      idempotencyKey: "idem_worker_turn",
+      content: [{
+        type: "text",
+        id: "part_worker_turn",
+        text: "hello"
+      }],
+      jobId: "job_worker_turn",
+      executionBinding: createTurnExecutionBinding({
+        profile: fakeProfile("worker_turn"),
+        createdAt: 1
+      })
     })
-    await session.enqueueJob({
-      id: "job_agent_worker_once",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: { sessionId: created.id }
-    })
-
     const worker = new WanexWorker({
       session,
-      workerId: "worker_agent_once",
-      leaseMs: 60_000
+      workerId: "worker_turn_handler",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    registerSessionRunHandler({
+    registerSessionTurnHandler({
       worker,
       session,
-      provider: new FakeProviderAdapter({ responseText: "hello from worker" }),
-      runnerId: "runner_agent_worker_once",
-      leaseMs: 60_000
+      storage
     })
 
     const result = await worker.runOnce()
 
     expect(result.status).toBe("completed")
     if (result.status !== "completed") {
-      throw new Error("expected completed result")
+      throw new Error("expected completed worker result")
     }
-    expect(result.job.result).toMatchObject({
-      sessionId: created.id,
-      status: "completed",
-      mode: "once",
-      inputId: "inp_agent_worker_once"
+    expect(result.job).toMatchObject({
+      id: submitted.job.id,
+      state: "succeeded"
     })
-    expect(result.job.lastError).toBeUndefined()
-    const messages = await session.listMessages({ sessionId: created.id })
-    expect(messages[0]?.content).toEqual([
-      {
-        type: "text",
-        id: "text_0",
-        text: "hello from worker"
-      }
+    const [turn] = await session.listTurns({ sessionId: submitted.turn.sessionId })
+    expect(turn).toMatchObject({
+      id: submitted.turn.id,
+      state: "succeeded"
+    })
+    const [attempt] = await session.listAttempts({ turnId: submitted.turn.id })
+    expect(attempt).toMatchObject({
+      jobId: submitted.job.id,
+      workerId: "worker_turn_handler",
+      state: "succeeded"
+    })
+    const messages = await session.listMessages({
+      sessionId: submitted.turn.sessionId
+    })
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant"
     ])
+    expect(messages[1]?.content).toMatchObject([{
+      type: "text",
+      text: "Fake response from model_worker_turn"
+    }])
   })
 
-  it("passes the worker job signal into provider completions", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_worker_signal" })
-    await session.admit({
-      id: "inp_agent_worker_signal",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_signal",
-      content: [{ type: "text", id: "part_user", text: "signal" }]
-    })
-    await session.enqueueJob({
-      id: "job_agent_worker_signal",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: { sessionId: created.id }
-    })
-
-    const worker = new WanexWorker({
-      session,
-      workerId: "worker_agent_signal",
-      leaseMs: 60_000
-    })
-    const provider = new RecordingProvider()
-    registerSessionRunHandler({
-      worker,
-      session,
-      provider,
-      runnerId: "runner_agent_worker_signal",
-      leaseMs: 60_000
-    })
-
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    expect(provider.lastSignal).toBeDefined()
-    expect(provider.lastSignal?.aborted).toBe(false)
-  })
-
-  it("runs a job created by submitRun", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_worker_submit" })
-    const submitted = await session.submitRun({
-      id: "inp_agent_worker_submit",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_submit",
-      content: [{ type: "text", id: "part_user", text: "submitted" }],
-      providerProfileId: "unused-by-direct-handler"
-    })
-    expect(submitted.job.kind).toBe("session.run")
-    expect(submitted.job.payload).toMatchObject({
-      providerProfileId: "unused-by-direct-handler"
-    })
-
-    const worker = new WanexWorker({
-      session,
-      workerId: "worker_agent_submit",
-      leaseMs: 60_000
-    })
-    registerSessionRunHandler({
-      worker,
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "submitted response"
-      }),
-      runnerId: "runner_agent_worker_submit",
-      leaseMs: 60_000
-    })
-
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    const messages = await session.listMessages({ sessionId: created.id })
-    expect(messages[0]?.content).toEqual([
-      {
+  it("executes the immutable admitted provider binding after profile config changes", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    await session.create({ id: "ses_worker_binding", kind: "agent" })
+    const admittedProfile = fakeProfile("binding_original")
+    const submitted = await session.submitTurn({
+      id: "inp_worker_binding",
+      turnId: "turn_worker_binding",
+      sessionId: "ses_worker_binding",
+      principalId: "principal_worker_binding",
+      idempotencyKey: "idem_worker_binding",
+      content: [{
         type: "text",
-        id: "text_0",
-        text: "submitted response"
-      }
-    ])
-  })
-
-  it("resolves provider profiles for session.run jobs", async () => {
-    const { session, storage } = await createSessionCoreWithStorage()
-    await writeProviderProfile(storage, {
-      id: "fake-profile",
-      kind: "fake",
-      providerId: "fake",
-      modelId: "fake-model"
+        id: "part_worker_binding",
+        text: "bound"
+      }],
+      jobId: "job_worker_binding",
+      executionBinding: createTurnExecutionBinding({
+        profile: admittedProfile,
+        createdAt: 1
+      })
     })
-    const created = await session.create({ id: "ses_agent_worker_profile" })
-    await session.admit({
-      id: "inp_agent_worker_profile",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_profile",
-      content: [{ type: "text", id: "part_user", text: "profile" }]
-    })
-    await session.enqueueJob({
-      id: "job_agent_worker_profile",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: {
-        sessionId: created.id,
-        providerProfileId: "fake-profile"
-      }
-    })
-
+    await storage.putConfig("provider.profile." + admittedProfile.id, profileToJson({
+      ...admittedProfile,
+      modelId: "model_mutated"
+    }))
     const worker = new WanexWorker({
       session,
-      workerId: "worker_agent_profile",
-      leaseMs: 60_000
+      workerId: "worker_binding",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    registerProfileSessionRunHandler({
+    registerSessionTurnHandler({ worker, session, storage })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "completed"
+    })
+    const messages = await session.listMessages({
+      sessionId: submitted.turn.sessionId
+    })
+    expect(JSON.stringify(messages)).toContain(
+      "Fake response from model_binding_original"
+    )
+    expect(JSON.stringify(messages)).not.toContain("model_mutated")
+  })
+
+  it("fails the turn when resolved tool context no longer matches admission", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    await session.create({ id: "ses_worker_context", kind: "agent" })
+    const admittedTools = registryWithTool("tool_a")
+    const submitted = await session.submitTurn({
+      id: "inp_worker_context",
+      turnId: "turn_worker_context",
+      sessionId: "ses_worker_context",
+      principalId: "principal_worker_context",
+      idempotencyKey: "idem_worker_context",
+      content: [{
+        type: "text",
+        id: "part_worker_context",
+        text: "context"
+      }],
+      jobId: "job_worker_context",
+      executionBinding: createTurnExecutionBinding({
+        profile: fakeProfile("worker_context"),
+        agentContext: { tools: admittedTools },
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_context",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
       worker,
       session,
       storage,
-      runnerId: "runner_agent_worker_profile",
-      leaseMs: 60_000
-    })
-
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    const messages = await session.listMessages({ sessionId: created.id })
-    expect(messages[0]?.content).toEqual([
-      {
-        type: "text",
-        id: "text_0",
-        text: "Fake response from fake-model"
-      }
-    ])
-  })
-
-  it("runs a to_completion session.run job with tools", async () => {
-    const session = await createSessionCore()
-    const created = await session.create({ id: "ses_agent_worker_tools" })
-    const grant = await session.reserveBudget({
-      scope: { kind: "turn", ownerId: "inp_agent_worker_tools", windowKind: "run" },
-      limit: { toolCalls: 1 },
-      requested: { toolCalls: 1 },
-      principalId: "user_agent_worker",
-      reason: "agent tool loop",
-      idempotencyKey: "budget_agent_worker_tools"
-    })
-    await session.admit({
-      id: "inp_agent_worker_tools",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_tools",
-      content: [{ type: "text", id: "part_user", text: "use echo" }]
-    })
-    await session.enqueueJob({
-      id: "job_agent_worker_tools",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: {
-        sessionId: created.id,
-        mode: "to_completion",
-        maxSteps: 4
-      },
-      budgetGrantId: grant.id
-    })
-
-    const tools = new ToolRegistry()
-    tools.register(new EchoTool())
-    const worker = new WanexWorker({
-      session,
-      workerId: "worker_agent_tools",
-      leaseMs: 60_000
-    })
-    registerSessionRunHandler({
-      worker,
-      session,
-      provider: new FakeProviderAdapter({
-        responseText: "tool loop done",
-        toolName: "echo"
-      }),
-      tools,
-      toolPermissionPolicy: new AllowAllToolsPolicy(),
-      runnerId: "runner_agent_worker_tools",
-      leaseMs: 60_000
-    })
-
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    if (result.status !== "completed") {
-      throw new Error("expected completed result")
-    }
-    expect(result.job.result).toMatchObject({
-      sessionId: created.id,
-      status: "completed",
-      mode: "to_completion",
-      steps: 2
-    })
-    expect(result.job.lastError).toBeUndefined()
-    await expect(session.getBudgetScope(grant.scopeId)).resolves.toMatchObject({
-      usage: { toolCalls: 1 }
-    })
-    await expect(session.listBudgetGrants(grant.scopeId)).resolves.toMatchObject([
-      { id: grant.id, state: "committed", committed: { toolCalls: 1 } }
-    ])
-    const messages = await session.listMessages({ sessionId: created.id })
-    expect(messages.map((message) => message.role)).toEqual([
-      "assistant",
-      "tool",
-      "assistant"
-    ])
-  })
-
-  it("fails the scheduler job when session.run payload is invalid", async () => {
-    const session = await createSessionCore()
-    await session.enqueueJob({
-      id: "job_agent_worker_invalid",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: {}
-    })
-    const worker = new WanexWorker({
-      session,
-      workerId: "worker_agent_invalid",
-      leaseMs: 60_000
-    })
-    registerSessionRunHandler({
-      worker,
-      session,
-      provider: new FakeProviderAdapter({ responseText: "unused" }),
-      runnerId: "runner_agent_worker_invalid",
-      leaseMs: 60_000
+      resolveAgentContext: () => ({
+        tools: registryWithTool("tool_b")
+      })
     })
 
     const result = await worker.runOnce()
 
     expect(result.status).toBe("failed")
     if (result.status !== "failed") {
-      throw new Error("expected failed result")
+      throw new Error("expected failed worker result")
     }
+    expect(result.error?.message).toContain(
+      "resolved agent context does not match"
+    )
+    const [turn] = await session.listTurns({
+      sessionId: submitted.turn.sessionId
+    })
+    expect(turn?.state).toBe("failed")
     expect(result.job?.state).toBe("failed")
-    expect(result.job?.result).toBeUndefined()
-    expect(result.error.message).toContain("session.run.sessionId")
   })
 
-  it("uses the injected context compiler for session.run replay", async () => {
-    const session = await createSessionCore()
-    await seedOldTurn({
-      session,
-      sessionId: "ses_agent_worker_context",
-      oldInputId: "inp_agent_worker_context_old",
-      oldAssistantText: "old worker context ".repeat(80)
+  it("rejects same-descriptor tool implementation drift before provider dispatch", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    const profile = fakeProfile("worker_tool_revision")
+    const provider = new CountingFakeProvider({
+      modelId: profile.modelId,
+      responseText: "must not dispatch"
     })
-    await session.submitRun({
-      id: "inp_agent_worker_context_new",
-      sessionId: "ses_agent_worker_context",
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_context_new",
-      content: [{ type: "text", id: "part_new_user", text: "new worker request" }]
+    let toolCalls = 0
+    await session.create({ id: "ses_worker_tool_revision", kind: "agent" })
+    await session.submitTurn({
+      id: "inp_worker_tool_revision",
+      turnId: "turn_worker_tool_revision",
+      sessionId: "ses_worker_tool_revision",
+      principalId: "principal_worker_tool_revision",
+      idempotencyKey: "idem_worker_tool_revision",
+      content: [{
+        type: "text",
+        id: "part_worker_tool_revision",
+        text: "use optional tool"
+      }],
+      jobId: "job_worker_tool_revision",
+      executionBinding: createTurnExecutionBinding({
+        profile,
+        agentContext: {
+          tools: registryWithTool("optional_tool", "1")
+        },
+        createdAt: 1
+      })
     })
     const worker = new WanexWorker({
       session,
-      workerId: "worker_agent_context",
-      leaseMs: 60_000
+      workerId: "worker_tool_revision",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
     })
-    const provider = new RecordingProvider()
-    registerSessionRunHandler({
+    registerSessionTurnHandler({
       worker,
       session,
-      provider,
-      contextCompiler: new DeterministicContextCompiler({
-        policy: {
-          recentUserTurns: 1,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
-        }
-      }),
-      runnerId: "runner_agent_worker_context",
-      leaseMs: 60_000
+      storage,
+      directProvider: provider,
+      resolveAgentContext: () => ({
+        tools: registryWithTool("optional_tool", "2", "default", () => {
+          toolCalls += 1
+        })
+      })
     })
 
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    const replayText = provider.lastMessages
-      .flatMap((message) => message.content)
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("\n")
-    expect(replayText).toContain("[compacted")
-    expect(replayText).toContain("new worker request")
-  })
-
-  it("completes session.run jobs with a cancelled receipt when interrupted at a safe point", async () => {
-    const { session } = await createInterruptingSessionCore({
-      reason: "worker user stop"
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "failed",
+      error: { message: expect.stringContaining("does not match") }
     })
-    const created = await session.create({ id: "ses_agent_worker_interrupt" })
-    await session.admit({
-      id: "inp_agent_worker_interrupt",
-      sessionId: created.id,
-      principalId: "user_agent_worker",
-      idempotencyKey: "idem_agent_worker_interrupt",
-      content: [{ type: "text", id: "part_user", text: "cancel in worker" }]
-    })
-    await session.enqueueJob({
-      id: "job_agent_worker_interrupt",
-      kind: "session.run",
-      principalId: "user_agent_worker",
-      payload: { sessionId: created.id }
-    })
-
-    const worker = new WanexWorker({
-      session,
-      workerId: "worker_agent_interrupt",
-      leaseMs: 60_000
-    })
-    const provider = new RecordingProvider()
-    registerSessionRunHandler({
-      worker,
-      session,
-      provider,
-      runnerId: "runner_agent_worker_interrupt",
-      leaseMs: 60_000
-    })
-
-    const result = await worker.runOnce()
-
-    expect(result.status).toBe("completed")
-    if (result.status !== "completed") {
-      throw new Error("expected completed result")
-    }
-    expect(result.job.state).toBe("succeeded")
-    expect(result.job.result).toMatchObject({
-      sessionId: created.id,
-      status: "cancelled",
-      mode: "once",
-      inputId: "inp_agent_worker_interrupt",
-      reason: "worker user stop"
-    })
-    expect(result.job.lastError).toBeUndefined()
     expect(provider.calls).toBe(0)
-    await expect(session.listMessages({ sessionId: created.id })).resolves.toEqual([])
-    const inputs = await session.listInputs({ sessionId: created.id })
-    expect(inputs[0]?.status).toBe("cancelled")
+    expect(toolCalls).toBe(0)
+  })
+
+  it("rejects tool configuration drift before dispatch", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    const profile = fakeProfile("worker_tool_configuration")
+    const provider = new CountingFakeProvider({
+      modelId: profile.modelId,
+      responseText: "must not dispatch"
+    })
+    await session.create({ id: "ses_worker_tool_configuration", kind: "agent" })
+    await session.submitTurn({
+      id: "inp_worker_tool_configuration",
+      turnId: "turn_worker_tool_configuration",
+      sessionId: "ses_worker_tool_configuration",
+      principalId: "principal_worker_tool_configuration",
+      idempotencyKey: "idem_worker_tool_configuration",
+      content: [{
+        type: "text",
+        id: "part_worker_tool_configuration",
+        text: "use configured optional tool"
+      }],
+      jobId: "job_worker_tool_configuration",
+      executionBinding: createTurnExecutionBinding({
+        profile,
+        agentContext: {
+          tools: registryWithTool("optional_tool", "1", "configuration-a"),
+          toolPermissionPolicy: new AllowAllToolsPolicy()
+        },
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_tool_configuration",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider,
+      resolveAgentContext: () => ({
+        tools: registryWithTool("optional_tool", "1", "configuration-b"),
+        toolPermissionPolicy: new AllowAllToolsPolicy()
+      })
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "failed",
+      error: { message: expect.stringContaining("does not match") }
+    })
+    expect(provider.calls).toBe(0)
+  })
+
+  it("rejects permission-policy drift before dispatch", async () => {
+    const storage = await createStore()
+    const session = new WanexSessionCore({ storage })
+    const profile = fakeProfile("worker_tool_permission")
+    const provider = new CountingFakeProvider({
+      modelId: profile.modelId,
+      responseText: "must not dispatch"
+    })
+    const tools = registryWithTool("optional_tool")
+    await session.create({ id: "ses_worker_tool_permission", kind: "agent" })
+    await session.submitTurn({
+      id: "inp_worker_tool_permission",
+      turnId: "turn_worker_tool_permission",
+      sessionId: "ses_worker_tool_permission",
+      principalId: "principal_worker_tool_permission",
+      idempotencyKey: "idem_worker_tool_permission",
+      content: [{
+        type: "text",
+        id: "part_worker_tool_permission",
+        text: "use policy-bound optional tool"
+      }],
+      jobId: "job_worker_tool_permission",
+      executionBinding: createTurnExecutionBinding({
+        profile,
+        agentContext: {
+          tools,
+          toolPermissionPolicy: new AllowAllToolsPolicy()
+        },
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_tool_permission",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider,
+      resolveAgentContext: () => ({
+        tools,
+        toolPermissionPolicy: new RiskBoundToolPolicy(["read_only"])
+      })
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "failed",
+      error: { message: expect.stringContaining("does not match") }
+    })
+    expect(provider.calls).toBe(0)
   })
 })
 
-async function createSessionCore(): Promise<WanexSessionCore> {
-  return (await createSessionCoreWithStorage()).session
-}
-
-async function createSessionCoreWithStorage(): Promise<{
-  readonly session: WanexSessionCore
-  readonly storage: StorageTestStore
-}> {
-  const storage = await createTestStore()
-  return {
-    session: new WanexSessionCore({ storage }),
-    storage
-  }
-}
-
-async function createInterruptingSessionCore(options: {
-  readonly reason: string
-}): Promise<{
-  readonly session: WanexSessionCore
-  readonly storage: StorageTestStore
-}> {
-  const storage = await createTestStore()
-  return {
-    session: new InterruptAfterClaimSessionCore({
-      storage,
-      reason: options.reason
-    }),
-    storage
-  }
-}
-
-async function createTestStore(): Promise<StorageTestStore> {
+async function createStore() {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-worker-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({ kind: "local-system-service", mode: "oneshot",
+  return createStorageTestStore({
+    kind: "local-system-service",
+    mode: "oneshot",
     storeDir,
     serviceBin
   })
 }
 
-async function seedOldTurn(request: {
-  readonly session: WanexSessionCore
-  readonly sessionId: string
-  readonly oldInputId: string
-  readonly oldAssistantText: string
-}): Promise<void> {
-  await request.session.create({ id: request.sessionId, kind: "agent" })
-  await request.session.submitRun({
-    id: request.oldInputId,
-    sessionId: request.sessionId,
-    principalId: "user_agent_worker",
-    idempotencyKey: `idem_${request.oldInputId}`,
-    content: [{ type: "text", id: "part_old_user", text: "old worker request" }]
-  })
-  const firstWorker = new WanexWorker({
-    session: request.session,
-    workerId: `worker_${request.oldInputId}`,
-    leaseMs: 60_000
-  })
-  registerSessionRunHandler({
-    worker: firstWorker,
-    session: request.session,
-    provider: new FakeProviderAdapter({
-      responseText: request.oldAssistantText
+function registryWithTool(
+  name: string,
+  revision = "1",
+  configuration = "default",
+  onInvoke: () => void = () => {}
+): ToolRegistry {
+  const registry = new ToolRegistry()
+  registry.register({
+    name,
+    description: "Test tool " + name,
+    inputSchema: { type: "object" },
+    risk: "read_only",
+    idempotent: true,
+    runtimeBinding: createToolRuntimeBinding({
+      implementationId: `wanex.test.agent-worker.${name}`,
+      implementationRevision: revision,
+      configuration: { configuration }
     }),
-    runnerId: `runner_${request.oldInputId}`,
-    leaseMs: 60_000
+    async invoke(invocation) {
+      onInvoke()
+      return {
+        toolCallId: invocation.toolCallId,
+        result: { ok: true },
+        isError: false
+      }
+    }
   })
-  const result = await firstWorker.runOnce()
-  if (result.status !== "completed") {
-    throw new Error(`failed to seed old turn: ${request.oldInputId}`)
-  }
+  return registry
 }
 
-class RecordingProvider extends FakeProviderAdapter {
-  lastMessages: readonly ProviderReplayMessage[] = []
-  lastSignal: RuntimeAbortSignal | undefined
+class CountingFakeProvider extends FakeProviderAdapter {
   calls = 0
-
-  constructor() {
-    super({ responseText: "recording response" })
-  }
 
   override async *stream(request: ProviderRequest) {
     this.calls += 1
-    this.lastSignal = request.signal
-    this.lastMessages = request.messages
     yield* super.stream(request)
-  }
-}
-
-class InterruptAfterClaimSessionCore extends WanexSessionCore {
-  private readonly reason: string
-  private interrupted = false
-
-  constructor(options: {
-    readonly storage: StorageTestStore
-    readonly reason: string
-  }) {
-    super({ storage: options.storage })
-    this.reason = options.reason
-  }
-
-  override async claimRunner(
-    request: Parameters<WanexSessionCore["claimRunner"]>[0]
-  ): ReturnType<WanexSessionCore["claimRunner"]> {
-    const claim = await super.claimRunner(request)
-    if (claim !== null && !this.interrupted) {
-      this.interrupted = true
-      await super.interruptRun({
-        sessionId: request.sessionId,
-        runId: claim.runId,
-        reason: this.reason,
-        principalId: "user_agent_worker",
-        idempotencyKey: `interrupt:${claim.runId}`
-      })
-    }
-    return claim
   }
 }

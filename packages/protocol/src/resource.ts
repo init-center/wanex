@@ -69,6 +69,14 @@ export interface ResourceRecord {
   readonly updatedAt: number
 }
 
+export interface ResourceInputEvidence {
+  readonly resourceId: ResourceId
+  readonly sha256: string
+  readonly sizeBytes: number
+  readonly kind: ResourceKind
+  readonly mediaType?: string
+}
+
 export interface IngestResourceRequest {
   readonly id?: ResourceId
   readonly logicalPath?: string
@@ -87,6 +95,22 @@ export interface IngestResourceRequest {
 
 export interface GetResourceRequest {
   readonly resourceId: ResourceId
+}
+
+export interface ReadResourceContentRequest {
+  readonly resourceId: ResourceId
+  readonly expectedSha256: string
+  readonly offset: number
+  readonly limit: number
+}
+
+export interface ResourceContentChunk {
+  readonly resourceId: ResourceId
+  readonly sha256: string
+  readonly totalSizeBytes: number
+  readonly offset: number
+  readonly content: Uint8Array
+  readonly eof: boolean
 }
 
 export interface ListResourcesRequest {

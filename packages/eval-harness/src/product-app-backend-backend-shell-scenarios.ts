@@ -16,7 +16,7 @@ import { assert, isRecord } from "./scenario-utils.js"
 
 export const productAppBackendBackendShellScenario = createEvalScenario({
   id: "product.skeleton-backend-shell-contract",
-  title: "App Shell command runtime owns local app dispatch lifecycle",
+  title: "App command runtime owns local app dispatch lifecycle",
   tags: ["product-path", "backend-shell", "distribution"],
   async run(context) {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-eval-product-shell-"))

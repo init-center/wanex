@@ -2,13 +2,15 @@ use crate::event_store::append_event_tx;
 use crate::rows::row_to_resource;
 use crate::{
     CleanupExpiredResourceTickets, EventScope, FileRecord, IngestResource, ListResources,
-    ResourceCapability, ResourceRecord, ResourceTicket, ResourceTicketCleanupReceipt, Result,
-    RuntimeEvent, SystemService, SystemServiceError,
+    ResourceCapability, ResourceContentChunk, ResourceRecord, ResourceTicket,
+    ResourceTicketCleanupReceipt, Result, RuntimeEvent, SystemService, SystemServiceError,
 };
 use rusqlite::{params, OptionalExtension};
-use std::fs::{self, OpenOptions};
-use std::io::{ErrorKind, Write};
+use std::fs::{self, File, OpenOptions};
+use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use uuid::Uuid;
+
+const MAX_RESOURCE_CONTENT_CHUNK_BYTES: u64 = 1024 * 1024;
 
 const RESOURCE_SELECT: &str = "SELECT
     id, logical_path, kind, origin, state, media_type, label, size_bytes,
@@ -42,24 +44,9 @@ impl SystemService {
             fs::create_dir_all(parent)?;
         }
 
-        let temp_path = absolute_path.with_extension(format!("tmp-{}", Uuid::now_v7()));
-        {
-            let mut file = OpenOptions::new()
-                .create_new(true)
-                .write(true)
-                .open(&temp_path)?;
-            file.write_all(content)?;
-            file.sync_all()?;
-        }
-
-        match fs::rename(&temp_path, &absolute_path) {
-            Ok(()) => {}
-            Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-                fs::remove_file(&absolute_path)?;
-                fs::rename(&temp_path, &absolute_path)?;
-            }
-            Err(error) => return Err(error.into()),
-        }
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        crate::atomic_file::write_replacing(&absolute_path, content)?;
 
         crate::util::sync_parent_dir(&absolute_path)?;
 
@@ -74,8 +61,7 @@ impl SystemService {
             updated_at,
         };
 
-        let conn = self.connect()?;
-        conn.execute(
+        tx.execute(
             "INSERT INTO resource (
                 id, logical_path, absolute_path, kind, origin, media_type, label,
                 size_bytes, sha256, state, created_at, updated_at
@@ -98,6 +84,7 @@ impl SystemService {
                 updated_at,
             ],
         )?;
+        tx.commit()?;
 
         Ok(record)
     }
@@ -131,9 +118,6 @@ impl SystemService {
             .id
             .clone()
             .unwrap_or_else(|| format!("res_{sha256}"));
-        let absolute_path = self.root_dir.join("files").join(&logical_path);
-        write_resource_bytes(&absolute_path, &request.content)?;
-
         let now = crate::util::now_ms();
         let source = request.source.clone();
         let metadata_json = request
@@ -142,33 +126,39 @@ impl SystemService {
             .map(serde_json::to_string)
             .transpose()?;
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        if let Some(existing) = get_resource_identity_conflict_tx(&tx, &resource_id, &logical_path)?
+        {
+            if existing.id != resource_id
+                || existing.logical_path != logical_path
+                || existing.sha256 != sha256
+                || existing.size_bytes != request.content.len() as i64
+                || existing.kind != kind
+                || existing.origin != origin
+                || existing.state != "available"
+                || existing.media_type != request.media_type
+                || existing.label != request.label
+                || existing.source != source
+                || existing.metadata != request.metadata
+                || existing.width != request.width
+                || existing.height != request.height
+                || existing.duration_ms != request.duration_ms
+            {
+                return Err(SystemServiceError::Invariant(format!(
+                    "resource snapshots are immutable: id={resource_id}, logical_path={logical_path}"
+                )));
+            }
+            return Ok(existing);
+        }
+        let absolute_path = self.root_dir.join("files").join(&logical_path);
+        write_immutable_resource_bytes(&absolute_path, &request.content, &sha256)?;
         tx.execute(
             "INSERT INTO resource (
                 id, logical_path, absolute_path, kind, origin, media_type, label,
                 size_bytes, sha256, state, source_provider, provider_file_id,
                 provider_operation_id, source_url, source_expires_at, metadata_json,
                 width, height, duration_ms, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(logical_path) DO UPDATE SET
-               absolute_path = excluded.absolute_path,
-               kind = excluded.kind,
-               origin = excluded.origin,
-               media_type = excluded.media_type,
-               label = excluded.label,
-               size_bytes = excluded.size_bytes,
-               sha256 = excluded.sha256,
-               state = 'available',
-               source_provider = excluded.source_provider,
-               provider_file_id = excluded.provider_file_id,
-               provider_operation_id = excluded.provider_operation_id,
-               source_url = excluded.source_url,
-               source_expires_at = excluded.source_expires_at,
-               metadata_json = excluded.metadata_json,
-               width = excluded.width,
-               height = excluded.height,
-               duration_ms = excluded.duration_ms,
-               updated_at = excluded.updated_at",
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 resource_id,
                 logical_path,
@@ -237,6 +227,87 @@ impl SystemService {
         )
         .optional()
         .map_err(Into::into)
+    }
+
+    pub fn read_resource_content(
+        &self,
+        resource_id: &str,
+        expected_sha256: &str,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Option<ResourceContentChunk>> {
+        if resource_id.is_empty() {
+            return Err(SystemServiceError::InvalidInput(
+                "resource id must not be empty".to_string(),
+            ));
+        }
+        if expected_sha256.len() != 64 {
+            return Err(SystemServiceError::InvalidInput(
+                "resource expected_sha256 must contain 64 characters".to_string(),
+            ));
+        }
+        if !(1..=MAX_RESOURCE_CONTENT_CHUNK_BYTES).contains(&limit) {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "resource content limit must be between 1 and {MAX_RESOURCE_CONTENT_CHUNK_BYTES}"
+            )));
+        }
+        let conn = self.connect()?;
+        let stored = conn
+            .query_row(
+                "SELECT absolute_path, size_bytes, sha256, state FROM resource WHERE id = ?",
+                params![resource_id],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                    ))
+                },
+            )
+            .optional()?;
+        let Some((absolute_path, size_bytes, sha256, state)) = stored else {
+            return Ok(None);
+        };
+        if state != "available" {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "resource is not available: {resource_id} ({state})"
+            )));
+        }
+        if sha256 != expected_sha256 {
+            return Err(SystemServiceError::Sha256Mismatch {
+                logical_path: resource_id.to_string(),
+                expected: expected_sha256.to_string(),
+                actual: sha256,
+            });
+        }
+        let size_bytes = u64::try_from(size_bytes).map_err(|_| {
+            SystemServiceError::Invariant(format!("resource has a negative size: {resource_id}"))
+        })?;
+        if offset > size_bytes {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "resource content offset {offset} exceeds size {size_bytes}"
+            )));
+        }
+        let mut file = File::open(absolute_path)?;
+        let actual_size = file.metadata()?.len();
+        if actual_size != size_bytes {
+            return Err(SystemServiceError::Invariant(format!(
+                "resource file size changed: {resource_id} expected {size_bytes}, got {actual_size}"
+            )));
+        }
+        file.seek(SeekFrom::Start(offset))?;
+        let read_length = std::cmp::min(limit, size_bytes - offset) as usize;
+        let mut content = vec![0; read_length];
+        file.read_exact(&mut content)?;
+        Ok(Some(ResourceContentChunk {
+            resource_id: resource_id.to_string(),
+            sha256: expected_sha256.to_string(),
+            total_size_bytes: size_bytes,
+            offset,
+            content,
+            eof: offset + read_length as u64 == size_bytes,
+        }))
     }
 
     pub fn list_resources(&self, request: &ListResources) -> Result<Vec<ResourceRecord>> {
@@ -388,7 +459,7 @@ impl SystemService {
         let limit = request.limit.unwrap_or(1_000).clamp(1, 10_000);
 
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let revoked_ticket_ids = {
             let mut statement = tx.prepare(
                 "SELECT id
@@ -435,28 +506,51 @@ impl SystemService {
     }
 }
 
-fn write_resource_bytes(absolute_path: &std::path::Path, content: &[u8]) -> Result<()> {
+fn write_immutable_resource_bytes(
+    absolute_path: &std::path::Path,
+    content: &[u8],
+    expected_sha256: &str,
+) -> Result<()> {
     if let Some(parent) = absolute_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let temp_path = absolute_path.with_extension(format!("tmp-{}", Uuid::now_v7()));
+    match OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(absolute_path)
     {
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temp_path)?;
-        file.write_all(content)?;
-        file.sync_all()?;
-    }
-    match fs::rename(&temp_path, absolute_path) {
-        Ok(()) => {}
+        Ok(mut file) => {
+            file.write_all(content)?;
+            file.sync_all()?;
+        }
         Err(error) if error.kind() == ErrorKind::AlreadyExists => {
-            fs::remove_file(absolute_path)?;
-            fs::rename(&temp_path, absolute_path)?;
+            let existing = fs::read(absolute_path)?;
+            let actual_sha256 = crate::util::hex_sha256(&existing);
+            if actual_sha256 != expected_sha256 {
+                return Err(SystemServiceError::Sha256Mismatch {
+                    logical_path: absolute_path.to_string_lossy().into_owned(),
+                    expected: expected_sha256.to_string(),
+                    actual: actual_sha256,
+                });
+            }
         }
         Err(error) => return Err(error.into()),
     }
     crate::util::sync_parent_dir(absolute_path)
+}
+
+fn get_resource_identity_conflict_tx(
+    tx: &rusqlite::Transaction<'_>,
+    resource_id: &str,
+    logical_path: &str,
+) -> Result<Option<ResourceRecord>> {
+    tx.query_row(
+        &format!("{RESOURCE_SELECT} WHERE id = ? OR logical_path = ? LIMIT 1"),
+        params![resource_id, logical_path],
+        row_to_resource,
+    )
+    .optional()
+    .map_err(Into::into)
 }
 
 fn validate_ingest_resource(request: &IngestResource) -> Result<()> {

@@ -19,7 +19,7 @@ export const productAppBackendIntegrationContractScenario = createEvalScenario({
     )
     assert(
       contract.backendDependencies.length === 1 &&
-        contract.backendDependencies[0] === "@wanex/app/backend",
+        contract.backendDependencies[0] === "@wanex/app",
       "Product App backend should use the typed App backend contract"
     )
     for (const forbidden of [

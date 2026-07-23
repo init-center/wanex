@@ -28,19 +28,7 @@ describe("Product App Local storage-backed state store", () => {
     const storage = await createStorage()
     const first = createStorageProductAppStateStore({ storage })
     await first.save({
-      selectedSessionId: "ses_storage_product_app",
-      layout: "split",
-      mode: "workbench",
-      preferences: {
-        theme: "dark",
-        density: "compact"
-      }
-    })
-
-    const second = createStorageProductAppStateStore({ storage })
-    await expect(second.load()).resolves.toEqual({
-      found: true,
-      state: {
+      ui: {
         selectedSessionId: "ses_storage_product_app",
         layout: "split",
         mode: "workbench",
@@ -48,6 +36,40 @@ describe("Product App Local storage-backed state store", () => {
           theme: "dark",
           density: "compact"
         }
+      },
+      trackedConversationOperations: {
+        ses_storage_product_app: {
+          sessionId: "ses_storage_product_app",
+          inputId: "input_storage_product_app",
+          turnId: "turn_storage_product_app",
+          jobId: "job_storage_product_app"
+        }
+      },
+      conversationAttachmentDrafts: {}
+    })
+
+    const second = createStorageProductAppStateStore({ storage })
+    await expect(second.load()).resolves.toEqual({
+      found: true,
+      state: {
+        ui: {
+          selectedSessionId: "ses_storage_product_app",
+          layout: "split",
+          mode: "workbench",
+          preferences: {
+            theme: "dark",
+            density: "compact"
+          }
+        },
+        trackedConversationOperations: {
+          ses_storage_product_app: {
+            sessionId: "ses_storage_product_app",
+            inputId: "input_storage_product_app",
+            turnId: "turn_storage_product_app",
+            jobId: "job_storage_product_app"
+          }
+        },
+        conversationAttachmentDrafts: {}
       }
     })
   })
@@ -55,12 +77,21 @@ describe("Product App Local storage-backed state store", () => {
   it("fails closed on malformed persisted Product App state", async () => {
     const storage = await createStorage()
     await storage.putConfig(PRODUCT_APP_STATE_CONFIG_KEY, {
-      layout: "stacked"
+      ui: {
+        layout: "stacked",
+        mode: "chat",
+        preferences: {
+          theme: "system",
+          density: "comfortable"
+        }
+      },
+      trackedConversationOperations: {},
+      conversationAttachmentDrafts: {}
     })
 
     await expect(
       createStorageProductAppStateStore({ storage }).load()
-    ).rejects.toThrow("product app persisted layout is not supported")
+    ).rejects.toThrow("product app persisted ui.layout is not supported")
   })
 })
 

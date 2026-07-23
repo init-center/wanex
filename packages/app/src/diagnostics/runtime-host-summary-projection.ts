@@ -88,6 +88,7 @@ export function runtimeHostProjection(summary: BaseRuntimeHostJobSummary): {
           started: summary.host.started,
           workerCount: summary.host.workerCount,
           memoryWorkerCount: summary.host.memoryWorkerCount,
+          mediaGenerationWorkerCount: summary.host.mediaGenerationWorkerCount,
           totalJobs: summary.totalJobs,
           backlogCount: summary.backlogByKind.reduce(
             (total, item) => total + item.count,
@@ -106,7 +107,8 @@ function runtimeHostSummaryDetail(summary: BaseRuntimeHostJobSummary): JsonValue
     host: {
       started: summary.host.started,
       workerCount: summary.host.workerCount,
-      memoryWorkerCount: summary.host.memoryWorkerCount
+      memoryWorkerCount: summary.host.memoryWorkerCount,
+      mediaGenerationWorkerCount: summary.host.mediaGenerationWorkerCount
     },
     totalJobs: summary.totalJobs,
     stateCounts: summary.stateCounts.map((item) => ({

@@ -1,18 +1,27 @@
 import type {
   ProductAppHomeReadModel,
   ProductAppHomeOptions,
-  ProductAppContinueWorkbenchRequest,
-  ProductAppContinueWorkbenchResult,
+  ProductAppCancelTrackedConversationOperationRequest,
+  ProductAppCancelTrackedConversationOperationResult,
+  ProductAppAttachmentDraft,
+  ProductAppConversationAttachmentsReadModel,
+  ProductAppConversationAssistantTextDeltaEvent,
+  ProductAppConversationOperationReadModel,
   ProductAppOpenWorkbenchRequest,
   ProductAppOpenWorkbenchResult,
+  ProductAppReadTrackedConversationOperationRequest,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationRequest,
+  ProductAppRegenerateTrackedConversationOperationResult,
+  ProductAppRemoveConversationAttachmentRequest,
   ProductAppProviderProfileListReadModel,
   ProductAppProviderProfileReadModel,
   ProductAppSetLayoutRequest,
   ProductAppSetModeRequest,
   ProductAppSettingsReadModel,
   ProductAppShellStatus,
-  ProductAppStartWorkbenchRequest,
-  ProductAppStartWorkbenchResult,
+  ProductAppSubmitConversationOperationRequest,
+  ProductAppSubmitConversationOperationResult,
   ProductAppSurfaceClient,
   ProductAppCommandInvocationPreview,
   ProductAppCommandCatalogReadModel,
@@ -191,6 +200,8 @@ export interface ProductAppWebSnapshot {
   readonly commandPreview: ProductAppWebCommandPreviewViewModel
   readonly commandExecution: ProductAppWebCommandExecutionViewModel
   readonly executionActivity: ProductAppWebExecutionActivityViewModel
+  readonly conversation: ProductAppWebConversationViewModel
+  readonly attachments: ProductAppSurfaceClientCommandEnvelope<ProductAppConversationAttachmentsReadModel>
   readonly workbench: ProductAppWebWorkbenchViewModel
   readonly diagnostics: readonly ProductAppWebDiagnostic[]
   readonly view: ProductAppWebViewModel
@@ -227,7 +238,12 @@ export interface ProductAppWebViewModel {
   readonly eventCount: number
   readonly workbenchState: ProductAppWebWorkbenchState
   readonly workbenchRowCount: number
-  readonly workbenchCanContinue: boolean
+  readonly conversationCanSubmit: boolean
+  readonly conversationCanCancel: boolean
+  readonly conversationCanRegenerate: boolean
+  readonly conversationState: ProductAppWebConversationState
+  readonly conversationAttachments: readonly ProductAppAttachmentDraft[]
+  readonly transientAssistantText?: string
   readonly latestAssistantText?: string
   readonly latestUserText?: string
   readonly operationStatus: ProductAppWebOperationStatusViewModel
@@ -264,8 +280,8 @@ export interface ProductAppWebProviderReadinessViewModel {
   readonly profileCount: number
   readonly canRun: boolean
   readonly attentionRequired: boolean
-  readonly requiresApiKey: boolean
-  readonly hasApiKey: boolean
+  readonly requiresCredential: boolean
+  readonly credentialConfigured: boolean
 }
 
 export interface ProductAppWebProviderRunGateViewModel {
@@ -274,7 +290,7 @@ export interface ProductAppWebProviderRunGateViewModel {
   readonly reason: string
   readonly activeProfileId: string
   readonly canRun: boolean
-  readonly canSubmitWorkbench: boolean
+  readonly canSubmitConversation: boolean
   readonly attentionRequired: boolean
   readonly message: string
 }
@@ -284,9 +300,7 @@ export interface ProductAppWebProviderProfileRow {
   readonly kind: ProductAppProviderProfileReadModel["kind"]
   readonly providerId: string
   readonly modelId: string
-  readonly baseUrl?: string
-  readonly hasApiKey: boolean
-  readonly apiKeyRedacted?: string
+  readonly credentialConfigured: boolean
   readonly active: boolean
 }
 
@@ -413,18 +427,64 @@ export type ProductAppWebAction =
       readonly input?: ProductAppOpenWorkbenchRequest
     }
   | {
-      readonly type: "start-workbench"
-      readonly input: ProductAppStartWorkbenchRequest
+      readonly type: "submit-conversation"
+      readonly input: ProductAppSubmitConversationOperationRequest
     }
   | {
-      readonly type: "continue-workbench"
-      readonly input: ProductAppContinueWorkbenchRequest
+      readonly type: "remove-conversation-attachment"
+      readonly input: ProductAppRemoveConversationAttachmentRequest
+    }
+  | {
+      readonly type: "refresh-conversation"
+      readonly input?: ProductAppReadTrackedConversationOperationRequest
+    }
+  | {
+      readonly type: "cancel-conversation"
+      readonly input: ProductAppCancelTrackedConversationOperationRequest
+    }
+  | {
+      readonly type: "regenerate-conversation"
+      readonly input?: ProductAppRegenerateTrackedConversationOperationRequest
     }
 
-export type ProductAppWebWorkbenchSourceResult =
-  | ProductAppOpenWorkbenchResult
-  | ProductAppStartWorkbenchResult
-  | ProductAppContinueWorkbenchResult
+export type ProductAppWebWorkbenchSourceResult = ProductAppOpenWorkbenchResult
+
+export type ProductAppWebConversationSourceResult =
+  | ProductAppSubmitConversationOperationResult
+  | ProductAppReadTrackedConversationOperationResult
+  | ProductAppCancelTrackedConversationOperationResult
+  | ProductAppRegenerateTrackedConversationOperationResult
+
+export type ProductAppWebConversationState =
+  | "idle"
+  | "untracked"
+  | "missing"
+  | "rejected"
+  | ProductAppConversationOperationReadModel["state"]
+
+export interface ProductAppWebConversationViewModel {
+  readonly kind: "product-app-web.conversation"
+  readonly state: ProductAppWebConversationState
+  readonly operationId?: string
+  readonly sessionId?: string
+  readonly message?: string
+  readonly operation?: ProductAppConversationOperationReadModel
+  readonly transientAssistantText?: string
+  readonly canSubmit: boolean
+  readonly canCancel: boolean
+  readonly canRegenerate: boolean
+}
+
+export interface ProductAppWebConversationDeltaBuffer {
+  readonly operationId: string
+  readonly sessionId: string
+  readonly text: string
+  readonly truncated: boolean
+  readonly lastSequence: number
+}
+
+export type ProductAppWebConversationDeltaEvent =
+  ProductAppConversationAssistantTextDeltaEvent
 
 export type ProductAppWebWorkbenchState =
   | "idle"
@@ -442,7 +502,6 @@ export interface ProductAppWebWorkbenchViewModel {
   readonly provenance: ProductAppWebWorkbenchProvenance
   readonly rows: readonly ProductAppWebWorkbenchTranscriptRow[]
   readonly canOpen: boolean
-  readonly canContinue: boolean
 }
 
 export interface ProductAppWebWorkbenchError {
@@ -478,7 +537,8 @@ export interface ProductAppWebWorkbenchTranscriptRow {
   readonly text: string
   readonly partCount: number
   readonly inputId?: string
-  readonly runId?: string
+  readonly turnId?: string
+  readonly attemptId?: string
 }
 
 export interface ProductAppWebActionInput {
@@ -578,5 +638,6 @@ export type ProductAppWebDiagnosticCode =
   | "product-app-web.settings_failed"
   | "product-app-web.provider_profiles_failed"
   | "product-app-web.command_catalog_failed"
+  | "product-app-web.attachments_failed"
   | "product-app-web.events_failed"
   | "product-app-web.action_failed"

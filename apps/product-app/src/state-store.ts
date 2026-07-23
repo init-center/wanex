@@ -1,18 +1,23 @@
 import type {
   ProductAppInitialState,
-  ProductAppStateSnapshot,
   ProductAppStateStore,
-  ProductAppStateStoreLoadResult
+  ProductAppStateStoreLoadResult,
+  ProductAppTrustedStateSnapshot
 } from "./types.js"
+import { createProductAppState, trustedStateSnapshot } from "./product-state.js"
 
 export function createMemoryProductAppStateStore(
-  initial?: ProductAppInitialState
+  initial?: ProductAppInitialState | ProductAppTrustedStateSnapshot
 ): ProductAppStateStore & {
-  snapshot(): ProductAppStateSnapshot | undefined
+  snapshot(): ProductAppTrustedStateSnapshot | undefined
   saveCount(): number
 } {
-  let state: ProductAppStateSnapshot | undefined =
-    initial === undefined ? undefined : normalizeStateSnapshot(initial)
+  let state: ProductAppTrustedStateSnapshot | undefined =
+    initial === undefined
+      ? undefined
+      : "ui" in initial
+        ? cloneTrustedState(initial)
+        : trustedStateSnapshot(createProductAppState(undefined, initial))
   let saves = 0
 
   return {
@@ -26,7 +31,7 @@ export function createMemoryProductAppStateStore(
       }
     },
     async save(next): Promise<void> {
-      state = normalizeStateSnapshot(next)
+      state = cloneTrustedState(next)
       saves += 1
     },
     snapshot() {
@@ -47,19 +52,28 @@ export function createNoopProductAppStateStore(): ProductAppStateStore {
   }
 }
 
-function normalizeStateSnapshot(
-  state: ProductAppInitialState | ProductAppStateSnapshot
-): ProductAppStateSnapshot {
-  const preferences = {
-    theme: state.preferences?.theme ?? "system",
-    density: state.preferences?.density ?? "comfortable"
-  }
+function cloneTrustedState(
+  state: ProductAppTrustedStateSnapshot
+): ProductAppTrustedStateSnapshot {
   return {
-    ...(state.selectedSessionId === undefined
-      ? {}
-      : { selectedSessionId: state.selectedSessionId }),
-    layout: state.layout ?? "single",
-    mode: state.mode ?? "chat",
-    preferences
+    ui: {
+      ...(state.ui.selectedSessionId === undefined
+        ? {}
+        : { selectedSessionId: state.ui.selectedSessionId }),
+      layout: state.ui.layout,
+      mode: state.ui.mode,
+      preferences: { ...state.ui.preferences }
+    },
+    trackedConversationOperations: {
+      ...state.trackedConversationOperations
+    },
+    conversationAttachmentDrafts: Object.fromEntries(
+      Object.entries(state.conversationAttachmentDrafts).map(
+        ([key, attachments]) => [
+          key,
+          attachments.map((attachment) => ({ ...attachment }))
+        ]
+      )
+    )
   }
 }

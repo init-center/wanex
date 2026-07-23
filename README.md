@@ -58,7 +58,7 @@ Optional capabilities are explicit:
 - Product regression entry: `@wanex/eval-harness`.
 
 `@wanex/product-app` is the first concrete upper app backend shell. It consumes
-the typed `@wanex/app/backend` contract, owns its command catalog and selected
+the typed `@wanex/app` contract, owns its command catalog and selected
 session/layout/mode/preference state, and exposes a Product-owned command
 adapter and surface client without selecting
 plugin runtime, connector runtime, runtime-composition, runtime-host, or raw
@@ -276,7 +276,7 @@ pnpm proof:sdk-consumers
 pnpm audit:sdk-determinism
 ```
 
-The generated packages expose 47 explicit entries, contain no TypeScript
+The generated packages expose 46 explicit entries, contain no TypeScript
 source, workspace ranges, or internal `@wanex/protocol` dependency, and require
 no `tsx` loader. They are ESM-only, target Node 26 where Node APIs are owned,
 and declare `UNLICENSED` until a repository license is selected.

@@ -1,27 +1,27 @@
 import type { AppExtensionResolvedSnapshot } from "@wanex/extension"
 import type { PreparedAgentContext } from "@wanex/runtime/context"
-import { prepareWanexAppShellExtensionAgentContext } from "./app-extension-context.js"
+import { prepareWanexAppExtensionAgentContext } from "./app-extension-context.js"
 import {
   extensionStatus,
-  projectWanexAppShellExtensionReadModel
+  projectWanexAppExtensionReadModel
 } from "./app-extension-read-model.js"
 import type {
-  WanexAppShellExtensionReadModel,
-  WanexAppShellExtensionStatus
+  WanexAppExtensionReadModel,
+  WanexAppExtensionStatus
 } from "./types-extension.js"
 
-export interface WanexAppShellExtensionContributionManager {
+export interface WanexAppExtensionContributionManager {
   snapshot(): AppExtensionResolvedSnapshot | undefined
-  status(): WanexAppShellExtensionStatus
-  readModel(): WanexAppShellExtensionReadModel
+  status(): WanexAppExtensionStatus
+  readModel(): WanexAppExtensionReadModel
   prepareAgentContext(
     base?: PreparedAgentContext
   ): Promise<PreparedAgentContext | undefined>
 }
 
-export function createWanexAppShellExtensionContributionManager(
+export function createWanexAppExtensionContributionManager(
   snapshot: AppExtensionResolvedSnapshot | undefined
-): WanexAppShellExtensionContributionManager {
+): WanexAppExtensionContributionManager {
   return {
     snapshot() {
       return snapshot
@@ -30,10 +30,10 @@ export function createWanexAppShellExtensionContributionManager(
       return extensionStatus(snapshot)
     },
     readModel() {
-      return projectWanexAppShellExtensionReadModel(snapshot)
+      return projectWanexAppExtensionReadModel(snapshot)
     },
     async prepareAgentContext(base) {
-      return prepareWanexAppShellExtensionAgentContext({
+      return prepareWanexAppExtensionAgentContext({
         ...(base === undefined ? {} : { base }),
         ...(snapshot === undefined ? {} : { snapshot })
       })
@@ -41,5 +41,5 @@ export function createWanexAppShellExtensionContributionManager(
   }
 }
 
-export { prepareWanexAppShellExtensionAgentContext } from "./app-extension-context.js"
-export { projectWanexAppShellExtensionReadModel } from "./app-extension-read-model.js"
+export { prepareWanexAppExtensionAgentContext } from "./app-extension-context.js"
+export { projectWanexAppExtensionReadModel } from "./app-extension-read-model.js"

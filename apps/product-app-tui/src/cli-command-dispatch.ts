@@ -11,7 +11,8 @@ import type {
 export async function runProductAppTuiCliCommand(
   command: ProductAppTuiCliCommand,
   surface: ProductAppTuiSurface,
-  io?: ProductAppTuiCliIo
+  io?: ProductAppTuiCliIo,
+  attachmentHost?: import("./types.js").ProductAppTuiAttachmentHost
 ): Promise<unknown> {
   switch (command.name) {
     case "palette":
@@ -48,7 +49,8 @@ export async function runProductAppTuiCliCommand(
       return await runProductAppTuiLineSession({
         surface,
         input: io.input,
-        write: io.write
+        write: io.write,
+        ...(attachmentHost === undefined ? {} : { attachmentHost })
       })
     case "overview":
     case "commands":

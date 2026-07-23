@@ -40,7 +40,7 @@ export function expectRetryPolicy(
 export function expectSchedulerJobKind(value: unknown): SchedulerJobKind {
   const kind = expectString(value, "job.kind")
   if (
-    kind !== "session.run" &&
+    kind !== "session.turn" &&
     kind !== "workspace.task" &&
     kind !== "team.delivery" &&
     kind !== "team.round.close" &&
@@ -52,7 +52,8 @@ export function expectSchedulerJobKind(value: unknown): SchedulerJobKind {
     kind !== "resource.cleanup" &&
     kind !== "budget.grant_expire" &&
     kind !== "provider.retry" &&
-    kind !== "config.sync"
+    kind !== "config.sync" &&
+    kind !== "media.generate"
   ) {
     throw new Error(`invalid scheduler job kind: ${kind}`)
   }

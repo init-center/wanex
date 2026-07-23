@@ -6,8 +6,12 @@ import type {
   SessionInputId,
   SessionMessageRecord,
   SessionRecord,
-  SubmitSessionRunReceipt
+  SubmitSessionTurnReceipt
 } from "@wanex/protocol"
+import type {
+  SubmitUserTurnRequest,
+  SubmitUserTurnResult
+} from "@wanex/runtime/host"
 import type {
   DelegationExecutor,
   DelegationExecutorRunOnceResult,
@@ -27,31 +31,11 @@ export interface DelegationTask {
   readonly title?: string
   readonly sessionId?: SessionId
   readonly inputId?: SessionInputId
+  readonly turnId?: string
   readonly jobId?: string
   readonly principalId?: string
   readonly providerProfileId?: string
-  readonly mode?: "once" | "to_completion"
   readonly maxSteps?: number
-}
-
-export interface SubmitUserTextRequest {
-  readonly text: string
-  readonly sessionId?: SessionId
-  readonly title?: string
-  readonly principalId?: string
-  readonly idempotencyKey?: string
-  readonly inputId?: string
-  readonly jobId?: string
-  readonly jobIdempotencyKey?: string
-  readonly providerProfileId?: string
-  readonly mode?: "once" | "to_completion"
-  readonly maxSteps?: number
-}
-
-export interface SubmitUserTextResult {
-  readonly session: SessionRecord
-  readonly inputId: string
-  readonly receipt: SubmitSessionRunReceipt
 }
 
 export interface DelegationPlan {
@@ -67,6 +51,7 @@ export interface DelegationTaskRuntimeIds {
   readonly taskId: string
   readonly sessionId: SessionId
   readonly inputId: SessionInputId
+  readonly turnId: string
   readonly jobId: string
   readonly inputIdempotencyKey: string
   readonly jobIdempotencyKey: string
@@ -75,7 +60,7 @@ export interface DelegationTaskRuntimeIds {
 export interface DelegationTaskSubmission {
   readonly task: DelegationTask
   readonly ids: DelegationTaskRuntimeIds
-  readonly receipt: SubmitSessionRunReceipt
+  readonly receipt: SubmitSessionTurnReceipt
 }
 
 export interface DelegationSubmission {
@@ -108,3 +93,6 @@ export interface DelegationRuntimeOptions {
   readonly executor?: DelegationExecutor
   readonly host?: DelegationRuntimeHostLike
 }
+
+export type DelegationSubmitUserTurnRequest = SubmitUserTurnRequest
+export type DelegationSubmitUserTurnResult = SubmitUserTurnResult

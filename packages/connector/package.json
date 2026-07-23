@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
-    "./host-security": "./src/host-security/index.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "check": "tsc --noEmit && tsc -p tsconfig.test.json",

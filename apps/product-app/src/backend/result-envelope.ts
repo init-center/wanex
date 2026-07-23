@@ -1,4 +1,4 @@
-import { projectWanexAppShellSafeError } from "@wanex/app/backend"
+import { projectWanexAppSafeError } from "@wanex/app"
 import type {
   ProductAppBackendCommandEnvelope,
   ProductAppBackendRouteErrorResult,
@@ -53,8 +53,8 @@ export function projectProductAppBackendSafeError(
   error: unknown
 ): ProductAppBackendSafeError {
   const message = error instanceof Error ? error.message : String(error)
-  const projected = projectWanexAppShellSafeError(error)
-  return projected.message === "app shell is disposed"
+  const projected = projectWanexAppSafeError(error)
+  return projected.message === "app is disposed"
     ? {
         ...projected,
         message: "product app backend is disposed"

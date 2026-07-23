@@ -121,12 +121,12 @@ describe("@wanex/product-app-local/desktop-host", () => {
       }
     })
 
-    const workbench = await host.handleWebRequest({
+    const conversation = await host.handleWebRequest({
       kind: "product-app-web.request",
       operation: "submitActionInput",
       requestId: "desktop_host_start_workbench",
       input: {
-        action: "start-workbench",
+        action: "submit-conversation",
         fields: {
           text: "hello from desktop host"
         }
@@ -135,23 +135,25 @@ describe("@wanex/product-app-local/desktop-host", () => {
         pollAfterAction: false
       }
     })
-    expect(workbench).toMatchObject({
+    expect(conversation).toMatchObject({
       kind: "product-app-web.response",
       ok: true,
       operation: "submitActionInput",
       requestId: "desktop_host_start_workbench",
       document: {
         snapshot: {
-          workbench: {
-            state: "ready"
+          conversation: {
+            operation: {
+              kind: "product-app.conversation-operation"
+            }
           },
           view: {
-            latestUserText: "hello from desktop host"
+            selectedSessionTitle: "hello from desktop host"
           }
         }
       }
     })
-    const serialized = JSON.stringify(workbench)
+    const serialized = JSON.stringify(conversation)
     expect(serialized).not.toContain(storeDir)
     expect(serialized).not.toContain(serviceBin)
   })
@@ -216,9 +218,10 @@ describe("@wanex/product-app-local/desktop-host", () => {
       profile: {
         id: "desktop-host-request-second",
         kind: "fake",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "fake",
         modelId: "desktop-host-request-second-model",
-        apiKey: "secret-from-test"
+        secretRef: "env://DESKTOP_HOST_TEST_SECRET"
       }
     })
 
@@ -260,13 +263,12 @@ describe("@wanex/product-app-local/desktop-host", () => {
           expect.objectContaining({
             id: "desktop-host-request-initial",
             active: true,
-            hasApiKey: false
+            credentialConfigured: false
           }),
           expect.objectContaining({
             id: "desktop-host-request-second",
             active: false,
-            hasApiKey: true,
-            apiKeyRedacted: "***"
+            credentialConfigured: true,
           })
         ])
       }
@@ -288,8 +290,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
       providerProfile: {
         id: "desktop-host-request-second",
         active: true,
-        hasApiKey: true,
-        apiKeyRedacted: "***"
+        credentialConfigured: true,
       }
     })
 
@@ -301,6 +302,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
         profile: {
           id: "desktop-host-rejected-provider",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "desktop-host-rejected-model",
           apiKey: "secret-from-rejected-request"
@@ -326,6 +328,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
       input: {
         id: "desktop-host-rejected-setup",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "desktop-host-rejected-setup-model",
         baseUrl: "https://provider.example.test/v1",
@@ -344,7 +347,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
       }
     })
 
-    const workbench = await host.handleRequest({
+    const conversation = await host.handleRequest({
       kind: "product-app-desktop-main.request",
       operation: "webRequest",
       requestId: "desktop_host_web_request",
@@ -353,7 +356,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
         operation: "submitActionInput",
         requestId: "desktop_host_envelope_start_workbench",
         input: {
-          action: "start-workbench",
+          action: "submit-conversation",
           fields: {
             text: "hello from desktop host request envelope"
           }
@@ -363,7 +366,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
         }
       }
     })
-    expect(workbench).toMatchObject({
+    expect(conversation).toMatchObject({
       kind: "product-app-desktop-main.response",
       ok: true,
       operation: "webRequest",
@@ -375,8 +378,13 @@ describe("@wanex/product-app-local/desktop-host", () => {
         requestId: "desktop_host_envelope_start_workbench",
         document: {
           snapshot: {
+            conversation: {
+              operation: {
+                kind: "product-app.conversation-operation"
+              }
+            },
             view: {
-              latestUserText: "hello from desktop host request envelope"
+              selectedSessionTitle: "hello from desktop host request envelope"
             }
           }
         }
@@ -389,11 +397,11 @@ describe("@wanex/product-app-local/desktop-host", () => {
       selected,
       rejectedMutation,
       rejectedSetup,
-      workbench
+      conversation
     ])
     expect(serialized).not.toContain(storeDir)
     expect(serialized).not.toContain(serviceBin)
-    expect(serialized).not.toContain("secret-from-test")
+    expect(serialized).not.toContain("DESKTOP_HOST_TEST_SECRET")
     expect(serialized).not.toContain("secret-from-rejected-request")
     expect(serialized).not.toContain("secret-from-rejected-setup")
   })
@@ -424,10 +432,11 @@ describe("@wanex/product-app-local/desktop-host", () => {
     const result = await host.providerSetup.configureProviderProfile({
       id: "desktop-host-setup-openai",
       kind: "openai-compatible",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "openai-compatible",
       modelId: "desktop-host-setup-openai-model",
       baseUrl: "https://provider.example.test/v1",
-      apiKey: "desktop-host-setup-secret",
+      secretRef: "env://DESKTOP_HOST_SETUP_SECRET",
       makeActive: true
     })
     expect(result).toMatchObject({
@@ -435,15 +444,14 @@ describe("@wanex/product-app-local/desktop-host", () => {
       profile: {
         id: "desktop-host-setup-openai",
         active: true,
-        hasApiKey: true,
-        apiKeyRedacted: "***"
+        credentialConfigured: true,
       },
       readiness: {
         status: "ready",
         activeProfileId: "desktop-host-setup-openai",
         canRun: true,
-        requiresApiKey: true,
-        hasApiKey: true
+        requiresCredential: true,
+        credentialConfigured: true
       }
     })
 
@@ -455,7 +463,7 @@ describe("@wanex/product-app-local/desktop-host", () => {
     })
 
     const serialized = JSON.stringify([result, snapshot])
-    expect(serialized).not.toContain("desktop-host-setup-secret")
+    expect(serialized).not.toContain("DESKTOP_HOST_SETUP_SECRET")
     expect(serialized).not.toContain(storeDir)
     expect(serialized).not.toContain(serviceBin)
   })

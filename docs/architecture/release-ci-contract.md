@@ -48,6 +48,11 @@ package-local runner so direct focused tests remain self-contained.
 ```bash
 pnpm doctor:toolchain
 pnpm test:toolchain-doctor
+pnpm test:native-artifact
+pnpm test:native-runtime-proof
+pnpm test:host-distribution-budget
+pnpm check:electron-boundary
+pnpm test:electron-boundary
 pnpm test:product-app-web-demo
 pnpm test:product-app-local-smoke-script
 pnpm test:product-app-tui-demo-script
@@ -59,11 +64,17 @@ pnpm test:package-packlist-audit
 pnpm test:package-governance-audit
 pnpm test:facade-footprint-audit
 pnpm test:sdk-distribution
+pnpm test:storage-rpc-ownership-audit
+pnpm test:storage-rpc-schema
+pnpm test:storage-rpc-schema-migration-policy
 pnpm audit:workspace-hygiene
 pnpm check
 pnpm test
 pnpm audit:public-contracts
 pnpm audit:package-governance
+pnpm audit:storage-rpc-ownership
+pnpm audit:storage-boundary
+pnpm audit:storage-rpc-generation
 pnpm audit:structure
 pnpm audit:distribution
 node ./scripts/audit-distribution-graph.mjs --enforce
@@ -89,6 +100,10 @@ to work through an executable product path, not only through package-local
 tests. It also covers the direct Product App Local lifecycle and desktop-host
 subpath so the first local upper Web product entry remains executable through
 its public package contract.
+The remote Runtime Host path uses two independent host owners, eight combined
+workers, at least 32 distinct sessions, cross-host same-session serialization,
+durable cancellation from the non-owning host, exact provider dispatch counts,
+failure isolation, and post-cancel/post-failure reuse.
 Delegation graph eval coverage includes terminal dependency policy:
 failed and cancelled work is synced into graph state, `after_success`
 dependents remain blocked, `after_terminal` dependents can release, and
@@ -264,6 +279,26 @@ pnpm --filter @wanex/eval-harness eval -- \
   --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs
 ```
 
+## Native Release Matrix
+
+The repository has one cross-platform release workflow, not a separate legacy
+Electron workflow. Complete `pnpm verify` runs natively on:
+
+- Ubuntu 24.04 x64;
+- macOS 15 arm64;
+- macOS 15 Intel x64;
+- Windows Server 2025 x64.
+
+Only after all verify jobs pass does the native distribution matrix stage an
+explicit target and execute `pnpm proof:native-runtime -- --samples 5`.
+macOS arm64/x64 and Windows x64 also execute the existing Electron production
+boundary. `pnpm audit:host-distribution` enforces the reviewed target budget,
+and structured receipts upload even when budget enforcement fails.
+
+Cross-compilation does not qualify a target. Windows-specific atomic replace
+and process-tree code must compile and execute on the Windows runner, and each
+manifest target must equal the runner's actual platform and architecture.
+
 ## Release Rule
 
 A Wanex change is not release-ready until `pnpm verify` passes.
@@ -274,9 +309,9 @@ suite, it should run that suite after `pnpm verify`, not instead of it.
 
 ## Boundary
 
-This contract does not define publishing, semantic versioning, artifact upload,
-or a hosted CI vendor. It defines the local and CI command that must pass before
-those workflows are allowed to proceed.
+This contract defines native verification, distribution receipt upload, and
+physical budget enforcement. It does not define registry publication, semantic
+versioning, installers, signing, notarization, or release-channel promotion.
 
 The release gate is not a gateway or daemon. It starts processes, waits for
 them, and exits.

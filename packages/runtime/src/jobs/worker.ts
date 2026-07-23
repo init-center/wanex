@@ -4,6 +4,10 @@ import type {
   SchedulerJobRecord
 } from "@wanex/protocol"
 import { isWorkerAcknowledgedResult } from "./acknowledged.js"
+import {
+  ActiveExecutionAbortRegistry,
+  type ActiveAbortReason
+} from "./active-abort.js"
 import { HeartbeatLoop } from "./heartbeat.js"
 import { withTimeout } from "./timeout.js"
 import type {
@@ -23,6 +27,7 @@ export class WanexWorker {
   private readonly heartbeatIntervalMs: number
   private readonly timeoutMs: number | undefined
   private readonly kinds: readonly SchedulerJobKind[] | undefined
+  readonly #activeAbortRegistry: ActiveExecutionAbortRegistry
   private readonly handlers = new Map<SchedulerJobKind, WorkerHandler>()
 
   constructor(options: WanexWorkerOptions) {
@@ -45,6 +50,8 @@ export class WanexWorker {
       options.heartbeatIntervalMs ?? Math.max(1_000, Math.floor(options.leaseMs / 3))
     this.timeoutMs = options.timeoutMs
     this.kinds = options.kinds
+    this.#activeAbortRegistry =
+      options.activeAbortRegistry ?? new ActiveExecutionAbortRegistry()
   }
 
   register(kind: SchedulerJobKind, handler: WorkerHandler): void {
@@ -76,6 +83,7 @@ export class WanexWorker {
     }
 
     const controller = new AbortController()
+    const registration = this.#activeAbortRegistry.register({ jobId: job.id }, controller)
     const heartbeat = new HeartbeatLoop(async () => {
       const updated = await this.session.heartbeatJob({
         jobId: job.id,
@@ -84,10 +92,21 @@ export class WanexWorker {
         leaseMs: this.leaseMs
       })
       if (updated === null) {
-        controller.abort()
+        controller.abort(
+          abortReason("lease_lost", "worker lost lease for job: " + job.id)
+        )
         throw new Error(`worker lost lease for job: ${job.id}`)
       }
-    }, this.heartbeatIntervalMs)
+    }, this.heartbeatIntervalMs, (error) => {
+      if (!controller.signal.aborted) {
+        controller.abort(
+          abortReason(
+            "lease_lost",
+            `worker heartbeat failed for job ${job.id}: ${normalizeError(error).message}`
+          )
+        )
+      }
+    })
 
     try {
       heartbeat.start()
@@ -96,13 +115,36 @@ export class WanexWorker {
           handler({
             job,
             signal: controller.signal,
-            heartbeat: () => heartbeat.beat()
+            registerActiveAttempt: (attemptId) => {
+              registration.bindAttempt(attemptId)
+              return registration
+            },
+            heartbeat: async () => {
+              try {
+                await heartbeat.beat()
+              } catch (error) {
+                if (!controller.signal.aborted) {
+                  controller.abort(
+                    abortReason(
+                      "lease_lost",
+                      `worker heartbeat failed for job ${job.id}: ${normalizeError(error).message}`
+                    )
+                  )
+                }
+                throw error
+              }
+            }
           })
         ),
         this.timeoutMs,
-        `worker job ${job.id}`
+        `worker job ${job.id}`,
+        () => {
+          controller.abort(
+            abortReason("timeout", "worker timed out for job: " + job.id)
+          )
+        }
       )
-      heartbeat.stop()
+      await heartbeat.stop()
       if (isWorkerAcknowledgedResult(result)) {
         if (result.error !== undefined) {
           return { status: "failed", job: result.job, error: result.error }
@@ -121,10 +163,13 @@ export class WanexWorker {
       }
       return { status: "completed", job: completed }
     } catch (error) {
-      heartbeat.stop()
+      await heartbeat.stop()
       const normalized = normalizeError(error)
       const failed = await this.fail(job, normalized)
       return { status: "failed", job: failed, error: normalized }
+    } finally {
+      await heartbeat.stop()
+      registration.unregister()
     }
   }
 
@@ -139,6 +184,13 @@ export class WanexWorker {
       error: workerFailurePayload(error)
     })
   }
+}
+
+function abortReason(
+  kind: ActiveAbortReason["kind"],
+  message: string
+): ActiveAbortReason {
+  return { kind, message }
 }
 
 function requireLeaseToken(job: SchedulerJobRecord): string {

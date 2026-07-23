@@ -11,6 +11,7 @@ export function runtimeIdsForTask(
     taskId: task.id,
     sessionId: task.sessionId ?? `ses_delegation_${safeDelegationId}_${safeTaskId}`,
     inputId: task.inputId ?? `inp_delegation_${safeDelegationId}_${safeTaskId}`,
+    turnId: task.turnId ?? `turn_delegation_${safeDelegationId}_${safeTaskId}`,
     jobId: task.jobId ?? `job_delegation_${safeDelegationId}_${safeTaskId}`,
     inputIdempotencyKey: `delegation:${delegationId}:${task.id}:input`,
     jobIdempotencyKey: `delegation:${delegationId}:${task.id}:job`

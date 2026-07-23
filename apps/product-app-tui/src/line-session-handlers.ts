@@ -1,7 +1,6 @@
 import {
-  renderProductAppTuiAgentTurn,
-  renderProductAppTuiBlockedAgentTurn
-} from "./agent-turn-presenter.js"
+  renderProductAppTuiConversationOperation
+} from "./conversation-operation-presenter.js"
 import { renderProductAppTuiEvents } from "./events-presenter.js"
 import {
   renderProductAppTuiCommandPreview
@@ -11,9 +10,6 @@ import { renderProductAppTuiExecutionActivity } from "./execution-activity-prese
 import {
   renderProductAppTuiCommandCatalog
 } from "./command-catalog-presenter.js"
-import {
-  agentTurnOutcomeFromSurfaceEnvelope
-} from "./line-session-product-result.js"
 import { writeLine } from "./line-session-output.js"
 import {
   helpText,
@@ -72,6 +68,13 @@ export async function executeProductAppTuiLineCommand(options: {
         text: command.text
       })
       break
+    case "attach":
+      await runAttachCommand({
+        sessionOptions,
+        state,
+        path: command.path
+      })
+      break
     case "select":
       await runSelectCommand({
         sessionOptions,
@@ -86,11 +89,25 @@ export async function executeProductAppTuiLineCommand(options: {
         ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId })
       })
       break
-    case "continue":
-      await runContinueCommand({
+    case "operation":
+      await runOperationCommand({
         sessionOptions,
         state,
-        text: command.text
+        ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId })
+      })
+      break
+    case "cancel":
+      await runCancelCommand({
+        sessionOptions,
+        state,
+        ...(command.reason === undefined ? {} : { reason: command.reason })
+      })
+      break
+    case "regenerate":
+      await runRegenerateCommand({
+        sessionOptions,
+        state,
+        ...(command.sessionId === undefined ? {} : { sessionId: command.sessionId })
       })
       break
     case "palette":
@@ -143,6 +160,29 @@ export async function executeProductAppTuiLineCommand(options: {
   }
 }
 
+async function runAttachCommand(options: {
+  readonly sessionOptions: ProductAppTuiLineSessionOptions
+  readonly state: ProductAppTuiLineSessionState
+  readonly path: string
+}): Promise<void> {
+  const host = options.sessionOptions.attachmentHost
+  if (host === undefined) {
+    throw new Error("attach is unavailable without a trusted TUI host")
+  }
+  const result = await host.attachPath({
+    path: options.path,
+    ...(options.state.activeSessionId === undefined
+      ? {}
+      : { sessionId: options.state.activeSessionId })
+  })
+  options.state.attachCommandCount += 1
+  await options.sessionOptions.surface.refresh()
+  await writeLine(
+    options.sessionOptions,
+    `attached:${result.resourceId}${result.label === undefined ? "" : `:${result.label}`}`
+  )
+}
+
 async function runExecutionCommand(options: {
   readonly sessionOptions: ProductAppTuiLineSessionOptions
   readonly state: ProductAppTuiLineSessionState
@@ -169,6 +209,12 @@ async function runRefreshCommand(
     sessionOptions,
     renderProductAppTuiFrame(snapshot, sessionOptions.renderOptions).text
   )
+  if (snapshot.conversation.ok) {
+    await writeLine(
+      sessionOptions,
+      renderProductAppTuiConversationOperation(snapshot.conversation.value).text
+    )
+  }
 }
 
 async function runAskCommand(options: {
@@ -178,33 +224,23 @@ async function runAskCommand(options: {
 }): Promise<void> {
   const { sessionOptions, state, text } = options
   state.askCommandCount += 1
-  const result = await sessionOptions.surface.client.dispatchProductCommand({
-    command: "runAgentTurn",
-    input: {
-      text,
-      ...(state.activeSessionId === undefined
-        ? {}
-        : { sessionId: state.activeSessionId })
-    }
+  const result = await sessionOptions.surface.client.submitConversationOperation({
+    text,
+    ...(state.activeSessionId === undefined
+      ? {}
+      : { sessionId: state.activeSessionId })
   })
-  const outcome = agentTurnOutcomeFromSurfaceEnvelope(result)
-  if (outcome.kind === "blocked") {
+  const value = expectSurfaceValue(result, "submitConversationOperation")
+  if (value.kind === "product-app.conversation-operation.rejected") {
     state.blockedCommandCount += 1
-    await sessionOptions.surface.refresh()
-    await writeLine(
-      sessionOptions,
-      renderProductAppTuiBlockedAgentTurn(outcome)
-    )
-    return
+  } else {
+    state.activeSessionId = value.operation.sessionId
   }
-  const summary = outcome.summary
-  state.activeSessionId = summary.sessionId
-  const selected = await sessionOptions.surface.client.selectSession({
-    sessionId: summary.sessionId
-  })
-  expectSurfaceOk(selected, "selectSession")
   await sessionOptions.surface.refresh()
-  await writeLine(sessionOptions, renderProductAppTuiAgentTurn(summary))
+  await writeLine(
+    sessionOptions,
+    renderProductAppTuiConversationOperation(value).text
+  )
 }
 
 async function runSelectCommand(options: {
@@ -245,30 +281,84 @@ async function runWorkbenchCommand(options: {
   await writeLine(sessionOptions, renderProductAppTuiWorkbench(value).text)
 }
 
-async function runContinueCommand(options: {
+async function runOperationCommand(options: {
   readonly sessionOptions: ProductAppTuiLineSessionOptions
   readonly state: ProductAppTuiLineSessionState
-  readonly text: string
+  readonly sessionId?: string
 }): Promise<void> {
-  const { sessionOptions, state, text } = options
-  const result = await sessionOptions.surface.client.continueWorkbench({
-    text,
+  const { sessionOptions, state } = options
+  const sessionId = options.sessionId ?? state.activeSessionId
+  const result = await sessionOptions.surface.client.readTrackedConversationOperation(
+    sessionId === undefined ? undefined : { sessionId }
+  )
+  const value = expectSurfaceValue(result, "readTrackedConversationOperation")
+  const resolvedSessionId = conversationResultSessionId(value)
+  if (resolvedSessionId !== undefined) {
+    state.activeSessionId = resolvedSessionId
+  }
+  state.operationCommandCount += 1
+  await sessionOptions.surface.refresh()
+  await writeLine(
+    sessionOptions,
+    renderProductAppTuiConversationOperation(value).text
+  )
+}
+
+async function runCancelCommand(options: {
+  readonly sessionOptions: ProductAppTuiLineSessionOptions
+  readonly state: ProductAppTuiLineSessionState
+  readonly reason?: string
+}): Promise<void> {
+  const { sessionOptions, state } = options
+  const result = await sessionOptions.surface.client.cancelTrackedConversationOperation({
+    reason: options.reason ?? "user requested cancellation",
     ...(state.activeSessionId === undefined
       ? {}
       : { sessionId: state.activeSessionId })
   })
-  const value = expectSurfaceValue(result, "continueWorkbench")
-  if (
-    value.kind === "product-app.workbench.continued" ||
-    value.kind === "product-app.workbench.failed"
-  ) {
-    if (value.sessionId !== undefined) {
-      state.activeSessionId = value.sessionId
-    }
+  const value = expectSurfaceValue(result, "cancelTrackedConversationOperation")
+  const resolvedSessionId = conversationResultSessionId(value.operation)
+  if (resolvedSessionId !== undefined) {
+    state.activeSessionId = resolvedSessionId
   }
-  state.continueCommandCount += 1
+  state.cancelCommandCount += 1
   await sessionOptions.surface.refresh()
-  await writeLine(sessionOptions, renderProductAppTuiWorkbench(value).text)
+  await writeLine(
+    sessionOptions,
+    renderProductAppTuiConversationOperation(value).text
+  )
+}
+
+async function runRegenerateCommand(options: {
+  readonly sessionOptions: ProductAppTuiLineSessionOptions
+  readonly state: ProductAppTuiLineSessionState
+  readonly sessionId?: string
+}): Promise<void> {
+  const { sessionOptions, state } = options
+  const sessionId = options.sessionId ?? state.activeSessionId
+  const result = await sessionOptions.surface.client.regenerateTrackedConversationOperation(
+    sessionId === undefined ? undefined : { sessionId }
+  )
+  const value = expectSurfaceValue(result, "regenerateTrackedConversationOperation")
+  if (value.kind === "product-app.conversation-operation.rejected") {
+    state.blockedCommandCount += 1
+  } else {
+    state.activeSessionId = value.operation.sessionId
+  }
+  state.regenerateCommandCount += 1
+  await sessionOptions.surface.refresh()
+  await writeLine(
+    sessionOptions,
+    renderProductAppTuiConversationOperation(value).text
+  )
+}
+
+function conversationResultSessionId(value: {
+  readonly kind: string
+  readonly sessionId?: string
+  readonly operation?: { readonly sessionId: string }
+}): string | undefined {
+  return value.operation?.sessionId ?? value.sessionId
 }
 
 async function runPaletteCommand(options: {

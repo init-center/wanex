@@ -24,7 +24,6 @@ export function parseCommandOptions(
   let providerId: string | undefined
   let limit: number | undefined
   let timeoutMs: number | undefined
-  let runMode: "once" | "to_completion" | undefined
   let maxSteps: number | undefined
   let maxOutputTokens: number | undefined
   const runContext = createRunContextParseState()
@@ -61,10 +60,6 @@ export function parseCommandOptions(
         requireValue(args, (index += 1), "--timeout-ms"),
         "--timeout-ms"
       )
-      continue
-    }
-    if (arg === "--to-completion") {
-      runMode = "to_completion"
       continue
     }
     if (arg === "--max-steps") {
@@ -113,8 +108,10 @@ export function parseCommandOptions(
       arg === "--kind" ||
       arg === "--provider-id" ||
       arg === "--model" ||
+      arg === "--input-modalities" ||
+      arg === "--output-modalities" ||
       arg === "--base-url" ||
-      arg === "--api-key"
+      arg === "--secret-ref"
     ) {
       providerOptions[arg.slice(2)] = requireValue(args, (index += 1), arg)
       continue
@@ -156,7 +153,6 @@ export function parseCommandOptions(
     ...(providerId === undefined ? {} : { providerId }),
     ...(limit === undefined ? {} : { limit }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    ...(runMode === undefined ? {} : { runMode }),
     ...(maxSteps === undefined ? {} : { maxSteps }),
     ...(context === undefined ? {} : { context }),
     ...(maxOutputTokens === undefined ? {} : { maxOutputTokens })

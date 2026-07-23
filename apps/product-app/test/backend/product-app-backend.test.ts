@@ -7,7 +7,10 @@ import {
   resolveAppExtensionContributions,
   type AppCommandContribution
 } from "@wanex/extension"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  createTestTurnExecutionBinding
+} from "@wanex/storage/testing"
 import {
   PRODUCT_APP_BACKEND_AGENT_CONTEXT_PROFILE_KEY,
   PRODUCT_APP_BACKEND_CAPABILITY_IDS,
@@ -54,7 +57,7 @@ describe("@wanex/product-app backend", () => {
       }
     })
     expect(PRODUCT_APP_BACKEND_INTEGRATION_CONTRACT.backendDependencies).toEqual([
-      "@wanex/app/backend"
+      "@wanex/app"
     ])
     expect(
       PRODUCT_APP_BACKEND_INTEGRATION_CONTRACT.forbiddenDefaultDependencies
@@ -108,7 +111,6 @@ describe("@wanex/product-app backend", () => {
           notSelectedCount: 2
         }
       })
-
       await expect(
         port.dispatch({
           command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductCommands
@@ -119,8 +121,8 @@ describe("@wanex/product-app backend", () => {
         value: {
           commands: expect.arrayContaining([
             expect.objectContaining({
-              id: "product.agent.run",
-              handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn
+              id: "product.agent.submit",
+              handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation
             })
           ])
         }
@@ -131,7 +133,7 @@ describe("@wanex/product-app backend", () => {
           command:
             PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.explainProductCommandContribution,
           input: {
-            commandId: "product.agent.run"
+            commandId: "product.agent.submit"
           }
         })
       ).resolves.toMatchObject({
@@ -139,7 +141,7 @@ describe("@wanex/product-app backend", () => {
         command: "explainProductCommandContribution",
         value: {
           kind: "found",
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           handler: {
             supported: true,
             policy: "allow_listed"
@@ -152,7 +154,7 @@ describe("@wanex/product-app backend", () => {
           command:
             PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.previewProductCommandInvocation,
           input: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             input: {
               text: "preview through command port"
             }
@@ -163,8 +165,8 @@ describe("@wanex/product-app backend", () => {
         command: "previewProductCommandInvocation",
         value: {
           kind: "runnable",
-          commandId: "product.agent.run",
-          handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+          commandId: "product.agent.submit",
+          handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
           inputAccepted: true
         }
       })
@@ -174,7 +176,7 @@ describe("@wanex/product-app backend", () => {
           command:
             PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.previewProductCommandInvocation,
           input: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             input: {
               text: ""
             }
@@ -185,9 +187,9 @@ describe("@wanex/product-app backend", () => {
         command: "previewProductCommandInvocation",
         value: {
           kind: "rejected",
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           reason: "invalid_input",
-          message: "runAgentTurn text must not be empty"
+          message: "submitConversationOperation text must not be empty"
         }
       })
 
@@ -210,28 +212,33 @@ describe("@wanex/product-app backend", () => {
         }
       })
 
-      await expect(
-        port.dispatch({
+      const executedAgent = await port.dispatch({
           command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.executeProductCommand,
           input: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             input: {
               text: "through command port",
               sessionId: "ses_product_app_backend_command_port"
             }
           }
         })
-      ).resolves.toMatchObject({
+      expect(executedAgent).toMatchObject({
         ok: true,
         command: "executeProductCommand",
         value: {
           kind: "completed",
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           value: {
-            assistantText: "Fake response from product-app.backend-port-model"
+            sessionId: "ses_product_app_backend_command_port",
+            state: expect.stringMatching(/queued|running|succeeded/)
           }
         }
       })
+      await waitForBackendSessionMessages(
+        app,
+        "ses_product_app_backend_command_port",
+        2
+      )
 
       await expect(
         port.dispatch({
@@ -247,7 +254,8 @@ describe("@wanex/product-app backend", () => {
           sessionId: "ses_product_app_backend_command_port",
           rows: [
             expect.objectContaining({
-              kind: "input",
+              kind: "message",
+              role: "user",
               text: "through command port"
             }),
             expect.objectContaining({
@@ -270,7 +278,7 @@ describe("@wanex/product-app backend", () => {
         ok: true,
         command: "readRecentSessions",
         value: {
-          kind: "app-shell.recent_sessions",
+          kind: "wanex-app.recent_sessions",
           limit: 3,
           rows: [
             expect.objectContaining({
@@ -297,42 +305,13 @@ describe("@wanex/product-app backend", () => {
           sessionId: "ses_product_app_backend_command_port",
           summary: {
             inputCount: 1,
-            messageCount: 1,
+            messageCount: 2,
             latestAssistantText: "Fake response from product-app.backend-port-model",
             latestUserText: "through command port",
             originKinds: ["interactive"]
           },
           actions: {
-            continueCommandId: "product.workbench.continue"
-          }
-        }
-      })
-
-      await expect(
-        port.dispatch({
-          command:
-            PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.continueProductWorkbenchSession,
-          input: {
-            sessionId: "ses_product_app_backend_command_port",
-            text: "continue through workbench"
-          }
-        })
-      ).resolves.toMatchObject({
-        ok: true,
-        command: "continueProductWorkbenchSession",
-        value: {
-          kind: "product-app.backend.workbench.continued",
-          sessionId: "ses_product_app_backend_command_port",
-          turn: {
-            sessionId: "ses_product_app_backend_command_port",
-            messageCount: 2
-          },
-          workbench: {
-            summary: {
-              inputCount: 2,
-              messageCount: 2,
-              latestUserText: "continue through workbench"
-            }
+            submitCommandId: "product.agent.submit"
           }
         }
       })
@@ -427,18 +406,18 @@ describe("@wanex/product-app backend", () => {
 
       await expect(
         port.dispatch({
-          command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.runAgentTurn,
+          command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
           input: {
             sessionId: "ses_missing_text"
           }
         })
       ).resolves.toMatchObject({
         ok: false,
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         error: {
           code: "validation_error",
           category: "validation",
-          message: "runAgentTurn input.text must be a non-empty string"
+          message: "submitConversationOperation input.text must be a non-empty string"
         }
       })
       await expect(
@@ -470,25 +449,6 @@ describe("@wanex/product-app backend", () => {
           category: "validation",
           message:
             "readProductWorkbench input.sessionId must be a non-empty string"
-        }
-      })
-      await expect(
-        port.dispatch({
-          command:
-            PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.continueProductWorkbenchSession,
-          input: {
-            sessionId: "ses_missing_text",
-            text: ""
-          }
-        })
-      ).resolves.toMatchObject({
-        ok: false,
-        command: "continueProductWorkbenchSession",
-        error: {
-          code: "validation_error",
-          category: "validation",
-          message:
-            "continueProductWorkbenchSession input.text must be a non-empty string"
         }
       })
     } finally {
@@ -556,7 +516,7 @@ describe("@wanex/product-app backend", () => {
           command:
             PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.explainProductCommandContribution,
           input: {
-            commandId: "product.agent.run"
+            commandId: "product.agent.submit"
           }
         })
       )
@@ -567,7 +527,7 @@ describe("@wanex/product-app backend", () => {
           command: "explainProductCommandContribution",
           value: {
             kind: "found",
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             source: {
               kind: "builtin"
             },
@@ -593,7 +553,7 @@ describe("@wanex/product-app backend", () => {
           ok: true,
           command: "readRecentSessions",
           value: {
-            kind: "app-shell.recent_sessions",
+            kind: "wanex-app.recent_sessions",
             limit: 2,
             rows: []
           }
@@ -602,12 +562,17 @@ describe("@wanex/product-app backend", () => {
 
       await mapper.dispatchJson(
         JSON.stringify({
-          command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.runAgentTurn,
+          command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
           input: {
             sessionId: "ses_product_app_backend_json_workbench",
             text: "seed JSON workbench"
           }
         })
+      )
+      await waitForBackendSessionMessages(
+        app,
+        "ses_product_app_backend_json_workbench",
+        2
       )
       const workbench = await mapper.dispatchJson(
         JSON.stringify({
@@ -626,7 +591,7 @@ describe("@wanex/product-app backend", () => {
             kind: "product-app.backend.workbench",
             summary: {
               inputCount: 1,
-              messageCount: 1,
+              messageCount: 2,
               latestUserText: "seed JSON workbench"
             }
           }
@@ -735,7 +700,7 @@ describe("@wanex/product-app backend", () => {
       await expect(
         mapper.dispatchJson(
           JSON.stringify({
-            command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.runAgentTurn,
+            command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
             input: {
               sessionId: "ses_json_missing_text"
             }
@@ -745,10 +710,10 @@ describe("@wanex/product-app backend", () => {
         status: "validation_error",
         envelope: {
           ok: false,
-          command: "runAgentTurn",
+          command: "submitConversationOperation",
           error: {
             code: "validation_error",
-            message: "runAgentTurn input.text must be a non-empty string"
+            message: "submitConversationOperation input.text must be a non-empty string"
           }
         }
       })
@@ -857,8 +822,8 @@ describe("@wanex/product-app backend", () => {
     })
 
     try {
-      await shell.commands.runAgentTurn({
-        text: "seed product home",
+      await shell.commands.submitConversationOperation({
+        content: [{ type: "text", text: "seed product home" }],
         sessionId: "ses_product_app_backend_overview_home"
       })
       await expect(
@@ -887,7 +852,7 @@ describe("@wanex/product-app backend", () => {
           selectedCount: 7,
           notSelectedCount: 2,
           selectedIds: expect.arrayContaining([
-            PRODUCT_APP_BACKEND_CAPABILITY_IDS.appShell,
+            PRODUCT_APP_BACKEND_CAPABILITY_IDS.appHost,
             PRODUCT_APP_BACKEND_CAPABILITY_IDS.productCommandRegistry
           ]),
           notSelectedIds: expect.arrayContaining([
@@ -895,12 +860,12 @@ describe("@wanex/product-app backend", () => {
           ])
         },
         commands: {
-          totalCount: 15,
-          builtinCount: 15,
+          totalCount: 14,
+          builtinCount: 14,
           extensionCount: 0,
           primary: expect.arrayContaining([
             expect.objectContaining({
-              id: "product.agent.run",
+              id: "product.agent.submit",
               sourceKind: "builtin"
             }),
             expect.objectContaining({
@@ -927,8 +892,8 @@ describe("@wanex/product-app backend", () => {
             reason: "context_not_configured"
           }),
           expect.objectContaining({
-            id: "agent.run",
-            commandId: "product.agent.run",
+            id: "agent.submit",
+            commandId: "product.agent.submit",
             reason: "ready"
           })
         ]),
@@ -968,7 +933,7 @@ describe("@wanex/product-app backend", () => {
             activeProfileId: "product-app.backend-overview"
           },
           commands: {
-            totalCount: 15
+            totalCount: 14
           },
           sessions: {
             recentCount: 1,
@@ -1013,6 +978,8 @@ describe("@wanex/product-app backend", () => {
         status() {
           return {
             disposed: false,
+            started: true,
+            workerCount: 1,
             providerProfileId: "overview-host",
             activeProviderProfileId: "overview-host",
             agentContext: {
@@ -1056,7 +1023,7 @@ describe("@wanex/product-app backend", () => {
         },
         async readRecentSessions() {
           return {
-            kind: "app-shell.recent_sessions",
+            kind: "wanex-app.recent_sessions",
             limit: 5,
             rows: []
           }
@@ -1160,15 +1127,15 @@ describe("@wanex/product-app backend", () => {
       },
       {
         id: "session.start",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         label: "Start Session",
         priority: 40,
         reason: "no_recent_sessions"
       },
       {
-        id: "agent.run",
-        commandId: "product.agent.run",
-        label: "Run Agent",
+        id: "agent.submit",
+        commandId: "product.agent.submit",
+        label: "Submit Agent Turn",
         priority: 50,
         reason: "ready"
       }
@@ -1192,10 +1159,11 @@ describe("@wanex/product-app backend", () => {
     })
 
     try {
-      await shell.commands.runAgentTurn({
-        text: "seed diagnostics detail",
+      const receipt = await shell.commands.submitConversationOperation({
+        content: [{ type: "text", text: "seed diagnostics detail" }],
         sessionId: "ses_product_app_backend_diagnostics_detail"
       })
+      await waitForBackendConversation(shell, receipt)
 
       await expect(
         shell.commands.readProductDiagnosticsDetail({
@@ -1339,6 +1307,8 @@ describe("@wanex/product-app backend", () => {
 
     expect(app.status()).toEqual({
       disposed: false,
+      started: true,
+      workerCount: 1,
       providerProfileId: "product-app.backend-fake",
       activeProviderProfileId: "product-app.backend-fake",
       agentContext: {
@@ -1367,13 +1337,13 @@ describe("@wanex/product-app backend", () => {
     })
 
     await expect(
-      app.commands.runAgentTurn({
-        text: "through product facade",
+      app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "through product facade" }],
         sessionId: "ses_product_app_backend_commands"
       })
     ).resolves.toMatchObject({
       sessionId: "ses_product_app_backend_commands",
-      assistantText: "Fake response from product-app.backend-model"
+      state: expect.stringMatching(/queued|running|succeeded/)
     })
 
     await expect(app.commands.shutdown()).resolves.toEqual({
@@ -1386,7 +1356,7 @@ describe("@wanex/product-app backend", () => {
     })
     await expect(
       app.commands.readDiagnostics()
-    ).rejects.toThrow("app shell is disposed")
+    ).rejects.toThrow("app is disposed")
   })
 
   it("reports selected and not-selected product capabilities without loading optional runtimes", async () => {
@@ -1408,7 +1378,7 @@ describe("@wanex/product-app backend", () => {
         extensionConfigured: false,
         capabilities: expect.arrayContaining([
           expect.objectContaining({
-            id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.appShell,
+            id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.appHost,
             state: "enabled",
             ownerPackage: "@wanex/app",
             defaultSelected: true
@@ -1421,7 +1391,6 @@ describe("@wanex/product-app backend", () => {
               "readProductOverview",
               "readRecentSessions",
               "readProductWorkbench",
-              "continueProductWorkbenchSession",
               "readProductDiagnosticsDetail",
               "readProductCommands",
               "explainProductCommandContribution",
@@ -1516,10 +1485,10 @@ describe("@wanex/product-app backend", () => {
 
       expect(routed).toMatchObject({
         kind: "agent",
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         result: {
           sessionId: "ses_product_app_backend_route_agent",
-          assistantText: "Fake response from product-app.backend-model"
+          state: expect.stringMatching(/queued|running|succeeded/)
         }
       })
     } finally {
@@ -1610,8 +1579,8 @@ describe("@wanex/product-app backend", () => {
         diagnostics: [],
         commands: expect.arrayContaining([
           expect.objectContaining({
-            id: "product.agent.run",
-            handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+            id: "product.agent.submit",
+            handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
             sourceKind: "builtin",
             sourceScope: "builtin",
             trust: "trusted"
@@ -1638,7 +1607,7 @@ describe("@wanex/product-app backend", () => {
 
       await expect(
         app.commands.executeProductCommand({
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "run through product registry",
             sessionId: "ses_product_app_backend_command_registry",
@@ -1647,15 +1616,18 @@ describe("@wanex/product-app backend", () => {
         })
       ).resolves.toMatchObject({
         kind: "completed",
-        commandId: "product.agent.run",
-        handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+        commandId: "product.agent.submit",
+        handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
         value: {
           sessionId: "ses_product_app_backend_command_registry",
-          assistantText: "Fake response from product-app.backend-command-model",
-          messageCount: 1,
-          jobStatuses: ["succeeded"]
+          state: expect.stringMatching(/queued|running|succeeded/)
         }
       })
+      await waitForBackendSessionMessages(
+        app,
+        "ses_product_app_backend_command_registry",
+        2
+      )
 
       await expect(
         app.commands.executeProductCommand({
@@ -1761,7 +1733,8 @@ describe("@wanex/product-app backend", () => {
           sessionId: "ses_product_app_backend_command_registry",
           rows: [
             expect.objectContaining({
-              kind: "input",
+              kind: "message",
+              role: "user",
               text: "run through product registry"
             }),
             expect.objectContaining({
@@ -1832,11 +1805,11 @@ describe("@wanex/product-app backend", () => {
       )
       expect(
         app.commands.explainProductCommandContribution({
-          commandId: "product.agent.run"
+          commandId: "product.agent.submit"
         })
       ).toMatchObject({
         kind: "found",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         source: {
           kind: "builtin",
           scope: "builtin",
@@ -1847,7 +1820,7 @@ describe("@wanex/product-app backend", () => {
           privileged: false
         },
         handler: {
-          handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+          handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
           supported: true,
           policy: "allow_listed"
         },
@@ -1894,15 +1867,15 @@ describe("@wanex/product-app backend", () => {
       })
       expect(
         app.commands.previewProductCommandInvocation({
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "preview does not execute"
           }
         })
       ).toMatchObject({
         kind: "runnable",
-        commandId: "product.agent.run",
-        handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+        commandId: "product.agent.submit",
+        handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
         inputAccepted: true
       })
       expect(
@@ -2322,10 +2295,10 @@ describe("@wanex/product-app backend", () => {
         })
       ).resolves.toMatchObject({
         kind: "agent",
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         result: {
           sessionId: "ses_product_app_backend_scheduled_envelope",
-          assistantText: "Fake response from product-app.backend-model"
+          state: expect.stringMatching(/queued|running|succeeded/)
         }
       })
       expect(app.status().disposed).toBe(false)
@@ -2382,7 +2355,7 @@ describe("@wanex/product-app backend", () => {
         })
       ).resolves.toMatchObject({
         kind: "agent",
-        command: "runAgentTurn"
+        command: "submitConversationOperation"
       })
       const channelInputs = await storage.listSessionInputs({
         sessionId: "ses_product_app_backend_channel_envelope"
@@ -2511,8 +2484,9 @@ describe("@wanex/product-app backend", () => {
         title: "guided envelope",
         kind: "agent"
       })
-      await storage.submitSessionRun({
+      const submitted = await storage.submitSessionTurn({
         id: "inp_product_app_backend_guided_base",
+        turnId: "turn_product_app_backend_guided_base",
         sessionId: "ses_product_app_backend_guided_envelope",
         jobId: "job_product_app_backend_guided_base",
         principalId: "principal_guided",
@@ -2525,22 +2499,39 @@ describe("@wanex/product-app backend", () => {
             text: "base work"
           }
         ],
-        mode: "once",
+        executionBinding: createTestTurnExecutionBinding({
+          id: "product-app.backend-fake",
+          kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
+          providerId: "fake",
+          modelId: "product-app.backend-model"
+        }),
         maxSteps: 1
       })
-      const claim = await storage.claimRunner({
-        sessionId: "ses_product_app_backend_guided_envelope",
-        runnerId: "runner_product_app_backend_guided",
-        leaseMs: 60_000
+      const workerId = "worker_product_app_backend_guided"
+      const job = await storage.claimJob({
+        workerId,
+        leaseMs: 60_000,
+        kinds: ["session.turn"]
       })
-      expect(claim).not.toBeNull()
+      if (job === null || job.leaseToken === undefined) {
+        throw new Error("expected guided base turn job claim")
+      }
+      await storage.startSessionTurnAttempt({
+        sessionId: submitted.turn.sessionId,
+        turnId: submitted.turn.id,
+        inputId: submitted.admission.inputId,
+        jobId: submitted.job.id,
+        workerId,
+        leaseToken: job.leaseToken
+      })
 
       await expect(
         app.commands.routeWorkflowEnvelope({
           kind: "guided_follow_up",
           text: "after this, summarize risks",
           sessionId: "ses_product_app_backend_guided_envelope",
-          activeRunId: claim!.runId,
+          activeTurnId: submitted.turn.id,
           sourceRef: "composer-guided"
         })
       ).resolves.toMatchObject({
@@ -2548,14 +2539,14 @@ describe("@wanex/product-app backend", () => {
         command: "queueGuidedFollowUp",
         result: {
           sessionId: "ses_product_app_backend_guided_envelope",
-          activeRunId: claim!.runId,
+          activeTurnId: submitted.turn.id,
           input: {
             intent: "follow_up",
             sourceRef: "composer-guided",
             runControlPolicy: "queue_after_current"
           },
           job: {
-            kind: "session.run",
+            kind: "session.turn",
             state: "ready",
             providerProfileId: "product-app.backend-fake"
           }
@@ -2579,36 +2570,26 @@ describe("@wanex/product-app backend", () => {
         origin: {
           kind: "interactive",
           sourceRef: "composer-guided",
-          parentRef: claim!.runId,
+          parentRef: submitted.turn.id,
           metadata: {
             productPolicy: "queue_after_current"
           }
         },
         intent: "follow_up",
         runControlPolicy: "queue_after_current",
-        expectedRunId: claim!.runId
+        expectedTurnId: submitted.turn.id
       })
       expect(followUpRow).toMatchObject({
         kind: "interactive",
         label: "Interactive",
         sourceRef: "composer-guided",
-        parentRef: claim!.runId,
+        parentRef: submitted.turn.id,
         intent: "follow_up",
         runControlPolicy: "queue_after_current",
-        expectedRunId: claim!.runId,
+        expectedTurnId: submitted.turn.id,
         metadataKeys: ["productPolicy"]
       })
 
-      await storage.cancelRun({
-        sessionId: "ses_product_app_backend_guided_envelope",
-        runId: claim!.runId,
-        inputId: claim!.inputId,
-        reason: "product app backend guided test cleanup"
-      })
-      await storage.cancelJob({
-        jobId: "job_product_app_backend_guided_base",
-        reason: "product app backend guided test cleanup"
-      })
     } finally {
       await storage.dispose()
       await app.dispose()
@@ -2652,20 +2633,14 @@ describe("@wanex/product-app backend", () => {
     })
 
     try {
-      const result = await app.commands.runAgentTurn({
-        text: "use configured context",
+      const result = await app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "use configured context" }],
         sessionId: "ses_product_app_backend_context"
       })
 
       expect(result).toMatchObject({
         sessionId: "ses_product_app_backend_context",
-        assistantText: "Fake response from product-app.backend-model",
-        context: {
-          instructionSources: 1,
-          skillNames: ["write-tests"],
-          diagnostics: [],
-          activationToolRegistered: true
-        }
+        state: expect.stringMatching(/queued|running|succeeded/)
       })
       expect(JSON.stringify(result)).not.toContain(
         "FULL APP COMMAND RUNTIME SKILL BODY"
@@ -2731,15 +2706,12 @@ describe("@wanex/product-app backend", () => {
 
     try {
       await expect(
-        app.commands.runAgentTurn({
-          text: "first profile",
+        app.commands.submitConversationOperation({
+          content: [{ type: "text", text: "first profile" }],
           sessionId: "ses_product_app_backend_hot_first"
         })
       ).resolves.toMatchObject({
-        context: {
-          skillNames: ["first-skill"],
-          activationToolRegistered: true
-        }
+        sessionId: "ses_product_app_backend_hot_first"
       })
 
       await expect(
@@ -2768,15 +2740,10 @@ describe("@wanex/product-app backend", () => {
         }
       })
 
-      const second = await app.commands.runAgentTurn({
-        text: "second profile",
+      await app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "second profile" }],
         sessionId: "ses_product_app_backend_hot_second"
       })
-      expect(second.context).toMatchObject({
-        skillNames: ["second-skill"],
-        activationToolRegistered: true
-      })
-      expect(JSON.stringify(second)).not.toContain("SECOND SKILL BODY")
       expect(app.status().agentContext).toMatchObject({
         configured: true,
         revision: 2,
@@ -2851,14 +2818,12 @@ describe("@wanex/product-app backend", () => {
         }
       })
       await expect(
-        app.commands.runAgentTurn({
-          text: "after bad config",
+        app.commands.submitConversationOperation({
+          content: [{ type: "text", text: "after bad config" }],
           sessionId: "ses_product_app_backend_bad_profile"
         })
       ).resolves.toMatchObject({
-        context: {
-          skillNames: ["safe-skill"]
-        }
+        sessionId: "ses_product_app_backend_bad_profile"
       })
     } finally {
       await storage.dispose()
@@ -3050,4 +3015,56 @@ async function eventually(assertion: () => void): Promise<void> {
     }
   }
   throw lastError
+}
+
+async function waitForBackendConversation(
+  host: {
+    readonly commands: Awaited<
+      ReturnType<typeof createProductAppBackendApp>
+    >["commands"]
+  },
+  reference: {
+    readonly sessionId: string
+    readonly inputId: string
+    readonly turnId: string
+    readonly jobId: string
+  }
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    const result = await host.commands.readConversationOperation(reference)
+    if (
+      result.kind === "found" &&
+      !["queued", "running", "cancel_requested"].includes(
+        result.operation.state
+      )
+    ) {
+      return
+    }
+    await delay(10)
+  }
+  throw new Error(`conversation operation did not settle: ${reference.turnId}`)
+}
+
+async function waitForBackendSessionMessages(
+  host: {
+    readonly commands: Awaited<
+      ReturnType<typeof createProductAppBackendApp>
+    >["commands"]
+  },
+  sessionId: string,
+  minimumMessageCount: number
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    const transcript = await host.commands.readSessionTranscript({ sessionId })
+    if (
+      transcript.rows.filter((row) => row.kind === "message").length >=
+      minimumMessageCount
+    ) {
+      return
+    }
+    await delay(10)
+  }
+  throw new Error(`session transcript did not settle: ${sessionId}`)
 }

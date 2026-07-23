@@ -6,22 +6,31 @@ import {
   parseProductAppSurfaceCommandExecutionRequest,
   parseProductAppSurfaceExecutionReferenceRequest,
   parseProductAppSurfaceCommandInvocationPreviewRequest,
-  parseProductAppSurfaceContinueWorkbenchRequest,
+  parseProductAppSurfaceCancelConversationRequest,
+  parseProductAppSurfaceConversationReadRequest,
+  parseProductAppSurfaceConversationRegenerateRequest,
+  parseProductAppSurfaceConversationSubmitRequest,
   parseProductAppSurfaceHomeOptions,
   parseProductAppSurfaceJsonBody,
   parseProductAppSurfaceLayout,
   parseProductAppSurfaceMode,
   parseProductAppSurfaceOpenWorkbenchRequest,
+  parseProductAppSurfacePrepareConversationAttachmentRequest,
+  parseProductAppSurfaceReadConversationAttachmentsRequest,
+  parseProductAppSurfaceRemoveConversationAttachmentRequest,
   parseProductAppSurfacePreferencesPatch,
   parseProductAppSurfaceProviderProfileSelector,
   parseProductAppSurfaceProductCommandRequest,
   parseProductAppSurfaceSessionSelector,
-  parseProductAppSurfaceStartWorkbenchRequest
 } from "./surface-input.js"
 import type {
   ProductAppSurfaceCommand,
   ProductAppSurfaceCommandRequest
 } from "./types-surface.js"
+import {
+  projectProductAppProviderProfile,
+  projectProductAppProviderProfiles
+} from "./provider-readiness.js"
 
 export async function runProductAppSurfaceCommand(
   app: ProductAppShell,
@@ -56,13 +65,17 @@ export async function runProductAppSurfaceCommand(
       )
     case "listProviderProfiles":
       expectProductAppSurfaceNoInput(request.input, "listProviderProfiles")
-      return await app.providerProfiles.listProviderProfiles()
+      return projectProductAppProviderProfiles(
+        await app.providerProfiles.listProviderProfiles()
+      )
     case "readProductCommands":
       expectProductAppSurfaceNoInput(request.input, "readProductCommands")
       return app.readProductCommands()
     case "setActiveProviderProfile":
-      return await app.providerProfiles.setActiveProviderProfile(
-        parseProductAppSurfaceProviderProfileSelector(request.input)
+      return projectProductAppProviderProfile(
+        await app.providerProfiles.setActiveProviderProfile(
+          parseProductAppSurfaceProviderProfileSelector(request.input)
+        )
       )
     case "dispatchProductCommand":
       return await app.dispatchProductCommand(
@@ -88,13 +101,33 @@ export async function runProductAppSurfaceCommand(
       return await app.openWorkbench(
         parseProductAppSurfaceOpenWorkbenchRequest(request.input)
       )
-    case "startWorkbench":
-      return await app.startWorkbench(
-        parseProductAppSurfaceStartWorkbenchRequest(request.input)
+    case "prepareConversationAttachment":
+      return await app.prepareConversationAttachment(
+        parseProductAppSurfacePrepareConversationAttachmentRequest(request.input)
       )
-    case "continueWorkbench":
-      return await app.continueWorkbench(
-        parseProductAppSurfaceContinueWorkbenchRequest(request.input)
+    case "readConversationAttachments":
+      return app.readConversationAttachments(
+        parseProductAppSurfaceReadConversationAttachmentsRequest(request.input)
+      )
+    case "removeConversationAttachment":
+      return await app.removeConversationAttachment(
+        parseProductAppSurfaceRemoveConversationAttachmentRequest(request.input)
+      )
+    case "submitConversationOperation":
+      return await app.submitConversationOperation(
+        parseProductAppSurfaceConversationSubmitRequest(request.input)
+      )
+    case "readTrackedConversationOperation":
+      return await app.readTrackedConversationOperation(
+        parseProductAppSurfaceConversationReadRequest(request.input)
+      )
+    case "cancelTrackedConversationOperation":
+      return await app.cancelTrackedConversationOperation(
+        parseProductAppSurfaceCancelConversationRequest(request.input)
+      )
+    case "regenerateTrackedConversationOperation":
+      return await app.regenerateTrackedConversationOperation(
+        parseProductAppSurfaceConversationRegenerateRequest(request.input)
       )
   }
 }

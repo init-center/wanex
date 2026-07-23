@@ -17,7 +17,7 @@ export const nodeInstructionFileSystem: InstructionFileSystem = {
       const result = await stat(path)
       return {
         isFile: result.isFile(),
-        mtimeMs: result.mtimeMs
+        mtimeMs: Math.trunc(result.mtimeMs)
       }
     } catch (error) {
       if (isMissingFileError(error)) {

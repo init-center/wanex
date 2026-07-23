@@ -1,4 +1,5 @@
 import type {
+  ProductAppTuiConversationOperation,
   ProductAppTuiRenderedFrame,
   ProductAppTuiSurfaceSnapshot,
   RenderProductAppTuiFrameOptions
@@ -21,6 +22,9 @@ export function renderProductAppTuiFrame(
   const productCommandCount = snapshot.commandCatalog.ok
     ? snapshot.commandCatalog.value.commands.length
     : 0
+  const conversationState = snapshot.conversation.ok
+    ? conversationStateFromResult(snapshot.conversation.value)
+    : "unavailable"
   const ready = snapshot.home.ok && snapshot.settings.ok
   const statusLabels = snapshot.readModel.statusItems.map((item) => item.label)
   const lines = [
@@ -33,6 +37,7 @@ export function renderProductAppTuiFrame(
       `theme:${settings?.renderer.preferences.theme ?? state?.preferences.theme ?? "system"}`,
       `density:${settings?.renderer.preferences.density ?? state?.preferences.density ?? "comfortable"}`,
       `session:${state?.selectedSessionId ?? "none"}`,
+      `conversation:${conversationState}`,
       `product-commands:${productCommandCount}`,
       `events:${eventCount}`,
       `diagnostics:${snapshot.diagnostics.length}`
@@ -73,4 +78,19 @@ export function renderProductAppTuiFrame(
     lines,
     text: lines.join("\n")
   }
+}
+
+function conversationStateFromResult(
+  result: ProductAppTuiConversationOperation
+): string {
+  if (result.kind === "product-app.conversation-operation.found") {
+    return result.operation.state
+  }
+  if (result.kind === "product-app.conversation-operation.rejected") {
+    return "rejected"
+  }
+  if (result.kind === "product-app.conversation-operation.missing") {
+    return "missing"
+  }
+  return "untracked"
 }

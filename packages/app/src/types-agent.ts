@@ -3,18 +3,19 @@ import type {
   SchedulerJobState,
   SessionId,
   SessionInputIntent,
-  SessionInputOrigin
+  SessionInputOrigin,
+  UserMessageInputPart
 } from "@wanex/protocol"
-import type { WanexAppShellAgentContextSummary } from "./types-context.js"
+import type { WanexAppAgentContextSummary } from "./types-context.js"
 
-export interface WanexAppShellAgentCommands {
+export interface WanexAppAgentCommands {
   runAgentTurn(
-    request: WanexAppShellRunAgentTurnRequest
-  ): Promise<WanexAppShellRunAgentTurnResult>
+    request: WanexAppRunAgentTurnRequest
+  ): Promise<WanexAppRunAgentTurnResult>
 }
 
-export interface WanexAppShellRunAgentTurnRequest {
-  readonly text: string
+export interface WanexAppRunAgentTurnRequest {
+  readonly content: readonly UserMessageInputPart[]
   readonly sessionId?: SessionId
   readonly principalId?: string
   readonly inputId?: string
@@ -24,13 +25,13 @@ export interface WanexAppShellRunAgentTurnRequest {
   readonly origin?: SessionInputOrigin
   readonly intent?: SessionInputIntent
   readonly runControlPolicy?: Extract<RunControlPolicy, "queue_after_current">
-  readonly expectedRunId?: string
+  readonly expectedTurnId?: string
 }
 
-export interface WanexAppShellRunAgentTurnResult {
+export interface WanexAppRunAgentTurnResult {
   readonly sessionId: SessionId
   readonly assistantText: string
   readonly messageCount: number
   readonly jobStatuses: readonly SchedulerJobState[]
-  readonly context?: WanexAppShellAgentContextSummary
+  readonly context?: WanexAppAgentContextSummary
 }

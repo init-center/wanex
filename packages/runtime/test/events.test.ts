@@ -47,8 +47,8 @@ describe("@wanex/runtime internal events", () => {
   it("filters known events by family", () => {
     const sessionEvent = createRuntimeEvent({
       id: "evt_session",
-      type: "session.run.completed",
-      scope: { sessionId: "ses_1" },
+      type: "session.turn.succeeded",
+      scope: { sessionId: "ses_1", turnId: "turn_1" },
       payload: {},
       occurredAt: 1
     })

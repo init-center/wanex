@@ -4,71 +4,2022 @@
 
 ```ts
 
+import { AgentContextProfile } from '@wanex/runtime/context';
+import { AppExtensionContributionDomain } from '@wanex/extension';
+import { AppExtensionDiagnosticCode } from '@wanex/extension';
+import { AppExtensionResolvedSnapshot } from '@wanex/extension';
+import { AppExtensionSourceKind } from '@wanex/extension';
+import { AppExtensionSourceScope } from '@wanex/extension';
+import { AppExtensionTrustLevel } from '@wanex/extension';
+import { BootstrapWanexStorageOptions } from '@wanex/runtime/bootstrap';
+import { MediaGenerationAdapter } from '@wanex/runtime/media-generation';
+import { ProviderProfileSummary } from '@wanex/runtime/provider';
+import { RuntimeHostDiagnosticsInput } from '@wanex/runtime/host';
+import { SecretResolverPort } from '@wanex/runtime/secrets';
+import { SubmitMediaGenerationRequest } from '@wanex/runtime/media-generation';
+
+// @public (undocumented)
+interface AppActivityEntry {
+    // (undocumented)
+    readonly at: number;
+    // (undocumented)
+    readonly detail?: JsonValue;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly severity: AppDiagnosticSeverity;
+    // (undocumented)
+    readonly source: AppDiagnosticSource;
+}
+
+// @public (undocumented)
+interface AppDiagnosticEntry {
+    // (undocumented)
+    readonly at: number;
+    // (undocumented)
+    readonly code: string;
+    // (undocumented)
+    readonly detail?: JsonValue;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly severity: AppDiagnosticSeverity;
+    // (undocumented)
+    readonly source: AppDiagnosticSource;
+}
+
+// @public (undocumented)
+type AppDiagnosticSeverity = "info" | "warning" | "error";
+
+// @public (undocumented)
+type AppDiagnosticSource = "connector" | "config" | "memory" | "scheduler" | "workspace" | "plugin" | "team" | "app";
+
+// @public (undocumented)
+interface AppDiagnosticsSnapshot {
+    // (undocumented)
+    readonly activity: readonly AppActivityEntry[];
+    // (undocumented)
+    readonly diagnostics: readonly AppDiagnosticEntry[];
+    // (undocumented)
+    readonly generatedAt: number;
+}
+
+// @public (undocumented)
+type BudgetEventType = "budget.grant.denied" | "budget.grant.reserved" | "budget.grant.committed" | "budget.grant.released";
+
+// @public (undocumented)
+type ConfigEventType = "config.updated";
+
+// @public (undocumented)
+type ContextEventType = "context.compaction.planned" | "context.compaction.applied" | "context.compaction.skipped" | "context.epoch.created" | "context.epoch.activated" | "context.epoch.superseded";
+
 // @public (undocumented)
 export function createWanexApp(options: WanexAppOptions): Promise<WanexApp>;
 
 // @public (undocumented)
-export interface WanexApp {
+interface DoctorCheck {
     // (undocumented)
-    dispose(): Promise<void>;
+    readonly message: string;
     // (undocumented)
-    run(request: WanexAppRunRequest): Promise<WanexAppRunResult>;
+    readonly name: string;
     // (undocumented)
-    status(): WanexAppStatus;
+    readonly state: "ok" | "warn" | "error";
 }
 
 // @public (undocumented)
-type WanexAppJobStatus = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
-
-// @public (undocumented)
-export interface WanexAppOptions {
+interface DoctorReport {
     // (undocumented)
-    readonly provider?: WanexAppProviderOptions;
+    readonly checks: readonly DoctorCheck[];
     // (undocumented)
-    readonly storage: WanexAppStorageConfig;
+    readonly schemaVersion: number;
+    // (undocumented)
+    readonly storePath: string;
 }
 
 // @public (undocumented)
-export interface WanexAppProviderOptions {
+interface GetResourceRequest {
+    // (undocumented)
+    readonly resourceId: ResourceId;
+}
+
+// @public (undocumented)
+interface IngestResourceRequest {
+    // (undocumented)
+    readonly content: Uint8Array;
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly expectedSha256?: string;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly id?: ResourceId;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly logicalPath?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly origin?: ResourceOrigin;
+    // (undocumented)
+    readonly source?: ResourceSource;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+type JsonPrimitive = string | number | boolean | null;
+
+// @public (undocumented)
+type JsonValue = JsonPrimitive | {
+    readonly [key: string]: JsonValue;
+} | readonly JsonValue[];
+
+// @public (undocumented)
+type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | ContextEventType | PlanEventType | ObjectiveEventType;
+
+// @public (undocumented)
+interface MediaGenerationOperationBinding {
+    // (undocumented)
+    readonly adapterId: string;
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly profileDigest: string;
+    // (undocumented)
+    readonly profileId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly request: MediaGenerationRequestBinding;
+    // (undocumented)
+    readonly requestDigest: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationOperationRecord {
+    // (undocumented)
+    readonly binding: MediaGenerationOperationBinding;
+    // (undocumented)
+    readonly cancelReason?: string;
+    // (undocumented)
+    readonly cancelRequestedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly dispatchAttempt: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly externalOperationId?: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly outputReferences: readonly MediaGenerationOutputReferenceRecord[];
+    // (undocumented)
+    readonly outputResourceIds: readonly ResourceId[];
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly progress?: JsonValue;
+    // (undocumented)
+    readonly providerCheckpoint?: JsonValue;
+    // (undocumented)
+    readonly state: MediaGenerationOperationState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type MediaGenerationOperationState = "queued" | "submitting" | "polling" | "materializing" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+
+// @public (undocumented)
+type MediaGenerationOutputModality = Exclude<ProviderOutputModality, "text">;
+
+// @public (undocumented)
+interface MediaGenerationOutputReferenceRecord extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly kindOfReference: MediaGenerationProviderOutputReference["kindOfReference"];
+    // (undocumented)
+    readonly provider?: string;
+    // (undocumented)
+    readonly providerFileId?: string;
+    // (undocumented)
+    readonly sourceExpiresAt?: number;
+    // (undocumented)
+    readonly sourceUrl?: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationProviderFileReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly fileId: string;
+    // (undocumented)
+    readonly kindOfReference: "provider_file";
+    // (undocumented)
+    readonly provider: string;
+}
+
+// @public (undocumented)
+type MediaGenerationProviderOutputReference = MediaGenerationProviderFileReference | MediaGenerationRemoteUrlReference;
+
+// @public (undocumented)
+interface MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+interface MediaGenerationRemoteUrlReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly expiresAt?: number;
+    // (undocumented)
+    readonly kindOfReference: "remote_url";
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationRequestBinding {
+    // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly options: JsonValue;
+    // (undocumented)
+    readonly outputModality: MediaGenerationOutputModality;
+    // (undocumented)
+    readonly prompt: string;
+}
+
+// @public (undocumented)
+type MessageId = string;
+
+// @public (undocumented)
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
+
+// @public (undocumented)
+interface MessagePartBase {
+    // (undocumented)
+    readonly id: MessagePartId;
+    // (undocumented)
+    readonly providerMetadata?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly visibility?: MessagePartVisibility;
+}
+
+// @public (undocumented)
+type MessagePartId = string;
+
+// @public (undocumented)
+type MessagePartVisibility = "user" | "assistant" | "internal" | "provider_replay_only";
+
+// @public (undocumented)
+type ObjectiveEventType = "objective.run.created" | "objective.run.operation_recorded" | "objective.attempt.recorded" | "objective.verification.recorded";
+
+// @public (undocumented)
+type ObjectiveRunId = string;
+
+// @public (undocumented)
+type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded";
+
+// @public (undocumented)
+type PlanProposalId = string;
+
+// @public (undocumented)
+type PrincipalId = string;
+
+// @public (undocumented)
+export function projectWanexAppSafeError(error: unknown): WanexAppSafeError;
+
+// @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+interface ProviderProfile {
     // (undocumented)
     readonly anthropicVersion?: string;
     // (undocumented)
-    readonly apiKey?: string;
-    // (undocumented)
     readonly baseUrl?: string;
     // (undocumented)
-    readonly id?: string;
+    readonly capabilities: ProviderCapabilities;
     // (undocumented)
-    readonly kind?: WanexAppProviderProfileKind;
+    readonly id: string;
     // (undocumented)
-    readonly modelId?: string;
+    readonly kind: ProviderProfileKind;
     // (undocumented)
-    readonly providerId?: string;
+    readonly modelId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
 }
 
 // @public (undocumented)
-export type WanexAppProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
+type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
 
 // @public (undocumented)
-export interface WanexAppRunRequest {
+interface ProviderState {
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly replayPolicy: "required" | "optional" | "forbidden";
+    // (undocumented)
+    readonly stateKind: "reasoning" | "thinking" | "tool_replay" | "response_id" | "opaque";
+}
+
+// @public (undocumented)
+interface ReasoningMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly providerState?: ProviderState;
+    // (undocumented)
+    readonly text?: string;
+    // (undocumented)
+    readonly type: "reasoning";
+}
+
+// @public (undocumented)
+type ResourceEventType = "resource.ticket.cleanup";
+
+// @public (undocumented)
+type ResourceId = string;
+
+// @public (undocumented)
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+type ResourceOrigin = "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
+
+// @public (undocumented)
+interface ResourceRecord {
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly id: ResourceId;
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly logicalPath: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly origin: ResourceOrigin;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+    // (undocumented)
+    readonly source?: ResourceSource;
+    // (undocumented)
+    readonly state: ResourceState;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+interface ResourceSource {
+    // (undocumented)
+    readonly provider?: string;
+    // (undocumented)
+    readonly providerFileId?: string;
+    // (undocumented)
+    readonly providerOperationId?: string;
+    // (undocumented)
+    readonly sourceExpiresAt?: number;
+    // (undocumented)
+    readonly sourceUrl?: string;
+}
+
+// @public (undocumented)
+type ResourceState = "pending" | "fetching" | "available" | "failed" | "expired" | "deleted";
+
+// @public (undocumented)
+type RunControlPolicy = "queue_after_current" | "abort_current_then_run" | "steer_at_safe_point";
+
+// @public (undocumented)
+interface RuntimeEvent {
+    // (undocumented)
+    readonly id: RuntimeEventId;
+    // (undocumented)
+    readonly occurredAt: number;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly protocolVersion: typeof WANEX_PROTOCOL_VERSION;
+    // (undocumented)
+    readonly scope: RuntimeEventScope;
+    // (undocumented)
+    readonly type: RuntimeEventType;
+}
+
+// @public (undocumented)
+type RuntimeEventId = string;
+
+// @public (undocumented)
+interface RuntimeEventScope {
+    // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
+    readonly inputId?: SessionInputId;
+    // (undocumented)
+    readonly messageId?: MessageId;
+    // (undocumented)
+    readonly objectiveId?: ObjectiveRunId;
+    // (undocumented)
+    readonly planProposalId?: PlanProposalId;
+    // (undocumented)
+    readonly resourceId?: ResourceId;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
+}
+
+// @public (undocumented)
+type RuntimeEventType = KnownRuntimeEventType | (string & {});
+
+// @public (undocumented)
+type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
+
+// @public (undocumented)
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
+
+// @public (undocumented)
+type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
+
+// @public (undocumented)
+type SessionAttemptId = string;
+
+// @public (undocumented)
+type SessionEventType = "session.created" | "session.input.admitted" | "session.turn.submitted" | "session.turn.attempt_started" | "session.turn.interrupt_requested" | "session.turn.steer_accepted" | "session.turn.control_applied" | "session.turn.cancel_requested" | "session.turn.interrupted" | "session.turn.recovery_required" | "session.ephemeral_query.completed" | "session.message.appended" | "session.turn.succeeded" | "session.turn.failed" | "session.turn.cancelled";
+
+// @public (undocumented)
+type SessionId = string;
+
+// @public (undocumented)
+type SessionInputId = string;
+
+// @public (undocumented)
+type SessionInputIntent = "normal" | "follow_up" | "steer" | "interrupt";
+
+// @public (undocumented)
+interface SessionInputOrigin {
+    // (undocumented)
+    readonly kind: SessionInputOriginKind;
+    // (undocumented)
+    readonly metadata?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly parentRef?: string;
+    // (undocumented)
+    readonly sourceRef?: string;
+}
+
+// @public (undocumented)
+type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | (string & {});
+
+// @public (undocumented)
+type SessionKind = "chat" | "agent";
+
+// @public (undocumented)
+type SessionStatus = "active" | "archived";
+
+// @public (undocumented)
+type SessionTurnId = string;
+
+// @public (undocumented)
+interface SupportBundle {
+    // (undocumented)
+    readonly diagnostics: AppDiagnosticsSnapshot;
+    // (undocumented)
+    readonly doctor: DoctorReport;
+    // (undocumented)
+    readonly events: readonly SupportBundleEventSummary[];
+    // (undocumented)
+    readonly generatedAt: number;
+    // (undocumented)
+    readonly limits: SupportBundleLimits;
+    // (undocumented)
+    readonly providers: readonly SupportBundleProviderProfileSummary[];
+}
+
+// @public (undocumented)
+interface SupportBundleEventSummary {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly occurredAt: number;
+    // (undocumented)
+    readonly scope: RuntimeEvent["scope"];
+    // (undocumented)
+    readonly type: string;
+}
+
+// @public (undocumented)
+interface SupportBundleLimits {
+    // (undocumented)
+    readonly eventLimit: number;
+    // (undocumented)
+    readonly jobLimit: number;
+    // (undocumented)
+    readonly pluginLimit: number;
+}
+
+// @public (undocumented)
+interface SupportBundleProviderProfileSummary {
+    // (undocumented)
+    readonly found: boolean;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly profile?: ProviderProfileSummary;
+}
+
+// @public (undocumented)
+interface TextMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
+interface ToolCallMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly input: JsonValue;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly toolName: string;
+    // (undocumented)
+    readonly type: "tool_call";
+}
+
+// @public (undocumented)
+interface ToolResultMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly isError: boolean;
+    // (undocumented)
+    readonly result: JsonValue;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly type: "tool_result";
+}
+
+// @public (undocumented)
+type UserMessageInputPart = UserTextMessageInputPart | UserResourceMessageInputPart;
+
+// @public (undocumented)
+interface UserResourceMessageInputPart {
+    // (undocumented)
+    readonly resourceId: ResourceInputEvidence["resourceId"];
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+interface UserTextMessageInputPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
+export const WANEX_APP_AGENT_CONTEXT_PROFILE_KEY: "agent.context.profile.default";
+
+// @public (undocumented)
+const WANEX_PROTOCOL_VERSION: 1;
+
+// @public (undocumented)
+export interface WanexApp {
+    // (undocumented)
+    readonly commands: WanexAppCommands;
+    // (undocumented)
+    dispose(): Promise<void>;
+    // (undocumented)
+    readonly events: WanexAppEvents;
+    // (undocumented)
+    start(): void;
+    // (undocumented)
+    status(): WanexAppStatus;
+    // (undocumented)
+    stop(): Promise<void>;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentCommands {
+    // (undocumented)
+    runAgentTurn(request: WanexAppRunAgentTurnRequest): Promise<WanexAppRunAgentTurnResult>;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextCommands {
+    // (undocumented)
+    refreshAgentContextProfile(): Promise<WanexAppAgentContextProfileReloadResult>;
+    // (undocumented)
+    setAgentContextProfile(profile: AgentContextProfile): Promise<WanexAppAgentContextProfileSetResult>;
+    // (undocumented)
+    startAgentContextMonitor(options?: WanexAppAgentContextMonitorOptions): Promise<WanexAppAgentContextMonitorStatus>;
+    // (undocumented)
+    stopAgentContextMonitor(): Promise<WanexAppAgentContextMonitorStatus>;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextMonitorOptions {
+    // (undocumented)
+    readonly intervalMs?: number;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextMonitorStatus {
+    // (undocumented)
+    readonly intervalMs: number;
+    // (undocumented)
+    readonly lastResult?: WanexAppAgentContextProfileReloadResult;
+    // (undocumented)
+    readonly refreshCount: number;
+    // (undocumented)
+    readonly running: boolean;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextProfileReloadResult {
+    // (undocumented)
+    readonly detail?: JsonValue;
+    // (undocumented)
+    readonly error?: {
+        readonly name: string;
+        readonly message: string;
+    };
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly reason?: string;
+    // (undocumented)
+    readonly reloaded: boolean;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextProfileSetResult extends WanexAppAgentContextProfileReloadResult {
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextStatus {
+    // (undocumented)
+    readonly configured: boolean;
+    // (undocumented)
+    readonly context?: WanexAppAgentContextSummary;
+    // (undocumented)
+    readonly revision: number;
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContextSummary {
+    // (undocumented)
+    readonly activationToolRegistered: boolean;
+    // (undocumented)
+    readonly diagnostics: readonly string[];
+    // (undocumented)
+    readonly instructionSources: number;
+    // (undocumented)
+    readonly skillNames: readonly string[];
+}
+
+// @public (undocumented)
+export interface WanexAppAgentContributionRow extends WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly domain: "agent";
+    // (undocumented)
+    readonly instructionRefs: readonly string[];
+    // (undocumented)
+    readonly modelId?: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly providerProfileId?: string;
+    // (undocumented)
+    readonly skillRefs: readonly string[];
+    // (undocumented)
+    readonly title?: string;
+    // (undocumented)
+    readonly toolRefs: readonly string[];
+}
+
+// @public (undocumented)
+export interface WanexAppAskSideQueryRequest {
+    // (undocumented)
+    readonly maxOutputTokens?: number;
     // (undocumented)
     readonly principalId?: string;
     // (undocumented)
-    readonly sessionId?: string;
+    readonly question: string | readonly MessagePart[];
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly sourceRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppAskSideQueryResult {
+    // (undocumented)
+    readonly answerText: string;
+    // (undocumented)
+    readonly output: readonly MessagePart[];
+    // (undocumented)
+    readonly persisted: false;
+    // (undocumented)
+    readonly providerProfileId: string;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly telemetry: Readonly<Record<string, JsonValue>>;
+}
+
+// @public (undocumented)
+export interface WanexAppCancelConversationOperationReceipt extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly status: "cancelled" | "cancel_requested" | "already_terminal" | "missing";
+}
+
+// @public (undocumented)
+export interface WanexAppCancelConversationOperationRequest extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly reason: string;
+}
+
+// @public (undocumented)
+export interface WanexAppCancelMediaGenerationReceipt {
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly state?: MediaGenerationOperationState;
+    // (undocumented)
+    readonly status: "missing" | "cancel_requested" | "cancelled" | "already_terminal";
+}
+
+// @public (undocumented)
+export interface WanexAppCancelMediaGenerationRequest {
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly reason: string;
+}
+
+// @public (undocumented)
+export interface WanexAppChannelWorkflowEnvelope extends WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly connectorId: string;
+    // (undocumented)
+    readonly eventId: string;
+    // (undocumented)
+    readonly kind: "channel";
+    // (undocumented)
+    readonly threadRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppClassifierHint {
+    // (undocumented)
+    readonly classifierId: string;
+    // (undocumented)
+    readonly confidence: number;
+    // (undocumented)
+    readonly label: string;
+}
+
+// @public (undocumented)
+export interface WanexAppCommandContributionRow extends WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly aliases: readonly string[];
+    // (undocumented)
+    readonly category?: string;
+    // (undocumented)
+    readonly domain: "command";
+    // (undocumented)
+    readonly handlerRef: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly title: string;
+}
+
+// @public (undocumented)
+export type WanexAppCommandEnvelope<T> = WanexAppCommandSuccessEnvelope<T> | WanexAppCommandErrorEnvelope;
+
+// @public (undocumented)
+export interface WanexAppCommandErrorEnvelope {
+    // (undocumented)
+    readonly command: string;
+    // (undocumented)
+    readonly error: WanexAppSafeError;
+    // (undocumented)
+    readonly ok: false;
+}
+
+// @public (undocumented)
+export interface WanexAppCommands extends WanexAppAgentCommands, WanexAppConversationOperationCommands, WanexAppAgentContextCommands, WanexAppDiagnosticsCommands, WanexAppExecutionReferenceCommands, WanexAppLifecycleCommands, WanexAppProviderProfileCommands, WanexAppResourceCommands, WanexAppReadModelCommands, WanexAppResultEnvelopeCommands, WanexAppScheduleCommands, WanexAppWorkflowCommands, WanexAppWorkflowEnvelopeCommands, WanexAppMediaGenerationCommands {
+}
+
+// @public (undocumented)
+export interface WanexAppCommandSuccessEnvelope<T> {
+    // (undocumented)
+    readonly command: string;
+    // (undocumented)
+    readonly ok: true;
+    // (undocumented)
+    readonly value: T;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationAssistantTextDeltaEvent {
+    // (undocumented)
+    readonly at: number;
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly kind: "wanex-app.conversation.assistant-text-delta";
+    // (undocumented)
+    readonly partId: string;
+    // (undocumented)
+    readonly reference: WanexAppConversationOperationReference;
+    // (undocumented)
+    readonly sequence: number;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly truncated: boolean;
+}
+
+// @public (undocumented)
+export type WanexAppConversationEvent = WanexAppConversationAssistantTextDeltaEvent;
+
+// @public (undocumented)
+export type WanexAppConversationEventListener = (event: WanexAppConversationEvent) => void;
+
+// @public (undocumented)
+export type WanexAppConversationEventUnsubscribe = () => void;
+
+// @public (undocumented)
+export interface WanexAppConversationOperationCommands {
+    // (undocumented)
+    cancelConversationOperation(request: WanexAppCancelConversationOperationRequest): Promise<WanexAppCancelConversationOperationReceipt>;
+    // (undocumented)
+    interruptConversationOperation(request: WanexAppInterruptConversationOperationRequest): Promise<WanexAppInterruptConversationOperationReceipt>;
+    // (undocumented)
+    readConversationOperation(request: WanexAppReadConversationOperationRequest): Promise<WanexAppConversationOperationReadResult>;
+    // (undocumented)
+    steerConversationOperation(request: WanexAppSteerConversationOperationRequest): Promise<WanexAppSteerConversationOperationReceipt>;
+    // (undocumented)
+    submitConversationOperation(request: WanexAppSubmitConversationOperationRequest): Promise<WanexAppConversationOperationReceipt>;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationError {
+    // (undocumented)
+    readonly category: "runtime";
+    // (undocumented)
+    readonly code: "conversation_operation_failed" | "conversation_operation_recovery_required";
+    // (undocumented)
+    readonly message: string;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationFoundResult {
+    // (undocumented)
+    readonly kind: "found";
+    // (undocumented)
+    readonly operation: WanexAppConversationOperationReadModel;
+    // (undocumented)
+    readonly reference: WanexAppConversationOperationReference;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationMissingResult {
+    // (undocumented)
+    readonly kind: "missing";
+    // (undocumented)
+    readonly reference: WanexAppConversationOperationReference;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationReadModel extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly activeAttemptId?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly error?: WanexAppConversationOperationError;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly result?: WanexAppConversationOperationResult;
+    // (undocumented)
+    readonly state: WanexAppConversationOperationState;
+    // (undocumented)
+    readonly transcript: WanexAppConversationOperationTranscript;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export type WanexAppConversationOperationReadResult = WanexAppConversationOperationFoundResult | WanexAppConversationOperationMissingResult;
+
+// @public (undocumented)
+export interface WanexAppConversationOperationReceipt extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly state: WanexAppConversationOperationState;
+    // (undocumented)
+    readonly submittedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationResult {
+    // (undocumented)
+    readonly assistantText: string;
+    // (undocumented)
+    readonly assistantTextTruncated: boolean;
+    // (undocumented)
+    readonly messageCount: number;
+}
+
+// @public (undocumented)
+export type WanexAppConversationOperationState = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+export interface WanexAppConversationOperationTranscript {
+    // (undocumented)
+    readonly rows: readonly WanexAppConversationOperationTranscriptRow[];
+    // (undocumented)
+    readonly totalRows: number;
+    // (undocumented)
+    readonly truncated: boolean;
+}
+
+// @public (undocumented)
+export interface WanexAppConversationOperationTranscriptRow {
+    // (undocumented)
+    readonly attemptId?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly kind: "input" | "message";
+    // (undocumented)
+    readonly parts: readonly WanexAppSessionTranscriptPart[];
+    // (undocumented)
+    readonly role: "user" | "assistant" | "tool" | "system";
+    // (undocumented)
+    readonly status: string;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly textTruncated: boolean;
+    // (undocumented)
+    readonly turnId?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexAppDiagnosticsCommands {
+    // (undocumented)
+    buildSupportBundle(options?: WanexAppSupportBundleOptions): Promise<SupportBundle>;
+    // (undocumented)
+    readDiagnostics(options?: WanexAppDiagnosticsOptions): Promise<AppDiagnosticsSnapshot>;
+}
+
+// @public (undocumented)
+export interface WanexAppDiagnosticsOptions {
+    // (undocumented)
+    readonly now?: number;
+    // (undocumented)
+    readonly runtimeHost?: RuntimeHostDiagnosticsInput;
+}
+
+// @public (undocumented)
+export interface WanexAppEvents {
+    // (undocumented)
+    subscribeConversationEvents(listener: WanexAppConversationEventListener): WanexAppConversationEventUnsubscribe;
+}
+
+// @public (undocumented)
+export type WanexAppExecutionFailureCategory = "retry_pending" | "terminal_failure" | "cancelled";
+
+// @public (undocumented)
+export interface WanexAppExecutionReference {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+}
+
+// @public (undocumented)
+export interface WanexAppExecutionReferenceCommands {
+    // (undocumented)
+    readExecutionReference(request: WanexAppReadExecutionReferenceRequest): Promise<WanexAppExecutionReferenceReadResult>;
+}
+
+// @public (undocumented)
+export interface WanexAppExecutionReferenceFoundResult {
+    // (undocumented)
+    readonly activity: WanexAppJobExecutionActivityReadModel;
+    // (undocumented)
+    readonly kind: "found";
+    // (undocumented)
+    readonly reference: WanexAppExecutionReference;
+}
+
+// @public (undocumented)
+export interface WanexAppExecutionReferenceMissingResult {
+    // (undocumented)
+    readonly kind: "missing";
+    // (undocumented)
+    readonly reference: WanexAppExecutionReference;
+}
+
+// @public (undocumented)
+export type WanexAppExecutionReferenceReadResult = WanexAppExecutionReferenceFoundResult | WanexAppExecutionReferenceMissingResult | WanexAppExecutionReferenceUnsupportedResult;
+
+// @public (undocumented)
+export interface WanexAppExecutionReferenceUnsupportedResult {
+    // (undocumented)
+    readonly kind: "unsupported";
+    // (undocumented)
+    readonly reference: WanexAppExecutionReference;
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly diagnosticCodes: readonly AppExtensionDiagnosticCode[];
+    // (undocumented)
+    readonly domain: AppExtensionContributionDomain;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly label: string;
+    // (undocumented)
+    readonly order: number;
+    // (undocumented)
+    readonly priority: number;
+    // (undocumented)
+    readonly privileged: boolean;
+    // (undocumented)
+    readonly sourceId: string;
+    // (undocumented)
+    readonly sourceKind: AppExtensionSourceKind;
+    // (undocumented)
+    readonly sourceScope: AppExtensionSourceScope;
+    // (undocumented)
+    readonly trust: AppExtensionTrustLevel;
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionDiagnosticRow {
+    // (undocumented)
+    readonly code: AppExtensionDiagnosticCode;
+    // (undocumented)
+    readonly contributionId?: string;
+    // (undocumented)
+    readonly domain?: string;
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly severity: "info" | "warning" | "error";
+    // (undocumented)
+    readonly sourceId?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionDomainCounts {
+    // (undocumented)
+    readonly agent: number;
+    // (undocumented)
+    readonly command: number;
+    // (undocumented)
+    readonly instruction: number;
+    // (undocumented)
+    readonly lifecycleHook: number;
+    // (undocumented)
+    readonly providerCatalog: number;
+    // (undocumented)
+    readonly skill: number;
+    // (undocumented)
+    readonly tool: number;
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionOptions {
+    // (undocumented)
+    readonly snapshot: AppExtensionResolvedSnapshot;
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionReadModel {
+    // (undocumented)
+    readonly agents: readonly WanexAppAgentContributionRow[];
+    // (undocumented)
+    readonly commands: readonly WanexAppCommandContributionRow[];
+    // (undocumented)
+    readonly configured: boolean;
+    // (undocumented)
+    readonly contributions: readonly WanexAppExtensionContributionRow[];
+    // (undocumented)
+    readonly counts: WanexAppExtensionDomainCounts;
+    // (undocumented)
+    readonly diagnostics: readonly WanexAppExtensionDiagnosticRow[];
+    // (undocumented)
+    readonly lifecycleHooks: readonly WanexAppLifecycleHookContributionRow[];
+    // (undocumented)
+    readonly providerCatalog: readonly WanexAppProviderCatalogContributionRow[];
+    // (undocumented)
+    readonly tools: readonly WanexAppToolContributionRow[];
+}
+
+// @public (undocumented)
+export interface WanexAppExtensionStatus {
+    // (undocumented)
+    readonly byDomain: WanexAppExtensionDomainCounts;
+    // (undocumented)
+    readonly configured: boolean;
+    // (undocumented)
+    readonly contributionCount: number;
+    // (undocumented)
+    readonly diagnosticCount: number;
+}
+
+// @public (undocumented)
+export interface WanexAppGuidedFollowUpWorkflowEnvelope extends WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly activeTurnId: string;
+    // (undocumented)
+    readonly kind: "guided_follow_up";
+    // (undocumented)
+    readonly sourceRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppInteractiveWorkflowEnvelope extends WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly gesture?: string;
+    // (undocumented)
+    readonly kind: "interactive";
+    // (undocumented)
+    readonly sourceRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppInterruptConversationOperationReceipt extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly acceptedAt?: number;
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly status: "interrupt_requested" | "not_running";
+}
+
+// @public (undocumented)
+export interface WanexAppInterruptConversationOperationRequest extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly origin?: SessionInputOrigin;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly reason: string;
+}
+
+// @public (undocumented)
+export interface WanexAppJobExecutionActivityReadModel {
+    // (undocumented)
+    readonly attempt: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly failureCategory?: WanexAppExecutionFailureCategory;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly jobKind: SchedulerJobKind;
+    // (undocumented)
+    readonly kind: "wanex-app.execution.job";
+    // (undocumented)
+    readonly maxAttempts: number;
+    // (undocumented)
+    readonly notBefore?: number;
+    // (undocumented)
+    readonly scheduledAt: number;
+    // (undocumented)
+    readonly state: SchedulerJobState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexAppLifecycleCommands {
+    // (undocumented)
+    shutdown(): Promise<WanexAppShutdownResult>;
+}
+
+// @public (undocumented)
+export interface WanexAppLifecycleHookContributionRow extends WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly domain: "lifecycle_hook";
+    // (undocumented)
+    readonly event: string;
+    // (undocumented)
+    readonly handlerRef: string;
+}
+
+// @public (undocumented)
+export interface WanexAppMediaGenerationCommands {
+    // (undocumented)
+    cancelMediaGeneration(request: WanexAppCancelMediaGenerationRequest): Promise<WanexAppCancelMediaGenerationReceipt>;
+    // (undocumented)
+    readMediaGenerationOperation(request: WanexAppReadMediaGenerationOperationRequest): Promise<WanexAppMediaGenerationReadResult>;
+    // (undocumented)
+    submitMediaGeneration(request: WanexAppSubmitMediaGenerationRequest): Promise<WanexAppMediaGenerationReceipt>;
+}
+
+// @public (undocumented)
+export interface WanexAppMediaGenerationFoundResult {
+    // (undocumented)
+    readonly kind: "found";
+    // (undocumented)
+    readonly operation: MediaGenerationOperationRecord;
+}
+
+// @public (undocumented)
+export interface WanexAppMediaGenerationMissingResult {
+    // (undocumented)
+    readonly kind: "missing";
+    // (undocumented)
+    readonly operationId: string;
+}
+
+// @public (undocumented)
+export type WanexAppMediaGenerationReadResult = WanexAppMediaGenerationFoundResult | WanexAppMediaGenerationMissingResult;
+
+// @public (undocumented)
+export interface WanexAppMediaGenerationReceipt {
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly state: MediaGenerationOperationState;
+    // (undocumented)
+    readonly submittedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexAppNormalizedWorkflowAgentInput {
+    // (undocumented)
+    readonly expectedTurnId?: never;
+    // (undocumented)
+    readonly intent?: Extract<SessionInputIntent, "normal">;
+    // (undocumented)
+    readonly origin: SessionInputOrigin;
+    // (undocumented)
+    readonly runControlPolicy?: never;
+}
+
+// @public (undocumented)
+export interface WanexAppNormalizedWorkflowEnvelope {
+    // (undocumented)
+    readonly agent?: WanexAppNormalizedWorkflowAgentInput;
+    // (undocumented)
+    readonly guidedFollowUp?: WanexAppQueueGuidedFollowUpRequest;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly sideQuery?: WanexAppAskSideQueryRequest;
     // (undocumented)
     readonly text: string;
 }
 
 // @public (undocumented)
-export interface WanexAppRunResult {
+export interface WanexAppOptions extends BootstrapWanexStorageOptions {
+    // (undocumented)
+    readonly agentContextProfile?: AgentContextProfile;
+    // (undocumented)
+    readonly extensions?: WanexAppExtensionOptions;
+    // (undocumented)
+    readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[];
+    // (undocumented)
+    readonly mediaGenerationMaxOutputBytes?: number;
+    // (undocumented)
+    readonly mediaGenerationWorkerCount?: number;
+    // (undocumented)
+    readonly providerProfile?: WanexAppProviderProfileOptions;
+    // (undocumented)
+    readonly secretResolver?: SecretResolverPort;
+    // (undocumented)
+    readonly workerCount?: number;
+}
+
+// @public (undocumented)
+export interface WanexAppProviderCatalogContributionRow extends WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly defaultModelId?: string;
+    // (undocumented)
+    readonly defaultProfileId?: string;
+    // (undocumented)
+    readonly domain: "provider_catalog";
+    // (undocumented)
+    readonly modelIds: readonly string[];
+    // (undocumented)
+    readonly providerId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppProviderProfileCommands {
+    // (undocumented)
+    listProviderProfiles(): Promise<WanexAppProviderProfileListReadModel>;
+    // (undocumented)
+    readActiveProviderProfile(): Promise<WanexAppProviderProfileReadModel>;
+    // (undocumented)
+    readProviderProfile(request: WanexAppReadProviderProfileRequest): Promise<WanexAppProviderProfileReadModel | null>;
+    // (undocumented)
+    setActiveProviderProfile(request: WanexAppSetActiveProviderProfileRequest): Promise<WanexAppProviderProfileReadModel>;
+    // (undocumented)
+    upsertProviderProfile(request: WanexAppUpsertProviderProfileRequest): Promise<WanexAppProviderProfileReadModel>;
+}
+
+// @public (undocumented)
+export interface WanexAppProviderProfileListReadModel {
+    // (undocumented)
+    readonly activeProfileId: string;
+    // (undocumented)
+    readonly profiles: readonly WanexAppProviderProfileReadModel[];
+}
+
+// @public (undocumented)
+export interface WanexAppProviderProfileOptions {
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities?: ProviderCapabilities;
+    // (undocumented)
+    readonly id?: string;
+    // (undocumented)
+    readonly kind?: ProviderProfile["kind"];
+    // (undocumented)
+    readonly modelId?: string;
+    // (undocumented)
+    readonly providerId?: string;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppProviderProfileReadModel {
+    // (undocumented)
+    readonly active: boolean;
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly credentialConfigured: boolean;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: ProviderProfile["kind"];
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly providerId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppQueuedInputSummary {
+    // (undocumented)
+    readonly expectedTurnId: string;
+    // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly intent: Extract<SessionInputIntent, "follow_up">;
+    // (undocumented)
+    readonly originKind: Extract<SessionInputOriginKind, "interactive">;
+    // (undocumented)
+    readonly parentRef: string;
+    // (undocumented)
+    readonly runControlPolicy: Extract<RunControlPolicy, "queue_after_current">;
+    // (undocumented)
+    readonly sourceRef: string;
+    // (undocumented)
+    readonly status: "admitted";
+}
+
+// @public (undocumented)
+export interface WanexAppQueuedJobSummary {
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly kind: "session.turn";
+    // (undocumented)
+    readonly providerProfileId: string;
+    // (undocumented)
+    readonly state: SchedulerJobState;
+}
+
+// @public (undocumented)
+export interface WanexAppQueueGuidedFollowUpRequest {
+    // (undocumented)
+    readonly activeTurnId: string;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly jobIdempotencyKey?: string;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly sourceRef?: string;
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public (undocumented)
+export interface WanexAppQueueGuidedFollowUpResult {
+    // (undocumented)
+    readonly activeTurnId: string;
+    // (undocumented)
+    readonly input: WanexAppQueuedInputSummary;
+    // (undocumented)
+    readonly job: WanexAppQueuedJobSummary;
+    // (undocumented)
+    readonly providerProfileId: string;
+    // (undocumented)
+    readonly receipt: WanexAppConversationOperationReceipt;
+    // (undocumented)
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppReadConversationOperationRequest extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly transcriptLimit?: number;
+}
+
+// @public (undocumented)
+export interface WanexAppReadExecutionReferenceRequest {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+}
+
+// @public (undocumented)
+export interface WanexAppReadMediaGenerationOperationRequest {
+    // (undocumented)
+    readonly operationId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppReadModelCommands {
+    // (undocumented)
+    readExtensionContributions(): Promise<WanexAppExtensionReadModel>;
+    // (undocumented)
+    readRecentSessions(request?: WanexAppReadRecentSessionsRequest): Promise<WanexAppRecentSessionsReadModel>;
+    // (undocumented)
+    readSessionInputProvenance(request: WanexAppReadSessionInputProvenanceRequest): Promise<WanexAppSessionInputProvenanceReadModel>;
+    // (undocumented)
+    readSessionTranscript(request: WanexAppReadSessionTranscriptRequest): Promise<WanexAppSessionTranscriptReadModel>;
+}
+
+// @public (undocumented)
+export interface WanexAppReadProviderProfileRequest {
+    // (undocumented)
+    readonly profileId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppReadRecentSessionsRequest {
+    // (undocumented)
+    readonly kind?: SessionKind;
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly status?: SessionStatus;
+}
+
+// @public (undocumented)
+export interface WanexAppReadSessionInputProvenanceRequest {
+    // (undocumented)
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppReadSessionTranscriptRequest {
+    // (undocumented)
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppRecentSessionRow {
+    // (undocumented)
+    readonly archivedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly kind: SessionKind;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly status: SessionStatus;
+    // (undocumented)
+    readonly title?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexAppRecentSessionsReadModel {
+    // (undocumented)
+    readonly kind: "wanex-app.recent_sessions";
+    // (undocumented)
+    readonly limit: number;
+    // (undocumented)
+    readonly rows: readonly WanexAppRecentSessionRow[];
+}
+
+// @public (undocumented)
+export interface WanexAppResourceCommands {
+    // (undocumented)
+    ingestResource(request: IngestResourceRequest): Promise<ResourceRecord>;
+    // (undocumented)
+    readResource(request: GetResourceRequest): Promise<ResourceRecord | null>;
+}
+
+// @public (undocumented)
+export interface WanexAppResultEnvelopeCommands {
+    // (undocumented)
+    safeCommand<T>(request: WanexAppSafeCommandRequest<T>): Promise<WanexAppCommandEnvelope<T>>;
+}
+
+// @public (undocumented)
+export interface WanexAppRouteWorkflowEnvelopeAgentResult {
+    // (undocumented)
+    readonly command: "runAgentTurn";
+    // (undocumented)
+    readonly kind: "agent";
+    // (undocumented)
+    readonly result: WanexAppRunAgentTurnResult;
+}
+
+// @public (undocumented)
+export interface WanexAppRouteWorkflowEnvelopeErrorResult {
+    // (undocumented)
+    readonly code: "empty_input" | "invalid_arguments";
+    // (undocumented)
+    readonly command: "routeWorkflowEnvelope";
+    // (undocumented)
+    readonly kind: "error";
+    // (undocumented)
+    readonly message: string;
+}
+
+// @public (undocumented)
+export interface WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult {
+    // (undocumented)
+    readonly command: "queueGuidedFollowUp";
+    // (undocumented)
+    readonly kind: "guided_follow_up";
+    // (undocumented)
+    readonly result: WanexAppQueueGuidedFollowUpResult;
+}
+
+// @public (undocumented)
+export type WanexAppRouteWorkflowEnvelopeResult = WanexAppRouteWorkflowEnvelopeAgentResult | WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult | WanexAppRouteWorkflowEnvelopeSideQueryResult | WanexAppRouteWorkflowEnvelopeErrorResult;
+
+// @public (undocumented)
+export interface WanexAppRouteWorkflowEnvelopeSideQueryResult {
+    // (undocumented)
+    readonly command: "askSideQuery";
+    // (undocumented)
+    readonly kind: "side_query";
+    // (undocumented)
+    readonly result: WanexAppAskSideQueryResult;
+}
+
+// @public (undocumented)
+export interface WanexAppRunAgentTurnRequest {
+    // (undocumented)
+    readonly content: readonly UserMessageInputPart[];
+    // (undocumented)
+    readonly expectedTurnId?: string;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly intent?: SessionInputIntent;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly jobIdempotencyKey?: string;
+    // (undocumented)
+    readonly origin?: SessionInputOrigin;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly runControlPolicy?: Extract<RunControlPolicy, "queue_after_current">;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppRunAgentTurnResult {
     // (undocumented)
     readonly assistantText: string;
     // (undocumented)
-    readonly jobStatuses: readonly WanexAppJobStatus[];
+    readonly context?: WanexAppAgentContextSummary;
+    // (undocumented)
+    readonly jobStatuses: readonly SchedulerJobState[];
     // (undocumented)
     readonly messageCount: number;
     // (undocumented)
-    readonly sessionId: string;
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppSafeCommandRequest<T> {
+    // (undocumented)
+    readonly command: string;
+    // (undocumented)
+    run(): Promise<T> | T;
+}
+
+// @public (undocumented)
+export interface WanexAppSafeError {
+    // (undocumented)
+    readonly category: WanexAppSafeErrorCategory;
+    // (undocumented)
+    readonly code: WanexAppSafeErrorCode;
+    // (undocumented)
+    readonly message: string;
+}
+
+// @public (undocumented)
+export type WanexAppSafeErrorCategory = "validation" | "lifecycle" | "runtime" | "unknown";
+
+// @public (undocumented)
+export type WanexAppSafeErrorCode = "validation_error" | "lifecycle_error" | "runtime_error" | "unknown_error";
+
+// @public (undocumented)
+export interface WanexAppScheduleCommands {
+    // (undocumented)
+    submitScheduledTick(request: WanexAppSubmitScheduledTickRequest): Promise<WanexAppScheduledTickResult>;
+}
+
+// @public (undocumented)
+export type WanexAppScheduledTickResult = WanexAppScheduledTickSubmittedResult | WanexAppScheduledTickSkippedResult;
+
+// @public (undocumented)
+export interface WanexAppScheduledTickSkippedResult {
+    // (undocumented)
+    readonly previousJob: WanexAppScheduleJobSummary;
+    // (undocumented)
+    readonly reason: "previous_job_active";
+    // (undocumented)
+    readonly scheduleId: string;
+    // (undocumented)
+    readonly status: "skipped";
+    // (undocumented)
+    readonly tickId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppScheduledTickSubmittedResult {
+    // (undocumented)
+    readonly assistantText: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly jobStatuses: readonly SchedulerJobState[];
+    // (undocumented)
+    readonly providerProfileId: string;
+    // (undocumented)
+    readonly scheduleId: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly status: "submitted";
+    // (undocumented)
+    readonly tickId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppScheduledWorkflowEnvelope extends WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly kind: "scheduled";
+    // (undocumented)
+    readonly nonOverlap?: boolean;
+    // (undocumented)
+    readonly scheduleId: string;
+    // (undocumented)
+    readonly tickId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppScheduleJobSummary {
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly kind: "session.turn";
+    // (undocumented)
+    readonly scheduledAt: number;
+    // (undocumented)
+    readonly state: SchedulerJobState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export type WanexAppSessionInputProvenanceKind = SessionInputOriginKind;
+
+// @public (undocumented)
+export interface WanexAppSessionInputProvenanceReadModel {
+    // (undocumented)
+    readonly hasProductClientField: boolean;
+    // (undocumented)
+    readonly rows: readonly WanexAppSessionInputProvenanceRow[];
+    // (undocumented)
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppSessionInputProvenanceRow {
+    // (undocumented)
+    readonly expectedTurnId?: string;
+    // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly intent?: SessionInputIntent;
+    // (undocumented)
+    readonly kind: WanexAppSessionInputProvenanceKind;
+    // (undocumented)
+    readonly label: string;
+    // (undocumented)
+    readonly metadataKeys: readonly string[];
+    // (undocumented)
+    readonly parentRef?: string;
+    // (undocumented)
+    readonly runControlPolicy?: RunControlPolicy;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly sourceRef?: string;
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptHiddenPart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly hidden: true;
+    // (undocumented)
+    readonly sourceType: string;
+    // (undocumented)
+    readonly type: "hidden";
+}
+
+// @public (undocumented)
+export type WanexAppSessionTranscriptPart = WanexAppSessionTranscriptTextPart | WanexAppSessionTranscriptReasoningPart | WanexAppSessionTranscriptToolCallPart | WanexAppSessionTranscriptToolResultPart | WanexAppSessionTranscriptResourcePart | WanexAppSessionTranscriptHiddenPart;
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly partId: string;
+    // (undocumented)
+    readonly type: string;
+    // (undocumented)
+    readonly visibility: MessagePartVisibility | "default";
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptReadModel {
+    // (undocumented)
+    readonly rows: readonly WanexAppSessionTranscriptRow[];
+    // (undocumented)
+    readonly sessionId: SessionId;
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptReasoningPart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly hidden: boolean;
+    // (undocumented)
+    readonly text?: string;
+    // (undocumented)
+    readonly type: "reasoning";
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptResourcePart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly resourceId: string;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+export type WanexAppSessionTranscriptRole = "user" | "assistant" | "tool" | "system";
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptRow {
+    // (undocumented)
+    readonly attemptId?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly kind: WanexAppSessionTranscriptRowKind;
+    // (undocumented)
+    readonly parts: readonly WanexAppSessionTranscriptPart[];
+    // (undocumented)
+    readonly recordId: string;
+    // (undocumented)
+    readonly role: WanexAppSessionTranscriptRole;
+    // (undocumented)
+    readonly sequence?: number;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly status: string;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly turnId?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export type WanexAppSessionTranscriptRowKind = "input" | "message";
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptTextPart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptToolCallPart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly toolName: string;
+    // (undocumented)
+    readonly type: "tool_call";
+}
+
+// @public (undocumented)
+export interface WanexAppSessionTranscriptToolResultPart extends WanexAppSessionTranscriptPartBase {
+    // (undocumented)
+    readonly isError: boolean;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly type: "tool_result";
+}
+
+// @public (undocumented)
+export interface WanexAppSetActiveProviderProfileRequest {
+    // (undocumented)
+    readonly profileId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppShutdownResult {
+    // (undocumented)
+    readonly disposed: boolean;
+    // (undocumented)
+    readonly repeated: boolean;
+}
+
+// @public (undocumented)
+export interface WanexAppSideQueryWorkflowEnvelope extends WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly kind: "side_query";
+    // (undocumented)
+    readonly maxOutputTokens?: number;
+    // (undocumented)
+    readonly sourceRef?: string;
 }
 
 // @public (undocumented)
@@ -76,32 +2027,175 @@ export interface WanexAppStatus {
     // (undocumented)
     readonly activeProviderProfileId: string;
     // (undocumented)
+    readonly agentContext: WanexAppAgentContextStatus;
+    // (undocumented)
+    readonly agentContextMonitor: WanexAppAgentContextMonitorStatus;
+    // (undocumented)
     readonly disposed: boolean;
     // (undocumented)
+    readonly extensions: WanexAppExtensionStatus;
+    // (undocumented)
     readonly providerProfileId: string;
+    // (undocumented)
+    readonly started: boolean;
+    // (undocumented)
+    readonly workerCount: number;
 }
 
 // @public (undocumented)
-export type WanexAppStorageConfig = {
-    readonly kind: "local-system-service";
-    readonly mode?: WanexAppStorageMode;
-    readonly storeDir: string;
-    readonly serviceBin: string;
-} | {
-    readonly kind: "local-profile";
-    readonly mode?: WanexAppStorageMode;
-    readonly rootDir: string;
-    readonly profileId?: string;
-    readonly serviceBin: string;
-} | {
-    readonly kind: "remote-http";
-    readonly endpoint: string;
-    readonly token: string;
-    readonly timeoutMs?: number;
-};
+export interface WanexAppSteerConversationOperationReceipt extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly acceptedAt?: number;
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly status: "accepted";
+}
 
 // @public (undocumented)
-export type WanexAppStorageMode = "oneshot" | "persistent";
+export interface WanexAppSteerConversationOperationRequest extends WanexAppConversationOperationReference {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly content: readonly MessagePart[];
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly origin?: SessionInputOrigin;
+    // (undocumented)
+    readonly principalId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppSubmitConversationOperationRequest {
+    // (undocumented)
+    readonly content: readonly UserMessageInputPart[];
+    // (undocumented)
+    readonly expectedTurnId?: string;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly intent?: SessionInputIntent;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly origin?: SessionInputOrigin;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly regeneratesTurnId?: string;
+    // (undocumented)
+    readonly runControlPolicy?: Extract<RunControlPolicy, "queue_after_current">;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+}
+
+// @public (undocumented)
+export type WanexAppSubmitMediaGenerationRequest = SubmitMediaGenerationRequest;
+
+// @public (undocumented)
+export interface WanexAppSubmitScheduledTickRequest {
+    // (undocumented)
+    readonly activeJobScanLimit?: number;
+    // (undocumented)
+    readonly classifier?: WanexAppClassifierHint;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly jobIdempotencyKey?: string;
+    // (undocumented)
+    readonly nonOverlap?: boolean;
+    // (undocumented)
+    readonly previousJobId?: string;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly scheduleId: string;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly tickId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppSupportBundleOptions {
+    // (undocumented)
+    readonly eventLimit?: number;
+    // (undocumented)
+    readonly jobLimit?: number;
+    // (undocumented)
+    readonly now?: number;
+    // (undocumented)
+    readonly runtimeHost?: RuntimeHostDiagnosticsInput;
+}
+
+// @public (undocumented)
+export interface WanexAppToolContributionRow extends WanexAppExtensionContributionRow {
+    // (undocumented)
+    readonly domain: "tool";
+    // (undocumented)
+    readonly handlerRef: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly permission?: "read" | "write" | "network" | "external";
+}
+
+// @public (undocumented)
+export interface WanexAppUpsertProviderProfileRequest {
+    // (undocumented)
+    readonly makeActive?: boolean;
+    // (undocumented)
+    readonly profile: ProviderProfile;
+}
+
+// @public (undocumented)
+export interface WanexAppWorkflowCommands {
+    // (undocumented)
+    askSideQuery(request: WanexAppAskSideQueryRequest): Promise<WanexAppAskSideQueryResult>;
+    // (undocumented)
+    queueGuidedFollowUp(request: WanexAppQueueGuidedFollowUpRequest): Promise<WanexAppQueueGuidedFollowUpResult>;
+    // (undocumented)
+    routeWorkflowEnvelope(request: WanexAppWorkflowEnvelope): Promise<WanexAppRouteWorkflowEnvelopeResult>;
+}
+
+// @public (undocumented)
+export type WanexAppWorkflowEnvelope = WanexAppInteractiveWorkflowEnvelope | WanexAppScheduledWorkflowEnvelope | WanexAppChannelWorkflowEnvelope | WanexAppGuidedFollowUpWorkflowEnvelope | WanexAppSideQueryWorkflowEnvelope;
+
+// @public (undocumented)
+interface WanexAppWorkflowEnvelopeBase {
+    // (undocumented)
+    readonly classifier?: WanexAppClassifierHint;
+    // (undocumented)
+    readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly text: string;
+}
+
+// @public (undocumented)
+export interface WanexAppWorkflowEnvelopeCommands {
+    // (undocumented)
+    routeWorkflowEnvelope(request: WanexAppWorkflowEnvelope): Promise<WanexAppRouteWorkflowEnvelopeResult>;
+}
+
+// @public (undocumented)
+export type WanexAppWorkflowEnvelopeNormalizationResult = WanexAppWorkflowEnvelopeNormalizedResult | WanexAppRouteWorkflowEnvelopeErrorResult;
+
+// @public (undocumented)
+export interface WanexAppWorkflowEnvelopeNormalizedResult {
+    // (undocumented)
+    readonly envelope: WanexAppNormalizedWorkflowEnvelope;
+    // (undocumented)
+    readonly kind: "normalized";
+}
 
 // (No @packageDocumentation comment for this package)
 

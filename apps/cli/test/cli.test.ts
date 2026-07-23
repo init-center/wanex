@@ -123,7 +123,7 @@ describe("@wanex/cli", () => {
     const [inputsBefore, messagesBefore, jobsBefore] = await Promise.all([
       storage.listSessionInputs({ sessionId: "ses_cli_side_query" }),
       storage.listSessionMessages({ sessionId: "ses_cli_side_query" }),
-      storage.listJobs({ kind: "session.run", limit: 20 })
+      storage.listJobs({ kind: "session.turn", limit: 20 })
     ])
 
     const result = await runCli(
@@ -153,12 +153,12 @@ describe("@wanex/cli", () => {
     await expect(
       storage.listSessionMessages({ sessionId: "ses_cli_side_query" })
     ).resolves.toEqual(messagesBefore)
-    await expect(storage.listJobs({ kind: "session.run", limit: 20 })).resolves.toEqual(
+    await expect(storage.listJobs({ kind: "session.turn", limit: 20 })).resolves.toEqual(
       jobsBefore
     )
   })
 
-  it("stores provider profiles and redacts api keys in CLI output", async () => {
+  it("stores provider credential refs and omits them from CLI output", async () => {
     const storeDir = await createStoreDir()
     const set = await runCli(
       [
@@ -171,25 +171,32 @@ describe("@wanex/cli", () => {
         "deepseek",
         "--model",
         "deepseek-chat",
+        "--input-modalities",
+        "text,image",
+        "--output-modalities",
+        "text",
         "--base-url",
         "https://api.deepseek.com/v1",
-        "--api-key",
-        "secret-key"
+        "--secret-ref",
+        "env://DEEPSEEK_API_KEY"
       ],
       storeDir
     )
     const get = await runCli(["provider", "get", "deepseek"], storeDir)
 
     expect(expectRecord(set.value).profile).toMatchObject({
-      apiKey: "***"
+      credentialConfigured: true
     })
     expect(expectRecord(get.value).profile).toMatchObject({
       id: "deepseek",
       kind: "openai-compatible",
+      capabilities: { input: ["text", "image"], output: ["text"] },
       providerId: "deepseek",
       modelId: "deepseek-chat",
-      apiKey: "***"
+      credentialConfigured: true
     })
+    expect(JSON.stringify(set.value)).not.toContain("secretRef")
+    expect(JSON.stringify(get.value)).not.toContain("secretRef")
   })
 
   it("isolates provider profiles by local store profile", async () => {
@@ -207,8 +214,8 @@ describe("@wanex/cli", () => {
         "deepseek",
         "--model",
         "deepseek-chat",
-        "--api-key",
-        "secret-key"
+        "--secret-ref",
+        "env://DEEPSEEK_API_KEY"
       ],
       {
         WANEX_STORE_ROOT: storeRoot
@@ -228,12 +235,12 @@ describe("@wanex/cli", () => {
     )
 
     expect(expectRecord(set.value).profile).toMatchObject({
-      apiKey: "***"
+      credentialConfigured: true
     })
     expect(expectRecord(personal.value).profile).toBeNull()
     expect(expectRecord(work.value).profile).toMatchObject({
       id: "deepseek",
-      apiKey: "***"
+      credentialConfigured: true
     })
   })
 
@@ -396,10 +403,10 @@ describe("@wanex/cli", () => {
       throw new Error("expected events array")
     }
     expect(events.map((event) => expectRecord(event).type)).toContain(
-      "session.run.completed"
+      "session.turn.succeeded"
     )
     expect(events.map((event) => expectRecord(event).type)).toContain(
-      "session.run.submitted"
+      "session.turn.submitted"
     )
   })
 
@@ -558,8 +565,8 @@ describe("@wanex/cli", () => {
         "deepseek",
         "--model",
         "deepseek-chat",
-        "--api-key",
-        "support-secret"
+        "--secret-ref",
+        "env://SUPPORT_API_KEY"
       ],
       storeDir
     )
@@ -588,7 +595,7 @@ describe("@wanex/cli", () => {
     const serialized = JSON.stringify(value)
 
     expect(value.command).toBe("support-bundle")
-    expect(serialized).not.toContain("support-secret")
+    expect(serialized).not.toContain("SUPPORT_API_KEY")
     expect(Array.isArray(providers)).toBe(true)
     if (!Array.isArray(providers)) {
       throw new Error("expected providers array")
@@ -598,10 +605,11 @@ describe("@wanex/cli", () => {
         id: "support",
         found: true,
         profile: expect.objectContaining({
-          apiKey: "***"
+          credentialConfigured: true
         })
       })
     ])
+    expect(serialized).not.toContain("secretRef")
     expect(expectRecord(value.doctor).schemaVersion).toBe(expectedSchemaVersion)
     expect(Array.isArray(value.events)).toBe(true)
   })
@@ -620,8 +628,7 @@ describe("@wanex/cli", () => {
     expect(expectRecord(first.value).sessionId).toBe("ses_cli_reuse")
     const secondValue = expectRecord(second.value)
     expect(secondValue.sessionId).toBe("ses_cli_reuse")
-    expect(secondValue.assistantText).toContain("Fake response: first")
-    expect(secondValue.assistantText).toContain("Fake response: second")
+    expect(secondValue.assistantText).toBe("Fake response: second")
   })
 
   it("returns a structured error for invalid usage", async () => {
@@ -664,7 +671,6 @@ describe("@wanex/cli", () => {
       [
         "run",
         "hello",
-        "--to-completion",
         "--max-steps",
         "4",
         "--instructions-cwd",
@@ -695,7 +701,6 @@ describe("@wanex/cli", () => {
     expect(parsed).toMatchObject({
       name: "run",
       text: "hello",
-      mode: "to_completion",
       maxSteps: 4,
       context: {
         instructions: {
@@ -725,11 +730,6 @@ describe("@wanex/cli", () => {
         HOME: "/tmp/home"
       })
     ).toThrow("--instructions-cwd is required when instruction options are used")
-    expect(() =>
-      parseCommand(["run", "hello", "--max-steps", "4"], {
-        HOME: "/tmp/home"
-      })
-    ).toThrow("--max-steps requires --to-completion")
     expect(() =>
       parseCommand(
         ["run", "hello", "--skills-cwd", "/repo", "--skill-activation-max-indexed-files", "5"],

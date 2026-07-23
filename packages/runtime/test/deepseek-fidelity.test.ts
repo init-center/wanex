@@ -3,13 +3,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createStorageTestStore } from "@wanex/storage/testing"
-import { WanexSessionCore } from "../src/sessions/index.js"
 import {
   DeepSeekThinkingAdapter,
   MissingRequiredProviderStateError,
   consumeProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
+import { createStartedTurn } from "./durable-turn-test-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -47,13 +47,11 @@ describe("DeepSeek provider fidelity", () => {
   it("preserves streamed reasoning through durable session messages and replay", async () => {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-llm-fidelity-"))
     tempDirs.push(storeDir)
-    const sessionCore = new WanexSessionCore({
-      storage: createStorageTestStore({
-        kind: "local-system-service",
-        mode: "oneshot",
-        storeDir,
-        serviceBin
-      })
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
     })
     const adapter = createAdapter()
     const result = await consumeProviderStream({
@@ -61,32 +59,23 @@ describe("DeepSeek provider fidelity", () => {
       request: { messages: [] }
     })
 
-    const session = await sessionCore.create({ id: "ses_llm_fidelity" })
-    const receipt = await sessionCore.admit({
-      id: "inp_llm_fidelity",
-      sessionId: session.id,
-      principalId: "user_llm",
-      idempotencyKey: "idem_llm",
+    const fixture = await createStartedTurn(storage, {
+      suffix: "llm_fidelity",
       content: [{ type: "text", id: "part_user", text: "use a tool" }]
     })
-    const claim = await sessionCore.claimRunner({
-      sessionId: session.id,
-      runnerId: "runner_llm",
-      leaseMs: 60_000
-    })
-    expect(claim?.inputId).toBe(receipt.inputId)
-    await sessionCore.completeRun({
-      sessionId: session.id,
-      runId: claim!.runId,
-      inputId: claim!.inputId,
-      runnerId: claim!.runnerId,
-      leaseToken: claim!.leaseToken,
-      assistantMessage: result.parts
+    await fixture.session.appendMessage({
+      ...fixture.execution,
+      idempotencyKey: "deepseek_reasoning_message",
+      role: "assistant",
+      content: result.parts,
+      providerState: result.providerState
     })
 
-    const messages = await sessionCore.listMessages({ sessionId: session.id })
+    const messages = await fixture.session.listMessages({
+      sessionId: fixture.execution.sessionId
+    })
     const replay = adapter.buildReplayMessages([
-      { role: "assistant", content: messages[0]!.content }
+      { role: "assistant", content: messages[1]!.content }
     ])
     expect(replay[0]).toMatchObject({
       role: "assistant",

@@ -1,58 +1,73 @@
-import {
-  type AdmissionReceipt,
-  type AdmitSessionInputRequest,
-  type AppendSessionMessageRequest,
-  type ApplySessionRunControlReceipt,
-  type ApplySessionRunControlRequest,
-  type BudgetGrantRecord,
-  type BudgetScopeRecord,
-  type BeginToolExecutionRequest,
-  type BeginToolExecutionReceipt,
-  type CancelJobRequest,
-  type CancelRunRequest,
-  type ClaimJobRequest,
-  type CleanupExpiredResourceTicketsRequest,
-  type CommitBudgetRequest,
-  type CompleteJobRequest,
-  type CompleteRunRequest,
-  type CreateSessionRequest,
-  type EnqueueJobRequest,
-  type FailJobRequest,
-  type FailRunRequest,
-  type FinishToolExecutionRequest,
-  type HeartbeatJobRequest,
-  type InterruptSessionRunReceipt,
-  type InterruptSessionRunRequest,
-  type ListJobsRequest,
-  type ListSessionsRequest,
-  type ListSessionInputsRequest,
-  type ListSessionMessagesRequest,
-  type ListSessionRunControlsRequest,
-  type ResourceTicketCleanupReceipt,
-  type ReserveBudgetRequest,
-    type RecoverToolExecutionRequest,
-    type RecordBudgetUsageRequest,
-    type RecordBudgetUsageReceipt,
-  type RunnerClaim,
-  type RunnerClaimRequest,
-  type RunnerHeartbeatRequest,
-  type SchedulerJobRecord,
-  type SessionInputRecord,
-  type SessionMessageRecord,
-  type SessionRecord,
-  type SessionRunControlRecord,
-  type SteerSessionRunReceipt,
-  type SteerSessionRunRequest,
-  type SubmitSessionRunReceipt,
-  type SubmitSessionRunRequest,
-  type ToolExecutionRecord
+import type {
+  AdmissionReceipt,
+  AdmitSessionInputRequest,
+  AppendSessionMessageRequest,
+  ApplySessionTurnControlReceipt,
+  ApplySessionTurnControlRequest,
+  BeginProviderInvocationRequest,
+  BeginToolExecutionReceipt,
+  BeginToolExecutionRequest,
+  BudgetGrantRecord,
+  BudgetScopeRecord,
+  CancelJobRequest,
+  ClaimJobRequest,
+  CleanupExpiredResourceTicketsRequest,
+  CommitBudgetRequest,
+  CompleteJobRequest,
+  CreateSessionRequest,
+  EnqueueJobRequest,
+  FailJobRequest,
+  FinishToolExecutionRequest,
+  GetResourceRequest,
+  FinishProviderInvocationReceipt,
+  FinishProviderInvocationRequest,
+  HeartbeatJobRequest,
+  InterruptSessionTurnReceipt,
+  InterruptSessionTurnRequest,
+  ListProviderInvocationsRequest,
+  ListJobsRequest,
+  ListSessionAttemptsRequest,
+  ListSessionInputsRequest,
+  ListSessionMessagesRequest,
+  ListSessionTurnControlsRequest,
+  ListSessionTurnsRequest,
+  ListSessionsRequest,
+  ListToolExecutionAttemptsRequest,
+  MarkProviderInvocationOutputRequest,
+  ProviderInvocationRecord,
+  ReadResourceContentRequest,
+  RecordBudgetUsageReceipt,
+  RecordBudgetUsageRequest,
+  RequestSessionTurnCancelReceipt,
+  RequestSessionTurnCancelRequest,
+  ReserveBudgetRequest,
+  ResourceTicketCleanupReceipt,
+  ResourceContentChunk,
+  ResourceRecord,
+  SchedulerJobRecord,
+  SessionAttemptRecord,
+  SessionInputRecord,
+  SessionMessageRecord,
+  SessionRecord,
+  SessionTurnControlRecord,
+  SessionTurnRecord,
+  SettleSessionTurnReceipt,
+  SettleSessionTurnRequest,
+  StartSessionTurnAttemptReceipt,
+  StartSessionTurnAttemptRequest,
+  SteerSessionTurnReceipt,
+  SteerSessionTurnRequest,
+  SubmitSessionTurnReceipt,
+  SubmitSessionTurnRequest,
+  ToolExecutionAttemptRecord,
+  ToolExecutionRecord
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import { BudgetCommands } from "./budget-commands.js"
 import { ResourceMaintenanceCommands } from "./resource-maintenance-commands.js"
-import { RunControlCommands } from "./run-control-commands.js"
 import { SchedulerCommands } from "./scheduler-commands.js"
 import { SessionCommands } from "./session-commands.js"
+import { TurnControlCommands } from "./turn-control-commands.js"
 
 export const WANEX_RUNTIME_SESSIONS = "wanex-runtime-sessions" as const
 
@@ -63,7 +78,7 @@ export interface WanexSessionCoreOptions {
 export class WanexSessionCore {
   private readonly storage: CoreStore
   private readonly session: SessionCommands
-  private readonly runControl: RunControlCommands
+  private readonly turnControl: TurnControlCommands
   private readonly budget: BudgetCommands
   private readonly scheduler: SchedulerCommands
   private readonly resourceMaintenance: ResourceMaintenanceCommands
@@ -71,7 +86,7 @@ export class WanexSessionCore {
   constructor(options: WanexSessionCoreOptions) {
     this.storage = options.storage
     this.session = new SessionCommands(options.storage)
-    this.runControl = new RunControlCommands(options.storage)
+    this.turnControl = new TurnControlCommands(options.storage)
     this.budget = new BudgetCommands(options.storage)
     this.scheduler = new SchedulerCommands(options.storage)
     this.resourceMaintenance = new ResourceMaintenanceCommands(options.storage)
@@ -93,15 +108,55 @@ export class WanexSessionCore {
     return await this.session.admit(request)
   }
 
-  async submitRun(
-    request: SubmitSessionRunRequest
-  ): Promise<SubmitSessionRunReceipt> {
-    return await this.session.submitRun(request)
+  async submitTurn(
+    request: SubmitSessionTurnRequest
+  ): Promise<SubmitSessionTurnReceipt> {
+    return await this.session.submitTurn(request)
   }
 
-  async listInputs(
-    request: ListSessionInputsRequest
-  ): Promise<SessionInputRecord[]> {
+  async startTurnAttempt(
+    request: StartSessionTurnAttemptRequest
+  ): Promise<StartSessionTurnAttemptReceipt> {
+    return await this.session.startTurnAttempt(request)
+  }
+
+  async settleTurn(
+    request: SettleSessionTurnRequest
+  ): Promise<SettleSessionTurnReceipt> {
+    return await this.session.settleTurn(request)
+  }
+
+  async beginProviderInvocation(
+    request: BeginProviderInvocationRequest
+  ): Promise<ProviderInvocationRecord> {
+    return await this.session.beginProviderInvocation(request)
+  }
+
+  async markProviderInvocationOutput(
+    request: MarkProviderInvocationOutputRequest
+  ): Promise<ProviderInvocationRecord | null> {
+    return await this.session.markProviderInvocationOutput(request)
+  }
+
+  async finishProviderInvocation(
+    request: FinishProviderInvocationRequest
+  ): Promise<FinishProviderInvocationReceipt | null> {
+    return await this.session.finishProviderInvocation(request)
+  }
+
+  async listProviderInvocations(
+    request: ListProviderInvocationsRequest
+  ): Promise<ProviderInvocationRecord[]> {
+    return await this.session.listProviderInvocations(request)
+  }
+
+  async requestTurnCancel(
+    request: RequestSessionTurnCancelRequest
+  ): Promise<RequestSessionTurnCancelReceipt> {
+    return await this.session.requestTurnCancel(request)
+  }
+
+  async listInputs(request: ListSessionInputsRequest): Promise<SessionInputRecord[]> {
     return await this.session.listInputs(request)
   }
 
@@ -111,32 +166,44 @@ export class WanexSessionCore {
     return await this.session.listMessages(request)
   }
 
+  async listTurns(request: ListSessionTurnsRequest): Promise<SessionTurnRecord[]> {
+    return await this.session.listTurns(request)
+  }
+
+  async listAttempts(
+    request: ListSessionAttemptsRequest
+  ): Promise<SessionAttemptRecord[]> {
+    return await this.session.listAttempts(request)
+  }
+
   async appendMessage(
     request: AppendSessionMessageRequest
   ): Promise<SessionMessageRecord | null> {
     return await this.session.appendMessage(request)
   }
 
-  async claimRunner(request: RunnerClaimRequest): Promise<RunnerClaim | null> {
-    return await this.session.claimRunner(request)
+  async interruptTurn(
+    request: InterruptSessionTurnRequest
+  ): Promise<InterruptSessionTurnReceipt> {
+    return await this.turnControl.interruptTurn(request)
   }
 
-  async heartbeatRunner(
-    request: RunnerHeartbeatRequest
-  ): Promise<RunnerClaim | null> {
-    return await this.session.heartbeatRunner(request)
+  async steerTurn(
+    request: SteerSessionTurnRequest
+  ): Promise<SteerSessionTurnReceipt> {
+    return await this.turnControl.steerTurn(request)
   }
 
-  async completeRun(request: CompleteRunRequest): Promise<boolean> {
-    return await this.session.completeRun(request)
+  async listTurnControls(
+    request: ListSessionTurnControlsRequest
+  ): Promise<SessionTurnControlRecord[]> {
+    return await this.turnControl.listTurnControls(request)
   }
 
-  async failRun(request: FailRunRequest): Promise<boolean> {
-    return await this.session.failRun(request)
-  }
-
-  async cancelRun(request: CancelRunRequest): Promise<boolean> {
-    return await this.session.cancelRun(request)
+  async applyTurnControl(
+    request: ApplySessionTurnControlRequest
+  ): Promise<ApplySessionTurnControlReceipt | null> {
+    return await this.turnControl.applyTurnControl(request)
   }
 
   async beginToolExecution(
@@ -151,12 +218,6 @@ export class WanexSessionCore {
     return await this.storage.finishToolExecution(request)
   }
 
-  async recoverToolExecution(
-    request: RecoverToolExecutionRequest
-  ): Promise<ToolExecutionRecord | null> {
-    return await this.storage.recoverToolExecution(request)
-  }
-
   async getToolExecution(executionId: string): Promise<ToolExecutionRecord | null> {
     return await this.storage.getToolExecution(executionId)
   }
@@ -165,28 +226,10 @@ export class WanexSessionCore {
     return await this.storage.listToolExecutions({})
   }
 
-  async interruptRun(
-    request: InterruptSessionRunRequest
-  ): Promise<InterruptSessionRunReceipt> {
-    return await this.runControl.interruptRun(request)
-  }
-
-  async steerRun(
-    request: SteerSessionRunRequest
-  ): Promise<SteerSessionRunReceipt> {
-    return await this.runControl.steerRun(request)
-  }
-
-  async listRunControls(
-    request: ListSessionRunControlsRequest
-  ): Promise<SessionRunControlRecord[]> {
-    return await this.runControl.listRunControls(request)
-  }
-
-  async applyRunControl(
-    request: ApplySessionRunControlRequest
-  ): Promise<ApplySessionRunControlReceipt | null> {
-    return await this.runControl.applyRunControl(request)
+  async listToolExecutionAttempts(
+    request: ListToolExecutionAttemptsRequest
+  ): Promise<ToolExecutionAttemptRecord[]> {
+    return await this.storage.listToolExecutionAttempts(request)
   }
 
   async cleanupExpiredResourceTickets(
@@ -195,9 +238,17 @@ export class WanexSessionCore {
     return await this.resourceMaintenance.cleanupExpiredResourceTickets(request)
   }
 
-  async reserveBudget(
-    request: ReserveBudgetRequest
-  ): Promise<BudgetGrantRecord> {
+  async getResource(request: GetResourceRequest): Promise<ResourceRecord | null> {
+    return await this.storage.getResource(request)
+  }
+
+  async readResourceContent(
+    request: ReadResourceContentRequest
+  ): Promise<ResourceContentChunk | null> {
+    return await this.storage.readResourceContent(request)
+  }
+
+  async reserveBudget(request: ReserveBudgetRequest): Promise<BudgetGrantRecord> {
     return await this.budget.reserveBudget(request)
   }
 

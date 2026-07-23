@@ -56,8 +56,8 @@ export const memoryReplayProductPathScenario = createEvalScenario({
         policy: replayPolicy()
       })
     })
-    await host.submitUserText({
-      text: "new replay request",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "new replay request" }],
       sessionId: MEMORY_REPLAY_SESSION_ID,
       inputId: "inp_eval_memory_replay_new",
       principalId: "principal_eval_memory",
@@ -121,8 +121,10 @@ export const memoryReplayProductPathScenario = createEvalScenario({
 })
 
 class ReplayRecordingProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
   readonly providerId = "eval-replay-provider"
   readonly modelId = "eval-replay-model"
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
   lastMessages: readonly ProviderReplayMessage[] = []
 
   async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {

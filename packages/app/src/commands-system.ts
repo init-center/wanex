@@ -1,27 +1,27 @@
-import { buildSupportBundle as buildColdSupportBundle } from "@wanex/app/diagnostics"
+import { buildSupportBundle as buildColdSupportBundle } from "./diagnostics/index.js"
 import { resolveRuntimeHostDiagnostics } from "@wanex/runtime/host"
 import {
-  projectWanexAppShellRecentSessionsReadModel,
-  projectWanexAppShellSessionInputProvenanceReadModel,
-  projectWanexAppShellSessionTranscriptReadModel
+  projectWanexAppRecentSessionsReadModel,
+  projectWanexAppSessionInputProvenanceReadModel,
+  projectWanexAppSessionTranscriptReadModel
 } from "./read-model.js"
-import { runWanexAppShellSafeCommand } from "./result-envelope.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellDiagnosticsCommands } from "./types-diagnostics.js"
-import type { WanexAppShellLifecycleCommands } from "./types-lifecycle.js"
-import type { WanexAppShellReadModelCommands } from "./types-read-model.js"
-import type { WanexAppShellResultEnvelopeCommands } from "./types-result-envelope.js"
+import { runWanexAppSafeCommand } from "./result-envelope.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppDiagnosticsCommands } from "./types-diagnostics.js"
+import type { WanexAppLifecycleCommands } from "./types-lifecycle.js"
+import type { WanexAppReadModelCommands } from "./types-read-model.js"
+import type { WanexAppResultEnvelopeCommands } from "./types-result-envelope.js"
 
-export type WanexAppShellSystemCommandGroup =
-  WanexAppShellDiagnosticsCommands &
-    WanexAppShellReadModelCommands &
-    WanexAppShellResultEnvelopeCommands &
-    WanexAppShellLifecycleCommands
+export type WanexAppSystemCommandGroup =
+  WanexAppDiagnosticsCommands &
+    WanexAppReadModelCommands &
+    WanexAppResultEnvelopeCommands &
+    WanexAppLifecycleCommands
 
-export function createWanexAppShellSystemCommands(
-  context: WanexAppShellCommandContext,
+export function createWanexAppSystemCommands(
+  context: WanexAppCommandContext,
   isDisposed: () => boolean
-): WanexAppShellSystemCommandGroup {
+): WanexAppSystemCommandGroup {
   return {
     async readDiagnostics(diagnosticsOptions = {}) {
       context.assertActive()
@@ -74,14 +74,14 @@ export function createWanexAppShellSystemCommands(
         ...(request.status === undefined ? {} : { status: request.status }),
         limit
       })
-      return projectWanexAppShellRecentSessionsReadModel(sessions, limit)
+      return projectWanexAppRecentSessionsReadModel(sessions, limit)
     },
     async readSessionInputProvenance(request) {
       context.assertActive()
       const inputs = await context.runtime.storage.listSessionInputs({
         sessionId: request.sessionId
       })
-      return projectWanexAppShellSessionInputProvenanceReadModel(
+      return projectWanexAppSessionInputProvenanceReadModel(
         request.sessionId,
         inputs
       )
@@ -96,7 +96,7 @@ export function createWanexAppShellSystemCommands(
           sessionId: request.sessionId
         })
       ])
-      return projectWanexAppShellSessionTranscriptReadModel(
+      return projectWanexAppSessionTranscriptReadModel(
         request.sessionId,
         {
           inputs,
@@ -109,7 +109,7 @@ export function createWanexAppShellSystemCommands(
       return context.extensions.readModel()
     },
     async safeCommand(request) {
-      return await runWanexAppShellSafeCommand(request)
+      return await runWanexAppSafeCommand(request)
     },
     async shutdown() {
       const repeated = isDisposed()

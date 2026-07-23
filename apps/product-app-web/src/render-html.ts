@@ -1,7 +1,7 @@
 import type {
   ProductAppWebActionDescriptor,
   ProductAppWebActionFieldDescriptor,
-  ProductAppWebProviderRunGateViewModel,
+  ProductAppWebConversationViewModel,
   ProductAppWebRecentSessionRow,
   ProductAppWebSnapshot,
   ProductAppWebWorkbenchTranscriptRow,
@@ -33,8 +33,11 @@ export function renderProductAppWebHtml(snapshot: ProductAppWebSnapshot): string
   const actions = state.actions
     .filter(
       (action) =>
-        action.id !== "continue-workbench" &&
-        action.id !== "start-workbench" &&
+        action.id !== "submit-conversation" &&
+        action.id !== "refresh-conversation" &&
+        action.id !== "cancel-conversation" &&
+        action.id !== "regenerate-conversation" &&
+        action.id !== "remove-conversation-attachment" &&
         action.id !== "set-layout" &&
         action.id !== "set-mode" &&
         action.id !== "set-active-provider-profile" &&
@@ -99,7 +102,8 @@ function renderModeSurface(
       `<main data-region="main">`,
       renderActiveOperationStatus(snapshot),
       renderProductAppWebProviderRunGate(state.providerRunGate),
-      renderWorkbench(snapshot.workbench, state.providerRunGate, "Conversation"),
+      renderConversation(snapshot),
+      renderWorkbench(snapshot.workbench, "Conversation"),
       `</main>`,
       `</div>`
     ].join("")
@@ -114,7 +118,8 @@ function renderModeSurface(
       `<main data-region="main">`,
       renderProductAppWebOperationStatus(snapshot),
       renderProductAppWebProviderRunGate(state.providerRunGate),
-      renderWorkbench(snapshot.workbench, state.providerRunGate, "Workbench"),
+      renderConversation(snapshot),
+      renderWorkbench(snapshot.workbench, "Workbench"),
       renderProductAppWebCommandPreview(state.commandPreview),
       renderProductAppWebCommandExecution(state.commandExecution),
       renderProductAppWebExecutionActivity(state.executionActivity),
@@ -273,22 +278,19 @@ function renderProviderProfileRow(
   profile: ProductAppWebSnapshot["view"]["settings"]["profile"]["profiles"][number]
 ): string {
   const active = profile.active ? "true" : "false"
-  const baseUrl =
-    profile.baseUrl === undefined
-      ? ""
-      : `<span data-provider-profile-base-url>${escapeHtml(profile.baseUrl)}</span>`
-  const keyStatus = profile.hasApiKey ? "redacted" : "none"
-  const keyLabel = profile.hasApiKey ? "key redacted" : "no key"
+  const credentialStatus = profile.credentialConfigured ? "configured" : "none"
+  const credentialLabel = profile.credentialConfigured
+    ? "credential configured"
+    : "no credential"
   return [
-    `<li data-provider-profile-id="${escapeHtml(profile.id)}" data-provider-profile-active="${active}" data-provider-key-status="${keyStatus}">`,
+    `<li data-provider-profile-id="${escapeHtml(profile.id)}" data-provider-profile-active="${active}" data-provider-credential-status="${credentialStatus}">`,
     `<div>`,
     `<strong>${escapeHtml(profile.id)}</strong>`,
     `<span>${escapeHtml(profile.active ? "active" : "available")}</span>`,
     `</div>`,
     `<small>${escapeHtml(`${profile.kind}/${profile.providerId}`)}</small>`,
     `<small>${escapeHtml(profile.modelId)}</small>`,
-    baseUrl,
-    `<small>${escapeHtml(keyLabel)}</small>`,
+    `<small>${escapeHtml(credentialLabel)}</small>`,
     `</li>`
   ].join("")
 }
@@ -298,7 +300,7 @@ function renderProviderProfileForm(snapshot: ProductAppWebSnapshot): string {
   const activeProfileId = snapshot.view.settings.profile.activeProviderProfileId
   const values = profiles.map((profile) => ({
     value: profile.id,
-    label: `${profile.id} (${profile.modelId})${profile.hasApiKey ? " key" : ""}`
+    label: `${profile.id} (${profile.modelId})${profile.credentialConfigured ? " credential" : ""}`
   }))
   const options = values
     .map((option) =>
@@ -423,9 +425,183 @@ function renderSessionRow(session: ProductAppWebRecentSessionRow): string {
   ].join("")
 }
 
+function renderConversation(snapshot: ProductAppWebSnapshot): string {
+  const conversation = snapshot.conversation
+  const rows =
+    conversation.operation?.transcript.rows
+      .map(renderConversationRow)
+      .join("") ?? ""
+  const message =
+    conversation.message === undefined
+      ? ""
+      : `<p data-conversation-message>${escapeHtml(conversation.message)}</p>`
+  const transientAssistant =
+    conversation.transientAssistantText === undefined
+      ? ""
+      : [
+          `<article data-conversation-transient-assistant>`,
+          `<header><span>assistant</span><span>streaming</span></header>`,
+          `<p>${escapeHtml(conversation.transientAssistantText)}</p>`,
+          `</article>`
+        ].join("")
+  const sessionInput = conversationSessionInput(conversation)
+  const operationId =
+    conversation.operationId === undefined
+      ? ""
+      : `<p data-conversation-operation>${escapeHtml(conversation.operationId)}</p>`
+  const emptyState =
+    rows.length === 0 && transientAssistant.length === 0
+      ? `<p data-conversation-empty-state>No active conversation operation</p>`
+      : ""
+
+  return [
+    `<section data-panel="conversation" data-conversation-state="${escapeHtml(conversation.state)}">`,
+    `<h2>Conversation</h2>`,
+    operationId,
+    message,
+    `<ol data-conversation-transcript>${rows}</ol>`,
+    transientAssistant,
+    emptyState,
+    renderConversationAttachmentPicker(snapshot),
+    renderConversationAttachments(snapshot),
+    `<form data-action="submit-conversation">`,
+    `<input type="hidden" name="action" value="submit-conversation">`,
+    sessionInput,
+    `<label>Message<textarea name="text"${snapshot.view.conversationAttachments.length === 0 ? " required" : ""}${snapshot.view.conversationCanSubmit ? "" : " disabled"}></textarea></label>`,
+    `<button type="submit"${snapshot.view.conversationCanSubmit ? "" : " disabled"}>Send message</button>`,
+    `</form>`,
+    `<div data-conversation-controls>`,
+    renderConversationAction("refresh-conversation", "Refresh", conversation, true),
+    renderConversationAction(
+      "cancel-conversation",
+      "Cancel response",
+      conversation,
+      snapshot.view.conversationCanCancel
+    ),
+    renderConversationAction(
+      "regenerate-conversation",
+      "Regenerate response",
+      conversation,
+      snapshot.view.conversationCanRegenerate
+    ),
+    renderConversationAction(
+      "open-workbench",
+      "Open canonical transcript",
+      conversation,
+      conversation.sessionId !== undefined
+    ),
+    `</div>`,
+    `</section>`
+  ].join("")
+}
+
+function renderConversationAttachmentPicker(
+  snapshot: ProductAppWebSnapshot
+): string {
+  return [
+    `<label data-conversation-attachment-picker>`,
+    `<span>Attachments</span>`,
+    `<input type="file" data-conversation-attachment-input${snapshot.view.selectedSessionId === undefined ? "" : ` data-session-id="${escapeHtml(snapshot.view.selectedSessionId)}"`} multiple accept="image/*,audio/*,video/*,.pdf,.txt,.md,.csv,.json,.doc,.docx,.xls,.xlsx,.ppt,.pptx">`,
+    `</label>`,
+    `<p data-conversation-attachment-status aria-live="polite"></p>`,
+    snapshot.attachments.ok
+      ? ""
+      : `<p role="alert" data-conversation-attachment-error>${escapeHtml(snapshot.attachments.error.message)}</p>`
+  ].join("")
+}
+
+function renderConversationAttachments(
+  snapshot: ProductAppWebSnapshot
+): string {
+  const attachments = snapshot.view.conversationAttachments
+  if (attachments.length === 0) {
+    return `<ol data-conversation-attachments data-empty="true"></ol>`
+  }
+  return [
+    `<ol data-conversation-attachments>`,
+    ...attachments.map((attachment) => [
+      `<li data-conversation-attachment data-resource-id="${escapeHtml(attachment.resourceId)}" data-preview-kind="${escapeHtml(attachment.previewKind)}">`,
+      `<div data-conversation-attachment-preview></div>`,
+      `<div data-conversation-attachment-metadata>`,
+      `<strong>${escapeHtml(attachment.label ?? attachment.resourceKind)}</strong>`,
+      `<small>${escapeHtml(attachment.mediaType ?? attachment.resourceKind)} / ${formatBytes(attachment.sizeBytes)}</small>`,
+      `</div>`,
+      `<form data-action="remove-conversation-attachment">`,
+      `<input type="hidden" name="action" value="remove-conversation-attachment">`,
+      `<input type="hidden" name="resourceId" value="${escapeHtml(attachment.resourceId)}">`,
+      attachmentSessionInput(snapshot),
+      `<button type="submit" aria-label="Remove ${escapeHtml(attachment.label ?? "attachment")}" title="Remove attachment">&times;</button>`,
+      `</form>`,
+      `</li>`
+    ].join("")),
+    `</ol>`
+  ].join("")
+}
+
+function attachmentSessionInput(
+  snapshot: ProductAppWebSnapshot
+): string {
+  return snapshot.view.selectedSessionId === undefined
+    ? ""
+    : `<input type="hidden" name="sessionId" value="${escapeHtml(snapshot.view.selectedSessionId)}">`
+}
+
+function formatBytes(sizeBytes: number): string {
+  if (sizeBytes < 1024) return `${sizeBytes} B`
+  if (sizeBytes < 1024 * 1024) return `${(sizeBytes / 1024).toFixed(1)} KiB`
+  return `${(sizeBytes / (1024 * 1024)).toFixed(1)} MiB`
+}
+
+function renderConversationAction(
+  action:
+    | "refresh-conversation"
+    | "cancel-conversation"
+    | "regenerate-conversation"
+    | "open-workbench",
+  label: string,
+  conversation: ProductAppWebConversationViewModel,
+  enabled: boolean
+): string {
+  const reasonInput =
+    action === "cancel-conversation"
+      ? `<input type="hidden" name="reason" value="user requested cancellation">`
+      : ""
+  return [
+    `<form data-action="${action}">`,
+    `<input type="hidden" name="action" value="${action}">`,
+    conversationSessionInput(conversation),
+    reasonInput,
+    `<button type="submit"${enabled ? "" : " disabled"}>${escapeHtml(label)}</button>`,
+    `</form>`
+  ].join("")
+}
+
+function conversationSessionInput(
+  conversation: ProductAppWebConversationViewModel
+): string {
+  return conversation.sessionId === undefined
+    ? ""
+    : `<input type="hidden" name="sessionId" value="${escapeHtml(conversation.sessionId)}">`
+}
+
+function renderConversationRow(
+  row: NonNullable<
+    ProductAppWebConversationViewModel["operation"]
+  >["transcript"]["rows"][number]
+): string {
+  const text = row.text.trim().length === 0 ? "[empty]" : row.text
+  return [
+    `<li data-conversation-row="${escapeHtml(row.key)}" data-kind="${escapeHtml(row.kind)}" data-role="${escapeHtml(row.role)}">`,
+    `<article>`,
+    `<header><span>${escapeHtml(row.role)}</span><span>${escapeHtml(row.status)}</span></header>`,
+    `<p>${escapeHtml(text)}</p>`,
+    `</article>`,
+    `</li>`
+  ].join("")
+}
+
 function renderWorkbench(
   workbench: ProductAppWebWorkbenchViewModel,
-  providerRunGate: ProductAppWebProviderRunGateViewModel,
   title = "Workbench"
 ): string {
   const rows = workbench.rows.map(renderWorkbenchRow).join("")
@@ -441,21 +617,6 @@ function renderWorkbench(
     workbench.summary.latestUserText === undefined
       ? ""
       : `<p data-workbench-latest-user>${escapeHtml(workbench.summary.latestUserText)}</p>`
-  const composer = workbench.canContinue
-      ? renderWorkbenchComposer({
-          action: "continue-workbench",
-          buttonLabel: "Send",
-          sessionId: workbench.sessionId,
-          variant: "continue",
-          providerRunGate
-        })
-      : renderWorkbenchComposer({
-          action: "start-workbench",
-          buttonLabel: "Start",
-          sessionId: workbench.sessionId,
-          variant: "start",
-          providerRunGate
-        })
   const message =
     workbench.message === undefined
       ? ""
@@ -476,35 +637,7 @@ function renderWorkbench(
     latestAssistant,
     `<ol data-workbench-transcript>${rows}</ol>`,
     emptyState,
-    composer,
     `</section>`
-  ].join("")
-}
-
-function renderWorkbenchComposer(request: {
-  readonly action: "start-workbench" | "continue-workbench"
-  readonly buttonLabel: string
-  readonly sessionId: string | undefined
-  readonly variant: "start" | "continue"
-  readonly providerRunGate: ProductAppWebProviderRunGateViewModel
-}): string {
-  const sessionId = request.sessionId === undefined
-    ? ""
-    : `<input type="hidden" name="sessionId" value="${escapeHtml(request.sessionId)}">`
-  const blocked = !request.providerRunGate.canSubmitWorkbench
-  const disabled = blocked ? " disabled" : ""
-  const composerState = blocked ? "blocked" : "ready"
-  const statusText = blocked
-    ? request.providerRunGate.message
-    : workbenchComposerStatusText(request.variant)
-  return [
-    `<form data-action="${request.action}" data-workbench-composer data-workbench-composer-kind="${request.variant}" data-workbench-composer-state="${composerState}">`,
-    `<input type="hidden" name="action" value="${request.action}">`,
-    sessionId,
-    `<label>Message<textarea name="text" required${disabled}></textarea></label>`,
-    `<p data-workbench-composer-status role="status" aria-live="polite">${escapeHtml(statusText)}</p>`,
-    `<button type="submit"${disabled}>${escapeHtml(request.buttonLabel)}</button>`,
-    `</form>`
   ].join("")
 }
 
@@ -526,11 +659,6 @@ function workbenchEmptyStateText(
   return "No messages in this workbench"
 }
 
-function workbenchComposerStatusText(
-  variant: "start" | "continue"
-): string {
-  return variant === "start" ? "Ready to start" : "Ready to send"
-}
 
 function renderWorkbenchRow(row: ProductAppWebWorkbenchTranscriptRow): string {
   const text = row.text.trim().length === 0 ? "[empty]" : row.text

@@ -9,7 +9,7 @@
       "commands": [
         "append-event", "query-events", "put-config", "get-config",
         "write-atomic-file", "ingest-resource", "get-resource",
-        "list-resources", "create-resource-ticket",
+        "read-resource-content", "list-resources", "create-resource-ticket",
         "cleanup-expired-resource-tickets", "doctor"
       ]
     },
@@ -20,9 +20,14 @@
       "typescriptFiles": ["store-session.ts"],
       "commands": [
         "create-session", "get-session", "list-sessions",
-        "admit-session-input", "submit-session-run",
-        "interrupt-session-run", "steer-session-run",
-        "list-session-run-controls", "apply-session-run-control",
+        "admit-session-input", "submit-session-turn",
+        "start-session-turn-attempt", "settle-session-turn",
+        "begin-provider-invocation", "mark-provider-invocation-output",
+        "finish-provider-invocation", "list-provider-invocations",
+        "request-session-turn-cancel", "interrupt-session-turn",
+        "steer-session-turn", "list-session-turn-controls",
+        "apply-session-turn-control", "list-session-turns",
+        "list-session-attempts",
         "list-session-inputs", "list-session-messages",
         "append-session-message"
       ]
@@ -43,10 +48,9 @@
       "classification": "core",
       "owner": "@wanex/runtime/jobs",
       "schemaCommandUnion": "SchedulerStorageRpcCommand",
-      "typescriptFiles": ["store-runner.ts", "store-budget.ts", "store-job.ts"],
+      "typescriptFiles": ["store-job.ts", "store-budget.ts"],
       "commands": [
-        "claim-runner", "heartbeat-runner", "complete-run", "fail-run",
-        "release-runner", "cancel-run", "reserve-budget", "record-budget-usage", "commit-budget",
+        "reserve-budget", "record-budget-usage", "commit-budget",
         "release-budget", "get-budget-scope", "list-budget-grants",
         "enqueue-job", "claim-job", "heartbeat-job", "complete-job",
         "fail-job", "cancel-job", "get-job", "list-jobs"
@@ -59,8 +63,21 @@
       "typescriptFiles": ["store-tools.ts"],
       "commands": [
         "begin-tool-execution", "finish-tool-execution",
-        "recover-tool-execution", "get-tool-execution",
-        "list-tool-executions"
+        "get-tool-execution", "list-tool-executions",
+        "list-tool-execution-attempts"
+      ]
+    },
+    "media_generation": {
+      "classification": "optional",
+      "owner": "@wanex/runtime/media-generation",
+      "schemaCommandUnion": "MediaGenerationStorageRpcCommand",
+      "typescriptFiles": ["store-media-generation.ts"],
+      "commands": [
+        "submit-media-generation", "begin-media-generation",
+        "accept-media-generation", "checkpoint-media-generation",
+        "record-media-generation-outputs", "complete-media-generation",
+        "settle-media-generation", "request-media-generation-cancel",
+        "get-media-generation", "list-media-generation"
       ]
     },
     "workspace": {

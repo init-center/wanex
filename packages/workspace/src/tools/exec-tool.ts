@@ -5,6 +5,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding } from "@wanex/runtime/tools"
 import { WorkspacePathResolver } from "../path-policy.js"
 import {
   inputRecord,
@@ -42,11 +43,11 @@ export class WorkspaceExecTool implements ToolDefinition {
   } as const
   readonly risk = "external" as const
   readonly idempotent = false
-  readonly drainsCancellation = true as const
   readonly annotations = {
     destructiveHint: true,
     openWorldHint: true
   } as const
+  readonly runtimeBinding
 
   private readonly paths: WorkspacePathResolver
   private readonly executionHost: ExecutionHost
@@ -81,6 +82,19 @@ export class WorkspaceExecTool implements ToolDefinition {
       outputBytes: this.outputBytes,
       maxArgs: this.maxArgs,
       maxArgBytes: this.maxArgBytes
+    })
+    this.runtimeBinding = createToolRuntimeBinding({
+      implementationId: "wanex.workspace.tool.exec",
+      implementationRevision: "1",
+      configuration: {
+        rootDir: options.rootDir,
+        programPolicy: options.programPolicy.snapshot(),
+        defaultTimeoutMs: this.defaultTimeoutMs,
+        maxTimeoutMs: this.maxTimeoutMs,
+        outputBytes: this.outputBytes,
+        maxArgs: this.maxArgs,
+        maxArgBytes: this.maxArgBytes
+      }
     })
   }
 

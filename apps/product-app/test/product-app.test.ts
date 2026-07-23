@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   createMemoryProductAppStateStore,
@@ -67,11 +68,12 @@ describe("@wanex/product-app", () => {
           profileCount: 1,
           canRun: true,
           attentionRequired: false,
-          requiresApiKey: false,
-          hasApiKey: false,
+          requiresCredential: false,
+          credentialConfigured: false,
           activeProfile: expect.objectContaining({
             id: "product-app-test",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             active: true
           })
         }
@@ -86,48 +88,51 @@ describe("@wanex/product-app", () => {
   })
 
   it("projects provider readiness without exposing provider secrets", async () => {
-    const missingKeyStoreDir = await createStoreDir()
-    const missingKeyApp = await createTestApp(missingKeyStoreDir, {
+    const missingCredentialStoreDir = await createStoreDir()
+    const missingCredentialApp = await createTestApp(missingCredentialStoreDir, {
       providerProfile: {
         id: "product-app-openai-missing-key",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "product-app-openai-missing-key-model"
       }
     })
     try {
-      const home = await missingKeyApp.readHome()
+      const home = await missingCredentialApp.readHome()
       expect(home.providerReadiness).toMatchObject({
-        status: "missing_required_api_key",
-        reason: "active_profile_missing_api_key",
+        status: "missing_required_credential",
+        reason: "active_profile_missing_credential",
         activeProfileId: "product-app-openai-missing-key",
         profileCount: 1,
         canRun: false,
         attentionRequired: true,
-        requiresApiKey: true,
-        hasApiKey: false,
+        requiresCredential: true,
+        credentialConfigured: false,
         activeProfile: {
           id: "product-app-openai-missing-key",
           kind: "openai-compatible",
-          hasApiKey: false,
+          capabilities: { input: ["text"], output: ["text"] },
+          credentialConfigured: false,
           active: true
         }
       })
-      expect(JSON.stringify(home)).not.toContain(missingKeyStoreDir)
+      expect(JSON.stringify(home)).not.toContain(missingCredentialStoreDir)
       expect(JSON.stringify(home)).not.toContain(serviceBin)
     } finally {
-      await missingKeyApp.dispose()
+      await missingCredentialApp.dispose()
     }
 
     const readyStoreDir = await createStoreDir()
-    const readySecret = "product-app-openai-ready-secret"
+    const readySecretRef = "env://PRODUCT_APP_OPENAI_READY_SECRET"
     const readyApp = await createTestApp(readyStoreDir, {
       providerProfile: {
         id: "product-app-openai-ready",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "product-app-openai-ready-model",
-        apiKey: readySecret
+        secretRef: readySecretRef
       }
     })
     try {
@@ -139,20 +144,20 @@ describe("@wanex/product-app", () => {
         profileCount: 1,
         canRun: true,
         attentionRequired: false,
-        requiresApiKey: true,
-        hasApiKey: true,
+        requiresCredential: true,
+        credentialConfigured: true,
         activeProfile: {
           id: "product-app-openai-ready",
           kind: "openai-compatible",
-          hasApiKey: true,
-          apiKeyRedacted: "***",
+          capabilities: { input: ["text"], output: ["text"] },
+          credentialConfigured: true,
           active: true
         }
       })
       const serialized = JSON.stringify(home)
       expect(serialized).not.toContain(readyStoreDir)
       expect(serialized).not.toContain(serviceBin)
-      expect(serialized).not.toContain(readySecret)
+      expect(serialized).not.toContain(readySecretRef)
     } finally {
       await readyApp.dispose()
     }
@@ -163,14 +168,14 @@ describe("@wanex/product-app", () => {
     const readyApp = await createTestApp(readyStoreDir)
     try {
       const runnable = await readyApp.previewProductCommandInvocation({
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         input: {
           text: "preview ready agent run"
         }
       })
       expect(runnable).toMatchObject({
         kind: "runnable",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         inputAccepted: true
       })
 
@@ -184,11 +189,11 @@ describe("@wanex/product-app", () => {
       })
 
       const invalid = await readyApp.previewProductCommandInvocation({
-        commandId: "product.agent.run"
+        commandId: "product.agent.submit"
       })
       expect(invalid).toMatchObject({
         kind: "rejected",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         reason: "invalid_input"
       })
     } finally {
@@ -200,23 +205,24 @@ describe("@wanex/product-app", () => {
       providerProfile: {
         id: "product-app-preview-blocked-provider",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "product-app-preview-blocked-model"
       }
     })
     try {
       const blocked = await blockedApp.previewProductCommandInvocation({
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         input: {
           text: "preview should not bypass provider setup"
         }
       })
       expect(blocked).toMatchObject({
         kind: "rejected",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         reason: "provider_not_ready",
         providerReadiness: {
-          status: "missing_required_api_key",
+          status: "missing_required_credential",
           canRun: false,
           activeProfileId: "product-app-preview-blocked-provider"
         }
@@ -225,7 +231,7 @@ describe("@wanex/product-app", () => {
       const commandPortPreview = await blockedApp.dispatchProductCommand({
         command: "previewProductCommandInvocation",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "command port preview should report provider gate"
           }
@@ -244,7 +250,7 @@ describe("@wanex/product-app", () => {
         JSON.stringify({
           command: "previewProductCommandInvocation",
           input: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             input: {
               text: "json preview should report provider gate"
             }
@@ -287,55 +293,50 @@ describe("@wanex/product-app", () => {
     }
   })
 
-  it("fails closed for workbench run commands when the provider cannot run", async () => {
+  it("fails closed for conversation submits when the provider cannot run", async () => {
     const storeDir = await createStoreDir()
     const app = await createTestApp(storeDir, {
       providerProfile: {
         id: "product-app-blocked-provider",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "product-app-blocked-model"
       }
     })
     try {
-      const started = await app.startWorkbench({
+      const started = await app.submitConversationOperation({
         text: "should not start without provider setup"
       })
       expect(started).toEqual({
-        kind: "product-app.workbench.failed",
-        error: {
-          code: "provider_not_ready",
-          category: "validation",
-          message:
-            "provider is not ready: active profile product-app-blocked-provider is missing a required API key"
-        }
+        kind: "product-app.conversation-operation.rejected",
+        reason: "provider_not_ready",
+        message:
+          "provider is not ready: active profile product-app-blocked-provider is missing a required credential"
       })
       expect(app.status().state.selectedSessionId).toBeUndefined()
 
       await app.selectSession({ sessionId: "ses_provider_blocked" })
-      const continued = await app.continueWorkbench({
+      const continued = await app.submitConversationOperation({
         text: "should not continue without provider setup"
       })
       expect(continued).toEqual({
-        kind: "product-app.workbench.failed",
+        kind: "product-app.conversation-operation.rejected",
+        reason: "provider_not_ready",
         sessionId: "ses_provider_blocked",
-        error: {
-          code: "provider_not_ready",
-          category: "validation",
-          message:
-            "provider is not ready: active profile product-app-blocked-provider is missing a required API key"
-        }
+        message:
+          "provider is not ready: active profile product-app-blocked-provider is missing a required credential"
       })
 
       const rawRun = await app.dispatchProductCommand({
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         input: {
           text: "raw command should not bypass provider setup"
         }
       })
       expect(rawRun).toMatchObject({
         ok: false,
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         error: {
           code: "provider_not_ready",
           category: "validation"
@@ -407,7 +408,7 @@ describe("@wanex/product-app", () => {
       const paletteRun = await app.dispatchProductCommand({
         command: "executeProductCommand",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "palette command should not bypass provider setup"
           }
@@ -423,16 +424,16 @@ describe("@wanex/product-app", () => {
       })
 
       const typedPaletteRun = await app.executeProductCommand({
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         input: {
           text: "typed palette command should not bypass provider setup"
         }
       })
       expect(typedPaletteRun).toMatchObject({
         kind: "rejected",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         reason: "provider_not_ready",
-        handlerRef: "wanex.product-app.backend.runAgentTurn",
+        handlerRef: "wanex.product-app.backend.submitConversationOperation",
         providerReadiness: {
           canRun: false
         }
@@ -441,7 +442,7 @@ describe("@wanex/product-app", () => {
       const palettePreview = await app.dispatchProductCommand({
         command: "previewProductCommandInvocation",
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "palette preview should not claim runnable"
           }
@@ -458,7 +459,7 @@ describe("@wanex/product-app", () => {
 
       const jsonRun = await app.dispatchProductCommandJson(
         JSON.stringify({
-          command: "runAgentTurn",
+          command: "submitConversationOperation",
           input: {
             text: "json command should not bypass provider setup"
           }
@@ -468,7 +469,7 @@ describe("@wanex/product-app", () => {
         status: "validation_error",
         envelope: {
           ok: false,
-          command: "runAgentTurn",
+          command: "submitConversationOperation",
           error: {
             code: "provider_not_ready",
             category: "validation"
@@ -519,7 +520,7 @@ describe("@wanex/product-app", () => {
         commandId: "product.missing"
       })
       const agentExecution = await app.executeProductCommand({
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         input: {
           text: "typed execution summary",
           sessionId: "ses_typed_execution_summary",
@@ -562,8 +563,8 @@ describe("@wanex/product-app", () => {
       expect(commandCatalog).toMatchObject({
         commands: expect.arrayContaining([
           expect.objectContaining({
-            id: "product.agent.run",
-            handlerRef: "wanex.product-app.backend.runAgentTurn"
+            id: "product.agent.submit",
+            handlerRef: "wanex.product-app.backend.submitConversationOperation"
           }),
           expect.objectContaining({
             id: "product.status"
@@ -590,13 +591,13 @@ describe("@wanex/product-app", () => {
       })
       expect(agentExecution).toMatchObject({
         kind: "completed",
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         summary: {
           valueKind: "object",
           message: "Command completed",
-          references: [
+          references: expect.arrayContaining([
             { kind: "session", id: "ses_typed_execution_summary" }
-          ]
+          ])
         }
       })
       expect(JSON.stringify(agentExecution)).not.toContain("Fake response")
@@ -744,7 +745,11 @@ describe("@wanex/product-app", () => {
           density: "compact"
         }
       })
-      expect(stateStore.snapshot()).toEqual(saved)
+      expect(stateStore.snapshot()).toEqual({
+        ui: saved,
+        trackedConversationOperations: {},
+        conversationAttachmentDrafts: {}
+      })
       expect(stateStore.saveCount()).toBe(4)
     } finally {
       await app.dispose()
@@ -779,18 +784,19 @@ describe("@wanex/product-app", () => {
     }
   })
 
-  it("uses selected session for workbench open and continue commands", async () => {
+  it("uses the selected session for asynchronous conversation submits", async () => {
     const storeDir = await createStoreDir()
     const app = await createTestApp(storeDir)
     try {
-      const run = await app.dispatchProductCommand({
-        command: "runAgentTurn",
-        input: {
-          text: "product app first turn",
-          sessionId: "ses_product_app_workbench"
-        }
+      const first = await app.submitConversationOperation({
+        text: "product app first turn",
+        sessionId: "ses_product_app_workbench"
       })
-      expect(run.ok).toBe(true)
+      expect(first).toMatchObject({
+        kind: "product-app.conversation-operation.found",
+        operation: { sessionId: "ses_product_app_workbench" }
+      })
+      await waitForProductConversation(app, "ses_product_app_workbench")
 
       const opened = await app.openWorkbench({
         sessionId: "ses_product_app_workbench"
@@ -803,19 +809,23 @@ describe("@wanex/product-app", () => {
         "ses_product_app_workbench"
       )
 
-      const continued = await app.continueWorkbench({
+      const continued = await app.submitConversationOperation({
         text: "product app continued turn"
       })
       expect(continued).toMatchObject({
-        kind: "product-app.workbench.continued",
-        sessionId: "ses_product_app_workbench"
+        kind: "product-app.conversation-operation.found",
+        operation: { sessionId: "ses_product_app_workbench" }
       })
-      if (continued.kind !== "product-app.workbench.continued") {
-        throw new Error("expected continued workbench")
+      await waitForProductConversation(app, "ses_product_app_workbench")
+      const refreshed = await app.openWorkbench()
+      expect(refreshed).toMatchObject({
+        kind: "product-app.workbench.opened",
+        workbench: { summary: { inputCount: 2, messageCount: 4 } }
+      })
+      if (refreshed.kind !== "product-app.workbench.opened") {
+        throw new Error("expected opened workbench")
       }
-      expect(continued.result.workbench.summary.inputCount).toBe(2)
-      expect(continued.result.workbench.summary.messageCount).toBe(2)
-      expect(continued.result.workbench.summary.latestUserText).toBe(
+      expect(refreshed.workbench.summary.latestUserText).toBe(
         "product app continued turn"
       )
     } finally {
@@ -823,35 +833,31 @@ describe("@wanex/product-app", () => {
     }
   })
 
-  it("starts a product workbench without a preselected session", async () => {
+  it("starts a conversation without a preselected session", async () => {
     const storeDir = await createStoreDir()
     const app = await createTestApp(storeDir)
     try {
-      const started = await app.startWorkbench({
+      const started = await app.submitConversationOperation({
         text: "product app started turn"
       })
       expect(started).toMatchObject({
-        kind: "product-app.workbench.started",
-        workbench: {
-          summary: {
-            inputCount: 1,
-            messageCount: 1,
-            latestUserText: "product app started turn"
-          }
-        }
+        kind: "product-app.conversation-operation.found",
+        operation: { state: expect.stringMatching(/queued|running|succeeded/) }
       })
-      if (started.kind !== "product-app.workbench.started") {
-        throw new Error("expected started workbench")
+      if (started.kind !== "product-app.conversation-operation.found") {
+        throw new Error("expected submitted conversation")
       }
-      expect(started.sessionId).toBe(started.turn.sessionId)
-      expect(app.status().state.selectedSessionId).toBe(started.sessionId)
+      expect(app.status().state.selectedSessionId).toBe(
+        started.operation.sessionId
+      )
+      await waitForProductConversation(app, started.operation.sessionId)
 
-      const continued = await app.continueWorkbench({
+      const continued = await app.submitConversationOperation({
         text: "product app continued after start"
       })
       expect(continued).toMatchObject({
-        kind: "product-app.workbench.continued",
-        sessionId: started.sessionId
+        kind: "product-app.conversation-operation.found",
+        operation: { sessionId: started.operation.sessionId }
       })
     } finally {
       await app.dispose()
@@ -917,8 +923,13 @@ describe("@wanex/product-app", () => {
         "executeProductCommand",
         "readExecutionReference",
         "openWorkbench",
-        "startWorkbench",
-        "continueWorkbench"
+        "prepareConversationAttachment",
+        "readConversationAttachments",
+        "removeConversationAttachment",
+        "submitConversationOperation",
+        "readTrackedConversationOperation",
+        "cancelTrackedConversationOperation",
+        "regenerateTrackedConversationOperation"
       ])
 
       const selected = await surface.dispatchSurfaceCommand({
@@ -961,7 +972,7 @@ describe("@wanex/product-app", () => {
         value: {
           commands: expect.arrayContaining([
             expect.objectContaining({
-              id: "product.agent.run"
+              id: "product.agent.submit"
             })
           ]),
           diagnostics: []
@@ -995,42 +1006,42 @@ describe("@wanex/product-app", () => {
     }
   })
 
-  it("dispatches product workbench flow through the surface adapter", async () => {
+  it("dispatches asynchronous conversation flow through the surface adapter", async () => {
     const storeDir = await createStoreDir()
     const app = await createTestApp(storeDir)
     try {
       const surface = createProductAppSurfaceAdapter(app, { now: () => 10_002 })
 
       const started = await surface.dispatchSurfaceCommand({
-        command: "startWorkbench",
+        command: "submitConversationOperation",
         input: {
           text: "surface started turn"
         }
       })
       expect(started).toMatchObject({
         ok: true,
-        command: "startWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.started"
+          kind: "product-app.conversation-operation.found"
         }
       })
-
-      const run = await surface.dispatchSurfaceCommand({
-        command: "dispatchProductCommand",
-        input: {
-          command: "runAgentTurn",
-          input: {
-            text: "surface first turn",
-            sessionId: "ses_product_app_surface_workbench"
-          }
-        }
-      })
-      expect(run.ok).toBe(true)
+      if (
+        !started.ok ||
+        typeof started.value !== "object" ||
+        started.value === null ||
+        !("operation" in started.value)
+      ) {
+        throw new Error("expected submitted surface conversation")
+      }
+      const sessionId = (started.value as {
+        readonly operation: { readonly sessionId: string }
+      }).operation.sessionId
+      await waitForProductConversation(app, sessionId)
 
       const opened = await surface.dispatchSurfaceCommand({
         command: "openWorkbench",
         input: {
-          sessionId: "ses_product_app_surface_workbench"
+          sessionId
         }
       })
       expect(opened).toMatchObject({
@@ -1038,34 +1049,36 @@ describe("@wanex/product-app", () => {
         command: "openWorkbench",
         value: {
           kind: "product-app.workbench.opened",
-          sessionId: "ses_product_app_surface_workbench"
+          sessionId
         }
       })
 
       const continued = await surface.dispatchSurfaceCommand({
-        command: "continueWorkbench",
+        command: "submitConversationOperation",
         input: {
           text: "surface continued turn"
         }
       })
       expect(continued).toMatchObject({
         ok: true,
-        command: "continueWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.continued",
-          sessionId: "ses_product_app_surface_workbench"
+          kind: "product-app.conversation-operation.found",
+          operation: { sessionId }
         }
       })
-      expect(surface.readSurfaceEvents({ limit: 2 })).toEqual([
+      expect(surface.readSurfaceEvents({ limit: 20 })).toEqual(
+        expect.arrayContaining([
         expect.objectContaining({
           type: "product-app.surface.command_completed",
-          command: "continueWorkbench"
+          command: "submitConversationOperation"
         }),
         expect.objectContaining({
           type: "product-app.surface.state_changed",
-          command: "continueWorkbench"
+          command: "submitConversationOperation"
         })
-      ])
+        ])
+      )
     } finally {
       await app.dispose()
     }
@@ -1077,6 +1090,7 @@ describe("@wanex/product-app", () => {
       providerProfile: {
         id: "product-app-surface-blocked-provider",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "product-app-surface-blocked-model"
       }
@@ -1087,44 +1101,38 @@ describe("@wanex/product-app", () => {
         createInProcessProductAppSurfaceClientTransport(surface)
       )
 
-      const started = await client.startWorkbench({
+      const started = await client.submitConversationOperation({
         text: "surface should not start without provider setup"
       })
       expect(started).toMatchObject({
         ok: true,
-        command: "startWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.failed",
-          error: {
-            code: "provider_not_ready",
-            category: "validation"
-          }
+          kind: "product-app.conversation-operation.rejected",
+          reason: "provider_not_ready"
         },
         event: {
           type: "product-app.surface.command_completed",
-          command: "startWorkbench"
+          command: "submitConversationOperation"
         }
       })
 
       await client.selectSession({ sessionId: "ses_surface_provider_blocked" })
-      const continued = await client.continueWorkbench({
+      const continued = await client.submitConversationOperation({
         text: "surface should not continue without provider setup"
       })
       expect(continued).toMatchObject({
         ok: true,
-        command: "continueWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.failed",
+          kind: "product-app.conversation-operation.rejected",
+          reason: "provider_not_ready",
           sessionId: "ses_surface_provider_blocked",
-          error: {
-            code: "provider_not_ready",
-            category: "validation"
-          }
         }
       })
 
       const rawRun = await client.dispatchProductCommand({
-        command: "runAgentTurn",
+        command: "submitConversationOperation",
         input: {
           text: "surface raw command should not bypass provider setup"
         }
@@ -1134,7 +1142,7 @@ describe("@wanex/product-app", () => {
         command: "dispatchProductCommand",
         value: {
           ok: false,
-          command: "runAgentTurn",
+          command: "submitConversationOperation",
           error: {
             code: "provider_not_ready",
             category: "validation"
@@ -1143,7 +1151,7 @@ describe("@wanex/product-app", () => {
       })
 
       const preview = await client.previewProductCommandInvocation({
-        commandId: "product.agent.run",
+        commandId: "product.agent.submit",
         input: {
           text: "surface preview should report provider gate"
         }
@@ -1226,6 +1234,139 @@ describe("@wanex/product-app", () => {
     }
   })
 
+  it("prepares, removes, and safely projects conversation attachment drafts", async () => {
+    const storeDir = await createStoreDir()
+    const app = await createTestApp(storeDir, {
+      providerProfile: {
+        id: "product-app-attachment",
+        modelId: "product-app-attachment-model",
+        capabilities: { input: ["text", "image"], output: ["text"] }
+      }
+    })
+    try {
+      const resource = await app.trustedResources.ingestResource({
+        content: new Uint8Array([137, 80, 78, 71]),
+        kind: "image",
+        mediaType: "image/png",
+        origin: "user_upload",
+        label: "draft.png",
+        source: { sourceUrl: "https://private.example/draft.png" },
+        metadata: { absolutePath: "/private/draft.png", token: "secret" }
+      })
+      const prepared = await app.prepareConversationAttachment({
+        resourceId: resource.id,
+        sessionId: "ses_product_attachment_draft"
+      })
+      const duplicate = await app.prepareConversationAttachment({
+        resourceId: resource.id,
+        sessionId: "ses_product_attachment_draft"
+      })
+
+      expect(prepared.attachments.attachments).toHaveLength(1)
+      expect(duplicate.attachments.attachments).toHaveLength(1)
+      expect(prepared.attachment).toMatchObject({
+        kind: "product-app.attachment",
+        resourceId: resource.id,
+        resourceKind: "image",
+        previewKind: "image",
+        mediaType: "image/png",
+        label: "draft.png",
+        sizeBytes: 4
+      })
+      const serialized = JSON.stringify(prepared)
+      expect(serialized).not.toContain("sourceUrl")
+      expect(serialized).not.toContain("metadata")
+      expect(serialized).not.toContain("absolutePath")
+      expect(serialized).not.toContain("secret")
+      expect(serialized).not.toContain("logicalPath")
+      expect(serialized).not.toContain("content")
+
+      const removed = await app.removeConversationAttachment({
+        resourceId: resource.id,
+        sessionId: "ses_product_attachment_draft"
+      })
+      expect(removed.removed).toBe(true)
+      expect(removed.attachments.attachments).toEqual([])
+      const submittedAfterRemove = await app.submitConversationOperation({
+        text: "text only after removing the attachment",
+        sessionId: "ses_product_attachment_draft"
+      })
+      expect(submittedAfterRemove.kind).toBe(
+        "product-app.conversation-operation.found"
+      )
+    } finally {
+      await app.dispose()
+    }
+  })
+
+  it("submits canonical resource references, clears admitted drafts, and regenerates after restart", async () => {
+    const storeDir = await createStoreDir()
+    const stateStore = createMemoryProductAppStateStore()
+    const options = {
+      stateStore,
+      providerProfile: {
+        id: "product-app-resource-submit",
+        modelId: "product-app-resource-submit-model",
+        capabilities: { input: ["text", "image"] as const, output: ["text"] as const }
+      }
+    }
+    const first = await createTestApp(storeDir, options)
+    let sessionId = ""
+    try {
+      const resource = await first.trustedResources.ingestResource({
+        content: new Uint8Array([1, 3, 3, 7]),
+        kind: "image",
+        mediaType: "image/png",
+        origin: "user_upload",
+        label: "canonical.png"
+      })
+      await first.prepareConversationAttachment({ resourceId: resource.id })
+      const submitted = await first.submitConversationOperation({
+        text: "inspect this image"
+      })
+      expect(submitted.kind).toBe("product-app.conversation-operation.found")
+      if (submitted.kind !== "product-app.conversation-operation.found") return
+      sessionId = submitted.operation.sessionId
+      expect(first.readConversationAttachments().attachments).toEqual([])
+      await waitForProductConversation(first, sessionId)
+    } finally {
+      await first.dispose()
+    }
+
+    const restarted = await createTestApp(storeDir, options)
+    try {
+      const regenerated = await restarted.regenerateTrackedConversationOperation({
+        sessionId
+      })
+      expect(regenerated.kind).toBe("product-app.conversation-operation.found")
+      expect(restarted.readConversationAttachments({ sessionId }).attachments).toEqual([])
+    } finally {
+      await restarted.dispose()
+    }
+  })
+
+  it("preserves attachment drafts when the active provider does not support them", async () => {
+    const storeDir = await createStoreDir()
+    const app = await createTestApp(storeDir)
+    try {
+      const resource = await app.trustedResources.ingestResource({
+        content: new Uint8Array([9, 8, 7]),
+        kind: "image",
+        mediaType: "image/png",
+        origin: "user_upload"
+      })
+      await app.prepareConversationAttachment({ resourceId: resource.id })
+      const result = await app.submitConversationOperation({ text: "unsupported" })
+      expect(result).toMatchObject({
+        kind: "product-app.conversation-operation.rejected",
+        reason: "unsupported_attachment"
+      })
+      expect(app.readConversationAttachments().attachments).toHaveLength(1)
+    } finally {
+      await app.dispose()
+    }
+  })
+
   it("drives the product app surface through the renderer-side client contract", async () => {
     const storeDir = await createStoreDir()
     const app = await createTestApp(storeDir)
@@ -1240,7 +1381,7 @@ describe("@wanex/product-app", () => {
         ok: true,
         value: {
           kind: "product-app.surface-descriptor",
-          commandCount: 18
+          commandCount: 23
         }
       })
       const commandCatalog = await client.readProductCommands({
@@ -1252,8 +1393,8 @@ describe("@wanex/product-app", () => {
         value: {
           commands: expect.arrayContaining([
             expect.objectContaining({
-              id: "product.agent.run",
-              title: "Run Agent"
+              id: "product.agent.submit",
+              title: "Submit Agent Turn"
             })
           ]),
           diagnostics: []
@@ -1282,6 +1423,7 @@ describe("@wanex/product-app", () => {
         profile: {
           id: "surface-client-second-provider",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "fake",
           modelId: "surface-client-second-model"
         }
@@ -1298,7 +1440,7 @@ describe("@wanex/product-app", () => {
             expect.objectContaining({
               id: "product-app-test",
               active: true,
-              hasApiKey: false
+              credentialConfigured: false
             }),
             expect.objectContaining({
               id: "surface-client-second-provider",
@@ -1325,7 +1467,7 @@ describe("@wanex/product-app", () => {
         value: {
           id: "surface-client-second-provider",
           active: true,
-          hasApiKey: false
+          credentialConfigured: false
         },
         event: {
           requestId: "req_client_switch_provider"
@@ -1350,7 +1492,7 @@ describe("@wanex/product-app", () => {
         }
       })
 
-      const started = await client.startWorkbench(
+      const started = await client.submitConversationOperation(
         {
           text: "surface client first turn"
         },
@@ -1358,16 +1500,20 @@ describe("@wanex/product-app", () => {
       )
       expect(started).toMatchObject({
         ok: true,
-        command: "startWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.started"
+          kind: "product-app.conversation-operation.found"
         }
       })
-      if (!started.ok || started.value.kind !== "product-app.workbench.started") {
-        throw new Error("expected client started workbench")
+      if (
+        !started.ok ||
+        started.value.kind !== "product-app.conversation-operation.found"
+      ) {
+        throw new Error("expected client submitted conversation")
       }
+      await waitForProductConversation(app, started.value.operation.sessionId)
 
-      const continued = await client.continueWorkbench(
+      const continued = await client.submitConversationOperation(
         {
           text: "surface client continued turn"
         },
@@ -1376,27 +1522,27 @@ describe("@wanex/product-app", () => {
       expect(continued).toMatchObject({
         ok: true,
         value: {
-          kind: "product-app.workbench.continued",
-          sessionId: started.value.sessionId
+          kind: "product-app.conversation-operation.found",
+          operation: { sessionId: started.value.operation.sessionId }
         },
         event: {
           requestId: "req_client_continue"
         }
       })
 
-      const events = await client.readSurfaceEvents({ limit: 2 })
+      const events = await client.readSurfaceEvents({ limit: 20 })
       expect(events).toMatchObject({
         ok: true,
-        events: [
-          {
+        events: expect.arrayContaining([
+          expect.objectContaining({
             type: "product-app.surface.command_completed",
-            command: "continueWorkbench"
-          },
-          {
+            command: "submitConversationOperation"
+          }),
+          expect.objectContaining({
             type: "product-app.surface.state_changed",
-            command: "continueWorkbench"
-          }
-        ]
+            command: "submitConversationOperation"
+          })
+        ])
       })
     } finally {
       await app.dispose()
@@ -1464,11 +1610,11 @@ describe("@wanex/product-app", () => {
         ok: true,
         value: {
           kind: "product-app.surface-descriptor",
-          commandCount: 18
+          commandCount: 23
         }
       })
 
-      const started = await client.startWorkbench(
+      const started = await client.submitConversationOperation(
         {
           text: "message transport first turn"
         },
@@ -1476,16 +1622,20 @@ describe("@wanex/product-app", () => {
       )
       expect(started).toMatchObject({
         ok: true,
-        command: "startWorkbench",
+        command: "submitConversationOperation",
         value: {
-          kind: "product-app.workbench.started"
+          kind: "product-app.conversation-operation.found"
         }
       })
-      if (!started.ok || started.value.kind !== "product-app.workbench.started") {
-        throw new Error("expected message transport started workbench")
+      if (
+        !started.ok ||
+        started.value.kind !== "product-app.conversation-operation.found"
+      ) {
+        throw new Error("expected message transport submitted conversation")
       }
+      await waitForProductConversation(app, started.value.operation.sessionId)
 
-      const continued = await client.continueWorkbench(
+      const continued = await client.submitConversationOperation(
         {
           text: "message transport continued turn"
         },
@@ -1493,28 +1643,28 @@ describe("@wanex/product-app", () => {
       )
       expect(continued).toMatchObject({
         ok: true,
-        command: "continueWorkbench",
+        command: "submitConversationOperation",
         event: {
           requestId: "req_message_continue"
         },
         value: {
-          kind: "product-app.workbench.continued"
+          kind: "product-app.conversation-operation.found"
         }
       })
 
-      const events = await client.readSurfaceEvents({ limit: 2 })
+      const events = await client.readSurfaceEvents({ limit: 20 })
       expect(events).toMatchObject({
         ok: true,
-        events: [
-          {
+        events: expect.arrayContaining([
+          expect.objectContaining({
             type: "product-app.surface.command_completed",
-            command: "continueWorkbench"
-          },
-          {
+            command: "submitConversationOperation"
+          }),
+          expect.objectContaining({
             type: "product-app.surface.state_changed",
-            command: "continueWorkbench"
-          }
-        ]
+            command: "submitConversationOperation"
+          })
+        ])
       })
       expect(messages).toEqual([
         expect.objectContaining({
@@ -1526,7 +1676,7 @@ describe("@wanex/product-app", () => {
           operation: "dispatchSurfaceCommand",
           requestId: "req_message_start",
           command: expect.objectContaining({
-            command: "startWorkbench",
+            command: "submitConversationOperation",
             requestId: "req_message_start"
           })
         }),
@@ -1535,7 +1685,7 @@ describe("@wanex/product-app", () => {
           operation: "dispatchSurfaceCommand",
           requestId: "req_message_continue",
           command: expect.objectContaining({
-            command: "continueWorkbench",
+            command: "submitConversationOperation",
             requestId: "req_message_continue"
           })
         }),
@@ -1600,7 +1750,7 @@ describe("@wanex/product-app", () => {
         ok: true,
         value: {
           kind: "product-app.surface-descriptor",
-          commandCount: 18
+          commandCount: 23
         }
       })
       expect(selected).toMatchObject({
@@ -1891,6 +2041,24 @@ describe("@wanex/product-app", () => {
     })
   })
 })
+
+async function waitForProductConversation(
+  app: ProductAppShell,
+  sessionId: string
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    const result = await app.readTrackedConversationOperation({ sessionId })
+    if (
+      result.kind === "product-app.conversation-operation.found" &&
+      result.operation.capabilities.terminal
+    ) {
+      return
+    }
+    await delay(10)
+  }
+  throw new Error(`conversation operation did not settle: ${sessionId}`)
+}
 
 async function createStoreDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-product-app-test-"))

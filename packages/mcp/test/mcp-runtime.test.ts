@@ -4,12 +4,13 @@ import type {
   BeginToolExecutionRequest,
   FinishToolExecutionRequest,
   JsonValue,
-  RecoverToolExecutionRequest,
+  ToolExecutionAttemptRecord,
   ToolExecutionRecord
 } from "@wanex/protocol"
 import type { ToolExecutionStore } from "@wanex/storage"
 import {
   AllowAllToolsPolicy,
+  createToolRuntimeBinding,
   EchoTool,
   ToolRegistry,
   type ToolDefinition,
@@ -24,6 +25,7 @@ describe("@wanex/mcp", () => {
   it("adapts official stdio discovery, structured results, errors, cancellation, and restart", async () => {
     const client = new WanexMcpRuntimeClient({
       id: "stdio-fixture",
+      capabilityRevision: "fixture-v1",
       transport: {
         kind: "stdio",
         command: process.execPath,
@@ -38,6 +40,7 @@ describe("@wanex/mcp", () => {
     await client.start()
 
     const registry = await client.createRegistry()
+    const admittedSnapshot = registry.snapshot()
     expect(registry.list().map((tool) => ({
       name: tool.name,
       risk: tool.risk,
@@ -77,7 +80,15 @@ describe("@wanex/mcp", () => {
       signal: controller.signal
     })
     setTimeout(() => controller.abort(), 10)
-    await expect(cancelled).rejects.toThrow("tool invocation aborted")
+    await expect(cancelled).resolves.toMatchObject({
+      invoked: true,
+      result: {
+        isError: true,
+        result: {
+          error: "tool_cancelled"
+        }
+      }
+    })
     await expect(storage.listToolExecutions({})).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({
         toolCallId: "call_stdio_cancel",
@@ -88,10 +99,29 @@ describe("@wanex/mcp", () => {
     await client.stop()
     await client.stop()
     await client.start()
-    await expect(client.discoverTools()).resolves.toHaveLength(3)
+    const restartedRegistry = await client.createRegistry()
+    expect(restartedRegistry.snapshot()).toEqual(admittedSnapshot)
     await client.dispose()
     await client.dispose()
     await expect(client.start()).rejects.toThrow("disposed")
+
+    const changedRevision = new WanexMcpRuntimeClient({
+      id: "stdio-fixture",
+      capabilityRevision: "fixture-v2",
+      transport: {
+        kind: "stdio",
+        command: process.execPath,
+        args: [fileURLToPath(new URL("./fixtures/stdio-server.mjs", import.meta.url))],
+        stderr: "pipe"
+      },
+      namePrefix: "fixture",
+      requestTimeoutMs: 5_000
+    })
+    await changedRevision.start()
+    expect((await changedRevision.createRegistry()).snapshot()).not.toEqual(
+      admittedSnapshot
+    )
+    await changedRevision.dispose()
   })
 
   it("serves only a selected Runtime registry over stateless Streamable HTTP", async () => {
@@ -106,7 +136,12 @@ describe("@wanex/mcp", () => {
         principalId: "http-principal",
         sessionId: "http-session",
         inputId: `http-input-${String(request.requestId)}`,
-        runId: `http-run-${String(request.requestId)}`,
+        turnId: `http-turn-${String(request.requestId)}`,
+        attemptId: `http-attempt-${String(request.requestId)}`,
+        sourceMessageId: `http-message-${String(request.requestId)}`,
+        jobId: `http-job-${String(request.requestId)}`,
+        workerId: "http-worker",
+        leaseToken: `http-lease-${String(request.requestId)}`,
         idempotencyKey: `http:${String(request.requestId)}`,
         permissionPolicy: new AllowAllToolsPolicy(),
         storage: serverStorage
@@ -116,6 +151,7 @@ describe("@wanex/mcp", () => {
     await host.start()
     const client = new WanexMcpRuntimeClient({
       id: "http-fixture",
+      capabilityRevision: "fixture-v1",
       transport: { kind: "streamable_http", url: host.url() },
       requestTimeoutMs: 5_000
     })
@@ -154,7 +190,15 @@ describe("@wanex/mcp", () => {
       signal: controller.signal
     })
     setTimeout(() => controller.abort(), 10)
-    await expect(cancelled).rejects.toThrow("tool invocation aborted")
+    await expect(cancelled).resolves.toMatchObject({
+      invoked: true,
+      result: {
+        isError: true,
+        result: {
+          error: "tool_cancelled"
+        }
+      }
+    })
     await expect(localStorage.listToolExecutions({})).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({
         toolCallId: "call_http_cancel",
@@ -199,7 +243,12 @@ function executionRequest(
     principalId: "local-principal",
     sessionId: "local-session",
     inputId: `input_${toolCallId}`,
-    runId: "local-run",
+    turnId: "local-turn",
+    attemptId: "local-attempt",
+    sourceMessageId: `message_${toolCallId}`,
+    jobId: "local-job",
+    workerId: "local-worker",
+    leaseToken: "local-lease",
     call: {
       type: "tool_call" as const,
       id: `part_${toolCallId}`,
@@ -207,7 +256,7 @@ function executionRequest(
       toolName,
       input
     },
-    idempotencyKey: `tool:local-run:${toolCallId}`,
+    idempotencyKey: `tool:local-turn:${toolCallId}`,
     permissionPolicy: new AllowAllToolsPolicy(),
     storage
   }
@@ -219,6 +268,10 @@ class FailingTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.mcp.failing",
+    implementationRevision: "1"
+  })
 
   async invoke(): Promise<never> {
     throw new Error("HTTP fixture failure")
@@ -231,27 +284,51 @@ class HangingTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.mcp.hanging",
+    implementationRevision: "1"
+  })
 
-  async invoke(_invocation: ToolInvocation): Promise<never> {
-    return await new Promise<never>(() => {})
+  async invoke(invocation: ToolInvocation): Promise<never> {
+    const signal = invocation.signal
+    if (signal === undefined) throw new Error("HTTP hanging fixture requires an abort signal")
+    if (!signal.aborted) {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => resolve(), { once: true })
+      })
+    }
+    throw new Error("HTTP hanging fixture completed cancellation cleanup")
   }
 }
 
 class MemoryToolExecutionStore implements ToolExecutionStore {
   private readonly records = new Map<string, ToolExecutionRecord>()
+  private readonly attempts = new Map<string, ToolExecutionAttemptRecord>()
 
   async beginToolExecution(request: BeginToolExecutionRequest) {
     const existing = [...this.records.values()].find(
-      (item) => item.runId === request.runId && item.toolCallId === request.toolCallId
+      (item) =>
+        item.sourceMessageId === request.sourceMessageId &&
+        item.toolCallId === request.toolCallId
     )
-    if (existing !== undefined) return { execution: existing, created: false }
+    if (existing !== undefined) {
+      const invocationAttempt = existing.currentInvocationAttemptId === undefined
+        ? undefined
+        : this.attempts.get(existing.currentInvocationAttemptId)
+      return {
+        execution: existing,
+        ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
+        created: false
+      }
+    }
     const status = (request.permission as { readonly status?: string }).status
     const now = Date.now()
     const execution: ToolExecutionRecord = {
       id: `toolx_${this.records.size}_${request.toolCallId}`,
       sessionId: request.sessionId,
-      runId: request.runId,
+      turnId: request.turnId,
       inputId: request.inputId,
+      sourceMessageId: request.sourceMessageId,
       principalId: request.principalId,
       toolCallId: request.toolCallId,
       toolName: request.toolName,
@@ -263,18 +340,44 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
         : status === "approval_required"
           ? "approval_required"
           : "denied",
-      attempt: 1,
+      attemptCount: status === "allow" ? 1 : 0,
       idempotencyKey: request.idempotencyKey,
       createdAt: now,
       updatedAt: now
     }
-    this.records.set(execution.id, execution)
-    return { execution, created: true }
+    const invocationAttempt = status === "allow"
+      ? this.createAttempt(execution.id, request)
+      : undefined
+    const stored = invocationAttempt === undefined
+      ? execution
+      : { ...execution, currentInvocationAttemptId: invocationAttempt.id }
+    this.records.set(stored.id, stored)
+    return {
+      execution: stored,
+      ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
+      created: true
+    }
   }
 
   async finishToolExecution(request: FinishToolExecutionRequest) {
     const existing = this.records.get(request.executionId)
     if (existing === undefined) return null
+    const attempt = this.attempts.get(request.invocationAttemptId)
+    if (
+      attempt === undefined ||
+      attempt.executionId !== request.executionId ||
+      attempt.sessionAttemptId !== request.sessionAttemptId ||
+      attempt.workerId !== request.workerId
+    ) {
+      return null
+    }
+    this.attempts.set(attempt.id, {
+      ...attempt,
+      state: request.state,
+      ...(request.error === undefined ? {} : { error: request.error }),
+      finishedAt: Date.now(),
+      updatedAt: Date.now()
+    })
     const next: ToolExecutionRecord = {
       ...existing,
       state: request.state,
@@ -288,24 +391,37 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
     return next
   }
 
-  async recoverToolExecution(request: RecoverToolExecutionRequest) {
-    const existing = this.records.get(request.executionId)
-    if (existing === undefined) return null
-    const next: ToolExecutionRecord = {
-      ...existing,
-      state: request.action === "retry" ? "running" : "recovery_required",
-      attempt: request.action === "retry" ? existing.attempt + 1 : existing.attempt,
-      updatedAt: Date.now()
-    }
-    this.records.set(next.id, next)
-    return next
-  }
-
   async getToolExecution(executionId: string) {
     return this.records.get(executionId) ?? null
   }
 
   async listToolExecutions(_request: unknown = {}) {
     return [...this.records.values()]
+  }
+
+  async listToolExecutionAttempts(request: { readonly executionId: string }) {
+    return [...this.attempts.values()].filter(
+      (attempt) => attempt.executionId === request.executionId
+    )
+  }
+
+  private createAttempt(
+    executionId: string,
+    request: BeginToolExecutionRequest
+  ): ToolExecutionAttemptRecord {
+    const now = Date.now()
+    const attempt: ToolExecutionAttemptRecord = {
+      id: `toolattempt_${executionId}`,
+      executionId,
+      sessionAttemptId: request.attemptId,
+      jobId: request.jobId,
+      workerId: request.workerId,
+      attemptNumber: 1,
+      state: "running",
+      startedAt: now,
+      updatedAt: now
+    }
+    this.attempts.set(attempt.id, attempt)
+    return attempt
   }
 }

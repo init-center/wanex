@@ -4,13 +4,12 @@ import {
 } from "./product-command-handler-refs.js"
 import {
   assertNoInput,
-  parseContinueWorkbenchInput,
   parseDiagnosticsDetailInput,
   parseDiagnosticsInput,
   parseMonitorInput,
   parseOverviewInput,
   parseRecentSessionsInput,
-  parseRunAgentTurnInput,
+  parseSubmitConversationOperationInput,
   parseSessionInputProvenanceInput,
   parseSessionTranscriptInput,
   parseSupportBundleInput,
@@ -25,8 +24,8 @@ export function validateProductAppBackendCommandInput(
   handlerRef: ProductAppBackendHandlerRef
 ): void {
   switch (handlerRef) {
-    case PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn:
-      parseRunAgentTurnInput(request)
+    case PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation:
+      parseSubmitConversationOperationInput(request)
       return
     case PRODUCT_APP_BACKEND_HANDLER_REFS.status:
       assertNoInput(request)
@@ -48,9 +47,6 @@ export function validateProductAppBackendCommandInput(
       return
     case PRODUCT_APP_BACKEND_HANDLER_REFS.readProductWorkbench:
       parseWorkbenchInput(request)
-      return
-    case PRODUCT_APP_BACKEND_HANDLER_REFS.continueProductWorkbenchSession:
-      parseContinueWorkbenchInput(request)
       return
     case PRODUCT_APP_BACKEND_HANDLER_REFS.readSessionInputProvenance:
       parseSessionInputProvenanceInput(request)

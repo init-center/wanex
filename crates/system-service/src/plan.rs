@@ -40,7 +40,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -187,7 +187,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let proposal = get_plan_proposal_tx(&tx, &request.proposal_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "plan proposal does not exist: {}",

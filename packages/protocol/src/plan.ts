@@ -21,7 +21,7 @@ export type PlanProposalOperationKind =
 export type PlanReferenceKind =
   | "session"
   | "session_input"
-  | "session_run"
+  | "session_turn"
   | "scheduler_job"
   | "workspace_change_proposal"
   | "delegation_graph"

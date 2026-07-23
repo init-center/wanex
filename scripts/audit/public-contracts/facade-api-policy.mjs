@@ -2,8 +2,13 @@ const facadeContracts = new Map([
   [
     "@wanex/app",
     {
-      typeFile: "public-types.ts",
-      allowedRootModules: new Set(["./public-app.js", "./public-types.js"])
+      typeFile: "types.ts",
+      allowedRootModules: new Set([
+        "./app.js",
+        "./context-profile.js",
+        "./result-envelope.js",
+        "./types.js"
+      ])
     }
   ],
   [

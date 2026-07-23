@@ -20,7 +20,7 @@ afterEach(async () => {
 })
 
 export async function createStoreDir(): Promise<string> {
-  const storeDir = await mkdtemp(join(tmpdir(), "wanex-app-shell-"))
+  const storeDir = await mkdtemp(join(tmpdir(), "wanex-app-"))
   tempDirs.push(storeDir)
   return storeDir
 }

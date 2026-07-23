@@ -5,7 +5,8 @@ use std::path::PathBuf;
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventScope {
     pub session_id: Option<String>,
-    pub run_id: Option<String>,
+    pub turn_id: Option<String>,
+    pub attempt_id: Option<String>,
     pub input_id: Option<String>,
     pub message_id: Option<String>,
     pub resource_id: Option<String>,
@@ -53,7 +54,7 @@ pub struct SessionInputRecord {
     pub origin: Option<Value>,
     pub intent: String,
     pub run_control_policy: Option<String>,
-    pub expected_run_id: Option<String>,
+    pub expected_turn_id: Option<String>,
     pub status: String,
     pub created_at: i64,
     pub updated_at: i64,
@@ -75,12 +76,15 @@ pub struct AdmitSessionInput {
 pub struct SessionMessageRecord {
     pub id: String,
     pub session_id: String,
-    pub run_id: Option<String>,
+    pub sequence: i64,
+    pub turn_id: String,
+    pub attempt_id: Option<String>,
     pub input_id: Option<String>,
     pub role: String,
     pub status: String,
     pub content: Value,
     pub provider_state: Option<Value>,
+    pub execution_binding_digest: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
@@ -366,7 +370,7 @@ pub struct ObjectiveAttemptRecord {
     pub state: String,
     pub session_id: Option<String>,
     pub session_input_id: Option<String>,
-    pub session_run_id: Option<String>,
+    pub session_turn_id: Option<String>,
     pub scheduler_job_id: Option<String>,
     pub delegation_graph_id: Option<String>,
     pub plan_proposal_id: Option<String>,
@@ -441,7 +445,7 @@ pub struct PutObjectiveAttempt {
     pub state: Option<String>,
     pub session_id: Option<String>,
     pub session_input_id: Option<String>,
-    pub session_run_id: Option<String>,
+    pub session_turn_id: Option<String>,
     pub scheduler_job_id: Option<String>,
     pub delegation_graph_id: Option<String>,
     pub plan_proposal_id: Option<String>,
@@ -1243,37 +1247,259 @@ pub struct ChannelProjectionReceipt {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AppendSessionMessage {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub input_id: String,
-    pub runner_id: String,
+    pub job_id: String,
+    pub worker_id: String,
     pub lease_token: String,
     pub idempotency_key: String,
     pub role: String,
     pub content: Value,
+    pub provider_state: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct FailRun {
+pub struct SettleSessionTurn {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub input_id: String,
-    pub runner_id: String,
+    pub job_id: String,
+    pub worker_id: String,
     pub lease_token: String,
-    pub error: Value,
+    pub outcome: String,
+    pub provider_invocation_id: Option<String>,
+    pub assistant_message: Option<Value>,
+    pub provider_state: Option<Value>,
+    pub result: Option<Value>,
+    pub error: Option<Value>,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct CancelRun {
+pub struct ProviderInvocationRecord {
+    pub id: String,
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub input_id: String,
+    pub job_id: String,
+    pub step: i64,
+    pub invocation_number: i64,
+    pub execution_binding_digest: String,
+    pub request_digest: String,
+    pub state: String,
+    pub output_observed: bool,
+    pub provider_request_id: Option<String>,
+    pub assistant_message_id: Option<String>,
+    pub error: Option<Value>,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MediaGenerationOperationRecord {
+    pub id: String,
+    pub job_id: String,
+    pub principal_id: String,
+    pub idempotency_key: String,
+    pub state: String,
+    pub binding: Value,
+    pub dispatch_attempt: i64,
+    pub external_operation_id: Option<String>,
+    pub provider_checkpoint: Option<Value>,
+    pub output_references: Vec<Value>,
+    pub output_resource_ids: Vec<String>,
+    pub progress: Option<Value>,
+    pub error: Option<Value>,
+    pub cancel_requested_at: Option<i64>,
+    pub cancel_reason: Option<String>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SubmitMediaGenerationOperation {
+    pub id: Option<String>,
+    pub job_id: Option<String>,
+    pub principal_id: String,
+    pub idempotency_key: String,
+    pub binding: Value,
+    pub priority: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MediaGenerationOperationSubmission {
+    pub operation: MediaGenerationOperationRecord,
+    pub job: SchedulerJobRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeginMediaGenerationOperation {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MediaGenerationBeginReceipt {
+    pub operation: MediaGenerationOperationRecord,
+    pub job: SchedulerJobRecord,
+    pub action: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AcceptMediaGenerationOperation {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub external_operation_id: String,
+    pub provider_checkpoint: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CheckpointMediaGenerationOperation {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub provider_checkpoint: Option<Value>,
+    pub progress: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RecordMediaGenerationOutputs {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub output_references: Vec<Value>,
+    pub progress: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CompleteMediaGenerationOperation {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub output_resource_ids: Vec<String>,
+    pub result: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SettleMediaGenerationOperation {
+    pub operation_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub outcome: String,
+    pub error: Option<Value>,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestMediaGenerationCancel {
+    pub operation_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetMediaGenerationOperation {
+    pub operation_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListMediaGenerationOperations {
+    pub principal_id: Option<String>,
+    pub state: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeginProviderInvocation {
+    pub id: Option<String>,
+    pub session_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub step: i64,
+    pub invocation_number: i64,
+    pub request_digest: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MarkProviderInvocationOutput {
+    pub session_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub invocation_id: String,
+    pub provider_request_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinishProviderInvocation {
+    pub session_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub invocation_id: String,
+    pub outcome: String,
+    pub assistant_message: Option<Value>,
+    pub provider_state: Option<Value>,
+    pub provider_request_id: Option<String>,
+    pub error: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinishProviderInvocationReceipt {
+    pub invocation: ProviderInvocationRecord,
+    pub assistant_message: Option<SessionMessageRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListProviderInvocations {
+    pub turn_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SettleSessionTurnReceipt {
+    pub turn: SessionTurnRecord,
+    pub attempt: SessionAttemptRecord,
+    pub job: SchedulerJobRecord,
+    pub assistant_message: Option<SessionMessageRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RequestSessionTurnCancel {
+    pub session_id: String,
+    pub turn_id: String,
+    pub input_id: String,
+    pub job_id: String,
     pub reason: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct InterruptSessionRun {
+pub struct RequestSessionTurnCancelReceipt {
+    pub status: String,
+    pub turn: Option<SessionTurnRecord>,
+    pub job: Option<SchedulerJobRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct InterruptSessionTurn {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub reason: String,
     pub principal_id: Option<String>,
     pub idempotency_key: Option<String>,
@@ -1282,40 +1508,43 @@ pub struct InterruptSessionRun {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct InterruptSessionRunReceipt {
+pub struct InterruptSessionTurnReceipt {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub durability: String,
     pub status: String,
     pub accepted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SteerSessionRun {
+pub struct SteerSessionTurn {
     pub session_id: String,
     pub principal_id: String,
-    pub expected_run_id: String,
+    pub expected_turn_id: String,
+    pub expected_attempt_id: String,
     pub idempotency_key: String,
     pub content: Value,
     pub origin: Option<Value>,
-    pub provider_profile_id: Option<String>,
     pub metadata: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SteerSessionRunReceipt {
+pub struct SteerSessionTurnReceipt {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub durability: String,
     pub status: String,
     pub accepted_at: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SessionRunControlRecord {
+pub struct SessionTurnControlRecord {
     pub id: String,
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub input_id: Option<String>,
     pub principal_id: Option<String>,
     pub idempotency_key: String,
@@ -1324,7 +1553,6 @@ pub struct SessionRunControlRecord {
     pub content: Option<Value>,
     pub reason: Option<String>,
     pub origin: Option<Value>,
-    pub provider_profile_id: Option<String>,
     pub metadata: Option<Value>,
     pub created_at: i64,
     pub updated_at: i64,
@@ -1332,24 +1560,27 @@ pub struct SessionRunControlRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ApplySessionRunControl {
+pub struct ApplySessionTurnControl {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub control_id: String,
-    pub runner_id: String,
+    pub job_id: String,
+    pub worker_id: String,
     pub lease_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ApplySessionRunControlReceipt {
-    pub control: SessionRunControlRecord,
+pub struct ApplySessionTurnControlReceipt {
+    pub control: SessionTurnControlRecord,
     pub effect: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ListSessionRunControls {
+pub struct ListSessionTurnControls {
     pub session_id: String,
-    pub run_id: Option<String>,
+    pub turn_id: Option<String>,
+    pub attempt_id: Option<String>,
     pub kind: Option<String>,
     pub status: Option<String>,
     pub limit: Option<i64>,
@@ -1364,8 +1595,9 @@ pub struct AdmissionReceipt {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubmitSessionRun {
+pub struct SubmitSessionTurn {
     pub id: Option<String>,
+    pub turn_id: Option<String>,
     pub session_id: String,
     pub principal_id: String,
     pub idempotency_key: String,
@@ -1374,34 +1606,91 @@ pub struct SubmitSessionRun {
     pub origin: Option<Value>,
     pub intent: Option<String>,
     pub run_control_policy: Option<String>,
-    pub expected_run_id: Option<String>,
+    pub expected_turn_id: Option<String>,
     pub job_id: Option<String>,
     pub job_idempotency_key: Option<String>,
-    pub mode: Option<String>,
+    pub execution_binding: Value,
     pub max_steps: Option<i64>,
-    pub provider_profile_id: Option<String>,
+    pub parent_turn_id: Option<String>,
+    pub regenerates_turn_id: Option<String>,
     pub scheduled_at: Option<i64>,
     pub not_before: Option<i64>,
     pub priority: Option<i64>,
-    pub max_attempts: Option<i64>,
-    pub retry_policy: Option<RetryPolicy>,
     pub budget_grant_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SubmitSessionRunReceipt {
+pub struct SubmitSessionTurnReceipt {
     pub admission: AdmissionReceipt,
+    pub turn: SessionTurnRecord,
     pub job: SchedulerJobRecord,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RunnerClaim {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SessionTurnRecord {
+    pub id: String,
     pub session_id: String,
+    pub primary_input_id: String,
+    pub job_id: String,
+    pub state: String,
+    pub execution_binding: Value,
+    pub execution_binding_digest: String,
+    pub max_steps: i64,
+    pub current_attempt_id: Option<String>,
+    pub parent_turn_id: Option<String>,
+    pub regenerates_turn_id: Option<String>,
+    pub cancel_requested_at: Option<i64>,
+    pub cancel_reason: Option<String>,
+    pub result: Option<Value>,
+    pub error: Option<Value>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SessionAttemptRecord {
+    pub id: String,
+    pub session_id: String,
+    pub turn_id: String,
     pub input_id: String,
-    pub run_id: String,
-    pub runner_id: String,
+    pub job_id: String,
+    pub attempt_number: i64,
+    pub worker_id: String,
     pub lease_token: String,
-    pub lease_expires_at: i64,
+    pub state: String,
+    pub error: Option<Value>,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StartSessionTurnAttempt {
+    pub session_id: String,
+    pub turn_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StartSessionTurnAttemptReceipt {
+    pub turn: SessionTurnRecord,
+    pub attempt: SessionAttemptRecord,
+    pub input_message: SessionMessageRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListSessionTurns {
+    pub session_id: String,
+    pub state: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListSessionAttempts {
+    pub turn_id: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1535,8 +1824,8 @@ pub struct BudgetGrantRecord {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SchedulerJobKind {
-    #[serde(rename = "session.run")]
-    SessionRun,
+    #[serde(rename = "session.turn")]
+    SessionTurn,
     #[serde(rename = "workspace.task")]
     WorkspaceTask,
     #[serde(rename = "team.delivery")]
@@ -1561,12 +1850,14 @@ pub enum SchedulerJobKind {
     ProviderRetry,
     #[serde(rename = "config.sync")]
     ConfigSync,
+    #[serde(rename = "media.generate")]
+    MediaGenerate,
 }
 
 impl SchedulerJobKind {
     pub(crate) fn as_str(self) -> &'static str {
         match self {
-            Self::SessionRun => "session.run",
+            Self::SessionTurn => "session.turn",
             Self::WorkspaceTask => "workspace.task",
             Self::TeamDelivery => "team.delivery",
             Self::TeamRoundClose => "team.round.close",
@@ -1579,6 +1870,7 @@ impl SchedulerJobKind {
             Self::BudgetGrantExpire => "budget.grant_expire",
             Self::ProviderRetry => "provider.retry",
             Self::ConfigSync => "config.sync",
+            Self::MediaGenerate => "media.generate",
         }
     }
 }
@@ -1617,6 +1909,7 @@ pub struct EnqueueJob {
     pub scheduled_at: Option<i64>,
     pub not_before: Option<i64>,
     pub priority: Option<i64>,
+    pub concurrency_key: Option<String>,
     pub max_attempts: Option<i64>,
     pub retry_policy: Option<RetryPolicy>,
     pub idempotency_key: Option<String>,
@@ -1682,6 +1975,7 @@ pub struct SchedulerJobRecord {
     pub scheduled_at: i64,
     pub not_before: Option<i64>,
     pub priority: i64,
+    pub concurrency_key: Option<String>,
     pub attempt: i64,
     pub max_attempts: i64,
     pub retry_policy: RetryPolicy,
@@ -1764,6 +2058,16 @@ pub struct IngestResource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResourceContentChunk {
+    pub resource_id: String,
+    pub sha256: String,
+    pub total_size_bytes: u64,
+    pub offset: u64,
+    pub content: Vec<u8>,
+    pub eof: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListResources {
     pub kind: Option<String>,
     pub origin: Option<String>,
@@ -1828,8 +2132,9 @@ pub struct DoctorCheck {
 pub struct ToolExecutionRecord {
     pub id: String,
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
     pub input_id: String,
+    pub source_message_id: String,
     pub principal_id: String,
     pub tool_call_id: String,
     pub tool_name: String,
@@ -1837,40 +2142,70 @@ pub struct ToolExecutionRecord {
     pub descriptor: Value,
     pub permission: Value,
     pub state: String,
-    pub attempt: i64,
+    pub current_invocation_attempt_id: Option<String>,
+    pub attempt_count: i64,
     pub idempotency_key: String,
     pub result: Option<Value>,
     pub is_error: Option<bool>,
     pub error: Option<Value>,
     pub created_at: i64,
-    pub started_at: Option<i64>,
     pub finished_at: Option<i64>,
     pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ToolExecutionAttemptRecord {
+    pub id: String,
+    pub execution_id: String,
+    pub session_attempt_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub attempt_number: i64,
+    pub state: String,
+    pub error: Option<Value>,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BeginToolExecution {
     pub session_id: String,
-    pub run_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
     pub input_id: String,
+    pub source_message_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
     pub principal_id: String,
     pub tool_call_id: String,
     pub tool_name: String,
     pub input: Value,
     pub descriptor: Value,
     pub permission: Value,
+    pub state: String,
     pub idempotency_key: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BeginToolExecutionReceipt {
     pub execution: ToolExecutionRecord,
+    pub invocation_attempt: Option<ToolExecutionAttemptRecord>,
     pub created: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FinishToolExecution {
+    pub session_id: String,
+    pub turn_id: String,
+    pub session_attempt_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
     pub execution_id: String,
+    pub invocation_attempt_id: String,
     pub state: String,
     pub result: Option<Value>,
     pub is_error: Option<bool>,
@@ -1878,15 +2213,14 @@ pub struct FinishToolExecution {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RecoverToolExecution {
+pub struct ListToolExecutionAttempts {
     pub execution_id: String,
-    pub action: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListToolExecutions {
     pub session_id: Option<String>,
-    pub run_id: Option<String>,
+    pub turn_id: Option<String>,
     pub state: Option<String>,
     pub limit: Option<i64>,
 }

@@ -1,9 +1,9 @@
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellAgentContextCommands } from "./types-context.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppAgentContextCommands } from "./types-context.js"
 
-export function createWanexAppShellContextCommands(
-  context: WanexAppShellCommandContext
-): WanexAppShellAgentContextCommands {
+export function createWanexAppContextCommands(
+  context: WanexAppCommandContext
+): WanexAppAgentContextCommands {
   return {
     async setAgentContextProfile(profile) {
       context.assertActive()

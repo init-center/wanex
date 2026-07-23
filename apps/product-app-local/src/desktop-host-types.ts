@@ -2,6 +2,10 @@ import type {
   ProductAppWebResponse
 } from "@wanex/product-app-web"
 import type {
+  ProductAppProviderProfileListReadModel,
+  ProductAppProviderProfileReadModel
+} from "@wanex/product-app"
+import type {
   ProductAppLocalSnapshot,
   ProductAppLocalWebApp,
   StartProductAppLocalWebAppOptions
@@ -21,6 +25,7 @@ export interface ProductAppDesktopMainHost {
   readonly settings: ProductAppLocalWebApp["settings"]
   readonly providerProfiles: ProductAppLocalWebApp["providerProfiles"]
   readonly providerSetup: ProductAppLocalWebApp["providerSetup"]
+  readonly attachments: ProductAppLocalWebApp["attachments"]
   readSnapshot(): Promise<ProductAppDesktopMainSnapshot>
   handleWebRequest(request: unknown): Promise<ProductAppWebResponse>
   handleRequest(request: unknown): Promise<ProductAppDesktopMainResponse>
@@ -112,10 +117,10 @@ export interface ProductAppDesktopMainProviderProfileResponse
 }
 
 export type ProductAppDesktopProviderProfilesReadModel =
-  Awaited<ReturnType<ProductAppLocalWebApp["providerProfiles"]["listProviderProfiles"]>>
+  ProductAppProviderProfileListReadModel
 
 export type ProductAppDesktopProviderProfileReadModel =
-  Awaited<ReturnType<ProductAppLocalWebApp["providerProfiles"]["setActiveProviderProfile"]>>
+  ProductAppProviderProfileReadModel
 
 export interface ProductAppDesktopMainErrorResponse
   extends ProductAppDesktopMainResponseBase {

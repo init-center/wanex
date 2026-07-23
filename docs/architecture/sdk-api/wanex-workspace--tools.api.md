@@ -9,6 +9,7 @@ import { ToolDefinition } from '@wanex/runtime/tools';
 import { ToolExecutionResult } from '@wanex/runtime/tools';
 import { ToolInvocation } from '@wanex/runtime/tools';
 import { ToolRegistry } from '@wanex/runtime/tools';
+import * as _wanex_runtime_tools from '@wanex/runtime/tools';
 import { WorkspaceStore } from '@wanex/storage/workspace';
 
 // @public (undocumented)
@@ -84,6 +85,8 @@ export class ExactWorkspaceProgramPolicy implements WorkspaceProgramPolicy {
         readonly program: string;
         readonly args: readonly string[];
     }): WorkspaceProgramDecision;
+    // (undocumented)
+    snapshot(): JsonValue;
 }
 
 // @public (undocumented)
@@ -114,6 +117,14 @@ interface FileConflict {
     // (undocumented)
     readonly reason: "missing_base" | "base_hash_mismatch" | "already_exists" | "missing_file" | "merge_conflict" | "undo_target_changed";
 }
+
+// @public (undocumented)
+type JsonPrimitive = string | number | boolean | null;
+
+// @public (undocumented)
+type JsonValue = JsonPrimitive | {
+    readonly [key: string]: JsonValue;
+} | readonly JsonValue[];
 
 // @public (undocumented)
 interface ListWorkspaceChangeSetsRequest {
@@ -262,6 +273,8 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     readonly name = "workspace_apply_changeset";
     // (undocumented)
     readonly risk: "mutating";
+    // (undocumented)
+    readonly runtimeBinding: _wanex_runtime_tools.ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -363,8 +376,6 @@ export class WorkspaceExecTool implements ToolDefinition {
     // (undocumented)
     readonly description = "Run one approved executable with structured arguments inside the active workspace.";
     // (undocumented)
-    readonly drainsCancellation: true;
-    // (undocumented)
     readonly idempotent = false;
     // (undocumented)
     readonly inputSchema: {
@@ -403,6 +414,8 @@ export class WorkspaceExecTool implements ToolDefinition {
     readonly name = "workspace_exec";
     // (undocumented)
     readonly risk: "external";
+    // (undocumented)
+    readonly runtimeBinding: _wanex_runtime_tools.ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -457,6 +470,8 @@ export interface WorkspaceProgramPolicy {
         readonly program: string;
         readonly args: readonly string[];
     }): WorkspaceProgramDecision;
+    // (undocumented)
+    snapshot(): JsonValue;
 }
 
 // @public (undocumented)
@@ -494,6 +509,8 @@ export class WorkspaceReadTextTool implements ToolDefinition {
     readonly name = "workspace_read_text";
     // (undocumented)
     readonly risk: "read_only";
+    // (undocumented)
+    readonly runtimeBinding: _wanex_runtime_tools.ToolRuntimeBinding;
 }
 
 // @public (undocumented)

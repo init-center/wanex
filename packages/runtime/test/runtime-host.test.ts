@@ -16,11 +16,14 @@ import type {
   SchedulerJobRecord,
   TextMessagePart
 } from "@wanex/protocol"
-import { createStorageHandle } from "@wanex/storage"
+import { createStorageHandle, type CoreStore } from "@wanex/storage"
 import {
   AllowAllToolsPolicy,
+  createToolRuntimeBinding,
   EchoTool,
-  ToolRegistry
+  ToolRegistry,
+  type ToolDefinition,
+  type ToolInvocation
 } from "@wanex/runtime/tools"
 import {
   buildRuntimeHostJobSummary,
@@ -46,18 +49,374 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/host", () => {
+  it("actively aborts a blocked provider after durable cancellation", async () => {
+    const provider = new AbortAwareBlockingProvider(false)
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "cancel blocked provider" }],
+      sessionId: "ses_host_active_cancel"
+    })
+    host.start()
+    await provider.started.promise
+
+    const receipt = await host.requestSessionTurnCancel({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      inputId: submitted.inputId,
+      jobId: submitted.receipt.job.id,
+      reason: "user cancelled blocked provider"
+    })
+
+    expect(receipt.status).toBe("cancel_requested")
+    await provider.aborted.promise
+    await eventually(async () => {
+      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+      expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
+    })
+    const turns = await host.storage.listSessionTurns({
+      sessionId: submitted.session.id
+    })
+    expect(turns).toMatchObject([{ state: "cancelled" }])
+    const invocations = await host.storage.listProviderInvocations({
+      turnId: submitted.turnId
+    })
+    expect(invocations).toMatchObject([{
+      state: "failed_before_output",
+      outputObserved: false,
+      error: { category: "aborted", retryable: false }
+    }])
+    await host.dispose()
+  })
+
+  it("observes durable cancellation written by another process", async () => {
+    const provider = new AbortAwareBlockingProvider(false)
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "remote cancel blocked provider" }],
+      sessionId: "ses_host_remote_cancel"
+    })
+    host.start()
+    await provider.started.promise
+
+    const receipt = await host.storage.requestSessionTurnCancel({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      inputId: submitted.inputId,
+      jobId: submitted.receipt.job.id,
+      reason: "remote process requested cancellation"
+    })
+
+    expect(receipt.status).toBe("cancel_requested")
+    await provider.aborted.promise
+    await eventually(async () => {
+      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+    })
+    expect(provider.abortCount).toBe(1)
+    await host.dispose()
+  })
+
+  it("fails closed when active cancellation follows provider output", async () => {
+    const provider = new AbortAwareBlockingProvider(true)
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "cancel partial provider" }],
+      sessionId: "ses_host_partial_cancel"
+    })
+    host.start()
+    await provider.started.promise
+
+    const receipt = await host.requestSessionTurnCancel({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      inputId: submitted.inputId,
+      jobId: submitted.receipt.job.id,
+      reason: "user cancelled after partial output"
+    })
+
+    expect(receipt.status).toBe("cancel_requested")
+    await provider.aborted.promise
+    await eventually(async () => {
+      await expect(host.listJobs({ state: "failed" })).resolves.toHaveLength(1)
+      expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
+    })
+    const turns = await host.storage.listSessionTurns({
+      sessionId: submitted.session.id
+    })
+    expect(turns).toMatchObject([{ state: "recovery_required" }])
+    const invocations = await host.storage.listProviderInvocations({
+      turnId: submitted.turnId
+    })
+    expect(invocations).toMatchObject([{
+      state: "ambiguous",
+      outputObserved: true
+    }])
+    await host.dispose()
+  })
+
+  it("interrupts only the exact active physical attempt", async () => {
+    const provider = new AbortAwareBlockingProvider(false)
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "interrupt blocked provider" }],
+      sessionId: "ses_host_active_interrupt"
+    })
+    host.start()
+    await provider.started.promise
+    const activeTurn = (
+      await host.storage.listSessionTurns({ sessionId: submitted.session.id })
+    )[0]
+    const attemptId = activeTurn?.currentAttemptId
+    expect(attemptId).toBeDefined()
+
+    const stale = await host.interruptSessionTurn({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      attemptId: "attempt_stale",
+      reason: "stale interrupt"
+    })
+    expect(stale.status).toBe("not_running")
+    expect(provider.abortCount).toBe(0)
+    expect(host.getHealthSnapshot().activeExecutionCount).toBe(1)
+
+    const accepted = await host.interruptSessionTurn({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      attemptId: attemptId!,
+      reason: "interrupt exact attempt"
+    })
+    expect(accepted.status).toBe("interrupt_requested")
+    await provider.aborted.promise
+    await eventually(async () => {
+      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+    })
+    const turns = await host.storage.listSessionTurns({
+      sessionId: submitted.session.id
+    })
+    expect(turns).toMatchObject([{ state: "interrupted" }])
+    const controls = await host.storage.listSessionTurnControls({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId
+    })
+    expect(controls).toMatchObject([{
+      kind: "interrupt",
+      status: "applied",
+      attemptId
+    }])
+    await host.dispose()
+  })
+
+  it("keeps the turn lease until an aborted tool finishes cleanup", async () => {
+    const provider = new FakeToolProvider()
+    const tool = new AbortAwareHostTool()
+    const tools = new ToolRegistry()
+    tools.register(tool)
+    const host = await createHost({
+      provider,
+      tools,
+      toolPermissionPolicy: new AllowAllToolsPolicy()
+    })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "cancel blocked tool" }],
+      sessionId: "ses_host_tool_cancel"
+    })
+    host.start()
+    await tool.started.promise
+
+    const receipt = await host.requestSessionTurnCancel({
+      sessionId: submitted.session.id,
+      turnId: submitted.turnId,
+      inputId: submitted.inputId,
+      jobId: submitted.receipt.job.id,
+      reason: "cancel active tool"
+    })
+    expect(receipt.status).toBe("cancel_requested")
+    await tool.abortObserved.promise
+    await expect(host.listJobs({ state: "running" })).resolves.toHaveLength(1)
+    expect(host.getHealthSnapshot().activeExecutionCount).toBe(1)
+
+    tool.releaseCleanup.resolve()
+    await eventually(async () => {
+      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+      expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
+    })
+    expect(tool.cleanupComplete).toBe(true)
+    const messages = await host.storage.listSessionMessages({
+      sessionId: submitted.session.id
+    })
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "tool"
+    ])
+    expect(messages[2]?.content).toMatchObject([{
+      type: "tool_result",
+      toolCallId: "call_host_echo",
+      result: { error: "tool_cancelled", cleaned: true },
+      isError: true
+    }])
+    const executions = await host.storage.listToolExecutions({
+      turnId: submitted.turnId
+    })
+    expect(executions).toMatchObject([{
+      state: "cancelled",
+      isError: true,
+      result: { error: "tool_cancelled", cleaned: true }
+    }])
+    await host.dispose()
+  })
+
+  it("waits for provider cleanup on host shutdown without publishing cancellation", async () => {
+    const provider = new AbortAwareBlockingProvider(false)
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "shutdown blocked provider" }],
+      sessionId: "ses_host_shutdown"
+    })
+    host.start()
+    await provider.started.promise
+
+    const stopping = host.stop()
+    await provider.aborted.promise
+    await stopping
+
+    expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
+    await expect(host.listJobs({ state: "failed" })).resolves.toHaveLength(1)
+    const turns = await host.storage.listSessionTurns({
+      sessionId: submitted.session.id
+    })
+    expect(turns).toMatchObject([{ state: "recovery_required" }])
+    expect(turns.some((turn) =>
+      turn.state === "cancelled" || turn.state === "interrupted"
+    )).toBe(false)
+    await host.dispose()
+  })
+
+  it("hands lease loss to durable recovery instead of ordinary cancellation", async () => {
+    const provider = new AbortAwareBlockingProvider(false)
+    const storeDir = await mkdtemp(join(tmpdir(), "wanex-runtime-host-lease-loss-"))
+    tempDirs.push(storeDir)
+    const handle = createStorageHandle({
+      kind: "local-system-service",
+      mode: "persistent",
+      storeDir,
+      serviceBin
+    })
+    let loseLease = false
+    const storage = new Proxy(handle.core, {
+      get(target, property) {
+        if (property === "heartbeatJob") {
+          return async (...args: Parameters<CoreStore["heartbeatJob"]>) =>
+            loseLease ? null : await target.heartbeatJob(...args)
+        }
+        const value = Reflect.get(target, property, target) as unknown
+        return typeof value === "function" ? value.bind(target) : value
+      }
+    }) as CoreStore
+    const host = new WanexRuntimeHost({
+      storage,
+      provider,
+      heartbeatIntervalMs: 5
+    })
+    try {
+      const submitted = await host.submitUserTurn({
+        content: [{ type: "text", text: "lose worker lease" }],
+        sessionId: "ses_host_lease_loss"
+      })
+      host.start()
+      await provider.started.promise
+      loseLease = true
+
+      await provider.aborted.promise
+      await eventually(async () => {
+        expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
+      })
+      const turns = await host.storage.listSessionTurns({
+        sessionId: submitted.session.id
+      })
+      expect(turns).toMatchObject([{ state: "recovery_required" }])
+      expect(turns.some((turn) =>
+        turn.state === "cancelled" || turn.state === "interrupted"
+      )).toBe(false)
+    } finally {
+      await host.dispose()
+      await handle.dispose()
+    }
+  })
+
+  it("applies steering after provider output without aborting the provider", async () => {
+    const provider = new SteeringProvider()
+    const host = await createHost({ provider })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "initial direction" }],
+      sessionId: "ses_host_steer"
+    })
+    host.start()
+    await provider.firstStarted.promise
+    const turn = (
+      await host.storage.listSessionTurns({ sessionId: submitted.session.id })
+    )[0]
+    expect(turn?.currentAttemptId).toBeDefined()
+
+    const steer = await host.steerSessionTurn({
+      sessionId: submitted.session.id,
+      principalId: "steering-user",
+      expectedTurnId: submitted.turnId,
+      expectedAttemptId: turn!.currentAttemptId!,
+      idempotencyKey: "host-steer-current-turn",
+      content: [{
+        type: "text",
+        id: "steer_text",
+        text: "adjusted direction"
+      }]
+    })
+    expect(steer.status).toBe("accepted")
+    expect(provider.abortCount).toBe(0)
+    await expect(host.listJobs({ state: "running" })).resolves.toHaveLength(1)
+
+    provider.releaseFirst.resolve()
+    await eventually(async () => {
+      const jobs = await host.listJobs({})
+      expect(jobs).toHaveLength(1)
+      expect(
+        jobs[0]?.state,
+        JSON.stringify(jobs[0]?.lastError)
+      ).toBe("succeeded")
+    })
+    expect(provider.calls).toBe(2)
+    expect(provider.abortCount).toBe(0)
+    const messages = await host.storage.listSessionMessages({
+      sessionId: submitted.session.id
+    })
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant"
+    ])
+    expect(messages.map((message) => textFromParts(message.content))).toEqual([
+      "initial direction",
+      "response before steer",
+      "adjusted direction",
+      "response after steer: adjusted direction"
+    ])
+    expect(new Set(messages.map(
+      (message) => message.executionBindingDigest
+    )).size).toBe(1)
+    await host.dispose()
+  })
+
   it("runs multiple session jobs concurrently through a worker pool", async () => {
     const provider = new ConcurrentProbeProvider()
     const host = await createHost({
       workerCount: 2,
       provider
     })
-    await host.submitUserText({
-      text: "one",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "one" }],
       sessionId: "ses_host_one"
     })
-    await host.submitUserText({
-      text: "two",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "two" }],
       sessionId: "ses_host_two"
     })
 
@@ -72,24 +431,30 @@ describe("@wanex/runtime/host", () => {
     await host.dispose()
   })
 
-  it("keeps runner exclusivity for jobs targeting the same session", async () => {
+  it("keeps one active turn per session while worker slots remain independent", async () => {
     const provider = new ConcurrentProbeProvider()
     const host = await createHost({
       workerCount: 2,
       provider
     })
-    await host.submitUserText({
-      text: "first",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "first" }],
       sessionId: "ses_host_same"
     })
-    await host.submitUserText({
-      text: "second",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "second" }],
       sessionId: "ses_host_same"
     })
 
     const first = await host.runOnce()
     const firstStatuses = first.results.map((item) => item.worker.status).sort()
-    expect(firstStatuses).toEqual(["completed", "completed"])
+    expect(firstStatuses).toEqual(["completed", "idle"])
+    await expect(host.listJobs({ state: "succeeded" })).resolves.toHaveLength(1)
+    const second = await host.runOnce()
+    expect(second.results.map((item) => item.worker.status).sort()).toEqual([
+      "completed",
+      "idle"
+    ])
     await expect(host.listJobs({ state: "succeeded" })).resolves.toHaveLength(2)
     expect(provider.maxActive).toBe(1)
     await host.dispose()
@@ -101,12 +466,12 @@ describe("@wanex/runtime/host", () => {
       workerCount: 2,
       provider
     })
-    await host.submitUserText({
-      text: "fail me",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "fail me" }],
       sessionId: "ses_host_fail"
     })
-    await host.submitUserText({
-      text: "succeed",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "succeed" }],
       sessionId: "ses_host_success"
     })
 
@@ -127,12 +492,13 @@ describe("@wanex/runtime/host", () => {
       status: {
         started: true,
         workerCount: 2,
-        memoryWorkerCount: 1
+        memoryWorkerCount: 1,
+        mediaGenerationWorkerCount: 0
       },
       jobs: [
         schedulerJob({
           id: "job_running_stale",
-          kind: "session.run",
+          kind: "session.turn",
           state: "running",
           leaseOwner: "worker_a",
           leaseExpiresAt: 90,
@@ -155,7 +521,7 @@ describe("@wanex/runtime/host", () => {
         }),
         schedulerJob({
           id: "job_pending",
-          kind: "session.run",
+          kind: "session.turn",
           state: "pending",
           payload: {
             prompt: "hidden pending prompt"
@@ -163,7 +529,7 @@ describe("@wanex/runtime/host", () => {
         }),
         schedulerJob({
           id: "job_ready",
-          kind: "session.run",
+          kind: "session.turn",
           state: "ready",
           payload: {
             prompt: "hidden ready prompt"
@@ -184,7 +550,8 @@ describe("@wanex/runtime/host", () => {
     expect(summary.host).toEqual({
       started: true,
       workerCount: 2,
-      memoryWorkerCount: 1
+      memoryWorkerCount: 1,
+      mediaGenerationWorkerCount: 0
     })
     expect(summary.totalJobs).toBe(6)
     expect(summary.stateCounts).toEqual(
@@ -198,7 +565,7 @@ describe("@wanex/runtime/host", () => {
     )
     expect(summary.backlogByKind).toEqual([
       {
-        kind: "session.run",
+        kind: "session.turn",
         count: 2
       }
     ])
@@ -226,7 +593,7 @@ describe("@wanex/runtime/host", () => {
       },
       {
         jobId: "job_running_stale",
-        kind: "session.run",
+        kind: "session.turn",
         workerId: "worker_a",
         attempt: 1,
         leaseExpiresAt: 90,
@@ -244,8 +611,8 @@ describe("@wanex/runtime/host", () => {
       workerCount: 2,
       fakeResponseText: "summary response"
     })
-    await host.submitUserText({
-      text: "summary",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "summary" }],
       sessionId: "ses_host_summary"
     })
     await host.runOnce()
@@ -273,7 +640,8 @@ describe("@wanex/runtime/host", () => {
     expect(summary.host).toEqual({
       started: false,
       workerCount: 2,
-      memoryWorkerCount: 0
+      memoryWorkerCount: 0,
+      mediaGenerationWorkerCount: 0
     })
     expect(summary.stateCounts).toEqual(
       expect.arrayContaining([
@@ -296,15 +664,15 @@ describe("@wanex/runtime/host", () => {
       workerCount: 1,
       fakeResponseText: "host ephemeral answer"
     })
-    await host.submitUserText({
-      text: "durable host context",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "durable host context" }],
       sessionId: "ses_host_ephemeral"
     })
     await host.runOnce()
     const [inputsBefore, messagesBefore, jobsBefore] = await Promise.all([
       host.storage.listSessionInputs({ sessionId: "ses_host_ephemeral" }),
       host.storage.listSessionMessages({ sessionId: "ses_host_ephemeral" }),
-      host.storage.listJobs({ kind: "session.run", limit: 20 })
+      host.storage.listJobs({ kind: "session.turn", limit: 20 })
     ])
 
     const result = await host.runEphemeralQuery({
@@ -325,7 +693,7 @@ describe("@wanex/runtime/host", () => {
     const [inputsAfter, messagesAfter, jobsAfter] = await Promise.all([
       host.storage.listSessionInputs({ sessionId: "ses_host_ephemeral" }),
       host.storage.listSessionMessages({ sessionId: "ses_host_ephemeral" }),
-      host.storage.listJobs({ kind: "session.run", limit: 20 })
+      host.storage.listJobs({ kind: "session.turn", limit: 20 })
     ])
     expect(textFromParts(result.output)).toBe("host ephemeral answer")
     expect(result.telemetry).toMatchObject({
@@ -348,10 +716,11 @@ describe("@wanex/runtime/host", () => {
     expect(host.status()).toEqual({
       started: true,
       workerCount: 2,
-      memoryWorkerCount: 0
+      memoryWorkerCount: 0,
+      mediaGenerationWorkerCount: 0
     })
-    await host.submitUserText({
-      text: "loop",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "loop" }],
       sessionId: "ses_host_loop"
     })
 
@@ -365,7 +734,8 @@ describe("@wanex/runtime/host", () => {
     expect(host.status()).toEqual({
       started: false,
       workerCount: 2,
-      memoryWorkerCount: 0
+      memoryWorkerCount: 0,
+      mediaGenerationWorkerCount: 0
     })
     await expect(host.doctor()).resolves.toMatchObject({
       schemaVersion: expectedSchemaVersion
@@ -375,6 +745,38 @@ describe("@wanex/runtime/host", () => {
     await host.dispose()
     await host.dispose()
     expect(() => host.start()).toThrow("runtime host is disposed")
+  })
+
+  it("wakes a long-idle background worker after local submission", async () => {
+    const host = await createHost({
+      workerCount: 1,
+      fakeResponseText: "host wake response",
+      idleIntervalMs: 10_000
+    })
+    host.start()
+
+    try {
+      await eventually(async () => {
+        expect(
+          host
+            .getHealthSnapshot()
+            .loops.find((loop) => loop.kind === "agent")?.idleCount
+        ).toBeGreaterThan(0)
+      })
+      const submittedAt = Date.now()
+      await host.submitUserTurn({
+        content: [{ type: "text", text: "wake now" }],
+        sessionId: "ses_host_wake"
+      })
+      await eventually(async () => {
+        await expect(
+          host.listJobs({ kind: "session.turn", state: "succeeded" })
+        ).resolves.toHaveLength(1)
+      })
+      expect(Date.now() - submittedAt).toBeLessThan(1_000)
+    } finally {
+      await host.dispose()
+    }
   })
 
   it("reports process-local live health for started worker loops", async () => {
@@ -392,9 +794,11 @@ describe("@wanex/runtime/host", () => {
       started: false,
       workerCount: 1,
       memoryWorkerCount: 1,
+      mediaGenerationWorkerCount: 0,
       loopCount: 0,
       activeLoopCount: 0,
       stoppedLoopCount: 0,
+      activeExecutionCount: 0,
       loops: []
     })
 
@@ -424,8 +828,8 @@ describe("@wanex/runtime/host", () => {
       ).toBeGreaterThan(0)
     })
 
-    await host.submitUserText({
-      text: "health",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "health" }],
       sessionId: "ses_host_health"
     })
     await eventually(async () => {
@@ -467,7 +871,8 @@ describe("@wanex/runtime/host", () => {
     expect(resolved.summary.host).toEqual({
       started: false,
       workerCount: 1,
-      memoryWorkerCount: 0
+      memoryWorkerCount: 0,
+      mediaGenerationWorkerCount: 0
     })
     expect(resolved.health).toMatchObject({
       generatedAt: 100,
@@ -482,7 +887,8 @@ describe("@wanex/runtime/host", () => {
       status: {
         started: true,
         workerCount: 2,
-        memoryWorkerCount: 1
+        memoryWorkerCount: 1,
+        mediaGenerationWorkerCount: 0
       },
       jobs: [schedulerJob({ id: "job_materialized" })]
     })
@@ -512,8 +918,8 @@ describe("@wanex/runtime/host", () => {
       fakeResponseText: "injected storage response"
     })
     try {
-      await host.submitUserText({
-        text: "owned",
+      await host.submitUserTurn({
+        content: [{ type: "text", text: "owned" }],
         sessionId: "ses_host_owned_storage"
       })
       const result = await host.runOnce()
@@ -554,14 +960,14 @@ describe("@wanex/runtime/host", () => {
         }
       })
     })
-    await host.submitUserText({
-      text: "old host request",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "old host request" }],
       sessionId: "ses_host_context"
     })
     await host.runOnce()
     provider.lastMessages = []
-    await host.submitUserText({
-      text: "new host request",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "new host request" }],
       sessionId: "ses_host_context"
     })
 
@@ -587,10 +993,9 @@ describe("@wanex/runtime/host", () => {
       toolPermissionPolicy: new AllowAllToolsPolicy(),
       provider: new FakeToolProvider()
     })
-    await host.submitUserText({
-      text: "use echo through host",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "use echo through host" }],
       sessionId: "ses_host_tools",
-      mode: "to_completion",
       maxSteps: 4
     })
 
@@ -601,11 +1006,12 @@ describe("@wanex/runtime/host", () => {
       sessionId: "ses_host_tools"
     })
     expect(messages.map((message) => message.role)).toEqual([
+      "user",
       "assistant",
       "tool",
       "assistant"
     ])
-    expect(messages[1]?.content[0]).toMatchObject({
+    expect(messages[2]?.content[0]).toMatchObject({
       type: "tool_result",
       isError: false
     })
@@ -631,8 +1037,8 @@ describe("@wanex/runtime/host", () => {
         }
       }
     })
-    await host.submitUserText({
-      text: "remember this",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "remember this" }],
       sessionId: "ses_host_memory"
     })
 
@@ -679,8 +1085,8 @@ describe("@wanex/runtime/host", () => {
         }
       }
     })
-    await host.submitUserText({
-      text: "small",
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "small" }],
       sessionId: "ses_host_memory_skip"
     })
 
@@ -704,6 +1110,8 @@ describe("@wanex/runtime/host", () => {
 })
 
 class ConcurrentProbeProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
   readonly providerId = "probe"
   readonly modelId = "probe-model"
   active = 0
@@ -725,6 +1133,91 @@ class ConcurrentProbeProvider implements ProviderAdapter {
       role: message.role,
       content: message.content as unknown as JsonValue
     })) as JsonValue[]
+  }
+}
+
+class AbortAwareBlockingProvider extends ConcurrentProbeProvider {
+  readonly started = deferred<void>()
+  readonly aborted = deferred<void>()
+  abortCount = 0
+
+  constructor(private readonly emitPartialOutput: boolean) {
+    super()
+  }
+
+  override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    if (this.emitPartialOutput) {
+      yield {
+        type: "text_delta",
+        partId: "partial_active_abort",
+        delta: "partial"
+      }
+    }
+    this.started.resolve()
+    await waitForAbort(request.signal)
+    this.abortCount += 1
+    this.aborted.resolve()
+    yield {
+      type: "error",
+      error: {
+        category: "aborted",
+        message: "provider request aborted",
+        retryable: false,
+        providerId: this.providerId,
+        modelId: this.modelId,
+        phase: this.emitPartialOutput ? "stream" : "request"
+      }
+    }
+  }
+}
+
+class AbortAwareHostTool implements ToolDefinition {
+  readonly name = "echo"
+  readonly description = "Wait for cancellation and complete controlled cleanup."
+  readonly inputSchema = { type: "object", additionalProperties: true } as const
+  readonly risk = "external" as const
+  readonly idempotent = false
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.runtime-host.abort-aware",
+    implementationRevision: "1"
+  })
+  readonly started = deferred<void>()
+  readonly abortObserved = deferred<void>()
+  readonly releaseCleanup = deferred<void>()
+  cleanupComplete = false
+
+  async invoke(invocation: ToolInvocation) {
+    this.started.resolve()
+    await waitForAbort(invocation.signal)
+    this.abortObserved.resolve()
+    await this.releaseCleanup.promise
+    this.cleanupComplete = true
+    return {
+      toolCallId: invocation.toolCallId,
+      result: { error: "tool_cancelled", cleaned: true },
+      isError: true
+    }
+  }
+}
+
+class SteeringProvider extends ConcurrentProbeProvider {
+  readonly firstStarted = deferred<void>()
+  readonly releaseFirst = deferred<void>()
+  calls = 0
+  abortCount = 0
+
+  override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    if (this.calls === 1) {
+      this.firstStarted.resolve()
+      await this.releaseFirst.promise
+      if (request.signal?.aborted === true) {
+        this.abortCount += 1
+      }
+      yield* textEvents("response before steer")
+      return
+    }
+    yield* textEvents("response after steer: " + userText(request.messages))
   }
 }
 
@@ -832,7 +1325,7 @@ function schedulerJob(
 ): SchedulerJobRecord {
   return {
     id: overrides.id,
-    kind: overrides.kind ?? "session.run",
+    kind: overrides.kind ?? "session.turn",
     state: overrides.state ?? "ready",
     principalId: overrides.principalId ?? "principal",
     payload: overrides.payload ?? {},
@@ -884,4 +1377,27 @@ async function eventually(assertion: () => Promise<void>): Promise<void> {
     }
   }
   throw lastError
+}
+
+function deferred<T>(): {
+  readonly promise: Promise<T>
+  resolve(value: T): void
+} {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
+}
+
+async function waitForAbort(
+  signal: ProviderRequest["signal"]
+): Promise<void> {
+  if (signal === undefined) {
+    throw new Error("blocking provider requires an abort signal")
+  }
+  if (signal.aborted) return
+  await new Promise<void>((resolve) => {
+    signal.addEventListener("abort", resolve, { once: true })
+  })
 }

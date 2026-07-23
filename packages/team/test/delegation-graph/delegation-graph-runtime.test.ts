@@ -68,7 +68,7 @@ describe("@wanex/team/delegation/graph", () => {
       nodeId: inspect.id,
       workerId: "orchestrator_runtime",
       jobId: "job_runtime_inspect",
-      jobKind: "session.run"
+      jobKind: "workspace.task"
     })
     expect(materialized?.node).toMatchObject({
       id: inspect.id,

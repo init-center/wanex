@@ -5,7 +5,7 @@ import type { JsonValue } from "@wanex/protocol"
 import {
   SecretResolver,
   StaticSecretProvider
-} from "./host-security/index.js"
+} from "@wanex/runtime/secrets"
 import { WanexSessionCore } from "@wanex/runtime/sessions"
 import { createStorageHandle } from "@wanex/storage"
 import { createChannelStore } from "@wanex/storage/channel"

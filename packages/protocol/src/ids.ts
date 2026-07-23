@@ -1,12 +1,16 @@
 export type PrincipalId = string
 export type SessionId = string
 export type SessionInputId = string
-export type SessionRunId = string
+export type SessionTurnId = string
+export type SessionAttemptId = string
+export type ProviderInvocationId = string
+export type ToolExecutionAttemptId = string
 export type RuntimeEventId = string
 export type MessageId = string
 export type MessagePartId = string
 export type ResourceId = string
 export type ResourceTicketId = string
+export type MediaGenerationOperationId = string
 export type PlanProposalId = string
 export type PlanProposalOperationId = string
 export type ObjectiveRunId = string

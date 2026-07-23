@@ -2,7 +2,7 @@
 
 First concrete upper application backend shell for Wanex.
 
-This package consumes the typed `@wanex/app/backend` contract and owns its
+This package consumes the typed `@wanex/app` contract and owns its
 Product command catalog, read models, state, and renderer-safe adapter. It is the small backend
 shape a desktop main process, web service, or future renderer bridge can own
 before choosing Electron, Tauri, React, a terminal renderer, or a channel
@@ -31,16 +31,16 @@ shell owns:
 - renderer preference state;
 - Product-owned dispatch through its command port and JSON mapper;
 - a transport-neutral surface adapter for future IPC/API/TUI wrappers;
-- workbench helpers that can start a new session from first-turn text or use the
-  selected session for open/continue flows.
+- tracked asynchronous conversation submit/read/cancel/regenerate operations;
+- a read-only workbench projection over the selected session's canonical transcript.
 
 Renderer code should call app-owned wrappers around these methods. It must not
 open storage, receive a store path, receive a service binary path, or import
 lower runtime packages directly.
 
-The Product backend uses the explicit `@wanex/app/backend` subpath; ordinary
-trusted backends that do not need the Wanex Product surface use `@wanex/app`
-directly. Renderer code uses `@wanex/product-app/surface-client` and never
+The Product backend uses the `@wanex/app` root; ordinary trusted backends that
+do not need the Wanex Product surface use the same root directly. Renderer code
+uses `@wanex/product-app/surface-client` and never
 imports the backend subpath. Product App does not import `@wanex/storage`,
 `@wanex/runtime-composition`, `@wanex/plugin`,
 `@wanex/connector`, `@wanex/runtime/host`, or
@@ -119,9 +119,10 @@ count, whether the active profile exists, whether that provider requires an API
 key, whether a redacted key is present, and whether provider-backed work can run.
 
 This is an app-level projection for upper surfaces. It does not expose raw API
-keys, storage paths, service binary paths, or provider mutation commands.
-Trusted host code should still use `app.providerProfiles` for provider-profile
-creation and updates.
+keys, secret references, provider base URLs, protocol-version fields, storage
+paths, service binary paths, provider wire data, or provider mutation commands.
+Trusted host code should still use the providerProfiles facade for complete
+provider-profile creation and updates.
 
 ## Command Catalog
 
@@ -141,8 +142,8 @@ model for command palettes, IPC validation, TUI detail panels, and channel
 surfaces. It reuses Product App's command allow-list and input validation,
 then applies Product App's provider run gate.
 
-Provider-backed commands such as `product.agent.run` and
-`product.workbench.continue` preview as `provider_not_ready` when the active
+Provider-backed commands such as `product.agent.submit` preview as
+`provider_not_ready` when the active
 provider profile needs trusted host setup. Read-only commands such as
 `product.status` remain previewable even when provider-backed work is blocked.
 The preview does not create sessions, run a provider, mutate app state, expose
@@ -176,23 +177,21 @@ const app = await createProductAppShell({
   }
 })
 
+const surface = createProductAppSurfaceAdapter(app)
 try {
-  await app.dispatchProductCommand({
-    command: "runAgentTurn",
-    input: {
-      text: "hello",
-      sessionId: "ses_local"
-    }
+  const submitted = await app.submitConversationOperation({
+    text: "hello",
+    sessionId: "ses_local"
   })
-  app.selectSession({ sessionId: "ses_local" })
+  console.log(submitted.kind)
+  const operation = await app.readTrackedConversationOperation({
+    sessionId: "ses_local"
+  })
+  console.log(operation.kind)
+  await app.selectSession({ sessionId: "ses_local" })
   const workbench = await app.openWorkbench()
   console.log(workbench.kind)
-  const started = await app.startWorkbench({
-    text: "start a fresh workbench session"
-  })
-  console.log(started.kind)
 
-  const surface = createProductAppSurfaceAdapter(app)
   const client = createProductAppSurfaceClient(
     createInProcessProductAppSurfaceClientTransport(surface)
   )
@@ -213,12 +212,14 @@ try {
   )
   console.log((await messageClient.descriptor()).ok)
 } finally {
+  await surface.dispose()
   await app.dispose()
 }
 ```
 
 ## Lifecycle
 
-The product app shell opens App Command Runtime during creation and must be
-disposed by the trusted app owner. Disposal is idempotent through the underlying
-App Command Runtime backend shell. No gateway or daemon is started.
+The Product App Shell opens the Wanex App Host during creation and must be
+disposed by the trusted app owner. A surface adapter subscribes to ephemeral
+conversation events, so dispose every adapter before disposing the shell.
+Disposal is idempotent. No gateway or daemon is started.

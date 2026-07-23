@@ -41,28 +41,30 @@ describe("@wanex/runtime/host agent runtime", () => {
     await writeProviderProfile(storage, {
       id: "fake-default",
       kind: "fake",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "fake",
       modelId: "fake-model"
     })
     const runtime = new WanexAgentRuntime({
       storage,
       workerId: "agent_runtime_profile",
-      runnerId: "runner_agent_runtime_profile",
       providerProfileId: "fake-default"
     })
 
     try {
-      const result = await runtime.submitAndRunUserText({
-        text: "hello profile",
+      const result = await runtime.submitAndRunUserTurn({
+        content: [{ type: "text", text: "hello profile" }],
         sessionId: "ses_agent_runtime_profile",
         inputId: "inp_agent_runtime_profile"
       })
 
-      expect(result.receipt.job.payload).toMatchObject({
-        providerProfileId: "fake-default"
+      expect(result.receipt.turn.executionBinding.provider).toMatchObject({
+        profileId: "fake-default",
+        providerId: "fake",
+        modelId: "fake-model"
       })
       expect(result.run.worker.status).toBe("completed")
-      expect(result.messages[0]?.content).toEqual([
+      expect(result.messages[1]?.content).toEqual([
         {
           type: "text",
           id: "text_0",
@@ -82,13 +84,13 @@ describe("@wanex/runtime/host agent runtime", () => {
     })
 
     try {
-      const result = await runtime.submitAndRunUserText({
-        text: "hello fake",
+      const result = await runtime.submitAndRunUserTurn({
+        content: [{ type: "text", text: "hello fake" }],
         sessionId: "ses_agent_runtime_fake"
       })
 
       expect(result.run.worker.status).toBe("completed")
-      expect(result.messages[0]?.content).toEqual([
+      expect(result.messages[1]?.content).toEqual([
         {
           type: "text",
           id: "text_0",
@@ -107,12 +109,12 @@ describe("@wanex/runtime/host agent runtime", () => {
       fakeResponseText: "ephemeral runtime response"
     })
     try {
-      await runtime.submitAndRunUserText({
-        text: "durable runtime context",
+      await runtime.submitAndRunUserTurn({
+        content: [{ type: "text", text: "durable runtime context" }],
         sessionId: "ses_agent_runtime_ephemeral"
       })
       const jobsBefore = await runtime.session.listJobs({
-        kind: "session.run",
+        kind: "session.turn",
         limit: 20
       })
 
@@ -134,9 +136,9 @@ describe("@wanex/runtime/host agent runtime", () => {
       ).resolves.toHaveLength(1)
       await expect(
         runtime.session.listMessages({ sessionId: "ses_agent_runtime_ephemeral" })
-      ).resolves.toHaveLength(1)
+      ).resolves.toHaveLength(2)
       const jobsAfter = await runtime.session.listJobs({
-        kind: "session.run",
+        kind: "session.turn",
         limit: 20
       })
       expect(jobsAfter.map((job) => job.id)).toEqual(
@@ -153,8 +155,8 @@ describe("@wanex/runtime/host agent runtime", () => {
       workerId: "agent_runtime_loop",
       fakeResponseText: "loop response"
     })
-    await runtime.submitUserText({
-      text: "loop",
+    const submitted = await runtime.submitUserTurn({
+      content: [{ type: "text", text: "loop" }],
       sessionId: "ses_agent_runtime_loop"
     })
 
@@ -165,7 +167,11 @@ describe("@wanex/runtime/host agent runtime", () => {
         const messages = await runtime.session.listMessages({
           sessionId: "ses_agent_runtime_loop"
         })
-        expect(messages[0]?.content).toEqual([
+        const assistant = messages.find(
+          (message) =>
+            message.turnId === submitted.turnId && message.role === "assistant"
+        )
+        expect(assistant?.content).toEqual([
           {
             type: "text",
             id: "text_0",
@@ -180,30 +186,25 @@ describe("@wanex/runtime/host agent runtime", () => {
     }
   })
 
-  it("records scheduler failure when a provider profile is missing", async () => {
+  it("rejects admission when a provider profile is missing", async () => {
     const runtime = new WanexAgentRuntime({
       storage: await createTestStore(),
       workerId: "agent_runtime_missing_profile"
     })
-    await runtime.submitUserText({
-      text: "missing",
-      sessionId: "ses_agent_runtime_missing",
-      providerProfileId: "missing-profile"
-    })
 
     try {
-      const result = await runtime.runOnce()
-
-      expect(result.worker.status).toBe("failed")
-      if (result.worker.status !== "failed") {
-        throw new Error("expected failed worker result")
-      }
-      expect(result.worker.job?.lastError).toMatchObject({
-        type: "worker.error"
-      })
-      expect(JSON.stringify(result.worker.job?.lastError)).toContain(
-        "provider profile not found: missing-profile"
-      )
+      await expect(runtime.submitUserTurn({
+        content: [{ type: "text", text: "missing" }],
+        sessionId: "ses_agent_runtime_missing",
+        providerProfileId: "missing-profile"
+      })).rejects.toThrow("provider profile not found: missing-profile")
+      await expect(runtime.session.listTurns({
+        sessionId: "ses_agent_runtime_missing"
+      })).resolves.toEqual([])
+      await expect(runtime.session.listJobs({
+        kind: "session.turn",
+        limit: 20
+      })).resolves.toEqual([])
     } finally {
       await runtime.stop()
     }
@@ -224,14 +225,14 @@ describe("@wanex/runtime/host agent runtime", () => {
       })
     })
     try {
-      await runtime.submitAndRunUserText({
-        text: "old runtime request",
+      await runtime.submitAndRunUserTurn({
+        content: [{ type: "text", text: "old runtime request" }],
         sessionId: "ses_agent_runtime_context",
         inputId: "inp_agent_runtime_context_old"
       })
       provider.lastMessages = []
-      await runtime.submitAndRunUserText({
-        text: "new runtime request",
+      await runtime.submitAndRunUserTurn({
+        content: [{ type: "text", text: "new runtime request" }],
         sessionId: "ses_agent_runtime_context",
         inputId: "inp_agent_runtime_context_new"
       })

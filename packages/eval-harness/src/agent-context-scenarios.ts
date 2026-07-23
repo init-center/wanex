@@ -55,23 +55,16 @@ export const agentStarterContextContractScenario = createEvalScenario({
       const agent = new WanexAgentRuntime({
         storage: context.storage,
         provider,
-        contextCompiler: preparedContext.contextCompiler,
-        ...(preparedContext.tools === undefined
-          ? {}
-          : { tools: preparedContext.tools }),
-        ...(preparedContext.toolPermissionPolicy === undefined
-          ? {}
-          : { toolPermissionPolicy: preparedContext.toolPermissionPolicy })
+        agentContext: preparedContext
       })
 
       try {
-        const result = await agent.submitAndRunUserText({
-          text: "use the write-tests skill",
+        const result = await agent.submitAndRunUserTurn({
+          content: [{ type: "text", text: "use the write-tests skill" }],
           sessionId: "ses_eval_agent_context",
           principalId: "eval-agent-context-user",
           inputId: "inp_eval_agent_context",
           jobId: "job_eval_agent_context",
-          mode: "to_completion",
           maxSteps: 4
         })
         const replayText = textFromReplay(provider.firstMessages)
@@ -107,7 +100,7 @@ export const agentStarterContextContractScenario = createEvalScenario({
 
         return {
           sessionId: result.session.id,
-          assistantText: textFromMessages(result.messages),
+          assistantText: assistantTextFromMessages(result.messages, result.turnId),
           providerCalls: provider.calls,
           instructionSources:
             preparedContext.instructionSnapshot?.sources.length ?? 0,
@@ -156,10 +149,16 @@ function textFromReplay(messages: readonly ProviderReplayMessage[]): string {
     .join("\n")
 }
 
-function textFromMessages(messages: readonly {
-  readonly content: readonly { readonly type: string }[]
-}[]): string {
+function assistantTextFromMessages(
+  messages: readonly {
+    readonly turnId: string
+    readonly role: string
+    readonly content: readonly { readonly type: string }[]
+  }[],
+  turnId: string
+): string {
   return messages
+    .filter((message) => message.turnId === turnId && message.role === "assistant")
     .flatMap((message) => message.content)
     .filter((part): part is TextMessagePart => part.type === "text")
     .map((part) => part.text)
@@ -167,8 +166,10 @@ function textFromMessages(messages: readonly {
 }
 
 class SkillActivatingProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
   readonly providerId = "eval-agent-context"
   readonly modelId = "eval-agent-context-model"
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
   readonly responseText: string
   firstMessages: readonly ProviderReplayMessage[] = []
   calls = 0

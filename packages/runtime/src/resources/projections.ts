@@ -19,6 +19,9 @@ export function resourceToMessagePart(
     type: "resource",
     id: id ?? `resource_${resource.id}`,
     resourceId: resource.id,
+    sha256: resource.sha256,
+    sizeBytes: resource.sizeBytes,
+    kind: resource.kind,
     ...(resource.mediaType === undefined ? {} : { mediaType: resource.mediaType })
   }
 }

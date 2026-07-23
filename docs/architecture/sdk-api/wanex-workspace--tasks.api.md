@@ -129,7 +129,7 @@ interface RetryPolicy {
 }
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -137,6 +137,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)

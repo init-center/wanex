@@ -12,7 +12,8 @@ const DEFAULT_SECURITY_HEADERS = {
     "connect-src 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "img-src 'self' data:",
+    "img-src 'self' data: blob:",
+    "media-src 'self' blob:",
     "script-src 'self'",
     "style-src 'self'"
   ].join("; ")

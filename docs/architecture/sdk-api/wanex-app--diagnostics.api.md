@@ -6,6 +6,7 @@
 
 import { CoreStore } from '@wanex/storage';
 import { PluginStore } from '@wanex/storage/plugin';
+import { ProviderProfileSummary } from '@wanex/runtime/provider';
 
 // @public (undocumented)
 export interface AppActivityEntry {
@@ -118,6 +119,8 @@ export interface BaseRuntimeHostHealthSnapshot {
     // (undocumented)
     readonly loops: readonly BaseRuntimeHostLoopHealth[];
     // (undocumented)
+    readonly mediaGenerationWorkerCount: number;
+    // (undocumented)
     readonly memoryWorkerCount: number;
     // (undocumented)
     readonly started: boolean;
@@ -156,6 +159,7 @@ export interface BaseRuntimeHostJobSummary {
         readonly started: boolean;
         readonly workerCount: number;
         readonly memoryWorkerCount: number;
+        readonly mediaGenerationWorkerCount: number;
     };
     // (undocumented)
     readonly kindCounts: readonly BaseRuntimeHostJobKindCount[];
@@ -186,7 +190,7 @@ export interface BaseRuntimeHostLoopHealth {
     // (undocumented)
     readonly index: number;
     // (undocumented)
-    readonly kind: "agent" | "memory";
+    readonly kind: "agent" | "memory" | "media_generation";
     // (undocumented)
     readonly lastErrorAt?: number;
     // (undocumented)
@@ -359,7 +363,7 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | UiSurfaceEventType | ContextEventType | PlanEventType | ObjectiveEventType;
+type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | ContextEventType | PlanEventType | ObjectiveEventType;
 
 // @public (undocumented)
 export interface MemoryMaintenanceDiagnosticsOptions {
@@ -421,37 +425,6 @@ type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded
 type PlanProposalId = string;
 
 // @public (undocumented)
-interface ProviderProfile {
-    // (undocumented)
-    readonly anthropicVersion?: string;
-    // (undocumented)
-    readonly apiKey?: string;
-    // (undocumented)
-    readonly baseUrl?: string;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly kind: ProviderProfileKind;
-    // (undocumented)
-    readonly modelId: string;
-    // (undocumented)
-    readonly providerId: string;
-}
-
-// @public (undocumented)
-type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
-
-// @public (undocumented)
-export interface RedactedProviderProfileSummary {
-    // (undocumented)
-    readonly found: boolean;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly profile?: ProviderProfile;
-}
-
-// @public (undocumented)
 type ResourceEventType = "resource.ticket.cleanup";
 
 // @public (undocumented)
@@ -489,6 +462,8 @@ type RuntimeEventId = string;
 // @public (undocumented)
 interface RuntimeEventScope {
     // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
     readonly messageId?: MessageId;
@@ -499,9 +474,9 @@ interface RuntimeEventScope {
     // (undocumented)
     readonly resourceId?: ResourceId;
     // (undocumented)
-    readonly runId?: SessionRunId;
-    // (undocumented)
     readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
 }
 
 // @public (undocumented)
@@ -511,7 +486,7 @@ type RuntimeEventType = KnownRuntimeEventType | (string & {});
 type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -519,6 +494,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -563,7 +540,10 @@ interface SchedulerJobRecord {
 type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
-type SessionEventType = "session.created" | "session.input.admitted" | "session.run.submitted" | "session.run.claimed" | "session.run.interrupt_requested" | "session.run.interrupted" | "session.run.steer_admitted" | "session.run.steer_rejected" | "session.ephemeral_query.completed" | "session.message.appended" | "session.run.completed" | "session.run.failed" | "session.run.cancelled";
+type SessionAttemptId = string;
+
+// @public (undocumented)
+type SessionEventType = "session.created" | "session.input.admitted" | "session.turn.submitted" | "session.turn.attempt_started" | "session.turn.interrupt_requested" | "session.turn.steer_accepted" | "session.turn.control_applied" | "session.turn.cancel_requested" | "session.turn.interrupted" | "session.turn.recovery_required" | "session.ephemeral_query.completed" | "session.message.appended" | "session.turn.succeeded" | "session.turn.failed" | "session.turn.cancelled";
 
 // @public (undocumented)
 type SessionId = string;
@@ -572,7 +552,7 @@ type SessionId = string;
 type SessionInputId = string;
 
 // @public (undocumented)
-type SessionRunId = string;
+type SessionTurnId = string;
 
 // @public (undocumented)
 export interface SupportBundle {
@@ -587,7 +567,7 @@ export interface SupportBundle {
     // (undocumented)
     readonly limits: SupportBundleLimits;
     // (undocumented)
-    readonly providers: readonly RedactedProviderProfileSummary[];
+    readonly providers: readonly SupportBundleProviderProfileSummary[];
 }
 
 // @public (undocumented)
@@ -643,10 +623,17 @@ export interface SupportBundleOptions extends Pick<BuildAppDiagnosticsSnapshotIn
 }
 
 // @public (undocumented)
-type SupportBundleStore = CoreStore & PluginStore;
+export interface SupportBundleProviderProfileSummary {
+    // (undocumented)
+    readonly found: boolean;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly profile?: ProviderProfileSummary;
+}
 
 // @public (undocumented)
-type UiSurfaceEventType = "ui.surface.emitted";
+type SupportBundleStore = CoreStore & PluginStore;
 
 // @public (undocumented)
 export const WANEX_APP_DIAGNOSTICS: "wanex-app-diagnostics";

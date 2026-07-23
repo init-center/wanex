@@ -4,6 +4,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding } from "@wanex/runtime/tools"
 import type { ChangeSet, FileChange } from "../changesets/index.js"
 import type { WorkspaceRuntime } from "../runtime.js"
 import { inputRecord, optionalString, requiredString } from "./input.js"
@@ -46,6 +47,7 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     destructiveHint: true,
     openWorldHint: false
   } as const
+  readonly runtimeBinding
 
   private readonly runtime: WorkspaceRuntime
   private readonly maxFiles: number
@@ -65,6 +67,15 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     if (!Number.isInteger(this.maxBytes) || this.maxBytes <= 0) {
       throw new Error("workspace changeset maxBytes must be a positive integer")
     }
+    this.runtimeBinding = createToolRuntimeBinding({
+      implementationId: "wanex.workspace.tool.apply-changeset",
+      implementationRevision: "1",
+      configuration: {
+        workspaceId: options.runtime.workspaceId,
+        maxFiles: this.maxFiles,
+        maxBytes: this.maxBytes
+      }
+    })
   }
 
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {

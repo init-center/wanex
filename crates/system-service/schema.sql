@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS event_log (
   id TEXT PRIMARY KEY,
   event_type TEXT NOT NULL,
   scope_session_id TEXT,
-  scope_run_id TEXT,
+  scope_turn_id TEXT,
+  scope_attempt_id TEXT,
   scope_input_id TEXT,
   scope_message_id TEXT,
   scope_resource_id TEXT,
@@ -103,7 +104,7 @@ CREATE TABLE IF NOT EXISTS session_input (
   origin_json TEXT,
   intent TEXT NOT NULL DEFAULT 'normal',
   run_control_policy TEXT,
-  expected_run_id TEXT,
+  expected_turn_id TEXT,
   status TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -116,38 +117,63 @@ CREATE INDEX IF NOT EXISTS idx_session_input_status
 CREATE INDEX IF NOT EXISTS idx_session_input_intent
   ON session_input(session_id, intent, status, created_at);
 
-CREATE TABLE IF NOT EXISTS session_run (
+CREATE TABLE IF NOT EXISTS session_turn (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
+  primary_input_id TEXT NOT NULL UNIQUE REFERENCES session_input(id),
+  job_id TEXT NOT NULL UNIQUE,
+  state TEXT NOT NULL,
+  execution_binding_json TEXT NOT NULL,
+  execution_binding_digest TEXT NOT NULL,
+  max_steps INTEGER NOT NULL,
+  current_attempt_id TEXT,
+  parent_turn_id TEXT REFERENCES session_turn(id),
+  regenerates_turn_id TEXT REFERENCES session_turn(id),
+  cancel_requested_at INTEGER,
+  cancel_reason TEXT,
+  result_json TEXT,
+  error_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_turn_session_state
+  ON session_turn(session_id, state, created_at, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_turn_active_head
+  ON session_turn(session_id)
+  WHERE state IN ('running', 'cancel_requested');
+
+CREATE TABLE IF NOT EXISTS session_attempt (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES session(id),
+  turn_id TEXT NOT NULL REFERENCES session_turn(id),
   input_id TEXT NOT NULL REFERENCES session_input(id),
-  runner_id TEXT NOT NULL,
-  status TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  attempt_number INTEGER NOT NULL,
+  worker_id TEXT NOT NULL,
   lease_token TEXT NOT NULL,
-  lease_expires_at INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  error_json TEXT,
   started_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   finished_at INTEGER,
-  error_json TEXT
+  UNIQUE(turn_id, attempt_number)
 );
 
-CREATE INDEX IF NOT EXISTS idx_session_run_session_status
-  ON session_run(session_id, status, updated_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_attempt_running
+  ON session_attempt(turn_id)
+  WHERE state = 'running';
 
-CREATE TABLE IF NOT EXISTS session_runner_lease (
-  session_id TEXT PRIMARY KEY REFERENCES session(id),
-  runner_id TEXT NOT NULL,
-  run_id TEXT NOT NULL REFERENCES session_run(id),
-  input_id TEXT NOT NULL REFERENCES session_input(id),
-  lease_token TEXT NOT NULL,
-  claimed_at INTEGER NOT NULL,
-  heartbeat_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
-);
+CREATE INDEX IF NOT EXISTS idx_session_attempt_turn
+  ON session_attempt(turn_id, attempt_number, id);
 
-CREATE TABLE IF NOT EXISTS session_run_control (
+CREATE TABLE IF NOT EXISTS session_turn_control (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
-  run_id TEXT NOT NULL REFERENCES session_run(id),
+  turn_id TEXT NOT NULL REFERENCES session_turn(id),
+  attempt_id TEXT NOT NULL REFERENCES session_attempt(id),
   input_id TEXT REFERENCES session_input(id),
   principal_id TEXT,
   idempotency_key TEXT NOT NULL,
@@ -156,7 +182,6 @@ CREATE TABLE IF NOT EXISTS session_run_control (
   content_json TEXT,
   reason TEXT,
   origin_json TEXT,
-  provider_profile_id TEXT,
   metadata_json TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -164,38 +189,74 @@ CREATE TABLE IF NOT EXISTS session_run_control (
   UNIQUE(session_id, idempotency_key)
 );
 
-CREATE INDEX IF NOT EXISTS idx_session_run_control_pending
-  ON session_run_control(session_id, run_id, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_session_turn_control_pending
+  ON session_turn_control(session_id, turn_id, attempt_id, status, created_at);
 
-CREATE INDEX IF NOT EXISTS idx_session_run_control_kind
-  ON session_run_control(session_id, kind, status, created_at);
+CREATE INDEX IF NOT EXISTS idx_session_turn_control_kind
+  ON session_turn_control(session_id, kind, status, created_at);
 
 CREATE TABLE IF NOT EXISTS session_message (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
-  run_id TEXT,
+  sequence INTEGER NOT NULL,
+  turn_id TEXT NOT NULL REFERENCES session_turn(id),
+  attempt_id TEXT REFERENCES session_attempt(id),
   input_id TEXT,
   role TEXT NOT NULL,
   status TEXT NOT NULL,
   content_json TEXT NOT NULL,
   provider_state_json TEXT,
+  execution_binding_digest TEXT NOT NULL,
   idempotency_key TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_message_session_created
-  ON session_message(session_id, created_at, id);
+  ON session_message(session_id, sequence);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_message_session_sequence
+  ON session_message(session_id, sequence);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_session_message_idempotency
   ON session_message(session_id, idempotency_key)
   WHERE idempotency_key IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS provider_invocation (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES session(id),
+  turn_id TEXT NOT NULL REFERENCES session_turn(id),
+  attempt_id TEXT NOT NULL REFERENCES session_attempt(id),
+  input_id TEXT NOT NULL REFERENCES session_input(id),
+  job_id TEXT NOT NULL,
+  step INTEGER NOT NULL,
+  invocation_number INTEGER NOT NULL,
+  execution_binding_digest TEXT NOT NULL,
+  request_digest TEXT NOT NULL,
+  state TEXT NOT NULL,
+  output_observed INTEGER NOT NULL,
+  provider_request_id TEXT,
+  assistant_message_id TEXT REFERENCES session_message(id),
+  error_json TEXT,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  UNIQUE(turn_id, step, invocation_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_provider_invocation_turn
+  ON provider_invocation(turn_id, step, invocation_number, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_invocation_active_attempt
+  ON provider_invocation(attempt_id)
+  WHERE state IN ('dispatched', 'output_observed');
+
 CREATE TABLE IF NOT EXISTS tool_execution (
   id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
-  run_id TEXT NOT NULL,
+  turn_id TEXT NOT NULL REFERENCES session_turn(id),
   input_id TEXT NOT NULL,
+  source_message_id TEXT NOT NULL REFERENCES session_message(id),
   principal_id TEXT NOT NULL,
   tool_call_id TEXT NOT NULL,
   tool_name TEXT NOT NULL,
@@ -203,23 +264,46 @@ CREATE TABLE IF NOT EXISTS tool_execution (
   descriptor_json TEXT NOT NULL,
   permission_json TEXT NOT NULL,
   state TEXT NOT NULL,
-  attempt INTEGER NOT NULL,
+  current_invocation_attempt_id TEXT,
+  attempt_count INTEGER NOT NULL,
   idempotency_key TEXT NOT NULL UNIQUE,
   result_json TEXT,
   is_error INTEGER,
   error_json TEXT,
   created_at INTEGER NOT NULL,
-  started_at INTEGER,
   finished_at INTEGER,
   updated_at INTEGER NOT NULL,
-  UNIQUE(run_id, tool_call_id)
+  UNIQUE(source_message_id, tool_call_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_tool_execution_session_state
   ON tool_execution(session_id, state, updated_at, id);
 
-CREATE INDEX IF NOT EXISTS idx_tool_execution_run
-  ON tool_execution(run_id, updated_at, id);
+CREATE INDEX IF NOT EXISTS idx_tool_execution_turn
+  ON tool_execution(turn_id, updated_at, id);
+
+CREATE TABLE IF NOT EXISTS tool_execution_attempt (
+  id TEXT PRIMARY KEY,
+  execution_id TEXT NOT NULL REFERENCES tool_execution(id),
+  session_attempt_id TEXT NOT NULL REFERENCES session_attempt(id),
+  job_id TEXT NOT NULL,
+  worker_id TEXT NOT NULL,
+  lease_token TEXT NOT NULL,
+  attempt_number INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  error_json TEXT,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  UNIQUE(execution_id, attempt_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tool_execution_attempt_execution
+  ON tool_execution_attempt(execution_id, attempt_number, id);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tool_execution_attempt_running
+  ON tool_execution_attempt(execution_id)
+  WHERE state = 'running';
 
 CREATE TABLE IF NOT EXISTS context_epoch (
   id TEXT PRIMARY KEY,
@@ -427,7 +511,7 @@ CREATE TABLE IF NOT EXISTS objective_attempt (
   state TEXT NOT NULL,
   session_id TEXT,
   session_input_id TEXT,
-  session_run_id TEXT,
+  session_turn_id TEXT,
   scheduler_job_id TEXT,
   delegation_graph_id TEXT,
   plan_proposal_id TEXT,
@@ -813,6 +897,7 @@ CREATE TABLE IF NOT EXISTS scheduler_job (
   scheduled_at INTEGER NOT NULL,
   not_before INTEGER,
   priority INTEGER NOT NULL,
+  concurrency_key TEXT,
   attempt INTEGER NOT NULL,
   max_attempts INTEGER NOT NULL,
   retry_policy_json TEXT NOT NULL,
@@ -833,6 +918,36 @@ CREATE INDEX IF NOT EXISTS idx_scheduler_job_ready
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_job_kind_state
   ON scheduler_job(kind, state, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_scheduler_job_concurrency
+  ON scheduler_job(concurrency_key, state, scheduled_at, id);
+
+CREATE TABLE IF NOT EXISTS media_generation_operation (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL UNIQUE REFERENCES scheduler_job(id),
+  principal_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  state TEXT NOT NULL,
+  binding_json TEXT NOT NULL,
+  dispatch_attempt INTEGER NOT NULL,
+  external_operation_id TEXT,
+  provider_checkpoint_json TEXT,
+  output_references_json TEXT NOT NULL,
+  output_resource_ids_json TEXT NOT NULL,
+  progress_json TEXT,
+  error_json TEXT,
+  cancel_requested_at INTEGER,
+  cancel_reason TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_generation_principal_state
+  ON media_generation_operation(principal_id, state, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
+  ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
   VALUES (1, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

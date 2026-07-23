@@ -49,6 +49,7 @@
         "storage.plugin",
         "storage.connector",
         "storage.channel"
+        ,"storage.media_generation"
       ]
     },
     "StorageRpcProtocolErrorCode": {
@@ -140,12 +141,13 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "session_id", "run_id", "input_id", "message_id", "resource_id",
-        "plan_proposal_id", "objective_id"
+        "session_id", "turn_id", "attempt_id", "input_id", "message_id",
+        "resource_id", "plan_proposal_id", "objective_id"
       ],
       "properties": {
         "session_id": { "$ref": "#/$defs/NullableString" },
-        "run_id": { "$ref": "#/$defs/NullableString" },
+        "turn_id": { "$ref": "#/$defs/NullableString" },
+        "attempt_id": { "$ref": "#/$defs/NullableString" },
         "input_id": { "$ref": "#/$defs/NullableString" },
         "message_id": { "$ref": "#/$defs/NullableString" },
         "resource_id": { "$ref": "#/$defs/NullableString" },
@@ -335,6 +337,17 @@
         "resource_id": { "type": "string" }
       }
     },
+    "ReadResourceContentCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "resource_id", "expected_sha256", "offset", "limit"],
+      "properties": {
+        "command": { "type": "string", "enum": ["read-resource-content"] },
+        "resource_id": { "type": "string", "minLength": 1 },
+        "expected_sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "offset": { "type": "integer", "minimum": 0 },
+        "limit": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      }
+    },
     "ListResourcesCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
@@ -378,10 +391,163 @@
         { "$ref": "#/$defs/WriteAtomicFileCommand" },
         { "$ref": "#/$defs/IngestResourceCommand" },
         { "$ref": "#/$defs/GetResourceCommand" },
+        { "$ref": "#/$defs/ReadResourceContentCommand" },
         { "$ref": "#/$defs/ListResourcesCommand" },
         { "$ref": "#/$defs/CreateResourceTicketCommand" },
         { "$ref": "#/$defs/CleanupExpiredResourceTicketsCommand" },
         { "$ref": "#/$defs/DoctorCommand" }
+      ]
+    },
+    "MediaGenerationOperationStateWire": {
+      "type": "string",
+      "enum": ["queued", "submitting", "polling", "materializing", "cancel_requested", "succeeded", "failed", "cancelled", "recovery_required"]
+    },
+    "NullableMediaGenerationOperationStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/MediaGenerationOperationStateWire" }, { "type": "null" }]
+    },
+    "MediaGenerationSubmitWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "job_id", "principal_id", "idempotency_key", "binding", "priority"],
+      "properties": {
+        "id": { "$ref": "#/$defs/NullableString" },
+        "job_id": { "$ref": "#/$defs/NullableString" },
+        "principal_id": { "type": "string" },
+        "idempotency_key": { "type": "string" },
+        "binding": { "$ref": "#/$defs/JsonValue" },
+        "priority": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "MediaGenerationLeaseWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" }
+      }
+    },
+    "MediaGenerationAcceptWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token", "external_operation_id", "provider_checkpoint"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "external_operation_id": { "type": "string" },
+        "provider_checkpoint": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "MediaGenerationCheckpointWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token", "provider_checkpoint", "progress"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "provider_checkpoint": { "$ref": "#/$defs/JsonValue" },
+        "progress": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "MediaGenerationOutputsWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token", "output_references", "progress"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "output_references": { "type": "array", "items": { "$ref": "#/$defs/JsonValue" } },
+        "progress": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "MediaGenerationCompleteWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token", "output_resource_ids", "result"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "output_resource_ids": { "type": "array", "items": { "type": "string" } },
+        "result": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "MediaGenerationSettleWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "worker_id", "lease_token", "outcome", "error", "reason"],
+      "properties": {
+        "operation_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "outcome": { "type": "string", "enum": ["failed", "cancelled", "recovery_required"] },
+        "error": { "$ref": "#/$defs/JsonValue" },
+        "reason": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "MediaGenerationCancelWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["operation_id", "reason"],
+      "properties": { "operation_id": { "type": "string" }, "reason": { "type": "string" } }
+    },
+    "MediaGenerationListWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["principal_id", "state", "limit"],
+      "properties": {
+        "principal_id": { "$ref": "#/$defs/NullableString" },
+        "state": { "$ref": "#/$defs/NullableMediaGenerationOperationStateWire" },
+        "limit": { "$ref": "#/$defs/NullableUnsigned32" }
+      }
+    },
+    "SubmitMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["submit-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationSubmitWire" } }
+    },
+    "BeginMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["begin-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationLeaseWire" } }
+    },
+    "AcceptMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["accept-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationAcceptWire" } }
+    },
+    "CheckpointMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["checkpoint-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationCheckpointWire" } }
+    },
+    "RecordMediaGenerationOutputsCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["record-media-generation-outputs"] }, "request": { "$ref": "#/$defs/MediaGenerationOutputsWire" } }
+    },
+    "CompleteMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["complete-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationCompleteWire" } }
+    },
+    "SettleMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["settle-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationSettleWire" } }
+    },
+    "RequestMediaGenerationCancelCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["request-media-generation-cancel"] }, "request": { "$ref": "#/$defs/MediaGenerationCancelWire" } }
+    },
+    "GetMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "operation_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-media-generation"] }, "operation_id": { "type": "string" } }
+    },
+    "ListMediaGenerationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["list-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationListWire" } }
+    },
+    "MediaGenerationStorageRpcCommand": {
+      "oneOf": [
+        { "$ref": "#/$defs/SubmitMediaGenerationCommand" },
+        { "$ref": "#/$defs/BeginMediaGenerationCommand" },
+        { "$ref": "#/$defs/AcceptMediaGenerationCommand" },
+        { "$ref": "#/$defs/CheckpointMediaGenerationCommand" },
+        { "$ref": "#/$defs/RecordMediaGenerationOutputsCommand" },
+        { "$ref": "#/$defs/CompleteMediaGenerationCommand" },
+        { "$ref": "#/$defs/SettleMediaGenerationCommand" },
+        { "$ref": "#/$defs/RequestMediaGenerationCancelCommand" },
+        { "$ref": "#/$defs/GetMediaGenerationCommand" },
+        { "$ref": "#/$defs/ListMediaGenerationCommand" }
       ]
     },
     "JsonObjectWire": {
@@ -416,29 +582,36 @@
     "NullableRunControlPolicyWire": {
       "oneOf": [{ "$ref": "#/$defs/RunControlPolicyWire" }, { "type": "null" }]
     },
-    "SessionRunModeWire": { "type": "string", "enum": ["once", "to_completion"] },
-    "NullableSessionRunModeWire": {
-      "oneOf": [{ "$ref": "#/$defs/SessionRunModeWire" }, { "type": "null" }]
+    "SessionTurnStateWire": {
+      "type": "string",
+      "enum": [
+        "queued", "running", "cancel_requested", "succeeded", "failed",
+        "cancelled", "interrupted", "recovery_required"
+      ]
     },
-    "SessionRunControlKindWire": { "type": "string", "enum": ["interrupt", "steer"] },
-    "NullableSessionRunControlKindWire": {
-      "oneOf": [{ "$ref": "#/$defs/SessionRunControlKindWire" }, { "type": "null" }]
+    "NullableSessionTurnStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/SessionTurnStateWire" }, { "type": "null" }]
     },
-    "SessionRunControlStatusWire": {
+    "SessionTurnSettlementOutcomeWire": {
+      "type": "string",
+      "enum": ["succeeded", "failed", "cancelled", "interrupted", "recovery_required"]
+    },
+    "SessionTurnControlKindWire": { "type": "string", "enum": ["interrupt", "steer"] },
+    "NullableSessionTurnControlKindWire": {
+      "oneOf": [{ "$ref": "#/$defs/SessionTurnControlKindWire" }, { "type": "null" }]
+    },
+    "SessionTurnControlStatusWire": {
       "type": "string", "enum": ["pending", "applied", "rejected", "cancelled"]
     },
-    "NullableSessionRunControlStatusWire": {
-      "oneOf": [{ "$ref": "#/$defs/SessionRunControlStatusWire" }, { "type": "null" }]
+    "NullableSessionTurnControlStatusWire": {
+      "oneOf": [{ "$ref": "#/$defs/SessionTurnControlStatusWire" }, { "type": "null" }]
     },
     "SessionInputOriginWire": {
       "type": "object",
       "additionalProperties": false,
       "required": ["kind"],
       "properties": {
-        "kind": {
-          "type": "string",
-          "enum": ["interactive", "scheduler", "connector", "agent", "system", "objective", "plan"]
-        },
+        "kind": { "type": "string", "minLength": 1 },
         "sourceRef": { "type": "string" },
         "parentRef": { "type": "string" },
         "metadata": { "$ref": "#/$defs/JsonObjectWire" }
@@ -471,17 +644,19 @@
         "limit": { "$ref": "#/$defs/NullableUnsigned32" }
       }
     },
-    "SubmitSessionRunWire": {
+    "SubmitSessionTurnWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "id", "session_id", "principal_id", "idempotency_key", "input_type",
-        "content", "origin", "intent", "run_control_policy", "expected_run_id",
-        "job_id", "job_idempotency_key", "mode", "max_steps",
-        "provider_profile_id", "scheduled_at", "not_before", "priority",
-        "max_attempts", "retry_policy", "budget_grant_id"
+        "id", "turn_id", "session_id", "principal_id", "idempotency_key",
+        "input_type", "content", "origin", "intent", "run_control_policy",
+        "expected_turn_id", "job_id", "job_idempotency_key",
+        "execution_binding", "max_steps", "parent_turn_id",
+        "regenerates_turn_id", "scheduled_at", "not_before", "priority",
+        "budget_grant_id"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
+        "turn_id": { "$ref": "#/$defs/NullableString" },
         "session_id": { "type": "string" },
         "principal_id": { "type": "string" },
         "idempotency_key": { "type": "string" },
@@ -492,26 +667,146 @@
         "origin": { "$ref": "#/$defs/NullableSessionInputOriginWire" },
         "intent": { "$ref": "#/$defs/NullableSessionInputIntentWire" },
         "run_control_policy": { "$ref": "#/$defs/NullableRunControlPolicyWire" },
-        "expected_run_id": { "$ref": "#/$defs/NullableString" },
+        "expected_turn_id": { "$ref": "#/$defs/NullableString" },
         "job_id": { "$ref": "#/$defs/NullableString" },
         "job_idempotency_key": { "$ref": "#/$defs/NullableString" },
-        "mode": { "$ref": "#/$defs/NullableSessionRunModeWire" },
+        "execution_binding": { "$ref": "#/$defs/JsonValue" },
         "max_steps": { "$ref": "#/$defs/NullableInteger" },
-        "provider_profile_id": { "$ref": "#/$defs/NullableString" },
+        "parent_turn_id": { "$ref": "#/$defs/NullableString" },
+        "regenerates_turn_id": { "$ref": "#/$defs/NullableString" },
         "scheduled_at": { "$ref": "#/$defs/NullableInteger" },
         "not_before": { "$ref": "#/$defs/NullableInteger" },
         "priority": { "$ref": "#/$defs/NullableInteger" },
-        "max_attempts": { "$ref": "#/$defs/NullableInteger" },
-        "retry_policy": { "$ref": "#/$defs/NullableRetryPolicyWire" },
         "budget_grant_id": { "$ref": "#/$defs/NullableString" }
       }
     },
-    "InterruptSessionRunWire": {
+    "StartSessionTurnAttemptWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "run_id", "reason", "principal_id", "idempotency_key", "origin", "metadata"],
+      "required": ["session_id", "turn_id", "input_id", "job_id", "worker_id", "lease_token"],
       "properties": {
         "session_id": { "type": "string" },
-        "run_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" }
+      }
+    },
+    "SettleSessionTurnWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "session_id", "turn_id", "attempt_id", "input_id", "job_id",
+        "worker_id", "lease_token", "outcome", "provider_invocation_id", "assistant_message",
+        "provider_state", "result", "error", "reason"
+      ],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "outcome": { "$ref": "#/$defs/SessionTurnSettlementOutcomeWire" },
+        "provider_invocation_id": { "$ref": "#/$defs/NullableString" },
+        "assistant_message": { "$ref": "#/$defs/NullableMessagePartsWire" },
+        "provider_state": { "$ref": "#/$defs/JsonValue" },
+        "result": { "$ref": "#/$defs/JsonValue" },
+        "error": { "$ref": "#/$defs/JsonValue" },
+        "reason": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "ProviderInvocationStateWire": {
+      "type": "string",
+      "enum": ["dispatched", "output_observed", "succeeded", "failed_before_output", "ambiguous"]
+    },
+    "BeginProviderInvocationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "id", "session_id", "turn_id", "attempt_id", "input_id", "job_id",
+        "worker_id", "lease_token", "step", "invocation_number", "request_digest"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/NullableString" },
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "step": { "type": "integer" },
+        "invocation_number": { "type": "integer" },
+        "request_digest": { "type": "string" }
+      }
+    },
+    "MarkProviderInvocationOutputWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "session_id", "turn_id", "attempt_id", "input_id", "job_id",
+        "worker_id", "lease_token", "invocation_id", "provider_request_id"
+      ],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "invocation_id": { "type": "string" },
+        "provider_request_id": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "FinishProviderInvocationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "session_id", "turn_id", "attempt_id", "input_id", "job_id",
+        "worker_id", "lease_token", "invocation_id", "outcome",
+        "assistant_message", "provider_state", "provider_request_id", "error"
+      ],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "invocation_id": { "type": "string" },
+        "outcome": {
+          "type": "string",
+          "enum": ["succeeded", "failed_before_output", "ambiguous"]
+        },
+        "assistant_message": { "$ref": "#/$defs/NullableMessagePartsWire" },
+        "provider_state": { "$ref": "#/$defs/JsonValue" },
+        "provider_request_id": { "$ref": "#/$defs/NullableString" },
+        "error": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ListProviderInvocationsWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["turn_id"],
+      "properties": { "turn_id": { "type": "string" } }
+    },
+    "RequestSessionTurnCancelWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "turn_id", "input_id", "job_id", "reason"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "InterruptSessionTurnWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "turn_id", "attempt_id", "reason", "principal_id", "idempotency_key", "origin", "metadata"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
         "reason": { "type": "string" },
         "principal_id": { "$ref": "#/$defs/NullableString" },
         "idempotency_key": { "$ref": "#/$defs/NullableString" },
@@ -519,42 +814,45 @@
         "metadata": { "$ref": "#/$defs/NullableJsonObjectWire" }
       }
     },
-    "SteerSessionRunWire": {
+    "SteerSessionTurnWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "session_id", "principal_id", "expected_run_id", "idempotency_key",
-        "content", "origin", "provider_profile_id", "metadata"
+        "session_id", "principal_id", "expected_turn_id", "expected_attempt_id",
+        "idempotency_key", "content", "origin", "metadata"
       ],
       "properties": {
         "session_id": { "type": "string" },
         "principal_id": { "type": "string" },
-        "expected_run_id": { "type": "string" },
+        "expected_turn_id": { "type": "string" },
+        "expected_attempt_id": { "type": "string" },
         "idempotency_key": { "type": "string" },
         "content": { "$ref": "#/$defs/MessagePartsWire" },
         "origin": { "$ref": "#/$defs/NullableSessionInputOriginWire" },
-        "provider_profile_id": { "$ref": "#/$defs/NullableString" },
         "metadata": { "$ref": "#/$defs/NullableJsonObjectWire" }
       }
     },
-    "ListSessionRunControlsWire": {
+    "ListSessionTurnControlsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "run_id", "kind", "status", "limit"],
+      "required": ["session_id", "turn_id", "attempt_id", "kind", "status", "limit"],
       "properties": {
         "session_id": { "type": "string" },
-        "run_id": { "$ref": "#/$defs/NullableString" },
-        "kind": { "$ref": "#/$defs/NullableSessionRunControlKindWire" },
-        "status": { "$ref": "#/$defs/NullableSessionRunControlStatusWire" },
+        "turn_id": { "$ref": "#/$defs/NullableString" },
+        "attempt_id": { "$ref": "#/$defs/NullableString" },
+        "kind": { "$ref": "#/$defs/NullableSessionTurnControlKindWire" },
+        "status": { "$ref": "#/$defs/NullableSessionTurnControlStatusWire" },
         "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
-    "ApplySessionRunControlWire": {
+    "ApplySessionTurnControlWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "run_id", "control_id", "runner_id", "lease_token"],
+      "required": ["session_id", "turn_id", "attempt_id", "control_id", "job_id", "worker_id", "lease_token"],
       "properties": {
         "session_id": { "type": "string" },
-        "run_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
         "control_id": { "type": "string" },
-        "runner_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
         "lease_token": { "type": "string" }
       }
     },
@@ -602,44 +900,100 @@
         "intent": { "$ref": "#/$defs/NullableSessionInputIntentWire" }
       }
     },
-    "SubmitSessionRunCommand": {
+    "SubmitSessionTurnCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["submit-session-run"] },
-        "request": { "$ref": "#/$defs/SubmitSessionRunWire" }
+        "command": { "type": "string", "enum": ["submit-session-turn"] },
+        "request": { "$ref": "#/$defs/SubmitSessionTurnWire" }
       }
     },
-    "InterruptSessionRunCommand": {
+    "StartSessionTurnAttemptCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["interrupt-session-run"] },
-        "request": { "$ref": "#/$defs/InterruptSessionRunWire" }
+        "command": { "type": "string", "enum": ["start-session-turn-attempt"] },
+        "request": { "$ref": "#/$defs/StartSessionTurnAttemptWire" }
       }
     },
-    "SteerSessionRunCommand": {
+    "SettleSessionTurnCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["steer-session-run"] },
-        "request": { "$ref": "#/$defs/SteerSessionRunWire" }
+        "command": { "type": "string", "enum": ["settle-session-turn"] },
+        "request": { "$ref": "#/$defs/SettleSessionTurnWire" }
       }
     },
-    "ListSessionRunControlsCommand": {
+    "BeginProviderInvocationCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["list-session-run-controls"] },
-        "request": { "$ref": "#/$defs/ListSessionRunControlsWire" }
+        "command": { "type": "string", "enum": ["begin-provider-invocation"] },
+        "request": { "$ref": "#/$defs/BeginProviderInvocationWire" }
       }
     },
-    "ApplySessionRunControlCommand": {
+    "MarkProviderInvocationOutputCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["apply-session-run-control"] },
-        "request": { "$ref": "#/$defs/ApplySessionRunControlWire" }
+        "command": { "type": "string", "enum": ["mark-provider-invocation-output"] },
+        "request": { "$ref": "#/$defs/MarkProviderInvocationOutputWire" }
+      }
+    },
+    "FinishProviderInvocationCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["finish-provider-invocation"] },
+        "request": { "$ref": "#/$defs/FinishProviderInvocationWire" }
+      }
+    },
+    "ListProviderInvocationsCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["list-provider-invocations"] },
+        "request": { "$ref": "#/$defs/ListProviderInvocationsWire" }
+      }
+    },
+    "RequestSessionTurnCancelCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["request-session-turn-cancel"] },
+        "request": { "$ref": "#/$defs/RequestSessionTurnCancelWire" }
+      }
+    },
+    "InterruptSessionTurnCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["interrupt-session-turn"] },
+        "request": { "$ref": "#/$defs/InterruptSessionTurnWire" }
+      }
+    },
+    "SteerSessionTurnCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["steer-session-turn"] },
+        "request": { "$ref": "#/$defs/SteerSessionTurnWire" }
+      }
+    },
+    "ListSessionTurnControlsCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["list-session-turn-controls"] },
+        "request": { "$ref": "#/$defs/ListSessionTurnControlsWire" }
+      }
+    },
+    "ApplySessionTurnControlCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["apply-session-turn-control"] },
+        "request": { "$ref": "#/$defs/ApplySessionTurnControlWire" }
       }
     },
     "ListSessionInputsCommand": {
@@ -658,22 +1012,43 @@
         "session_id": { "type": "string" }
       }
     },
+    "ListSessionTurnsCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "session_id", "state"],
+      "properties": {
+        "command": { "type": "string", "enum": ["list-session-turns"] },
+        "session_id": { "type": "string" },
+        "state": { "$ref": "#/$defs/NullableSessionTurnStateWire" }
+      }
+    },
+    "ListSessionAttemptsCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "turn_id"],
+      "properties": {
+        "command": { "type": "string", "enum": ["list-session-attempts"] },
+        "turn_id": { "type": "string" }
+      }
+    },
     "AppendSessionMessageCommand": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "command", "session_id", "run_id", "input_id", "runner_id",
-        "lease_token", "idempotency_key", "role", "content"
+        "command", "session_id", "turn_id", "attempt_id", "input_id",
+        "job_id", "worker_id", "lease_token", "idempotency_key", "role",
+        "content", "provider_state"
       ],
       "properties": {
         "command": { "type": "string", "enum": ["append-session-message"] },
         "session_id": { "type": "string" },
-        "run_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
         "input_id": { "type": "string" },
-        "runner_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
         "idempotency_key": { "type": "string" },
-        "role": { "type": "string", "enum": ["user", "assistant", "tool", "system"] },
-        "content": { "$ref": "#/$defs/MessagePartsWire" }
+        "role": { "type": "string", "enum": ["assistant", "tool", "system"] },
+        "content": { "$ref": "#/$defs/MessagePartsWire" },
+        "provider_state": { "$ref": "#/$defs/JsonValue" }
       }
     },
     "SessionsStorageRpcCommand": {
@@ -682,13 +1057,22 @@
         { "$ref": "#/$defs/GetSessionCommand" },
         { "$ref": "#/$defs/ListSessionsCommand" },
         { "$ref": "#/$defs/AdmitSessionInputCommand" },
-        { "$ref": "#/$defs/SubmitSessionRunCommand" },
-        { "$ref": "#/$defs/InterruptSessionRunCommand" },
-        { "$ref": "#/$defs/SteerSessionRunCommand" },
-        { "$ref": "#/$defs/ListSessionRunControlsCommand" },
-        { "$ref": "#/$defs/ApplySessionRunControlCommand" },
+        { "$ref": "#/$defs/SubmitSessionTurnCommand" },
+        { "$ref": "#/$defs/StartSessionTurnAttemptCommand" },
+        { "$ref": "#/$defs/SettleSessionTurnCommand" },
+        { "$ref": "#/$defs/BeginProviderInvocationCommand" },
+        { "$ref": "#/$defs/MarkProviderInvocationOutputCommand" },
+        { "$ref": "#/$defs/FinishProviderInvocationCommand" },
+        { "$ref": "#/$defs/ListProviderInvocationsCommand" },
+        { "$ref": "#/$defs/RequestSessionTurnCancelCommand" },
+        { "$ref": "#/$defs/InterruptSessionTurnCommand" },
+        { "$ref": "#/$defs/SteerSessionTurnCommand" },
+        { "$ref": "#/$defs/ListSessionTurnControlsCommand" },
+        { "$ref": "#/$defs/ApplySessionTurnControlCommand" },
         { "$ref": "#/$defs/ListSessionInputsCommand" },
         { "$ref": "#/$defs/ListSessionMessagesCommand" },
+        { "$ref": "#/$defs/ListSessionTurnsCommand" },
+        { "$ref": "#/$defs/ListSessionAttemptsCommand" },
         { "$ref": "#/$defs/AppendSessionMessageCommand" }
       ]
     },
@@ -942,10 +1326,10 @@
     "SchedulerJobKindWire": {
       "type": "string",
       "enum": [
-        "session.run", "workspace.task", "team.delivery", "team.round.close",
+        "session.turn", "workspace.task", "team.delivery", "team.round.close",
         "plugin.action", "channel.delivery", "tool.deferred_result",
         "gateway.delivery", "memory.compaction", "resource.cleanup",
-        "budget.grant_expire", "provider.retry", "config.sync"
+        "budget.grant_expire", "provider.retry", "config.sync", "media.generate"
       ]
     },
     "NullableSchedulerJobKindWire": {
@@ -968,7 +1352,7 @@
       "type": "object", "additionalProperties": false,
       "required": [
         "id", "kind", "principal_id", "payload", "scheduled_at", "not_before",
-        "priority", "max_attempts", "retry_policy", "idempotency_key",
+        "priority", "concurrency_key", "max_attempts", "retry_policy", "idempotency_key",
         "budget_grant_id"
       ],
       "properties": {
@@ -979,6 +1363,7 @@
         "scheduled_at": { "$ref": "#/$defs/NullableInteger" },
         "not_before": { "$ref": "#/$defs/NullableInteger" },
         "priority": { "$ref": "#/$defs/NullableInteger" },
+        "concurrency_key": { "$ref": "#/$defs/NullableString" },
         "max_attempts": { "$ref": "#/$defs/NullableInteger" },
         "retry_policy": { "$ref": "#/$defs/NullableRetryPolicyWire" },
         "idempotency_key": { "$ref": "#/$defs/NullableString" },
@@ -1046,66 +1431,6 @@
         "limit": { "$ref": "#/$defs/NullableUnsigned32" }
       }
     },
-    "ClaimRunnerCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "runner_id", "lease_ms"],
-      "properties": {
-        "command": { "type": "string", "enum": ["claim-runner"] },
-        "session_id": { "type": "string" },
-        "runner_id": { "type": "string" },
-        "lease_ms": { "type": "integer" }
-      }
-    },
-    "HeartbeatRunnerCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "runner_id", "lease_token", "lease_ms"],
-      "properties": {
-        "command": { "type": "string", "enum": ["heartbeat-runner"] },
-        "session_id": { "type": "string" },
-        "runner_id": { "type": "string" },
-        "lease_token": { "type": "string" },
-        "lease_ms": { "type": "integer" }
-      }
-    },
-    "CompleteRunCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "run_id", "input_id", "runner_id", "lease_token", "assistant_message"],
-      "properties": {
-        "command": { "type": "string", "enum": ["complete-run"] },
-        "session_id": { "type": "string" }, "run_id": { "type": "string" },
-        "input_id": { "type": "string" }, "runner_id": { "type": "string" },
-        "lease_token": { "type": "string" },
-        "assistant_message": { "$ref": "#/$defs/NullableMessagePartsWire" }
-      }
-    },
-    "FailRunCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "run_id", "input_id", "runner_id", "lease_token", "error"],
-      "properties": {
-        "command": { "type": "string", "enum": ["fail-run"] },
-        "session_id": { "type": "string" }, "run_id": { "type": "string" },
-        "input_id": { "type": "string" }, "runner_id": { "type": "string" },
-        "lease_token": { "type": "string" }, "error": { "$ref": "#/$defs/JsonValue" }
-      }
-    },
-    "ReleaseRunnerCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "runner_id", "lease_token"],
-      "properties": {
-        "command": { "type": "string", "enum": ["release-runner"] },
-        "session_id": { "type": "string" }, "runner_id": { "type": "string" },
-        "lease_token": { "type": "string" }
-      }
-    },
-    "CancelRunCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "run_id", "input_id", "reason"],
-      "properties": {
-        "command": { "type": "string", "enum": ["cancel-run"] },
-        "session_id": { "type": "string" }, "run_id": { "type": "string" },
-        "input_id": { "type": "string" }, "reason": { "type": "string" }
-      }
-    },
     "ReserveBudgetCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["reserve-budget"] }, "request": { "$ref": "#/$defs/ReserveBudgetWire" } }
@@ -1164,9 +1489,6 @@
     },
     "SchedulerStorageRpcCommand": {
       "oneOf": [
-        { "$ref": "#/$defs/ClaimRunnerCommand" }, { "$ref": "#/$defs/HeartbeatRunnerCommand" },
-        { "$ref": "#/$defs/CompleteRunCommand" }, { "$ref": "#/$defs/FailRunCommand" },
-        { "$ref": "#/$defs/ReleaseRunnerCommand" }, { "$ref": "#/$defs/CancelRunCommand" },
         { "$ref": "#/$defs/ReserveBudgetCommand" }, { "$ref": "#/$defs/CommitBudgetCommand" },
         { "$ref": "#/$defs/RecordBudgetUsageCommand" },
         { "$ref": "#/$defs/ReleaseBudgetCommand" }, { "$ref": "#/$defs/GetBudgetScopeCommand" },
@@ -1337,7 +1659,7 @@
     "PlanReferenceKindWire": {
       "type": "string",
       "enum": [
-        "session", "session_input", "session_run", "scheduler_job",
+        "session", "session_input", "session_turn", "scheduler_job",
         "workspace_change_proposal", "delegation_graph", "delegation_graph_node",
         "team_conversation", "resource", "context_epoch"
       ]
@@ -1446,7 +1768,7 @@
     "ObjectiveReferenceKindWire": {
       "type": "string",
       "enum": [
-        "session", "session_input", "session_run", "scheduler_job",
+        "session", "session_input", "session_turn", "scheduler_job",
         "plan_proposal", "workspace_change_proposal", "delegation_graph",
         "resource", "context_epoch"
       ]
@@ -1506,7 +1828,7 @@
       "type": "object", "additionalProperties": false,
       "required": [
         "id", "objective_id", "attempt_number", "state", "session_id",
-        "session_input_id", "session_run_id", "scheduler_job_id",
+        "session_input_id", "session_turn_id", "scheduler_job_id",
         "delegation_graph_id", "plan_proposal_id",
         "workspace_change_proposal_id", "summary", "result", "error",
         "metadata", "started_at", "finished_at", "idempotency_key"
@@ -1518,7 +1840,7 @@
         "state": { "$ref": "#/$defs/NullableObjectiveAttemptStateWire" },
         "session_id": { "$ref": "#/$defs/NullableString" },
         "session_input_id": { "$ref": "#/$defs/NullableString" },
-        "session_run_id": { "$ref": "#/$defs/NullableString" },
+        "session_turn_id": { "$ref": "#/$defs/NullableString" },
         "scheduler_job_id": { "$ref": "#/$defs/NullableString" },
         "delegation_graph_id": { "$ref": "#/$defs/NullableString" },
         "plan_proposal_id": { "$ref": "#/$defs/NullableString" },
@@ -2151,7 +2473,7 @@
     "NullableChannelBindingStateWire": { "oneOf": [{ "$ref": "#/$defs/ChannelBindingStateWire" }, { "type": "null" }] },
     "ChannelInboundEventStateWire": { "type": "string", "enum": ["received", "projected", "ignored", "failed"] },
     "NullableChannelInboundEventStateWire": { "oneOf": [{ "$ref": "#/$defs/ChannelInboundEventStateWire" }, { "type": "null" }] },
-    "ChannelProjectionTargetKindWire": { "type": "string", "enum": ["session.run", "team.turn", "workspace.task", "ignored"] },
+    "ChannelProjectionTargetKindWire": { "type": "string", "enum": ["session.turn", "team.turn", "workspace.task", "ignored"] },
     "NullableChannelProjectionTargetKindWire": { "oneOf": [{ "$ref": "#/$defs/ChannelProjectionTargetKindWire" }, { "type": "null" }] },
     "PutChannelBindingWire": {
       "type": "object", "additionalProperties": false,
@@ -2254,67 +2576,100 @@
     },
     "ToolExecutionStateWire": {
       "type": "string",
-      "enum": ["running", "denied", "approval_required", "succeeded", "failed", "cancelled", "recovery_required"]
+      "enum": ["running", "retry_ready", "denied", "approval_required", "succeeded", "failed", "cancelled", "recovery_required"]
     },
     "NullableToolExecutionStateWire": {
       "oneOf": [{ "$ref": "#/$defs/ToolExecutionStateWire" }, { "type": "null" }]
     },
     "ToolExecutionRecordWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "session_id", "run_id", "input_id", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "state", "attempt", "idempotency_key", "result", "is_error", "error", "created_at", "started_at", "finished_at", "updated_at"],
+      "required": ["id", "session_id", "turn_id", "input_id", "source_message_id", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "state", "current_invocation_attempt_id", "attempt_count", "idempotency_key", "result", "is_error", "error", "created_at", "finished_at", "updated_at"],
       "properties": {
-        "id": { "type": "string" }, "session_id": { "type": "string" }, "run_id": { "type": "string" },
-        "input_id": { "type": "string" }, "principal_id": { "type": "string" }, "tool_call_id": { "type": "string" },
+        "id": { "type": "string" }, "session_id": { "type": "string" }, "turn_id": { "type": "string" },
+        "input_id": { "type": "string" }, "source_message_id": { "type": "string" },
+        "principal_id": { "type": "string" }, "tool_call_id": { "type": "string" },
         "tool_name": { "type": "string" }, "input": { "$ref": "#/$defs/JsonValue" },
         "descriptor": { "$ref": "#/$defs/JsonValue" }, "permission": { "$ref": "#/$defs/JsonValue" },
-        "state": { "$ref": "#/$defs/ToolExecutionStateWire" }, "attempt": { "type": "integer" },
+        "state": { "$ref": "#/$defs/ToolExecutionStateWire" },
+        "current_invocation_attempt_id": { "$ref": "#/$defs/NullableString" },
+        "attempt_count": { "type": "integer" },
         "idempotency_key": { "type": "string" }, "result": { "$ref": "#/$defs/JsonValue" },
         "is_error": { "$ref": "#/$defs/NullableBoolean" }, "error": { "$ref": "#/$defs/JsonValue" },
-        "created_at": { "type": "integer" }, "started_at": { "$ref": "#/$defs/NullableInteger" },
-        "finished_at": { "$ref": "#/$defs/NullableInteger" }, "updated_at": { "type": "integer" }
+        "created_at": { "type": "integer" }, "finished_at": { "$ref": "#/$defs/NullableInteger" },
+        "updated_at": { "type": "integer" }
+      }
+    },
+    "ToolExecutionAttemptStateWire": {
+      "type": "string",
+      "enum": ["running", "succeeded", "failed", "cancelled", "interrupted", "recovery_required"]
+    },
+    "ToolExecutionAttemptRecordWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "execution_id", "session_attempt_id", "job_id", "worker_id", "attempt_number", "state", "error", "started_at", "updated_at", "finished_at"],
+      "properties": {
+        "id": { "type": "string" },
+        "execution_id": { "type": "string" },
+        "session_attempt_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "attempt_number": { "type": "integer" },
+        "state": { "$ref": "#/$defs/ToolExecutionAttemptStateWire" },
+        "error": { "$ref": "#/$defs/JsonValue" },
+        "started_at": { "type": "integer" },
+        "updated_at": { "type": "integer" },
+        "finished_at": { "$ref": "#/$defs/NullableInteger" }
       }
     },
     "BeginToolExecutionWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "run_id", "input_id", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "idempotency_key"],
+      "required": ["session_id", "turn_id", "attempt_id", "input_id", "source_message_id", "job_id", "worker_id", "lease_token", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "state", "idempotency_key"],
       "properties": {
-        "session_id": { "type": "string" }, "run_id": { "type": "string" }, "input_id": { "type": "string" },
+        "session_id": { "type": "string" }, "turn_id": { "type": "string" }, "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" }, "source_message_id": { "type": "string" }, "job_id": { "type": "string" },
+        "worker_id": { "type": "string" }, "lease_token": { "type": "string" },
         "principal_id": { "type": "string" }, "tool_call_id": { "type": "string" }, "tool_name": { "type": "string" },
         "input": { "$ref": "#/$defs/JsonValue" }, "descriptor": { "$ref": "#/$defs/JsonValue" },
-        "permission": { "$ref": "#/$defs/JsonValue" }, "idempotency_key": { "type": "string" }
+        "permission": { "$ref": "#/$defs/JsonValue" },
+        "state": { "type": "string", "enum": ["running", "denied", "approval_required"] },
+        "idempotency_key": { "type": "string" }
       }
     },
     "FinishToolExecutionWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["execution_id", "state", "result", "is_error", "error"],
+      "required": ["session_id", "turn_id", "session_attempt_id", "input_id", "job_id", "worker_id", "lease_token", "execution_id", "invocation_attempt_id", "state", "result", "is_error", "error"],
       "properties": {
+        "session_id": { "type": "string" }, "turn_id": { "type": "string" },
+        "session_attempt_id": { "type": "string" }, "input_id": { "type": "string" },
+        "job_id": { "type": "string" }, "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
         "execution_id": { "type": "string" },
+        "invocation_attempt_id": { "type": "string" },
         "state": { "type": "string", "enum": ["succeeded", "failed", "cancelled"] },
         "result": { "$ref": "#/$defs/JsonValue" }, "is_error": { "$ref": "#/$defs/NullableBoolean" },
         "error": { "$ref": "#/$defs/JsonValue" }
       }
     },
-    "RecoverToolExecutionWire": {
-      "type": "object", "additionalProperties": false, "required": ["execution_id", "action"],
-      "properties": { "execution_id": { "type": "string" }, "action": { "type": "string", "enum": ["retry", "require_recovery"] } }
-    },
     "ListToolExecutionsWire": {
-      "type": "object", "additionalProperties": false, "required": ["session_id", "run_id", "state", "limit"],
+      "type": "object", "additionalProperties": false, "required": ["session_id", "turn_id", "state", "limit"],
       "properties": {
-        "session_id": { "$ref": "#/$defs/NullableString" }, "run_id": { "$ref": "#/$defs/NullableString" },
+        "session_id": { "$ref": "#/$defs/NullableString" }, "turn_id": { "$ref": "#/$defs/NullableString" },
         "state": { "$ref": "#/$defs/NullableToolExecutionStateWire" }, "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
+    "ListToolExecutionAttemptsWire": {
+      "type": "object", "additionalProperties": false, "required": ["execution_id"],
+      "properties": { "execution_id": { "type": "string" } }
+    },
     "BeginToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["begin-tool-execution"] }, "request": { "$ref": "#/$defs/BeginToolExecutionWire" } } },
     "FinishToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["finish-tool-execution"] }, "request": { "$ref": "#/$defs/FinishToolExecutionWire" } } },
-    "RecoverToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["recover-tool-execution"] }, "request": { "$ref": "#/$defs/RecoverToolExecutionWire" } } },
     "GetToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "execution_id"], "properties": { "command": { "type": "string", "enum": ["get-tool-execution"] }, "execution_id": { "type": "string" } } },
     "ListToolExecutionsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-tool-executions"] }, "request": { "$ref": "#/$defs/ListToolExecutionsWire" } } },
+    "ListToolExecutionAttemptsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-tool-execution-attempts"] }, "request": { "$ref": "#/$defs/ListToolExecutionAttemptsWire" } } },
     "ToolsStorageRpcCommand": {
       "oneOf": [
         { "$ref": "#/$defs/BeginToolExecutionCommand" }, { "$ref": "#/$defs/FinishToolExecutionCommand" },
-        { "$ref": "#/$defs/RecoverToolExecutionCommand" }, { "$ref": "#/$defs/GetToolExecutionCommand" },
-        { "$ref": "#/$defs/ListToolExecutionsCommand" }
+        { "$ref": "#/$defs/GetToolExecutionCommand" }, { "$ref": "#/$defs/ListToolExecutionsCommand" },
+        { "$ref": "#/$defs/ListToolExecutionAttemptsCommand" }
       ]
     },
     "StorageRpcCommand": {
@@ -2332,7 +2687,8 @@
         { "$ref": "#/$defs/TeamStorageRpcCommand" },
         { "$ref": "#/$defs/PluginStorageRpcCommand" },
         { "$ref": "#/$defs/ConnectorStorageRpcCommand" },
-        { "$ref": "#/$defs/ChannelStorageRpcCommand" }
+        { "$ref": "#/$defs/ChannelStorageRpcCommand" },
+        { "$ref": "#/$defs/MediaGenerationStorageRpcCommand" }
       ]
     },
     "StorageRpcRequestEnvelope": {

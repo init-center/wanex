@@ -17,7 +17,7 @@ afterEach(async () => {
 })
 
 describe("product app backend execution reference", () => {
-  it("passes the bounded app-shell reader through the backend shell", async () => {
+  it("passes the bounded wanex-app reader through the backend shell", async () => {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-product-app.backend-ref-"))
     tempDirs.push(storeDir)
     const backend = await createProductAppBackendShell({
@@ -26,11 +26,12 @@ describe("product app backend execution reference", () => {
     })
 
     try {
-      await backend.commands.runAgentTurn({
-        text: "product app backend reference",
+      const receipt = await backend.commands.submitConversationOperation({
+        content: [{ type: "text", text: "product app backend reference" }],
         sessionId: "ses_product_app_backend_reference",
         jobId: "job_product_app_backend_reference"
       })
+      await waitForConversationTerminal(backend, receipt)
       const result = await backend.commands.readExecutionReference({
         kind: "job",
         id: "job_product_app_backend_reference"
@@ -40,8 +41,8 @@ describe("product app backend execution reference", () => {
         kind: "found",
         reference: { kind: "job", id: "job_product_app_backend_reference" },
         activity: {
-          kind: "app-shell.execution.job",
-          jobKind: "session.run",
+          kind: "wanex-app.execution.job",
+          jobKind: "session.turn",
           state: "succeeded"
         }
       })
@@ -51,3 +52,26 @@ describe("product app backend execution reference", () => {
     }
   })
 })
+
+async function waitForConversationTerminal(
+  backend: Awaited<ReturnType<typeof createProductAppBackendShell>>,
+  reference: {
+    readonly sessionId: string
+    readonly inputId: string
+    readonly turnId: string
+    readonly jobId: string
+  }
+): Promise<void> {
+  for (;;) {
+    const result = await backend.commands.readConversationOperation(reference)
+    if (
+      result.kind === "found" &&
+      !["queued", "running", "cancel_requested"].includes(
+        result.operation.state
+      )
+    ) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}

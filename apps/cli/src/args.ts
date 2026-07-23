@@ -66,7 +66,6 @@ export function parseCommand(
       globals.sessionId,
       globals.providerId,
       globals.timeoutMs,
-      globals.runMode,
       globals.maxSteps,
       globals.context
     )
@@ -100,24 +99,19 @@ export function parseCommand(
 function withOptionalRunOptions(
   command: Omit<
     Extract<ParsedCommand, { readonly name: "run" }>,
-    "sessionId" | "providerId" | "timeoutMs" | "mode" | "maxSteps" | "context"
+    "sessionId" | "providerId" | "timeoutMs" | "maxSteps" | "context"
   >,
   sessionId: string | undefined,
   providerId: string | undefined,
   timeoutMs: number | undefined,
-  runMode: "once" | "to_completion" | undefined,
   maxSteps: number | undefined,
   context: CliAgentContextOptions | undefined
 ): Extract<ParsedCommand, { readonly name: "run" }> {
-  if (maxSteps !== undefined && runMode !== "to_completion") {
-    throw new Error("--max-steps requires --to-completion")
-  }
   return {
     ...command,
     ...(sessionId === undefined ? {} : { sessionId }),
     ...(providerId === undefined ? {} : { providerId }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
-    ...(runMode === undefined ? {} : { mode: runMode }),
     ...(maxSteps === undefined ? {} : { maxSteps }),
     ...(context === undefined ? {} : { context })
   }

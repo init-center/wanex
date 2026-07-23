@@ -37,11 +37,16 @@ describe("product app execution activity surface", () => {
     )
 
     try {
-      await app.startWorkbench({
-        text: "product app reference",
-        sessionId: "ses_product_app_reference",
-        jobId: "job_product_app_reference"
+      await app.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "product app reference",
+          sessionId: "ses_product_app_reference",
+          jobId: "job_product_app_reference"
+        }
       })
+
+      await waitForJob(app, "job_product_app_reference")
 
       await expect(
         app.readExecutionReference({
@@ -50,7 +55,7 @@ describe("product app execution activity surface", () => {
         })
       ).resolves.toMatchObject({
         kind: "found",
-        activity: { jobKind: "session.run", state: "succeeded" }
+        activity: { jobKind: "session.turn", state: "succeeded" }
       })
 
       const found = await client.readExecutionReference(
@@ -64,8 +69,8 @@ describe("product app execution activity surface", () => {
           kind: "found",
           reference: { kind: "job", id: "job_product_app_reference" },
           activity: {
-            kind: "app-shell.execution.job",
-            jobKind: "session.run",
+            kind: "wanex-app.execution.job",
+            jobKind: "session.turn",
             state: "succeeded"
           }
         },
@@ -129,3 +134,21 @@ describe("product app execution activity surface", () => {
     }
   })
 })
+
+async function waitForJob(
+  app: Awaited<ReturnType<typeof createProductAppShell>>,
+  jobId: string
+): Promise<void> {
+  for (;;) {
+    const result = await app.readExecutionReference({ kind: "job", id: jobId })
+    if (
+      result.kind === "found" &&
+      (result.activity.state === "succeeded" ||
+        result.activity.state === "failed" ||
+        result.activity.state === "cancelled")
+    ) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+}

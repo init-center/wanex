@@ -12,6 +12,9 @@ import {
   createProductAppWebHostSurfaceClient
 } from "@wanex/product-app-web/host"
 import {
+  createProductAppLocalAttachmentUploadPort
+} from "@wanex/product-app-local"
+import {
   listenProductAppWebNodeHost,
   type ProductAppWebNodeHostServer
 } from "@wanex/product-app-local/web-host"
@@ -23,6 +26,10 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import {
+  waitForProductConversation,
+  waitForProductJob
+} from "./conversation-helpers.js"
 
 export const productAppWebSurfaceContractScenario = createEvalScenario({
   id: "product.app-web-surface-contract",
@@ -46,7 +53,8 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
       },
       providerProfile: {
         id: "eval-product-app-web",
-        modelId: "eval-product-app-web-model"
+        modelId: "eval-product-app-web-model",
+        capabilities: { input: ["text", "image"], output: ["text"] }
       }
     })
     const productSurface = createProductAppSurfaceAdapter(app)
@@ -71,20 +79,29 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
         client,
         now: () => 12_001
       })
-      nodeHost = await listenProductAppWebNodeHost({ controller: web })
+      nodeHost = await listenProductAppWebNodeHost({
+        controller: web,
+        attachments: createProductAppLocalAttachmentUploadPort(app)
+      })
       const initial = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "document",
         requestId: "eval_web_document"
       })
-      const startedWorkbench = await handleProductAppWebRequest(web, {
+      const nodeAttachment = await postAttachment(
+        `${nodeHost.url}/wanex/product-app-web/attachment`,
+        new Uint8Array([137, 80, 78, 71]),
+        "image/png",
+        "eval-upload.png"
+      )
+      const submittedConversation = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
-        requestId: "eval_web_start_workbench",
+        requestId: "eval_web_submit_conversation",
         input: {
-          action: "start-workbench",
+          action: "submit-conversation",
           fields: {
-            text: "eval product app web started workbench"
+            text: "eval product app web submitted conversation"
           }
         }
       })
@@ -117,7 +134,7 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
         input: {
           action: "preview-command",
           fields: {
-            commandId: "product.agent.run",
+            commandId: "product.agent.submit",
             inputJson: "{\"text\":\"eval product app web preview\"}"
           }
         }
@@ -133,11 +150,15 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           }
         }
       })
-      await app.startWorkbench({
-        text: "eval product app web tracked execution",
-        sessionId: "ses_eval_product_app_web",
-        jobId: "job_eval_product_app_web_execution"
+      await app.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "eval product app web tracked execution",
+          sessionId: "ses_eval_product_app_web",
+          jobId: "job_eval_product_app_web_execution"
+        }
       })
+      await waitForProductJob(app, "job_eval_product_app_web_execution")
       const executionActivity = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
@@ -150,14 +171,27 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           }
         }
       })
-      const continuedWorkbench = await handleProductAppWebRequest(web, {
+      const submittedToSelectedConversation = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
-        requestId: "eval_web_continue_workbench",
+        requestId: "eval_web_submit_selected_conversation",
         input: {
-          action: "continue-workbench",
+          action: "submit-conversation",
           fields: {
-            text: "eval product app web workbench"
+            text: "eval product app web selected conversation",
+            sessionId: "ses_eval_product_app_web"
+          }
+        }
+      })
+      await waitForProductConversation(app, "ses_eval_product_app_web")
+      const openedWorkbench = await handleProductAppWebRequest(web, {
+        kind: "product-app-web.request",
+        operation: "submitActionInput",
+        requestId: "eval_web_open_workbench",
+        input: {
+          action: "open-workbench",
+          fields: {
+            sessionId: "ses_eval_product_app_web"
           }
         }
       })
@@ -216,53 +250,65 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
       const productAppLocal = entryByName(footprint, "@wanex/product-app-local")
       const serialized = JSON.stringify([
         initial,
-        startedWorkbench,
+        submittedConversation,
         selected,
         mode,
         commandPreview,
         commandExecution,
         executionActivity,
-        continuedWorkbench,
+        submittedToSelectedConversation,
+        openedWorkbench,
         polled,
         html,
         nodeHtml,
         nodeScript,
         nodeStyle,
-        nodeMode
+        nodeMode,
+        nodeAttachment
       ])
 
       assert(
         initial.ok &&
           initial.document.snapshot.view.ready &&
-          initial.document.snapshot.view.productCommandCount === 15 &&
+          initial.document.snapshot.view.productCommandCount === 14 &&
           initial.document.snapshot.view.commandCatalog.rows.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ) &&
-          initial.document.html.includes(
-            '<select name="commandId" required>'
-          ) &&
-          initial.document.html.includes(
-            '<option value="product.agent.run">Run Agent (product.agent.run)</option>'
-          ) &&
-          initial.document.html.includes(
-            'data-command-id="product.agent.run"'
+          initial.document.snapshot.view.mode === "chat" &&
+          !initial.document.html.includes(
+            'data-command-id="product.agent.submit"'
           ),
-        "web request document should project the typed product command catalog"
+        "initial chat document should retain the typed catalog without rendering workbench controls"
       )
       assert(
-        startedWorkbench.ok &&
-          startedWorkbench.operation === "submitActionInput" &&
-          startedWorkbench.submitResult.ok &&
-          startedWorkbench.document.snapshot.workbench.state === "ready" &&
-          startedWorkbench.document.snapshot.workbench.sessionId !== undefined &&
-          startedWorkbench.document.snapshot.workbench.summary.inputCount === 1 &&
-          startedWorkbench.document.html.includes(
-            "eval product app web started workbench"
+        mode.ok &&
+          mode.operation === "submitActionInput" &&
+          mode.submitResult.ok &&
+          mode.document.snapshot.view.mode === "workbench" &&
+          mode.document.html.includes(
+            '<select name="commandId" required>'
           ) &&
-          startedWorkbench.document.html.includes(
-            'data-workbench-composer-kind="continue"'
+          mode.document.html.includes(
+            '<option value="product.agent.submit">Submit Agent Turn (product.agent.submit)</option>'
+          ) &&
+          mode.document.html.includes(
+            'data-command-id="product.agent.submit"'
           ),
-        "web request should start a workbench session without a preselected session"
+        "workbench document should render the typed product command catalog"
+      )
+      assert(
+        submittedConversation.ok &&
+          submittedConversation.operation === "submitActionInput" &&
+          submittedConversation.submitResult.ok &&
+          submittedConversation.document.snapshot.conversation.sessionId !== undefined &&
+          submittedConversation.document.snapshot.conversation.operation !== undefined &&
+          submittedConversation.document.html.includes(
+            "eval product app web submitted conversation"
+          ) &&
+          submittedConversation.document.html.includes(
+            'data-action="submit-conversation"'
+          ),
+        "web request should submit a conversation without blocking on completion"
       )
       assert(
         selected.ok &&
@@ -273,20 +319,13 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
         "web request should dispatch select-session through Product App client"
       )
       assert(
-        mode.ok &&
-          mode.operation === "submitActionInput" &&
-          mode.submitResult.ok &&
-          mode.document.snapshot.view.mode === "workbench",
-        "web request should dispatch set-mode through Product App client"
-      )
-      assert(
         commandPreview.ok &&
           commandPreview.operation === "submitActionInput" &&
           commandPreview.submitResult.ok &&
           commandPreview.document.snapshot.view.commandPreview.state ===
             "runnable" &&
           commandPreview.document.snapshot.view.commandPreview.commandId ===
-            "product.agent.run" &&
+            "product.agent.submit" &&
           commandPreview.document.html.includes(
             'data-command-preview-state="runnable"'
           ),
@@ -322,21 +361,29 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
         "web request should resolve and render bounded durable execution activity"
       )
       assert(
-        continuedWorkbench.ok &&
-          continuedWorkbench.operation === "submitActionInput" &&
-          continuedWorkbench.submitResult.ok &&
-          continuedWorkbench.document.snapshot.workbench.state === "ready" &&
-          continuedWorkbench.document.snapshot.workbench.sessionId ===
+        submittedToSelectedConversation.ok &&
+          submittedToSelectedConversation.operation === "submitActionInput" &&
+          submittedToSelectedConversation.submitResult.ok &&
+          submittedToSelectedConversation.document.snapshot.conversation.sessionId ===
             "ses_eval_product_app_web" &&
-          continuedWorkbench.document.snapshot.workbench.summary.rowCount > 0 &&
-          continuedWorkbench.document.snapshot.view.sessionCount > 0 &&
-          continuedWorkbench.document.html.includes(
-            "eval product app web workbench"
-          ) &&
-          continuedWorkbench.document.html.includes(
+          submittedToSelectedConversation.document.snapshot.view.sessionCount > 0 &&
+          submittedToSelectedConversation.document.html.includes(
             'data-session-id="ses_eval_product_app_web"'
           ),
-        "web request should continue the selected workbench session through Product App client"
+        "web request should submit to the selected Product App session"
+      )
+      assert(
+        openedWorkbench.ok &&
+          openedWorkbench.operation === "submitActionInput" &&
+          openedWorkbench.submitResult.ok &&
+          openedWorkbench.document.snapshot.workbench.state === "ready" &&
+          openedWorkbench.document.snapshot.workbench.sessionId ===
+            "ses_eval_product_app_web" &&
+          openedWorkbench.document.snapshot.workbench.summary.rowCount > 0 &&
+          openedWorkbench.document.html.includes(
+            "eval product app web selected conversation"
+          ),
+        "open-workbench should project the canonical transcript without mutating it"
       )
       assert(
         invalidAction.ok &&
@@ -359,13 +406,19 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           polled.operation === "pollEvents" &&
           polled.document.snapshot.eventCursor >= cursorBeforePoll &&
           polled.document.snapshot.events.ok &&
-          polled.document.snapshot.events.events.length === 0,
-        "web request should poll after the current cursor without replay"
+          polled.document.snapshot.events.events.every(
+            (event) => event.sequence > cursorBeforePoll
+          ),
+        "web request should return only new events after the current cursor"
       )
       assert(
         html.includes('data-wanex-product-app-web="surface"') &&
           html.includes("ses_eval_product_app_web"),
         "web surface should render a static Product App HTML projection"
+      )
+      assert(
+        isSuccessfulAttachmentUpload(nodeAttachment),
+        "Product App Web Node host should ingest binary attachment bytes through the trusted App port"
       )
       assert(
         nodeHtml.includes('data-wanex-product-app-web="surface"') &&
@@ -417,14 +470,14 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
         selectedSessionId: web.snapshot().view.selectedSessionId ?? null,
         sessionCount: web.snapshot().view.sessionCount,
         productCommandCount: web.snapshot().view.productCommandCount,
-        commandCatalogHasAgent: web.snapshot().view.commandCatalog.rows.some(
-          (command) => command.id === "product.agent.run"
+        commandCatalogHasSubmit: web.snapshot().view.commandCatalog.rows.some(
+          (command) => command.id === "product.agent.submit"
         ),
         commandPreviewUsesCatalogSelect: html.includes(
           '<select name="commandId" required>'
         ),
         commandCatalogRendered: html.includes(
-          'data-command-id="product.agent.run"'
+          'data-command-id="product.agent.submit"'
         ),
         commandPreviewState: web.snapshot().view.commandPreview.state,
         commandPreviewId: web.snapshot().view.commandPreview.commandId ?? null,
@@ -461,6 +514,8 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           isRecord(nodeMode) &&
           nodeMode.ok === true &&
           nodeMode.operation === "submitActionInput",
+        nodeHostAttachmentUploadSucceeded:
+          isSuccessfulAttachmentUpload(nodeAttachment),
         operations,
         readProductCommandsObserved: surfaceCommands.includes(
           "readProductCommands"
@@ -482,6 +537,7 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
       }
     } finally {
       await nodeHost?.close()
+      await productSurface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }
@@ -509,6 +565,43 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   })
   assert(response.status === 200, `POST ${url} should succeed`)
   return await response.json()
+}
+
+async function postAttachment(
+  url: string,
+  content: Uint8Array,
+  mediaType: string,
+  label: string
+): Promise<unknown> {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/octet-stream",
+      "x-wanex-media-type": encodeURIComponent(mediaType),
+      "x-wanex-attachment-label": encodeURIComponent(label)
+    },
+    body: content
+  })
+  assert(response.status === 201, `POST ${url} should ingest attachment bytes`)
+  return await response.json()
+}
+
+function isSuccessfulAttachmentUpload(value: unknown): boolean {
+  if (!isRecord(value) || value.ok !== true || !isRecord(value.upload)) {
+    return false
+  }
+  if (
+    value.kind !== "product-app-web.attachment-upload-response" ||
+    value.upload.kind !== "product-app-local.attachment-uploaded" ||
+    !isRecord(value.upload.attachment)
+  ) {
+    return false
+  }
+  return (
+    value.upload.attachment.resourceKind === "image" &&
+    value.upload.attachment.mediaType === "image/png" &&
+    value.upload.attachment.label === "eval-upload.png"
+  )
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

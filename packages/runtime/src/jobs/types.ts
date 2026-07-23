@@ -4,6 +4,10 @@ import type {
   SchedulerJobRecord
 } from "@wanex/protocol"
 import type { WanexSessionCore } from "../sessions/index.js"
+import type {
+  ActiveExecutionAbortRegistry,
+  ActiveExecutionRegistration
+} from "./active-abort.js"
 
 export interface WanexWorkerOptions {
   readonly session: WanexSessionCore
@@ -12,11 +16,16 @@ export interface WanexWorkerOptions {
   readonly heartbeatIntervalMs?: number
   readonly timeoutMs?: number
   readonly kinds?: readonly SchedulerJobKind[]
+  /** @internal */
+  readonly activeAbortRegistry?: ActiveExecutionAbortRegistry
 }
 
 export interface WorkerHandlerContext {
   readonly job: SchedulerJobRecord
   readonly signal: AbortSignal
+  readonly registerActiveAttempt: (
+    attemptId: string
+  ) => ActiveExecutionRegistration
   heartbeat(): Promise<void>
 }
 
@@ -58,6 +67,7 @@ export interface WorkerLoopOptions {
 
 export interface WorkerLoop {
   readonly stopped: boolean
+  wake(): void
   stop(): void
   waitForIdle(): Promise<void>
 }

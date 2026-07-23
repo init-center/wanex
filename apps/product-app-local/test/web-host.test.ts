@@ -9,6 +9,7 @@ import {
   listenProductAppWebNodeHost,
   type ProductAppWebNodeHostServer
 } from "../src/web-host/index.js"
+import type { ProductAppLocalAttachmentUploadPort } from "../src/attachment-upload.js"
 
 const hosts: ProductAppWebNodeHostServer[] = []
 
@@ -192,6 +193,95 @@ describe("@wanex/product-app-local Web host", () => {
       }
     )
   })
+
+  it("keeps binary attachment upload separate from the JSON command port", async () => {
+    const uploaded: Uint8Array[] = []
+    const attachments: ProductAppLocalAttachmentUploadPort = {
+      async uploadAttachment(request) {
+        uploaded.push(request.content)
+        return {
+          kind: "product-app-local.attachment-uploaded",
+          attachment: {
+            kind: "product-app.attachment",
+            resourceId: "res_http_attachment",
+            resourceKind: "image",
+            previewKind: "image",
+            state: "available",
+            sizeBytes: request.content.byteLength,
+            sha256: "a".repeat(64),
+            mediaType: request.mediaType,
+            ...(request.label === undefined ? {} : { label: request.label }),
+            addedAt: 1
+          },
+          attachments: {
+            kind: "product-app.conversation-attachments",
+            draftKey: "__new__",
+            attachments: []
+          }
+        }
+      }
+    }
+    await withNodeHost(
+      async ({ host }) => {
+        const response = await fetch(
+          `${host.url}/wanex/product-app-web/attachment`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/octet-stream",
+              "x-wanex-media-type": encodeURIComponent("image/png"),
+              "x-wanex-attachment-label": encodeURIComponent("test.png")
+            },
+            body: new Uint8Array([1, 2])
+          }
+        )
+        expect(response.status).toBe(201)
+        expect(await response.json()).toMatchObject({
+          ok: true,
+          kind: "product-app-web.attachment-upload-response",
+          upload: {
+            attachment: {
+              resourceId: "res_http_attachment",
+              label: "test.png"
+            }
+          }
+        })
+        expect(Array.from(uploaded[0] ?? [])).toEqual([1, 2])
+
+        const unsupported = await fetch(
+          `${host.url}/wanex/product-app-web/attachment`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: "{}"
+          }
+        )
+        expect(unsupported.status).toBe(415)
+        expect(await unsupported.json()).toMatchObject({
+          ok: false,
+          error: { code: "unsupported_media_type" }
+        })
+
+        const oversized = await fetch(
+          `${host.url}/wanex/product-app-web/attachment`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/octet-stream",
+              "x-wanex-media-type": encodeURIComponent("image/png")
+            },
+            body: new Uint8Array([1, 2, 3])
+          }
+        )
+        expect(oversized.status).toBe(413)
+        expect(await oversized.json()).toMatchObject({
+          ok: false,
+          error: { code: "attachment_too_large" }
+        })
+      },
+      { attachments, maxAttachmentBytes: 2 }
+    )
+  })
 })
 
 async function withNodeHost(
@@ -204,10 +294,20 @@ async function withNodeHost(
     readonly clientScriptPath?: string
     readonly stylesheetPath?: string
     readonly pollIntervalMs?: number
+    readonly maxAttachmentBytes?: number
+    readonly attachments?: ProductAppLocalAttachmentUploadPort
   } = {}
 ): Promise<void> {
   const controller = createFakeController()
-  const host = await listenProductAppWebNodeHost({ controller, ...options })
+  const host = await listenProductAppWebNodeHost({
+    controller,
+    attachments: {
+      async uploadAttachment() {
+        throw new Error("attachment upload was not configured for this test")
+      }
+    },
+    ...options
+  })
   hosts.push(host)
   await run({ controller, host })
 }

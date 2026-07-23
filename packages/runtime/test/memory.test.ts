@@ -6,6 +6,8 @@ import type { ContextTokenEstimator } from "../src/context/memory/index.js"
 import { WanexSessionCore } from "../src/sessions/index.js"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import type { WanexWorker } from "../src/jobs/index.js"
+import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
+import { fakeProfile } from "./durable-turn-test-fixture.js"
 import {
   createMemoryCompactionWorker,
   planMemoryCompaction,
@@ -509,8 +511,8 @@ describe("@wanex/runtime/memory", () => {
     expect(plan).toMatchObject({
       decision: "submit",
       reason: "above_waterline",
-      tokenEstimateBefore: 95,
-      tokenEstimateAfter: 35,
+      tokenEstimateBefore: 110,
+      tokenEstimateAfter: 50,
       tokenSavings: 60
     })
   })
@@ -545,8 +547,8 @@ describe("@wanex/runtime/memory", () => {
     }
     expect(result.job.result).toMatchObject({
       epochId: "ctxepoch_job_memory_estimator_attempt_1",
-      tokenEstimateBefore: 95,
-      tokenEstimateAfter: 35,
+      tokenEstimateBefore: 110,
+      tokenEstimateAfter: 50,
       replacementCount: 1
     })
     const activeEpoch = await storage.getActiveContextEpoch({
@@ -611,33 +613,63 @@ async function seedCompletedTurn(request: {
     id: request.sessionId,
     kind: request.kind ?? "agent"
   })
-  await request.session.admit({
+  const submitted = await request.session.submitTurn({
     id: request.inputId,
+    turnId: "turn_" + request.inputId,
     sessionId: request.sessionId,
     principalId: "user_memory",
-    idempotencyKey: `idem_${request.inputId}`,
+    idempotencyKey: "idem_" + request.inputId,
     content: [
       {
         type: "text",
         id: `user_${request.inputId}`,
         text: "please remember"
       }
-    ]
+    ],
+    jobId: "job_" + request.inputId,
+    executionBinding: createTurnExecutionBinding({
+      profile: fakeProfile(request.inputId),
+      createdAt: 1
+    })
   })
-  const claim = await request.session.claimRunner({
-    sessionId: request.sessionId,
-    runnerId: `runner_${request.inputId}`,
-    leaseMs: 60_000
+  const job = await request.session.claimJob({
+    workerId: "worker_" + request.inputId,
+    leaseMs: 60_000,
+    kinds: ["session.turn"]
   })
-  if (claim === null) {
-    throw new Error(`expected runner claim for ${request.sessionId}`)
+  if (job?.leaseToken === undefined) {
+    throw new Error("expected turn job claim for " + request.sessionId)
   }
-  await request.session.completeRun({
+  const started = await request.session.startTurnAttempt({
     sessionId: request.sessionId,
-    runId: claim.runId,
-    inputId: claim.inputId,
-    runnerId: claim.runnerId,
-    leaseToken: claim.leaseToken,
+    turnId: submitted.turn.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId: "worker_" + request.inputId,
+    leaseToken: job.leaseToken
+  })
+  const invocation = await request.session.beginProviderInvocation({
+    sessionId: request.sessionId,
+    turnId: submitted.turn.id,
+    attemptId: started.attempt.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId: "worker_" + request.inputId,
+    leaseToken: job.leaseToken,
+    step: 1,
+    invocationNumber: 1,
+    requestDigest: "memory-seed-request"
+  })
+  await request.session.settleTurn({
+    sessionId: request.sessionId,
+    turnId: submitted.turn.id,
+    attemptId: started.attempt.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId: "worker_" + request.inputId,
+    leaseToken: job.leaseToken,
+    outcome: "succeeded",
+    providerInvocationId: invocation.id,
     assistantMessage: [
       {
         type: "text",

@@ -1,4 +1,5 @@
 import type {
+  ProductAppConversationAssistantTextDeltaEvent,
   ProductAppStateSnapshot
 } from "./types.js"
 import type {
@@ -20,6 +21,7 @@ export interface ProductAppSurfaceEventRecordRequest {
   readonly command: string
   readonly requestId?: string
   readonly state?: ProductAppStateSnapshot
+  readonly conversation?: ProductAppConversationAssistantTextDeltaEvent
   readonly error?: ProductAppSurfaceError
 }
 
@@ -41,6 +43,9 @@ export function createProductAppSurfaceEventRecorder(
           ? {}
           : { requestId: request.requestId }),
         ...(request.state === undefined ? {} : { state: request.state }),
+        ...(request.conversation === undefined
+          ? {}
+          : { conversation: request.conversation }),
         ...(request.error === undefined ? {} : { error: request.error })
       }
       events.push(event)

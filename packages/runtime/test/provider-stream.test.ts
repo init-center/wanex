@@ -119,8 +119,10 @@ describe("provider stream contract", () => {
 
 function scripted(events: readonly ProviderEvent[]): ProviderAdapter {
   return {
+    kind: "fake",
     providerId: "scripted",
     modelId: "fixture",
+    capabilities: { input: ["text"], output: ["text"] },
     async *stream() { yield* events },
     buildReplayMessages() { return [] }
   }

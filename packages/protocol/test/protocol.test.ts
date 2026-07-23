@@ -24,14 +24,13 @@ import {
   type SchedulerJobKind,
   type TeamConversationMode,
   type TeamTurnKind,
-  type UiSurfaceEnvelope,
   type WorkspaceChangeProposalOperationKind,
   type WorkspaceChangeProposalState,
   type EphemeralQueryRequest,
-  type ApplySessionRunControlRequest,
-  type ApplySessionRunControlReceipt,
-  type InterruptSessionRunRequest,
-  type ListSessionRunControlsRequest,
+  type ApplySessionTurnControlRequest,
+  type ApplySessionTurnControlReceipt,
+  type InterruptSessionTurnRequest,
+  type ListSessionTurnControlsRequest,
   type PlanProposalOperationKind,
   type PlanProposalRecord,
   type PlanProposalState,
@@ -39,8 +38,8 @@ import {
   type RuntimeEventScope,
   type SessionInputIntent,
   type SessionInputOrigin,
-  type SessionRunControlRecord,
-  type SteerSessionRunRequest,
+  type SessionTurnControlRecord,
+  type SteerSessionTurnRequest,
   isTerminalSessionInputState,
   WANEX_PROTOCOL_VERSION
 } from "../src/index.js"
@@ -74,20 +73,20 @@ describe("@wanex/protocol", () => {
     expect(isTerminalSessionInputState("failed")).toBe(true)
     expect(isTerminalSessionInputState("cancelled")).toBe(true)
     expect(isTerminalSessionInputState("control_pending")).toBe(false)
-    expect(isTerminalSessionInputState("claimed")).toBe(false)
+    expect(isTerminalSessionInputState("promoted")).toBe(false)
   })
 
   it("classifies known runtime event families", () => {
-    expect(eventFamily("session.run.completed")).toBe("session")
+    expect(eventFamily("session.turn.succeeded")).toBe("session")
     expect(eventFamily("scheduler.job.succeeded")).toBe("scheduler")
     expect(eventFamily("budget.grant.reserved")).toBe("budget")
     expect(eventFamily("resource.ticket.cleanup")).toBe("resource")
     expect(eventFamily("config.updated")).toBe("config")
-    expect(eventFamily("ui.surface.emitted")).toBe("ui")
     expect(eventFamily("context.compaction.applied")).toBe("context")
     expect(eventFamily("context.epoch.activated")).toBe("context")
-    expect(eventFamily("session.run.interrupt_requested")).toBe("session")
-    expect(eventFamily("session.run.steer_admitted")).toBe("session")
+    expect(eventFamily("session.turn.interrupt_requested")).toBe("session")
+    expect(eventFamily("session.turn.steer_accepted")).toBe("session")
+    expect(eventFamily("session.turn.control_applied")).toBe("session")
     expect(eventFamily("session.ephemeral_query.completed")).toBe("session")
     expect(eventFamily("plan.proposal.created")).toBe("plan")
     expect(eventFamily("objective.run.created")).toBe("objective")
@@ -95,10 +94,10 @@ describe("@wanex/protocol", () => {
     expect(eventFamily("custom.future.event")).toBe("unknown")
     expect(isKnownRuntimeEventType("scheduler.job.failed")).toBe(true)
     expect(isKnownRuntimeEventType("config.updated")).toBe(true)
-    expect(isKnownRuntimeEventType("ui.surface.emitted")).toBe(true)
     expect(isKnownRuntimeEventType("context.compaction.skipped")).toBe(true)
     expect(isKnownRuntimeEventType("context.epoch.activated")).toBe(true)
-    expect(isKnownRuntimeEventType("session.run.interrupted")).toBe(true)
+    expect(isKnownRuntimeEventType("session.turn.interrupted")).toBe(true)
+    expect(isKnownRuntimeEventType("session.turn.recovery_required")).toBe(true)
     expect(isKnownRuntimeEventType("plan.proposal.operation_recorded")).toBe(
       true
     )
@@ -125,32 +124,35 @@ describe("@wanex/protocol", () => {
   })
 
   it("exposes dedicated steer and interrupt request contracts", () => {
-    const steer: SteerSessionRunRequest = {
+    const steer: SteerSessionTurnRequest = {
       sessionId: "ses_1",
       principalId: "user_1",
-      expectedRunId: "run_active",
+      expectedTurnId: "turn_active",
+      expectedAttemptId: "attempt_active",
       idempotencyKey: "steer_1",
       content: [{ id: "part_1", type: "text", text: "Please narrow scope." }],
       origin: { kind: "interactive" }
     }
-    const interrupt: InterruptSessionRunRequest = {
+    const interrupt: InterruptSessionTurnRequest = {
       sessionId: steer.sessionId,
-      runId: steer.expectedRunId,
+      turnId: steer.expectedTurnId,
+      attemptId: steer.expectedAttemptId,
       reason: "user changed direction",
       principalId: steer.principalId,
       origin: { kind: "interactive" }
     }
 
-    expect(steer.expectedRunId).toBe("run_active")
-    expect(interrupt.runId).toBe("run_active")
+    expect(steer.expectedTurnId).toBe("turn_active")
+    expect(interrupt.turnId).toBe("turn_active")
     expect(interrupt.origin?.kind).toBe("interactive")
   })
 
   it("exposes durable run-control record contracts", () => {
-    const record: SessionRunControlRecord = {
+    const record: SessionTurnControlRecord = {
       id: "rctl_1",
       sessionId: "ses_1",
-      runId: "run_1",
+      turnId: "turn_1",
+      attemptId: "attempt_1",
       inputId: "inp_steer",
       principalId: "user_1",
       idempotencyKey: "idem_steer",
@@ -162,33 +164,36 @@ describe("@wanex/protocol", () => {
       createdAt: 1,
       updatedAt: 1
     }
-    const list: ListSessionRunControlsRequest = {
+    const list: ListSessionTurnControlsRequest = {
       sessionId: record.sessionId,
-      runId: record.runId,
+      turnId: record.turnId,
+      attemptId: record.attemptId,
       kind: "steer",
       status: "pending"
     }
-    const apply: ApplySessionRunControlRequest = {
+    const apply: ApplySessionTurnControlRequest = {
       sessionId: record.sessionId,
-      runId: record.runId,
+      turnId: record.turnId,
+      attemptId: record.attemptId,
       controlId: record.id,
-      runnerId: "runner_1",
+      jobId: "job_1",
+      workerId: "worker_1",
       leaseToken: "lease_1"
     }
-    const receipt: ApplySessionRunControlReceipt = {
+    const receipt: ApplySessionTurnControlReceipt = {
       control: {
         ...record,
         status: "applied",
         appliedAt: 2
       },
-      effect: "steer_completed_input"
+      effect: "steer_promoted_input"
     }
 
     expect(record.kind).toBe("steer")
     expect(record.content?.[0]?.type).toBe("text")
     expect(list.status).toBe("pending")
     expect(apply.controlId).toBe(record.id)
-    expect(receipt.effect).toBe("steer_completed_input")
+    expect(receipt.effect).toBe("steer_promoted_input")
   })
 
   it("models ephemeral side queries outside normal session input", () => {
@@ -207,31 +212,6 @@ describe("@wanex/protocol", () => {
     expect(query.memoryPolicy).toBe("exclude")
     expect(query.persistence).toBe("none")
     expect(query.contextSnapshotId).toBe("ctxsnap_1")
-  })
-
-  it("exposes protocol-neutral UI surface envelopes", () => {
-    const surface: UiSurfaceEnvelope = {
-      protocol: "a2ui",
-      version: "1",
-      surfaceKind: "form",
-      payload: {
-        type: "Form",
-        fields: [{ name: "title", type: "text" }]
-      },
-      requiredCapabilities: ["form.submit"],
-      fallback: {
-        kind: "text",
-        text: "A form is available in clients that support A2UI."
-      },
-      actionBridge: {
-        kind: "runtime",
-        route: "session.input",
-        allowedActions: ["submit"]
-      }
-    }
-
-    expect(surface.protocol).toBe("a2ui")
-    expect(surface.actionBridge?.route).toBe("session.input")
   })
 
   it("includes workspace.task as a scheduler job kind", () => {
@@ -328,7 +308,7 @@ describe("@wanex/protocol", () => {
       attemptNumber: 1,
       state: "succeeded",
       sessionId: "ses_objective_protocol",
-      sessionRunId: "run_objective_protocol",
+      sessionTurnId: "turn_objective_protocol",
       schedulerJobId: "job_objective_protocol",
       summary: "Implemented protocol contract",
       createdAt: 3,
@@ -364,12 +344,12 @@ describe("@wanex/protocol", () => {
     const materialize: MaterializeReadyDelegationGraphNodeRequest = {
       graphId: "graph",
       workerId: "orchestrator",
-      jobKind: "session.run"
+      jobKind: "session.turn"
     }
 
     expect(state).toBe("running")
     expect(kind).toBe("agent_task")
-    expect(materialize.jobKind).toBe("session.run")
+    expect(materialize.jobKind).toBe("session.turn")
   })
 
   it("exposes team conversation modes and turn kinds", () => {
@@ -437,11 +417,11 @@ describe("@wanex/protocol", () => {
       projection: {
         id: "chproj_1",
         inboundEventId: "chin_1",
-        targetKind: "session.run",
-        targetId: "inp_1",
+        targetKind: "session.turn",
+        targetId: "turn_1",
         targetJobId: "job_1",
         state: "projected",
-        target: { kind: "session.run", sessionId: "ses_1" },
+        target: { kind: "session.turn", sessionId: "ses_1" },
         createdAt: 1,
         updatedAt: 1
       }
@@ -451,6 +431,6 @@ describe("@wanex/protocol", () => {
     expect(registration.pluginVersion).toBe("1.0.0")
     expect(submission.delivery.connectorId).toBe("connector.telegram")
     expect(acknowledgement.delivery.state).toBe("sent")
-    expect(projection.projection.targetKind).toBe("session.run")
+    expect(projection.projection.targetKind).toBe("session.turn")
   })
 })

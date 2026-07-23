@@ -40,6 +40,7 @@ Provider profiles are stored through runtime config APIs:
 
 ```bash
 wanex provider set local --kind fake --provider-id fake --model fake-model
+wanex provider set vision --kind openai-compatible --provider-id openai --model gpt-vision --input-modalities text,image --output-modalities text --base-url https://api.example/v1 --secret-ref env:OPENAI_API_KEY
 wanex run "hello" --provider local
 ```
 
@@ -64,8 +65,9 @@ Collect a redacted support/debug bundle without starting workers:
 wanex support-bundle --provider-profile local --memory-maintenance
 ```
 
-The bundle includes doctor status, app diagnostics, selected redacted provider
-profiles, and limited event summaries. It does not include secrets, bearer
+The bundle includes doctor status, app diagnostics, selected safe provider
+summaries, and limited event summaries. It does not include credential
+references, secrets, bearer
 tokens, raw chat history, or plugin stderr dumps by default.
 
 ## Memory Maintenance

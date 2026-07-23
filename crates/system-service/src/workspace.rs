@@ -51,7 +51,7 @@ impl SystemService {
         let changeset_json = serde_json::to_string(&request.changeset)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let existing = get_workspace_changeset_tx(&tx, id)?
             .map(|record| {
@@ -219,7 +219,7 @@ impl SystemService {
             .unwrap_or_else(|| format!("wop_{}", Uuid::now_v7()));
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing_changeset = get_workspace_changeset_tx(&tx, &request.changeset_id)?;
         if existing_changeset.is_none() {
             return Err(SystemServiceError::Invariant(format!(
@@ -305,7 +305,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let changeset =
             get_workspace_changeset_tx(&tx, &request.changeset_id)?.ok_or_else(|| {
@@ -448,7 +448,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let proposal =
             get_workspace_change_proposal_tx(&tx, &request.proposal_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(

@@ -1,7 +1,7 @@
 import type { JsonValue } from "./json.js"
 
 export type SchedulerJobKind =
-  | "session.run"
+  | "session.turn"
   | "workspace.task"
   | "team.delivery"
   | "team.round.close"
@@ -14,6 +14,7 @@ export type SchedulerJobKind =
   | "budget.grant_expire"
   | "provider.retry"
   | "config.sync"
+  | "media.generate"
 
 export type SchedulerJobState =
   | "pending"
@@ -38,6 +39,7 @@ export interface EnqueueJobRequest {
   readonly scheduledAt?: number
   readonly notBefore?: number
   readonly priority?: number
+  readonly concurrencyKey?: string
   readonly maxAttempts?: number
   readonly retryPolicy?: RetryPolicy
   readonly idempotencyKey?: string
@@ -95,6 +97,7 @@ export interface SchedulerJobRecord {
   readonly scheduledAt: number
   readonly notBefore?: number
   readonly priority: number
+  readonly concurrencyKey?: string
   readonly attempt: number
   readonly maxAttempts: number
   readonly retryPolicy: RetryPolicy

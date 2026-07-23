@@ -133,7 +133,18 @@ export const declarativeCommandInputProductScenario = createEvalScenario({
         now: () => 74_100,
         pollAfterAction: false
       })
-      const webDocument = web.document()
+      const workbenchMode = await web.submitActionInput({
+        action: "set-mode",
+        fields: {
+          mode: "workbench"
+        }
+      })
+      assert(
+        workbenchMode.ok &&
+          workbenchMode.document.snapshot.view.mode === "workbench",
+        "Web declarative input scenario should explicitly enter workbench mode"
+      )
+      const webDocument = workbenchMode.document
       assert(
         webDocument.html.includes('data-command-input-mode="generated"') &&
           webDocument.html.includes('name="commandInput:/count"') &&

@@ -6,6 +6,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding } from "@wanex/runtime/tools"
 import { WorkspacePathResolver } from "../path-policy.js"
 import { inputRecord, requiredString } from "./input.js"
 
@@ -29,6 +30,7 @@ export class WorkspaceReadTextTool implements ToolDefinition {
     readOnlyHint: true,
     idempotentHint: true
   } as const
+  readonly runtimeBinding
 
   private readonly paths: WorkspacePathResolver
   private readonly maxFileBytes: number
@@ -43,6 +45,15 @@ export class WorkspaceReadTextTool implements ToolDefinition {
     this.maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
     this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
     validateReadLimits(this.maxFileBytes, this.maxOutputBytes)
+    this.runtimeBinding = createToolRuntimeBinding({
+      implementationId: "wanex.workspace.tool.read-text",
+      implementationRevision: "1",
+      configuration: {
+        rootDir: options.rootDir,
+        maxFileBytes: this.maxFileBytes,
+        maxOutputBytes: this.maxOutputBytes
+      }
+    })
   }
 
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {

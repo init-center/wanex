@@ -117,6 +117,7 @@ async function buildDeclarations(request) {
         moduleResolution: ts.ModuleResolutionKind.NodeNext,
         target: ts.ScriptTarget.ES2022,
         strict: true,
+        stripInternal: true,
         skipLibCheck: true
       }
     })],

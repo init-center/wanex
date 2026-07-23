@@ -12,6 +12,7 @@ import type { WanexSessionCore } from "../../sessions/index.js"
 import { runCancellable, throwIfAborted } from "./cancellable.js"
 import { isToolCall } from "./replay.js"
 import { buildSessionReplayMessages } from "./session-replay.js"
+import { prepareProviderReplayResources } from "../../resources/index.js"
 
 export interface EphemeralSideQueryRuntimeOptions {
   readonly session: WanexSessionCore
@@ -42,18 +43,24 @@ export async function runEphemeralSideQuery(
             : { contextCompiler: options.contextCompiler })
         })
 
+  const preparedMessages = await prepareProviderReplayResources(
+    options.session,
+    options.provider.capabilities,
+    [
+      ...replayMessages,
+      {
+        role: "user",
+        content: request.question
+      }
+    ]
+  )
+
   const response = await runCancellable(
     (signal) =>
       consumeProviderStream({
         provider: options.provider,
         request: {
-          messages: [
-            ...replayMessages,
-            {
-              role: "user",
-              content: request.question
-            }
-          ],
+          messages: preparedMessages,
           ...(request.maxOutputTokens === undefined
             ? {}
             : { maxOutputTokens: request.maxOutputTokens }),

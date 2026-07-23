@@ -3,25 +3,25 @@ import type {
   SchedulerJobState
 } from "@wanex/protocol"
 import type {
-  WanexAppShellExecutionFailureCategory,
-  WanexAppShellExecutionReference,
-  WanexAppShellExecutionReferenceFoundResult,
-  WanexAppShellJobExecutionActivityReadModel,
-  WanexAppShellReadExecutionReferenceRequest
+  WanexAppExecutionFailureCategory,
+  WanexAppExecutionReference,
+  WanexAppExecutionReferenceFoundResult,
+  WanexAppJobExecutionActivityReadModel,
+  WanexAppReadExecutionReferenceRequest
 } from "./types-execution-reference.js"
 
-export function normalizeWanexAppShellExecutionReference(
-  request: WanexAppShellReadExecutionReferenceRequest
-): WanexAppShellExecutionReference {
+export function normalizeWanexAppExecutionReference(
+  request: WanexAppReadExecutionReferenceRequest
+): WanexAppExecutionReference {
   return {
     kind: normalizeRequiredString(request.kind, "execution reference kind"),
     id: normalizeRequiredString(request.id, "execution reference id")
   }
 }
 
-export function projectWanexAppShellJobExecutionReference(
+export function projectWanexAppJobExecutionReference(
   job: SchedulerJobRecord
-): WanexAppShellExecutionReferenceFoundResult {
+): WanexAppExecutionReferenceFoundResult {
   return {
     kind: "found",
     reference: {
@@ -34,10 +34,10 @@ export function projectWanexAppShellJobExecutionReference(
 
 function projectJobActivity(
   job: SchedulerJobRecord
-): WanexAppShellJobExecutionActivityReadModel {
+): WanexAppJobExecutionActivityReadModel {
   const failureCategory = projectFailureCategory(job.state)
   return {
-    kind: "app-shell.execution.job",
+    kind: "wanex-app.execution.job",
     jobKind: job.kind,
     state: job.state,
     attempt: job.attempt,
@@ -53,7 +53,7 @@ function projectJobActivity(
 
 function projectFailureCategory(
   state: SchedulerJobState
-): WanexAppShellExecutionFailureCategory | undefined {
+): WanexAppExecutionFailureCategory | undefined {
   switch (state) {
     case "retry_scheduled":
       return "retry_pending"

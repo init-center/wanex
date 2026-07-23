@@ -19,6 +19,10 @@ import {
   runProductAppLocalCliSmoke
 } from "./cli-smoke.js"
 import { startProductAppLocalWebApp } from "./index.js"
+import {
+  EnvSecretProvider,
+  SecretResolver
+} from "@wanex/runtime/secrets"
 
 const workspaceRoot = resolve(
   fileURLToPath(new URL("../../../", import.meta.url))
@@ -34,6 +38,7 @@ const app = await startProductAppLocalWebApp({
   storage: options.storage,
   serviceBin: options.serviceBin,
   providerProfiles: options.providerProfiles,
+  secretResolver: new SecretResolver([new EnvSecretProvider(process.env)]),
   web: {
     hostname: options.hostname,
     ...(options.port === undefined ? {} : { port: options.port }),

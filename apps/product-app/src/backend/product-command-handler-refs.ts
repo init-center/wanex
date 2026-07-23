@@ -1,5 +1,6 @@
 export const PRODUCT_APP_BACKEND_HANDLER_REFS = {
-  runAgentTurn: "wanex.product-app.backend.runAgentTurn",
+  submitConversationOperation:
+    "wanex.product-app.backend.submitConversationOperation",
   status: "wanex.product-app.backend.status",
   readProductOverview: "wanex.product-app.backend.readProductOverview",
   readDiagnostics: "wanex.product-app.backend.readDiagnostics",
@@ -8,8 +9,6 @@ export const PRODUCT_APP_BACKEND_HANDLER_REFS = {
   buildSupportBundle: "wanex.product-app.backend.buildSupportBundle",
   readRecentSessions: "wanex.product-app.backend.readRecentSessions",
   readProductWorkbench: "wanex.product-app.backend.readProductWorkbench",
-  continueProductWorkbenchSession:
-    "wanex.product-app.backend.continueProductWorkbenchSession",
   readSessionInputProvenance:
     "wanex.product-app.backend.readSessionInputProvenance",
   readSessionTranscript: "wanex.product-app.backend.readSessionTranscript",

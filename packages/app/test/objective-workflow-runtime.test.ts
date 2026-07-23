@@ -117,6 +117,7 @@ describe("@wanex/app-objective-workflow", () => {
       attemptNumber: 1,
       state: "succeeded",
       sessionId: "ses_objective_runtime",
+      sessionTurnId: "turn_objective_runtime",
       schedulerJobId: "job_objective_runtime",
       summary: "Verified target",
       result: { lcpMs: 2300 },
@@ -128,12 +129,14 @@ describe("@wanex/app-objective-workflow", () => {
       attemptNumber: 1,
       state: "succeeded",
       sessionId: "ses_objective_runtime",
+      sessionTurnId: "turn_objective_runtime",
       schedulerJobId: "job_objective_runtime",
       summary: "Verified target",
       result: { lcpMs: 2300 },
       idempotencyKey: "app-objective-workflow-attempt"
     })
     expect(duplicateAttempt.id).toBe(attempt.id)
+    expect(attempt.sessionTurnId).toBe("turn_objective_runtime")
 
     const verification = await runtime.recordVerification({
       id: "objectivever_runtime_1",

@@ -12,7 +12,7 @@ export function projectProductAppWebProviderRunGate(
     reason: readiness.reason,
     activeProfileId: readiness.activeProfileId,
     canRun: readiness.canRun,
-    canSubmitWorkbench: readiness.canRun,
+    canSubmitConversation: readiness.canRun,
     attentionRequired: readiness.attentionRequired,
     message: providerRunGateMessage(readiness)
   }
@@ -24,7 +24,7 @@ function providerRunGateMessage(
   if (readiness.canRun) {
     return "Provider ready"
   }
-  if (readiness.status === "missing_required_api_key") {
+  if (readiness.status === "missing_required_credential") {
     return "Host setup required"
   }
   if (readiness.status === "missing_active_profile") {

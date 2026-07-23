@@ -66,10 +66,14 @@ export const memoryCompactionDurableProjectionScenario = createEvalScenario({
 
     assert(replacements.length === 1, "one deterministic replacement is expected")
     assert(inputs.length === 1, "raw user input should remain durable")
-    assert(messages.length === 1, "raw assistant message should remain durable")
     assert(
-      messages[0]?.content[0]?.type === "text" &&
-        messages[0].content[0].text.includes("durable context"),
+      messages.length === 2,
+      "canonical user and assistant messages should remain durable"
+    )
+    const assistantMessage = messages.find((message) => message.role === "assistant")
+    assert(
+      assistantMessage?.content[0]?.type === "text" &&
+        assistantMessage.content[0].text.includes("durable context"),
       "raw assistant message text should not be replaced"
     )
     assert(

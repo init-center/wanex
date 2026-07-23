@@ -88,36 +88,54 @@ const BASE_ACTIONS: readonly ProductAppWebActionDescriptor[] = [
     ]
   },
   {
-    id: "open-workbench",
-    label: "Open workbench",
+    id: "submit-conversation",
+    label: "Send message",
+    mutatesState: true,
+    fields: [
+      {
+        name: "text",
+        label: "Message",
+        required: false,
+        kind: "textarea"
+      }
+    ]
+  },
+  {
+    id: "remove-conversation-attachment",
+    label: "Remove attachment",
+    mutatesState: true,
+    fields: [
+      {
+        name: "resourceId",
+        label: "Resource",
+        required: true,
+        kind: "text"
+      }
+    ]
+  },
+  {
+    id: "refresh-conversation",
+    label: "Refresh conversation",
+    mutatesState: false,
+    fields: []
+  },
+  {
+    id: "cancel-conversation",
+    label: "Cancel response",
+    mutatesState: false,
+    fields: []
+  },
+  {
+    id: "regenerate-conversation",
+    label: "Regenerate response",
     mutatesState: true,
     fields: []
   },
   {
-    id: "start-workbench",
-    label: "Start workbench",
+    id: "open-workbench",
+    label: "Open canonical transcript",
     mutatesState: true,
-    fields: [
-      {
-        name: "text",
-        label: "Message",
-        required: true,
-        kind: "textarea"
-      }
-    ]
-  },
-  {
-    id: "continue-workbench",
-    label: "Continue workbench",
-    mutatesState: true,
-    fields: [
-      {
-        name: "text",
-        label: "Message",
-        required: true,
-        kind: "textarea"
-      }
-    ]
+    fields: []
   }
 ]
 
@@ -134,6 +152,9 @@ export function buildProductAppWebViewModel(
   const commandCatalog = projectProductAppWebCommandCatalog(
     snapshot.commandCatalog
   )
+  const providerRunGate = projectProductAppWebProviderRunGate(
+    settings.profile.readiness
+  )
   return {
     title: "Wanex Product App",
     ready:
@@ -141,7 +162,8 @@ export function buildProductAppWebViewModel(
       snapshot.status.ok &&
       snapshot.home.ok &&
       snapshot.settings.ok &&
-      snapshot.providerProfiles.ok,
+      snapshot.providerProfiles.ok &&
+      snapshot.attachments.ok,
     mode: settings.renderer.mode,
     layout: settings.renderer.layout,
     ...(state?.selectedSessionId === undefined
@@ -158,7 +180,20 @@ export function buildProductAppWebViewModel(
     eventCount: snapshot.events.ok ? snapshot.events.events.length : 0,
     workbenchState: snapshot.workbench.state,
     workbenchRowCount: snapshot.workbench.summary.rowCount,
-    workbenchCanContinue: snapshot.workbench.canContinue,
+    conversationCanSubmit:
+      providerRunGate.canSubmitConversation && snapshot.conversation.canSubmit,
+    conversationCanCancel: snapshot.conversation.canCancel,
+    conversationCanRegenerate: snapshot.conversation.canRegenerate,
+    conversationState: snapshot.conversation.state,
+    conversationAttachments: snapshot.attachments.ok
+      ? snapshot.attachments.value.attachments
+      : [],
+    ...(snapshot.conversation.transientAssistantText === undefined
+      ? {}
+      : {
+          transientAssistantText:
+            snapshot.conversation.transientAssistantText
+        }),
     ...(snapshot.workbench.summary.latestAssistantText === undefined
       ? {}
       : { latestAssistantText: snapshot.workbench.summary.latestAssistantText }),
@@ -170,9 +205,7 @@ export function buildProductAppWebViewModel(
     commandExecution: snapshot.commandExecution,
     executionActivity: snapshot.executionActivity,
     commandCatalog,
-    providerRunGate: projectProductAppWebProviderRunGate(
-      settings.profile.readiness
-    ),
+    providerRunGate,
     diagnostics: snapshot.diagnostics,
     actions: buildActions({
       recentSessions,
@@ -310,6 +343,7 @@ export function productAppWebDiagnostics(
     | "settings"
     | "providerProfiles"
     | "commandCatalog"
+    | "attachments"
     | "events"
   >
 ): readonly ProductAppWebDiagnostic[] {
@@ -339,6 +373,11 @@ export function productAppWebDiagnostics(
       snapshot.commandCatalog,
       "product-app-web.command_catalog_failed",
       "command catalog"
+    ),
+    ...resultDiagnostic(
+      snapshot.attachments,
+      "product-app-web.attachments_failed",
+      "conversation attachments"
     ),
     ...resultDiagnostic(
       snapshot.events,
@@ -449,8 +488,8 @@ function projectProviderReadiness(
     profileCount: readiness.profileCount,
     canRun: readiness.canRun,
     attentionRequired: readiness.attentionRequired,
-    requiresApiKey: readiness.requiresApiKey,
-    hasApiKey: readiness.hasApiKey
+    requiresCredential: readiness.requiresCredential,
+    credentialConfigured: readiness.credentialConfigured
   }
 }
 
@@ -462,8 +501,8 @@ function fallbackProviderReadiness(): ProductAppWebProviderReadinessViewModel {
     profileCount: 0,
     canRun: false,
     attentionRequired: true,
-    requiresApiKey: false,
-    hasApiKey: false
+    requiresCredential: false,
+    credentialConfigured: false
   }
 }
 
@@ -475,11 +514,7 @@ function projectProviderProfileRow(
     kind: profile.kind,
     providerId: profile.providerId,
     modelId: profile.modelId,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    hasApiKey: profile.hasApiKey,
-    ...(profile.apiKeyRedacted === undefined
-      ? {}
-      : { apiKeyRedacted: profile.apiKeyRedacted }),
+    credentialConfigured: profile.credentialConfigured,
     active: profile.active
   }
 }

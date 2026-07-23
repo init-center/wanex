@@ -25,7 +25,8 @@ service binary paths, import App Command Runtime backend constructors, or call
 lower runtime packages directly.
 
 The TUI status read model includes Product App's provider readiness status from
-`readHome()`, such as `provider:ready` or `provider:missing_required_api_key`.
+`readHome()`, such as `provider:ready` or
+`provider:missing_required_credential`.
 It is display-only and does not add provider secret mutation to the TUI surface.
 
 This package intentionally keeps Product App TUI optional. It does not become
@@ -40,16 +41,13 @@ import { createProductAppTuiSurface, renderProductAppTuiFrame } from "@wanex/pro
 const surface = await createProductAppTuiSurface({ client })
 console.log(renderProductAppTuiFrame(surface.snapshot()).text)
 await surface.controller.executePaletteEntry({
-  id: "product-app-tui.palette.workbench-start",
+  id: "product-app-tui.palette.conversation-submit",
   input: {
     text: "hello"
   }
 })
 await surface.controller.executePaletteEntry({
-  id: "product-app-tui.palette.workbench-continue",
-  input: {
-    text: "hello"
-  }
+  id: "product-app-tui.palette.conversation-read"
 })
 ```
 
@@ -69,10 +67,16 @@ await runProductAppTuiLineSession({
 ```
 
 Supported commands are `help`, `ask <text>`, `select <session-id>`,
-`workbench [session-id]`, `continue <text>`, `palette [selector] [json]`,
+`workbench [session-id]`, `operation [session-id]`, `cancel [reason]`,
+`regenerate [session-id]`, `palette [selector] [json]`,
 `commands`, `preview <command-id> [json-input]`,
 `execute <command-id> [json-input]`, `events [limit]`, `overview`, `refresh`,
 and `quit`.
+
+`ask` submits and returns immediately. `operation` reads durable progress,
+`cancel` requests durable cancellation, and `regenerate` creates a fresh turn
+from a terminal source operation. `workbench` only renders the canonical
+transcript.
 
 `commands` renders Product App's typed dynamic command catalog, including
 built-in and plugin-contributed command metadata. It reads through the Product
@@ -104,7 +108,7 @@ pnpm --filter @wanex/product-app-tui start -- commands
 pnpm --filter @wanex/product-app-tui start -- commands --json
 pnpm --filter @wanex/product-app-tui start -- events --limit 10
 pnpm --filter @wanex/product-app-tui start -- palette product-app.status
-pnpm --filter @wanex/product-app-tui start -- preview product.agent.run '{"text":"hello"}'
+pnpm --filter @wanex/product-app-tui start -- preview product.agent.submit '{"text":"hello"}'
 pnpm --filter @wanex/product-app-tui start -- execute product.status
 pnpm --filter @wanex/product-app-tui start -- interactive
 ```

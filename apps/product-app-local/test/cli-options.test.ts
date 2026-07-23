@@ -62,6 +62,7 @@ describe("@wanex/product-app-local CLI options", () => {
           {
             id: "product-app-local-cli",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "fake",
             modelId: "product-app-local-cli-model"
           }
@@ -95,6 +96,7 @@ describe("@wanex/product-app-local CLI options", () => {
           {
             id: "product-app-local-cli",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "fake",
             modelId: "product-app-local-cli-model"
           }
@@ -142,6 +144,7 @@ describe("@wanex/product-app-local CLI options", () => {
           {
             id: "fallback-profile",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "fake",
             modelId: "fallback-model"
           }
@@ -166,8 +169,8 @@ describe("@wanex/product-app-local CLI options", () => {
           "flag-model",
           "--provider-base-url",
           "https://api.example.test/v1",
-          "--provider-api-key-env",
-          "TEST_PROVIDER_API_KEY"
+          "--provider-secret-ref",
+          "env://TEST_PROVIDER_API_KEY"
         ],
         env: {
           WANEX_PRODUCT_APP_LOCAL_PROVIDER_PROFILE_ID: "env-profile",
@@ -183,10 +186,11 @@ describe("@wanex/product-app-local CLI options", () => {
         {
           id: "flag-profile",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "flag-provider",
           modelId: "flag-model",
           baseUrl: "https://api.example.test/v1",
-          apiKey: "secret-from-env"
+          secretRef: "env://TEST_PROVIDER_API_KEY"
         }
       ]
     })
@@ -303,8 +307,10 @@ describe("@wanex/product-app-local CLI options", () => {
           WANEX_PRODUCT_APP_LOCAL_PROVIDER_KIND: "openai-compatible",
           WANEX_PRODUCT_APP_LOCAL_PROVIDER_ID: "local-env-provider",
           WANEX_PRODUCT_APP_LOCAL_PROVIDER_MODEL_ID: "local-env-model",
+          WANEX_PRODUCT_APP_LOCAL_PROVIDER_INPUT_MODALITIES: "text,image",
+          WANEX_PRODUCT_APP_LOCAL_PROVIDER_OUTPUT_MODALITIES: "text",
           WANEX_PRODUCT_APP_LOCAL_PROVIDER_BASE_URL: "https://local.example.test/v1",
-          WANEX_PRODUCT_APP_LOCAL_PROVIDER_API_KEY: "local-secret",
+          WANEX_PRODUCT_APP_LOCAL_PROVIDER_SECRET_REF: "env://LOCAL_API_KEY",
           WANEX_PROVIDER_PROFILE_ID: "generic-env-profile",
           WANEX_PROVIDER_KIND: "fake",
           WANEX_PROVIDER_ID: "generic-env-provider",
@@ -316,30 +322,33 @@ describe("@wanex/product-app-local CLI options", () => {
         {
           id: "local-env-profile",
           kind: "openai-compatible",
+          capabilities: { input: ["text", "image"], output: ["text"] },
           providerId: "local-env-provider",
           modelId: "local-env-model",
           baseUrl: "https://local.example.test/v1",
-          apiKey: "local-secret"
+          secretRef: "env://LOCAL_API_KEY"
         }
       ]
     })
   })
 
-  it("parses trusted provider profile catalog JSON with apiKeyEnv references", () => {
+  it("parses trusted provider profile catalog JSON with secret refs", () => {
     const catalog = JSON.stringify({
       profiles: [
         {
           id: "catalog-fake",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           modelId: "catalog-fake-model"
         },
         {
           id: "catalog-openai",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "catalog-openai-model",
           baseUrl: "https://catalog.example.test/v1",
-          apiKeyEnv: "CATALOG_API_KEY"
+          secretRef: "env://CATALOG_API_KEY"
         }
       ],
       activeProfileId: "catalog-openai"
@@ -350,9 +359,7 @@ describe("@wanex/product-app-local CLI options", () => {
         cwd: "/repo",
         artifactRoot: "/repo",
         args: ["--provider-profiles-json", catalog],
-        env: {
-          CATALOG_API_KEY: "catalog-secret"
-        }
+        env: {}
       }).providerProfiles
     ).toEqual({
       activeProfileId: "catalog-openai",
@@ -360,22 +367,24 @@ describe("@wanex/product-app-local CLI options", () => {
         {
           id: "catalog-fake",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "fake",
           modelId: "catalog-fake-model"
         },
         {
           id: "catalog-openai",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "catalog-openai-model",
           baseUrl: "https://catalog.example.test/v1",
-          apiKey: "catalog-secret"
+          secretRef: "env://CATALOG_API_KEY"
         }
       ]
     })
   })
 
-  it("parses trusted provider profile catalog files with apiKeyEnv references", async () => {
+  it("parses trusted provider profile catalog files with secret refs", async () => {
     const dir = await tempDir("wanex-product-app-local-provider-catalog-")
     const catalogPath = join(dir, "providers.json")
     await writeFile(
@@ -385,15 +394,17 @@ describe("@wanex/product-app-local CLI options", () => {
           {
             id: "file-fake",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             modelId: "file-fake-model"
           },
           {
             id: "file-openai",
             kind: "openai-compatible",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "openai-compatible",
             modelId: "file-openai-model",
             baseUrl: "https://file.example.test/v1",
-            apiKeyEnv: "FILE_API_KEY"
+            secretRef: "env://FILE_API_KEY"
           }
         ],
         activeProfileId: "file-fake"
@@ -411,9 +422,7 @@ describe("@wanex/product-app-local CLI options", () => {
           "--active-provider-profile-id",
           "file-openai"
         ],
-        env: {
-          FILE_API_KEY: "file-secret"
-        }
+        env: {}
       }).providerProfiles
     ).toEqual({
       activeProfileId: "file-openai",
@@ -421,16 +430,18 @@ describe("@wanex/product-app-local CLI options", () => {
         {
           id: "file-fake",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "fake",
           modelId: "file-fake-model"
         },
         {
           id: "file-openai",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "file-openai-model",
           baseUrl: "https://file.example.test/v1",
-          apiKey: "file-secret"
+          secretRef: "env://FILE_API_KEY"
         }
       ]
     })
@@ -454,7 +465,7 @@ describe("@wanex/product-app-local CLI options", () => {
         ],
         env: {}
       })
-    ).toThrow("must use apiKeyEnv instead of raw apiKey")
+    ).toThrow("must use secretRef")
 
     expect(() =>
       parseProductAppLocalCliOptions({
@@ -516,7 +527,7 @@ describe("@wanex/product-app-local CLI options", () => {
         ],
         env: {}
       })
-    ).toThrow("openai-compatible provider requires provider-api-key-env")
+    ).toThrow("openai-compatible provider requires provider-secret-ref")
 
     expect(() =>
       parseProductAppLocalCliOptions({
@@ -532,7 +543,7 @@ describe("@wanex/product-app-local CLI options", () => {
         ],
         env: {}
       })
-    ).toThrow("provider API key environment variable is not set: MISSING_API_KEY")
+    ).toThrow("unknown option: --provider-api-key-env")
 
     expect(() =>
       parseProductAppLocalCliOptions({

@@ -107,6 +107,24 @@ describe("@wanex/runtime/bootstrap artifact resolution", () => {
     })
   })
 
+  it("resolves the supported Linux x64 target", async () => {
+    const fixture = await createArtifact("linux", "x64", "elf-binary")
+    await expect(resolveSystemServiceBinary({
+      manifest: fixture.manifest,
+      artifactDir: fixture.root,
+      platform: "linux",
+      arch: "x64"
+    })).resolves.toMatchObject({
+      source: "manifest",
+      target: {
+        id: "linux-x64",
+        rustTarget: "x86_64-unknown-linux-gnu",
+        platform: "linux",
+        arch: "x64"
+      }
+    })
+  })
+
   it("fails closed for tampered size and checksum", async () => {
     const fixture = await createArtifact("darwin", "arm64", "original")
     await writeFile(fixture.path, "longer-tampered")
@@ -232,7 +250,7 @@ describe("@wanex/runtime/bootstrap artifact resolution", () => {
 })
 
 async function createArtifact(
-  platform: "darwin" | "win32",
+  platform: "linux" | "darwin" | "win32",
   arch: "arm64" | "x64",
   content: string
 ) {
@@ -276,17 +294,19 @@ function manifestWith(targetValue: RuntimeArtifactTarget): RuntimeArtifactManife
 }
 
 function target(options: {
-  readonly platform: "darwin" | "win32"
+  readonly platform: "linux" | "darwin" | "win32"
   readonly arch: "arm64" | "x64"
   readonly path: string
   readonly content?: string
 }): RuntimeArtifactTarget {
   const id = `${options.platform}-${options.arch}`
-  const rustTarget = id === "darwin-arm64"
-    ? "aarch64-apple-darwin"
-    : id === "darwin-x64"
-      ? "x86_64-apple-darwin"
-      : "x86_64-pc-windows-msvc"
+  const rustTarget = id === "linux-x64"
+    ? "x86_64-unknown-linux-gnu"
+    : id === "darwin-arm64"
+      ? "aarch64-apple-darwin"
+      : id === "darwin-x64"
+        ? "x86_64-apple-darwin"
+        : "x86_64-pc-windows-msvc"
   const content = options.content ?? "fixture"
   return {
     id,

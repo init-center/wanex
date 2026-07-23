@@ -3,8 +3,8 @@ export * from "./diagnostics.js"
 export { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
 export type {
   AgentRunOnceResult,
-  SubmitAndRunUserTextResult,
-  SubmitUserTextRequest,
-  SubmitUserTextResult,
+  SubmitAndRunUserTurnResult,
+  SubmitUserTurnRequest,
+  SubmitUserTurnResult,
   WanexAgentRuntimeOptions
 } from "../execution/agent-runtime/index.js"

@@ -32,9 +32,9 @@ export async function routeProductAppBackendInput(
   if (!text.startsWith("/")) {
     return {
       kind: "agent",
-      command: "runAgentTurn",
-      result: await host.commands.runAgentTurn({
-        text: request.text,
+      command: "submitConversationOperation",
+      result: await host.commands.submitConversationOperation({
+        content: [{ type: "text", text: request.text }],
         ...(request.sessionId === undefined
           ? {}
           : { sessionId: request.sessionId })

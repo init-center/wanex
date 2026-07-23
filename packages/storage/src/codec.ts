@@ -10,5 +10,6 @@ export {
 
 export * from "./codec-event.js"
 export * from "./codec-resource.js"
+export * from "./codec-media-generation.js"
 export * from "./codec-session.js"
 export * from "./codec-context.js"

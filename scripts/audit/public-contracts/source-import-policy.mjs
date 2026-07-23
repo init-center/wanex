@@ -25,6 +25,8 @@ const packageScopedSourceImportAllowlist = new Map([
           "packages/eval-harness/src/product-app-backend-workbench-scenarios.ts",
           "packages/eval-harness/src/product-app/host-endpoint-scenario.ts",
           "packages/eval-harness/src/product-app/plugin-action-scenario.ts",
+          "packages/eval-harness/src/product-app/conversation-helpers.ts",
+          "packages/eval-harness/src/product-app/conversation-lifecycle-scenario.ts",
           "packages/eval-harness/src/product-app/surface-client-scenario.ts",
           "packages/eval-harness/src/product-app/surface-message-transport-scenario.ts",
           "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
@@ -41,6 +43,7 @@ const packageScopedSourceImportAllowlist = new Map([
       [
         "@wanex/product-app-web",
         new Set([
+          "packages/eval-harness/src/product-app/conversation-lifecycle-scenario.ts",
           "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
           "packages/eval-harness/src/product-app/web-surface-scenario.ts",
           "packages/eval-harness/src/product-app/declarative-input-scenario.ts"

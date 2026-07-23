@@ -2,18 +2,24 @@ import type {
   ProductAppBackendIntegrationContract
 } from "@wanex/product-app/backend"
 import type {
-  ProductAppContinueWorkbenchResult,
+  ProductAppCancelTrackedConversationOperationResult,
+  ProductAppConversationAttachmentsReadModel,
+  ProductAppConversationAssistantTextDeltaEvent,
   ProductAppExecuteCommandResult,
   ProductAppExecutionReferenceReadResult,
   ProductAppCommandCatalogReadModel,
   ProductAppCommandInvocationPreview,
   ProductAppHomeReadModel,
   ProductAppOpenWorkbenchResult,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationResult,
   ProductAppProviderProfileListReadModel,
   ProductAppProviderProfileReadModel,
   ProductAppSettingsReadModel,
   ProductAppShellStatus,
-  ProductAppStartWorkbenchResult,
+  ProductAppSubmitConversationOperationResult,
+  ProductAppPrepareConversationAttachmentResult,
+  ProductAppRemoveConversationAttachmentResult,
   ProductAppStateSnapshot
 } from "./types.js"
 
@@ -34,8 +40,13 @@ export const PRODUCT_APP_SURFACE_COMMANDS = {
   executeProductCommand: "executeProductCommand",
   readExecutionReference: "readExecutionReference",
   openWorkbench: "openWorkbench",
-  startWorkbench: "startWorkbench",
-  continueWorkbench: "continueWorkbench"
+  prepareConversationAttachment: "prepareConversationAttachment",
+  readConversationAttachments: "readConversationAttachments",
+  removeConversationAttachment: "removeConversationAttachment",
+  submitConversationOperation: "submitConversationOperation",
+  readTrackedConversationOperation: "readTrackedConversationOperation",
+  cancelTrackedConversationOperation: "cancelTrackedConversationOperation",
+  regenerateTrackedConversationOperation: "regenerateTrackedConversationOperation"
 } as const
 
 export type ProductAppSurfaceCommand =
@@ -49,6 +60,7 @@ export interface ProductAppSurfaceAdapter {
   readSurfaceEvents(
     request?: ProductAppReadSurfaceEventsRequest
   ): readonly ProductAppSurfaceEvent[]
+  dispose(): Promise<void>
 }
 
 export interface ProductAppSurfaceDescriptor {
@@ -80,8 +92,13 @@ export type ProductAppSurfaceCommandInputKind =
   | "execution-reference"
   | "json-body"
   | "workbench-open"
-  | "workbench-start"
-  | "workbench-continue"
+  | "conversation-attachment-prepare"
+  | "conversation-attachment-read"
+  | "conversation-attachment-remove"
+  | "conversation-submit"
+  | "conversation-read"
+  | "conversation-cancel"
+  | "conversation-regenerate"
 
 export interface ProductAppSurfaceCommandRequest {
   readonly command: string
@@ -119,8 +136,13 @@ export type ProductAppSurfaceCommandValue =
   | ProductAppExecutionReferenceReadResult
   | ProductAppStateSnapshot
   | ProductAppOpenWorkbenchResult
-  | ProductAppStartWorkbenchResult
-  | ProductAppContinueWorkbenchResult
+  | ProductAppConversationAttachmentsReadModel
+  | ProductAppPrepareConversationAttachmentResult
+  | ProductAppRemoveConversationAttachmentResult
+  | ProductAppSubmitConversationOperationResult
+  | ProductAppReadTrackedConversationOperationResult
+  | ProductAppCancelTrackedConversationOperationResult
+  | ProductAppRegenerateTrackedConversationOperationResult
   | unknown
 
 export interface ProductAppSurfaceError {
@@ -150,6 +172,7 @@ export interface ProductAppSurfaceEvent {
   readonly at: number
   readonly requestId?: string
   readonly state?: ProductAppStateSnapshot
+  readonly conversation?: ProductAppConversationAssistantTextDeltaEvent
   readonly error?: ProductAppSurfaceError
 }
 
@@ -157,3 +180,4 @@ export type ProductAppSurfaceEventType =
   | "product-app.surface.command_completed"
   | "product-app.surface.command_rejected"
   | "product-app.surface.state_changed"
+  | "product-app.surface.conversation.assistant-text-delta"

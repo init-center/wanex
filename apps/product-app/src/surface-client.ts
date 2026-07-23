@@ -9,12 +9,25 @@ import type {
   ProductAppExecutionReferenceReadResult,
   ProductAppCommandPortEnvelope,
   ProductAppCommandPortJsonResult,
-  ProductAppContinueWorkbenchRequest,
-  ProductAppContinueWorkbenchResult,
+  ProductAppCancelTrackedConversationOperationRequest,
+  ProductAppCancelTrackedConversationOperationResult,
+  ProductAppAttachmentDraft,
+  ProductAppConversationAttachmentsReadModel,
+  ProductAppConversationAssistantTextDeltaEvent,
+  ProductAppConversationOperationReadModel,
   ProductAppHomeReadModel,
   ProductAppHomeOptions,
   ProductAppOpenWorkbenchResult,
   ProductAppOpenWorkbenchRequest,
+  ProductAppPrepareConversationAttachmentRequest,
+  ProductAppPrepareConversationAttachmentResult,
+  ProductAppReadConversationAttachmentsRequest,
+  ProductAppReadTrackedConversationOperationRequest,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationRequest,
+  ProductAppRegenerateTrackedConversationOperationResult,
+  ProductAppRemoveConversationAttachmentRequest,
+  ProductAppRemoveConversationAttachmentResult,
   ProductAppPreviewCommandInvocationRequest,
   ProductAppReadExecutionReferenceRequest,
   ProductAppProviderProfileListReadModel,
@@ -24,8 +37,8 @@ import type {
   ProductAppSetModeRequest,
   ProductAppSettingsReadModel,
   ProductAppShellStatus,
-  ProductAppStartWorkbenchRequest,
-  ProductAppStartWorkbenchResult,
+  ProductAppSubmitConversationOperationRequest,
+  ProductAppSubmitConversationOperationResult,
   ProductAppStateSnapshot,
   ProductAppUpdatePreferencesRequest
 } from "./types.js"
@@ -92,12 +105,25 @@ export type {
   ProductAppExecuteCommandRequest,
   ProductAppExecuteCommandResult,
   ProductAppExecutionReferenceReadResult,
-  ProductAppContinueWorkbenchRequest,
-  ProductAppContinueWorkbenchResult,
+  ProductAppCancelTrackedConversationOperationRequest,
+  ProductAppCancelTrackedConversationOperationResult,
+  ProductAppAttachmentDraft,
+  ProductAppConversationAttachmentsReadModel,
+  ProductAppConversationAssistantTextDeltaEvent,
+  ProductAppConversationOperationReadModel,
   ProductAppHomeReadModel,
   ProductAppHomeOptions,
   ProductAppOpenWorkbenchResult,
   ProductAppOpenWorkbenchRequest,
+  ProductAppPrepareConversationAttachmentRequest,
+  ProductAppPrepareConversationAttachmentResult,
+  ProductAppReadConversationAttachmentsRequest,
+  ProductAppReadTrackedConversationOperationRequest,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationRequest,
+  ProductAppRegenerateTrackedConversationOperationResult,
+  ProductAppRemoveConversationAttachmentRequest,
+  ProductAppRemoveConversationAttachmentResult,
   ProductAppPreviewCommandInvocationRequest,
   ProductAppReadExecutionReferenceRequest,
   ProductAppProviderProfileListReadModel,
@@ -107,8 +133,8 @@ export type {
   ProductAppSetModeRequest,
   ProductAppSettingsReadModel,
   ProductAppShellStatus,
-  ProductAppStartWorkbenchRequest,
-  ProductAppStartWorkbenchResult,
+  ProductAppSubmitConversationOperationRequest,
+  ProductAppSubmitConversationOperationResult,
   ProductAppStateSnapshot,
   ProductAppUpdatePreferencesRequest
 } from "./types.js"
@@ -175,14 +201,34 @@ export interface ProductAppSurfaceClient {
     input?: ProductAppOpenWorkbenchRequest,
     options?: ProductAppSurfaceClientRequestOptions
   ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppOpenWorkbenchResult>>
-  startWorkbench(
-    input: ProductAppStartWorkbenchRequest,
+  prepareConversationAttachment(
+    input: ProductAppPrepareConversationAttachmentRequest,
     options?: ProductAppSurfaceClientRequestOptions
-  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppStartWorkbenchResult>>
-  continueWorkbench(
-    input: ProductAppContinueWorkbenchRequest,
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppPrepareConversationAttachmentResult>>
+  readConversationAttachments(
+    input?: ProductAppReadConversationAttachmentsRequest,
     options?: ProductAppSurfaceClientRequestOptions
-  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppContinueWorkbenchResult>>
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppConversationAttachmentsReadModel>>
+  removeConversationAttachment(
+    input: ProductAppRemoveConversationAttachmentRequest,
+    options?: ProductAppSurfaceClientRequestOptions
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppRemoveConversationAttachmentResult>>
+  submitConversationOperation(
+    input: ProductAppSubmitConversationOperationRequest,
+    options?: ProductAppSurfaceClientRequestOptions
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppSubmitConversationOperationResult>>
+  readTrackedConversationOperation(
+    input?: ProductAppReadTrackedConversationOperationRequest,
+    options?: ProductAppSurfaceClientRequestOptions
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppReadTrackedConversationOperationResult>>
+  cancelTrackedConversationOperation(
+    input: ProductAppCancelTrackedConversationOperationRequest,
+    options?: ProductAppSurfaceClientRequestOptions
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppCancelTrackedConversationOperationResult>>
+  regenerateTrackedConversationOperation(
+    input?: ProductAppRegenerateTrackedConversationOperationRequest,
+    options?: ProductAppSurfaceClientRequestOptions
+  ): Promise<ProductAppSurfaceClientCommandEnvelope<ProductAppRegenerateTrackedConversationOperationResult>>
   readSurfaceEvents(
     request?: ProductAppReadSurfaceEventsRequest
   ): Promise<ProductAppSurfaceClientEventsResult>
@@ -388,20 +434,65 @@ export function createProductAppSurfaceClient(
         options
       })
     },
-    async startWorkbench(input, options) {
-      return await dispatchTyped<ProductAppStartWorkbenchResult>({
+    async prepareConversationAttachment(input, options) {
+      return await dispatchTyped<ProductAppPrepareConversationAttachmentResult>({
         transport,
         events,
-        command: PRODUCT_APP_SURFACE_COMMANDS.startWorkbench,
+        command: PRODUCT_APP_SURFACE_COMMANDS.prepareConversationAttachment,
         input,
         options
       })
     },
-    async continueWorkbench(input, options) {
-      return await dispatchTyped<ProductAppContinueWorkbenchResult>({
+    async readConversationAttachments(input, options) {
+      return await dispatchTyped<ProductAppConversationAttachmentsReadModel>({
         transport,
         events,
-        command: PRODUCT_APP_SURFACE_COMMANDS.continueWorkbench,
+        command: PRODUCT_APP_SURFACE_COMMANDS.readConversationAttachments,
+        input,
+        options
+      })
+    },
+    async removeConversationAttachment(input, options) {
+      return await dispatchTyped<ProductAppRemoveConversationAttachmentResult>({
+        transport,
+        events,
+        command: PRODUCT_APP_SURFACE_COMMANDS.removeConversationAttachment,
+        input,
+        options
+      })
+    },
+    async submitConversationOperation(input, options) {
+      return await dispatchTyped<ProductAppSubmitConversationOperationResult>({
+        transport,
+        events,
+        command: PRODUCT_APP_SURFACE_COMMANDS.submitConversationOperation,
+        input,
+        options
+      })
+    },
+    async readTrackedConversationOperation(input, options) {
+      return await dispatchTyped<ProductAppReadTrackedConversationOperationResult>({
+        transport,
+        events,
+        command: PRODUCT_APP_SURFACE_COMMANDS.readTrackedConversationOperation,
+        input,
+        options
+      })
+    },
+    async cancelTrackedConversationOperation(input, options) {
+      return await dispatchTyped<ProductAppCancelTrackedConversationOperationResult>({
+        transport,
+        events,
+        command: PRODUCT_APP_SURFACE_COMMANDS.cancelTrackedConversationOperation,
+        input,
+        options
+      })
+    },
+    async regenerateTrackedConversationOperation(input, options) {
+      return await dispatchTyped<ProductAppRegenerateTrackedConversationOperationResult>({
+        transport,
+        events,
+        command: PRODUCT_APP_SURFACE_COMMANDS.regenerateTrackedConversationOperation,
         input,
         options
       })

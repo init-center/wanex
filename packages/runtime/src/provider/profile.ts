@@ -1,5 +1,6 @@
 import type { JsonValue, ProviderProfile } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
+import type { SecretResolverPort } from "../secrets/index.js"
 import { AnthropicAdapter } from "./adapters/anthropic.js"
 import { FakeProviderAdapter } from "./adapters/fake.js"
 import {
@@ -7,6 +8,21 @@ import {
   OpenAICompatibleAdapter
 } from "./adapters/openai-compatible.js"
 import type { ProviderAdapter } from "./types.js"
+import {
+  assertProfileCapabilitiesSupported,
+  normalizeProviderCapabilities
+} from "./capabilities.js"
+
+export interface ProviderProfileSummary {
+  readonly id: string
+  readonly kind: ProviderProfile["kind"]
+  readonly providerId: string
+  readonly modelId: string
+  readonly capabilities: ProviderProfile["capabilities"]
+  readonly baseUrl?: string
+  readonly anthropicVersion?: string
+  readonly credentialConfigured: boolean
+}
 
 export function providerConfigKey(profileId: string): string {
   if (profileId.length === 0) {
@@ -21,8 +37,12 @@ export function profileToJson(profile: ProviderProfile): JsonValue {
     kind: profile.kind,
     providerId: profile.providerId,
     modelId: profile.modelId,
+    capabilities: {
+      input: [...normalizeProviderCapabilities(profile.capabilities).input],
+      output: [...normalizeProviderCapabilities(profile.capabilities).output]
+    },
     ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.apiKey === undefined ? {} : { apiKey: profile.apiKey }),
+    ...(profile.secretRef === undefined ? {} : { secretRef: profile.secretRef }),
     ...(profile.anthropicVersion === undefined
       ? {}
       : { anthropicVersion: profile.anthropicVersion })
@@ -48,12 +68,16 @@ export function providerProfileFromJson(value: JsonValue): ProviderProfile {
     kind,
     providerId: expectString(profile.providerId, "provider.providerId"),
     modelId: expectString(profile.modelId, "provider.modelId"),
+    capabilities: assertProfileCapabilitiesSupported(
+      kind,
+      expectProviderCapabilities(profile.capabilities)
+    ),
     ...(profile.baseUrl === undefined
       ? {}
       : { baseUrl: expectString(profile.baseUrl, "provider.baseUrl") }),
-    ...(profile.apiKey === undefined
+    ...(profile.secretRef === undefined
       ? {}
-      : { apiKey: expectString(profile.apiKey, "provider.apiKey") }),
+      : { secretRef: expectSecretRef(profile.secretRef) }),
     ...(profile.anthropicVersion === undefined
       ? {}
       : {
@@ -65,39 +89,61 @@ export function providerProfileFromJson(value: JsonValue): ProviderProfile {
   }
 }
 
-export function providerFromProfile(profile: ProviderProfile): ProviderAdapter {
+export async function providerFromProfile(
+  profile: ProviderProfile,
+  secretResolver?: SecretResolverPort
+): Promise<ProviderAdapter> {
   if (profile.kind === "fake") {
     return new FakeProviderAdapter({
       providerId: profile.providerId,
       modelId: profile.modelId,
-      responseText: `Fake response from ${profile.modelId}`
+      responseText: `Fake response from ${profile.modelId}`,
+      capabilities: profile.capabilities
     })
   }
   const baseUrl = requireProfileField(profile.baseUrl, profile.kind, "baseUrl")
-  const apiKey = requireProfileField(profile.apiKey, profile.kind, "apiKey")
-  if (profile.kind === "anthropic") {
-    return new AnthropicAdapter({
+  const secretRef = requireProfileField(
+    profile.secretRef,
+    profile.kind,
+    "secretRef"
+  )
+  if (secretResolver === undefined) {
+    throw new Error(`${profile.kind} provider profile requires secret resolver`)
+  }
+  const secret = await secretResolver.resolve(secretRef, {
+    providerProfileId: profile.id
+  })
+  try {
+    const apiKey = secret.reveal()
+    if (profile.kind === "anthropic") {
+      return new AnthropicAdapter({
+        modelId: profile.modelId,
+        baseUrl,
+        apiKey,
+        capabilities: profile.capabilities,
+        ...(profile.anthropicVersion === undefined
+          ? {}
+          : { anthropicVersion: profile.anthropicVersion })
+      })
+    }
+    if (profile.kind === "deepseek") {
+      return new DeepSeekThinkingAdapter({
+        modelId: profile.modelId,
+        baseUrl,
+        apiKey,
+        capabilities: profile.capabilities
+      })
+    }
+    return new OpenAICompatibleAdapter({
+      providerId: profile.providerId,
       modelId: profile.modelId,
       baseUrl,
       apiKey,
-      ...(profile.anthropicVersion === undefined
-        ? {}
-        : { anthropicVersion: profile.anthropicVersion })
+      capabilities: profile.capabilities
     })
+  } finally {
+    secret.dispose()
   }
-  if (profile.kind === "deepseek") {
-    return new DeepSeekThinkingAdapter({
-      modelId: profile.modelId,
-      baseUrl,
-      apiKey
-    })
-  }
-  return new OpenAICompatibleAdapter({
-    providerId: profile.providerId,
-    modelId: profile.modelId,
-    baseUrl,
-    apiKey
-  })
 }
 
 export async function readProviderProfile(
@@ -123,20 +169,38 @@ export async function writeProviderProfile(
   storage: CoreStore,
   profile: ProviderProfile
 ): Promise<void> {
-  await storage.putConfig(providerConfigKey(profile.id), profileToJson(profile))
+  const normalized = providerProfileFromJson(profileToJson(profile))
+  await storage.putConfig(
+    providerConfigKey(normalized.id),
+    profileToJson(normalized)
+  )
 }
 
 export async function resolveProviderProfile(
   storage: CoreStore,
-  profileId: string
+  profileId: string,
+  secretResolver?: SecretResolverPort
 ): Promise<ProviderAdapter> {
-  return providerFromProfile(await requireProviderProfile(storage, profileId))
+  return await providerFromProfile(
+    await requireProviderProfile(storage, profileId),
+    secretResolver
+  )
 }
 
-export function redactProfile(profile: ProviderProfile): ProviderProfile {
+export function summarizeProviderProfile(
+  profile: ProviderProfile
+): ProviderProfileSummary {
   return {
-    ...profile,
-    ...(profile.apiKey === undefined ? {} : { apiKey: "***" })
+    id: profile.id,
+    kind: profile.kind,
+    providerId: profile.providerId,
+    modelId: profile.modelId,
+    capabilities: profile.capabilities,
+    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
+    ...(profile.anthropicVersion === undefined
+      ? {}
+      : { anthropicVersion: profile.anthropicVersion }),
+    credentialConfigured: profile.secretRef !== undefined
   }
 }
 
@@ -156,4 +220,32 @@ function expectString(value: JsonValue | undefined, name: string): string {
     throw new Error(`${name} must be a string`)
   }
   return value
+}
+
+function expectSecretRef(value: JsonValue): string {
+  const ref = expectString(value, "provider.secretRef")
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(ref)) {
+    throw new Error(`provider.secretRef must include a URI scheme: ${ref}`)
+  }
+  return ref
+}
+
+function expectProviderCapabilities(
+  value: JsonValue | undefined
+): ProviderProfile["capabilities"] {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("provider.capabilities must be an object")
+  }
+  const record = value as Record<string, JsonValue>
+  return {
+    input: expectStringArray(record.input, "provider.capabilities.input"),
+    output: expectStringArray(record.output, "provider.capabilities.output")
+  } as ProviderProfile["capabilities"]
+}
+
+function expectStringArray(value: JsonValue | undefined, label: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array`)
+  }
+  return value.map((item, index) => expectString(item, `${label}[${index}]`))
 }

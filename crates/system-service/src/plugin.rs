@@ -40,7 +40,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -190,7 +190,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -357,7 +357,7 @@ impl SystemService {
             None
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing =
             get_manifest_by_plugin_tx(&tx, &request.plugin_id, request.version.as_deref())?
                 .ok_or_else(|| {
@@ -411,7 +411,7 @@ impl SystemService {
             _ => unreachable!("validated plugin install state"),
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing =
             get_install_by_plugin_tx(&tx, &request.plugin_id, request.version.as_deref())?
                 .ok_or_else(|| {
@@ -451,7 +451,7 @@ impl SystemService {
         validate_submit_plugin_action(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let manifest =
             get_manifest_by_plugin_tx(&tx, &request.plugin_id, request.version.as_deref())?
                 .ok_or_else(|| {
@@ -494,6 +494,7 @@ impl SystemService {
                 scheduled_at: request.scheduled_at,
                 not_before: request.not_before,
                 priority: request.priority,
+                concurrency_key: None,
                 max_attempts: request.max_attempts,
                 retry_policy: request.retry_policy.clone(),
                 idempotency_key: Some(job_idempotency_key),

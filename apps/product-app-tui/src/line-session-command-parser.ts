@@ -11,8 +11,13 @@ export type ProductAppTuiLineCommand =
     }
   | {
       readonly kind: "command"
-      readonly name: "ask" | "continue"
+      readonly name: "ask"
       readonly text: string
+    }
+  | {
+      readonly kind: "command"
+      readonly name: "attach"
+      readonly path: string
     }
   | {
       readonly kind: "command"
@@ -23,6 +28,16 @@ export type ProductAppTuiLineCommand =
       readonly kind: "command"
       readonly name: "workbench"
       readonly sessionId?: string
+    }
+  | {
+      readonly kind: "command"
+      readonly name: "operation" | "regenerate"
+      readonly sessionId?: string
+    }
+  | {
+      readonly kind: "command"
+      readonly name: "cancel"
+      readonly reason?: string
     }
   | {
       readonly kind: "command"
@@ -77,12 +92,22 @@ export function parseProductAppTuiLineCommand(
       }
       return { kind: "command", name: "quit" }
     case "ask":
-    case "continue":
-      return parseTextCommand(name, rest)
+      return parseTextCommand(rest)
+    case "attach":
+      return parsePathCommand(rest)
     case "select":
       return parseSelectCommand(rest)
     case "workbench":
       return parseWorkbenchCommand(rest)
+    case "operation":
+    case "regenerate":
+      return parseOptionalSessionCommand(name, rest)
+    case "cancel":
+      return {
+        kind: "command",
+        name: "cancel",
+        ...(rest.trim().length === 0 ? {} : { reason: rest.trim() })
+      }
     case "palette":
       return parsePaletteCommand(rest)
     case "preview":
@@ -100,6 +125,14 @@ export function parseProductAppTuiLineCommand(
   }
 }
 
+function parsePathCommand(rest: string): ProductAppTuiLineCommand {
+  const path = rest.trim()
+  if (path.length === 0) {
+    return { kind: "error", message: "attach requires a local path" }
+  }
+  return { kind: "command", name: "attach", path }
+}
+
 function parseExecutionCommand(rest: string): ProductAppTuiLineCommand {
   const jobId = rest.trim()
   if (jobId.length === 0) {
@@ -111,22 +144,36 @@ function parseExecutionCommand(rest: string): ProductAppTuiLineCommand {
   return { kind: "command", name: "execution", jobId }
 }
 
-function parseTextCommand(
-  name: "ask" | "continue",
-  rest: string
-): ProductAppTuiLineCommand {
+function parseTextCommand(rest: string): ProductAppTuiLineCommand {
   const text = rest.trim()
   if (text.length === 0) {
     return {
       kind: "error",
-      message: `${name} requires text`
+      message: "ask requires text"
     }
   }
   return {
     kind: "command",
-    name,
+    name: "ask",
     text
   }
+}
+
+function parseOptionalSessionCommand(
+  name: "operation" | "regenerate",
+  rest: string
+): ProductAppTuiLineCommand {
+  const sessionId = rest.trim()
+  if (sessionId.length === 0) {
+    return { kind: "command", name }
+  }
+  if (sessionId.includes(" ")) {
+    return {
+      kind: "error",
+      message: `${name} accepts at most one session id`
+    }
+  }
+  return { kind: "command", name, sessionId }
 }
 
 function parseSelectCommand(rest: string): ProductAppTuiLineCommand {

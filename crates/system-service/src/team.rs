@@ -42,7 +42,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -167,7 +167,7 @@ impl SystemService {
             None
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_conversation_tx(&tx, &request.conversation_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "team conversation does not exist: {}",
@@ -222,7 +222,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let conversation =
             get_conversation_tx(&tx, &request.conversation_id)?.ok_or_else(|| {
@@ -339,7 +339,7 @@ impl SystemService {
         }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_participant_tx(&tx, &request.participant_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "team participant does not exist: {}",
@@ -377,7 +377,7 @@ impl SystemService {
         validate_append_turn(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let record = append_team_turn_tx(&tx, request, now)?;
         tx.commit()?;
         Ok(record)

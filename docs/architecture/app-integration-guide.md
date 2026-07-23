@@ -2,16 +2,20 @@
 
 ## Choose One Entry
 
-Use `@wanex/runtime` for a headless agent product. Use `@wanex/app` for a
-trusted product backend that needs safe commands and read models. Do not
-reconstruct either default lifecycle from subsystem packages.
+Use `@wanex/runtime` for a product-neutral headless agent harness. Use the
+`@wanex/app` root for a trusted application backend that needs safe commands,
+read models, provider management, context, diagnostics, or durable conversation
+operations. There is no second App backend entry. Do not reconstruct these
+lifecycles from subsystem packages.
 
 ```ts
 import { createWanexRuntime } from "@wanex/runtime"
 
 const runtime = await createWanexRuntime({ storage, provider })
 try {
-  const result = await runtime.run({ text: "Hello" })
+  const reference = await runtime.submit({ text: "Hello" })
+  runtime.start()
+  const current = await runtime.readOperation(reference)
 } finally {
   await runtime.dispose()
 }
@@ -26,10 +30,46 @@ Trusted hosts may select narrow Runtime subpaths:
 - `/context` for explicit global/project instructions and skills;
 - `/memory` for compaction maintenance;
 - `/resources` for image/audio/video/file artifact metadata and projection;
+- `/secrets` for trusted-host secret providers and reference resolution;
 - `/jobs`, `/sessions`, and `/config` for optional capability integration.
+
+Durable provider profiles store `secretRef`, not credential values. Headless
+hosts commonly register `EnvSecretProvider` and use refs such as
+`env://OPENAI_API_KEY`; desktop and service products may inject OS keychain or
+cloud secret-manager providers through the same resolver port.
 
 Global and project discovery requires explicit roots and trust policy. Skill
 bodies are activated on demand and are not injected into ambient context.
+
+## Durable App Conversations
+
+`@wanex/app` owns one long-lived configurable Runtime Host worker pool. A
+product may
+call `submitConversationOperation(...)` to receive durable `sessionId`,
+`inputId`, `turnId`, and `jobId` identifiers before provider completion,
+then call
+`readConversationOperation(...)` for a bounded
+`queued | running | cancel_requested | succeeded | failed | cancelled |`
+`interrupted | recovery_required` projection.
+
+The headless `@wanex/app` blocking `runAgentTurn(...)` helper remains a
+convenience API over the same processor; interactive Product surfaces use the
+tracked asynchronous operation contract instead. The helper does not construct
+a competing per-turn worker. Local
+submissions wake the worker immediately, while fallback polling still detects
+jobs created by another process or remote store client. `stop()` drains the
+restartable processor without closing storage, and `dispose()` is terminal.
+Injected storage remains borrowed.
+
+Operation reads expose bounded transcript/result text and generic terminal
+errors. They do not expose scheduler leases, raw job failures, provider events,
+storage paths, or secret references. Active provider cancellation is a
+separate contract and must not be inferred from processor stop.
+
+Active provider selection is future-admission policy. Each admitted turn stores
+an immutable execution binding, so a profile switch affects only later turns.
+Regeneration submits a new input, turn, job, and binding with a
+`regeneratesTurnId` reference; it never rewrites or retries the old turn.
 
 ## Product Composition
 
@@ -43,6 +83,13 @@ contracts. Browser and renderer processes never spawn the system service or
 open storage directly. Remote storage clients send credentials, not store
 selectors; the trusted control plane derives the store from the authenticated
 subject.
+
+Provider configuration follows the same trust boundary. Trusted hosts may
+store and edit provider base URLs, secret references, and protocol-specific
+settings. Renderer-facing Product read models expose only profile identity,
+provider/model identity, active state, credential-configured state, and bounded
+readiness. Endpoint URLs, secret references, protocol-version fields, and raw
+provider wire data never cross the Product surface or desktop IPC response.
 
 ## Lifecycle Order
 

@@ -19,6 +19,7 @@ import type {
 export interface ProductAppBackendShell {
   readonly app: ProductAppBackendApp
   readonly commands: ProductAppBackendCommands
+  readonly events: ProductAppBackendApp["events"]
   readonly port: ProductAppBackendCommandPort
   readonly json: ProductAppBackendCommandPortJsonMapper
   status(): ProductAppBackendStatus
@@ -37,6 +38,7 @@ export async function createProductAppBackendShell(
   return {
     app,
     commands: app.commands,
+    events: app.events,
     port,
     json,
     status() {

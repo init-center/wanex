@@ -23,7 +23,8 @@ export function toRpcEvent(event: RuntimeEvent): RuntimeEventInputWire {
     type: event.type,
     scope: {
       session_id: event.scope.sessionId ?? null,
-      run_id: event.scope.runId ?? null,
+      turn_id: event.scope.turnId ?? null,
+      attempt_id: event.scope.attemptId ?? null,
       input_id: event.scope.inputId ?? null,
       message_id: event.scope.messageId ?? null,
       resource_id: event.scope.resourceId ?? null,

@@ -136,6 +136,9 @@ importers:
       '@wanex/product-app':
         specifier: workspace:*
         version: link:../product-app
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
 
   apps/product-app-web:
     dependencies:

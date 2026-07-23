@@ -19,6 +19,7 @@ export interface WanexMcpHttpClientTransportConfig {
 
 export interface WanexMcpRuntimeClientOptions {
   readonly id: string
+  readonly capabilityRevision: string
   readonly transport: WanexMcpClientTransportConfig
   readonly namePrefix?: string
   readonly requestTimeoutMs?: number

@@ -22,7 +22,7 @@ export interface ProductAppBackendCapabilityRow {
 }
 
 export type ProductAppBackendCapabilityId =
-  | "app-shell"
+  | "wanex-app"
   | "product-command-registry"
   | "agent-turn"
   | "diagnostics-support"

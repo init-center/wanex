@@ -2,16 +2,18 @@ import type {
   BeginToolExecutionRequest,
   BeginToolExecutionReceipt,
   FinishToolExecutionRequest,
+  ListToolExecutionAttemptsRequest,
   ListToolExecutionsRequest,
-  RecoverToolExecutionRequest,
+  ToolExecutionAttemptRecord,
   ToolExecutionRecord
 } from "@wanex/protocol"
 import {
   fromRpcToolExecutionRecord,
+  fromRpcToolExecutionAttemptRecord,
   toRpcBeginToolExecutionRequest,
   toRpcFinishToolExecutionRequest,
+  toRpcListToolExecutionAttemptsRequest,
   toRpcListToolExecutionsRequest,
-  toRpcRecoverToolExecutionRequest
 } from "./codec-tools.js"
 import { assertArray, isRecord } from "./codec-helpers.js"
 import type { ToolsStorageRpcCommand } from "./generated/storage-rpc.js"
@@ -29,8 +31,13 @@ export class ToolExecutionStoreMethods extends RpcStoreFacetBase {
     if (value.execution === undefined) {
       throw new Error("begin tool execution receipt requires execution")
     }
+    const invocationAttempt =
+      value.invocation_attempt === null || value.invocation_attempt === undefined
+        ? undefined
+        : fromRpcToolExecutionAttemptRecord(value.invocation_attempt)
     return {
       execution: fromRpcToolExecutionRecord(value.execution),
+      ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
       created: value.created === true
     }
   }
@@ -39,14 +46,6 @@ export class ToolExecutionStoreMethods extends RpcStoreFacetBase {
     const value = await this.callTools({
       command: "finish-tool-execution",
       request: toRpcFinishToolExecutionRequest(request)
-    })
-    return value === null ? null : fromRpcToolExecutionRecord(value)
-  }
-
-  async recoverToolExecution(request: RecoverToolExecutionRequest): Promise<ToolExecutionRecord | null> {
-    const value = await this.callTools({
-      command: "recover-tool-execution",
-      request: toRpcRecoverToolExecutionRequest(request)
     })
     return value === null ? null : fromRpcToolExecutionRecord(value)
   }
@@ -63,6 +62,17 @@ export class ToolExecutionStoreMethods extends RpcStoreFacetBase {
     })
     assertArray(value, "tool executions")
     return value.map(fromRpcToolExecutionRecord)
+  }
+
+  async listToolExecutionAttempts(
+    request: ListToolExecutionAttemptsRequest
+  ): Promise<ToolExecutionAttemptRecord[]> {
+    const value = await this.callTools({
+      command: "list-tool-execution-attempts",
+      request: toRpcListToolExecutionAttemptsRequest(request)
+    })
+    assertArray(value, "tool execution attempts")
+    return value.map(fromRpcToolExecutionAttemptRecord)
   }
 
   private callTools(request: ToolsStorageRpcCommand) {

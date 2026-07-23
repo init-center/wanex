@@ -91,19 +91,19 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
       "audit-distribution-footprint.mjs",
       ["--json"]
     )
-    const appShell = entryByName(report, "@wanex/app")
+    const appFacade = entryByName(report, "@wanex/app")
     const productApp = entryByName(report, "@wanex/product-app")
     const productAppLocal = entryByName(report, "@wanex/product-app-local")
     const cli = entryByName(report, "@wanex/cli")
 
-    assert(appShell.missing.length === 0, "app shell should exist")
+    assert(appFacade.missing.length === 0, "app should exist")
     assert(
-      !appShell.contains.pluginRuntime && !appShell.contains.connectorRuntime,
-      "app shell default path should stay slim and exclude optional runtimes"
+      !appFacade.contains.pluginRuntime && !appFacade.contains.connectorRuntime,
+      "app default path should stay slim and exclude optional runtimes"
     )
     assert(
-      appShell.contains.concreteAdapters.length === 0,
-      "app shell should not include concrete connector adapters"
+      appFacade.contains.concreteAdapters.length === 0,
+      "app should not include concrete connector adapters"
     )
     assert(productApp.missing.length === 0, "product app should exist")
     assert(
@@ -133,10 +133,10 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
       "CLI cold path should not include optional runtimes"
     )
     return {
-      appShell: {
-        pluginRuntime: appShell.contains.pluginRuntime,
-        connectorRuntime: appShell.contains.connectorRuntime,
-        concreteAdapters: appShell.contains.concreteAdapters
+      app: {
+        pluginRuntime: appFacade.contains.pluginRuntime,
+        connectorRuntime: appFacade.contains.connectorRuntime,
+        concreteAdapters: appFacade.contains.concreteAdapters
       },
       productApp: {
         pluginRuntime: productApp.contains.pluginRuntime,

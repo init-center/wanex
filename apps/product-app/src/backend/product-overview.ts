@@ -258,16 +258,16 @@ function projectRecommendedActions(options: {
   if (options.recentSessions.rows.length === 0) {
     actions.push({
       id: "session.start",
-      commandId: "product.agent.run",
+      commandId: "product.agent.submit",
       label: "Start Session",
       priority: 40,
       reason: "no_recent_sessions"
     })
   }
   actions.push({
-    id: "agent.run",
-    commandId: "product.agent.run",
-    label: "Run Agent",
+    id: "agent.submit",
+    commandId: "product.agent.submit",
+    label: "Submit Agent Turn",
     priority: 50,
     reason: "ready"
   })

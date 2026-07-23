@@ -28,6 +28,7 @@ export const agentStarterContractScenario = createEvalScenario({
       await writeProviderProfile(runtime.storage, {
         id: "eval-agent-starter",
         kind: "fake",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "fake",
         modelId: "eval-starter-model"
       })
@@ -35,8 +36,8 @@ export const agentStarterContractScenario = createEvalScenario({
         storage: runtime.storage,
         providerProfileId: "eval-agent-starter"
       })
-      const result = await agent.submitAndRunUserText({
-        text: "eval starter",
+      const result = await agent.submitAndRunUserTurn({
+        content: [{ type: "text", text: "eval starter" }],
         sessionId: "ses_eval_agent_starter",
         principalId: "eval-agent-starter-user"
       })

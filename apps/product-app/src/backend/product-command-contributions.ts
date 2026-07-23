@@ -10,11 +10,11 @@ export function productAppBackendBuiltinCommandContributions():
   readonly AppCommandContribution[] {
   return [
     commandContribution({
-      id: "product.agent.run",
-      name: "agent.run",
-      title: "Run Agent",
+      id: "product.agent.submit",
+      name: "agent.submit",
+      title: "Submit Agent Turn",
       category: "agent",
-      handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn,
+      handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation,
       order: 10
     }),
     commandContribution({
@@ -80,14 +80,6 @@ export function productAppBackendBuiltinCommandContributions():
       category: "workbench",
       handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.readProductWorkbench,
       order: 54
-    }),
-    commandContribution({
-      id: "product.workbench.continue",
-      name: "workbench.continue",
-      title: "Continue Workbench",
-      category: "workbench",
-      handlerRef: PRODUCT_APP_BACKEND_HANDLER_REFS.continueProductWorkbenchSession,
-      order: 56
     }),
     commandContribution({
       id: "product.transcript.read",

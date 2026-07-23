@@ -15,6 +15,8 @@ import {
   memoryCompactionDurableProjectionScenario,
   memoryReplayProductPathScenario
 } from "./memory-scenarios.js"
+import { mediaGenerationAppPathScenario } from "./media-generation-scenario.js"
+import { optionalCapabilityTurnBindingScenario } from "./optional-capability-scenario.js"
 import {
   cliDiagnosticsOperationalScenario,
   cliMemorySweepOperationalScenario,
@@ -34,10 +36,11 @@ import {
 } from "./product-capability-scenarios.js"
 import {
   productAppHostEndpointContractScenario,
-  productAppShellContractScenario,
+  productAppContractScenario,
   productAppSurfaceClientContractScenario,
   productAppSurfaceContractScenario,
   productAppSurfaceMessageTransportScenario,
+  productAppConversationLifecycleScenario,
   productAppFeedbackMatrixScenario,
   productAppLocalDesktopHostContractScenario,
   productAppLocalHostContractScenario,
@@ -63,7 +66,7 @@ import {
 } from "./resource-provider-team-scenarios.js"
 import {
   runtimeHostFailureIsolationScenario,
-  runtimeHostRemoteStorageScenario
+  runtimeHostRemoteMultiOwnerScenario
 } from "./runtime-host-scenarios.js"
 import { tuiProductControllerPathScenario } from "./tui-product-scenarios.js"
 import type { EvalScenario } from "./types.js"
@@ -91,6 +94,8 @@ export {
   memoryCompactionDurableProjectionScenario,
   memoryReplayProductPathScenario
 } from "./memory-scenarios.js"
+export { mediaGenerationAppPathScenario } from "./media-generation-scenario.js"
+export { optionalCapabilityTurnBindingScenario } from "./optional-capability-scenario.js"
 export {
   cliDiagnosticsOperationalScenario,
   cliMemorySweepOperationalScenario,
@@ -110,10 +115,11 @@ export {
 } from "./product-capability-scenarios.js"
 export {
   productAppHostEndpointContractScenario,
-  productAppShellContractScenario,
+  productAppContractScenario,
   productAppSurfaceClientContractScenario,
   productAppSurfaceContractScenario,
   productAppSurfaceMessageTransportScenario,
+  productAppConversationLifecycleScenario,
   productAppFeedbackMatrixScenario,
   productAppLocalDesktopHostContractScenario,
   productAppLocalHostContractScenario,
@@ -139,7 +145,7 @@ export {
 } from "./resource-provider-team-scenarios.js"
 export {
   runtimeHostFailureIsolationScenario,
-  runtimeHostRemoteStorageScenario
+  runtimeHostRemoteMultiOwnerScenario
 } from "./runtime-host-scenarios.js"
 export { tuiProductControllerPathScenario } from "./tui-product-scenarios.js"
 export {
@@ -157,10 +163,11 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     productAppBackendJsonMappingScenario,
     productAppBackendBackendShellScenario,
     productAppBackendIntegrationContractScenario,
-    productAppShellContractScenario,
+    productAppContractScenario,
     productAppSurfaceContractScenario,
     productAppSurfaceClientContractScenario,
     productAppSurfaceMessageTransportScenario,
+    productAppConversationLifecycleScenario,
     productAppHostEndpointContractScenario,
     productAppWebSurfaceContractScenario,
     productAppFeedbackMatrixScenario,
@@ -178,6 +185,8 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     tuiProductControllerPathScenario,
     memoryCompactionDurableProjectionScenario,
     memoryReplayProductPathScenario,
+    mediaGenerationAppPathScenario,
+    optionalCapabilityTurnBindingScenario,
     resourceTicketExpiryCleanupScenario,
     workspaceApplyUndoReapplyScenario,
     workspaceControlledToolsScenario,
@@ -186,7 +195,7 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     providerDeepSeekThinkingFidelityScenario,
     teamRoundBoundScenario,
     remoteStorageControlPlaneIsolationScenario,
-    runtimeHostRemoteStorageScenario,
+    runtimeHostRemoteMultiOwnerScenario,
     runtimeHostFailureIsolationScenario,
     delegationRuntimeHostProductScenario,
     delegationGraphProductSmokeScenario,

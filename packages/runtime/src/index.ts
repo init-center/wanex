@@ -1,11 +1,17 @@
 export { createWanexRuntime } from "./runtime.js"
 export type {
   WanexRuntime,
+  WanexRuntimeCancelOperationRequest,
+  WanexRuntimeCancelOperationResult,
   WanexRuntimeHealth,
-  WanexRuntimeJobState,
+  WanexRuntimeOperationReadModel,
+  WanexRuntimeOperationReference,
+  WanexRuntimeOperationState,
   WanexRuntimeOptions,
   WanexRuntimeProviderOptions,
   WanexRuntimeProviderProfileKind,
+  WanexRuntimeReadOperationRequest,
+  WanexRuntimeReadOperationResult,
   WanexRuntimeRunOnceResult,
   WanexRuntimeRunRequest,
   WanexRuntimeRunResult,

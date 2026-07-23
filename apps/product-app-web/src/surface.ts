@@ -21,12 +21,19 @@ import {
   idleProductAppWebWorkbench,
   normalizeProductAppWebWorkbenchForSelectedSession
 } from "./workbench-view.js"
+import {
+  applyProductAppWebConversationEvents,
+  idleProductAppWebConversation,
+  normalizeProductAppWebConversationForSelectedSession,
+  productAppWebConversationFromResult
+} from "./conversation-view.js"
 import type {
   CreateProductAppWebSurfaceOptions,
   ProductAppWebAction,
   ProductAppWebActionResult,
   ProductAppWebCommandPreviewViewModel,
   ProductAppWebCommandExecutionViewModel,
+  ProductAppWebConversationViewModel,
   ProductAppWebExecutionActivityViewModel,
   ProductAppWebOperationStatusViewModel,
   ProductAppWebPollEventsOptions,
@@ -50,6 +57,7 @@ export async function createProductAppWebSurface(
     commandPreview: idleProductAppWebCommandPreview(),
     commandExecution: idleProductAppWebCommandExecution(),
     executionActivity: idleProductAppWebExecutionActivity(),
+    conversation: undefined,
     workbench: undefined
   })
 
@@ -68,6 +76,7 @@ export async function createProductAppWebSurface(
         commandPreview: snapshot.commandPreview,
         commandExecution: snapshot.commandExecution,
         executionActivity: snapshot.executionActivity,
+        conversation: snapshot.conversation,
         workbench: snapshot.workbench
       })
       return snapshot
@@ -91,6 +100,7 @@ export async function createProductAppWebSurface(
         commandPreview: snapshot.commandPreview,
         commandExecution: snapshot.commandExecution,
         executionActivity: snapshot.executionActivity,
+        conversation: snapshot.conversation,
         workbench: snapshot.workbench
       })
       snapshot = result.snapshot
@@ -105,7 +115,7 @@ async function readEventSnapshot(request: {
   readonly snapshot: ProductAppWebSnapshot
   readonly eventLimit: number
 }): Promise<ProductAppWebSnapshot> {
-  const [events, executionActivity] = await Promise.all([
+  const [events, executionActivity, conversationResult] = await Promise.all([
     request.options.client.readSurfaceEvents({
       afterSequence: request.snapshot.eventCursor,
       limit: request.eventLimit
@@ -114,11 +124,28 @@ async function readEventSnapshot(request: {
       client: request.options.client,
       previous: request.snapshot.executionActivity,
       now: request.now
-    })
+    }),
+    request.options.client.readTrackedConversationOperation(
+      request.snapshot.view.selectedSessionId === undefined
+        ? undefined
+        : { sessionId: request.snapshot.view.selectedSessionId }
+    )
   ])
   const eventCursor = events.ok
     ? maxSequence(request.snapshot.eventCursor, events.events)
     : request.snapshot.eventCursor
+  const bufferedConversation = events.ok
+    ? applyProductAppWebConversationEvents(
+        request.snapshot.conversation,
+        events.events
+      )
+    : request.snapshot.conversation
+  const conversation = conversationResult.ok
+    ? productAppWebConversationFromResult(
+        conversationResult.value,
+        bufferedConversation
+      )
+    : bufferedConversation
   const base = {
     ...request.snapshot,
     generatedAt: request.now(),
@@ -126,6 +153,7 @@ async function readEventSnapshot(request: {
     eventCursor,
     operationStatus: request.snapshot.operationStatus,
     executionActivity,
+    conversation,
     diagnostics: productAppWebDiagnostics({
       descriptor: request.snapshot.descriptor,
       status: request.snapshot.status,
@@ -133,6 +161,7 @@ async function readEventSnapshot(request: {
       settings: request.snapshot.settings,
       providerProfiles: request.snapshot.providerProfiles,
       commandCatalog: request.snapshot.commandCatalog,
+      attachments: request.snapshot.attachments,
       events
     })
   }
@@ -152,6 +181,7 @@ async function readSnapshot(request: {
   readonly commandPreview: ProductAppWebCommandPreviewViewModel
   readonly commandExecution: ProductAppWebCommandExecutionViewModel
   readonly executionActivity: ProductAppWebExecutionActivityViewModel
+  readonly conversation: ProductAppWebConversationViewModel | undefined
   readonly workbench: ProductAppWebWorkbenchViewModel | undefined
 }): Promise<ProductAppWebSnapshot> {
   const [descriptor, status, home, settings, providerProfiles, commandCatalog] = await Promise.all([
@@ -170,6 +200,27 @@ async function readSnapshot(request: {
     ? maxSequence(request.eventCursor, events.events)
     : request.eventCursor
   const selectedSessionId = status.ok ? status.value.state.selectedSessionId : undefined
+  const [conversationResult, attachments] = await Promise.all([
+    request.options.client.readTrackedConversationOperation(
+      selectedSessionId === undefined ? undefined : { sessionId: selectedSessionId }
+    ),
+    request.options.client.readConversationAttachments(
+      selectedSessionId === undefined ? undefined : { sessionId: selectedSessionId }
+    )
+  ])
+  const bufferedConversation =
+    events.ok && request.conversation !== undefined
+      ? applyProductAppWebConversationEvents(request.conversation, events.events)
+      : request.conversation
+  const conversation = normalizeProductAppWebConversationForSelectedSession(
+    conversationResult.ok
+      ? productAppWebConversationFromResult(
+          conversationResult.value,
+          bufferedConversation
+        )
+      : bufferedConversation ?? idleProductAppWebConversation(selectedSessionId),
+    selectedSessionId
+  )
   const workbench = normalizeProductAppWebWorkbenchForSelectedSession(
     request.workbench ?? idleProductAppWebWorkbench(selectedSessionId),
     selectedSessionId
@@ -189,6 +240,8 @@ async function readSnapshot(request: {
     commandPreview: request.commandPreview,
     commandExecution: request.commandExecution,
     executionActivity: request.executionActivity,
+    conversation,
+    attachments,
     workbench,
     diagnostics: productAppWebDiagnostics({
       descriptor,
@@ -197,6 +250,7 @@ async function readSnapshot(request: {
       settings,
       providerProfiles,
       commandCatalog,
+      attachments,
       events
     })
   }
@@ -215,6 +269,7 @@ async function dispatchProductAppWebAction(request: {
   readonly commandPreview: ProductAppWebCommandPreviewViewModel
   readonly commandExecution: ProductAppWebCommandExecutionViewModel
   readonly executionActivity: ProductAppWebExecutionActivityViewModel
+  readonly conversation: ProductAppWebConversationViewModel
   readonly workbench: ProductAppWebWorkbenchViewModel
 }): Promise<ProductAppWebActionResult> {
   try {
@@ -225,6 +280,7 @@ async function dispatchProductAppWebAction(request: {
       commandPreview: request.commandPreview,
       commandExecution: request.commandExecution,
       executionActivity: request.executionActivity,
+      conversation: request.conversation,
       workbench: request.workbench
     })
     const snapshot = await readSnapshot({
@@ -237,6 +293,7 @@ async function dispatchProductAppWebAction(request: {
       commandPreview: transition.commandPreview,
       commandExecution: transition.commandExecution,
       executionActivity: transition.executionActivity,
+      conversation: transition.conversation,
       workbench: transition.workbench
     })
     if (isFailedProductAppWebActionResult(transition.actionResult)) {
@@ -270,6 +327,7 @@ async function dispatchProductAppWebAction(request: {
       commandPreview: request.commandPreview,
       commandExecution: request.commandExecution,
       executionActivity: request.executionActivity,
+      conversation: request.conversation,
       workbench: request.workbench
     })
     return {

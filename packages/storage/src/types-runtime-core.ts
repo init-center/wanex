@@ -8,6 +8,8 @@ import type {
   JsonValue,
   ListResourcesRequest,
   QueryEventsInput,
+  ReadResourceContentRequest,
+  ResourceContentChunk,
   ResourceRecord,
   ResourceTicket,
   ResourceTicketCleanupReceipt,
@@ -23,6 +25,9 @@ export interface RuntimeStore {
   writeAtomicFile(request: AtomicWriteRequest): Promise<FileRecord>
   ingestResource(request: IngestResourceRequest): Promise<ResourceRecord>
   getResource(request: GetResourceRequest): Promise<ResourceRecord | null>
+  readResourceContent(
+    request: ReadResourceContentRequest
+  ): Promise<ResourceContentChunk | null>
   listResources(request: ListResourcesRequest): Promise<ResourceRecord[]>
   createResourceTicket(request: ResourceTicketRequest): Promise<ResourceTicket>
   cleanupExpiredResourceTickets(

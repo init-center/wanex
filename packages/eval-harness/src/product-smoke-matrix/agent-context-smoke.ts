@@ -10,7 +10,7 @@ import { writeProviderProfile } from "@wanex/runtime/provider"
 import type { EvalStore } from "../eval-storage.js"
 import { assert } from "../scenario-utils.js"
 import { skillMarkdown, writeFileRecursive } from "./file-helpers.js"
-import { textFromMessages } from "./message-text.js"
+import { assistantTextFromMessages } from "./message-text.js"
 
 export async function runAgentContextProfileSmoke(
   storage: EvalStore
@@ -55,6 +55,7 @@ export async function runAgentContextProfileSmoke(
     await writeProviderProfile(storage, {
       id: "product-matrix-context-profile",
       kind: "fake",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "fake",
       modelId: "product-matrix-context-model"
     })
@@ -70,8 +71,8 @@ export async function runAgentContextProfileSmoke(
         : { toolPermissionPolicy: prepared.toolPermissionPolicy })
     })
     try {
-      const result = await agent.submitAndRunUserText({
-        text: "product matrix context profile",
+      const result = await agent.submitAndRunUserTurn({
+        content: [{ type: "text", text: "product matrix context profile" }],
         sessionId: "ses_product_matrix_agent_context",
         principalId: "principal_product_matrix",
         inputId: "inp_product_matrix_agent_context",
@@ -79,7 +80,7 @@ export async function runAgentContextProfileSmoke(
       })
       const output = {
         sessionId: result.session.id,
-        assistantText: textFromMessages(result.messages),
+        assistantText: assistantTextFromMessages(result.messages, result.turnId),
         instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
         skillNames:
           prepared.skillSnapshot?.sources.map((source) => source.name) ?? [],

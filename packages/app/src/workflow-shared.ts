@@ -1,4 +1,4 @@
-export const defaultPrincipalId = "app-shell-user"
+export const defaultPrincipalId = "wanex-app-user"
 
 export function normalizeOptionalRef(value: string | undefined): string | undefined {
   const normalized = value?.trim()

@@ -10,7 +10,6 @@ export interface ParsedGlobalOptions {
   readonly providerId?: string
   readonly limit?: number
   readonly timeoutMs?: number
-  readonly runMode?: "once" | "to_completion"
   readonly maxSteps?: number
   readonly maxOutputTokens?: number
   readonly context?: CliAgentContextOptions

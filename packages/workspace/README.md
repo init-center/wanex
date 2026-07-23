@@ -25,6 +25,12 @@ policy exists. Model input cannot select a shell, executable path, environment,
 stdin, or output ceiling. This boundary provides path and command policy, not
 an OS filesystem/network sandbox.
 
+The registered tools also contribute exact Runtime turn evidence. Workspace
+root and limits bind read/exec tools, workspace identity and changeset limits
+bind apply, and the sorted program alias policy binds exec. Changing any of
+those values changes the tool configuration digest, so a pending turn cannot
+silently resume against a different workspace or executable policy.
+
 `LocalWorkspace`, Git/worktree reads, and coding tools share one canonical path
 resolver. Absolute paths, traversal, NUL, Windows drive/UNC forms, and resolved
 symlink or junction escapes fail closed; writes and deletes also reject a final

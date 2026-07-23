@@ -6,17 +6,18 @@ import type {
   SchedulerJobRecord,
   SessionMessageRecord,
   SessionRecord,
-  SubmitSessionRunReceipt,
+  SubmitSessionTurnReceipt,
   TextMessagePart
 } from "@wanex/protocol"
+import { createTestTurnExecutionBinding } from "@wanex/storage/testing"
 import {
   delegationExecutorFromRuntimeHost,
   runtimeIdsForTask,
   DelegationRuntime,
   type DelegationExecutor,
   type DelegationPlan,
-  type SubmitUserTextRequest,
-  type SubmitUserTextResult
+  type DelegationSubmitUserTurnRequest,
+  type DelegationSubmitUserTurnResult
 } from "../../src/delegation/index.js"
 
 describe("@wanex/team/delegation", () => {
@@ -57,7 +58,7 @@ describe("@wanex/team/delegation", () => {
       responseText: () => "executor response"
     })
     const executor = delegationExecutorFromRuntimeHost({
-      submitUserText: (request) => host.submitUserText(request),
+      submitUserTurn: (request) => host.submitUserTurn(request),
       runOnce: () => host.runOnce(),
       listJobs: (request) => host.listJobs(request),
       storage: {
@@ -97,7 +98,7 @@ describe("@wanex/team/delegation", () => {
     expect(second.tasks.map((task) => task.receipt.job.id)).toEqual(
       first.tasks.map((task) => task.receipt.job.id)
     )
-    await expect(executor.listJobs({ kind: "session.run" })).resolves.toHaveLength(2)
+    await expect(executor.listJobs({ kind: "session.turn" })).resolves.toHaveLength(2)
     await executor.runOnce()
     const summary = await runtime.collectDelegation(plan.id)
     expect(summary.status).toBe("succeeded")
@@ -178,7 +179,7 @@ describe("@wanex/team/delegation", () => {
 })
 
 interface InMemoryDelegationExecutorOptions {
-  readonly responseText?: (request: SubmitUserTextRequest) => string
+  readonly responseText?: (request: DelegationSubmitUserTurnRequest) => string
   readonly failWhenText?: string
 }
 
@@ -186,24 +187,30 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
   private readonly jobs = new Map<string, SchedulerJobRecord>()
   private readonly messages = new Map<string, SessionMessageRecord[]>()
   private readonly sessions = new Map<string, SessionRecord>()
-  private readonly responseText: (request: SubmitUserTextRequest) => string
+  private readonly prompts = new Map<string, string>()
+  private readonly responseText: (
+    request: DelegationSubmitUserTurnRequest
+  ) => string
   private readonly failWhenText: string | undefined
   active = 0
   maxActive = 0
 
   constructor(options: InMemoryDelegationExecutorOptions = {}) {
     this.responseText =
-      options.responseText ?? ((request) => `delegated: ${request.text}`)
+      options.responseText ??
+        ((request) => `delegated: ${textFromUserTurn(request)}`)
     this.failWhenText = options.failWhenText
   }
 
-  async submitUserText(
-    request: SubmitUserTextRequest
-  ): Promise<SubmitUserTextResult> {
+  async submitUserTurn(
+    request: DelegationSubmitUserTurnRequest
+  ): Promise<DelegationSubmitUserTurnResult> {
     const now = Date.now()
     const sessionId = request.sessionId ?? `ses_${this.sessions.size + 1}`
     const inputId = request.inputId ?? `inp_${this.jobs.size + 1}`
+    const turnId = request.turnId ?? `turn_${this.jobs.size + 1}`
     const jobId = request.jobId ?? `job_${this.jobs.size + 1}`
+    const executionBinding = createTestTurnExecutionBinding()
     const session: SessionRecord = this.sessions.get(sessionId) ?? {
       id: sessionId,
       ...(request.title === undefined ? {} : { title: request.title }),
@@ -223,6 +230,7 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
       return {
         session,
         inputId,
+        turnId,
         receipt: {
           admission: {
             inputId,
@@ -230,6 +238,15 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
             durability: "local-durable",
             status: "admitted"
           },
+          turn: turnRecord({
+            sessionId,
+            inputId,
+            turnId,
+            jobId,
+            executionBinding,
+            maxSteps: request.maxSteps ?? 4,
+            now
+          }),
           job: existing
         }
       }
@@ -237,19 +254,20 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
 
     const job = {
       id: jobId,
-      kind: "session.run",
+      kind: "session.turn",
       state: "ready",
       principalId: request.principalId ?? "delegation-runtime-test",
       payload: {
         sessionId,
-        inputId,
-        text: request.text
+        turnId,
+        inputId
       },
       scheduledAt: now,
       priority: 0,
       attempt: 0,
       maxAttempts: 1,
       retryPolicy: { strategy: "none" },
+      concurrencyKey: `session:${sessionId}`,
       ...(request.jobIdempotencyKey === undefined
         ? {}
         : { idempotencyKey: request.jobIdempotencyKey }),
@@ -257,10 +275,12 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
       updatedAt: now
     } satisfies SchedulerJobRecord
     this.jobs.set(job.id, job)
+    this.prompts.set(job.id, textFromUserTurn(request))
 
     return {
       session,
       inputId,
+      turnId,
       receipt: {
         admission: {
           inputId,
@@ -268,6 +288,15 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
           durability: "local-durable",
           status: "admitted"
         },
+        turn: turnRecord({
+          sessionId,
+          inputId,
+          turnId,
+          jobId,
+          executionBinding,
+          maxSteps: request.maxSteps ?? 4,
+          now
+        }),
         job
       }
     }
@@ -284,9 +313,13 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
         if (!isJobPayload(payload)) {
           throw new Error("test job payload is invalid")
         }
-        if (payload.text === this.failWhenText) {
+        const prompt = this.prompts.get(job.id)
+        if (prompt === undefined) {
+          throw new Error("test delegation prompt is missing")
+        }
+        if (prompt === this.failWhenText) {
           const failed = updateJob(job, "failed", {
-            lastError: { message: `planned executor failure: ${payload.text}` },
+            lastError: { message: `planned executor failure: ${prompt}` },
             finishedAt: Date.now()
           })
           this.jobs.set(job.id, failed)
@@ -297,13 +330,15 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
           }
         }
         const text = this.responseText({
-          text: payload.text,
+          content: [{ type: "text", text: prompt }],
           sessionId: payload.sessionId,
-          inputId: payload.inputId
+          inputId: payload.inputId,
+          turnId: payload.turnId
         })
         const message = assistantMessage({
           sessionId: payload.sessionId,
           inputId: payload.inputId,
+          turnId: payload.turnId,
           text
         })
         this.messages.set(payload.sessionId, [
@@ -344,6 +379,13 @@ class InMemoryDelegationExecutor implements DelegationExecutor {
   }
 }
 
+function textFromUserTurn(request: DelegationSubmitUserTurnRequest): string {
+  return request.content
+    .filter((part) => part.type === "text")
+    .map((part) => part.text)
+    .join("")
+}
+
 function findJobByIdOrIdempotency(
   jobs: readonly SchedulerJobRecord[],
   jobId: string,
@@ -372,17 +414,22 @@ function updateJob(
 function assistantMessage(input: {
   readonly sessionId: string
   readonly inputId: string
+  readonly turnId: string
   readonly text: string
 }): SessionMessageRecord {
+  const binding = createTestTurnExecutionBinding()
   const now = Date.now()
   return {
     id: `msg_${input.inputId}`,
     sessionId: input.sessionId,
-    runId: `run_${input.inputId}`,
+    sequence: 2,
+    turnId: input.turnId,
+    attemptId: `attempt_${input.inputId}`,
     inputId: input.inputId,
     role: "assistant",
     status: "completed",
     content: [textPart(input.text)],
+    executionBindingDigest: binding.digest,
     createdAt: now,
     updatedAt: now
   }
@@ -405,8 +452,8 @@ function textFromParts(parts: readonly MessagePart[]): string {
 
 function isJobPayload(value: JsonValue): value is {
   readonly sessionId: string
+  readonly turnId: string
   readonly inputId: string
-  readonly text: string
 } {
   const record = value as Readonly<Record<string, JsonValue>>
   return (
@@ -414,7 +461,29 @@ function isJobPayload(value: JsonValue): value is {
     value !== null &&
     !Array.isArray(value) &&
     typeof record.sessionId === "string" &&
-    typeof record.inputId === "string" &&
-    typeof record.text === "string"
+    typeof record.turnId === "string" &&
+    typeof record.inputId === "string"
   )
+}
+
+function turnRecord(input: {
+  readonly sessionId: string
+  readonly inputId: string
+  readonly turnId: string
+  readonly jobId: string
+  readonly executionBinding: ReturnType<typeof createTestTurnExecutionBinding>
+  readonly maxSteps: number
+  readonly now: number
+}): SubmitSessionTurnReceipt["turn"] {
+  return {
+    id: input.turnId,
+    sessionId: input.sessionId,
+    primaryInputId: input.inputId,
+    jobId: input.jobId,
+    state: "queued",
+    executionBinding: input.executionBinding,
+    maxSteps: input.maxSteps,
+    createdAt: input.now,
+    updatedAt: input.now
+  }
 }

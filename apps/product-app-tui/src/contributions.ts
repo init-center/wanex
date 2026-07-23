@@ -189,10 +189,8 @@ function productAppTuiStatusItemContributions(
 }
 
 function productAppTuiPromptDecorationContributions(
-  snapshot: Omit<ProductAppTuiSurfaceSnapshot, "readModel" | "contributions">
+  _snapshot: Omit<ProductAppTuiSurfaceSnapshot, "readModel" | "contributions">
 ): TuiPromptDecorationContribution[] {
-  const hasSelectedSession =
-    snapshot.status.ok && snapshot.status.value.state.selectedSessionId !== undefined
   return [
     {
       id: "product-app-tui.prompt.ask",
@@ -200,10 +198,8 @@ function productAppTuiPromptDecorationContributions(
       value: {
         decorationId: "product-app-tui.ask",
         placement: "placeholder",
-        text: hasSelectedSession ? "Continue session" : "Start a session",
-        commandId: hasSelectedSession
-          ? PRODUCT_APP_TUI_COMMANDS.continueWorkbench
-          : PRODUCT_APP_TUI_COMMANDS.startWorkbench
+        text: "Submit a message",
+        commandId: PRODUCT_APP_TUI_COMMANDS.submitConversation
       },
       provenance: PRODUCT_APP_TUI_PROVENANCE
     }

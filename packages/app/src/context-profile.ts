@@ -7,38 +7,38 @@ import {
   type PreparedAgentContext
 } from "@wanex/runtime/context"
 import type {
-  WanexAppShellConfigReloadHandlerResult,
-  WanexAppShellConfigReloadSubscription
+  WanexAppConfigReloadHandlerResult,
+  WanexAppConfigReloadSubscription
 } from "./config-reload.js"
-import { preparedWanexAppShellAgentContextFingerprint } from "./context-fingerprint.js"
-import type { WanexAppShellRuntime } from "./runtime.js"
+import { preparedWanexAppAgentContextFingerprint } from "./context-fingerprint.js"
+import type { WanexAppRuntime } from "./runtime.js"
 import type {
-  WanexAppShellAgentContextProfileReloadResult,
-  WanexAppShellAgentContextProfileSetResult,
-  WanexAppShellAgentContextStatus,
-  WanexAppShellAgentContextSummary
+  WanexAppAgentContextProfileReloadResult,
+  WanexAppAgentContextProfileSetResult,
+  WanexAppAgentContextStatus,
+  WanexAppAgentContextSummary
 } from "./types-context.js"
 
-export const WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY =
+export const WANEX_APP_AGENT_CONTEXT_PROFILE_KEY =
   "agent.context.profile.default" as const
 
-const agentContextSubscriptionId = "app-shell-agent-context-profile"
+const agentContextSubscriptionId = "wanex-app-agent-context-profile"
 
-export interface WanexAppShellAgentContextProfileManager {
+export interface WanexAppAgentContextProfileManager {
   current(): PreparedAgentContext | undefined
-  status(): WanexAppShellAgentContextStatus
+  status(): WanexAppAgentContextStatus
   setProfile(
     profile: AgentContextProfile
-  ): Promise<WanexAppShellAgentContextProfileSetResult>
-  refresh(): Promise<WanexAppShellAgentContextProfileReloadResult>
+  ): Promise<WanexAppAgentContextProfileSetResult>
+  refresh(): Promise<WanexAppAgentContextProfileReloadResult>
 }
 
-export async function createWanexAppShellAgentContextProfileManager(
+export async function createWanexAppAgentContextProfileManager(
   options: {
-    readonly app: WanexAppShellRuntime
+    readonly app: WanexAppRuntime
     readonly initialProfile?: AgentContextProfile
   }
-): Promise<WanexAppShellAgentContextProfileManager> {
+): Promise<WanexAppAgentContextProfileManager> {
   let currentProfile: AgentContextProfile | undefined
   let currentPrepared: PreparedAgentContext | undefined
   let currentFingerprint: string | undefined
@@ -53,22 +53,22 @@ export async function createWanexAppShellAgentContextProfileManager(
     currentProfile = options.initialProfile
     currentPrepared = await prepareProfile(options.initialProfile)
     currentFingerprint =
-      preparedWanexAppShellAgentContextFingerprint(currentPrepared)
+      preparedWanexAppAgentContextFingerprint(currentPrepared)
     await options.app.config.put(
-      WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY,
+      WANEX_APP_AGENT_CONTEXT_PROFILE_KEY,
       agentContextProfileToJson(options.initialProfile)
     )
     revision = 1
   }
 
-  const reload = async (): Promise<WanexAppShellConfigReloadHandlerResult> => {
+  const reload = async (): Promise<WanexAppConfigReloadHandlerResult> => {
     const value = await options.app.config.require(
-      WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY
+      WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
     )
     const nextProfile = agentContextProfileFromJson(value)
     const nextPrepared = await prepareProfile(nextProfile)
     const nextFingerprint =
-      preparedWanexAppShellAgentContextFingerprint(nextPrepared)
+      preparedWanexAppAgentContextFingerprint(nextPrepared)
     const reloaded =
       currentProfile === undefined ||
       JSON.stringify(agentContextProfileToJson(currentProfile)) !==
@@ -85,23 +85,23 @@ export async function createWanexAppShellAgentContextProfileManager(
       prepared: currentPrepared
     })
     return {
-      key: WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY,
+      key: WANEX_APP_AGENT_CONTEXT_PROFILE_KEY,
       reloaded,
       ...(reloaded ? {} : { reason: "unchanged" }),
       detail
     }
   }
 
-  const refresh = async (): Promise<WanexAppShellAgentContextProfileReloadResult> =>
+  const refresh = async (): Promise<WanexAppAgentContextProfileReloadResult> =>
     normalizeRefreshResult(
-      await options.app.refreshConfigKey(WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY)
+      await options.app.refreshConfigKey(WANEX_APP_AGENT_CONTEXT_PROFILE_KEY)
     )
 
-  const subscription: WanexAppShellConfigReloadSubscription = {
+  const subscription: WanexAppConfigReloadSubscription = {
     id: agentContextSubscriptionId,
     matcher: {
       kind: "exact",
-      key: WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY
+      key: WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
     },
     reload
   }
@@ -117,12 +117,12 @@ export async function createWanexAppShellAgentContextProfileManager(
         revision,
         ...(currentPrepared === undefined
           ? {}
-          : { context: summarizeWanexAppShellPreparedAgentContext(currentPrepared) })
+          : { context: summarizeWanexAppPreparedAgentContext(currentPrepared) })
       }
     },
     async setProfile(profile) {
       await options.app.config.put(
-        WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY,
+        WANEX_APP_AGENT_CONTEXT_PROFILE_KEY,
         agentContextProfileToJson(profile)
       )
       return await refresh()
@@ -133,9 +133,9 @@ export async function createWanexAppShellAgentContextProfileManager(
   }
 }
 
-export function summarizeWanexAppShellPreparedAgentContext(
+export function summarizeWanexAppPreparedAgentContext(
   prepared: PreparedAgentContext
-): WanexAppShellAgentContextSummary {
+): WanexAppAgentContextSummary {
   return {
     instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
     skillNames:
@@ -153,20 +153,20 @@ export function summarizeWanexAppShellPreparedAgentContext(
 }
 
 async function normalizeRefreshResult(
-  result: Awaited<ReturnType<WanexAppShellRuntime["refreshConfigKey"]>>
-): Promise<WanexAppShellAgentContextProfileReloadResult> {
+  result: Awaited<ReturnType<WanexAppRuntime["refreshConfigKey"]>>
+): Promise<WanexAppAgentContextProfileReloadResult> {
   const reload = result.reloads.find(
     (item) =>
       item.subscriptionId === agentContextSubscriptionId &&
-      item.key === WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY
+      item.key === WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
   )
   const error = result.errors.find(
     (item) =>
       item.subscriptionId === agentContextSubscriptionId &&
-      item.key === WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY
+      item.key === WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
   )
   return {
-    key: WANEX_APP_SHELL_AGENT_CONTEXT_PROFILE_KEY,
+    key: WANEX_APP_AGENT_CONTEXT_PROFILE_KEY,
     reloaded: reload?.reloaded ?? false,
     ...(reload?.reason === undefined ? {} : { reason: reload.reason }),
     ...(reload?.detail === undefined ? {} : { detail: reload.detail }),
@@ -177,9 +177,9 @@ async function normalizeRefreshResult(
 function statusDetail(options: {
   readonly revision: number
   readonly prepared: PreparedAgentContext
-}): NonNullable<WanexAppShellConfigReloadHandlerResult["detail"]> {
+}): NonNullable<WanexAppConfigReloadHandlerResult["detail"]> {
   return {
     revision: options.revision,
-    ...summarizeWanexAppShellPreparedAgentContext(options.prepared)
+    ...summarizeWanexAppPreparedAgentContext(options.prepared)
   }
 }

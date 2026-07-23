@@ -1,61 +1,97 @@
-import { createWanexAppShellCommands } from "./commands.js"
-import { createWanexAppShellExtensionContributionManager } from "./app-extension.js"
-import { WanexAppShellAgentContextRefreshMonitor } from "./context-monitor.js"
-import { createWanexAppShellAgentContextProfileManager } from "./context-profile.js"
+import { createWanexAppCommands } from "./commands.js"
+import { createWanexAppExtensionContributionManager } from "./app-extension.js"
+import { WanexAppAgentContextRefreshMonitor } from "./context-monitor.js"
+import { createWanexAppAgentContextProfileManager } from "./context-profile.js"
+import { WanexAppConversationOperationController } from "./conversation-operation.js"
+import { WanexAppMediaGenerationOperationController } from "./media-generation-operation.js"
+import { WanexAppConversationEventHub } from "./conversation-events.js"
+import { TEXT_PROVIDER_CAPABILITIES } from "@wanex/runtime/provider"
 import {
-  initializeWanexAppShellProviderProfile,
-  requireWanexAppShellActiveProviderProfileId,
+  initializeWanexAppProviderProfile,
+  requireWanexAppActiveProviderProfileId,
 } from "./provider-profile.js"
-import { bootstrapWanexAppShellRuntime } from "./runtime.js"
+import { bootstrapWanexAppRuntime } from "./runtime.js"
 import type {
-  WanexAppShell,
-  WanexAppShellOptions,
-  WanexAppShellStatus
+  WanexApp,
+  WanexAppOptions,
+  WanexAppStatus
 } from "./types-app.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
+import type { WanexAppCommandContext } from "./command-context.js"
 
-const defaultProviderProfileId = "app-shell-fake"
+const defaultProviderProfileId = "wanex-app-fake"
 
-export async function createWanexAppShell(
-  options: WanexAppShellOptions
-): Promise<WanexAppShell> {
+export async function createWanexApp(
+  options: WanexAppOptions
+): Promise<WanexApp> {
   const providerProfileId = options.providerProfile?.id ?? defaultProviderProfileId
   const providerKind = options.providerProfile?.kind ?? "fake"
   const providerId = options.providerProfile?.providerId ?? providerKind
-  const modelId = options.providerProfile?.modelId ?? "app-shell-model"
-  const runtime = await bootstrapWanexAppShellRuntime(options)
-  const agentContext = await createWanexAppShellAgentContextProfileManager({
+  const modelId = options.providerProfile?.modelId ?? "wanex-app-model"
+  const runtime = await bootstrapWanexAppRuntime({
+    storage: options.storage,
+    ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts }),
+    ...(options.secretResolver === undefined
+      ? {}
+      : { app: { secretResolver: options.secretResolver } })
+  })
+  const agentContext = await createWanexAppAgentContextProfileManager({
     app: runtime.app,
     ...(options.agentContextProfile === undefined
       ? {}
       : { initialProfile: options.agentContextProfile })
   })
-  const agentContextMonitor = new WanexAppShellAgentContextRefreshMonitor({
+  const agentContextMonitor = new WanexAppAgentContextRefreshMonitor({
     manager: agentContext
   })
-  const extensions = createWanexAppShellExtensionContributionManager(
+  const extensions = createWanexAppExtensionContributionManager(
     options.extensions?.snapshot
   )
+  const events = new WanexAppConversationEventHub()
+  const host = runtime.app.createRuntimeHost({
+    workerCount: options.workerCount ?? 1,
+    observeProviderEvent: events.observeProviderEvent,
+    ...(options.mediaGenerationAdapters === undefined
+      ? {}
+      : { mediaGenerationAdapters: options.mediaGenerationAdapters }),
+    ...(options.mediaGenerationWorkerCount === undefined
+      ? {}
+      : { mediaGenerationWorkerCount: options.mediaGenerationWorkerCount }),
+    ...(options.mediaGenerationMaxOutputBytes === undefined
+      ? {}
+      : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
+    async resolveAgentContext() {
+      return await extensions.prepareAgentContext(agentContext.current())
+    }
+  })
+  const conversationOperations = new WanexAppConversationOperationController({
+    storage: runtime.app.storage,
+    host
+  })
+  const mediaGenerationOperations =
+    new WanexAppMediaGenerationOperationController({ host })
   let disposed = false
   let activeProviderProfileId = providerProfileId
 
-  await initializeWanexAppShellProviderProfile({
+  await initializeWanexAppProviderProfile({
     storage: runtime.storage,
     profile: {
       id: providerProfileId,
       kind: providerKind,
       providerId,
       modelId,
+      capabilities:
+        options.providerProfile?.capabilities ?? TEXT_PROVIDER_CAPABILITIES,
       ...(options.providerProfile?.baseUrl === undefined
         ? {}
         : { baseUrl: options.providerProfile.baseUrl }),
-      ...(options.providerProfile?.apiKey === undefined
+      ...(options.providerProfile?.secretRef === undefined
         ? {}
-        : { apiKey: options.providerProfile.apiKey })
+        : { secretRef: options.providerProfile.secretRef })
     }
   })
   activeProviderProfileId =
-    await requireWanexAppShellActiveProviderProfileId(runtime.storage)
+    await requireWanexAppActiveProviderProfileId(runtime.storage)
+  conversationOperations.start()
 
   const dispose = async (): Promise<void> => {
     if (disposed) {
@@ -63,36 +99,46 @@ export async function createWanexAppShell(
     }
     disposed = true
     await agentContextMonitor.stop()
+    mediaGenerationOperations.dispose()
+    await conversationOperations.dispose()
+    events.dispose()
     await runtime.dispose()
   }
 
   const assertActive = (): void => {
     if (disposed) {
-      throw new Error("app shell is disposed")
+      throw new Error("app is disposed")
     }
   }
 
-  const status = (): WanexAppShellStatus => ({
-    disposed,
-    providerProfileId,
-    activeProviderProfileId,
-    agentContext: agentContext.status(),
-    agentContextMonitor: agentContextMonitor.status(),
-    extensions: extensions.status()
-  })
+  const status = (): WanexAppStatus => {
+    const processor = conversationOperations.status()
+    return {
+      disposed,
+      started: processor.started,
+      workerCount: processor.workerCount,
+      providerProfileId,
+      activeProviderProfileId,
+      agentContext: agentContext.status(),
+      agentContextMonitor: agentContextMonitor.status(),
+      extensions: extensions.status()
+    }
+  }
 
-  const context: WanexAppShellCommandContext = {
+  const context: WanexAppCommandContext = {
     runtime,
     agentContext,
     agentContextMonitor,
     extensions,
+    conversationOperations,
+    mediaGenerationOperations,
     assertActive,
     getActiveProviderProfileId() {
       return activeProviderProfileId
     },
     async refreshActiveProviderProfileId() {
       activeProviderProfileId =
-        await requireWanexAppShellActiveProviderProfileId(runtime.storage)
+        await requireWanexAppActiveProviderProfileId(runtime.storage)
       return activeProviderProfileId
     },
     setActiveProviderProfileId(profileId) {
@@ -100,14 +146,25 @@ export async function createWanexAppShell(
     },
     dispose
   }
-  const commands = createWanexAppShellCommands({
+  const commands = createWanexAppCommands({
     context,
     isDisposed: () => disposed
   })
 
   return {
     commands,
+    events,
     status,
+    start() {
+      assertActive()
+      conversationOperations.start()
+    },
+    async stop() {
+      if (disposed) {
+        return
+      }
+      await conversationOperations.stop()
+    },
     dispose
   }
 }

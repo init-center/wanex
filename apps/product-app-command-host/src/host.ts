@@ -150,6 +150,7 @@ export async function createProductAppCommandHost(
           await loop.waitForIdle()
           loop = undefined
         }
+        await surface.dispose()
         await app.dispose()
         disposed = true
       }

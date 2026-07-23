@@ -52,25 +52,26 @@ const submitted = await web.submitActionInput({
 })
 const nextDocument = submitted.document
 
-const continued = await web.submitActionInput({
-  action: "start-workbench",
+const started = await web.submitActionInput({
+  action: "submit-conversation",
   fields: {
     text: "start a new session"
   }
 })
 
 const followedUp = await web.submitActionInput({
-  action: "continue-workbench",
+  action: "submit-conversation",
   fields: {
+    sessionId: started.document.snapshot.conversation.sessionId,
     text: "continue this session"
   }
 })
-console.log(followedUp.document.snapshot.workbench.state)
+console.log(followedUp.document.snapshot.conversation.state)
 
 const previewed = await web.submitActionInput({
   action: "preview-command",
   fields: {
-    commandId: "product.agent.run",
+    commandId: "product.agent.submit",
     inputJson: "{\"text\":\"hello\"}"
   }
 })
@@ -124,21 +125,18 @@ start a gateway/server.
 `parseProductAppWebActionInput(...)` is the framework-free input boundary for
 forms, worker messages, local APIs, or desktop IPC. It accepts only known action
 ids and validates layout, mode, theme, density, required session fields, and
-bounded workbench messages before a host dispatches the resulting typed action.
+bounded conversation messages before a host dispatches the resulting typed action.
 
-The web snapshot also includes a renderer-neutral workbench projection. It can
-represent idle, ready, no-session, and failed states; transcript rows;
-provenance/origin summaries; latest user/assistant text; and whether the
-composer can continue the selected session. The static HTML projection renders
-that workbench panel and composer, but it still does not own DOM listeners or a
-framework runtime.
+The web snapshot includes two distinct projections. `conversation` carries the
+tracked asynchronous operation, durable progress, matching transient assistant
+deltas, and cancel/regenerate capabilities. `workbench` is a read-only canonical
+transcript view opened explicitly with `open-workbench`; it never submits text.
 
-The action input codec also supports `start-workbench`, which accepts bounded
-text input without requiring a preselected session. Product App owns session
-creation and selection through its surface contract; Web renderers should not
-generate session ids or call lower storage/runtime APIs directly. Once started,
-the same workbench projection becomes ready and follow-up text uses
-`continue-workbench`.
+`submit-conversation` accepts bounded text with an optional session id. Product
+App owns session creation, selection, operation tracking, and durable
+reconciliation. `refresh-conversation`, `cancel-conversation`, and
+`regenerate-conversation` operate on that tracked reference. Web renderers do
+not generate operation identities or call lower storage/runtime APIs directly.
 
 The snapshot also projects Product App home's bounded recent-session list into
 `view.recentSessions`. When sessions are available, the `select-session` action
@@ -154,12 +152,13 @@ panel renders those rows and the active-profile selector so a user can confirm
 which provider profiles are available and switch the active profile by id. It
 also renders Product App's provider readiness summary from `readHome()`, such
 as whether the active provider can run or needs host attention. It does not
-include provider-profile creation, updates, raw API keys, or secret mutation
-controls; those remain trusted host responsibilities.
+include provider-profile creation, updates, raw API keys, secret references,
+provider base URLs, protocol-version fields, or secret mutation controls;
+those remain trusted host responsibilities.
 
 The view model also projects a `providerRunGate` from the same redacted
 readiness state. The static HTML renders a provider run-gate panel and disables
-the workbench composer when the active provider cannot run. This is a renderer
+conversation submission when the active provider cannot run. This is a renderer
 UX guard only: provider setup still happens in trusted host code such as
 `@wanex/product-app-local`'s `providerSetup` facade or the host-side setup CLI.
 

@@ -14,7 +14,7 @@ export async function collectDelegation(input: {
   readonly plan: DelegationPlan
 }): Promise<DelegationSummary> {
   const allJobs = await input.executor.listJobs({
-    kind: "session.run",
+    kind: "session.turn",
     limit: Math.max(input.plan.tasks.length * 4, 20)
   })
   const tasks = await Promise.all(

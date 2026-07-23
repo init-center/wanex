@@ -1,5 +1,6 @@
 import type {
   MessagePartVisibility,
+  ResourceKind,
   RunControlPolicy,
   SessionId,
   SessionInputIntent,
@@ -7,34 +8,34 @@ import type {
   SessionKind,
   SessionStatus
 } from "@wanex/protocol"
-import type { WanexAppShellExtensionReadModel } from "./types-extension.js"
+import type { WanexAppExtensionReadModel } from "./types-extension.js"
 
-export interface WanexAppShellReadModelCommands {
+export interface WanexAppReadModelCommands {
   readRecentSessions(
-    request?: WanexAppShellReadRecentSessionsRequest
-  ): Promise<WanexAppShellRecentSessionsReadModel>
+    request?: WanexAppReadRecentSessionsRequest
+  ): Promise<WanexAppRecentSessionsReadModel>
   readSessionInputProvenance(
-    request: WanexAppShellReadSessionInputProvenanceRequest
-  ): Promise<WanexAppShellSessionInputProvenanceReadModel>
+    request: WanexAppReadSessionInputProvenanceRequest
+  ): Promise<WanexAppSessionInputProvenanceReadModel>
   readSessionTranscript(
-    request: WanexAppShellReadSessionTranscriptRequest
-  ): Promise<WanexAppShellSessionTranscriptReadModel>
-  readExtensionContributions(): Promise<WanexAppShellExtensionReadModel>
+    request: WanexAppReadSessionTranscriptRequest
+  ): Promise<WanexAppSessionTranscriptReadModel>
+  readExtensionContributions(): Promise<WanexAppExtensionReadModel>
 }
 
-export interface WanexAppShellReadRecentSessionsRequest {
+export interface WanexAppReadRecentSessionsRequest {
   readonly kind?: SessionKind
   readonly status?: SessionStatus
   readonly limit?: number
 }
 
-export interface WanexAppShellRecentSessionsReadModel {
-  readonly kind: "app-shell.recent_sessions"
+export interface WanexAppRecentSessionsReadModel {
+  readonly kind: "wanex-app.recent_sessions"
   readonly limit: number
-  readonly rows: readonly WanexAppShellRecentSessionRow[]
+  readonly rows: readonly WanexAppRecentSessionRow[]
 }
 
-export interface WanexAppShellRecentSessionRow {
+export interface WanexAppRecentSessionRow {
   readonly sessionId: SessionId
   readonly title?: string
   readonly kind: SessionKind
@@ -44,124 +45,119 @@ export interface WanexAppShellRecentSessionRow {
   readonly archivedAt?: number
 }
 
-export interface WanexAppShellReadSessionInputProvenanceRequest {
+export interface WanexAppReadSessionInputProvenanceRequest {
   readonly sessionId: SessionId
 }
 
-export interface WanexAppShellReadSessionTranscriptRequest {
+export interface WanexAppReadSessionTranscriptRequest {
   readonly sessionId: SessionId
 }
 
-export interface WanexAppShellSessionInputProvenanceReadModel {
+export interface WanexAppSessionInputProvenanceReadModel {
   readonly sessionId: SessionId
-  readonly rows: readonly WanexAppShellSessionInputProvenanceRow[]
+  readonly rows: readonly WanexAppSessionInputProvenanceRow[]
   readonly hasProductClientField: boolean
 }
 
-export type WanexAppShellSessionInputProvenanceKind =
+export type WanexAppSessionInputProvenanceKind =
   SessionInputOriginKind
 
-export interface WanexAppShellSessionInputProvenanceRow {
+export interface WanexAppSessionInputProvenanceRow {
   readonly inputId: string
   readonly sessionId: SessionId
-  readonly kind: WanexAppShellSessionInputProvenanceKind
+  readonly kind: WanexAppSessionInputProvenanceKind
   readonly label: string
   readonly sourceRef?: string
   readonly parentRef?: string
   readonly intent?: SessionInputIntent
   readonly runControlPolicy?: RunControlPolicy
-  readonly expectedRunId?: string
+  readonly expectedTurnId?: string
   readonly metadataKeys: readonly string[]
 }
 
-export interface WanexAppShellSessionTranscriptReadModel {
+export interface WanexAppSessionTranscriptReadModel {
   readonly sessionId: SessionId
-  readonly rows: readonly WanexAppShellSessionTranscriptRow[]
+  readonly rows: readonly WanexAppSessionTranscriptRow[]
 }
 
-export type WanexAppShellSessionTranscriptRowKind = "input" | "message"
+export type WanexAppSessionTranscriptRowKind = "input" | "message"
 
-export type WanexAppShellSessionTranscriptRole =
+export type WanexAppSessionTranscriptRole =
   | "user"
   | "assistant"
   | "tool"
   | "system"
 
-export interface WanexAppShellSessionTranscriptRow {
+export interface WanexAppSessionTranscriptRow {
   readonly id: string
-  readonly kind: WanexAppShellSessionTranscriptRowKind
+  readonly kind: WanexAppSessionTranscriptRowKind
   readonly recordId: string
   readonly sessionId: SessionId
-  readonly role: WanexAppShellSessionTranscriptRole
+  readonly role: WanexAppSessionTranscriptRole
   readonly status: string
   readonly createdAt: number
   readonly updatedAt: number
   readonly text: string
-  readonly parts: readonly WanexAppShellSessionTranscriptPart[]
+  readonly parts: readonly WanexAppSessionTranscriptPart[]
   readonly inputId?: string
-  readonly runId?: string
+  readonly sequence?: number
+  readonly turnId?: string
+  readonly attemptId?: string
 }
 
-export type WanexAppShellSessionTranscriptPart =
-  | WanexAppShellSessionTranscriptTextPart
-  | WanexAppShellSessionTranscriptReasoningPart
-  | WanexAppShellSessionTranscriptToolCallPart
-  | WanexAppShellSessionTranscriptToolResultPart
-  | WanexAppShellSessionTranscriptResourcePart
-  | WanexAppShellSessionTranscriptUiSurfacePart
-  | WanexAppShellSessionTranscriptHiddenPart
+export type WanexAppSessionTranscriptPart =
+  | WanexAppSessionTranscriptTextPart
+  | WanexAppSessionTranscriptReasoningPart
+  | WanexAppSessionTranscriptToolCallPart
+  | WanexAppSessionTranscriptToolResultPart
+  | WanexAppSessionTranscriptResourcePart
+  | WanexAppSessionTranscriptHiddenPart
 
-export interface WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptPartBase {
   readonly partId: string
   readonly type: string
   readonly visibility: MessagePartVisibility | "default"
 }
 
-export interface WanexAppShellSessionTranscriptTextPart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptTextPart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "text"
   readonly text: string
 }
 
-export interface WanexAppShellSessionTranscriptReasoningPart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptReasoningPart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "reasoning"
   readonly text?: string
   readonly hidden: boolean
 }
 
-export interface WanexAppShellSessionTranscriptToolCallPart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptToolCallPart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "tool_call"
   readonly toolCallId: string
   readonly toolName: string
 }
 
-export interface WanexAppShellSessionTranscriptToolResultPart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptToolResultPart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "tool_result"
   readonly toolCallId: string
   readonly isError: boolean
 }
 
-export interface WanexAppShellSessionTranscriptResourcePart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptResourcePart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "resource"
   readonly resourceId: string
+  readonly sha256: string
+  readonly sizeBytes: number
+  readonly kind: ResourceKind
   readonly mediaType?: string
 }
 
-export interface WanexAppShellSessionTranscriptUiSurfacePart
-  extends WanexAppShellSessionTranscriptPartBase {
-  readonly type: "ui_surface"
-  readonly protocol: string
-  readonly surfaceKind: string
-  readonly fallbackText?: string
-  readonly fallbackResourceId?: string
-}
-
-export interface WanexAppShellSessionTranscriptHiddenPart
-  extends WanexAppShellSessionTranscriptPartBase {
+export interface WanexAppSessionTranscriptHiddenPart
+  extends WanexAppSessionTranscriptPartBase {
   readonly type: "hidden"
   readonly sourceType: string
   readonly hidden: true

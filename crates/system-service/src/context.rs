@@ -35,7 +35,7 @@ impl SystemService {
             .map(serde_json::to_string)
             .transpose()?;
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         if let Some(existing) = get_context_epoch_optional_tx(&tx, &id)? {
             if existing.session_id != request.session_id
                 || existing.policy_version != request.policy_version
@@ -95,7 +95,7 @@ impl SystemService {
         }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
         match epoch.state.as_str() {
             "building" | "active" => {}
@@ -131,7 +131,7 @@ impl SystemService {
         validate_clone_context_epoch(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let source = get_context_epoch_tx(&tx, &request.source_epoch_id)?;
         if source.state == "building" {
             return Err(SystemServiceError::Invariant(
@@ -222,7 +222,7 @@ impl SystemService {
         let dry_run = request.dry_run.unwrap_or(false);
         let keep_last_superseded = request.keep_last_superseded.unwrap_or(0) as usize;
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let superseded = list_context_epochs_tx(
             &tx,
             &request.session_id,
@@ -345,7 +345,7 @@ impl SystemService {
             .map(serde_json::to_string)
             .transpose()?;
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
         if epoch.session_id != request.session_id || epoch.policy_version != request.policy_version
         {

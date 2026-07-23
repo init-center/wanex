@@ -184,7 +184,8 @@ describe("@wanex/app/diagnostics", () => {
         host: {
           started: true,
           workerCount: 2,
-          memoryWorkerCount: 1
+          memoryWorkerCount: 1,
+          mediaGenerationWorkerCount: 0
         },
         totalJobs: 3,
         stateCounts: [
@@ -193,16 +194,16 @@ describe("@wanex/app/diagnostics", () => {
           { state: "retry_scheduled", count: 1 }
         ],
         kindCounts: [
-          { kind: "session.run", count: 1 },
+          { kind: "session.turn", count: 1 },
           { kind: "plugin.action", count: 2 }
         ],
         retryingByKind: [{ kind: "plugin.action", count: 1 }],
         failedByKind: [{ kind: "plugin.action", count: 1 }],
-        backlogByKind: [{ kind: "session.run", count: 2 }],
+        backlogByKind: [{ kind: "session.turn", count: 2 }],
         runningLeases: [
           {
             jobId: "job_stale",
-            kind: "session.run",
+            kind: "session.turn",
             workerId: "worker_a",
             attempt: 1,
             leaseExpiresAt: 80,
@@ -213,7 +214,7 @@ describe("@wanex/app/diagnostics", () => {
         staleRunningLeases: [
           {
             jobId: "job_stale",
-            kind: "session.run",
+            kind: "session.turn",
             workerId: "worker_a",
             attempt: 1,
             leaseExpiresAt: 80,
@@ -239,7 +240,7 @@ describe("@wanex/app/diagnostics", () => {
     ).toEqual({
       backlogByKind: [
         {
-          kind: "session.run",
+          kind: "session.turn",
           count: 2
         }
       ]
@@ -261,6 +262,7 @@ describe("@wanex/app/diagnostics", () => {
         started: true,
         workerCount: 2,
         memoryWorkerCount: 1,
+        mediaGenerationWorkerCount: 0,
         loopCount: 3,
         activeLoopCount: 3,
         stoppedLoopCount: 0,
@@ -363,6 +365,7 @@ describe("@wanex/app/diagnostics", () => {
         started: true,
         workerCount: 1,
         memoryWorkerCount: 0,
+        mediaGenerationWorkerCount: 0,
         loopCount: 1,
         activeLoopCount: 0,
         stoppedLoopCount: 1,
@@ -493,10 +496,11 @@ describe("@wanex/app/diagnostics", () => {
     await storage.putConfig("provider.profile.deepseek", {
       id: "deepseek",
       kind: "openai-compatible",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "deepseek",
       modelId: "deepseek-chat",
       baseUrl: "https://api.deepseek.com/v1",
-      apiKey: "secret-key"
+      secretRef: "env://DEEPSEEK_API_KEY"
     })
     await storage.createSession({
       id: "ses_support_bundle",
@@ -540,7 +544,7 @@ describe("@wanex/app/diagnostics", () => {
         found: true,
         profile: expect.objectContaining({
           id: "deepseek",
-          apiKey: "***"
+          credentialConfigured: true
         })
       }),
       {
@@ -548,7 +552,8 @@ describe("@wanex/app/diagnostics", () => {
         found: false
       }
     ])
-    expect(JSON.stringify(bundle)).not.toContain("secret-key")
+    expect(JSON.stringify(bundle)).not.toContain("DEEPSEEK_API_KEY")
+    expect(JSON.stringify(bundle)).not.toContain("secretRef")
     expect(JSON.stringify(bundle)).not.toContain("support bundle secret prompt")
     expect(bundle.diagnostics.diagnostics.map((item) => item.code)).toEqual(
       expect.arrayContaining([
@@ -572,7 +577,8 @@ describe("@wanex/app/diagnostics", () => {
         host: {
           started: true,
           workerCount: 2,
-          memoryWorkerCount: 1
+          memoryWorkerCount: 1,
+          mediaGenerationWorkerCount: 0
         },
         totalJobs: 4,
         stateCounts: [
@@ -580,12 +586,12 @@ describe("@wanex/app/diagnostics", () => {
           { state: "failed", count: 1 }
         ],
         kindCounts: [
-          { kind: "session.run", count: 3 },
+          { kind: "session.turn", count: 3 },
           { kind: "memory.compaction", count: 1 }
         ],
-        backlogByKind: [{ kind: "session.run", count: 2 }],
+        backlogByKind: [{ kind: "session.turn", count: 2 }],
         retryingByKind: [],
-        failedByKind: [{ kind: "session.run", count: 1 }],
+        failedByKind: [{ kind: "session.turn", count: 1 }],
         runningLeases: [],
         staleRunningLeases: []
       },
@@ -594,6 +600,7 @@ describe("@wanex/app/diagnostics", () => {
         started: true,
         workerCount: 2,
         memoryWorkerCount: 1,
+        mediaGenerationWorkerCount: 0,
         loopCount: 2,
         activeLoopCount: 1,
         stoppedLoopCount: 1,

@@ -25,6 +25,7 @@ export function expectNumber(value: unknown): number {
 
 export function assistantText(messages: readonly SessionMessageRecord[]): string {
   return messages
+    .filter((message) => message.role === "assistant")
     .flatMap((message) => message.content)
     .filter((part): part is TextMessagePart => part.type === "text")
     .map((part) => part.text)

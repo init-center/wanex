@@ -55,6 +55,7 @@ const runtime = await createWanexRuntime({
   },
   provider: {
     kind: "fake",
+    capabilities: { input: ["text"], output: ["text"] },
     id: "external-remote-runtime",
     modelId: "external-remote-model",
     responseText: "external remote runtime complete"
@@ -87,8 +88,10 @@ try {
   assert.equal(forbidden.status, 400)
   assert.equal(forbiddenBody.error.code, "client_store_selector_forbidden")
 
-  const run = await runtime.run({ text: "run over remote storage" })
-  assert.equal(run.jobState, "succeeded")
+  const run = await runtime.run({
+    content: [{ type: "text", text: "run over remote storage" }]
+  })
+  assert.equal(run.state, "succeeded")
   assert.equal(run.assistantText, "external remote runtime complete")
   assert.deepEqual([...new Set(createdTransports)].sort(), ["alpha", "beta"])
   assert.equal(createdTransports.filter((item) => item === "alpha").length, 1)
@@ -99,7 +102,7 @@ try {
     betaValue,
     rejectedStoreSelector: forbiddenBody.error.code,
     createdTransports,
-    runtimeJobState: run.jobState,
+    runtimeState: run.state,
     assistantText: run.assistantText
   })}\n`)
 } finally {

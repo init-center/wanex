@@ -18,7 +18,7 @@ export type {
   DelegationTaskRuntimeIds,
   DelegationTaskStatus,
   DelegationTaskSubmission,
-  SubmitUserTextRequest,
-  SubmitUserTextResult,
+  DelegationSubmitUserTurnRequest,
+  DelegationSubmitUserTurnResult,
   DelegationRuntimeOptions
 } from "./types.js"

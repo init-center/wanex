@@ -1,2 +1,2 @@
-export { queueWanexAppShellGuidedFollowUp } from "./workflow-guided-follow-up.js"
-export { askWanexAppShellSideQuery } from "./workflow-side-query.js"
+export { queueWanexAppGuidedFollowUp } from "./workflow-guided-follow-up.js"
+export { askWanexAppSideQuery } from "./workflow-side-query.js"

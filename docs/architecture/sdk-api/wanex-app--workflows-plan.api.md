@@ -137,7 +137,7 @@ interface PlanProposalStep {
 }
 
 // @public (undocumented)
-type PlanReferenceKind = "session" | "session_input" | "session_run" | "scheduler_job" | "workspace_change_proposal" | "delegation_graph" | "delegation_graph_node" | "team_conversation" | "resource" | "context_epoch";
+type PlanReferenceKind = "session" | "session_input" | "session_turn" | "scheduler_job" | "workspace_change_proposal" | "delegation_graph" | "delegation_graph_node" | "team_conversation" | "resource" | "context_epoch";
 
 // @public (undocumented)
 export class PlanWorkflow {

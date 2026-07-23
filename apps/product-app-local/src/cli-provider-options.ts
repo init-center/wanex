@@ -1,9 +1,28 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import type {
+  ProviderCapabilities,
+  ProviderInputModality,
+  ProviderOutputModality
+} from "@wanex/protocol"
+import type {
   ProductAppLocalProviderProfileOptions,
   ProductAppLocalProviderProfilesOptions
 } from "./types.js"
+
+const providerInputModalities = [
+  "text",
+  "image",
+  "audio",
+  "video",
+  "document"
+] as const satisfies readonly ProviderInputModality[]
+const providerOutputModalities = [
+  "text",
+  "image",
+  "audio",
+  "video"
+] as const satisfies readonly ProviderOutputModality[]
 
 export function parseProductAppLocalCliProviderProfiles(input: {
   readonly cwd: string
@@ -27,7 +46,6 @@ export function parseProductAppLocalCliProviderProfiles(input: {
     assertNoSingleProviderFlags(input.flags, "provider-profiles-file")
     return parseProviderProfileCatalogJson({
       value: readTrustedProviderProfileCatalogFile(input.cwd, catalogFile),
-      env: input.env,
       ...(activeProfileId === undefined ? {} : { activeProfileId })
     })
   }
@@ -35,7 +53,6 @@ export function parseProductAppLocalCliProviderProfiles(input: {
     assertNoSingleProviderFlags(input.flags, "provider-profiles-json")
     return parseProviderProfileCatalogJson({
       value: catalogJson,
-      env: input.env,
       ...(activeProfileId === undefined ? {} : { activeProfileId })
     })
   }
@@ -65,16 +82,35 @@ export function parseProductAppLocalCliProviderProfiles(input: {
     input.flags.get("provider-base-url") ??
     input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_BASE_URL ??
     input.env.WANEX_PROVIDER_BASE_URL
-  const apiKey = readProviderApiKey(input)
+  const secretRef =
+    input.flags.get("provider-secret-ref") ??
+    input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_SECRET_REF ??
+    input.env.WANEX_PROVIDER_SECRET_REF
+  const capabilities = {
+    input: parseModalityCsv(
+      input.flags.get("provider-input-modalities") ??
+        input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_INPUT_MODALITIES ??
+        input.env.WANEX_PROVIDER_INPUT_MODALITIES ??
+        "text",
+      providerInputModalities,
+      "provider input modalities"
+    ),
+    output: parseModalityCsv(
+      input.flags.get("provider-output-modalities") ??
+        input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_OUTPUT_MODALITIES ??
+        input.env.WANEX_PROVIDER_OUTPUT_MODALITIES ??
+        "text",
+      providerOutputModalities,
+      "provider output modalities"
+    )
+  } satisfies ProviderCapabilities
 
   if (kind !== "fake") {
     if (baseUrl === undefined || baseUrl.trim().length === 0) {
       throw new Error(`${kind} provider requires provider-base-url`)
     }
-    if (apiKey === undefined || apiKey.trim().length === 0) {
-      throw new Error(
-        `${kind} provider requires provider-api-key-env or provider API key environment`
-      )
+    if (secretRef === undefined || secretRef.trim().length === 0) {
+      throw new Error(`${kind} provider requires provider-secret-ref`)
     }
   }
 
@@ -85,8 +121,9 @@ export function parseProductAppLocalCliProviderProfiles(input: {
         kind,
         providerId,
         modelId,
+        capabilities,
         ...(baseUrl === undefined ? {} : { baseUrl: baseUrl.trim() }),
-        ...(apiKey === undefined ? {} : { apiKey })
+        ...(secretRef === undefined ? {} : { secretRef: secretRef.trim() })
       }
     ],
     ...(activeProfileId === undefined ? {} : { activeProfileId })
@@ -95,7 +132,6 @@ export function parseProductAppLocalCliProviderProfiles(input: {
 
 function parseProviderProfileCatalogJson(input: {
   readonly value: string
-  readonly env: Readonly<Record<string, string | undefined>>
   readonly activeProfileId?: string
 }): ProductAppLocalProviderProfilesOptions {
   const parsed = parseJson(input.value, "provider profile catalog")
@@ -107,15 +143,12 @@ function parseProviderProfileCatalogJson(input: {
     throw new Error("provider profile catalog profiles must be an array")
   }
   const profiles = rawProfiles.map((profile, index) =>
-    parseCatalogProviderProfile(profile, input.env, index)
+    parseCatalogProviderProfile(profile, index)
   )
   const catalogActiveProfileId = optionalString(
     parsed.activeProfileId,
     "provider profile catalog activeProfileId"
   )
-  if (parsed.apiKey !== undefined) {
-    throw new Error("provider profile catalog must not include raw apiKey")
-  }
   const activeProfileId = input.activeProfileId ?? catalogActiveProfileId
   return {
     profiles,
@@ -125,32 +158,31 @@ function parseProviderProfileCatalogJson(input: {
 
 function parseCatalogProviderProfile(
   value: unknown,
-  env: Readonly<Record<string, string | undefined>>,
   index: number
 ): ProductAppLocalProviderProfileOptions {
   if (!isRecord(value)) {
     throw new Error(`provider profile catalog profile ${index} must be an object`)
   }
-  if (value.apiKey !== undefined) {
+  if (value.apiKey !== undefined || value.apiKeyEnv !== undefined) {
     throw new Error(
-      `provider profile catalog profile ${index} must use apiKeyEnv instead of raw apiKey`
+      `provider profile catalog profile ${index} must use secretRef`
     )
   }
   const kind = parseProviderKind(
     optionalString(value.kind, `provider profile catalog profile ${index} kind`) ??
       "fake"
   )
-  const apiKeyEnv = optionalString(
-    value.apiKeyEnv,
-    `provider profile catalog profile ${index} apiKeyEnv`
+  const secretRef = optionalString(
+    value.secretRef,
+    `provider profile catalog profile ${index} secretRef`
   )
-  const apiKey =
-    apiKeyEnv === undefined
-      ? undefined
-      : readRequiredEnv(env, apiKeyEnv)
   const baseUrl = optionalString(
     value.baseUrl,
     `provider profile catalog profile ${index} baseUrl`
+  )
+  const capabilities = parseProviderCapabilities(
+    value.capabilities,
+    `provider profile catalog profile ${index} capabilities`
   )
   return {
     id: requiredString(value.id, `provider profile catalog profile ${index} id`),
@@ -165,8 +197,9 @@ function parseCatalogProviderProfile(
         value.modelId,
         `provider profile catalog profile ${index} modelId`
       ) ?? "product-app-local-model",
+    ...(capabilities === undefined ? {} : { capabilities }),
     ...(baseUrl === undefined ? {} : { baseUrl }),
-    ...(apiKey === undefined ? {} : { apiKey })
+    ...(secretRef === undefined ? {} : { secretRef })
   }
 }
 
@@ -183,33 +216,6 @@ function parseProviderKind(
     default:
       throw new Error(`invalid provider kind: ${value}`)
   }
-}
-
-function readProviderApiKey(input: {
-  readonly flags: ReadonlyMap<string, string>
-  readonly env: Readonly<Record<string, string | undefined>>
-}): string | undefined {
-  const envName =
-    input.flags.get("provider-api-key-env") ??
-    input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_API_KEY_ENV ??
-    input.env.WANEX_PROVIDER_API_KEY_ENV
-  if (envName !== undefined) {
-    const normalizedEnvName = envName.trim()
-    if (normalizedEnvName.length === 0) {
-      throw new Error("provider API key environment name must not be empty")
-    }
-    const value = input.env[normalizedEnvName]
-    if (typeof value !== "string" || value.trim().length === 0) {
-      throw new Error(
-        `provider API key environment variable is not set: ${normalizedEnvName}`
-      )
-    }
-    return value
-  }
-  return (
-    input.env.WANEX_PRODUCT_APP_LOCAL_PROVIDER_API_KEY ??
-    input.env.WANEX_PROVIDER_API_KEY
-  )
 }
 
 function assertNoCatalogJson(catalogJson: string | undefined): void {
@@ -229,8 +235,10 @@ function assertNoSingleProviderFlags(
     "provider-kind",
     "provider-id",
     "provider-model-id",
+    "provider-input-modalities",
+    "provider-output-modalities",
     "provider-base-url",
-    "provider-api-key-env"
+    "provider-secret-ref"
   ]) {
     if (flags.has(key)) {
       throw new Error(
@@ -238,6 +246,73 @@ function assertNoSingleProviderFlags(
       )
     }
   }
+}
+
+function parseProviderCapabilities(
+  value: unknown,
+  name: string
+): ProviderCapabilities | undefined {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+  if (!isRecord(value)) {
+    throw new Error(`${name} must be an object`)
+  }
+  return {
+    input: parseModalityArray(
+      value.input,
+      providerInputModalities,
+      `${name}.input`
+    ),
+    output: parseModalityArray(
+      value.output,
+      providerOutputModalities,
+      `${name}.output`
+    )
+  }
+}
+
+function parseModalityCsv<T extends string>(
+  value: string,
+  allowed: readonly T[],
+  name: string
+): T[] {
+  return parseModalities(value.split(","), allowed, name)
+}
+
+function parseModalityArray<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  name: string
+): T[] {
+  if (!Array.isArray(value)) {
+    throw new Error(`${name} must be an array`)
+  }
+  return parseModalities(value, allowed, name)
+}
+
+function parseModalities<T extends string>(
+  values: readonly unknown[],
+  allowed: readonly T[],
+  name: string
+): T[] {
+  if (values.length === 0) {
+    throw new Error(`${name} must not be empty`)
+  }
+  const modalities = values.map((value) => {
+    if (typeof value !== "string") {
+      throw new Error(`${name} must contain strings`)
+    }
+    const modality = value.trim()
+    if (!allowed.includes(modality as T)) {
+      throw new Error(`invalid ${name} modality: ${modality}`)
+    }
+    return modality as T
+  })
+  if (new Set(modalities).size !== modalities.length) {
+    throw new Error(`${name} must not contain duplicates`)
+  }
+  return modalities
 }
 
 function readTrustedProviderProfileCatalogFile(
@@ -268,17 +343,6 @@ function parseJson(value: string, name: string): unknown {
       `invalid ${name} JSON: ${error instanceof Error ? error.message : String(error)}`
     )
   }
-}
-
-function readRequiredEnv(
-  env: Readonly<Record<string, string | undefined>>,
-  name: string
-): string {
-  const value = env[name]
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`provider API key environment variable is not set: ${name}`)
-  }
-  return value
 }
 
 function requiredString(value: unknown, name: string): string {

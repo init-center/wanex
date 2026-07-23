@@ -113,6 +113,30 @@ describe("storage RPC canonical schema", () => {
     ).toBe(false)
   })
 
+  it("accepts every media generation command and rejects open operation fields", () => {
+    for (const [index, request] of mediaGenerationRequests().entries()) {
+      expect(
+        validateWireEnvelope({
+          storage_rpc_version: 1,
+          request_id: `rpc_media_generation_${index}`,
+          request
+        }),
+        JSON.stringify(validateWireEnvelope.errors)
+      ).toBe(true)
+    }
+    const submit = mediaGenerationRequests()[0]
+    expect(
+      validateWireEnvelope({
+        storage_rpc_version: 1,
+        request_id: "rpc_media_generation_open",
+        request: {
+          ...submit,
+          request: { ...submit.request, extra: true }
+        }
+      })
+    ).toBe(false)
+  })
+
   it("accepts every sessions command and rejects missing or open control fields", () => {
     for (const [index, request] of sessionsRequests().entries()) {
       expect(
@@ -148,12 +172,8 @@ describe("storage RPC canonical schema", () => {
           ...submit,
           request: {
             ...submit.request,
-            retry_policy: {
-              strategy: "fixed",
-              initial_delay_ms: 10,
-              max_delay_ms: null,
-              extra: true
-            }
+            run_control_policy: "queue_after_current",
+            extra: true
           }
         }
       })
@@ -206,7 +226,7 @@ describe("storage RPC canonical schema", () => {
         JSON.stringify(validateWireEnvelope.errors)
       ).toBe(true)
     }
-    const reserve = schedulerRequests()[6]
+    const reserve = schedulerRequests()[0]
     const { tool_calls: _toolCalls, ...incompleteLimit } = reserve.request.limit
     expect(
       validateWireEnvelope({
@@ -218,7 +238,7 @@ describe("storage RPC canonical schema", () => {
         }
       })
     ).toBe(false)
-    const enqueue = schedulerRequests()[11]
+    const enqueue = schedulerRequests()[6]
     expect(
       validateWireEnvelope({
         storage_rpc_version: 1,
@@ -433,7 +453,8 @@ function descriptor() {
       "storage.team",
       "storage.plugin",
       "storage.connector",
-      "storage.channel"
+      "storage.channel",
+      "storage.media_generation"
     ]
   }
 }
@@ -441,7 +462,8 @@ function descriptor() {
 function runtimeRequests() {
   const nullableScope = {
     session_id: null,
-    run_id: null,
+    turn_id: null,
+    attempt_id: null,
     input_id: null,
     message_id: null,
     resource_id: null,
@@ -516,6 +538,97 @@ function runtimeRequests() {
   ]
 }
 
+function mediaGenerationRequests() {
+  const lease = {
+    operation_id: "media_operation_schema",
+    worker_id: "media_worker_schema",
+    lease_token: "media_lease_schema"
+  }
+  return [
+    {
+      command: "submit-media-generation",
+      request: {
+        id: null,
+        job_id: null,
+        principal_id: "media_user_schema",
+        idempotency_key: "media_key_schema",
+        binding: {
+          profileId: "media_profile_schema",
+          outputModality: "image"
+        },
+        priority: null
+      }
+    },
+    { command: "begin-media-generation", request: lease },
+    {
+      command: "accept-media-generation",
+      request: {
+        ...lease,
+        external_operation_id: "external_media_schema",
+        provider_checkpoint: { cursor: 1 }
+      }
+    },
+    {
+      command: "checkpoint-media-generation",
+      request: {
+        ...lease,
+        provider_checkpoint: { cursor: 2 },
+        progress: { percent: 50 }
+      }
+    },
+    {
+      command: "record-media-generation-outputs",
+      request: {
+        ...lease,
+        output_references: [
+          {
+            kindOfReference: "provider_file",
+            provider: "media_provider_schema",
+            providerFileId: "file_schema"
+          }
+        ],
+        progress: null
+      }
+    },
+    {
+      command: "complete-media-generation",
+      request: {
+        ...lease,
+        output_resource_ids: ["resource_schema"],
+        result: null
+      }
+    },
+    {
+      command: "settle-media-generation",
+      request: {
+        ...lease,
+        outcome: "recovery_required",
+        error: { type: "ambiguous_provider_submission" },
+        reason: "provider checkpoint missing"
+      }
+    },
+    {
+      command: "request-media-generation-cancel",
+      request: {
+        operation_id: "media_operation_schema",
+        reason: "cancel"
+      }
+    },
+    {
+      command: "get-media-generation",
+      operation_id: "media_operation_schema"
+    },
+    {
+      command: "list-media-generation",
+      request: {
+        principal_id: null,
+        state: "polling",
+        limit: null
+      }
+    }
+  ]
+}
+
 function sessionsRequests() {
   const content = [{ type: "text", id: "part_schema", text: "hello" }]
   return [
@@ -543,9 +656,10 @@ function sessionsRequests() {
       intent: null
     },
     {
-      command: "submit-session-run",
+      command: "submit-session-turn",
       request: {
         id: null,
+        turn_id: null,
         session_id: "ses_schema",
         principal_id: "user_schema",
         idempotency_key: "idem_submit_schema",
@@ -554,25 +668,79 @@ function sessionsRequests() {
         origin: null,
         intent: null,
         run_control_policy: null,
-        expected_run_id: null,
+        expected_turn_id: null,
         job_id: null,
         job_idempotency_key: null,
-        mode: null,
+        execution_binding: {
+          digest: "binding_schema",
+          createdAt: 1,
+          provider: {
+            profileId: "profile_schema",
+            profileDigest: "profile_digest_schema",
+            adapterId: "openai-compatible",
+            providerId: "provider_schema",
+            modelId: "model_schema"
+          },
+          recovery: {
+            providerMaxAttempts: 2,
+            idempotentToolMaxAttempts: 2
+          }
+        },
         max_steps: null,
-        provider_profile_id: null,
+        parent_turn_id: null,
+        regenerates_turn_id: null,
         scheduled_at: null,
         not_before: null,
         priority: null,
-        max_attempts: null,
-        retry_policy: null,
         budget_grant_id: null
       }
     },
     {
-      command: "interrupt-session-run",
+      command: "start-session-turn-attempt",
       request: {
         session_id: "ses_schema",
-        run_id: "run_schema",
+        turn_id: "turn_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema"
+      }
+    },
+    {
+      command: "settle-session-turn",
+      request: {
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        outcome: "succeeded",
+        provider_invocation_id: "pinv_schema",
+        assistant_message: content,
+        provider_state: [],
+        result: { ok: true },
+        error: null,
+        reason: null
+      }
+    },
+    {
+      command: "request-session-turn-cancel",
+      request: {
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        reason: "cancel"
+      }
+    },
+    {
+      command: "interrupt-session-turn",
+      request: {
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
         reason: "stop",
         principal_id: null,
         idempotency_key: null,
@@ -581,50 +749,62 @@ function sessionsRequests() {
       }
     },
     {
-      command: "steer-session-run",
+      command: "steer-session-turn",
       request: {
         session_id: "ses_schema",
         principal_id: "user_schema",
-        expected_run_id: "run_schema",
+        expected_turn_id: "turn_schema",
+        expected_attempt_id: "attempt_schema",
         idempotency_key: "idem_steer_schema",
         content,
         origin: null,
-        provider_profile_id: null,
         metadata: null
       }
     },
     {
-      command: "list-session-run-controls",
+      command: "list-session-turn-controls",
       request: {
         session_id: "ses_schema",
-        run_id: null,
+        turn_id: null,
+        attempt_id: null,
         kind: null,
         status: null,
         limit: null
       }
     },
     {
-      command: "apply-session-run-control",
+      command: "apply-session-turn-control",
       request: {
         session_id: "ses_schema",
-        run_id: "run_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
         control_id: "control_schema",
-        runner_id: "runner_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
         lease_token: "lease_schema"
       }
     },
     { command: "list-session-inputs", session_id: "ses_schema" },
     { command: "list-session-messages", session_id: "ses_schema" },
     {
+      command: "list-session-turns",
+      session_id: "ses_schema",
+      state: null
+    },
+    { command: "list-session-attempts", turn_id: "turn_schema" },
+    {
       command: "append-session-message",
       session_id: "ses_schema",
-      run_id: "run_schema",
+      turn_id: "turn_schema",
+      attempt_id: "attempt_schema",
       input_id: "inp_schema",
-      runner_id: "runner_schema",
+      job_id: "job_schema",
+      worker_id: "worker_schema",
       lease_token: "lease_schema",
-      idempotency_key: "message:run_schema:assistant",
+      idempotency_key: "message:turn_schema:assistant",
       role: "assistant",
-      content
+      content,
+      provider_state: []
     }
   ]
 }
@@ -716,50 +896,6 @@ function schedulerRequests() {
   }
   return [
     {
-      command: "claim-runner",
-      session_id: "ses_schema",
-      runner_id: "runner_schema",
-      lease_ms: 60000
-    },
-    {
-      command: "heartbeat-runner",
-      session_id: "ses_schema",
-      runner_id: "runner_schema",
-      lease_token: "lease_schema",
-      lease_ms: 60000
-    },
-    {
-      command: "complete-run",
-      session_id: "ses_schema",
-      run_id: "run_schema",
-      input_id: "inp_schema",
-      runner_id: "runner_schema",
-      lease_token: "lease_schema",
-      assistant_message: null
-    },
-    {
-      command: "fail-run",
-      session_id: "ses_schema",
-      run_id: "run_schema",
-      input_id: "inp_schema",
-      runner_id: "runner_schema",
-      lease_token: "lease_schema",
-      error: { message: "failed" }
-    },
-    {
-      command: "release-runner",
-      session_id: "ses_schema",
-      runner_id: "runner_schema",
-      lease_token: "lease_schema"
-    },
-    {
-      command: "cancel-run",
-      session_id: "ses_schema",
-      run_id: "run_schema",
-      input_id: "inp_schema",
-      reason: "cancel"
-    },
-    {
       command: "reserve-budget",
       request: {
         scope: { kind: "session", owner_id: "ses_schema", window_kind: null },
@@ -792,12 +928,13 @@ function schedulerRequests() {
       command: "enqueue-job",
       request: {
         id: null,
-        kind: "session.run",
+        kind: "memory.compaction",
         principal_id: "user_schema",
         payload: { sessionId: "ses_schema" },
         scheduled_at: null,
         not_before: null,
         priority: null,
+        concurrency_key: null,
         max_attempts: null,
         retry_policy: null,
         idempotency_key: null,
@@ -825,19 +962,39 @@ function toolsRequests() {
     {
       command: "begin-tool-execution",
       request: {
-        session_id: "session", run_id: "run", input_id: "input",
+        session_id: "session", turn_id: "turn", attempt_id: "attempt",
+        input_id: "input", source_message_id: "message_source",
+        job_id: "job_schema", worker_id: "worker_schema", lease_token: "lease_schema",
         principal_id: "principal", tool_call_id: "call", tool_name: "echo",
         input: { text: "hello" }, descriptor: { name: "echo" },
-        permission: { status: "allow" }, idempotency_key: "tool:run:call"
+        permission: { status: "allow" }, state: "running",
+        idempotency_key: "tool:turn:call"
       }
     },
     {
       command: "finish-tool-execution",
-      request: { execution_id: "toolx", state: "succeeded", result: { ok: true }, is_error: false, error: null }
+      request: {
+        session_id: "session", turn_id: "turn", session_attempt_id: "attempt",
+        input_id: "input", job_id: "job_schema", worker_id: "worker_schema",
+        lease_token: "lease_schema", execution_id: "toolx",
+        invocation_attempt_id: "toolattempt_schema", state: "succeeded",
+        result: { ok: true }, is_error: false, error: null
+      }
     },
-    { command: "recover-tool-execution", request: { execution_id: "toolx", action: "retry" } },
     { command: "get-tool-execution", execution_id: "toolx" },
-    { command: "list-tool-executions", request: { session_id: null, run_id: "run", state: null, limit: 20 } }
+    {
+      command: "list-tool-executions",
+      request: {
+        session_id: null,
+        turn_id: "turn",
+        state: null,
+        limit: 20
+      }
+    },
+    {
+      command: "list-tool-execution-attempts",
+      request: { execution_id: "toolx" }
+    }
   ]
 }
 
@@ -1013,7 +1170,7 @@ function objectiveRequests() {
         state: "planned",
         session_id: null,
         session_input_id: null,
-        session_run_id: null,
+        session_turn_id: null,
         scheduler_job_id: null,
         delegation_graph_id: null,
         plan_proposal_id: null,
@@ -1137,7 +1294,7 @@ function delegationRequests() {
         node_id: null,
         worker_id: "worker_schema",
         job_id: null,
-        job_kind: "session.run",
+        job_kind: "workspace.task",
         job_payload: { sessionId: "ses_schema" },
         scheduled_at: null,
         not_before: null,

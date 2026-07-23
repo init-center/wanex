@@ -2,16 +2,21 @@ import type {
   ProductAppBackendCommandPortRequest
 } from "@wanex/product-app/backend"
 import type {
-  ProductAppContinueWorkbenchRequest,
+  ProductAppCancelTrackedConversationOperationRequest,
+  ProductAppPrepareConversationAttachmentRequest,
+  ProductAppReadConversationAttachmentsRequest,
+  ProductAppRemoveConversationAttachmentRequest,
   ProductAppExecuteCommandRequest,
   ProductAppReadExecutionReferenceRequest,
   ProductAppHomeOptions,
   ProductAppLayout,
   ProductAppMode,
   ProductAppOpenWorkbenchRequest,
+  ProductAppReadTrackedConversationOperationRequest,
+  ProductAppRegenerateTrackedConversationOperationRequest,
   ProductAppPreviewCommandInvocationRequest,
   ProductAppRendererPreferences,
-  ProductAppStartWorkbenchRequest,
+  ProductAppSubmitConversationOperationRequest,
   ProductAppUpdatePreferencesRequest
 } from "./types.js"
 import type {
@@ -212,33 +217,99 @@ export function parseProductAppSurfaceOpenWorkbenchRequest(
   }
 }
 
-export function parseProductAppSurfaceContinueWorkbenchRequest(
+export function parseProductAppSurfaceConversationSubmitRequest(
   input: unknown
-): ProductAppContinueWorkbenchRequest {
-  const record = parseRecord(input, "continueWorkbench input")
+): ProductAppSubmitConversationOperationRequest {
+  const record = parseRecord(input, "submitConversationOperation input")
   return {
-    text: parseString(record.text, "continueWorkbench input.text"),
-    ...optionalStringField(record, "sessionId", "continueWorkbench input"),
-    ...optionalStringField(record, "principalId", "continueWorkbench input"),
-    ...optionalStringField(record, "inputId", "continueWorkbench input"),
-    ...optionalStringField(record, "idempotencyKey", "continueWorkbench input"),
-    ...optionalStringField(record, "jobId", "continueWorkbench input"),
-    ...optionalStringField(record, "jobIdempotencyKey", "continueWorkbench input")
+    text: parseText(record.text, "submitConversationOperation input.text"),
+    ...optionalStringField(record, "sessionId", "submitConversationOperation input"),
+    ...optionalStringField(record, "principalId", "submitConversationOperation input")
   }
 }
 
-export function parseProductAppSurfaceStartWorkbenchRequest(
+export function parseProductAppSurfacePrepareConversationAttachmentRequest(
   input: unknown
-): ProductAppStartWorkbenchRequest {
-  const record = parseRecord(input, "startWorkbench input")
+): ProductAppPrepareConversationAttachmentRequest {
+  const record = parseRecord(input, "prepareConversationAttachment input")
   return {
-    text: parseString(record.text, "startWorkbench input.text"),
-    ...optionalStringField(record, "sessionId", "startWorkbench input"),
-    ...optionalStringField(record, "principalId", "startWorkbench input"),
-    ...optionalStringField(record, "inputId", "startWorkbench input"),
-    ...optionalStringField(record, "idempotencyKey", "startWorkbench input"),
-    ...optionalStringField(record, "jobId", "startWorkbench input"),
-    ...optionalStringField(record, "jobIdempotencyKey", "startWorkbench input")
+    resourceId: parseString(
+      record.resourceId,
+      "prepareConversationAttachment input.resourceId"
+    ),
+    ...optionalStringField(
+      record,
+      "sessionId",
+      "prepareConversationAttachment input"
+    )
+  }
+}
+
+export function parseProductAppSurfaceReadConversationAttachmentsRequest(
+  input: unknown
+): ProductAppReadConversationAttachmentsRequest {
+  if (input === undefined) {
+    return {}
+  }
+  const record = parseRecord(input, "readConversationAttachments input")
+  return {
+    ...optionalStringField(
+      record,
+      "sessionId",
+      "readConversationAttachments input"
+    )
+  }
+}
+
+export function parseProductAppSurfaceRemoveConversationAttachmentRequest(
+  input: unknown
+): ProductAppRemoveConversationAttachmentRequest {
+  const record = parseRecord(input, "removeConversationAttachment input")
+  return {
+    resourceId: parseString(
+      record.resourceId,
+      "removeConversationAttachment input.resourceId"
+    ),
+    ...optionalStringField(
+      record,
+      "sessionId",
+      "removeConversationAttachment input"
+    )
+  }
+}
+
+export function parseProductAppSurfaceConversationReadRequest(
+  input: unknown
+): ProductAppReadTrackedConversationOperationRequest {
+  if (input === undefined) {
+    return {}
+  }
+  const record = parseRecord(input, "readTrackedConversationOperation input")
+  return {
+    ...optionalStringField(record, "sessionId", "readTrackedConversationOperation input")
+  }
+}
+
+export function parseProductAppSurfaceCancelConversationRequest(
+  input: unknown
+): ProductAppCancelTrackedConversationOperationRequest {
+  const record = parseRecord(input, "cancelTrackedConversationOperation input")
+  return {
+    reason: parseString(record.reason, "cancelTrackedConversationOperation input.reason"),
+    ...optionalStringField(record, "sessionId", "cancelTrackedConversationOperation input")
+  }
+}
+
+export function parseProductAppSurfaceConversationRegenerateRequest(
+  input: unknown
+): ProductAppRegenerateTrackedConversationOperationRequest {
+  if (input === undefined) {
+    return {}
+  }
+  const record = parseRecord(input, "regenerateTrackedConversationOperation input")
+  return {
+    ...optionalStringField(record, "sessionId", "regenerateTrackedConversationOperation input"),
+    ...optionalStringField(record, "principalId", "regenerateTrackedConversationOperation input")
   }
 }
 
@@ -311,6 +382,13 @@ function parseString(input: unknown, context: string): string {
     throw new ProductAppSurfaceValidationError(
       `${context} must be a non-empty string`
     )
+  }
+  return input
+}
+
+function parseText(input: unknown, context: string): string {
+  if (typeof input !== "string") {
+    throw new ProductAppSurfaceValidationError(`${context} must be a string`)
   }
   return input
 }

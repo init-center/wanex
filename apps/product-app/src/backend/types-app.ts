@@ -1,22 +1,21 @@
 import type {
-  WanexAppShell,
-  WanexAppShellAgentContextCommands,
-  WanexAppShellAgentContextMonitorStatus,
-  WanexAppShellAgentContextProfileReloadResult,
-  WanexAppShellAgentContextProfileSetResult,
-  WanexAppShellAgentContextStatus,
-  WanexAppShellAgentContextSummary,
-  WanexAppShellDiagnosticsOptions,
-  WanexAppShellExtensionStatus,
-  WanexAppShellOptions,
-  WanexAppShellProviderProfileCommands,
-  WanexAppShellProviderProfileListReadModel,
-  WanexAppShellProviderProfileReadModel,
-  WanexAppShellRunAgentTurnRequest,
-  WanexAppShellRunAgentTurnResult,
-  WanexAppShellShutdownResult,
-  WanexAppShellSupportBundleOptions
-} from "@wanex/app/backend"
+  WanexApp,
+  WanexAppAgentContextCommands,
+  WanexAppAgentContextMonitorStatus,
+  WanexAppAgentContextProfileReloadResult,
+  WanexAppAgentContextProfileSetResult,
+  WanexAppAgentContextStatus,
+  WanexAppAgentContextSummary,
+  WanexAppDiagnosticsOptions,
+  WanexAppExtensionStatus,
+  WanexAppEvents,
+  WanexAppOptions,
+  WanexAppProviderProfileCommands,
+  WanexAppProviderProfileListReadModel,
+  WanexAppProviderProfileReadModel,
+  WanexAppShutdownResult,
+  WanexAppSupportBundleOptions
+} from "@wanex/app"
 import type {
   AppDiagnosticsSnapshot,
   SupportBundle
@@ -24,6 +23,9 @@ import type {
 import type {
   ProductAppBackendCapabilityCommands
 } from "./types-capability.js"
+import type {
+  ProductAppBackendConversationCommands
+} from "./types-conversation.js"
 import type {
   ProductAppBackendCommandRegistryCommands
 } from "./types-command-registry.js"
@@ -44,10 +46,13 @@ import type {
   ProductAppBackendReadModelCommands
 } from "./types-read-model.js"
 import type {
+  ProductAppBackendResourceCommands
+} from "./types-resources.js"
+import type {
   ProductAppBackendResultEnvelopeCommands
 } from "./types-command-port.js"
 
-export interface ProductAppBackendAppOptions extends WanexAppShellOptions {
+export interface ProductAppBackendAppOptions extends WanexAppOptions {
   readonly productCommands?: {
     readonly extensionExecutor?: ProductAppBackendExtensionCommandExecutor
   }
@@ -55,13 +60,13 @@ export interface ProductAppBackendAppOptions extends WanexAppShellOptions {
 
 export interface ProductAppBackendApp {
   readonly commands: ProductAppBackendCommands
+  readonly events: WanexAppEvents
   status(): ProductAppBackendStatus
   dispose(): Promise<void>
 }
 
 export interface ProductAppBackendCommands
-  extends ProductAppBackendAgentCommands,
-    ProductAppBackendAgentContextCommands,
+  extends ProductAppBackendAgentContextCommands,
     ProductAppBackendCapabilityCommands,
     ProductAppBackendCommandRegistryCommands,
     ProductAppBackendDiagnosticsDetailCommands,
@@ -71,11 +76,15 @@ export interface ProductAppBackendCommands
     ProductAppBackendProviderProfileCommands,
     ProductAppBackendWorkbenchCommands,
     ProductAppBackendReadModelCommands,
+    ProductAppBackendResourceCommands,
     ProductAppBackendResultEnvelopeCommands,
-    ProductAppBackendInputCommands {}
+    ProductAppBackendInputCommands,
+    ProductAppBackendConversationCommands {}
 
 export interface ProductAppBackendStatus {
   readonly disposed: boolean
+  readonly started: boolean
+  readonly workerCount: number
   readonly providerProfileId: string
   readonly activeProviderProfileId: string
   readonly agentContext: ProductAppBackendAgentContextStatus
@@ -83,35 +92,27 @@ export interface ProductAppBackendStatus {
   readonly extensions: ProductAppBackendExtensionStatus
 }
 
-export type ProductAppBackendAgentCommands = Pick<
-  WanexAppShell["commands"],
-  "runAgentTurn"
->
-export type ProductAppBackendRunAgentTurnRequest =
-  WanexAppShellRunAgentTurnRequest
-export type ProductAppBackendRunAgentTurnResult =
-  WanexAppShellRunAgentTurnResult
 export type ProductAppBackendAgentContextCommands =
-  WanexAppShellAgentContextCommands
+  WanexAppAgentContextCommands
 export type ProductAppBackendAgentContextSummary =
-  WanexAppShellAgentContextSummary
+  WanexAppAgentContextSummary
 export type ProductAppBackendAgentContextStatus =
-  WanexAppShellAgentContextStatus
+  WanexAppAgentContextStatus
 export type ProductAppBackendAgentContextProfileReloadResult =
-  WanexAppShellAgentContextProfileReloadResult
+  WanexAppAgentContextProfileReloadResult
 export type ProductAppBackendAgentContextProfileSetResult =
-  WanexAppShellAgentContextProfileSetResult
+  WanexAppAgentContextProfileSetResult
 export type ProductAppBackendAgentContextMonitorOptions =
-  Parameters<WanexAppShellAgentContextCommands["startAgentContextMonitor"]>[0]
+  Parameters<WanexAppAgentContextCommands["startAgentContextMonitor"]>[0]
 export type ProductAppBackendAgentContextMonitorStatus =
-  WanexAppShellAgentContextMonitorStatus
-export type ProductAppBackendExtensionStatus = WanexAppShellExtensionStatus
+  WanexAppAgentContextMonitorStatus
+export type ProductAppBackendExtensionStatus = WanexAppExtensionStatus
 export type ProductAppBackendProviderProfileCommands =
-  WanexAppShellProviderProfileCommands
+  WanexAppProviderProfileCommands
 export type ProductAppBackendProviderProfileReadModel =
-  WanexAppShellProviderProfileReadModel
+  WanexAppProviderProfileReadModel
 export type ProductAppBackendProviderProfileListReadModel =
-  WanexAppShellProviderProfileListReadModel
+  WanexAppProviderProfileListReadModel
 
 export interface ProductAppBackendDiagnosticsCommands {
   readDiagnostics(
@@ -123,12 +124,12 @@ export interface ProductAppBackendDiagnosticsCommands {
 }
 
 export type ProductAppBackendDiagnosticsOptions =
-  WanexAppShellDiagnosticsOptions
+  WanexAppDiagnosticsOptions
 export type ProductAppBackendSupportBundleOptions =
-  WanexAppShellSupportBundleOptions
+  WanexAppSupportBundleOptions
 
 export type ProductAppBackendLifecycleCommands = Pick<
-  WanexAppShell["commands"],
+  WanexApp["commands"],
   "shutdown"
 >
-export type ProductAppBackendShutdownResult = WanexAppShellShutdownResult
+export type ProductAppBackendShutdownResult = WanexAppShutdownResult

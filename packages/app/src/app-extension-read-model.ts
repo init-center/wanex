@@ -9,21 +9,21 @@ import type {
   AppToolContribution
 } from "@wanex/extension"
 import type {
-  WanexAppShellAgentContributionRow,
-  WanexAppShellCommandContributionRow,
-  WanexAppShellExtensionContributionRow,
-  WanexAppShellExtensionDiagnosticRow,
-  WanexAppShellExtensionDomainCounts,
-  WanexAppShellExtensionReadModel,
-  WanexAppShellExtensionStatus,
-  WanexAppShellLifecycleHookContributionRow,
-  WanexAppShellProviderCatalogContributionRow,
-  WanexAppShellToolContributionRow
+  WanexAppAgentContributionRow,
+  WanexAppCommandContributionRow,
+  WanexAppExtensionContributionRow,
+  WanexAppExtensionDiagnosticRow,
+  WanexAppExtensionDomainCounts,
+  WanexAppExtensionReadModel,
+  WanexAppExtensionStatus,
+  WanexAppLifecycleHookContributionRow,
+  WanexAppProviderCatalogContributionRow,
+  WanexAppToolContributionRow
 } from "./types-extension.js"
 
-export function projectWanexAppShellExtensionReadModel(
+export function projectWanexAppExtensionReadModel(
   snapshot: AppExtensionResolvedSnapshot | undefined
-): WanexAppShellExtensionReadModel {
+): WanexAppExtensionReadModel {
   const contributions = snapshot?.contributions ?? []
   return {
     configured: snapshot !== undefined,
@@ -47,7 +47,7 @@ export function projectWanexAppShellExtensionReadModel(
 
 export function extensionStatus(
   snapshot: AppExtensionResolvedSnapshot | undefined
-): WanexAppShellExtensionStatus {
+): WanexAppExtensionStatus {
   return {
     configured: snapshot !== undefined,
     contributionCount: snapshot?.contributions.length ?? 0,
@@ -58,7 +58,7 @@ export function extensionStatus(
 
 function domainCounts(
   snapshot: AppExtensionResolvedSnapshot | undefined
-): WanexAppShellExtensionDomainCounts {
+): WanexAppExtensionDomainCounts {
   return {
     instruction: snapshot?.byDomain.instruction.all.length ?? 0,
     skill: snapshot?.byDomain.skill.all.length ?? 0,
@@ -72,7 +72,7 @@ function domainCounts(
 
 function projectContributionRow(
   contribution: AppExtensionContribution
-): WanexAppShellExtensionContributionRow {
+): WanexAppExtensionContributionRow {
   return {
     id: contribution.id,
     domain: contribution.domain,
@@ -90,7 +90,7 @@ function projectContributionRow(
 
 function projectCommandContributionRow(
   contribution: AppCommandContribution
-): WanexAppShellCommandContributionRow {
+): WanexAppCommandContributionRow {
   return {
     ...projectContributionRow(contribution),
     domain: "command",
@@ -106,7 +106,7 @@ function projectCommandContributionRow(
 
 function projectAgentContributionRow(
   contribution: AppAgentContribution
-): WanexAppShellAgentContributionRow {
+): WanexAppAgentContributionRow {
   return {
     ...projectContributionRow(contribution),
     domain: "agent",
@@ -128,7 +128,7 @@ function projectAgentContributionRow(
 
 function projectToolContributionRow(
   contribution: AppToolContribution
-): WanexAppShellToolContributionRow {
+): WanexAppToolContributionRow {
   return {
     ...projectContributionRow(contribution),
     domain: "tool",
@@ -142,7 +142,7 @@ function projectToolContributionRow(
 
 function projectProviderCatalogContributionRow(
   contribution: AppProviderCatalogContribution
-): WanexAppShellProviderCatalogContributionRow {
+): WanexAppProviderCatalogContributionRow {
   return {
     ...projectContributionRow(contribution),
     domain: "provider_catalog",
@@ -159,7 +159,7 @@ function projectProviderCatalogContributionRow(
 
 function projectLifecycleHookContributionRow(
   contribution: AppLifecycleHookContribution
-): WanexAppShellLifecycleHookContributionRow {
+): WanexAppLifecycleHookContributionRow {
   return {
     ...projectContributionRow(contribution),
     domain: "lifecycle_hook",
@@ -170,7 +170,7 @@ function projectLifecycleHookContributionRow(
 
 function projectDiagnosticRow(
   diagnostic: AppExtensionDiagnostic
-): WanexAppShellExtensionDiagnosticRow {
+): WanexAppExtensionDiagnosticRow {
   return {
     code: diagnostic.code,
     severity: diagnostic.severity,

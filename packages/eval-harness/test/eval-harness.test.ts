@@ -95,7 +95,7 @@ describe("@wanex/eval-harness", () => {
 
       expect(result.totals.failed).toBe(0)
       expect(result.totals.skipped).toBe(0)
-      expect(result.totals.passed).toBe(52)
+      expect(result.totals.passed).toBe(55)
       expect(result.results.map((item) => item.id)).toEqual([
         "product.smoke-matrix",
         "product.capability-readiness-contract",
@@ -107,6 +107,7 @@ describe("@wanex/eval-harness", () => {
         "product.app-surface-contract",
         "product.app-surface-client-contract",
         "product.app-surface-message-transport-contract",
+        "product.conversation-lifecycle-operational",
         "product.app-host-endpoint-contract",
         "product.app-web-surface-contract",
         "product.app-feedback-matrix-contract",
@@ -124,6 +125,8 @@ describe("@wanex/eval-harness", () => {
         "tui.product-controller-path",
         "memory.compaction-durable-projection",
         "memory.compaction-agent-replay",
+        "media-generation.app-path",
+        "optional-capability.turn-binding",
         "resource.ticket-expiry-cleanup",
         "workspace.apply-undo-reapply",
         "workspace.controlled-tools",
@@ -132,7 +135,7 @@ describe("@wanex/eval-harness", () => {
         "provider.deepseek-thinking-fidelity",
         "team.round-bound",
         "storage.remote-control-plane-isolation",
-        "runtime-host.remote-storage",
+        "runtime-host.remote-multi-owner",
         "runtime-host.failure-isolation",
         "delegation.runtime-host-product",
         "delegation-graph.product-smoke",

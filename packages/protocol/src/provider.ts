@@ -19,12 +19,31 @@ export type ProviderProfileKind =
   | "anthropic"
   | "deepseek"
 
+export type ProviderInputModality =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+  | "document"
+
+export type ProviderOutputModality =
+  | "text"
+  | "image"
+  | "audio"
+  | "video"
+
+export interface ProviderCapabilities {
+  readonly input: readonly ProviderInputModality[]
+  readonly output: readonly ProviderOutputModality[]
+}
+
 export interface ProviderProfile {
   readonly id: string
   readonly kind: ProviderProfileKind
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   readonly baseUrl?: string
-  readonly apiKey?: string
+  readonly secretRef?: string
   readonly anthropicVersion?: string
 }

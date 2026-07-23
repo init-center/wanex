@@ -1,8 +1,5 @@
 import type {
-  ProductAppBackendContinueWorkbenchSessionRequest,
-  ProductAppBackendContinueWorkbenchSessionResult,
   ProductAppBackendReadWorkbenchRequest,
-  ProductAppBackendRunAgentTurnRequest,
   ProductAppBackendSessionInputProvenanceReadModel,
   ProductAppBackendSessionTranscriptReadModel,
   ProductAppBackendWorkbenchReadModel,
@@ -10,9 +7,6 @@ import type {
 } from "./types.js"
 
 export interface ProductAppBackendWorkbenchHost {
-  runAgentTurn(
-    request: ProductAppBackendRunAgentTurnRequest
-  ): Promise<ProductAppBackendContinueWorkbenchSessionResult["turn"]>
   readSessionTranscript(
     request: ProductAppBackendReadWorkbenchRequest
   ): Promise<ProductAppBackendSessionTranscriptReadModel>
@@ -36,33 +30,6 @@ export async function readProductAppBackendWorkbench(
   })
 }
 
-export async function continueProductAppBackendWorkbenchSession(
-  host: ProductAppBackendWorkbenchHost,
-  request: ProductAppBackendContinueWorkbenchSessionRequest
-): Promise<ProductAppBackendContinueWorkbenchSessionResult> {
-  const turn = await host.runAgentTurn({
-    text: request.text,
-    sessionId: request.sessionId,
-    ...(request.principalId === undefined ? {} : { principalId: request.principalId }),
-    ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
-    ...(request.idempotencyKey === undefined
-      ? {}
-      : { idempotencyKey: request.idempotencyKey }),
-    ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
-    ...(request.jobIdempotencyKey === undefined
-      ? {}
-      : { jobIdempotencyKey: request.jobIdempotencyKey })
-  })
-  return {
-    kind: "product-app.backend.workbench.continued",
-    sessionId: request.sessionId,
-    turn,
-    workbench: await readProductAppBackendWorkbench(host, {
-      sessionId: request.sessionId
-    })
-  }
-}
-
 function projectProductAppBackendWorkbench(options: {
   readonly sessionId: string
   readonly transcript: ProductAppBackendSessionTranscriptReadModel
@@ -75,7 +42,7 @@ function projectProductAppBackendWorkbench(options: {
     provenance: options.provenance,
     summary: summarizeWorkbench(options.transcript, options.provenance),
     actions: {
-      continueCommandId: "product.workbench.continue",
+      submitCommandId: "product.agent.submit",
       transcriptCommandId: "product.transcript.read",
       provenanceCommandId: "product.provenance.read"
     }
@@ -86,7 +53,9 @@ function summarizeWorkbench(
   transcript: ProductAppBackendSessionTranscriptReadModel,
   provenance: ProductAppBackendSessionInputProvenanceReadModel
 ): ProductAppBackendWorkbenchSummary {
-  const inputRows = transcript.rows.filter((row) => row.kind === "input")
+  const inputRows = transcript.rows.filter(
+    (row) => row.kind === "input" || (row.kind === "message" && row.role === "user")
+  )
   const messageRows = transcript.rows.filter((row) => row.kind === "message")
   const visibleTextRows = transcript.rows.filter(
     (row) => row.text.trim().length > 0
@@ -98,7 +67,8 @@ function summarizeWorkbench(
   )
   const latestUserText = lastText(
     transcript.rows.filter(
-      (row) => row.kind === "input" && row.role === "user"
+      (row) =>
+        row.role === "user" && (row.kind === "input" || row.kind === "message")
     )
   )
   const updatedAt = transcript.rows.map((row) => row.updatedAt)

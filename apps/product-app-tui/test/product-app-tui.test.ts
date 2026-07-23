@@ -152,7 +152,7 @@ describe("@wanex/product-app-tui", () => {
         kind: "found",
         reference: { kind: "job", id: "job_tui_activity" },
         activity: {
-          kind: "app-shell.execution.job",
+          kind: "wanex-app.execution.job",
           jobKind: "plugin.action",
           state: "retry_scheduled",
           attempt: 2,
@@ -179,11 +179,15 @@ describe("@wanex/product-app-tui", () => {
 
   it("reads execution activity from the interactive line session", async () => {
     await withSurface(async ({ app, surface }) => {
-      await app.startWorkbench({
-        text: "seed TUI execution activity",
-        sessionId: "ses_tui_execution_activity",
-        jobId: "job_tui_execution_activity"
+      await app.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "seed TUI execution activity",
+          sessionId: "ses_tui_execution_activity",
+          jobId: "job_tui_execution_activity"
+        }
       })
+      await waitForJob(app, "job_tui_execution_activity")
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
         surface,
@@ -217,7 +221,7 @@ describe("@wanex/product-app-tui", () => {
           ok: true,
           value: {
             kind: "product-app.surface-descriptor",
-            commandCount: 18
+            commandCount: 23
           }
         },
         status: {
@@ -256,8 +260,8 @@ describe("@wanex/product-app-tui", () => {
           value: {
             commands: expect.arrayContaining([
               expect.objectContaining({
-                id: "product.agent.run",
-                title: "Run Agent"
+                id: "product.agent.submit",
+                title: "Submit Agent Turn"
               })
             ]),
             diagnostics: []
@@ -270,8 +274,10 @@ describe("@wanex/product-app-tui", () => {
         "product-app-tui.palette.home-read",
         "product-app-tui.palette.session-select",
         "product-app-tui.palette.workbench-open",
-        "product-app-tui.palette.workbench-start",
-        "product-app-tui.palette.workbench-continue"
+        "product-app-tui.palette.conversation-submit",
+        "product-app-tui.palette.conversation-read",
+        "product-app-tui.palette.conversation-cancel",
+        "product-app-tui.palette.conversation-regenerate"
       ])
       expect(snapshot.readModel.statusItems.map((item) => item.label)).toEqual([
         "ready",
@@ -288,45 +294,46 @@ describe("@wanex/product-app-tui", () => {
         ready: true,
         mode: "chat",
         layout: "single",
-        commandCount: 18,
-        productCommandCount: 15,
-        paletteCount: 7,
+        commandCount: 23,
+        productCommandCount: 14,
+        paletteCount: 9,
         statusItemCount: 8
       })
       expect(frame.text).toContain("Wanex Product App TUI")
       expect(frame.text).toContain("profile:product-app-tui-test")
       expect(frame.text).toContain("provider:ready")
       expect(frame.text).toContain("theme:system")
-      expect(frame.text).toContain("product-commands:15")
-      expect(frame.text).toContain("product-app.workbench.start")
-      expect(frame.text).toContain("product-app.workbench.continue")
+      expect(frame.text).toContain("product-commands:14")
+      expect(frame.text).toContain("product-app.conversation.submit")
+      expect(frame.text).toContain("... 1 more")
     })
   })
 
   it("executes TUI commands through the Product App surface client", async () => {
-    await withSurface(async ({ surface }) => {
-      const started = await surface.controller.executePaletteEntry({
-        id: "product-app-tui.palette.workbench-start",
-        input: {
-          text: "product app tui started"
-        }
-      })
-      expect(started).toMatchObject({
-        status: "completed",
-        value: {
-          kind: "product-app-tui.command.completed",
-          commandId: PRODUCT_APP_TUI_COMMANDS.startWorkbench
-        }
-      })
-
-      const run = await surface.client.dispatchProductCommand({
-        command: "runAgentTurn",
+    await withSurface(async ({ app, surface }) => {
+      const submitted = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-submit",
         input: {
           text: "product app tui first turn",
           sessionId: "ses_product_app_tui"
         }
       })
-      expect(run.ok).toBe(true)
+      expect(submitted).toMatchObject({
+        status: "completed",
+        value: {
+          kind: "product-app-tui.command.completed",
+          commandId: PRODUCT_APP_TUI_COMMANDS.submitConversation,
+          value: {
+            ok: true,
+            command: "submitConversationOperation",
+            value: {
+              kind: "product-app.conversation-operation.found",
+              operation: { sessionId: "ses_product_app_tui" }
+            }
+          }
+        }
+      })
+      await waitForConversation(app, "ses_product_app_tui")
 
       const selected = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.session-select",
@@ -346,6 +353,29 @@ describe("@wanex/product-app-tui", () => {
         }
       })
 
+      const read = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-read",
+        input: { sessionId: "ses_product_app_tui" }
+      })
+      expect(read).toMatchObject({
+        status: "completed",
+        value: {
+          kind: "product-app-tui.command.completed",
+          commandId: PRODUCT_APP_TUI_COMMANDS.readConversationOperation,
+          value: {
+            ok: true,
+            command: "readTrackedConversationOperation",
+            value: {
+              kind: "product-app.conversation-operation.found",
+              operation: {
+                sessionId: "ses_product_app_tui",
+                state: "succeeded"
+              }
+            }
+          }
+        }
+      })
+
       const opened = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.workbench-open"
       })
@@ -357,17 +387,35 @@ describe("@wanex/product-app-tui", () => {
         }
       })
 
-      const continued = await surface.controller.executePaletteEntry({
-        id: "product-app-tui.palette.workbench-continue",
-        input: {
-          text: "product app tui continued"
-        }
+      const regenerated = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-regenerate",
+        input: { sessionId: "ses_product_app_tui" }
       })
-      expect(continued).toMatchObject({
+      expect(regenerated).toMatchObject({
         status: "completed",
         value: {
           kind: "product-app-tui.command.completed",
-          commandId: PRODUCT_APP_TUI_COMMANDS.continueWorkbench
+          commandId: PRODUCT_APP_TUI_COMMANDS.regenerateConversation,
+          value: {
+            ok: true,
+            command: "regenerateTrackedConversationOperation"
+          }
+        }
+      })
+
+      const cancelled = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-cancel",
+        input: { reason: "TUI test cancellation" }
+      })
+      expect(cancelled).toMatchObject({
+        status: "completed",
+        value: {
+          kind: "product-app-tui.command.completed",
+          commandId: PRODUCT_APP_TUI_COMMANDS.cancelConversation,
+          value: {
+            ok: true,
+            command: "cancelTrackedConversationOperation"
+          }
         }
       })
 
@@ -385,7 +433,7 @@ describe("@wanex/product-app-tui", () => {
         events: expect.arrayContaining([
           expect.objectContaining({
             type: "product-app.surface.state_changed",
-            command: "continueWorkbench"
+            command: "regenerateTrackedConversationOperation"
           })
         ])
       })
@@ -395,26 +443,22 @@ describe("@wanex/product-app-tui", () => {
   it("projects provider run gate failures through TUI command execution", async () => {
     await withSurface(
       async ({ surface }) => {
-        const started = await surface.controller.executePaletteEntry({
-          id: "product-app-tui.palette.workbench-start",
+        const submitted = await surface.controller.executePaletteEntry({
+          id: "product-app-tui.palette.conversation-submit",
           input: {
             text: "tui should not bypass provider setup"
           }
         })
-        expect(started).toMatchObject({
+        expect(submitted).toMatchObject({
           status: "completed",
           value: {
             kind: "product-app-tui.command.completed",
-            commandId: PRODUCT_APP_TUI_COMMANDS.startWorkbench,
+            commandId: PRODUCT_APP_TUI_COMMANDS.submitConversation,
             value: {
               ok: true,
-              command: "startWorkbench",
+              command: "submitConversationOperation",
               value: {
-                kind: "product-app.workbench.failed",
-                error: {
-                  code: "provider_not_ready",
-                  category: "validation"
-                }
+                kind: "product-app.conversation-operation.rejected"
               }
             }
           }
@@ -425,7 +469,7 @@ describe("@wanex/product-app-tui", () => {
           ok: true,
           value: {
             providerReadiness: {
-              status: "missing_required_api_key",
+              status: "missing_required_credential",
               canRun: false
             }
           }
@@ -437,7 +481,7 @@ describe("@wanex/product-app-tui", () => {
           }
         })
         expect(renderProductAppTuiFrame(snapshot).text).toContain(
-          "provider:missing_required_api_key"
+          "provider:missing_required_credential"
         )
 
         const chunks: string[] = []
@@ -445,8 +489,8 @@ describe("@wanex/product-app-tui", () => {
           surface,
           input: lines([
             "ask tui ask should not bypass provider setup",
-            "preview product.agent.run {\"text\":\"preview should not bypass provider setup\"}",
-            "execute product.agent.run {\"text\":\"execute should not bypass provider setup\"}",
+            "preview product.agent.submit {\"text\":\"preview should not bypass provider setup\"}",
+            "execute product.agent.submit {\"text\":\"execute should not bypass provider setup\"}",
             "quit"
           ]),
           write(chunk) {
@@ -464,14 +508,13 @@ describe("@wanex/product-app-tui", () => {
           quit: true
         })
         const output = chunks.join("")
-        expect(output).toContain("Wanex Product App Agent Turn")
-        expect(output).toContain("status:blocked")
-        expect(output).toContain("code:provider_not_ready")
+        expect(output).toContain("Wanex Product App Conversation")
+        expect(output).toContain("state:rejected")
         expect(output).toContain("provider is not ready")
         expect(output).toContain("Wanex Product App Command Preview")
         expect(output).toContain("status:rejected")
         expect(output).toContain("reason:provider_not_ready")
-        expect(output).toContain("provider:missing_required_api_key")
+        expect(output).toContain("provider:missing_required_credential")
         expect(output).toContain("canRun:no")
         expect(output).toContain("Wanex Product App Command Execution")
       },
@@ -479,6 +522,7 @@ describe("@wanex/product-app-tui", () => {
         providerProfile: {
           id: "product-app-tui-blocked-provider",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "product-app-tui-blocked-model"
         }
@@ -501,8 +545,8 @@ describe("@wanex/product-app-tui", () => {
         modelId: "product-app-tui-host-test-model"
       }
     })
+    const productSurface = createProductAppSurfaceAdapter(app)
     try {
-      const productSurface = createProductAppSurfaceAdapter(app)
       const operations: string[] = []
       const client = createProductAppTuiHostSurfaceClient({
         surface: productSurface,
@@ -519,7 +563,7 @@ describe("@wanex/product-app-tui", () => {
         ok: true,
         value: {
           kind: "product-app.surface-descriptor",
-          commandCount: 18
+          commandCount: 23
         }
       })
       expect(status).toMatchObject({
@@ -546,6 +590,7 @@ describe("@wanex/product-app-tui", () => {
         "readSurfaceEvents"
       ])
     } finally {
+      await productSurface.dispose()
       await app.dispose()
     }
   })
@@ -570,32 +615,40 @@ describe("@wanex/product-app-tui", () => {
       "product-app-tui.home_failed",
       "product-app-tui.settings_failed",
       "product-app-tui.command_catalog_failed",
+      "product-app-tui.conversation_failed",
       "product-app-tui.events_failed"
     ])
     expect(snapshot.readModel.notifications).toHaveLength(1)
     expect(frame).toMatchObject({
       ready: false,
-      diagnosticCount: 6,
+      diagnosticCount: 7,
       eventCount: 0
     })
     expect(frame.text).not.toContain("Error:")
   })
 
   it("runs an injected line session through the Product App surface client", async () => {
-    await withSurface(async ({ surface }) => {
+    await withSurface(async ({ app, surface }) => {
+      await app.submitConversationOperation({
+        text: "seed product app tui line session",
+        sessionId: "ses_product_app_tui_line"
+      })
+      await waitForConversation(app, "ses_product_app_tui_line")
+      await surface.refresh()
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
         surface,
         input: lines([
           "help",
-          "ask hello from product app tui line",
+          "operation",
           "workbench",
-          "continue continue through product app tui line",
+          "regenerate",
+          "cancel stop regenerated turn",
           "events 5",
           "commands",
           "palette",
           "palette product-app.workbench.open",
-          "preview product.agent.run {\"text\":\"preview through product app tui line\"}",
+          "preview product.agent.submit {\"text\":\"preview through product app tui line\"}",
           "execute product.status",
           "refresh",
           "quit"
@@ -608,11 +661,13 @@ describe("@wanex/product-app-tui", () => {
 
       expect(result).toMatchObject({
         kind: "product-app-tui.line-session",
-        handledLineCount: 12,
-        commandCount: 12,
-        askCommandCount: 1,
+        handledLineCount: 13,
+        commandCount: 13,
+        askCommandCount: 0,
         workbenchCommandCount: 1,
-        continueCommandCount: 1,
+        operationCommandCount: 1,
+        cancelCommandCount: 1,
+        regenerateCommandCount: 1,
         paletteCommandCount: 1,
         catalogCommandCount: 1,
         previewCommandCount: 1,
@@ -622,17 +677,18 @@ describe("@wanex/product-app-tui", () => {
         errorCount: 0,
         quit: true
       })
-      expect(result.activeSessionId).toMatch(/^ses_/)
+      expect(result.activeSessionId).toBe("ses_product_app_tui_line")
       expect(output).toContain("Wanex Product App TUI")
       expect(output).toContain("Type help for commands.")
       expect(output).toContain("palette <index|palette-id|command-id> [json-input]")
-      expect(output).toContain("Wanex Product App Agent Turn")
-      expect(output).toContain("Fake response from product-app-tui-test-model")
+      expect(output).toContain("Wanex Product App Conversation")
+      expect(output).toContain("state:succeeded")
       expect(output).toContain("Wanex Product App Workbench")
-      expect(output).toContain("Continued")
+      expect(output).toContain("regenerate:enabled")
+      expect(output).toContain("cancel:")
       expect(output).toContain("Wanex Product App Surface Events")
       expect(output).toContain("Wanex Product App Commands")
-      expect(output).toContain("product.agent.run - Run Agent")
+      expect(output).toContain("product.agent.submit - Submit Agent Turn")
       expect(output).toContain("source:builtin/")
       expect(output).toContain("Palette:")
       expect(output).toContain("product-app.workbench.open")
@@ -642,7 +698,7 @@ describe("@wanex/product-app-tui", () => {
       expect(output).toContain("Wanex Product App Command Execution")
       expect(output).toContain("command:product.status")
       expect(output).toContain("valueKind:object")
-      expect(output).toContain("command:product.agent.run")
+      expect(output).toContain("command:product.agent.submit")
       expect(output).toContain("input:accepted")
       expect(output).toContain("refreshed")
       expect(output).toContain("bye")
@@ -683,12 +739,12 @@ describe("@wanex/product-app-tui", () => {
     expect(
       parseProductAppTuiCliCommand([
         "preview",
-        "product.agent.run",
+        "product.agent.submit",
         "{\"text\":\"preview cli parse\"}"
       ])
     ).toEqual({
       name: "preview",
-      commandId: "product.agent.run",
+      commandId: "product.agent.submit",
       input: {
         text: "preview cli parse"
       }
@@ -709,7 +765,7 @@ describe("@wanex/product-app-tui", () => {
       name: "interactive"
     })
     expect(() =>
-      parseProductAppTuiCliCommand(["preview", "product.agent.run", "{"])
+      parseProductAppTuiCliCommand(["preview", "product.agent.submit", "{"])
     ).toThrow("command input must be valid JSON")
     expect(() =>
       parseProductAppTuiCliCommand(["events", "--limit", "0"])
@@ -747,7 +803,7 @@ describe("@wanex/product-app-tui", () => {
         kind: "product-app-tui.frame",
         ready: true,
         mode: "chat",
-        paletteCount: 7
+        paletteCount: 9
       }
     })
   })
@@ -763,8 +819,8 @@ describe("@wanex/product-app-tui", () => {
       stderr: ""
     })
     expect(text.stdout).toContain("Wanex Product App Commands")
-    expect(text.stdout).toContain("product.agent.run - Run Agent")
-    expect(text.stdout).toContain("handler:wanex.product-app.backend.runAgentTurn")
+    expect(text.stdout).toContain("product.agent.submit - Submit Agent Turn")
+    expect(text.stdout).toContain("handler:wanex.product-app.backend.submitConversationOperation")
 
     const parsed = JSON.parse(json.stdout) as {
       readonly ok: boolean
@@ -780,9 +836,9 @@ describe("@wanex/product-app-tui", () => {
       value: {
         kind: "product-app-tui.command-catalog",
         ok: true,
-        commandCount: 15,
+        commandCount: 14,
         commands: expect.arrayContaining([
-          expect.objectContaining({ id: "product.agent.run" })
+          expect.objectContaining({ id: "product.agent.submit" })
         ])
       }
     })
@@ -836,7 +892,7 @@ describe("@wanex/product-app-tui", () => {
     const env = await cliEnv()
 
     const result = await runProductAppTuiCli(
-      ["preview", "product.agent.run", "{\"text\":\"preview cli\"}"],
+      ["preview", "product.agent.submit", "{\"text\":\"preview cli\"}"],
       env
     )
 
@@ -861,7 +917,7 @@ describe("@wanex/product-app-tui", () => {
         command: "previewProductCommandInvocation",
         value: {
           kind: "runnable",
-          commandId: "product.agent.run"
+          commandId: "product.agent.submit"
         }
       }
     })
@@ -919,8 +975,7 @@ describe("@wanex/product-app-tui", () => {
       stderr: ""
     })
     expect(output).toContain("Wanex Product App TUI")
-    expect(output).toContain("Wanex Product App Agent Turn")
-    expect(output).toContain("Fake response from product-app-tui-cli-model")
+    expect(output).toContain("Wanex Product App Conversation")
     expect(output).toContain("Wanex Product App Surface Events")
     expect(output).toContain("bye")
 
@@ -974,11 +1029,15 @@ describe("@wanex/product-app-tui", () => {
       }
     })
     try {
-      await seed.startWorkbench({
-        text: "seed one-shot execution activity",
-        sessionId: "ses_tui_cli_execution",
-        jobId: "job_tui_cli_execution"
+      await seed.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "seed one-shot execution activity",
+          sessionId: "ses_tui_cli_execution",
+          jobId: "job_tui_cli_execution"
+        }
       })
+      await waitForJob(seed, "job_tui_cli_execution")
     } finally {
       await seed.dispose()
     }
@@ -991,7 +1050,7 @@ describe("@wanex/product-app-tui", () => {
     expect(result).toMatchObject({ exitCode: 0, stderr: "" })
     expect(result.stdout).toContain("Wanex Product App Execution Activity")
     expect(result.stdout).toContain("state:succeeded")
-    expect(result.stdout).toContain("jobKind:session.run")
+    expect(result.stdout).toContain("jobKind:session.turn")
   })
 })
 
@@ -1017,10 +1076,10 @@ async function withSurface(
     },
     ...options
   })
-  try {
-    const productSurface = createProductAppSurfaceAdapter(app, {
+  const productSurface = createProductAppSurfaceAdapter(app, {
       now: () => 11_111
-    })
+  })
+  try {
     const client = createProductAppSurfaceClient(
       createInProcessProductAppSurfaceClientTransport(productSurface)
     )
@@ -1030,8 +1089,48 @@ async function withSurface(
     })
     await test({ app, surface })
   } finally {
+    await productSurface.dispose()
     await app.dispose()
   }
+}
+
+async function waitForConversation(
+  app: ProductAppShell,
+  sessionId: string
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    const result = await app.readTrackedConversationOperation({ sessionId })
+    if (
+      result.kind === "product-app.conversation-operation.found" &&
+      result.operation.capabilities.terminal
+    ) {
+      return
+    }
+    await delay(10)
+  }
+  throw new Error(`conversation operation did not settle: ${sessionId}`)
+}
+
+async function waitForJob(app: ProductAppShell, jobId: string): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    const result = await app.readExecutionReference({ kind: "job", id: jobId })
+    if (
+      result.kind === "found" &&
+      (result.activity.state === "succeeded" ||
+        result.activity.state === "failed" ||
+        result.activity.state === "cancelled")
+    ) {
+      return
+    }
+    await delay(10)
+  }
+  throw new Error(`job did not settle: ${jobId}`)
+}
+
+async function delay(milliseconds: number): Promise<void> {
+  await new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 async function createStoreDir(): Promise<string> {

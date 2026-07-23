@@ -7,9 +7,12 @@ export interface ProductAppTuiLineSessionState {
   handledLineCount: number
   commandCount: number
   askCommandCount: number
+  attachCommandCount: number
   selectCommandCount: number
   workbenchCommandCount: number
-  continueCommandCount: number
+  operationCommandCount: number
+  cancelCommandCount: number
+  regenerateCommandCount: number
   paletteCommandCount: number
   catalogCommandCount: number
   previewCommandCount: number
@@ -29,9 +32,12 @@ export function createProductAppTuiLineSessionState(
     handledLineCount: 0,
     commandCount: 0,
     askCommandCount: 0,
+    attachCommandCount: 0,
     selectCommandCount: 0,
     workbenchCommandCount: 0,
-    continueCommandCount: 0,
+    operationCommandCount: 0,
+    cancelCommandCount: 0,
+    regenerateCommandCount: 0,
     paletteCommandCount: 0,
     catalogCommandCount: 0,
     previewCommandCount: 0,
@@ -53,9 +59,12 @@ export function productAppTuiLineSessionResult(
     handledLineCount: state.handledLineCount,
     commandCount: state.commandCount,
     askCommandCount: state.askCommandCount,
+    attachCommandCount: state.attachCommandCount,
     selectCommandCount: state.selectCommandCount,
     workbenchCommandCount: state.workbenchCommandCount,
-    continueCommandCount: state.continueCommandCount,
+    operationCommandCount: state.operationCommandCount,
+    cancelCommandCount: state.cancelCommandCount,
+    regenerateCommandCount: state.regenerateCommandCount,
     paletteCommandCount: state.paletteCommandCount,
     catalogCommandCount: state.catalogCommandCount,
     previewCommandCount: state.previewCommandCount,

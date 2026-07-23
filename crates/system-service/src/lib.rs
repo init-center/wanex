@@ -1,3 +1,4 @@
+mod atomic_file;
 mod budget;
 mod channel;
 mod config;
@@ -9,19 +10,21 @@ mod doctor;
 mod error;
 mod event_store;
 mod events;
+mod media_generation;
 mod messages;
 mod models;
 mod objective;
 mod plan;
 mod plugin;
+mod provider_invocations;
 mod resources;
 mod rows;
 mod run_control;
-mod runners;
 mod scheduler;
 mod sessions;
 mod team;
 mod tools;
+mod turns;
 mod util;
 mod workspace;
 

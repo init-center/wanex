@@ -8,6 +8,27 @@ import { CoreStore } from '@wanex/storage';
 import { RuntimeStore } from '@wanex/storage';
 
 // @public (undocumented)
+type ActiveAbortKind = "cancel" | "interrupt" | "lease_lost" | "timeout" | "host_shutdown";
+
+// @public (undocumented)
+interface ActiveAbortReason {
+    // (undocumented)
+    readonly kind: ActiveAbortKind;
+    // (undocumented)
+    readonly message: string;
+}
+
+// @public (undocumented)
+interface ActiveExecutionRegistration {
+    // (undocumented)
+    abort(reason: ActiveAbortReason): boolean;
+    // (undocumented)
+    bindAttempt(attemptId: string): void;
+    // (undocumented)
+    unregister(): void;
+}
+
+// @public (undocumented)
 interface AdmissionReceipt {
     // (undocumented)
     readonly durability: "local-durable";
@@ -42,43 +63,79 @@ interface AdmitSessionInputRequest {
 // @public (undocumented)
 interface AppendSessionMessageRequest {
     // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
     readonly idempotencyKey: string;
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
     readonly leaseToken: string;
+    // (undocumented)
+    readonly providerState?: readonly ProviderState[];
     // (undocumented)
     readonly role: "assistant" | "tool" | "system";
     // (undocumented)
-    readonly runId: SessionRunId;
-    // (undocumented)
-    readonly runnerId: string;
-    // (undocumented)
     readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
-interface ApplySessionRunControlReceipt {
+interface ApplySessionTurnControlReceipt {
     // (undocumented)
-    readonly control: SessionRunControlRecord;
+    readonly control: SessionTurnControlRecord;
     // (undocumented)
-    readonly effect: SessionRunControlApplyEffect;
+    readonly effect: SessionTurnControlApplyEffect;
 }
 
 // @public (undocumented)
-interface ApplySessionRunControlRequest {
+interface ApplySessionTurnControlRequest {
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
     // (undocumented)
     readonly controlId: string;
     // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
     readonly leaseToken: string;
     // (undocumented)
-    readonly runId: SessionRunId;
+    readonly sessionId: SessionId;
     // (undocumented)
-    readonly runnerId: string;
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+interface BeginProviderInvocationRequest {
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
+    readonly id?: ProviderInvocationId;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly invocationNumber: number;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly requestDigest: string;
     // (undocumented)
     readonly sessionId: SessionId;
+    // (undocumented)
+    readonly step: number;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
@@ -87,10 +144,14 @@ interface BeginToolExecutionReceipt {
     readonly created: boolean;
     // (undocumented)
     readonly execution: ToolExecutionRecord;
+    // (undocumented)
+    readonly invocationAttempt?: ToolExecutionAttemptRecord;
 }
 
 // @public (undocumented)
 interface BeginToolExecutionRequest {
+    // (undocumented)
+    readonly attemptId: string;
     // (undocumented)
     readonly descriptor: JsonValue;
     // (undocumented)
@@ -100,17 +161,27 @@ interface BeginToolExecutionRequest {
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
     readonly permission: JsonValue;
     // (undocumented)
     readonly principalId: string;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly sourceMessageId: string;
+    // (undocumented)
+    readonly state: "running" | "denied" | "approval_required";
     // (undocumented)
     readonly toolCallId: string;
     // (undocumented)
     readonly toolName: string;
+    // (undocumented)
+    readonly turnId: string;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
@@ -221,18 +292,6 @@ interface CancelJobRequest {
 }
 
 // @public (undocumented)
-interface CancelRunRequest {
-    // (undocumented)
-    readonly inputId: SessionInputId;
-    // (undocumented)
-    readonly reason: string;
-    // (undocumented)
-    readonly runId: SessionRunId;
-    // (undocumented)
-    readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
 interface ClaimJobRequest {
     // (undocumented)
     readonly kinds?: readonly SchedulerJobKind[];
@@ -269,22 +328,6 @@ interface CompleteJobRequest {
 }
 
 // @public (undocumented)
-interface CompleteRunRequest {
-    // (undocumented)
-    readonly assistantMessage?: readonly MessagePart[];
-    // (undocumented)
-    readonly inputId: SessionInputId;
-    // (undocumented)
-    readonly leaseToken: string;
-    // (undocumented)
-    readonly runId: SessionRunId;
-    // (undocumented)
-    readonly runnerId: string;
-    // (undocumented)
-    readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
 type ConfigCacheMode = "none" | "memory";
 
 // @public (undocumented)
@@ -318,6 +361,8 @@ interface CreateSessionRequest {
 interface EnqueueJobRequest {
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly id?: string;
     // (undocumented)
@@ -361,19 +406,41 @@ interface FailJobRequest {
 }
 
 // @public (undocumented)
-interface FailRunRequest {
+interface FinishProviderInvocationReceipt {
     // (undocumented)
-    readonly error: JsonValue;
+    readonly assistantMessage?: SessionMessageRecord;
+    // (undocumented)
+    readonly invocation: ProviderInvocationRecord;
+}
+
+// @public (undocumented)
+interface FinishProviderInvocationRequest {
+    // (undocumented)
+    readonly assistantMessage?: readonly MessagePart[];
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly invocationId: ProviderInvocationId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
     readonly leaseToken: string;
     // (undocumented)
-    readonly runId: SessionRunId;
+    readonly outcome: "succeeded" | "failed_before_output" | "ambiguous";
     // (undocumented)
-    readonly runnerId: string;
+    readonly providerRequestId?: string;
+    // (undocumented)
+    readonly providerState?: readonly ProviderState[];
     // (undocumented)
     readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
@@ -383,11 +450,33 @@ interface FinishToolExecutionRequest {
     // (undocumented)
     readonly executionId: string;
     // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly invocationAttemptId: ToolExecutionAttemptId;
+    // (undocumented)
     readonly isError?: boolean;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
     // (undocumented)
     readonly result?: JsonValue;
     // (undocumented)
+    readonly sessionAttemptId: SessionAttemptId;
+    // (undocumented)
+    readonly sessionId: string;
+    // (undocumented)
     readonly state: "succeeded" | "failed" | "cancelled";
+    // (undocumented)
+    readonly turnId: string;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+interface GetResourceRequest {
+    // (undocumented)
+    readonly resourceId: ResourceId;
 }
 
 // @public (undocumented)
@@ -403,21 +492,25 @@ interface HeartbeatJobRequest {
 }
 
 // @public (undocumented)
-interface InterruptSessionRunReceipt {
+interface InterruptSessionTurnReceipt {
     // (undocumented)
     readonly acceptedAt?: number;
     // (undocumented)
-    readonly durability: "local-durable";
+    readonly attemptId: SessionAttemptId;
     // (undocumented)
-    readonly runId: SessionRunId;
+    readonly durability: "local-durable";
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
     readonly status: "interrupt_requested" | "not_running";
+    // (undocumented)
+    readonly turnId: SessionTurnId;
 }
 
 // @public (undocumented)
-interface InterruptSessionRunRequest {
+interface InterruptSessionTurnRequest {
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
     // (undocumented)
     readonly idempotencyKey?: string;
     // (undocumented)
@@ -429,9 +522,9 @@ interface InterruptSessionRunRequest {
     // (undocumented)
     readonly reason: string;
     // (undocumented)
-    readonly runId: SessionRunId;
-    // (undocumented)
     readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
 }
 
 // @public (undocumented)
@@ -446,7 +539,7 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | UiSurfaceEventType | ContextEventType | PlanEventType | ObjectiveEventType;
+type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | ContextEventType | PlanEventType | ObjectiveEventType;
 
 // @public (undocumented)
 interface ListJobsRequest {
@@ -459,6 +552,18 @@ interface ListJobsRequest {
 }
 
 // @public (undocumented)
+interface ListProviderInvocationsRequest {
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+}
+
+// @public (undocumented)
+interface ListSessionAttemptsRequest {
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+}
+
+// @public (undocumented)
 interface ListSessionInputsRequest {
     // (undocumented)
     readonly sessionId: SessionId;
@@ -468,20 +573,6 @@ interface ListSessionInputsRequest {
 interface ListSessionMessagesRequest {
     // (undocumented)
     readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
-interface ListSessionRunControlsRequest {
-    // (undocumented)
-    readonly kind?: SessionRunControlKind;
-    // (undocumented)
-    readonly limit?: number;
-    // (undocumented)
-    readonly runId?: SessionRunId;
-    // (undocumented)
-    readonly sessionId: SessionId;
-    // (undocumented)
-    readonly status?: SessionRunControlStatus;
 }
 
 // @public (undocumented)
@@ -499,10 +590,62 @@ interface ListSessionsRequest {
 }
 
 // @public (undocumented)
+interface ListSessionTurnControlsRequest {
+    // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
+    readonly kind?: SessionTurnControlKind;
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly status?: SessionTurnControlStatus;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
+}
+
+// @public (undocumented)
+interface ListSessionTurnsRequest {
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly state?: SessionTurnState;
+}
+
+// @public (undocumented)
+interface ListToolExecutionAttemptsRequest {
+    // (undocumented)
+    readonly executionId: string;
+}
+
+// @public (undocumented)
+interface MarkProviderInvocationOutputRequest {
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly invocationId: ProviderInvocationId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly providerRequestId?: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
 type MessageId = string;
 
 // @public (undocumented)
-type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart | UiSurfaceMessagePart;
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
 
 // @public (undocumented)
 interface MessagePartBase {
@@ -568,6 +711,93 @@ interface PollEventsResult {
 type PrincipalId = string;
 
 // @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
+interface ProviderExecutionBinding {
+    // (undocumented)
+    readonly adapterId: ProviderProfileKind;
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly profileDigest: string;
+    // (undocumented)
+    readonly profileId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly requestConfig?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderInvocationId = string;
+
+// @public (undocumented)
+interface ProviderInvocationRecord {
+    // (undocumented)
+    readonly assistantMessageId?: MessageId;
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionBindingDigest: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: ProviderInvocationId;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly invocationNumber: number;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly outputObserved: boolean;
+    // (undocumented)
+    readonly providerRequestId?: string;
+    // (undocumented)
+    readonly requestDigest: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: ProviderInvocationState;
+    // (undocumented)
+    readonly step: number;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type ProviderInvocationState = "dispatched" | "output_observed" | "succeeded" | "failed_before_output" | "ambiguous";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
+
+// @public (undocumented)
 interface ProviderState {
     // (undocumented)
     readonly modelId: string;
@@ -589,6 +819,18 @@ interface QueryEventsInput {
     readonly limit?: number;
     // (undocumented)
     readonly scope?: RuntimeEventScope;
+}
+
+// @public (undocumented)
+interface ReadResourceContentRequest {
+    // (undocumented)
+    readonly expectedSha256: string;
+    // (undocumented)
+    readonly limit: number;
+    // (undocumented)
+    readonly offset: number;
+    // (undocumented)
+    readonly resourceId: ResourceId;
 }
 
 // @public (undocumented)
@@ -624,15 +866,31 @@ interface RecordBudgetUsageRequest {
 }
 
 // @public (undocumented)
-interface RecoverToolExecutionRequest {
+export function registerResourceCleanupHandler(worker: WanexWorker, session: WanexSessionCore): void;
+
+// @public (undocumented)
+interface RequestSessionTurnCancelReceipt {
     // (undocumented)
-    readonly action: "retry" | "require_recovery";
+    readonly job?: SchedulerJobRecord;
     // (undocumented)
-    readonly executionId: string;
+    readonly status: "cancelled" | "cancel_requested" | "already_terminal" | "missing";
+    // (undocumented)
+    readonly turn?: SessionTurnRecord;
 }
 
 // @public (undocumented)
-export function registerResourceCleanupHandler(worker: WanexWorker, session: WanexSessionCore): void;
+interface RequestSessionTurnCancelRequest {
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly reason: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+}
 
 // @public (undocumented)
 interface ReserveBudgetRequest {
@@ -653,20 +911,105 @@ interface ReserveBudgetRequest {
 }
 
 // @public (undocumented)
+interface ResourceContentChunk {
+    // (undocumented)
+    readonly content: Uint8Array;
+    // (undocumented)
+    readonly eof: boolean;
+    // (undocumented)
+    readonly offset: number;
+    // (undocumented)
+    readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly totalSizeBytes: number;
+}
+
+// @public (undocumented)
 type ResourceEventType = "resource.ticket.cleanup";
 
 // @public (undocumented)
 type ResourceId = string;
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
     // (undocumented)
     readonly mediaType?: string;
     // (undocumented)
     readonly resourceId: ResourceId;
     // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
+    // (undocumented)
     readonly type: "resource";
 }
+
+// @public (undocumented)
+type ResourceOrigin = "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
+
+// @public (undocumented)
+interface ResourceRecord {
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly id: ResourceId;
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly logicalPath: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly origin: ResourceOrigin;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+    // (undocumented)
+    readonly source?: ResourceSource;
+    // (undocumented)
+    readonly state: ResourceState;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+interface ResourceSource {
+    // (undocumented)
+    readonly provider?: string;
+    // (undocumented)
+    readonly providerFileId?: string;
+    // (undocumented)
+    readonly providerOperationId?: string;
+    // (undocumented)
+    readonly sourceExpiresAt?: number;
+    // (undocumented)
+    readonly sourceUrl?: string;
+}
+
+// @public (undocumented)
+type ResourceState = "pending" | "fetching" | "available" | "failed" | "expired" | "deleted";
 
 // @public (undocumented)
 interface ResourceTicketCleanupReceipt {
@@ -695,44 +1038,6 @@ interface RetryPolicy {
 type RunControlPolicy = "queue_after_current" | "abort_current_then_run" | "steer_at_safe_point";
 
 // @public (undocumented)
-interface RunnerClaim {
-    // (undocumented)
-    readonly inputId: SessionInputId;
-    // (undocumented)
-    readonly leaseExpiresAt: number;
-    // (undocumented)
-    readonly leaseToken: string;
-    // (undocumented)
-    readonly runId: SessionRunId;
-    // (undocumented)
-    readonly runnerId: string;
-    // (undocumented)
-    readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
-interface RunnerClaimRequest {
-    // (undocumented)
-    readonly leaseMs: number;
-    // (undocumented)
-    readonly runnerId: string;
-    // (undocumented)
-    readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
-interface RunnerHeartbeatRequest {
-    // (undocumented)
-    readonly leaseMs: number;
-    // (undocumented)
-    readonly leaseToken: string;
-    // (undocumented)
-    readonly runnerId: string;
-    // (undocumented)
-    readonly sessionId: SessionId;
-}
-
-// @public (undocumented)
 interface RuntimeEvent {
     // (undocumented)
     readonly id: RuntimeEventId;
@@ -754,6 +1059,8 @@ type RuntimeEventId = string;
 // @public (undocumented)
 interface RuntimeEventScope {
     // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
     readonly messageId?: MessageId;
@@ -764,9 +1071,9 @@ interface RuntimeEventScope {
     // (undocumented)
     readonly resourceId?: ResourceId;
     // (undocumented)
-    readonly runId?: SessionRunId;
-    // (undocumented)
     readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
 }
 
 // @public (undocumented)
@@ -779,7 +1086,7 @@ export type RuntimeWorkerLoop = WorkerLoop;
 type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
 
 // @public (undocumented)
-type SchedulerJobKind = "session.run" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -787,6 +1094,8 @@ interface SchedulerJobRecord {
     readonly attempt: number;
     // (undocumented)
     readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
@@ -831,7 +1140,43 @@ interface SchedulerJobRecord {
 type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
-type SessionEventType = "session.created" | "session.input.admitted" | "session.run.submitted" | "session.run.claimed" | "session.run.interrupt_requested" | "session.run.interrupted" | "session.run.steer_admitted" | "session.run.steer_rejected" | "session.ephemeral_query.completed" | "session.message.appended" | "session.run.completed" | "session.run.failed" | "session.run.cancelled";
+type SessionAttemptId = string;
+
+// @public (undocumented)
+interface SessionAttemptRecord {
+    // (undocumented)
+    readonly attemptNumber: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: SessionAttemptId;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: SessionAttemptState;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+type SessionAttemptState = "running" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+type SessionEventType = "session.created" | "session.input.admitted" | "session.turn.submitted" | "session.turn.attempt_started" | "session.turn.interrupt_requested" | "session.turn.steer_accepted" | "session.turn.control_applied" | "session.turn.cancel_requested" | "session.turn.interrupted" | "session.turn.recovery_required" | "session.ephemeral_query.completed" | "session.message.appended" | "session.turn.succeeded" | "session.turn.failed" | "session.turn.cancelled";
 
 // @public (undocumented)
 type SessionId = string;
@@ -855,7 +1200,7 @@ interface SessionInputOrigin {
 }
 
 // @public (undocumented)
-type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | "objective" | "plan";
+type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | (string & {});
 
 // @public (undocumented)
 interface SessionInputRecord {
@@ -864,7 +1209,7 @@ interface SessionInputRecord {
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
-    readonly expectedRunId?: SessionRunId;
+    readonly expectedTurnId?: SessionTurnId;
     // (undocumented)
     readonly id: SessionInputId;
     // (undocumented)
@@ -888,7 +1233,7 @@ interface SessionInputRecord {
 }
 
 // @public (undocumented)
-type SessionInputState = "admitted" | "control_pending" | "claimed" | "completed" | "retry_pending" | "failed" | "cancelled";
+type SessionInputState = "admitted" | "control_pending" | "promoted" | "completed" | "failed" | "cancelled" | "rejected";
 
 // @public (undocumented)
 type SessionKind = "chat" | "agent";
@@ -896,23 +1241,29 @@ type SessionKind = "chat" | "agent";
 // @public (undocumented)
 interface SessionMessageRecord {
     // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
     readonly createdAt: number;
+    // (undocumented)
+    readonly executionBindingDigest: string;
     // (undocumented)
     readonly id: MessageId;
     // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
-    readonly providerState?: ProviderState;
+    readonly providerState?: readonly ProviderState[];
     // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
     // (undocumented)
-    readonly runId?: SessionRunId;
+    readonly sequence: number;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
     readonly status: "completed" | "failed" | "partial";
+    // (undocumented)
+    readonly turnId: SessionTurnId;
     // (undocumented)
     readonly updatedAt: number;
 }
@@ -936,15 +1287,20 @@ interface SessionRecord {
 }
 
 // @public (undocumented)
-type SessionRunControlApplyEffect = "interrupt_cancelled_run" | "steer_completed_input" | "already_resolved";
+type SessionStatus = "active" | "archived";
 
 // @public (undocumented)
-type SessionRunControlKind = "interrupt" | "steer";
+type SessionTurnControlApplyEffect = "interrupt_requested_cancel" | "steer_promoted_input" | "already_resolved";
 
 // @public (undocumented)
-interface SessionRunControlRecord {
+type SessionTurnControlKind = "interrupt" | "steer";
+
+// @public (undocumented)
+interface SessionTurnControlRecord {
     // (undocumented)
     readonly appliedAt?: number;
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
     // (undocumented)
     readonly content?: readonly MessagePart[];
     // (undocumented)
@@ -956,7 +1312,7 @@ interface SessionRunControlRecord {
     // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
-    readonly kind: SessionRunControlKind;
+    readonly kind: SessionTurnControlKind;
     // (undocumented)
     readonly metadata?: Readonly<Record<string, JsonValue>>;
     // (undocumented)
@@ -964,51 +1320,194 @@ interface SessionRunControlRecord {
     // (undocumented)
     readonly principalId?: PrincipalId;
     // (undocumented)
-    readonly providerProfileId?: string;
-    // (undocumented)
     readonly reason?: string;
-    // (undocumented)
-    readonly runId: SessionRunId;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
-    readonly status: SessionRunControlStatus;
+    readonly status: SessionTurnControlStatus;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
     // (undocumented)
     readonly updatedAt: number;
 }
 
 // @public (undocumented)
-type SessionRunControlStatus = "pending" | "applied" | "rejected" | "cancelled";
+type SessionTurnControlStatus = "pending" | "applied" | "rejected" | "cancelled";
 
 // @public (undocumented)
-type SessionRunId = string;
+interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly contextSnapshot?: JsonValue;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly environmentSnapshot?: JsonValue;
+    // (undocumented)
+    readonly permissionSnapshot?: JsonValue;
+    // (undocumented)
+    readonly provider: ProviderExecutionBinding;
+    // (undocumented)
+    readonly recovery: SessionTurnRecoveryBinding;
+    // (undocumented)
+    readonly resources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly toolSnapshot?: JsonValue;
+}
 
 // @public (undocumented)
-type SessionStatus = "active" | "archived";
+type SessionTurnId = string;
+
+// @public (undocumented)
+interface SessionTurnRecord {
+    // (undocumented)
+    readonly cancelReason?: string;
+    // (undocumented)
+    readonly cancelRequestedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly currentAttemptId?: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: SessionTurnId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly maxSteps: number;
+    // (undocumented)
+    readonly parentTurnId?: SessionTurnId;
+    // (undocumented)
+    readonly primaryInputId: SessionInputId;
+    // (undocumented)
+    readonly regeneratesTurnId?: SessionTurnId;
+    // (undocumented)
+    readonly result?: JsonValue;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly state: SessionTurnState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+interface SessionTurnRecoveryBinding {
+    // (undocumented)
+    readonly idempotentToolMaxAttempts: number;
+    // (undocumented)
+    readonly providerMaxAttempts: number;
+}
+
+// @public (undocumented)
+type SessionTurnSettlementOutcome = "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+type SessionTurnState = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+interface SettleSessionTurnReceipt {
+    // (undocumented)
+    readonly assistantMessage?: SessionMessageRecord;
+    // (undocumented)
+    readonly attempt: SessionAttemptRecord;
+    // (undocumented)
+    readonly job: SchedulerJobRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
+}
+
+// @public (undocumented)
+interface SettleSessionTurnRequest {
+    // (undocumented)
+    readonly assistantMessage?: readonly MessagePart[];
+    // (undocumented)
+    readonly attemptId: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly outcome: SessionTurnSettlementOutcome;
+    // (undocumented)
+    readonly providerInvocationId?: ProviderInvocationId;
+    // (undocumented)
+    readonly providerState?: readonly ProviderState[];
+    // (undocumented)
+    readonly reason?: string;
+    // (undocumented)
+    readonly result?: JsonValue;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+interface StartSessionTurnAttemptReceipt {
+    // (undocumented)
+    readonly attempt: SessionAttemptRecord;
+    // (undocumented)
+    readonly inputMessage: SessionMessageRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
+}
+
+// @public (undocumented)
+interface StartSessionTurnAttemptRequest {
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly workerId: string;
+}
 
 // @public (undocumented)
 export function startWorkerLoop(worker: WorkerLoopTarget, options?: WorkerLoopOptions): WorkerLoop;
 
 // @public (undocumented)
-interface SteerSessionRunReceipt {
+interface SteerSessionTurnReceipt {
     // (undocumented)
     readonly acceptedAt?: number;
     // (undocumented)
-    readonly durability: "local-durable";
+    readonly attemptId: SessionAttemptId;
     // (undocumented)
-    readonly runId: SessionRunId;
+    readonly durability: "local-durable";
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
     readonly status: "accepted";
+    // (undocumented)
+    readonly turnId: SessionTurnId;
 }
 
 // @public (undocumented)
-interface SteerSessionRunRequest {
+interface SteerSessionTurnRequest {
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
-    readonly expectedRunId: SessionRunId;
+    readonly expectedAttemptId: SessionAttemptId;
+    // (undocumented)
+    readonly expectedTurnId: SessionTurnId;
     // (undocumented)
     readonly idempotencyKey: string;
     // (undocumented)
@@ -1018,27 +1517,29 @@ interface SteerSessionRunRequest {
     // (undocumented)
     readonly principalId: PrincipalId;
     // (undocumented)
-    readonly providerProfileId?: string;
-    // (undocumented)
     readonly sessionId: SessionId;
 }
 
 // @public (undocumented)
-interface SubmitSessionRunReceipt {
+interface SubmitSessionTurnReceipt {
     // (undocumented)
     readonly admission: AdmissionReceipt;
     // (undocumented)
     readonly job: SchedulerJobRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
 }
 
 // @public (undocumented)
-interface SubmitSessionRunRequest {
+interface SubmitSessionTurnRequest {
     // (undocumented)
     readonly budgetGrantId?: string;
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
-    readonly expectedRunId?: SessionRunId;
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly expectedTurnId?: SessionTurnId;
     // (undocumented)
     readonly id?: SessionInputId;
     // (undocumented)
@@ -1052,29 +1553,27 @@ interface SubmitSessionRunRequest {
     // (undocumented)
     readonly jobIdempotencyKey?: string;
     // (undocumented)
-    readonly maxAttempts?: number;
-    // (undocumented)
     readonly maxSteps?: number;
-    // (undocumented)
-    readonly mode?: "once" | "to_completion";
     // (undocumented)
     readonly notBefore?: number;
     // (undocumented)
     readonly origin?: SessionInputOrigin;
     // (undocumented)
+    readonly parentTurnId?: SessionTurnId;
+    // (undocumented)
     readonly principalId: PrincipalId;
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
-    readonly providerProfileId?: string;
-    // (undocumented)
-    readonly retryPolicy?: RetryPolicy;
+    readonly regeneratesTurnId?: SessionTurnId;
     // (undocumented)
     readonly runControlPolicy?: RunControlPolicy;
     // (undocumented)
     readonly scheduledAt?: number;
     // (undocumented)
     readonly sessionId: SessionId;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
 }
 
 // @public (undocumented)
@@ -1098,11 +1597,45 @@ interface ToolCallMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
+type ToolExecutionAttemptId = string;
+
+// @public (undocumented)
+interface ToolExecutionAttemptRecord {
+    // (undocumented)
+    readonly attemptNumber: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionId: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: ToolExecutionAttemptId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly sessionAttemptId: SessionAttemptId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: ToolExecutionAttemptState;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+type ToolExecutionAttemptState = "running" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
 interface ToolExecutionRecord {
     // (undocumented)
-    readonly attempt: number;
+    readonly attemptCount: number;
     // (undocumented)
     readonly createdAt: number;
+    // (undocumented)
+    readonly currentInvocationAttemptId?: ToolExecutionAttemptId;
     // (undocumented)
     readonly descriptor: JsonValue;
     // (undocumented)
@@ -1126,11 +1659,9 @@ interface ToolExecutionRecord {
     // (undocumented)
     readonly result?: JsonValue;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
     // (undocumented)
-    readonly startedAt?: number;
+    readonly sourceMessageId: string;
     // (undocumented)
     readonly state: ToolExecutionState;
     // (undocumented)
@@ -1138,11 +1669,13 @@ interface ToolExecutionRecord {
     // (undocumented)
     readonly toolName: string;
     // (undocumented)
+    readonly turnId: string;
+    // (undocumented)
     readonly updatedAt: number;
 }
 
 // @public (undocumented)
-type ToolExecutionState = "running" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+type ToolExecutionState = "running" | "retry_ready" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
 
 // @public (undocumented)
 interface ToolResultMessagePart extends MessagePartBase {
@@ -1154,77 +1687,6 @@ interface ToolResultMessagePart extends MessagePartBase {
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
-}
-
-// @public (undocumented)
-interface UiSurfaceActionBridge {
-    // (undocumented)
-    readonly allowedActions?: readonly string[];
-    // (undocumented)
-    readonly kind: "runtime";
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly route: "session.input" | "plugin.action" | "tool.call" | "app.action" | (string & {});
-    // (undocumented)
-    readonly target?: JsonValue;
-}
-
-// @public (undocumented)
-interface UiSurfaceEnvelope {
-    // (undocumented)
-    readonly actionBridge?: UiSurfaceActionBridge;
-    // (undocumented)
-    readonly fallback?: UiSurfaceFallback;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly payload: JsonValue;
-    // (undocumented)
-    readonly protocol: UiSurfaceProtocol;
-    // (undocumented)
-    readonly requiredCapabilities?: readonly string[];
-    // (undocumented)
-    readonly surfaceKind: string;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-type UiSurfaceEventType = "ui.surface.emitted";
-
-// @public (undocumented)
-type UiSurfaceFallback = UiSurfaceTextFallback | UiSurfaceResourceFallback;
-
-// @public (undocumented)
-interface UiSurfaceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly surface: UiSurfaceEnvelope;
-    // (undocumented)
-    readonly type: "ui_surface";
-}
-
-// @public (undocumented)
-type UiSurfaceProtocol = "a2ui" | "markdown" | "html-safe" | (string & {});
-
-// @public (undocumented)
-interface UiSurfaceResourceFallback {
-    // (undocumented)
-    readonly kind: "resource";
-    // (undocumented)
-    readonly label?: string;
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
-}
-
-// @public (undocumented)
-interface UiSurfaceTextFallback {
-    // (undocumented)
-    readonly kind: "text";
-    // (undocumented)
-    readonly text: string;
 }
 
 // @public (undocumented)
@@ -1329,17 +1791,15 @@ class WanexSessionCore {
     // (undocumented)
     appendMessage(request: AppendSessionMessageRequest): Promise<SessionMessageRecord | null>;
     // (undocumented)
-    applyRunControl(request: ApplySessionRunControlRequest): Promise<ApplySessionRunControlReceipt | null>;
+    applyTurnControl(request: ApplySessionTurnControlRequest): Promise<ApplySessionTurnControlReceipt | null>;
+    // (undocumented)
+    beginProviderInvocation(request: BeginProviderInvocationRequest): Promise<ProviderInvocationRecord>;
     // (undocumented)
     beginToolExecution(request: BeginToolExecutionRequest): Promise<BeginToolExecutionReceipt>;
     // (undocumented)
     cancelJob(request: CancelJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
-    cancelRun(request: CancelRunRequest): Promise<boolean>;
-    // (undocumented)
     claimJob(request: ClaimJobRequest): Promise<SchedulerJobRecord | null>;
-    // (undocumented)
-    claimRunner(request: RunnerClaimRequest): Promise<RunnerClaim | null>;
     // (undocumented)
     cleanupExpiredResourceTickets(request: CleanupExpiredResourceTicketsRequest): Promise<ResourceTicketCleanupReceipt>;
     // (undocumented)
@@ -1347,15 +1807,13 @@ class WanexSessionCore {
     // (undocumented)
     completeJob(request: CompleteJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
-    completeRun(request: CompleteRunRequest): Promise<boolean>;
-    // (undocumented)
     create(request: CreateSessionRequest): Promise<SessionRecord>;
     // (undocumented)
     enqueueJob(request: EnqueueJobRequest): Promise<SchedulerJobRecord>;
     // (undocumented)
     failJob(request: FailJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
-    failRun(request: FailRunRequest): Promise<boolean>;
+    finishProviderInvocation(request: FinishProviderInvocationRequest): Promise<FinishProviderInvocationReceipt | null>;
     // (undocumented)
     finishToolExecution(request: FinishToolExecutionRequest): Promise<ToolExecutionRecord | null>;
     // (undocumented)
@@ -1363,15 +1821,17 @@ class WanexSessionCore {
     // (undocumented)
     getBudgetScope(scopeId: string): Promise<BudgetScopeRecord | null>;
     // (undocumented)
+    getResource(request: GetResourceRequest): Promise<ResourceRecord | null>;
+    // (undocumented)
     getToolExecution(executionId: string): Promise<ToolExecutionRecord | null>;
     // (undocumented)
     heartbeatJob(request: HeartbeatJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
-    heartbeatRunner(request: RunnerHeartbeatRequest): Promise<RunnerClaim | null>;
-    // (undocumented)
-    interruptRun(request: InterruptSessionRunRequest): Promise<InterruptSessionRunReceipt>;
+    interruptTurn(request: InterruptSessionTurnRequest): Promise<InterruptSessionTurnReceipt>;
     // (undocumented)
     list(request?: ListSessionsRequest): Promise<SessionRecord[]>;
+    // (undocumented)
+    listAttempts(request: ListSessionAttemptsRequest): Promise<SessionAttemptRecord[]>;
     // (undocumented)
     listBudgetGrants(scopeId: string): Promise<BudgetGrantRecord[]>;
     // (undocumented)
@@ -1381,21 +1841,35 @@ class WanexSessionCore {
     // (undocumented)
     listMessages(request: ListSessionMessagesRequest): Promise<SessionMessageRecord[]>;
     // (undocumented)
-    listRunControls(request: ListSessionRunControlsRequest): Promise<SessionRunControlRecord[]>;
+    listProviderInvocations(request: ListProviderInvocationsRequest): Promise<ProviderInvocationRecord[]>;
+    // (undocumented)
+    listToolExecutionAttempts(request: ListToolExecutionAttemptsRequest): Promise<ToolExecutionAttemptRecord[]>;
     // (undocumented)
     listToolExecutions(): Promise<ToolExecutionRecord[]>;
     // (undocumented)
-    recordBudgetUsage(request: RecordBudgetUsageRequest): Promise<RecordBudgetUsageReceipt>;
+    listTurnControls(request: ListSessionTurnControlsRequest): Promise<SessionTurnControlRecord[]>;
     // (undocumented)
-    recoverToolExecution(request: RecoverToolExecutionRequest): Promise<ToolExecutionRecord | null>;
+    listTurns(request: ListSessionTurnsRequest): Promise<SessionTurnRecord[]>;
+    // (undocumented)
+    markProviderInvocationOutput(request: MarkProviderInvocationOutputRequest): Promise<ProviderInvocationRecord | null>;
+    // (undocumented)
+    readResourceContent(request: ReadResourceContentRequest): Promise<ResourceContentChunk | null>;
+    // (undocumented)
+    recordBudgetUsage(request: RecordBudgetUsageRequest): Promise<RecordBudgetUsageReceipt>;
     // (undocumented)
     releaseBudget(grantId: string): Promise<BudgetGrantRecord | null>;
     // (undocumented)
+    requestTurnCancel(request: RequestSessionTurnCancelRequest): Promise<RequestSessionTurnCancelReceipt>;
+    // (undocumented)
     reserveBudget(request: ReserveBudgetRequest): Promise<BudgetGrantRecord>;
     // (undocumented)
-    steerRun(request: SteerSessionRunRequest): Promise<SteerSessionRunReceipt>;
+    settleTurn(request: SettleSessionTurnRequest): Promise<SettleSessionTurnReceipt>;
     // (undocumented)
-    submitRun(request: SubmitSessionRunRequest): Promise<SubmitSessionRunReceipt>;
+    startTurnAttempt(request: StartSessionTurnAttemptRequest): Promise<StartSessionTurnAttemptReceipt>;
+    // (undocumented)
+    steerTurn(request: SteerSessionTurnRequest): Promise<SteerSessionTurnReceipt>;
+    // (undocumented)
+    submitTurn(request: SubmitSessionTurnRequest): Promise<SubmitSessionTurnReceipt>;
 }
 
 // @public (undocumented)
@@ -1470,6 +1944,8 @@ export interface WorkerHandlerContext {
     // (undocumented)
     readonly job: SchedulerJobRecord;
     // (undocumented)
+    readonly registerActiveAttempt: (attemptId: string) => ActiveExecutionRegistration;
+    // (undocumented)
     readonly signal: AbortSignal;
 }
 
@@ -1487,6 +1963,8 @@ export interface WorkerLoop {
     readonly stopped: boolean;
     // (undocumented)
     waitForIdle(): Promise<void>;
+    // (undocumented)
+    wake(): void;
 }
 
 // @public (undocumented)

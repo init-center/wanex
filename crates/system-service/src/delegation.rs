@@ -48,7 +48,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -164,7 +164,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if get_graph_tx(&tx, &request.graph_id)?.is_none() {
             return Err(SystemServiceError::Invariant(format!(
@@ -299,7 +299,7 @@ impl SystemService {
             .unwrap_or_else(|| "after_success".to_string());
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let from_node = get_node_tx(&tx, &request.from_node_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
@@ -413,7 +413,7 @@ impl SystemService {
             None
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_graph_tx(&tx, &request.graph_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "delegation graph does not exist: {}",
@@ -475,7 +475,7 @@ impl SystemService {
             None
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_node_tx(&tx, &request.node_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "delegation node does not exist: {}",
@@ -536,7 +536,7 @@ impl SystemService {
         }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_node_tx(&tx, &request.node_id)?.ok_or_else(|| {
             SystemServiceError::Invariant(format!(
                 "delegation node does not exist: {}",
@@ -620,7 +620,7 @@ impl SystemService {
         validate_materialize_ready_node(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let Some(node_id) = find_materializable_node_tx(&tx, request)? else {
             tx.commit()?;
             return Ok(None);
@@ -683,6 +683,7 @@ impl SystemService {
                 scheduled_at: request.scheduled_at,
                 not_before: request.not_before,
                 priority: request.priority,
+                concurrency_key: None,
                 max_attempts: request.max_attempts,
                 retry_policy: request.retry_policy.clone(),
                 idempotency_key: Some(job_idempotency_key),
@@ -788,6 +789,11 @@ fn validate_materialize_ready_node(request: &MaterializeReadyDelegationGraphNode
     {
         return Err(SystemServiceError::Invariant(
             "delegation materialize node/job/idempotency ids must not be empty".to_string(),
+        ));
+    }
+    if request.job_kind == crate::SchedulerJobKind::SessionTurn {
+        return Err(SystemServiceError::Invariant(
+            "delegation materialization cannot create an orphan session.turn job".to_string(),
         ));
     }
     Ok(())

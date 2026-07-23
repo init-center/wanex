@@ -105,8 +105,10 @@ export async function putRequestedCreateProposal(
 }
 
 export class EvalFailingProvider implements ProviderAdapter {
+  readonly kind = "fake" as const
   readonly providerId = "eval-provider"
   readonly modelId = "eval-model"
+  readonly capabilities = { input: ["text"], output: ["text"] } as const
 
   constructor(private readonly failingText: string) {}
 

@@ -7,10 +7,20 @@
 import { CoreStore } from '@wanex/storage';
 
 // @public (undocumented)
+export const ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES: {
+    readonly input: readonly ["text", "image", "document"];
+    readonly output: readonly ["text"];
+};
+
+// @public (undocumented)
 export class AnthropicAdapter implements ProviderAdapter {
     constructor(options: AnthropicAdapterOptions);
     // (undocumented)
     buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly kind: "anthropic";
     // (undocumented)
     readonly modelId: string;
     // (undocumented)
@@ -28,16 +38,22 @@ export interface AnthropicAdapterOptions {
     // (undocumented)
     readonly baseUrl: string;
     // (undocumented)
+    readonly capabilities?: ProviderCapabilities;
+    // (undocumented)
     readonly fetch?: ProviderFetch;
     // (undocumented)
     readonly modelId: string;
 }
 
 // @public (undocumented)
+export function assertProfileCapabilitiesSupported(kind: ProviderProfileKind, capabilities: ProviderCapabilities): ProviderCapabilities;
+
+// @public (undocumented)
 export function consumeProviderStream(options: {
     readonly provider: ProviderAdapter;
     readonly request: ProviderRequest;
     readonly observe?: (event: ProviderEvent) => void;
+    readonly checkpoint?: (event: ProviderEvent) => Promise<void>;
 }): Promise<ProviderTurnResult>;
 
 // @public (undocumented)
@@ -46,13 +62,20 @@ export class DeepSeekThinkingAdapter extends OpenAICompatibleAdapter {
 }
 
 // @public (undocumented)
+export const FAKE_PROVIDER_CAPABILITIES: {
+    readonly input: readonly ProviderInputModality[];
+    readonly output: readonly ["text"];
+};
+
+// @public (undocumented)
 export class FakeProviderAdapter implements ProviderAdapter {
     constructor(options: FakeProviderAdapterOptions);
     // (undocumented)
-    buildReplayMessages(messages: readonly ProviderReplayMessage[]): {
-        role: "user" | "assistant" | "tool" | "system";
-        content: string;
-    }[];
+    buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly kind: "fake";
     // (undocumented)
     readonly modelId: string;
     // (undocumented)
@@ -63,6 +86,8 @@ export class FakeProviderAdapter implements ProviderAdapter {
 
 // @public (undocumented)
 export interface FakeProviderAdapterOptions {
+    // (undocumented)
+    readonly capabilities?: ProviderCapabilities;
     // (undocumented)
     readonly modelId?: string;
     // (undocumented)
@@ -98,7 +123,7 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart | UiSurfaceMessagePart;
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
 
 // @public (undocumented)
 interface MessagePartBase {
@@ -122,10 +147,23 @@ export class MissingRequiredProviderStateError extends Error {
 }
 
 // @public (undocumented)
+export function normalizeProviderCapabilities(capabilities: ProviderCapabilities): ProviderCapabilities;
+
+// @public (undocumented)
+export const OPENAI_CHAT_PROVIDER_CAPABILITIES: {
+    readonly input: readonly ["text", "image"];
+    readonly output: readonly ["text"];
+};
+
+// @public (undocumented)
 export class OpenAICompatibleAdapter implements ProviderAdapter {
     constructor(options: OpenAICompatibleAdapterOptions);
     // (undocumented)
     buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly kind: "openai-compatible";
     // (undocumented)
     readonly modelId: string;
     // (undocumented)
@@ -143,6 +181,8 @@ export interface OpenAICompatibleAdapterOptions {
     // (undocumented)
     readonly baseUrl: string;
     // (undocumented)
+    readonly capabilities?: ProviderCapabilities;
+    // (undocumented)
     readonly fetch?: ProviderFetch;
     // (undocumented)
     readonly modelId: string;
@@ -150,6 +190,23 @@ export interface OpenAICompatibleAdapterOptions {
     readonly providerId: string;
     // (undocumented)
     readonly reasoningReplay?: "optional" | "required";
+}
+
+// @public (undocumented)
+export interface PreparedProviderReplayMessage {
+    // (undocumented)
+    readonly content: readonly PreparedProviderReplayPart[];
+    // (undocumented)
+    readonly role: ProviderReplayMessage["role"];
+}
+
+// @public (undocumented)
+export type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart> | PreparedProviderResourcePart;
+
+// @public (undocumented)
+export interface PreparedProviderResourcePart extends ResourceMessagePart {
+    // (undocumented)
+    readonly bytes: Uint8Array;
 }
 
 // @public (undocumented)
@@ -167,11 +224,23 @@ export interface ProviderAdapter {
     // (undocumented)
     buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
     // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly kind: ProviderProfileKind;
+    // (undocumented)
     readonly modelId: string;
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
     stream(request: ProviderRequest): AsyncIterable<ProviderEvent>;
+}
+
+// @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
 }
 
 // @public (undocumented)
@@ -264,16 +333,22 @@ export interface ProviderFinishEvent {
 }
 
 // @public (undocumented)
-export function providerFromProfile(profile: ProviderProfile): ProviderAdapter;
+export function providerFromProfile(profile: ProviderProfile, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
+
+// @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
 
 // @public (undocumented)
 interface ProviderProfile {
     // (undocumented)
     readonly anthropicVersion?: string;
     // (undocumented)
-    readonly apiKey?: string;
-    // (undocumented)
     readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
     // (undocumented)
     readonly id: string;
     // (undocumented)
@@ -282,6 +357,8 @@ interface ProviderProfile {
     readonly modelId: string;
     // (undocumented)
     readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
 }
 
 // @public (undocumented)
@@ -289,6 +366,26 @@ export function providerProfileFromJson(value: JsonValue): ProviderProfile;
 
 // @public (undocumented)
 type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
+
+// @public (undocumented)
+export interface ProviderProfileSummary {
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderProfile["capabilities"];
+    // (undocumented)
+    readonly credentialConfigured: boolean;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: ProviderProfile["kind"];
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly providerId: string;
+}
 
 // @public (undocumented)
 export interface ProviderReasoningDeltaEvent {
@@ -315,7 +412,7 @@ export interface ProviderRequest {
     // (undocumented)
     readonly maxOutputTokens?: number;
     // (undocumented)
-    readonly messages: readonly ProviderReplayMessage[];
+    readonly messages: readonly PreparedProviderReplayMessage[];
     // (undocumented)
     readonly parallelToolCalls?: boolean;
     // (undocumented)
@@ -329,17 +426,21 @@ export interface ProviderRequest {
 // @public (undocumented)
 export interface ProviderRunEvent {
     // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
     readonly event: ProviderEvent;
     // (undocumented)
     readonly inputId: string;
+    // (undocumented)
+    readonly jobId: string;
     // (undocumented)
     readonly modelId: string;
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
@@ -491,23 +592,52 @@ interface ReasoningMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
-export function redactProfile(profile: ProviderProfile): ProviderProfile;
+export function requirePreparedProviderResource(part: ResourceMessagePart): PreparedProviderResourcePart;
 
 // @public (undocumented)
 export function requireProviderProfile(storage: CoreStore, profileId: string): Promise<ProviderProfile>;
 
 // @public (undocumented)
-export function resolveProviderProfile(storage: CoreStore, profileId: string): Promise<ProviderAdapter>;
+interface ResolvedSecret {
+    // (undocumented)
+    dispose(): void;
+    // (undocumented)
+    readonly disposed: boolean;
+    // (undocumented)
+    readonly provider: string;
+    // (undocumented)
+    readonly ref: string;
+    // (undocumented)
+    reveal(): string;
+    // (undocumented)
+    toJSON(): never;
+}
+
+// @public (undocumented)
+export function resolveProviderProfile(storage: CoreStore, profileId: string, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
 
 // @public (undocumented)
 type ResourceId = string;
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
     // (undocumented)
     readonly mediaType?: string;
     // (undocumented)
     readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
     readonly type: "resource";
 }
@@ -529,6 +659,41 @@ interface RuntimeAbortSignal {
         readonly capture?: boolean;
     }): void;
 }
+
+// @public (undocumented)
+export function sameProviderCapabilities(left: ProviderCapabilities, right: ProviderCapabilities): boolean;
+
+// @public (undocumented)
+interface SecretResolveContext {
+    // (undocumented)
+    readonly connectorId?: string;
+    // (undocumented)
+    readonly credentialId?: string;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly providerProfileId?: string;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+}
+
+// @public (undocumented)
+interface SecretResolverPort {
+    // (undocumented)
+    resolve(ref: string, context?: SecretResolveContext): Promise<ResolvedSecret>;
+}
+
+// @public (undocumented)
+export function summarizeProviderProfile(profile: ProviderProfile): ProviderProfileSummary;
+
+// @public (undocumented)
+export function supportedCapabilitiesForKind(kind: ProviderProfileKind): ProviderCapabilities;
+
+// @public (undocumented)
+export const TEXT_PROVIDER_CAPABILITIES: {
+    readonly input: readonly ["text"];
+    readonly output: readonly ["text"];
+};
 
 // @public (undocumented)
 export function textContent(parts: readonly MessagePart[]): string;
@@ -566,74 +731,6 @@ interface ToolResultMessagePart extends MessagePartBase {
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
-}
-
-// @public (undocumented)
-interface UiSurfaceActionBridge {
-    // (undocumented)
-    readonly allowedActions?: readonly string[];
-    // (undocumented)
-    readonly kind: "runtime";
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly route: "session.input" | "plugin.action" | "tool.call" | "app.action" | (string & {});
-    // (undocumented)
-    readonly target?: JsonValue;
-}
-
-// @public (undocumented)
-interface UiSurfaceEnvelope {
-    // (undocumented)
-    readonly actionBridge?: UiSurfaceActionBridge;
-    // (undocumented)
-    readonly fallback?: UiSurfaceFallback;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly payload: JsonValue;
-    // (undocumented)
-    readonly protocol: UiSurfaceProtocol;
-    // (undocumented)
-    readonly requiredCapabilities?: readonly string[];
-    // (undocumented)
-    readonly surfaceKind: string;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-type UiSurfaceFallback = UiSurfaceTextFallback | UiSurfaceResourceFallback;
-
-// @public (undocumented)
-interface UiSurfaceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly surface: UiSurfaceEnvelope;
-    // (undocumented)
-    readonly type: "ui_surface";
-}
-
-// @public (undocumented)
-type UiSurfaceProtocol = "a2ui" | "markdown" | "html-safe" | (string & {});
-
-// @public (undocumented)
-interface UiSurfaceResourceFallback {
-    // (undocumented)
-    readonly kind: "resource";
-    // (undocumented)
-    readonly label?: string;
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
-}
-
-// @public (undocumented)
-interface UiSurfaceTextFallback {
-    // (undocumented)
-    readonly kind: "text";
-    // (undocumented)
-    readonly text: string;
 }
 
 // @public (undocumented)

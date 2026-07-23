@@ -12,25 +12,25 @@ import {
   type ConfigWatchOptions
 } from "@wanex/runtime/config"
 
-export type WanexAppShellConfigReloadMatcher = ConfigReloadMatcher
-export type WanexAppShellConfigReloadHandlerContext =
+export type WanexAppConfigReloadMatcher = ConfigReloadMatcher
+export type WanexAppConfigReloadHandlerContext =
   ConfigReloadHandlerContext
-export type WanexAppShellConfigReloadHandlerResult = ConfigReloadHandlerResult
-export type WanexAppShellConfigReloadHandler = ConfigReloadHandler
-export type WanexAppShellConfigReloadSubscription = ConfigReloadSubscription
-export type WanexAppShellConfigReloadResult = ConfigReloadResult
-export type WanexAppShellConfigReloadError = ConfigReloadError
-export type WanexAppShellConfigPollResult = ConfigPollResult
-export type WanexAppShellConfigWatchOptions = ConfigWatchOptions
+export type WanexAppConfigReloadHandlerResult = ConfigReloadHandlerResult
+export type WanexAppConfigReloadHandler = ConfigReloadHandler
+export type WanexAppConfigReloadSubscription = ConfigReloadSubscription
+export type WanexAppConfigReloadResult = ConfigReloadResult
+export type WanexAppConfigReloadError = ConfigReloadError
+export type WanexAppConfigPollResult = ConfigPollResult
+export type WanexAppConfigWatchOptions = ConfigWatchOptions
 
-export interface WanexAppShellConfigReloadControllerOptions
+export interface WanexAppConfigReloadControllerOptions
   extends Omit<ConfigHotReloadControllerOptions, "label"> {}
 
-export class WanexAppShellConfigReloadController extends ConfigHotReloadController {
-  constructor(options: WanexAppShellConfigReloadControllerOptions) {
+export class WanexAppConfigReloadController extends ConfigHotReloadController {
+  constructor(options: WanexAppConfigReloadControllerOptions) {
     super({
       ...options,
-      label: "app shell config reload"
+      label: "app config reload"
     })
   }
 }

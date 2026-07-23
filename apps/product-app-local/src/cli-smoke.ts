@@ -24,7 +24,7 @@ export interface ProductAppLocalCliSmokeResult {
 export interface ProductAppLocalCliSmokeChecks {
   readonly document: ProductAppLocalCliSmokeCheck
   readonly layoutAction: ProductAppLocalCliSmokeCheck
-  readonly workbenchAction: ProductAppLocalCliSmokeCheck
+  readonly conversationAction: ProductAppLocalCliSmokeCheck
   readonly privacy: ProductAppLocalCliSmokeCheck
 }
 
@@ -51,12 +51,12 @@ export async function runProductAppLocalCliSmoke(
       pollAfterAction: false
     }
   })
-  const workbench = await postJson(`${input.app.url}/wanex/product-app-web/request`, {
+  const conversation = await postJson(`${input.app.url}/wanex/product-app-web/request`, {
     kind: "product-app-web.request",
     operation: "submitActionInput",
-    requestId: "product_app_local_cli_smoke_workbench",
+    requestId: "product_app_local_cli_smoke_conversation",
     input: {
-      action: "start-workbench",
+      action: "submit-conversation",
       fields: {
         text: "hello from Product App Local smoke"
       }
@@ -65,11 +65,12 @@ export async function runProductAppLocalCliSmoke(
       pollAfterAction: false
     }
   })
+  await waitForConversationTerminal(input.app)
   const snapshot = await input.app.readSnapshot()
   const serialized = JSON.stringify([
     html,
     layout,
-    workbench,
+    conversation,
     snapshot
   ])
   const checks = {
@@ -82,12 +83,14 @@ export async function runProductAppLocalCliSmoke(
       readPath(layout, ["document", "snapshot", "view", "layout"]) === "split",
       "layout action updates the Web snapshot"
     ),
-    workbenchAction: check(
-      readPath(workbench, ["document", "snapshot", "workbench", "state"]) === "ready" &&
-        readPath(workbench, ["document", "snapshot", "view", "latestUserText"]) ===
+    conversationAction: check(
+      readPath(conversation, ["document", "snapshot", "conversation", "operation", "kind"]) ===
+          "product-app.conversation-operation" &&
+        readPath(conversation, ["document", "snapshot", "view", "selectedSessionTitle"]) ===
           "hello from Product App Local smoke" &&
-        snapshot.web.workbench.state === "ready",
-      "workbench action starts through the Web request envelope"
+        snapshot.web.conversation.operation?.kind ===
+          "product-app.conversation-operation",
+      "conversation action submits through the Web request envelope"
     ),
     privacy: check(
       !serialized.includes(input.options.serviceBin) &&
@@ -104,6 +107,19 @@ export async function runProductAppLocalCliSmoke(
     }),
     checks
   }
+}
+
+async function waitForConversationTerminal(
+  app: ProductAppLocalWebApp
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const document = await app.webController.pollEvents({ limit: 20 })
+    if (document.snapshot.conversation.operation?.capabilities.terminal) {
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("Product App Local smoke conversation did not finish")
 }
 
 export function formatProductAppLocalCliSmokeResult(

@@ -71,7 +71,7 @@ async function runJsonMappingAssertions(
   )
   const invalidPayload = await mapper.dispatchJson(
     JSON.stringify({
-      command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.runAgentTurn,
+      command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
       input: {
         sessionId: "ses_eval_json_missing_text"
       }

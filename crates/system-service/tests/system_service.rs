@@ -2,58 +2,190 @@ use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
 use serde_json::json;
+use sha2::{Digest, Sha256};
 use tempfile::tempdir;
 use wanex_system_service::{
-    ActivateContextEpoch, AdmitSessionInput, AppendSessionMessage, AppendTeamTurn,
-    ApplySessionRunControl, AttachDelegationGraphNodeJob, BudgetAmount, BudgetScopeKind,
-    BudgetScopeRef, CancelRun, CleanupExpiredResourceTickets, CloneContextEpoch, CommitBudget,
-    CompleteChannelDelivery, CompleteJob, DoctorCheckState, EnqueueJob, EventScope,
-    FailChannelDelivery, FailJob, FailRun, FinishConnectorSession, GetActiveContextEpoch,
-    GetPluginInstall, GetPluginManifest, HeartbeatConnectorSession, HeartbeatJob,
-    IngestChannelInboundEvent, IngestResource, InterruptSessionRun, ListChannelBindings,
-    ListChannelInboundEvents, ListChannelProjections, ListConnectorCredentials,
-    ListConnectorSessions, ListContextEpochs, ListContextReplacements,
-    ListDelegationGraphDependencies, ListDelegationGraphNodes, ListDelegationGraphs,
-    ListObjectiveAttempts, ListObjectiveRunOperations, ListObjectiveRuns,
+    ActivateContextEpoch, AppendSessionMessage, AppendTeamTurn, ApplySessionTurnControl,
+    AttachDelegationGraphNodeJob, BeginProviderInvocation, BeginToolExecution, BudgetAmount,
+    BudgetScopeKind, BudgetScopeRef, ClaimJob, CleanupExpiredResourceTickets, CloneContextEpoch,
+    CommitBudget, CompleteChannelDelivery, CompleteJob, DoctorCheckState, EnqueueJob, EventScope,
+    FailChannelDelivery, FailJob, FinishConnectorSession, GetActiveContextEpoch, GetPluginInstall,
+    GetPluginManifest, HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent,
+    IngestResource, InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents,
+    ListChannelProjections, ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
+    ListContextReplacements, ListDelegationGraphDependencies, ListDelegationGraphNodes,
+    ListDelegationGraphs, ListObjectiveAttempts, ListObjectiveRunOperations, ListObjectiveRuns,
     ListObjectiveVerifications, ListPlanProposalOperations, ListPlanProposals, ListPluginInstalls,
-    ListPluginManifests, ListReadyDelegationGraphNodes, ListResources, ListSessionRunControls,
-    ListSessions, ListTeamConversations, ListTeamParticipants, ListTeamTurns,
-    ListWorkspaceChangeOperations, ListWorkspaceChangeProposalOperations,
-    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, MaterializeReadyDelegationGraphNode,
-    ObjectiveReferenceRecord, ProjectChannelInboundEvent, PruneContextEpochs, PutChannelBinding,
-    PutConnectorCredential, PutConnectorRegistration, PutContextEpoch, PutContextReplacement,
-    PutDelegationGraph, PutDelegationGraphDependency, PutDelegationGraphNode, PutObjectiveAttempt,
-    PutObjectiveRun, PutObjectiveVerification, PutPlanProposal, PutPluginInstall,
-    PutPluginManifest, PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal,
-    PutWorkspaceChangeSet, QueryEvents, RecordBudgetUsage, RecordObjectiveRunOperation,
-    RecordPlanProposalOperation, RecordWorkspaceChangeOperation,
-    RecordWorkspaceChangeProposalOperation, ReserveBudget, ResourceCapability, ResourceSource,
-    RetryPolicy, RetryStrategy, RevokeConnectorCredential, RuntimeEvent, SchedulerJobKind,
-    StartConnectorSession, SteerSessionRun, SubmitChannelDelivery, SubmitPluginAction,
-    SubmitSessionRun, SystemService, SystemServiceError, UpdateChannelInboundEventState,
-    UpdateConnectorRegistrationState, UpdateDelegationGraphNodeState, UpdateDelegationGraphState,
-    UpdatePluginInstallState, UpdatePluginManifestState, UpdateTeamConversationState,
-    UpdateTeamParticipantState, CURRENT_SCHEMA_VERSION,
+    ListPluginManifests, ListReadyDelegationGraphNodes, ListResources, ListSessionAttempts,
+    ListSessionTurnControls, ListSessionTurns, ListSessions, ListTeamConversations,
+    ListTeamParticipants, ListTeamTurns, ListWorkspaceChangeOperations,
+    ListWorkspaceChangeProposalOperations, ListWorkspaceChangeProposals, ListWorkspaceChangeSets,
+    MaterializeReadyDelegationGraphNode, ObjectiveReferenceRecord, ProjectChannelInboundEvent,
+    PruneContextEpochs, PutChannelBinding, PutConnectorCredential, PutConnectorRegistration,
+    PutContextEpoch, PutContextReplacement, PutDelegationGraph, PutDelegationGraphDependency,
+    PutDelegationGraphNode, PutObjectiveAttempt, PutObjectiveRun, PutObjectiveVerification,
+    PutPlanProposal, PutPluginInstall, PutPluginManifest, PutTeamConversation, PutTeamParticipant,
+    PutWorkspaceChangeProposal, PutWorkspaceChangeSet, QueryEvents, RecordBudgetUsage,
+    RecordObjectiveRunOperation, RecordPlanProposalOperation, RecordWorkspaceChangeOperation,
+    RecordWorkspaceChangeProposalOperation, RequestSessionTurnCancel, ReserveBudget,
+    ResourceCapability, ResourceSource, RetryPolicy, RetryStrategy, RevokeConnectorCredential,
+    RuntimeEvent, SchedulerJobKind, SchedulerJobRecord, SettleSessionTurn, StartConnectorSession,
+    StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery, SubmitPluginAction,
+    SubmitSessionTurn, SubmitSessionTurnReceipt, SystemService, SystemServiceError,
+    UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
+    UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
+    UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
+    CURRENT_SCHEMA_VERSION,
 };
 
-fn admit_input(
-    id: Option<&str>,
-    session_id: &str,
-    principal_id: &str,
-    idempotency_key: &str,
-    input_type: &str,
-    content: serde_json::Value,
-) -> AdmitSessionInput {
-    AdmitSessionInput {
-        id: id.map(ToOwned::to_owned),
-        session_id: session_id.to_string(),
-        principal_id: principal_id.to_string(),
-        idempotency_key: idempotency_key.to_string(),
-        input_type: Some(input_type.to_string()),
-        content,
-        origin: None,
-        intent: None,
-    }
+fn test_execution_binding(label: &str) -> serde_json::Value {
+    let profile = json!({
+        "id": format!("profile_{label}"),
+        "kind": "fake",
+        "providerId": "fake",
+        "modelId": format!("model_{label}"),
+        "capabilities": { "input": ["text"], "output": ["text"] }
+    });
+    let profile_digest = sha256_json(&profile);
+    let mut binding = json!({
+        "createdAt": 1,
+        "provider": {
+            "profileId": format!("profile_{label}"),
+            "profileDigest": profile_digest,
+            "adapterId": "fake",
+            "providerId": "fake",
+            "modelId": format!("model_{label}"),
+            "capabilities": { "input": ["text"], "output": ["text"] }
+        },
+        "resources": [],
+        "recovery": {
+            "providerMaxAttempts": 2,
+            "idempotentToolMaxAttempts": 2
+        }
+    });
+    let digest = sha256_json(&binding);
+    binding
+        .as_object_mut()
+        .unwrap()
+        .insert("digest".to_string(), json!(digest));
+    binding
+}
+
+fn sha256_json(value: &serde_json::Value) -> String {
+    Sha256::digest(serde_json::to_string(value).unwrap().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+struct TestTurn<'a> {
+    session_id: &'a str,
+    input_id: &'a str,
+    turn_id: &'a str,
+    job_id: &'a str,
+    principal_id: &'a str,
+    idempotency_key: &'a str,
+    text: &'a str,
+}
+
+fn submit_test_turn(service: &SystemService, request: TestTurn<'_>) -> SubmitSessionTurnReceipt {
+    service
+        .submit_session_turn(&SubmitSessionTurn {
+            id: Some(request.input_id.to_string()),
+            turn_id: Some(request.turn_id.to_string()),
+            session_id: request.session_id.to_string(),
+            principal_id: request.principal_id.to_string(),
+            idempotency_key: request.idempotency_key.to_string(),
+            input_type: Some("user".to_string()),
+            content: json!([{
+                "type": "text",
+                "id": format!("part_{}", request.input_id),
+                "text": request.text
+            }]),
+            origin: None,
+            intent: None,
+            run_control_policy: None,
+            expected_turn_id: None,
+            job_id: Some(request.job_id.to_string()),
+            job_idempotency_key: Some(format!("job:{}", request.idempotency_key)),
+            execution_binding: test_execution_binding(request.turn_id),
+            max_steps: Some(4),
+            parent_turn_id: None,
+            regenerates_turn_id: None,
+            scheduled_at: None,
+            not_before: None,
+            priority: None,
+            budget_grant_id: None,
+        })
+        .unwrap()
+}
+
+fn claim_session_turn_job(
+    service: &SystemService,
+    worker_id: &str,
+    lease_ms: i64,
+) -> Option<SchedulerJobRecord> {
+    service
+        .claim_job(&ClaimJob {
+            worker_id: worker_id.to_string(),
+            lease_ms,
+            kinds: Some(vec![SchedulerJobKind::SessionTurn]),
+        })
+        .unwrap()
+}
+
+fn shorten_test_job_lease(service: &SystemService, job: &SchedulerJobRecord, worker_id: &str) {
+    service
+        .heartbeat_job(&HeartbeatJob {
+            job_id: job.id.clone(),
+            worker_id: worker_id.to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+            lease_ms: 10,
+        })
+        .unwrap()
+        .expect("test job still owns its lease");
+}
+
+fn start_test_turn(
+    service: &SystemService,
+    submitted: &SubmitSessionTurnReceipt,
+    job: &SchedulerJobRecord,
+    worker_id: &str,
+) -> wanex_system_service::StartSessionTurnAttemptReceipt {
+    service
+        .start_session_turn_attempt(&StartSessionTurnAttempt {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            input_id: submitted.turn.primary_input_id.clone(),
+            job_id: job.id.clone(),
+            worker_id: worker_id.to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+        })
+        .unwrap()
+}
+
+fn begin_test_provider_invocation(
+    service: &SystemService,
+    submitted: &SubmitSessionTurnReceipt,
+    started: &wanex_system_service::StartSessionTurnAttemptReceipt,
+    job: &SchedulerJobRecord,
+    worker_id: &str,
+) -> wanex_system_service::ProviderInvocationRecord {
+    service
+        .begin_provider_invocation(&BeginProviderInvocation {
+            id: None,
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: job.id.clone(),
+            worker_id: worker_id.to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+            step: 1,
+            invocation_number: 1,
+            request_digest: sha256_json(&json!({"turnId": submitted.turn.id})),
+        })
+        .unwrap()
 }
 
 #[test]
@@ -114,7 +246,9 @@ fn waits_for_short_lived_sqlite_write_lock() {
     let holder = std::thread::spawn(move || {
         let mut locked = rusqlite::Connection::open(holder_db_path).unwrap();
         locked.pragma_update(None, "busy_timeout", 0).unwrap();
-        let tx = locked.transaction().unwrap();
+        let tx = locked
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
         tx.execute(
             "INSERT INTO config_entry (key, value_json, updated_at)
              VALUES ('lock.holder', '{}', 1)",
@@ -178,7 +312,7 @@ fn appends_and_queries_events_by_session() {
             event_type: "session.input.admitted".to_string(),
             scope: EventScope {
                 session_id: Some("ses_1".to_string()),
-                run_id: None,
+                turn_id: None,
                 input_id: Some("inp_1".to_string()),
                 message_id: None,
                 resource_id: None,
@@ -195,7 +329,7 @@ fn appends_and_queries_events_by_session() {
             event_type: "session.input.admitted".to_string(),
             scope: EventScope {
                 session_id: Some("ses_2".to_string()),
-                run_id: None,
+                turn_id: None,
                 input_id: Some("inp_2".to_string()),
                 message_id: None,
                 resource_id: None,
@@ -234,7 +368,7 @@ fn queries_events_after_stable_cursor_without_skipping_same_millisecond_events()
                 event_type: "test.event".to_string(),
                 scope: EventScope {
                     session_id: Some("ses_cursor".to_string()),
-                    run_id: None,
+                    turn_id: None,
                     input_id: None,
                     message_id: None,
                     resource_id: None,
@@ -1190,7 +1324,7 @@ fn records_objective_run_lifecycle_attempts_verifications_references_and_events(
             state: Some("succeeded".to_string()),
             session_id: Some("ses_objective".to_string()),
             session_input_id: Some("inp_objective".to_string()),
-            session_run_id: Some("run_objective".to_string()),
+            session_turn_id: Some("turn_objective".to_string()),
             scheduler_job_id: Some("job_objective".to_string()),
             delegation_graph_id: None,
             plan_proposal_id: None,
@@ -1215,7 +1349,7 @@ fn records_objective_run_lifecycle_attempts_verifications_references_and_events(
             state: Some("succeeded".to_string()),
             session_id: Some("ses_objective".to_string()),
             session_input_id: Some("inp_objective".to_string()),
-            session_run_id: Some("run_objective".to_string()),
+            session_turn_id: Some("turn_objective".to_string()),
             scheduler_job_id: Some("job_objective".to_string()),
             delegation_graph_id: None,
             plan_proposal_id: None,
@@ -1408,6 +1542,77 @@ fn writes_files_atomically_and_rejects_path_traversal() {
 }
 
 #[test]
+fn atomically_replaces_existing_files_with_non_ascii_paths() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let logical_path = "资料 空格/output.txt";
+
+    service
+        .write_atomic_file(logical_path, b"first", None)
+        .unwrap();
+    let record = service
+        .write_atomic_file(logical_path, b"second complete value", None)
+        .unwrap();
+
+    assert_eq!(
+        std::fs::read(&record.absolute_path).unwrap(),
+        b"second complete value"
+    );
+    assert_eq!(record.sha256, sha256_hex(b"second complete value"));
+    assert_eq!(
+        service
+            .get_resource(&record.resource_id)
+            .unwrap()
+            .unwrap()
+            .sha256,
+        record.sha256
+    );
+    assert_no_atomic_temp_files(record.absolute_path.parent().unwrap());
+}
+
+#[test]
+fn concurrent_atomic_replacement_never_exposes_partial_content() {
+    const WRITERS: usize = 8;
+    let dir = tempdir().unwrap();
+    SystemService::open(dir.path()).unwrap();
+    let root = dir.path().to_path_buf();
+    let barrier = Arc::new(Barrier::new(WRITERS));
+    let payloads = (0..WRITERS)
+        .map(|index| format!("writer-{index}:{}", "x".repeat(64 * 1024)).into_bytes())
+        .collect::<Vec<_>>();
+    let threads = payloads
+        .iter()
+        .cloned()
+        .map(|payload| {
+            let root = root.clone();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                let service = SystemService::open(root).unwrap();
+                barrier.wait();
+                service
+                    .write_atomic_file("concurrent/共享 output.txt", &payload, None)
+                    .unwrap()
+            })
+        })
+        .collect::<Vec<_>>();
+    let records = threads
+        .into_iter()
+        .map(|thread| thread.join().unwrap())
+        .collect::<Vec<_>>();
+
+    let final_content = std::fs::read(&records[0].absolute_path).unwrap();
+    assert!(payloads.iter().any(|payload| payload == &final_content));
+    let service = SystemService::open(dir.path()).unwrap();
+    let stored = service
+        .get_resource(&records[0].resource_id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(stored.sha256, sha256_hex(&final_content));
+    assert_eq!(stored.size_bytes, final_content.len() as i64);
+    assert_no_atomic_temp_files(records[0].absolute_path.parent().unwrap());
+}
+
+#[test]
 fn rejects_sha256_mismatch_before_writing() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
@@ -1524,57 +1729,1673 @@ fn cleanup_expired_resource_tickets_revokes_only_expired_active_tickets() {
 }
 
 #[test]
-fn admits_session_input_idempotently_and_claims_one_runner() {
+fn durable_turns_hide_queued_input_and_preserve_canonical_order() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
-    let session = service
-        .create_session(Some("ses_phase2"), Some("Phase 2"), Some("chat"))
+    service
+        .create_session(Some("ses_turn_order"), Some("Turn order"), Some("agent"))
         .unwrap();
 
-    assert_eq!(session.id, "ses_phase2");
-    assert_eq!(session.status, "active");
+    let first = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_turn_order",
+            input_id: "inp_turn_a",
+            turn_id: "turn_a",
+            job_id: "job_turn_a",
+            principal_id: "user_turn",
+            idempotency_key: "idem_turn_a",
+            text: "first user message",
+        },
+    );
+    let duplicate = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_turn_order",
+            input_id: "inp_turn_a",
+            turn_id: "turn_a",
+            job_id: "job_turn_a",
+            principal_id: "user_turn",
+            idempotency_key: "idem_turn_a",
+            text: "first user message",
+        },
+    );
+    let second = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_turn_order",
+            input_id: "inp_turn_b",
+            turn_id: "turn_b",
+            job_id: "job_turn_b",
+            principal_id: "user_turn",
+            idempotency_key: "idem_turn_b",
+            text: "second user message",
+        },
+    );
 
-    let first = service
-        .admit_session_input(&admit_input(
-            Some("inp_phase2_a"),
-            "ses_phase2",
-            "user_1",
-            "idem_1",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "hello" }]),
-        ))
+    assert_eq!(duplicate.turn.id, first.turn.id);
+    assert_eq!(
+        service.list_session_messages("ses_turn_order").unwrap(),
+        vec![]
+    );
+
+    let first_job = claim_session_turn_job(&service, "worker_turn_a", 60_000).unwrap();
+    assert_eq!(first_job.id, first.job.id);
+    assert!(claim_session_turn_job(&service, "worker_turn_blocked", 60_000).is_none());
+
+    let first_started = start_test_turn(&service, &first, &first_job, "worker_turn_a");
+    let first_invocation = begin_test_provider_invocation(
+        &service,
+        &first,
+        &first_started,
+        &first_job,
+        "worker_turn_a",
+    );
+    let messages = service.list_session_messages("ses_turn_order").unwrap();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].turn_id, "turn_a");
+    assert_eq!(messages[0].role, "user");
+    assert_eq!(messages[0].sequence, 1);
+    let inputs = service.list_session_inputs("ses_turn_order").unwrap();
+    assert_eq!(
+        inputs
+            .iter()
+            .find(|input| input.id == second.admission.input_id)
+            .unwrap()
+            .status,
+        "admitted"
+    );
+
+    let first_settlement = service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: "ses_turn_order".to_string(),
+            turn_id: first.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: first.admission.input_id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_turn_a".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            outcome: "succeeded".to_string(),
+            provider_invocation_id: Some(first_invocation.id),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_turn_a",
+                "text": "first assistant reply"
+            }])),
+            provider_state: Some(json!([{
+                "providerId": "fake",
+                "modelId": "model_turn_a",
+                "kind": "continuation",
+                "replayPolicy": "optional",
+                "payload": {"token": "state-a"}
+            }])),
+            result: Some(json!({"steps": 1})),
+            error: None,
+            reason: None,
+        })
         .unwrap();
-    let second = service
-        .admit_session_input(&admit_input(
-            Some("inp_phase2_b"),
-            "ses_phase2",
-            "user_1",
-            "idem_1",
-            "user",
-            json!([{ "type": "text", "id": "part_2", "text": "duplicate" }]),
-        ))
+    assert_eq!(first_settlement.turn.state, "succeeded");
+    assert_eq!(first_settlement.job.state, "succeeded");
+
+    let second_job = claim_session_turn_job(&service, "worker_turn_b", 60_000).unwrap();
+    assert_eq!(second_job.id, second.job.id);
+    let second_started = start_test_turn(&service, &second, &second_job, "worker_turn_b");
+    let second_invocation = begin_test_provider_invocation(
+        &service,
+        &second,
+        &second_started,
+        &second_job,
+        "worker_turn_b",
+    );
+    service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: "ses_turn_order".to_string(),
+            turn_id: second.turn.id.clone(),
+            attempt_id: second_started.attempt.id,
+            input_id: second.admission.input_id.clone(),
+            job_id: second_job.id.clone(),
+            worker_id: "worker_turn_b".to_string(),
+            lease_token: second_job.lease_token.clone().unwrap(),
+            outcome: "succeeded".to_string(),
+            provider_invocation_id: Some(second_invocation.id),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_turn_b",
+                "text": "second assistant reply"
+            }])),
+            provider_state: None,
+            result: Some(json!({"steps": 1})),
+            error: None,
+            reason: None,
+        })
         .unwrap();
 
-    assert_eq!(first.input_id, "inp_phase2_a");
-    assert_eq!(second.input_id, "inp_phase2_a");
+    let messages = service.list_session_messages("ses_turn_order").unwrap();
+    assert_eq!(messages.len(), 4);
+    assert_eq!(
+        messages
+            .iter()
+            .map(|message| (
+                message.sequence,
+                message.turn_id.as_str(),
+                message.role.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (1, "turn_a", "user"),
+            (2, "turn_a", "assistant"),
+            (3, "turn_b", "user"),
+            (4, "turn_b", "assistant"),
+        ]
+    );
+    assert_eq!(
+        messages[1].provider_state,
+        Some(json!([{
+            "providerId": "fake",
+            "modelId": "model_turn_a",
+            "kind": "continuation",
+            "replayPolicy": "optional",
+            "payload": {"token": "state-a"}
+        }]))
+    );
+    assert_eq!(
+        messages[0].execution_binding_digest,
+        first.turn.execution_binding_digest
+    );
+    assert_eq!(
+        messages[1].execution_binding_digest,
+        first.turn.execution_binding_digest
+    );
 
-    let claim = service
-        .claim_runner("ses_phase2", "runner_1", 60_000)
+    let mut invalid_binding = test_execution_binding("invalid");
+    invalid_binding["provider"]["modelId"] = json!("tampered");
+    let invalid = service.submit_session_turn(&SubmitSessionTurn {
+        id: Some("inp_invalid_binding".to_string()),
+        turn_id: Some("turn_invalid_binding".to_string()),
+        session_id: "ses_turn_order".to_string(),
+        principal_id: "user_turn".to_string(),
+        idempotency_key: "idem_invalid_binding".to_string(),
+        input_type: Some("user".to_string()),
+        content: json!([{"type": "text", "id": "part_invalid", "text": "invalid"}]),
+        origin: None,
+        intent: None,
+        run_control_policy: None,
+        expected_turn_id: None,
+        job_id: Some("job_invalid_binding".to_string()),
+        job_idempotency_key: None,
+        execution_binding: invalid_binding,
+        max_steps: Some(1),
+        parent_turn_id: None,
+        regenerates_turn_id: None,
+        scheduled_at: None,
+        not_before: None,
+        priority: None,
+        budget_grant_id: None,
+    });
+    assert!(matches!(
+        invalid,
+        Err(SystemServiceError::InvalidJobRequest(_))
+    ));
+}
+
+#[test]
+fn exact_turn_job_input_identity_cannot_be_swapped() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_exact_turn"), None, Some("agent"))
+        .unwrap();
+    let first = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_exact_turn",
+            input_id: "inp_exact_a",
+            turn_id: "turn_exact_a",
+            job_id: "job_exact_a",
+            principal_id: "user_exact",
+            idempotency_key: "idem_exact_a",
+            text: "first",
+        },
+    );
+    let second = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_exact_turn",
+            input_id: "inp_exact_b",
+            turn_id: "turn_exact_b",
+            job_id: "job_exact_b",
+            principal_id: "user_exact",
+            idempotency_key: "idem_exact_b",
+            text: "second",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_exact", 60_000).unwrap();
+
+    let swapped = service.start_session_turn_attempt(&StartSessionTurnAttempt {
+        session_id: "ses_exact_turn".to_string(),
+        turn_id: first.turn.id.clone(),
+        input_id: second.admission.input_id.clone(),
+        job_id: job.id.clone(),
+        worker_id: "worker_exact".to_string(),
+        lease_token: job.lease_token.clone().unwrap(),
+    });
+    assert!(matches!(swapped, Err(SystemServiceError::Invariant(_))));
+    assert!(service
+        .list_session_messages("ses_exact_turn")
+        .unwrap()
+        .is_empty());
+
+    let started = start_test_turn(&service, &first, &job, "worker_exact");
+    let invocation =
+        begin_test_provider_invocation(&service, &first, &started, &job, "worker_exact");
+    assert_eq!(
+        started.input_message.input_id.as_deref(),
+        Some("inp_exact_a")
+    );
+    service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: "ses_exact_turn".to_string(),
+            turn_id: first.turn.id,
+            attempt_id: started.attempt.id,
+            input_id: first.admission.input_id,
+            job_id: job.id,
+            worker_id: "worker_exact".to_string(),
+            lease_token: job.lease_token.unwrap(),
+            outcome: "succeeded".to_string(),
+            provider_invocation_id: Some(invocation.id),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_exact",
+                "text": "done"
+            }])),
+            provider_state: None,
+            result: None,
+            error: None,
+            reason: None,
+        })
+        .unwrap();
+}
+
+#[test]
+fn different_sessions_can_own_turn_leases_concurrently() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    for session_id in ["ses_parallel_a", "ses_parallel_b"] {
+        service
+            .create_session(Some(session_id), None, Some("agent"))
+            .unwrap();
+    }
+    let first = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_parallel_a",
+            input_id: "inp_parallel_a",
+            turn_id: "turn_parallel_a",
+            job_id: "job_parallel_a",
+            principal_id: "user_parallel",
+            idempotency_key: "idem_parallel_a",
+            text: "first",
+        },
+    );
+    let second = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_parallel_b",
+            input_id: "inp_parallel_b",
+            turn_id: "turn_parallel_b",
+            job_id: "job_parallel_b",
+            principal_id: "user_parallel",
+            idempotency_key: "idem_parallel_b",
+            text: "second",
+        },
+    );
+
+    let first_job = claim_session_turn_job(&service, "worker_parallel_a", 60_000).unwrap();
+    let second_job = claim_session_turn_job(&service, "worker_parallel_b", 60_000).unwrap();
+    assert_ne!(first_job.concurrency_key, second_job.concurrency_key);
+    let first_started = start_test_turn(&service, &first, &first_job, "worker_parallel_a");
+    let second_started = start_test_turn(&service, &second, &second_job, "worker_parallel_b");
+
+    assert_eq!(first_started.turn.state, "running");
+    assert_eq!(second_started.turn.state, "running");
+}
+
+#[test]
+fn queued_cancel_is_terminal_but_running_cancel_waits_for_owner() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_cancel_queued"), None, Some("agent"))
+        .unwrap();
+    let queued = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_cancel_queued",
+            input_id: "inp_cancel_queued",
+            turn_id: "turn_cancel_queued",
+            job_id: "job_cancel_queued",
+            principal_id: "user_cancel",
+            idempotency_key: "idem_cancel_queued",
+            text: "queued",
+        },
+    );
+    let cancelled = service
+        .request_session_turn_cancel(&RequestSessionTurnCancel {
+            session_id: queued.turn.session_id.clone(),
+            turn_id: queued.turn.id.clone(),
+            input_id: queued.admission.input_id.clone(),
+            job_id: queued.job.id.clone(),
+            reason: "cancel before start".to_string(),
+        })
+        .unwrap();
+    assert_eq!(cancelled.status, "cancelled");
+    assert_eq!(cancelled.turn.unwrap().state, "cancelled");
+    assert_eq!(cancelled.job.unwrap().state, "cancelled");
+    assert_eq!(
+        service.list_session_inputs("ses_cancel_queued").unwrap()[0].status,
+        "cancelled"
+    );
+    assert!(service
+        .list_session_messages("ses_cancel_queued")
+        .unwrap()
+        .is_empty());
+
+    service
+        .create_session(Some("ses_cancel_running"), None, Some("agent"))
+        .unwrap();
+    let running = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_cancel_running",
+            input_id: "inp_cancel_running",
+            turn_id: "turn_cancel_running",
+            job_id: "job_cancel_running",
+            principal_id: "user_cancel",
+            idempotency_key: "idem_cancel_running",
+            text: "running",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_cancel_running", 60_000).unwrap();
+    let started = start_test_turn(&service, &running, &job, "worker_cancel_running");
+    let requested = service
+        .request_session_turn_cancel(&RequestSessionTurnCancel {
+            session_id: running.turn.session_id.clone(),
+            turn_id: running.turn.id.clone(),
+            input_id: running.admission.input_id.clone(),
+            job_id: running.job.id.clone(),
+            reason: "cancel at safe point".to_string(),
+        })
+        .unwrap();
+    assert_eq!(requested.status, "cancel_requested");
+    assert_eq!(requested.turn.as_ref().unwrap().state, "cancel_requested");
+    assert_eq!(requested.job.as_ref().unwrap().state, "running");
+
+    let duplicate = service
+        .request_session_turn_cancel(&RequestSessionTurnCancel {
+            session_id: running.turn.session_id.clone(),
+            turn_id: running.turn.id.clone(),
+            input_id: running.admission.input_id.clone(),
+            job_id: running.job.id.clone(),
+            reason: "different duplicate reason".to_string(),
+        })
+        .unwrap();
+    assert_eq!(duplicate.status, "cancel_requested");
+    assert_eq!(
+        duplicate.turn.as_ref().unwrap().cancel_reason.as_deref(),
+        Some("cancel at safe point")
+    );
+
+    let settlement = service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: running.turn.session_id,
+            turn_id: running.turn.id,
+            attempt_id: started.attempt.id,
+            input_id: running.admission.input_id,
+            job_id: job.id,
+            worker_id: "worker_cancel_running".to_string(),
+            lease_token: job.lease_token.unwrap(),
+            outcome: "cancelled".to_string(),
+            provider_invocation_id: None,
+            assistant_message: None,
+            provider_state: None,
+            result: None,
+            error: None,
+            reason: Some("cancel at safe point".to_string()),
+        })
+        .unwrap();
+    assert_eq!(settlement.turn.state, "cancelled");
+    assert_eq!(settlement.job.state, "cancelled");
+}
+
+#[test]
+fn worker_failure_settles_unstarted_and_promoted_turns_atomically() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_fail_before"), None, Some("agent"))
+        .unwrap();
+    let before = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_fail_before",
+            input_id: "inp_fail_before",
+            turn_id: "turn_fail_before",
+            job_id: "job_fail_before",
+            principal_id: "user_fail",
+            idempotency_key: "idem_fail_before",
+            text: "before",
+        },
+    );
+    let before_job = claim_session_turn_job(&service, "worker_fail_before", 60_000).unwrap();
+    let failed_job = service
+        .fail_job(&FailJob {
+            job_id: before_job.id.clone(),
+            worker_id: "worker_fail_before".to_string(),
+            lease_token: before_job.lease_token.unwrap(),
+            error: json!({"message": "handler rejected payload"}),
+        })
         .unwrap()
         .unwrap();
-    assert_eq!(claim.input_id, "inp_phase2_a");
+    assert_eq!(failed_job.state, "failed");
+    assert_eq!(
+        service
+            .list_session_turns(&ListSessionTurns {
+                session_id: "ses_fail_before".to_string(),
+                state: None,
+            })
+            .unwrap()[0]
+            .state,
+        "failed"
+    );
+    assert_eq!(
+        service.list_session_inputs("ses_fail_before").unwrap()[0].status,
+        "failed"
+    );
     assert!(service
-        .claim_runner("ses_phase2", "runner_2", 60_000)
+        .list_session_attempts(&ListSessionAttempts {
+            turn_id: before.turn.id,
+        })
+        .unwrap()
+        .is_empty());
+
+    service
+        .create_session(Some("ses_fail_after"), None, Some("agent"))
+        .unwrap();
+    let after = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_fail_after",
+            input_id: "inp_fail_after",
+            turn_id: "turn_fail_after",
+            job_id: "job_fail_after",
+            principal_id: "user_fail",
+            idempotency_key: "idem_fail_after",
+            text: "after",
+        },
+    );
+    let after_job = claim_session_turn_job(&service, "worker_fail_after", 60_000).unwrap();
+    let started = start_test_turn(&service, &after, &after_job, "worker_fail_after");
+    let provider_invocation =
+        begin_test_provider_invocation(&service, &after, &started, &after_job, "worker_fail_after");
+    let failed_job = service
+        .fail_job(&FailJob {
+            job_id: after_job.id.clone(),
+            worker_id: "worker_fail_after".to_string(),
+            lease_token: after_job.lease_token.unwrap(),
+            error: json!({"message": "escaped after provider output"}),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(failed_job.state, "failed");
+    let turn = service
+        .list_session_turns(&ListSessionTurns {
+            session_id: "ses_fail_after".to_string(),
+            state: None,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(turn.state, "recovery_required");
+    let attempt = service
+        .list_session_attempts(&ListSessionAttempts {
+            turn_id: after.turn.id.clone(),
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(attempt.id, started.attempt.id);
+    assert_eq!(attempt.state, "recovery_required");
+    let stored_invocation = service
+        .list_provider_invocations(&wanex_system_service::ListProviderInvocations {
+            turn_id: after.turn.id,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(stored_invocation.id, provider_invocation.id);
+    assert_eq!(stored_invocation.state, "ambiguous");
+    assert_eq!(
+        service.list_session_inputs("ses_fail_after").unwrap()[0].status,
+        "failed"
+    );
+}
+
+#[test]
+fn non_successful_settlement_cannot_hide_an_open_provider_invocation() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_open_provider"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_open_provider",
+            input_id: "inp_open_provider",
+            turn_id: "turn_open_provider",
+            job_id: "job_open_provider",
+            principal_id: "user_open_provider",
+            idempotency_key: "idem_open_provider",
+            text: "open",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_open_provider", 60_000).unwrap();
+    let started = start_test_turn(&service, &submitted, &job, "worker_open_provider");
+    let provider_invocation = begin_test_provider_invocation(
+        &service,
+        &submitted,
+        &started,
+        &job,
+        "worker_open_provider",
+    );
+    let identity = SettleSessionTurn {
+        session_id: submitted.turn.session_id.clone(),
+        turn_id: submitted.turn.id.clone(),
+        attempt_id: started.attempt.id.clone(),
+        input_id: submitted.admission.input_id.clone(),
+        job_id: job.id.clone(),
+        worker_id: "worker_open_provider".to_string(),
+        lease_token: job.lease_token.clone().unwrap(),
+        outcome: "failed".to_string(),
+        provider_invocation_id: None,
+        assistant_message: None,
+        provider_state: None,
+        result: None,
+        error: Some(json!({"message": "unexpected failure"})),
+        reason: Some("unexpected failure".to_string()),
+    };
+
+    let rejected = service.settle_session_turn(&identity);
+    assert!(matches!(rejected, Err(SystemServiceError::Invariant(_))));
+    assert_eq!(
+        service
+            .list_provider_invocations(&wanex_system_service::ListProviderInvocations {
+                turn_id: submitted.turn.id.clone(),
+            })
+            .unwrap()[0]
+            .state,
+        "dispatched"
+    );
+    assert_eq!(
+        service
+            .list_session_turns(&ListSessionTurns {
+                session_id: submitted.turn.session_id.clone(),
+                state: None,
+            })
+            .unwrap()[0]
+            .state,
+        "running"
+    );
+
+    let settled = service
+        .settle_session_turn(&SettleSessionTurn {
+            outcome: "recovery_required".to_string(),
+            error: Some(json!({"message": "provider outcome is unknown"})),
+            reason: Some("provider outcome is unknown".to_string()),
+            ..identity
+        })
+        .unwrap();
+    assert_eq!(settled.turn.state, "recovery_required");
+    assert_eq!(settled.attempt.state, "recovery_required");
+    assert_eq!(settled.job.state, "failed");
+    let stored_invocation = service
+        .list_provider_invocations(&wanex_system_service::ListProviderInvocations {
+            turn_id: submitted.turn.id,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(stored_invocation.id, provider_invocation.id);
+    assert_eq!(stored_invocation.state, "ambiguous");
+}
+
+#[test]
+fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_expire_before"), None, Some("agent"))
+        .unwrap();
+    let before = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_expire_before",
+            input_id: "inp_expire_before",
+            turn_id: "turn_expire_before",
+            job_id: "job_expire_before",
+            principal_id: "user_expire",
+            idempotency_key: "idem_expire_before",
+            text: "before",
+        },
+    );
+    let old_job = claim_session_turn_job(&service, "worker_expire_old", 10).unwrap();
+    std::thread::sleep(Duration::from_millis(20));
+    let reclaimed = claim_session_turn_job(&service, "worker_expire_new", 60_000).unwrap();
+    assert_eq!(reclaimed.id, old_job.id);
+    assert_ne!(reclaimed.lease_token, old_job.lease_token);
+    let started = start_test_turn(&service, &before, &reclaimed, "worker_expire_new");
+    let invocation = begin_test_provider_invocation(
+        &service,
+        &before,
+        &started,
+        &reclaimed,
+        "worker_expire_new",
+    );
+    service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: before.turn.session_id,
+            turn_id: before.turn.id,
+            attempt_id: started.attempt.id,
+            input_id: before.admission.input_id,
+            job_id: reclaimed.id,
+            worker_id: "worker_expire_new".to_string(),
+            lease_token: reclaimed.lease_token.unwrap(),
+            outcome: "succeeded".to_string(),
+            provider_invocation_id: Some(invocation.id),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_expire_before",
+                "text": "done"
+            }])),
+            provider_state: None,
+            result: None,
+            error: None,
+            reason: None,
+        })
+        .unwrap();
+
+    service
+        .create_session(Some("ses_expire_after"), None, Some("agent"))
+        .unwrap();
+    let after = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_expire_after",
+            input_id: "inp_expire_after",
+            turn_id: "turn_expire_after",
+            job_id: "job_expire_after",
+            principal_id: "user_expire",
+            idempotency_key: "idem_expire_after",
+            text: "after",
+        },
+    );
+    let after_job = claim_session_turn_job(&service, "worker_expire_after", 50).unwrap();
+    let abandoned = start_test_turn(&service, &after, &after_job, "worker_expire_after");
+    std::thread::sleep(Duration::from_millis(75));
+
+    service
+        .create_session(Some("ses_expire_trigger"), None, Some("agent"))
+        .unwrap();
+    let trigger = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_expire_trigger",
+            input_id: "inp_expire_trigger",
+            turn_id: "turn_expire_trigger",
+            job_id: "job_expire_trigger",
+            principal_id: "user_expire",
+            idempotency_key: "idem_expire_trigger",
+            text: "trigger",
+        },
+    );
+    let recovered_job =
+        claim_session_turn_job(&service, "worker_expire_recovered", 60_000).unwrap();
+    assert_eq!(recovered_job.id, after.job.id);
+    let recovered_started =
+        start_test_turn(&service, &after, &recovered_job, "worker_expire_recovered");
+
+    let recovered = service
+        .list_session_turns(&ListSessionTurns {
+            session_id: "ses_expire_after".to_string(),
+            state: None,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(recovered.state, "running");
+    let attempts = service
+        .list_session_attempts(&ListSessionAttempts {
+            turn_id: after.turn.id.clone(),
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 2);
+    assert_eq!(attempts[0].id, abandoned.attempt.id);
+    assert_eq!(attempts[0].state, "interrupted");
+    assert_eq!(attempts[1].id, recovered_started.attempt.id);
+    assert_eq!(attempts[1].attempt_number, 2);
+    assert_eq!(attempts[1].state, "running");
+    let messages = service.list_session_messages("ses_expire_after").unwrap();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].role, "user");
+    assert_eq!(messages[0].input_id.as_deref(), Some("inp_expire_after"));
+
+    let invocation = begin_test_provider_invocation(
+        &service,
+        &after,
+        &recovered_started,
+        &recovered_job,
+        "worker_expire_recovered",
+    );
+    service
+        .settle_session_turn(&SettleSessionTurn {
+            session_id: after.turn.session_id,
+            turn_id: after.turn.id,
+            attempt_id: recovered_started.attempt.id,
+            input_id: after.admission.input_id,
+            job_id: recovered_job.id,
+            worker_id: "worker_expire_recovered".to_string(),
+            lease_token: recovered_job.lease_token.unwrap(),
+            outcome: "succeeded".to_string(),
+            provider_invocation_id: Some(invocation.id),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_expire_recovered",
+                "text": "done"
+            }])),
+            provider_state: None,
+            result: None,
+            error: None,
+            reason: None,
+        })
+        .unwrap();
+
+    let trigger_job = claim_session_turn_job(&service, "worker_expire_trigger", 60_000).unwrap();
+    assert_eq!(trigger_job.id, trigger.job.id);
+}
+
+#[test]
+fn restart_requeues_retryable_provider_failure_without_duplicate_input() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_provider_retry"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_provider_retry",
+            input_id: "inp_provider_retry",
+            turn_id: "turn_provider_retry",
+            job_id: "job_provider_retry",
+            principal_id: "user_provider_retry",
+            idempotency_key: "idem_provider_retry",
+            text: "retry",
+        },
+    );
+    let first_job = claim_session_turn_job(&service, "worker_provider_old", 60_000).unwrap();
+    let first_started = start_test_turn(&service, &submitted, &first_job, "worker_provider_old");
+    let first_invocation = service
+        .begin_provider_invocation(&BeginProviderInvocation {
+            id: None,
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_provider_old".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            step: 1,
+            invocation_number: 1,
+            request_digest: "provider-retry-request".to_string(),
+        })
+        .unwrap();
+    service
+        .finish_provider_invocation(&wanex_system_service::FinishProviderInvocation {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_provider_old".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            invocation_id: first_invocation.id,
+            outcome: "failed_before_output".to_string(),
+            assistant_message: None,
+            provider_state: None,
+            provider_request_id: None,
+            error: Some(json!({
+                "category": "network",
+                "message": "connection reset",
+                "retryable": true,
+                "outputObserved": false
+            })),
+        })
+        .unwrap()
+        .unwrap();
+    shorten_test_job_lease(&service, &first_job, "worker_provider_old");
+    drop(service);
+    std::thread::sleep(Duration::from_millis(20));
+
+    let recovered_service = SystemService::open(dir.path()).unwrap();
+    let recovered_job =
+        claim_session_turn_job(&recovered_service, "worker_provider_new", 60_000).unwrap();
+    assert_eq!(recovered_job.id, submitted.job.id);
+    let recovered_started = start_test_turn(
+        &recovered_service,
+        &submitted,
+        &recovered_job,
+        "worker_provider_new",
+    );
+    let second_invocation = recovered_service
+        .begin_provider_invocation(&BeginProviderInvocation {
+            id: None,
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: recovered_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: recovered_job.id.clone(),
+            worker_id: "worker_provider_new".to_string(),
+            lease_token: recovered_job.lease_token.clone().unwrap(),
+            step: 1,
+            invocation_number: 2,
+            request_digest: "provider-retry-request".to_string(),
+        })
+        .unwrap();
+    assert_eq!(second_invocation.invocation_number, 2);
+    let messages = recovered_service
+        .list_session_messages("ses_provider_retry")
+        .unwrap();
+    assert_eq!(messages.len(), 1);
+    assert_eq!(messages[0].role, "user");
+    let attempts = recovered_service
+        .list_session_attempts(&ListSessionAttempts {
+            turn_id: submitted.turn.id,
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 2);
+    assert_eq!(attempts[0].state, "interrupted");
+    assert_eq!(attempts[1].state, "running");
+}
+
+#[test]
+fn restart_never_replays_a_dispatched_provider_invocation() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_provider_ambiguous"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_provider_ambiguous",
+            input_id: "inp_provider_ambiguous",
+            turn_id: "turn_provider_ambiguous",
+            job_id: "job_provider_ambiguous",
+            principal_id: "user_provider_ambiguous",
+            idempotency_key: "idem_provider_ambiguous",
+            text: "ambiguous",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_provider_ambiguous", 60_000).unwrap();
+    let started = start_test_turn(&service, &submitted, &job, "worker_provider_ambiguous");
+    service
+        .begin_provider_invocation(&BeginProviderInvocation {
+            id: None,
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id,
+            input_id: submitted.admission.input_id.clone(),
+            job_id: job.id.clone(),
+            worker_id: "worker_provider_ambiguous".to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+            step: 1,
+            invocation_number: 1,
+            request_digest: "provider-ambiguous-request".to_string(),
+        })
+        .unwrap();
+    shorten_test_job_lease(&service, &job, "worker_provider_ambiguous");
+    drop(service);
+    std::thread::sleep(Duration::from_millis(20));
+
+    let recovered_service = SystemService::open(dir.path()).unwrap();
+    recovered_service
+        .create_session(Some("ses_provider_trigger"), None, Some("agent"))
+        .unwrap();
+    let trigger = submit_test_turn(
+        &recovered_service,
+        TestTurn {
+            session_id: "ses_provider_trigger",
+            input_id: "inp_provider_trigger",
+            turn_id: "turn_provider_trigger",
+            job_id: "job_provider_trigger",
+            principal_id: "user_provider_trigger",
+            idempotency_key: "idem_provider_trigger",
+            text: "trigger",
+        },
+    );
+    let claimed =
+        claim_session_turn_job(&recovered_service, "worker_provider_trigger", 60_000).unwrap();
+    assert_eq!(claimed.id, trigger.job.id);
+    let turn = recovered_service
+        .list_session_turns(&ListSessionTurns {
+            session_id: submitted.turn.session_id,
+            state: None,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(turn.state, "recovery_required");
+    let invocations = recovered_service
+        .list_provider_invocations(&wanex_system_service::ListProviderInvocations {
+            turn_id: submitted.turn.id,
+        })
+        .unwrap();
+    assert_eq!(invocations.len(), 1);
+    assert_eq!(invocations[0].state, "ambiguous");
+}
+
+#[test]
+fn restart_retries_only_idempotent_tools_with_a_new_fenced_attempt() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_tool_recovery"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_tool_recovery",
+            input_id: "inp_tool_recovery",
+            turn_id: "turn_tool_recovery",
+            job_id: "job_tool_recovery",
+            principal_id: "user_tool_recovery",
+            idempotency_key: "idem_tool_recovery",
+            text: "tool",
+        },
+    );
+    let first_job = claim_session_turn_job(&service, "worker_tool_old", 60_000).unwrap();
+    let first_started = start_test_turn(&service, &submitted, &first_job, "worker_tool_old");
+    let invocation = begin_test_provider_invocation(
+        &service,
+        &submitted,
+        &first_started,
+        &first_job,
+        "worker_tool_old",
+    );
+    let source = service
+        .finish_provider_invocation(&wanex_system_service::FinishProviderInvocation {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_tool_old".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            invocation_id: invocation.id,
+            outcome: "succeeded".to_string(),
+            assistant_message: Some(json!([{
+                "type": "tool_call",
+                "id": "part_tool_recovery",
+                "toolCallId": "call_tool_recovery",
+                "toolName": "safe_read",
+                "input": {"path": "README.md"}
+            }])),
+            provider_state: None,
+            provider_request_id: None,
+            error: None,
+        })
+        .unwrap()
+        .unwrap()
+        .assistant_message
+        .unwrap();
+    let first_tool = service
+        .begin_tool_execution(&BeginToolExecution {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            source_message_id: source.id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_tool_old".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            principal_id: "user_tool_recovery".to_string(),
+            tool_call_id: "call_tool_recovery".to_string(),
+            tool_name: "safe_read".to_string(),
+            input: json!({"path": "README.md"}),
+            descriptor: json!({
+                "name": "safe_read",
+                "risk": "read_only",
+                "idempotent": true
+            }),
+            permission: json!({"status": "allow", "reason": "test"}),
+            state: "running".to_string(),
+            idempotency_key: "tool:recovery:call".to_string(),
+        })
+        .unwrap();
+    let first_tool_attempt = first_tool.invocation_attempt.unwrap();
+    shorten_test_job_lease(&service, &first_job, "worker_tool_old");
+    drop(service);
+    std::thread::sleep(Duration::from_millis(20));
+
+    let recovered_service = SystemService::open(dir.path()).unwrap();
+    let recovered_job =
+        claim_session_turn_job(&recovered_service, "worker_tool_new", 60_000).unwrap();
+    assert_eq!(recovered_job.id, submitted.job.id);
+    let logical = recovered_service
+        .get_tool_execution(&first_tool.execution.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(logical.state, "retry_ready");
+    let recovered_started = start_test_turn(
+        &recovered_service,
+        &submitted,
+        &recovered_job,
+        "worker_tool_new",
+    );
+    let recovered_tool = recovered_service
+        .begin_tool_execution(&BeginToolExecution {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: recovered_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            source_message_id: source.id,
+            job_id: recovered_job.id.clone(),
+            worker_id: "worker_tool_new".to_string(),
+            lease_token: recovered_job.lease_token.clone().unwrap(),
+            principal_id: "user_tool_recovery".to_string(),
+            tool_call_id: "call_tool_recovery".to_string(),
+            tool_name: "safe_read".to_string(),
+            input: json!({"path": "README.md"}),
+            descriptor: json!({
+                "name": "safe_read",
+                "risk": "read_only",
+                "idempotent": true
+            }),
+            permission: json!({"status": "allow", "reason": "test"}),
+            state: "running".to_string(),
+            idempotency_key: "tool:recovery:call".to_string(),
+        })
+        .unwrap();
+    let recovered_tool_attempt = recovered_tool.invocation_attempt.unwrap();
+    assert_eq!(recovered_tool.execution.id, first_tool.execution.id);
+    assert_eq!(recovered_tool.execution.attempt_count, 2);
+    assert_ne!(recovered_tool_attempt.id, first_tool_attempt.id);
+
+    let late_old_finish = recovered_service
+        .finish_tool_execution(&wanex_system_service::FinishToolExecution {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            session_attempt_id: first_started.attempt.id,
+            input_id: submitted.admission.input_id.clone(),
+            job_id: first_job.id,
+            worker_id: "worker_tool_old".to_string(),
+            lease_token: first_job.lease_token.unwrap(),
+            execution_id: first_tool.execution.id.clone(),
+            invocation_attempt_id: first_tool_attempt.id,
+            state: "succeeded".to_string(),
+            result: Some(json!({"late": true})),
+            is_error: Some(false),
+            error: None,
+        })
+        .unwrap();
+    assert!(late_old_finish.is_none());
+    recovered_service
+        .finish_tool_execution(&wanex_system_service::FinishToolExecution {
+            session_id: submitted.turn.session_id,
+            turn_id: submitted.turn.id,
+            session_attempt_id: recovered_started.attempt.id,
+            input_id: submitted.admission.input_id,
+            job_id: recovered_job.id,
+            worker_id: "worker_tool_new".to_string(),
+            lease_token: recovered_job.lease_token.unwrap(),
+            execution_id: first_tool.execution.id.clone(),
+            invocation_attempt_id: recovered_tool_attempt.id,
+            state: "succeeded".to_string(),
+            result: Some(json!({"ok": true})),
+            is_error: Some(false),
+            error: None,
+        })
+        .unwrap()
+        .unwrap();
+    let attempts = recovered_service
+        .list_tool_execution_attempts(&wanex_system_service::ListToolExecutionAttempts {
+            execution_id: first_tool.execution.id,
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 2);
+    assert_eq!(attempts[0].state, "interrupted");
+    assert_eq!(attempts[1].state, "succeeded");
+}
+
+#[test]
+fn restart_requires_recovery_for_non_idempotent_tool_without_blocking_other_sessions() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_tool_unsafe"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_tool_unsafe",
+            input_id: "inp_tool_unsafe",
+            turn_id: "turn_tool_unsafe",
+            job_id: "job_tool_unsafe",
+            principal_id: "user_tool_unsafe",
+            idempotency_key: "idem_tool_unsafe",
+            text: "mutate",
+        },
+    );
+    let abandoned_job = claim_session_turn_job(&service, "worker_tool_unsafe", 60_000).unwrap();
+    let abandoned_attempt =
+        start_test_turn(&service, &submitted, &abandoned_job, "worker_tool_unsafe");
+    let invocation = begin_test_provider_invocation(
+        &service,
+        &submitted,
+        &abandoned_attempt,
+        &abandoned_job,
+        "worker_tool_unsafe",
+    );
+    let source = service
+        .finish_provider_invocation(&wanex_system_service::FinishProviderInvocation {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: abandoned_attempt.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: abandoned_job.id.clone(),
+            worker_id: "worker_tool_unsafe".to_string(),
+            lease_token: abandoned_job.lease_token.clone().unwrap(),
+            invocation_id: invocation.id,
+            outcome: "succeeded".to_string(),
+            assistant_message: Some(json!([{
+                "type": "tool_call",
+                "id": "part_tool_unsafe",
+                "toolCallId": "call_tool_unsafe",
+                "toolName": "workspace_write",
+                "input": {"path": "README.md", "content": "changed"}
+            }])),
+            provider_state: None,
+            provider_request_id: None,
+            error: None,
+        })
+        .unwrap()
+        .unwrap()
+        .assistant_message
+        .unwrap();
+    let running_tool = service
+        .begin_tool_execution(&BeginToolExecution {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: abandoned_attempt.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            source_message_id: source.id,
+            job_id: abandoned_job.id.clone(),
+            worker_id: "worker_tool_unsafe".to_string(),
+            lease_token: abandoned_job.lease_token.clone().unwrap(),
+            principal_id: "user_tool_unsafe".to_string(),
+            tool_call_id: "call_tool_unsafe".to_string(),
+            tool_name: "workspace_write".to_string(),
+            input: json!({"path": "README.md", "content": "changed"}),
+            descriptor: json!({
+                "name": "workspace_write",
+                "risk": "write",
+                "idempotent": false
+            }),
+            permission: json!({"status": "allow", "reason": "test"}),
+            state: "running".to_string(),
+            idempotency_key: "tool:unsafe:call".to_string(),
+        })
+        .unwrap();
+    let physical_attempt = running_tool.invocation_attempt.unwrap();
+    shorten_test_job_lease(&service, &abandoned_job, "worker_tool_unsafe");
+    drop(service);
+    std::thread::sleep(Duration::from_millis(20));
+
+    let recovered_service = SystemService::open(dir.path()).unwrap();
+    recovered_service
+        .create_session(Some("ses_tool_independent"), None, Some("agent"))
+        .unwrap();
+    let independent = submit_test_turn(
+        &recovered_service,
+        TestTurn {
+            session_id: "ses_tool_independent",
+            input_id: "inp_tool_independent",
+            turn_id: "turn_tool_independent",
+            job_id: "job_tool_independent",
+            principal_id: "user_tool_independent",
+            idempotency_key: "idem_tool_independent",
+            text: "continue",
+        },
+    );
+    let claimed =
+        claim_session_turn_job(&recovered_service, "worker_tool_independent", 60_000).unwrap();
+    assert_eq!(claimed.id, independent.job.id);
+
+    let turn = recovered_service
+        .list_session_turns(&ListSessionTurns {
+            session_id: submitted.turn.session_id.clone(),
+            state: None,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(turn.state, "recovery_required");
+    let attempts = recovered_service
+        .list_session_attempts(&ListSessionAttempts {
+            turn_id: submitted.turn.id.clone(),
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 1);
+    assert_eq!(attempts[0].id, abandoned_attempt.attempt.id);
+    assert_eq!(attempts[0].state, "recovery_required");
+
+    let logical = recovered_service
+        .get_tool_execution(&running_tool.execution.id)
+        .unwrap()
+        .unwrap();
+    assert_eq!(logical.state, "recovery_required");
+    assert_eq!(logical.attempt_count, 1);
+    let physical = recovered_service
+        .list_tool_execution_attempts(&wanex_system_service::ListToolExecutionAttempts {
+            execution_id: running_tool.execution.id,
+        })
+        .unwrap();
+    assert_eq!(physical.len(), 1);
+    assert_eq!(physical[0].id, physical_attempt.id);
+    assert_eq!(physical[0].state, "recovery_required");
+    assert_eq!(
+        recovered_service
+            .get_job(&wanex_system_service::GetJob {
+                job_id: abandoned_job.id,
+            })
+            .unwrap()
+            .unwrap()
+            .state,
+        "failed"
+    );
+}
+
+#[test]
+fn tool_execution_is_fenced_by_canonical_source_message() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_tool_fence"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_tool_fence",
+            input_id: "inp_tool_fence",
+            turn_id: "turn_tool_fence",
+            job_id: "job_tool_fence",
+            principal_id: "user_tool",
+            idempotency_key: "idem_tool_fence",
+            text: "tool",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_tool_fence", 60_000).unwrap();
+    let started = start_test_turn(&service, &submitted, &job, "worker_tool_fence");
+    let source = service
+        .append_session_message(&AppendSessionMessage {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: job.id.clone(),
+            worker_id: "worker_tool_fence".to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+            idempotency_key: "tool-source".to_string(),
+            role: "assistant".to_string(),
+            content: json!([{
+                "type": "tool_call",
+                "id": "part_call_read",
+                "toolCallId": "call_read",
+                "toolName": "workspace_read",
+                "input": {"path": "README.md"}
+            }]),
+            provider_state: None,
+        })
+        .unwrap()
+        .unwrap();
+
+    let request = BeginToolExecution {
+        session_id: submitted.turn.session_id.clone(),
+        turn_id: submitted.turn.id.clone(),
+        attempt_id: started.attempt.id.clone(),
+        input_id: submitted.admission.input_id.clone(),
+        source_message_id: source.id.clone(),
+        job_id: job.id.clone(),
+        worker_id: "worker_tool_fence".to_string(),
+        lease_token: job.lease_token.clone().unwrap(),
+        principal_id: "user_tool".to_string(),
+        tool_call_id: "call_read".to_string(),
+        tool_name: "workspace_read".to_string(),
+        input: json!({"path": "README.md"}),
+        descriptor: json!({"name": "workspace_read", "risk": "read_only", "idempotent": true}),
+        permission: json!({"status": "deny", "reason": "policy"}),
+        state: "denied".to_string(),
+        idempotency_key: "tool:source:call_read".to_string(),
+    };
+    let first = service.begin_tool_execution(&request).unwrap();
+    let duplicate = service.begin_tool_execution(&request).unwrap();
+    assert!(first.created);
+    assert!(!duplicate.created);
+    assert_eq!(first.execution.id, duplicate.execution.id);
+    assert_eq!(first.execution.state, "denied");
+    assert_eq!(first.execution.attempt_count, 0);
+    assert!(first.execution.current_invocation_attempt_id.is_none());
+    assert!(first.execution.finished_at.is_some());
+
+    let missing_call = service.begin_tool_execution(&BeginToolExecution {
+        tool_call_id: "call_missing".to_string(),
+        idempotency_key: "tool:source:call_missing".to_string(),
+        ..request
+    });
+    assert!(matches!(
+        missing_call,
+        Err(SystemServiceError::Invariant(_))
+    ));
+}
+
+#[test]
+fn turn_controls_require_exact_attempt_and_owner_lease() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_turn_control"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_turn_control",
+            input_id: "inp_turn_control",
+            turn_id: "turn_control",
+            job_id: "job_turn_control",
+            principal_id: "user_control",
+            idempotency_key: "idem_turn_control",
+            text: "control",
+        },
+    );
+    let job = claim_session_turn_job(&service, "worker_turn_control", 60_000).unwrap();
+    let started = start_test_turn(&service, &submitted, &job, "worker_turn_control");
+
+    let rejected = service.steer_session_turn(&SteerSessionTurn {
+        session_id: submitted.turn.session_id.clone(),
+        principal_id: "user_control".to_string(),
+        expected_turn_id: submitted.turn.id.clone(),
+        expected_attempt_id: "attempt_wrong".to_string(),
+        idempotency_key: "steer_wrong".to_string(),
+        content: json!([{"type": "text", "id": "part_wrong", "text": "wrong"}]),
+        origin: None,
+        metadata: None,
+    });
+    assert!(matches!(rejected, Err(SystemServiceError::Invariant(_))));
+
+    service
+        .steer_session_turn(&SteerSessionTurn {
+            session_id: submitted.turn.session_id.clone(),
+            principal_id: "user_control".to_string(),
+            expected_turn_id: submitted.turn.id.clone(),
+            expected_attempt_id: started.attempt.id.clone(),
+            idempotency_key: "steer_valid".to_string(),
+            content: json!([{"type": "text", "id": "part_steer", "text": "focus tests"}]),
+            origin: Some(json!({"kind": "interactive"})),
+            metadata: None,
+        })
+        .unwrap();
+    let steer = service
+        .list_session_turn_controls(&ListSessionTurnControls {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: Some(submitted.turn.id.clone()),
+            attempt_id: Some(started.attempt.id.clone()),
+            kind: Some("steer".to_string()),
+            status: Some("pending".to_string()),
+            limit: Some(10),
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert!(service
+        .apply_session_turn_control(&ApplySessionTurnControl {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            control_id: steer.id.clone(),
+            job_id: job.id.clone(),
+            worker_id: "worker_wrong".to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+        })
         .unwrap()
         .is_none());
+    let applied = service
+        .apply_session_turn_control(&ApplySessionTurnControl {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            control_id: steer.id,
+            job_id: job.id.clone(),
+            worker_id: "worker_turn_control".to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(applied.effect, "steer_promoted_input");
 
-    let inputs = service.list_session_inputs("ses_phase2").unwrap();
-    assert_eq!(inputs.len(), 1);
-    assert_eq!(inputs[0].origin, None);
-    assert_eq!(inputs[0].intent, "normal");
-    assert_eq!(inputs[0].run_control_policy, None);
-    assert_eq!(inputs[0].expected_run_id, None);
-    assert_eq!(inputs[0].status, "claimed");
+    service
+        .interrupt_session_turn(&InterruptSessionTurn {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            reason: "stop".to_string(),
+            principal_id: Some("user_control".to_string()),
+            idempotency_key: Some("interrupt_valid".to_string()),
+            origin: None,
+            metadata: None,
+        })
+        .unwrap();
+    let interrupt = service
+        .list_session_turn_controls(&ListSessionTurnControls {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: Some(submitted.turn.id.clone()),
+            attempt_id: Some(started.attempt.id.clone()),
+            kind: Some("interrupt".to_string()),
+            status: Some("pending".to_string()),
+            limit: Some(10),
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    let applied = service
+        .apply_session_turn_control(&ApplySessionTurnControl {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: started.attempt.id.clone(),
+            control_id: interrupt.id,
+            job_id: job.id.clone(),
+            worker_id: "worker_turn_control".to_string(),
+            lease_token: job.lease_token.clone().unwrap(),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(applied.effect, "interrupt_requested_cancel");
+
+    let control_events = service
+        .query_events(QueryEvents {
+            session_id: Some(submitted.turn.session_id.clone()),
+            plan_proposal_id: None,
+            objective_id: None,
+            after_occurred_at: None,
+            after_event_id: None,
+            limit: Some(20),
+        })
+        .unwrap();
+    let control_event_types = control_events
+        .iter()
+        .map(|event| event.event_type.as_str())
+        .collect::<Vec<_>>();
+    assert!(control_event_types.contains(&"session.turn.steer_accepted"));
+    assert!(control_event_types.contains(&"session.turn.interrupt_requested"));
+    assert!(control_event_types.contains(&"session.turn.control_applied"));
+
+    let turn = service
+        .list_session_turns(&ListSessionTurns {
+            session_id: submitted.turn.session_id.clone(),
+            state: None,
+        })
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert_eq!(turn.state, "cancel_requested");
+    assert_eq!(job.state, "running");
+}
+
+#[test]
+fn pending_steer_survives_safe_provider_checkpoint_recovery() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_steer_recovery"), None, Some("agent"))
+        .unwrap();
+    let submitted = submit_test_turn(
+        &service,
+        TestTurn {
+            session_id: "ses_steer_recovery",
+            input_id: "inp_steer_recovery",
+            turn_id: "turn_steer_recovery",
+            job_id: "job_steer_recovery",
+            principal_id: "user_steer_recovery",
+            idempotency_key: "idem_steer_recovery",
+            text: "initial",
+        },
+    );
+    let first_job = claim_session_turn_job(&service, "worker_steer_old", 60_000).unwrap();
+    let first_started = start_test_turn(&service, &submitted, &first_job, "worker_steer_old");
+    service
+        .steer_session_turn(&SteerSessionTurn {
+            session_id: submitted.turn.session_id.clone(),
+            principal_id: "user_steer_recovery".to_string(),
+            expected_turn_id: submitted.turn.id.clone(),
+            expected_attempt_id: first_started.attempt.id.clone(),
+            idempotency_key: "steer_recovery".to_string(),
+            content: json!([{
+                "type": "text",
+                "id": "part_steer_recovery",
+                "text": "adjusted"
+            }]),
+            origin: None,
+            metadata: None,
+        })
+        .unwrap();
+    let invocation = begin_test_provider_invocation(
+        &service,
+        &submitted,
+        &first_started,
+        &first_job,
+        "worker_steer_old",
+    );
+    let skipped_control = service.settle_session_turn(&SettleSessionTurn {
+        session_id: submitted.turn.session_id.clone(),
+        turn_id: submitted.turn.id.clone(),
+        attempt_id: first_started.attempt.id.clone(),
+        input_id: submitted.admission.input_id.clone(),
+        job_id: first_job.id.clone(),
+        worker_id: "worker_steer_old".to_string(),
+        lease_token: first_job.lease_token.clone().unwrap(),
+        outcome: "succeeded".to_string(),
+        provider_invocation_id: Some(invocation.id.clone()),
+        assistant_message: Some(json!([{
+            "type": "text",
+            "id": "assistant_skipped_steer",
+            "text": "before steer"
+        }])),
+        provider_state: None,
+        result: None,
+        error: None,
+        reason: None,
+    });
+    assert!(matches!(
+        skipped_control,
+        Err(SystemServiceError::Invariant(_))
+    ));
+    service
+        .finish_provider_invocation(&wanex_system_service::FinishProviderInvocation {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: first_started.attempt.id.clone(),
+            input_id: submitted.admission.input_id.clone(),
+            job_id: first_job.id.clone(),
+            worker_id: "worker_steer_old".to_string(),
+            lease_token: first_job.lease_token.clone().unwrap(),
+            invocation_id: invocation.id,
+            outcome: "succeeded".to_string(),
+            assistant_message: Some(json!([{
+                "type": "text",
+                "id": "assistant_steer_checkpoint",
+                "text": "before steer"
+            }])),
+            provider_state: None,
+            provider_request_id: None,
+            error: None,
+        })
+        .unwrap();
+
+    shorten_test_job_lease(&service, &first_job, "worker_steer_old");
+    std::thread::sleep(Duration::from_millis(20));
+    let recovered_job = claim_session_turn_job(&service, "worker_steer_new", 60_000).unwrap();
+    assert_eq!(recovered_job.id, first_job.id);
+    let recovered_started =
+        start_test_turn(&service, &submitted, &recovered_job, "worker_steer_new");
+    let pending = service
+        .list_session_turn_controls(&ListSessionTurnControls {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: Some(submitted.turn.id.clone()),
+            attempt_id: Some(recovered_started.attempt.id.clone()),
+            kind: Some("steer".to_string()),
+            status: Some("pending".to_string()),
+            limit: Some(10),
+        })
+        .unwrap();
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].idempotency_key, "steer_recovery");
+    let applied = service
+        .apply_session_turn_control(&ApplySessionTurnControl {
+            session_id: submitted.turn.session_id.clone(),
+            turn_id: submitted.turn.id.clone(),
+            attempt_id: recovered_started.attempt.id.clone(),
+            control_id: pending[0].id.clone(),
+            job_id: recovered_job.id,
+            worker_id: "worker_steer_new".to_string(),
+            lease_token: recovered_job.lease_token.unwrap(),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(applied.effect, "steer_promoted_input");
+
+    let messages = service
+        .list_session_messages(&submitted.turn.session_id)
+        .unwrap();
+    assert_eq!(
+        messages
+            .iter()
+            .map(|message| message.role.as_str())
+            .collect::<Vec<_>>(),
+        vec!["user", "assistant", "user"]
+    );
+    assert_eq!(
+        messages[2].input_id.as_deref(),
+        applied.control.input_id.as_deref()
+    );
 }
 
 #[test]
@@ -1628,371 +3449,6 @@ fn lists_sessions_with_filters_and_limits() {
         .unwrap();
     assert_eq!(bounded.len(), 1);
     assert!(bounded[0].updated_at <= agent.updated_at);
-
-    assert!(matches!(
-        service.list_sessions(&ListSessions {
-            kind: Some("invalid".to_string()),
-            status: None,
-            updated_before: None,
-            updated_after: None,
-            limit: Some(10),
-        }),
-        Err(SystemServiceError::InvalidJobRequest(_))
-    ));
-}
-
-#[test]
-fn submit_session_run_admits_input_and_enqueues_job_idempotently() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_submit"), Some("Submit"), Some("agent"))
-        .unwrap();
-
-    let first = service
-        .submit_session_run(&SubmitSessionRun {
-            id: Some("inp_submit".to_string()),
-            session_id: "ses_submit".to_string(),
-            principal_id: "user_submit".to_string(),
-            idempotency_key: "idem_submit".to_string(),
-            input_type: Some("user".to_string()),
-            content: json!([{ "type": "text", "id": "part_submit", "text": "hello" }]),
-            origin: Some(json!({ "kind": "interactive", "sourceRef": "test" })),
-            intent: Some("follow_up".to_string()),
-            run_control_policy: Some("queue_after_current".to_string()),
-            expected_run_id: Some("run_expected_for_queue".to_string()),
-            job_id: Some("job_submit".to_string()),
-            job_idempotency_key: None,
-            mode: Some("to_completion".to_string()),
-            max_steps: Some(4),
-            provider_profile_id: Some("fake-profile".to_string()),
-            scheduled_at: None,
-            not_before: None,
-            priority: Some(7),
-            max_attempts: Some(2),
-            retry_policy: Some(RetryPolicy {
-                strategy: RetryStrategy::Fixed,
-                initial_delay_ms: Some(10),
-                max_delay_ms: Some(10),
-            }),
-            budget_grant_id: None,
-        })
-        .unwrap();
-    let second = service
-        .submit_session_run(&SubmitSessionRun {
-            id: Some("inp_submit_duplicate".to_string()),
-            session_id: "ses_submit".to_string(),
-            principal_id: "user_submit".to_string(),
-            idempotency_key: "idem_submit".to_string(),
-            input_type: Some("user".to_string()),
-            content: json!([{ "type": "text", "id": "part_duplicate", "text": "ignored" }]),
-            origin: Some(json!({ "kind": "system", "sourceRef": "ignored" })),
-            intent: Some("normal".to_string()),
-            run_control_policy: None,
-            expected_run_id: None,
-            job_id: Some("job_submit_duplicate".to_string()),
-            job_idempotency_key: None,
-            mode: Some("to_completion".to_string()),
-            max_steps: Some(4),
-            provider_profile_id: Some("fake-profile".to_string()),
-            scheduled_at: None,
-            not_before: None,
-            priority: Some(7),
-            max_attempts: Some(2),
-            retry_policy: None,
-            budget_grant_id: None,
-        })
-        .unwrap();
-
-    assert_eq!(first.admission.input_id, "inp_submit");
-    assert_eq!(second.admission.input_id, "inp_submit");
-    assert_eq!(first.job.id, "job_submit");
-    assert_eq!(second.job.id, "job_submit");
-    assert_eq!(first.job.kind, "session.run");
-    assert_eq!(first.job.principal_id, "user_submit");
-    assert_eq!(
-        first.job.payload,
-        json!({
-            "sessionId": "ses_submit",
-            "mode": "to_completion",
-            "maxSteps": 4,
-            "providerProfileId": "fake-profile"
-        })
-    );
-    assert_eq!(
-        first.job.idempotency_key.as_deref(),
-        Some("session.run:ses_submit:inp_submit")
-    );
-
-    let inputs = service.list_session_inputs("ses_submit").unwrap();
-    assert_eq!(inputs.len(), 1);
-    assert_eq!(
-        inputs[0].origin,
-        Some(json!({ "kind": "interactive", "sourceRef": "test" }))
-    );
-    assert_eq!(inputs[0].intent, "follow_up");
-    assert_eq!(
-        inputs[0].run_control_policy.as_deref(),
-        Some("queue_after_current")
-    );
-    assert_eq!(
-        inputs[0].expected_run_id.as_deref(),
-        Some("run_expected_for_queue")
-    );
-    let jobs = service
-        .list_jobs(&wanex_system_service::ListJobs {
-            state: Some("ready".to_string()),
-            kind: Some("session.run".to_string()),
-            limit: Some(10),
-        })
-        .unwrap();
-    assert_eq!(jobs.len(), 1);
-
-    let events = service
-        .query_events(QueryEvents {
-            session_id: Some("ses_submit".to_string()),
-            plan_proposal_id: None,
-            objective_id: None,
-            after_occurred_at: None,
-            after_event_id: None,
-            limit: Some(20),
-        })
-        .unwrap();
-    assert!(events
-        .iter()
-        .any(|event| event.event_type == "session.run.submitted"));
-}
-
-#[test]
-fn expired_runner_lease_can_be_reclaimed_and_completed() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_lease"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_lease"),
-            "ses_lease",
-            "user_1",
-            "idem_lease",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "recover" }]),
-        ))
-        .unwrap();
-
-    let first = service
-        .claim_runner("ses_lease", "runner_old", -1)
-        .unwrap()
-        .unwrap();
-    assert_eq!(first.runner_id, "runner_old");
-
-    let second = service
-        .claim_runner("ses_lease", "runner_new", 60_000)
-        .unwrap()
-        .unwrap();
-    assert_eq!(second.runner_id, "runner_new");
-    assert_ne!(first.lease_token, second.lease_token);
-
-    let heartbeat = service
-        .heartbeat_runner("ses_lease", "runner_new", &second.lease_token, 60_000)
-        .unwrap()
-        .unwrap();
-    assert_eq!(heartbeat.runner_id, "runner_new");
-    assert!(heartbeat.lease_expires_at >= second.lease_expires_at);
-
-    assert!(service
-        .complete_run(
-            "ses_lease",
-            &second.run_id,
-            &second.input_id,
-            "runner_new",
-            &second.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "done" }])),
-        )
-        .unwrap());
-
-    let inputs = service.list_session_inputs("ses_lease").unwrap();
-    assert_eq!(inputs[0].status, "completed");
-    assert!(!service
-        .release_runner("ses_lease", "runner_new", &second.lease_token)
-        .unwrap());
-}
-
-#[test]
-fn appends_session_message_only_for_active_runner_lease() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_tool"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_tool"),
-            "ses_tool",
-            "user_1",
-            "idem_tool",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "use tool" }]),
-        ))
-        .unwrap();
-
-    let claim = service
-        .claim_runner("ses_tool", "runner_tool", 60_000)
-        .unwrap()
-        .unwrap();
-
-    let rejected = service
-        .append_session_message(
-            &AppendSessionMessage {
-                session_id: "ses_tool".to_string(),
-                run_id: claim.run_id.clone(),
-                input_id: claim.input_id.clone(),
-                runner_id: "runner_tool".to_string(),
-                lease_token: "bad_lease".to_string(),
-                idempotency_key: "message_bad_lease".to_string(),
-                role: "tool".to_string(),
-                content: json!([{ "type": "tool_result", "id": "part_bad", "toolCallId": "call_1", "result": {}, "isError": true }]),
-            },
-        )
-        .unwrap();
-    assert!(rejected.is_none());
-
-    let appended = service
-        .append_session_message(
-            &AppendSessionMessage {
-                session_id: "ses_tool".to_string(),
-                run_id: claim.run_id.clone(),
-                input_id: claim.input_id.clone(),
-                runner_id: "runner_tool".to_string(),
-                lease_token: claim.lease_token.clone(),
-                idempotency_key: "message_tool_result".to_string(),
-                role: "tool".to_string(),
-                content: json!([{ "type": "tool_result", "id": "part_result", "toolCallId": "call_1", "result": { "ok": true }, "isError": false }]),
-            },
-        )
-        .unwrap()
-        .unwrap();
-
-    assert_eq!(appended.role, "tool");
-    let messages = service.list_session_messages("ses_tool").unwrap();
-    assert_eq!(messages.len(), 1);
-    assert_eq!(messages[0].id, appended.id);
-}
-
-#[test]
-fn fails_run_only_for_active_runner_lease() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_fail"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_fail"),
-            "ses_fail",
-            "user_1",
-            "idem_fail",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "fail" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_fail", "runner_fail", 60_000)
-        .unwrap()
-        .unwrap();
-
-    let rejected = service
-        .fail_run(&FailRun {
-            session_id: "ses_fail".to_string(),
-            run_id: claim.run_id.clone(),
-            input_id: claim.input_id.clone(),
-            runner_id: "runner_fail".to_string(),
-            lease_token: "bad_lease".to_string(),
-            error: json!({ "message": "wrong lease" }),
-        })
-        .unwrap();
-    assert!(!rejected);
-
-    let failed = service
-        .fail_run(&FailRun {
-            session_id: "ses_fail".to_string(),
-            run_id: claim.run_id,
-            input_id: claim.input_id,
-            runner_id: "runner_fail".to_string(),
-            lease_token: claim.lease_token,
-            error: json!({ "message": "provider failed" }),
-        })
-        .unwrap();
-    assert!(failed);
-
-    let inputs = service.list_session_inputs("ses_fail").unwrap();
-    assert_eq!(inputs[0].status, "failed");
-    assert!(service
-        .claim_runner("ses_fail", "runner_next", 60_000)
-        .unwrap()
-        .is_none());
-}
-
-#[test]
-fn emits_session_run_and_message_events_transactionally() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_events"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_events"),
-            "ses_events",
-            "user_1",
-            "idem_events",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "events" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_events", "runner_events", 60_000)
-        .unwrap()
-        .unwrap();
-    service
-        .complete_run(
-            "ses_events",
-            &claim.run_id,
-            &claim.input_id,
-            &claim.runner_id,
-            &claim.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "done" }])),
-        )
-        .unwrap();
-
-    let events = service
-        .query_events(QueryEvents {
-            session_id: Some("ses_events".to_string()),
-            plan_proposal_id: None,
-            objective_id: None,
-            after_occurred_at: None,
-            after_event_id: None,
-            limit: Some(20),
-        })
-        .unwrap();
-    let event_types: Vec<&str> = events
-        .iter()
-        .map(|event| event.event_type.as_str())
-        .collect();
-
-    assert_eq!(
-        event_types,
-        vec![
-            "session.created",
-            "session.input.admitted",
-            "session.run.claimed",
-            "session.message.appended",
-            "session.run.completed"
-        ]
-    );
-    assert_eq!(events[2].scope.run_id, Some(claim.run_id));
-    assert_eq!(events[4].payload["status"], "completed");
 }
 
 #[test]
@@ -2022,7 +3478,7 @@ fn reserves_commits_releases_and_denies_budget_grants() {
                 tool_calls: Some(1),
             },
             principal_id: "user_budget".to_string(),
-            reason: "agent.run".to_string(),
+            reason: "agent.turn".to_string(),
             idempotency_key: "idem_budget_1".to_string(),
             expires_at: None,
         })
@@ -2040,7 +3496,7 @@ fn reserves_commits_releases_and_denies_budget_grants() {
                 tool_calls: Some(1),
             },
             principal_id: "user_budget".to_string(),
-            reason: "agent.run".to_string(),
+            reason: "agent.turn".to_string(),
             idempotency_key: "idem_budget_1".to_string(),
             expires_at: None,
         })
@@ -2058,7 +3514,7 @@ fn reserves_commits_releases_and_denies_budget_grants() {
                 tool_calls: Some(1),
             },
             principal_id: "user_budget".to_string(),
-            reason: "agent.run".to_string(),
+            reason: "agent.turn".to_string(),
             idempotency_key: "idem_budget_denied".to_string(),
             expires_at: None,
         })
@@ -2098,7 +3554,7 @@ fn reserves_commits_releases_and_denies_budget_grants() {
                 tool_calls: Some(1),
             },
             principal_id: "user_budget".to_string(),
-            reason: "agent.run".to_string(),
+            reason: "agent.turn".to_string(),
             idempotency_key: "idem_budget_2".to_string(),
             expires_at: None,
         })
@@ -2110,485 +3566,6 @@ fn reserves_commits_releases_and_denies_budget_grants() {
     assert_eq!(scope_record.usage.tokens, Some(55));
     let grants = service.list_budget_grants(&first.scope_id).unwrap();
     assert_eq!(grants.len(), 2);
-}
-
-#[test]
-fn cancels_running_run_and_invalidates_lease() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_cancel"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_cancel"),
-            "ses_cancel",
-            "user_1",
-            "idem_cancel",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "cancel" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_cancel", "runner_cancel", 60_000)
-        .unwrap()
-        .unwrap();
-
-    assert!(service
-        .cancel_run(&CancelRun {
-            session_id: "ses_cancel".to_string(),
-            run_id: claim.run_id.clone(),
-            input_id: claim.input_id.clone(),
-            reason: "user requested stop".to_string(),
-        })
-        .unwrap());
-    assert!(!service
-        .complete_run(
-            "ses_cancel",
-            &claim.run_id,
-            &claim.input_id,
-            &claim.runner_id,
-            &claim.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "late" }])),
-        )
-        .unwrap());
-
-    let inputs = service.list_session_inputs("ses_cancel").unwrap();
-    assert_eq!(inputs[0].status, "cancelled");
-    assert!(service
-        .claim_runner("ses_cancel", "runner_next", 60_000)
-        .unwrap()
-        .is_none());
-
-    let events = service
-        .query_events(QueryEvents {
-            session_id: Some("ses_cancel".to_string()),
-            plan_proposal_id: None,
-            objective_id: None,
-            after_occurred_at: None,
-            after_event_id: None,
-            limit: Some(20),
-        })
-        .unwrap();
-    assert!(events
-        .iter()
-        .any(|event| event.event_type == "session.run.cancelled"));
-}
-
-#[test]
-fn interrupt_session_run_is_idempotent_and_does_not_cancel_by_itself() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_interrupt"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_interrupt"),
-            "ses_interrupt",
-            "user_1",
-            "idem_interrupt_input",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "long task" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_interrupt", "runner_interrupt", 60_000)
-        .unwrap()
-        .unwrap();
-
-    let first = service
-        .interrupt_session_run(&InterruptSessionRun {
-            session_id: "ses_interrupt".to_string(),
-            run_id: claim.run_id.clone(),
-            reason: "user requested stop".to_string(),
-            principal_id: Some("user_1".to_string()),
-            idempotency_key: Some("idem_interrupt".to_string()),
-            origin: Some(json!({ "kind": "interactive" })),
-            metadata: Some(json!({ "source": "test" })),
-        })
-        .unwrap();
-    let duplicate = service
-        .interrupt_session_run(&InterruptSessionRun {
-            session_id: "ses_interrupt".to_string(),
-            run_id: claim.run_id.clone(),
-            reason: "duplicate should not overwrite".to_string(),
-            principal_id: Some("user_1".to_string()),
-            idempotency_key: Some("idem_interrupt".to_string()),
-            origin: None,
-            metadata: None,
-        })
-        .unwrap();
-
-    assert_eq!(first.status, "interrupt_requested");
-    assert_eq!(duplicate.status, "interrupt_requested");
-    assert_eq!(duplicate.accepted_at, first.accepted_at);
-
-    let controls = service
-        .list_session_run_controls(&ListSessionRunControls {
-            session_id: "ses_interrupt".to_string(),
-            run_id: Some(claim.run_id.clone()),
-            kind: Some("interrupt".to_string()),
-            status: Some("pending".to_string()),
-            limit: Some(10),
-        })
-        .unwrap();
-    assert_eq!(controls.len(), 1);
-    assert_eq!(controls[0].reason.as_deref(), Some("user requested stop"));
-    assert_eq!(controls[0].origin, Some(json!({ "kind": "interactive" })));
-
-    assert!(service
-        .complete_run(
-            "ses_interrupt",
-            &claim.run_id,
-            &claim.input_id,
-            &claim.runner_id,
-            &claim.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "safe boundary later" }])),
-        )
-        .unwrap());
-
-    let events = service
-        .query_events(QueryEvents {
-            session_id: Some("ses_interrupt".to_string()),
-            plan_proposal_id: None,
-            objective_id: None,
-            after_occurred_at: None,
-            after_event_id: None,
-            limit: Some(20),
-        })
-        .unwrap();
-    assert_eq!(
-        events
-            .iter()
-            .filter(|event| event.event_type == "session.run.interrupt_requested")
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn steer_session_run_requires_active_expected_run_and_records_control_input() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_steer"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_steer_base"),
-            "ses_steer",
-            "user_1",
-            "idem_steer_base",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "draft" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_steer", "runner_steer", 60_000)
-        .unwrap()
-        .unwrap();
-
-    let rejected = service
-        .steer_session_run(&SteerSessionRun {
-            session_id: "ses_steer".to_string(),
-            principal_id: "user_1".to_string(),
-            expected_run_id: "run_wrong".to_string(),
-            idempotency_key: "idem_steer_rejected".to_string(),
-            content: json!([{ "type": "text", "id": "part_bad", "text": "wrong run" }]),
-            origin: Some(json!({ "kind": "interactive" })),
-            provider_profile_id: None,
-            metadata: None,
-        })
-        .unwrap_err();
-    assert!(matches!(rejected, SystemServiceError::InvalidJobRequest(_)));
-
-    let first = service
-        .steer_session_run(&SteerSessionRun {
-            session_id: "ses_steer".to_string(),
-            principal_id: "user_1".to_string(),
-            expected_run_id: claim.run_id.clone(),
-            idempotency_key: "idem_steer".to_string(),
-            content: json!([{ "type": "text", "id": "part_steer", "text": "make it shorter" }]),
-            origin: Some(json!({ "kind": "interactive", "sourceRef": "test" })),
-            provider_profile_id: Some("fake-profile".to_string()),
-            metadata: Some(json!({ "tone": "concise" })),
-        })
-        .unwrap();
-    let duplicate = service
-        .steer_session_run(&SteerSessionRun {
-            session_id: "ses_steer".to_string(),
-            principal_id: "user_1".to_string(),
-            expected_run_id: claim.run_id.clone(),
-            idempotency_key: "idem_steer".to_string(),
-            content: json!([{ "type": "text", "id": "part_duplicate", "text": "ignored" }]),
-            origin: None,
-            provider_profile_id: None,
-            metadata: None,
-        })
-        .unwrap();
-
-    assert_eq!(first.status, "accepted");
-    assert_eq!(duplicate.accepted_at, first.accepted_at);
-
-    let controls = service
-        .list_session_run_controls(&ListSessionRunControls {
-            session_id: "ses_steer".to_string(),
-            run_id: Some(claim.run_id.clone()),
-            kind: Some("steer".to_string()),
-            status: Some("pending".to_string()),
-            limit: Some(10),
-        })
-        .unwrap();
-    assert_eq!(controls.len(), 1);
-    assert_eq!(
-        controls[0].content.as_ref().unwrap()[0]["text"],
-        "make it shorter"
-    );
-    assert_eq!(
-        controls[0].provider_profile_id.as_deref(),
-        Some("fake-profile")
-    );
-    assert_eq!(controls[0].metadata, Some(json!({ "tone": "concise" })));
-
-    let inputs = service.list_session_inputs("ses_steer").unwrap();
-    let steer_input = inputs
-        .iter()
-        .find(|input| input.intent == "steer")
-        .expect("steer input should be persisted");
-    assert_eq!(steer_input.status, "control_pending");
-    assert_eq!(
-        steer_input.run_control_policy.as_deref(),
-        Some("steer_at_safe_point")
-    );
-    assert_eq!(
-        steer_input.expected_run_id.as_deref(),
-        Some(claim.run_id.as_str())
-    );
-    assert_eq!(steer_input.content[0]["text"], "make it shorter");
-
-    let events = service
-        .query_events(QueryEvents {
-            session_id: Some("ses_steer".to_string()),
-            plan_proposal_id: None,
-            objective_id: None,
-            after_occurred_at: None,
-            after_event_id: None,
-            limit: Some(30),
-        })
-        .unwrap();
-    assert!(events
-        .iter()
-        .any(|event| event.event_type == "session.run.steer_rejected"));
-    assert_eq!(
-        events
-            .iter()
-            .filter(|event| event.event_type == "session.run.steer_admitted")
-            .count(),
-        1
-    );
-}
-
-#[test]
-fn apply_steer_run_control_completes_control_input_without_requeueing() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_apply_steer"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_apply_steer_base"),
-            "ses_apply_steer",
-            "user_1",
-            "idem_apply_steer_base",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "draft" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_apply_steer", "runner_apply_steer", 60_000)
-        .unwrap()
-        .unwrap();
-    service
-        .steer_session_run(&SteerSessionRun {
-            session_id: "ses_apply_steer".to_string(),
-            principal_id: "user_1".to_string(),
-            expected_run_id: claim.run_id.clone(),
-            idempotency_key: "idem_apply_steer".to_string(),
-            content: json!([{ "type": "text", "id": "part_steer", "text": "focus tests" }]),
-            origin: Some(json!({ "kind": "interactive" })),
-            provider_profile_id: None,
-            metadata: None,
-        })
-        .unwrap();
-    let control = service
-        .list_session_run_controls(&ListSessionRunControls {
-            session_id: "ses_apply_steer".to_string(),
-            run_id: Some(claim.run_id.clone()),
-            kind: Some("steer".to_string()),
-            status: Some("pending".to_string()),
-            limit: Some(10),
-        })
-        .unwrap()
-        .pop()
-        .unwrap();
-
-    assert!(service
-        .apply_session_run_control(&ApplySessionRunControl {
-            session_id: "ses_apply_steer".to_string(),
-            run_id: claim.run_id.clone(),
-            control_id: control.id.clone(),
-            runner_id: "wrong_runner".to_string(),
-            lease_token: claim.lease_token.clone(),
-        })
-        .unwrap()
-        .is_none());
-
-    let applied = service
-        .apply_session_run_control(&ApplySessionRunControl {
-            session_id: "ses_apply_steer".to_string(),
-            run_id: claim.run_id.clone(),
-            control_id: control.id.clone(),
-            runner_id: claim.runner_id.clone(),
-            lease_token: claim.lease_token.clone(),
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(applied.effect, "steer_completed_input");
-    assert_eq!(applied.control.status, "applied");
-    assert!(applied.control.applied_at.is_some());
-
-    let inputs = service.list_session_inputs("ses_apply_steer").unwrap();
-    let steer_input = inputs
-        .iter()
-        .find(|input| input.intent == "steer")
-        .expect("steer input should exist");
-    assert_eq!(steer_input.status, "completed");
-
-    assert!(service
-        .complete_run(
-            "ses_apply_steer",
-            &claim.run_id,
-            &claim.input_id,
-            &claim.runner_id,
-            &claim.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "done" }])),
-        )
-        .unwrap());
-    assert!(service
-        .claim_runner("ses_apply_steer", "runner_next", 60_000)
-        .unwrap()
-        .is_none());
-}
-
-#[test]
-fn apply_interrupt_run_control_cancels_run_and_pending_sibling_controls() {
-    let dir = tempdir().unwrap();
-    let service = SystemService::open(dir.path()).unwrap();
-    service
-        .create_session(Some("ses_apply_interrupt"), None, None)
-        .unwrap();
-    service
-        .admit_session_input(&admit_input(
-            Some("inp_apply_interrupt_base"),
-            "ses_apply_interrupt",
-            "user_1",
-            "idem_apply_interrupt_base",
-            "user",
-            json!([{ "type": "text", "id": "part_1", "text": "long task" }]),
-        ))
-        .unwrap();
-    let claim = service
-        .claim_runner("ses_apply_interrupt", "runner_apply_interrupt", 60_000)
-        .unwrap()
-        .unwrap();
-    service
-        .steer_session_run(&SteerSessionRun {
-            session_id: "ses_apply_interrupt".to_string(),
-            principal_id: "user_1".to_string(),
-            expected_run_id: claim.run_id.clone(),
-            idempotency_key: "idem_apply_interrupt_steer".to_string(),
-            content: json!([{ "type": "text", "id": "part_steer", "text": "new direction" }]),
-            origin: None,
-            provider_profile_id: None,
-            metadata: None,
-        })
-        .unwrap();
-    service
-        .interrupt_session_run(&InterruptSessionRun {
-            session_id: "ses_apply_interrupt".to_string(),
-            run_id: claim.run_id.clone(),
-            reason: "stop now".to_string(),
-            principal_id: Some("user_1".to_string()),
-            idempotency_key: Some("idem_apply_interrupt".to_string()),
-            origin: None,
-            metadata: None,
-        })
-        .unwrap();
-    let interrupt = service
-        .list_session_run_controls(&ListSessionRunControls {
-            session_id: "ses_apply_interrupt".to_string(),
-            run_id: Some(claim.run_id.clone()),
-            kind: Some("interrupt".to_string()),
-            status: Some("pending".to_string()),
-            limit: Some(10),
-        })
-        .unwrap()
-        .pop()
-        .unwrap();
-
-    let applied = service
-        .apply_session_run_control(&ApplySessionRunControl {
-            session_id: "ses_apply_interrupt".to_string(),
-            run_id: claim.run_id.clone(),
-            control_id: interrupt.id.clone(),
-            runner_id: claim.runner_id.clone(),
-            lease_token: claim.lease_token.clone(),
-        })
-        .unwrap()
-        .unwrap();
-    assert_eq!(applied.effect, "interrupt_cancelled_run");
-    assert_eq!(applied.control.status, "applied");
-
-    assert!(!service
-        .complete_run(
-            "ses_apply_interrupt",
-            &claim.run_id,
-            &claim.input_id,
-            &claim.runner_id,
-            &claim.lease_token,
-            Some(&json!([{ "type": "text", "id": "part_reply", "text": "late" }])),
-        )
-        .unwrap());
-
-    let inputs = service.list_session_inputs("ses_apply_interrupt").unwrap();
-    assert_eq!(
-        inputs
-            .iter()
-            .find(|input| input.id == claim.input_id)
-            .unwrap()
-            .status,
-        "cancelled"
-    );
-    assert_eq!(
-        inputs
-            .iter()
-            .find(|input| input.intent == "steer")
-            .unwrap()
-            .status,
-        "cancelled"
-    );
-    let cancelled_controls = service
-        .list_session_run_controls(&ListSessionRunControls {
-            session_id: "ses_apply_interrupt".to_string(),
-            run_id: Some(claim.run_id.clone()),
-            kind: Some("steer".to_string()),
-            status: Some("cancelled".to_string()),
-            limit: Some(10),
-        })
-        .unwrap();
-    assert_eq!(cancelled_controls.len(), 1);
 }
 
 #[test]
@@ -2605,6 +3582,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
             scheduled_at: Some(10),
             not_before: Some(10),
             priority: Some(1),
+            concurrency_key: None,
             max_attempts: Some(2),
             retry_policy: Some(RetryPolicy {
                 strategy: RetryStrategy::Fixed,
@@ -2624,6 +3602,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
             scheduled_at: Some(10),
             not_before: Some(10),
             priority: Some(1),
+            concurrency_key: None,
             max_attempts: Some(2),
             retry_policy: None,
             idempotency_key: Some("same_job".to_string()),
@@ -2641,6 +3620,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
             scheduled_at: Some(10),
             not_before: Some(10),
             priority: Some(10),
+            concurrency_key: None,
             max_attempts: Some(1),
             retry_policy: None,
             idempotency_key: None,
@@ -2730,6 +3710,7 @@ fn scheduler_accepts_workspace_task_jobs() {
             scheduled_at: Some(10),
             not_before: Some(10),
             priority: Some(3),
+            concurrency_key: None,
             max_attempts: Some(1),
             retry_policy: None,
             idempotency_key: None,
@@ -2780,6 +3761,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
             scheduled_at: Some(10),
             not_before: Some(10),
             priority: Some(1),
+            concurrency_key: None,
             max_attempts: Some(2),
             retry_policy: Some(RetryPolicy {
                 strategy: RetryStrategy::Fixed,
@@ -2946,6 +3928,69 @@ fn ingests_lists_and_emits_resource_metadata() {
     assert!(
         !event.payload.to_string().contains("fake-png-bytes"),
         "events must not carry raw resource bytes"
+    );
+
+    let first = service
+        .read_resource_content("res_image_test", &expected_sha256, 0, 5)
+        .unwrap()
+        .unwrap();
+    assert_eq!(first.content, b"fake-".to_vec());
+    assert_eq!(first.offset, 0);
+    assert_eq!(first.total_size_bytes, content.len() as u64);
+    assert!(!first.eof);
+
+    let second = service
+        .read_resource_content("res_image_test", &expected_sha256, 5, 1024)
+        .unwrap()
+        .unwrap();
+    assert_eq!(second.content, b"png-bytes".to_vec());
+    assert_eq!(second.offset, 5);
+    assert!(second.eof);
+}
+
+#[test]
+fn resource_snapshots_are_idempotent_and_immutable() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let request = IngestResource {
+        id: Some("res_immutable".to_string()),
+        logical_path: Some("resources/document/immutable.txt".to_string()),
+        content: b"original".to_vec(),
+        media_type: Some("text/plain".to_string()),
+        kind: Some("document".to_string()),
+        origin: Some("user_upload".to_string()),
+        label: Some("immutable".to_string()),
+        source: None,
+        metadata: None,
+        width: None,
+        height: None,
+        duration_ms: None,
+        expected_sha256: None,
+    };
+
+    let original = service.ingest_resource(&request).unwrap();
+    let repeated = service.ingest_resource(&request).unwrap();
+    assert_eq!(repeated, original);
+
+    let mut metadata_replacement = request.clone();
+    metadata_replacement.label = Some("changed label".to_string());
+    assert!(matches!(
+        service.ingest_resource(&metadata_replacement).unwrap_err(),
+        SystemServiceError::Invariant(message)
+            if message.contains("resource snapshots are immutable")
+    ));
+
+    let mut replacement = request.clone();
+    replacement.content = b"replacement".to_vec();
+    let error = service.ingest_resource(&replacement).unwrap_err();
+    assert!(matches!(
+        error,
+        SystemServiceError::Invariant(message)
+            if message.contains("resource snapshots are immutable")
+    ));
+    assert_eq!(
+        std::fs::read(dir.path().join("files/resources/document/immutable.txt")).unwrap(),
+        b"original"
     );
 }
 
@@ -3311,7 +4356,7 @@ fn materializes_ready_delegation_graph_nodes_atomically() {
             node_id: None,
             worker_id: "orchestrator_a".to_string(),
             job_id: Some("job_materialized_source".to_string()),
-            job_kind: SchedulerJobKind::SessionRun,
+            job_kind: SchedulerJobKind::WorkspaceTask,
             job_payload: None,
             scheduled_at: None,
             not_before: None,
@@ -3330,7 +4375,7 @@ fn materializes_ready_delegation_graph_nodes_atomically() {
         Some(first.job.id.as_str())
     );
     assert_eq!(first.job.id, "job_materialized_source");
-    assert_eq!(first.job.kind, "session.run");
+    assert_eq!(first.job.kind, "workspace.task");
     assert_eq!(first.job.payload["delegationGraphId"], graph.id);
     assert_eq!(first.job.payload["delegationNodeId"], source.id);
     assert_eq!(first.job.payload["nodeKind"], "agent_task");
@@ -3346,7 +4391,7 @@ fn materializes_ready_delegation_graph_nodes_atomically() {
             node_id: Some(source.id.clone()),
             worker_id: "orchestrator_b".to_string(),
             job_id: Some("job_duplicate_source".to_string()),
-            job_kind: SchedulerJobKind::SessionRun,
+            job_kind: SchedulerJobKind::WorkspaceTask,
             job_payload: None,
             scheduled_at: None,
             not_before: None,
@@ -4674,41 +5719,43 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
         .unwrap();
     let session_projection = service
         .project_channel_inbound_event(&ProjectChannelInboundEvent {
-            id: Some("chproj_session_run".to_string()),
+            id: Some("chproj_session_turn".to_string()),
             inbound_event_id: session_inbound.id.clone(),
             target: json!({
-                "kind": "session.run",
+                "kind": "session.turn",
                 "sessionId": "ses_projection",
                 "principalId": "principal_projection",
                 "content": [{ "type": "text", "id": "part_projection_session", "text": "run this" }],
                 "inputId": "inp_projection_session",
+                "turnId": "turn_projection_session",
                 "jobId": "job_projection_session",
-                "mode": "once",
+                "executionBinding": test_execution_binding("channel_projection"),
                 "maxSteps": 3
             }),
             metadata: Some(json!({ "source": "channel" })),
             idempotency_key: Some("projection-session-key".to_string()),
         })
         .unwrap();
-    assert_eq!(session_projection.projection.target_kind, "session.run");
+    assert_eq!(session_projection.projection.target_kind, "session.turn");
     assert_eq!(
         session_projection.projection.target_id.as_deref(),
-        Some("inp_projection_session")
+        Some("turn_projection_session")
     );
     assert_eq!(
         session_projection.projection.target_job_id.as_deref(),
         Some("job_projection_session")
     );
-    assert_eq!(session_projection.job.unwrap().kind, "session.run");
+    assert_eq!(session_projection.job.unwrap().kind, "session.turn");
     let duplicate_session_projection = service
         .project_channel_inbound_event(&ProjectChannelInboundEvent {
             id: Some("ignored_projection_id".to_string()),
             inbound_event_id: session_inbound.id.clone(),
             target: json!({
-                "kind": "session.run",
+                "kind": "session.turn",
                 "sessionId": "ses_projection",
                 "principalId": "principal_projection",
-                "content": [{ "type": "text", "id": "ignored", "text": "ignored" }]
+                "content": [{ "type": "text", "id": "ignored", "text": "ignored" }],
+                "executionBinding": test_execution_binding("ignored_projection")
             }),
             metadata: None,
             idempotency_key: Some("projection-session-key".to_string()),
@@ -4870,6 +5917,258 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
         })
         .unwrap();
     assert_eq!(projections.len(), 4);
+}
+
+#[test]
+fn media_generation_submission_is_atomic_idempotent_and_lease_fenced() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let submitted = submit_media_generation(&service, "atomic");
+
+    assert_eq!(submitted.operation.state, "queued");
+    assert_eq!(submitted.job.kind, "media.generate");
+    assert_eq!(submitted.job.payload["operationId"], submitted.operation.id);
+    let repeated = submit_media_generation(&service, "atomic");
+    assert_eq!(repeated.operation.id, submitted.operation.id);
+    assert_eq!(repeated.job.id, submitted.job.id);
+
+    let rollback =
+        service.submit_media_generation(&wanex_system_service::SubmitMediaGenerationOperation {
+            id: Some(submitted.operation.id.clone()),
+            job_id: Some("job_media_rollback".to_string()),
+            principal_id: "media-user".to_string(),
+            idempotency_key: "media-key-rollback".to_string(),
+            binding: media_generation_binding("rollback"),
+            priority: None,
+        });
+    assert!(rollback.is_err());
+    assert!(service
+        .get_job(&wanex_system_service::GetJob {
+            job_id: "job_media_rollback".to_string(),
+        })
+        .unwrap()
+        .is_none());
+
+    let claimed = claim_media_generation(&service, "media-worker", 60_000);
+    let lease_token = claimed.lease_token.clone().unwrap();
+    let fenced =
+        service.begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-worker".to_string(),
+            lease_token: "wrong-token".to_string(),
+        });
+    assert!(matches!(fenced, Err(SystemServiceError::Invariant(_))));
+    let begun = service
+        .begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id,
+            worker_id: "media-worker".to_string(),
+            lease_token,
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(begun.action, "started");
+    assert_eq!(begun.operation.state, "submitting");
+}
+
+#[test]
+fn media_generation_persists_acceptance_during_cancel_race() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let submitted = submit_media_generation(&service, "cancel-race");
+    let claimed = claim_media_generation(&service, "media-cancel-worker", 60_000);
+    let lease_token = claimed.lease_token.clone().unwrap();
+    service
+        .begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-cancel-worker".to_string(),
+            lease_token: lease_token.clone(),
+        })
+        .unwrap();
+    let cancelled = service
+        .request_media_generation_cancel(&wanex_system_service::RequestMediaGenerationCancel {
+            operation_id: submitted.operation.id.clone(),
+            reason: "cancel raced with provider acceptance".to_string(),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(cancelled.state, "cancel_requested");
+
+    let accepted = service
+        .accept_media_generation(&wanex_system_service::AcceptMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-cancel-worker".to_string(),
+            lease_token: lease_token.clone(),
+            external_operation_id: "provider-operation-cancel-race".to_string(),
+            provider_checkpoint: Some(json!({ "cursor": 1 })),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(accepted.state, "cancel_requested");
+    assert_eq!(
+        accepted.external_operation_id.as_deref(),
+        Some("provider-operation-cancel-race")
+    );
+
+    let settled = service
+        .settle_media_generation(&wanex_system_service::SettleMediaGenerationOperation {
+            operation_id: submitted.operation.id,
+            worker_id: "media-cancel-worker".to_string(),
+            lease_token,
+            outcome: "cancelled".to_string(),
+            error: None,
+            reason: Some("provider cancellation completed".to_string()),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(settled.state, "cancelled");
+}
+
+#[test]
+fn media_generation_recovers_ambiguous_submission_without_redispatch() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let submitted = submit_media_generation(&service, "ambiguous");
+    let first = claim_media_generation(&service, "media-worker-first", 1);
+    service
+        .begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-worker-first".to_string(),
+            lease_token: first.lease_token.unwrap(),
+        })
+        .unwrap();
+    std::thread::sleep(Duration::from_millis(10));
+
+    let second = claim_media_generation(&service, "media-worker-second", 60_000);
+    let recovered = service
+        .begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id,
+            worker_id: "media-worker-second".to_string(),
+            lease_token: second.lease_token.unwrap(),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(recovered.action, "recovery_required");
+    assert_eq!(recovered.operation.state, "recovery_required");
+    assert!(recovered.operation.external_operation_id.is_none());
+    assert_eq!(recovered.job.state, "failed");
+}
+
+#[test]
+fn media_generation_completion_requires_an_available_resource() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let submitted = submit_media_generation(&service, "completion");
+    let claimed = claim_media_generation(&service, "media-complete-worker", 60_000);
+    let lease_token = claimed.lease_token.clone().unwrap();
+    service
+        .begin_media_generation(&wanex_system_service::BeginMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-complete-worker".to_string(),
+            lease_token: lease_token.clone(),
+        })
+        .unwrap();
+
+    let unavailable = service.complete_media_generation(
+        &wanex_system_service::CompleteMediaGenerationOperation {
+            operation_id: submitted.operation.id.clone(),
+            worker_id: "media-complete-worker".to_string(),
+            lease_token: lease_token.clone(),
+            output_resource_ids: vec!["resource-does-not-exist".to_string()],
+            result: None,
+        },
+    );
+    assert!(matches!(unavailable, Err(SystemServiceError::Invariant(_))));
+
+    let resource = service
+        .ingest_resource(&IngestResource {
+            id: Some("res_media_generated".to_string()),
+            logical_path: Some("resources/image/generated.png".to_string()),
+            content: b"generated-media".to_vec(),
+            media_type: Some("image/png".to_string()),
+            kind: Some("image".to_string()),
+            origin: Some("model_output".to_string()),
+            label: None,
+            source: None,
+            metadata: None,
+            width: None,
+            height: None,
+            duration_ms: None,
+            expected_sha256: None,
+        })
+        .unwrap();
+    assert_eq!(resource.state, "available");
+    let completed = service
+        .complete_media_generation(&wanex_system_service::CompleteMediaGenerationOperation {
+            operation_id: submitted.operation.id,
+            worker_id: "media-complete-worker".to_string(),
+            lease_token,
+            output_resource_ids: vec![resource.id],
+            result: Some(json!({ "published": true })),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(completed.state, "succeeded");
+    assert_eq!(completed.output_resource_ids, vec!["res_media_generated"]);
+}
+
+fn submit_media_generation(
+    service: &SystemService,
+    label: &str,
+) -> wanex_system_service::MediaGenerationOperationSubmission {
+    service
+        .submit_media_generation(&wanex_system_service::SubmitMediaGenerationOperation {
+            id: Some(format!("media-operation-{label}")),
+            job_id: Some(format!("media-job-{label}")),
+            principal_id: "media-user".to_string(),
+            idempotency_key: format!("media-key-{label}"),
+            binding: media_generation_binding(label),
+            priority: None,
+        })
+        .unwrap()
+}
+
+fn media_generation_binding(label: &str) -> serde_json::Value {
+    json!({
+        "profileId": format!("media-profile-{label}"),
+        "profileDigest": format!("media-profile-digest-{label}"),
+        "adapterId": "fake-media-adapter",
+        "providerId": "fake-media-provider",
+        "modelId": format!("fake-media-model-{label}"),
+        "request": {
+            "prompt": format!("media prompt {label}"),
+            "outputModality": "image",
+            "inputResources": [],
+            "options": null
+        },
+        "requestDigest": format!("media-request-digest-{label}")
+    })
+}
+
+fn claim_media_generation(
+    service: &SystemService,
+    worker_id: &str,
+    lease_ms: i64,
+) -> SchedulerJobRecord {
+    service
+        .claim_job(&ClaimJob {
+            worker_id: worker_id.to_string(),
+            lease_ms,
+            kinds: Some(vec![SchedulerJobKind::MediaGenerate]),
+        })
+        .unwrap()
+        .expect("media generation job should be claimable")
+}
+
+fn assert_no_atomic_temp_files(directory: &std::path::Path) {
+    let temp_files = std::fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|name| name.contains(".tmp-"))
+        .collect::<Vec<_>>();
+    assert!(
+        temp_files.is_empty(),
+        "orphan atomic temp files: {temp_files:?}"
+    );
 }
 
 fn sha256_hex(content: &[u8]) -> String {

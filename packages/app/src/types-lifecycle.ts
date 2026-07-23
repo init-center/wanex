@@ -1,8 +1,8 @@
-export interface WanexAppShellLifecycleCommands {
-  shutdown(): Promise<WanexAppShellShutdownResult>
+export interface WanexAppLifecycleCommands {
+  shutdown(): Promise<WanexAppShutdownResult>
 }
 
-export interface WanexAppShellShutdownResult {
+export interface WanexAppShutdownResult {
   readonly disposed: boolean
   readonly repeated: boolean
 }

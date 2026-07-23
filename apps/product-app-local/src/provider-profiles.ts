@@ -1,4 +1,8 @@
 import type { ProviderProfile } from "@wanex/protocol"
+import {
+  assertProfileCapabilitiesSupported,
+  TEXT_PROVIDER_CAPABILITIES
+} from "@wanex/runtime/provider"
 import type { ProductAppShell } from "@wanex/product-app"
 import type {
   ProductAppLocalProviderProfileOptions,
@@ -8,6 +12,7 @@ import type {
 export const defaultProductAppLocalProviderProfile: ProviderProfile = {
   id: "product-app-local",
   kind: "fake",
+  capabilities: { input: ["text"], output: ["text"] },
   providerId: "fake",
   modelId: "product-app-local-model"
 }
@@ -81,16 +86,16 @@ export function normalizeProductAppLocalProviderProfile(
     profile.baseUrl,
     "provider profile baseUrl"
   )
-  const apiKey = normalizeOptionalString(
-    profile.apiKey,
-    "provider profile apiKey"
+  const secretRef = normalizeOptionalString(
+    profile.secretRef,
+    "provider profile secretRef"
   )
   if (kind !== "fake") {
     if (baseUrl === undefined) {
       throw new Error(`${kind} provider requires baseUrl`)
     }
-    if (apiKey === undefined) {
-      throw new Error(`${kind} provider requires apiKey`)
+    if (secretRef === undefined) {
+      throw new Error(`${kind} provider requires secretRef`)
     }
   }
   return {
@@ -98,8 +103,12 @@ export function normalizeProductAppLocalProviderProfile(
     kind,
     providerId,
     modelId,
+    capabilities: assertProfileCapabilitiesSupported(
+      kind,
+      profile.capabilities ?? TEXT_PROVIDER_CAPABILITIES
+    ),
     ...(baseUrl === undefined ? {} : { baseUrl }),
-    ...(apiKey === undefined ? {} : { apiKey })
+    ...(secretRef === undefined ? {} : { secretRef })
   }
 }
 

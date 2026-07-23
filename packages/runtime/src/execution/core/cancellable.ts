@@ -30,7 +30,9 @@ export async function runCancellable<T>(
 
   if (controller !== undefined && options.signal !== undefined) {
     const abortFromParent = (): void => {
-      controller.abort()
+      controller.abort(
+        (options.signal as { readonly reason?: unknown }).reason
+      )
     }
     options.signal.addEventListener("abort", abortFromParent, { once: true })
     removeParentAbort = (): void => {
@@ -38,9 +40,8 @@ export async function runCancellable<T>(
     }
   }
 
-  const candidates: Array<Promise<T> | Promise<never>> = [
-    Promise.resolve().then(() => work(operationSignal))
-  ]
+  const operation = Promise.resolve().then(() => work(operationSignal))
+  const candidates: Array<Promise<T> | Promise<never>> = [operation]
 
   if (operationSignal !== undefined) {
     candidates.push(
@@ -80,6 +81,11 @@ export async function runCancellable<T>(
 
   try {
     return await Promise.race(candidates)
+  } catch (error) {
+    if (isCancellationRaceError(error)) {
+      await operation.catch(() => {})
+    }
+    throw error
   } finally {
     if (timeout !== undefined) {
       clearTimeout(timeout)
@@ -87,6 +93,13 @@ export async function runCancellable<T>(
     removeParentAbort?.()
     removeOperationAbort?.()
   }
+}
+
+function isCancellationRaceError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error.name === "WanexAbortError" || error.name === "WanexTimeoutError")
+  )
 }
 
 export function throwIfAborted(

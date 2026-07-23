@@ -11,18 +11,21 @@ import { ToolExecutionStore } from '@wanex/storage';
 export class AllowAllToolsPolicy implements ToolPermissionPolicy {
     // (undocumented)
     authorize(): Promise<ToolPermissionDecision>;
+    // (undocumented)
+    snapshot(): ToolRuntimeBinding;
 }
 
 // @public (undocumented)
-export class BoundedIdempotentRecoveryPolicy implements ToolRecoveryPolicy {
-    constructor(maxAttempts: number);
+export function createToolRuntimeBinding(options: CreateToolRuntimeBindingOptions): ToolRuntimeBinding;
+
+// @public (undocumented)
+export interface CreateToolRuntimeBindingOptions {
     // (undocumented)
-    readonly maxAttempts: number;
+    readonly configuration?: JsonValue;
     // (undocumented)
-    retryIdempotent(request: {
-        readonly execution: ToolExecutionRecord;
-        readonly descriptor: ToolDescriptor;
-    }): Promise<boolean>;
+    readonly implementationId: string;
+    // (undocumented)
+    readonly implementationRevision: string;
 }
 
 // @public (undocumented)
@@ -47,6 +50,8 @@ export class EchoTool implements ToolDefinition {
     readonly name = "echo";
     // (undocumented)
     readonly risk: "read_only";
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -91,6 +96,8 @@ export class RiskBoundToolPolicy implements ToolPermissionPolicy {
     constructor(allowedRisks: readonly ToolRisk[]);
     // (undocumented)
     authorize(request: ToolPermissionRequest): Promise<ToolPermissionDecision>;
+    // (undocumented)
+    snapshot(): ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -126,6 +133,14 @@ export interface ToolAnnotations {
 }
 
 // @public (undocumented)
+export interface ToolBindingEvidence {
+    // (undocumented)
+    readonly descriptor: ToolDescriptor;
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
+}
+
+// @public (undocumented)
 interface ToolCallMessagePart extends MessagePartBase {
     // (undocumented)
     readonly input: JsonValue;
@@ -140,9 +155,9 @@ interface ToolCallMessagePart extends MessagePartBase {
 // @public (undocumented)
 export interface ToolDefinition extends ToolDescriptor {
     // (undocumented)
-    readonly drainsCancellation?: true;
-    // (undocumented)
     invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>;
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -174,50 +189,6 @@ export interface ToolExecutionOutcome {
 }
 
 // @public (undocumented)
-interface ToolExecutionRecord {
-    // (undocumented)
-    readonly attempt: number;
-    // (undocumented)
-    readonly createdAt: number;
-    // (undocumented)
-    readonly descriptor: JsonValue;
-    // (undocumented)
-    readonly error?: JsonValue;
-    // (undocumented)
-    readonly finishedAt?: number;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly idempotencyKey: string;
-    // (undocumented)
-    readonly input: JsonValue;
-    // (undocumented)
-    readonly inputId: string;
-    // (undocumented)
-    readonly isError?: boolean;
-    // (undocumented)
-    readonly permission: JsonValue;
-    // (undocumented)
-    readonly principalId: string;
-    // (undocumented)
-    readonly result?: JsonValue;
-    // (undocumented)
-    readonly runId: string;
-    // (undocumented)
-    readonly sessionId: string;
-    // (undocumented)
-    readonly startedAt?: number;
-    // (undocumented)
-    readonly state: ToolExecutionState;
-    // (undocumented)
-    readonly toolCallId: string;
-    // (undocumented)
-    readonly toolName: string;
-    // (undocumented)
-    readonly updatedAt: number;
-}
-
-// @public (undocumented)
 export interface ToolExecutionRequest extends ToolInvocationIdentity {
     // (undocumented)
     readonly budget?: {
@@ -229,15 +200,21 @@ export interface ToolExecutionRequest extends ToolInvocationIdentity {
     // (undocumented)
     readonly idempotencyKey: string;
     // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
     readonly permissionPolicy?: ToolPermissionPolicy;
     // (undocumented)
-    readonly recoveryPolicy?: ToolRecoveryPolicy;
-    // (undocumented)
     readonly signal?: RuntimeAbortSignal;
+    // (undocumented)
+    readonly sourceMessageId: string;
     // (undocumented)
     readonly storage: ToolExecutionStore;
     // (undocumented)
     readonly timeoutMs?: number;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
@@ -249,9 +226,6 @@ export interface ToolExecutionResult {
     // (undocumented)
     readonly toolCallId: string;
 }
-
-// @public (undocumented)
-type ToolExecutionState = "running" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
 
 // @public (undocumented)
 export interface ToolInputSchema extends Readonly<Record<string, JsonValue>> {
@@ -276,13 +250,15 @@ export interface ToolInvocation extends ToolInvocationIdentity {
 // @public (undocumented)
 export interface ToolInvocationIdentity {
     // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
     readonly inputId: string;
     // (undocumented)
     readonly principalId: string;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
@@ -300,6 +276,8 @@ export type ToolPermissionDecision = {
 export interface ToolPermissionPolicy {
     // (undocumented)
     authorize(request: ToolPermissionRequest): Promise<ToolPermissionDecision>;
+    // (undocumented)
+    snapshot(): ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -308,17 +286,6 @@ export interface ToolPermissionRequest extends ToolInvocationIdentity {
     readonly call: ToolCallMessagePart;
     // (undocumented)
     readonly descriptor: ToolDescriptor;
-}
-
-// @public (undocumented)
-export interface ToolRecoveryPolicy {
-    // (undocumented)
-    readonly maxAttempts: number;
-    // (undocumented)
-    retryIdempotent(request: {
-        readonly execution: ToolExecutionRecord;
-        readonly descriptor: ToolDescriptor;
-    }): Promise<boolean>;
 }
 
 // @public (undocumented)
@@ -331,6 +298,14 @@ export class ToolRegistry {
     list(): ToolDescriptor[];
     // (undocumented)
     register(tool: ToolDefinition): void;
+    // (undocumented)
+    snapshot(): ToolRegistrySnapshot;
+}
+
+// @public (undocumented)
+export interface ToolRegistrySnapshot {
+    // (undocumented)
+    readonly tools: readonly ToolBindingEvidence[];
 }
 
 // @public (undocumented)
@@ -350,6 +325,16 @@ export function toolResultPart(toolCallId: string, result: JsonValue, isError: b
 
 // @public (undocumented)
 export type ToolRisk = "read_only" | "mutating" | "external";
+
+// @public (undocumented)
+export interface ToolRuntimeBinding {
+    // (undocumented)
+    readonly configurationDigest?: string;
+    // (undocumented)
+    readonly implementationId: string;
+    // (undocumented)
+    readonly implementationRevision: string;
+}
 
 // (No @packageDocumentation comment for this package)
 

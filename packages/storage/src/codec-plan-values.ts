@@ -136,7 +136,7 @@ function expectPlanReferenceKind(
   if (
     kind !== "session" &&
     kind !== "session_input" &&
-    kind !== "session_run" &&
+    kind !== "session_turn" &&
     kind !== "scheduler_job" &&
     kind !== "workspace_change_proposal" &&
     kind !== "delegation_graph" &&

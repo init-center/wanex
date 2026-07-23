@@ -51,6 +51,8 @@ export class WanexMcpRuntimeClient {
 // @public (undocumented)
 export interface WanexMcpRuntimeClientOptions {
     // (undocumented)
+    readonly capabilityRevision: string;
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly namePrefix?: string;

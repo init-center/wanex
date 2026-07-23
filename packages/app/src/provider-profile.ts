@@ -7,30 +7,30 @@ import {
 import type { JsonValue, ProviderProfile } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type {
-  WanexAppShellProviderProfileListReadModel,
-  WanexAppShellProviderProfileReadModel
+  WanexAppProviderProfileListReadModel,
+  WanexAppProviderProfileReadModel
 } from "./types-provider-profile.js"
 
-export const APP_SHELL_ACTIVE_PROVIDER_PROFILE_KEY =
-  "app-shell.provider.activeProfileId"
-export const APP_SHELL_PROVIDER_PROFILE_INDEX_KEY =
-  "app-shell.provider.profileIndex"
+export const APP_ACTIVE_PROVIDER_PROFILE_KEY =
+  "wanex-app.provider.activeProfileId"
+export const APP_PROVIDER_PROFILE_INDEX_KEY =
+  "wanex-app.provider.profileIndex"
 
-export async function initializeWanexAppShellProviderProfile(options: {
+export async function initializeWanexAppProviderProfile(options: {
   readonly storage: CoreStore
   readonly profile: ProviderProfile
 }): Promise<void> {
-  await upsertWanexAppShellProviderProfile({
+  await upsertWanexAppProviderProfile({
     storage: options.storage,
     profile: options.profile
   })
 }
 
-export async function upsertWanexAppShellProviderProfile(options: {
+export async function upsertWanexAppProviderProfile(options: {
   readonly storage: CoreStore
   readonly profile: ProviderProfile
   readonly makeActive?: boolean
-}): Promise<WanexAppShellProviderProfileReadModel> {
+}): Promise<WanexAppProviderProfileReadModel> {
   const profile = normalizeProviderProfile(options.profile)
   const activeProfileId = await readActiveProviderProfileId(options.storage)
   const nextIndex = addProfileId(
@@ -51,10 +51,10 @@ export async function upsertWanexAppShellProviderProfile(options: {
   )
 }
 
-export async function setWanexAppShellActiveProviderProfile(options: {
+export async function setWanexAppActiveProviderProfile(options: {
   readonly storage: CoreStore
   readonly profileId: string
-}): Promise<WanexAppShellProviderProfileReadModel> {
+}): Promise<WanexAppProviderProfileReadModel> {
   const profile = await readProviderProfile(options.storage, options.profileId)
   if (profile === null) {
     throw new Error(`provider profile not found: ${options.profileId}`)
@@ -67,9 +67,9 @@ export async function setWanexAppShellActiveProviderProfile(options: {
   return projectProviderProfileReadModel(profile, options.profileId)
 }
 
-export async function readWanexAppShellActiveProviderProfile(
+export async function readWanexAppActiveProviderProfile(
   storage: CoreStore
-): Promise<WanexAppShellProviderProfileReadModel> {
+): Promise<WanexAppProviderProfileReadModel> {
   const activeProfileId = await requireActiveProviderProfileId(storage)
   const profile = await readProviderProfile(storage, activeProfileId)
   if (profile === null) {
@@ -78,10 +78,10 @@ export async function readWanexAppShellActiveProviderProfile(
   return projectProviderProfileReadModel(profile, activeProfileId)
 }
 
-export async function readWanexAppShellProviderProfile(options: {
+export async function readWanexAppProviderProfile(options: {
   readonly storage: CoreStore
   readonly profileId: string
-}): Promise<WanexAppShellProviderProfileReadModel | null> {
+}): Promise<WanexAppProviderProfileReadModel | null> {
   const profile = await readProviderProfile(options.storage, options.profileId)
   if (profile === null) {
     return null
@@ -92,9 +92,9 @@ export async function readWanexAppShellProviderProfile(options: {
   )
 }
 
-export async function listWanexAppShellProviderProfiles(
+export async function listWanexAppProviderProfiles(
   storage: CoreStore
-): Promise<WanexAppShellProviderProfileListReadModel> {
+): Promise<WanexAppProviderProfileListReadModel> {
   const activeProfileId = await requireActiveProviderProfileId(storage)
   const profiles = (
     await Promise.all(
@@ -105,7 +105,7 @@ export async function listWanexAppShellProviderProfiles(
           : projectProviderProfileReadModel(profile, activeProfileId)
       })
     )
-  ).filter((profile): profile is WanexAppShellProviderProfileReadModel =>
+  ).filter((profile): profile is WanexAppProviderProfileReadModel =>
     profile !== null
   )
   return {
@@ -114,7 +114,7 @@ export async function listWanexAppShellProviderProfiles(
   }
 }
 
-export async function requireWanexAppShellActiveProviderProfileId(
+export async function requireWanexAppActiveProviderProfileId(
   storage: CoreStore
 ): Promise<string> {
   return await requireActiveProviderProfileId(storage)
@@ -123,18 +123,18 @@ export async function requireWanexAppShellActiveProviderProfileId(
 function projectProviderProfileReadModel(
   profile: ProviderProfile,
   activeProfileId: string
-): WanexAppShellProviderProfileReadModel {
+): WanexAppProviderProfileReadModel {
   return {
     id: profile.id,
     kind: profile.kind,
     providerId: profile.providerId,
     modelId: profile.modelId,
+    capabilities: profile.capabilities,
     ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
     ...(profile.anthropicVersion === undefined
       ? {}
       : { anthropicVersion: profile.anthropicVersion }),
-    hasApiKey: profile.apiKey !== undefined,
-    ...(profile.apiKey === undefined ? {} : { apiKeyRedacted: "***" }),
+    credentialConfigured: profile.secretRef !== undefined,
     active: profile.id === activeProfileId
   }
 }
@@ -142,12 +142,12 @@ function projectProviderProfileReadModel(
 async function readActiveProviderProfileId(
   storage: CoreStore
 ): Promise<string | null> {
-  const value = await storage.getConfig(APP_SHELL_ACTIVE_PROVIDER_PROFILE_KEY)
+  const value = await storage.getConfig(APP_ACTIVE_PROVIDER_PROFILE_KEY)
   if (value === null) {
     return null
   }
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error("app shell active provider profile id must be a string")
+    throw new Error("app active provider profile id must be a string")
   }
   return value
 }
@@ -157,7 +157,7 @@ async function requireActiveProviderProfileId(
 ): Promise<string> {
   const profileId = await readActiveProviderProfileId(storage)
   if (profileId === null) {
-    throw new Error("app shell active provider profile is not configured")
+    throw new Error("app active provider profile is not configured")
   }
   return profileId
 }
@@ -169,18 +169,18 @@ async function writeActiveProviderProfileId(
   if (profileId.length === 0) {
     throw new Error("provider profile id must not be empty")
   }
-  await storage.putConfig(APP_SHELL_ACTIVE_PROVIDER_PROFILE_KEY, profileId)
+  await storage.putConfig(APP_ACTIVE_PROVIDER_PROFILE_KEY, profileId)
 }
 
 async function readProviderProfileIndex(
   storage: CoreStore
 ): Promise<readonly string[]> {
-  const value = await storage.getConfig(APP_SHELL_PROVIDER_PROFILE_INDEX_KEY)
+  const value = await storage.getConfig(APP_PROVIDER_PROFILE_INDEX_KEY)
   if (value === null) {
     return []
   }
   if (!Array.isArray(value) || !value.every(isNonEmptyString)) {
-    throw new Error("app shell provider profile index must be a string array")
+    throw new Error("app provider profile index must be a string array")
   }
   return [...value].sort()
 }
@@ -190,7 +190,7 @@ async function writeProviderProfileIndex(
   profileIds: readonly string[]
 ): Promise<void> {
   await storage.putConfig(
-    APP_SHELL_PROVIDER_PROFILE_INDEX_KEY,
+    APP_PROVIDER_PROFILE_INDEX_KEY,
     [...new Set(profileIds)].sort() as JsonValue
   )
 }

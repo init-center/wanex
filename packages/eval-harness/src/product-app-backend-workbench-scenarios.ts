@@ -3,8 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
   PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS,
-  createProductAppBackendShell
+  createProductAppBackendShell,
+  type ProductAppBackendConversationOperationReceipt
 } from "@wanex/product-app/backend"
+import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
@@ -12,7 +14,7 @@ const sessionId = "ses_eval_product_workbench"
 
 export const productAppBackendWorkbenchScenario = createEvalScenario({
   id: "product.skeleton-workbench-contract",
-  title: "App Shell command runtime reads and continues selected sessions",
+  title: "App command runtime reads canonical selected-session transcripts",
   tags: ["product-path", "workbench", "session"],
   async run(context) {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-eval-product-workbench-"))
@@ -26,22 +28,22 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
     })
 
     try {
-      await shell.commands.runAgentTurn({
-        text: "seed workbench",
+      const receipt = await shell.commands.submitConversationOperation({
+        content: [{ type: "text", text: "seed workbench" }],
         sessionId
       })
+      await waitForBackendConversation(shell.commands, receipt)
       const typed = await shell.commands.readProductWorkbench({ sessionId })
       const port = await shell.dispatch({
         command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductWorkbench,
         input: { sessionId }
       })
-      const continued = await shell.dispatchJson(
+      const submitted = await shell.dispatchJson(
         JSON.stringify({
-          command:
-            PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.continueProductWorkbenchSession,
+          command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
           input: {
             sessionId,
-            text: "continue workbench"
+            text: "submit another turn"
           }
         })
       )
@@ -50,21 +52,22 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
       assert(port.ok, "workbench command-port dispatch should succeed")
       assertWorkbench(port.value, 1, "seed workbench")
       assert(
-        continued.status === "success" && continued.envelope.ok,
-        "workbench continue JSON dispatch should succeed"
+        submitted.status === "success" && submitted.envelope.ok,
+        "conversation submit JSON dispatch should succeed"
       )
-      assertContinued(continued.envelope.value)
+      assertConversationReceipt(submitted.envelope.value)
+      await waitForBackendConversation(shell.commands, submitted.envelope.value)
+      const refreshed = await shell.commands.readProductWorkbench({ sessionId })
+      assertWorkbench(refreshed, 2, "submit another turn")
 
       return {
         sessionId,
         typedInputCount: typed.summary.inputCount,
         typedMessageCount: typed.summary.messageCount,
-        continuedInputCount: continued.envelope.value.workbench.summary.inputCount,
-        continuedMessageCount:
-          continued.envelope.value.workbench.summary.messageCount,
-        latestUserText:
-          continued.envelope.value.workbench.summary.latestUserText ?? "",
-        continueKind: continued.envelope.value.kind
+        refreshedInputCount: refreshed.summary.inputCount,
+        refreshedMessageCount: refreshed.summary.messageCount,
+        latestUserText: refreshed.summary.latestUserText ?? "",
+        submitState: submitted.envelope.value.state
       }
     } finally {
       await shell.dispose()
@@ -83,7 +86,10 @@ function assertWorkbench(
   assert(value.sessionId === sessionId, "workbench sessionId should match")
   assert(isRecord(value.summary), "workbench should include summary")
   assert(value.summary.inputCount === inputCount, "workbench input count should match")
-  assert(value.summary.messageCount === inputCount, "workbench message count should match")
+  assert(
+    value.summary.messageCount === inputCount * 2,
+    "workbench should retain promoted user and assistant messages for each turn"
+  )
   assert(
     value.summary.latestUserText === latestUserText,
     "workbench latest user text should match"
@@ -95,26 +101,21 @@ function assertWorkbench(
   )
   assert(isRecord(value.actions), "workbench should include actions")
   assert(
-    value.actions.continueCommandId === "product.workbench.continue",
-    "workbench should expose continue action"
+    value.actions.submitCommandId === "product.agent.submit",
+    "workbench should expose asynchronous submit action"
   )
 }
 
-function assertContinued(value: unknown): asserts value is {
-  readonly kind: "product-app.backend.workbench.continued"
-  readonly workbench: {
-    readonly summary: {
-      readonly inputCount: number
-      readonly messageCount: number
-      readonly latestUserText?: string
-    }
-  }
-} {
-  assert(isRecord(value), "continued workbench should be an object")
+function assertConversationReceipt(
+  value: unknown
+): asserts value is ProductAppBackendConversationOperationReceipt {
+  assert(isRecord(value), "conversation receipt should be an object")
   assert(
-    value.kind === "product-app.backend.workbench.continued",
-    "continued workbench kind should match"
+    typeof value.sessionId === "string" &&
+      typeof value.inputId === "string" &&
+      typeof value.turnId === "string" &&
+      typeof value.jobId === "string" &&
+      typeof value.state === "string",
+    "conversation receipt should include exact operation references"
   )
-  assert(isRecord(value.workbench), "continued workbench should include workbench")
-  assertWorkbench(value.workbench, 2, "continue workbench")
 }

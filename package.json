@@ -16,6 +16,8 @@
     "proof:sdk-consumers": "node ./scripts/run-external-consumers.mjs",
     "stage:native": "tsx ./scripts/stage-native-artifact.ts",
     "test:native-artifact": "vitest run ./scripts/native-artifact/staging.test.ts",
+    "proof:native-runtime": "tsx ./scripts/proof-native-runtime.ts",
+    "test:native-runtime-proof": "vitest run ./scripts/proof-native-runtime.test.ts",
     "build:electron-boundary": "node ./scripts/electron-boundary/build.mjs",
     "check:electron-boundary": "tsc -p ./scripts/electron-boundary/tsconfig.json",
     "test:electron-boundary": "vitest run ./scripts/electron-boundary/policy.test.mjs",
@@ -63,7 +65,8 @@
     "audit:storage-rpc-generation": "node ./scripts/generate-storage-rpc.mjs --check",
     "audit:storage-rpc-ownership": "node ./scripts/audit-storage-rpc-ownership.mjs",
     "audit:runtime-consolidation": "node ./scripts/audit-runtime-consolidation.mjs",
-    "measure:runtime-startup": "node ./scripts/measure-runtime-startup.mjs",
+    "audit:host-distribution": "node ./scripts/audit-host-distribution.mjs",
+    "test:host-distribution-budget": "vitest run ./scripts/audit-host-distribution.test.mjs",
     "test:runtime-consolidation-audit": "vitest run ./scripts/audit-runtime-consolidation.test.mjs",
     "test:runner": "vitest run ./scripts/test-runner.test.mjs"
   },

@@ -1,73 +1,92 @@
 import type { AgentContextProfile } from "@wanex/runtime/context"
-import type { WanexAppShellExtensionOptions, WanexAppShellExtensionStatus } from "./types-extension.js"
+import type { BootstrapWanexStorageOptions } from "@wanex/runtime/bootstrap"
+import type { SecretResolverPort } from "@wanex/runtime/secrets"
+import type { WanexAppExtensionOptions, WanexAppExtensionStatus } from "./types-extension.js"
 import type {
-  WanexAppShellAgentCommands
+  WanexAppAgentCommands
 } from "./types-agent.js"
-import type { BootstrapWanexAppShellRuntimeOptions } from "./runtime.js"
+import type { WanexAppConversationOperationCommands } from "./types-conversation-operation.js"
+import type { WanexAppEvents } from "./types-events.js"
 import type {
-  WanexAppShellAgentContextCommands,
-  WanexAppShellAgentContextMonitorStatus,
-  WanexAppShellAgentContextStatus
+  WanexAppAgentContextCommands,
+  WanexAppAgentContextMonitorStatus,
+  WanexAppAgentContextStatus
 } from "./types-context.js"
 import type {
-  WanexAppShellDiagnosticsCommands
+  WanexAppDiagnosticsCommands
 } from "./types-diagnostics.js"
 import type {
-  WanexAppShellExecutionReferenceCommands
+  WanexAppExecutionReferenceCommands
 } from "./types-execution-reference.js"
 import type {
-  WanexAppShellLifecycleCommands
+  WanexAppLifecycleCommands
 } from "./types-lifecycle.js"
 import type {
-  WanexAppShellProviderProfileCommands,
-  WanexAppShellProviderProfileOptions
+  WanexAppProviderProfileCommands,
+  WanexAppProviderProfileOptions
 } from "./types-provider-profile.js"
+import type { WanexAppResourceCommands } from "./types-resources.js"
 import type {
-  WanexAppShellReadModelCommands
+  WanexAppReadModelCommands
 } from "./types-read-model.js"
 import type {
-  WanexAppShellResultEnvelopeCommands
+  WanexAppResultEnvelopeCommands
 } from "./types-result-envelope.js"
 import type {
-  WanexAppShellScheduleCommands
+  WanexAppScheduleCommands
 } from "./types-schedule.js"
 import type {
-  WanexAppShellWorkflowCommands
+  WanexAppWorkflowCommands
 } from "./types-workflow.js"
 import type {
-  WanexAppShellWorkflowEnvelopeCommands
+  WanexAppWorkflowEnvelopeCommands
 } from "./types-workflow-envelope.js"
+import type { WanexAppMediaGenerationCommands } from "./types-media-generation.js"
+import type { MediaGenerationAdapter } from "@wanex/runtime/media-generation"
 
-export interface WanexAppShellOptions extends BootstrapWanexAppShellRuntimeOptions {
-  readonly providerProfile?: WanexAppShellProviderProfileOptions
+export interface WanexAppOptions extends BootstrapWanexStorageOptions {
+  readonly providerProfile?: WanexAppProviderProfileOptions
   readonly agentContextProfile?: AgentContextProfile
-  readonly extensions?: WanexAppShellExtensionOptions
+  readonly extensions?: WanexAppExtensionOptions
+  readonly workerCount?: number
+  readonly secretResolver?: SecretResolverPort
+  readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
+  readonly mediaGenerationWorkerCount?: number
+  readonly mediaGenerationMaxOutputBytes?: number
 }
 
-export interface WanexAppShell {
-  readonly commands: WanexAppShellCommands
-  status(): WanexAppShellStatus
+export interface WanexApp {
+  readonly commands: WanexAppCommands
+  readonly events: WanexAppEvents
+  status(): WanexAppStatus
+  start(): void
+  stop(): Promise<void>
   dispose(): Promise<void>
 }
 
-export interface WanexAppShellCommands
-  extends WanexAppShellAgentCommands,
-    WanexAppShellAgentContextCommands,
-    WanexAppShellDiagnosticsCommands,
-    WanexAppShellExecutionReferenceCommands,
-    WanexAppShellLifecycleCommands,
-    WanexAppShellProviderProfileCommands,
-    WanexAppShellReadModelCommands,
-    WanexAppShellResultEnvelopeCommands,
-    WanexAppShellScheduleCommands,
-    WanexAppShellWorkflowCommands,
-    WanexAppShellWorkflowEnvelopeCommands {}
+export interface WanexAppCommands
+  extends WanexAppAgentCommands,
+    WanexAppConversationOperationCommands,
+    WanexAppAgentContextCommands,
+    WanexAppDiagnosticsCommands,
+    WanexAppExecutionReferenceCommands,
+    WanexAppLifecycleCommands,
+    WanexAppProviderProfileCommands,
+    WanexAppResourceCommands,
+    WanexAppReadModelCommands,
+    WanexAppResultEnvelopeCommands,
+    WanexAppScheduleCommands,
+    WanexAppWorkflowCommands,
+    WanexAppWorkflowEnvelopeCommands,
+    WanexAppMediaGenerationCommands {}
 
-export interface WanexAppShellStatus {
+export interface WanexAppStatus {
   readonly disposed: boolean
+  readonly started: boolean
+  readonly workerCount: number
   readonly providerProfileId: string
   readonly activeProviderProfileId: string
-  readonly agentContext: WanexAppShellAgentContextStatus
-  readonly agentContextMonitor: WanexAppShellAgentContextMonitorStatus
-  readonly extensions: WanexAppShellExtensionStatus
+  readonly agentContext: WanexAppAgentContextStatus
+  readonly agentContextMonitor: WanexAppAgentContextMonitorStatus
+  readonly extensions: WanexAppExtensionStatus
 }

@@ -71,7 +71,7 @@ export const productAppTuiHostMessageTransportScenario = createEvalScenario({
       const descriptor = snapshot.descriptor
 
       assert(
-        descriptor.ok && descriptor.value.commandCount === 18,
+        descriptor.ok && descriptor.value.commandCount === 23,
         "Product App TUI host message client should initialize the TUI surface"
       )
       assert(

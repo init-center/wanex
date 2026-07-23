@@ -472,7 +472,7 @@ export function mergePolicy(override: Partial<ContextMemoryPolicy> | undefined, 
 type MessageId = string;
 
 // @public (undocumented)
-type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart | UiSurfaceMessagePart;
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
 
 // @public (undocumented)
 interface MessagePartBase {
@@ -645,11 +645,24 @@ export interface RenderSkillSnapshotOptions {
 type ResourceId = string;
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
     // (undocumented)
     readonly mediaType?: string;
     // (undocumented)
     readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
     readonly type: "resource";
 }
@@ -676,6 +689,9 @@ interface RuntimeAbortSignal {
 }
 
 // @public (undocumented)
+type SessionAttemptId = string;
+
+// @public (undocumented)
 type SessionId = string;
 
 // @public (undocumented)
@@ -697,7 +713,7 @@ interface SessionInputOrigin {
 }
 
 // @public (undocumented)
-type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | "objective" | "plan";
+type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | (string & {});
 
 // @public (undocumented)
 interface SessionInputRecord {
@@ -706,7 +722,7 @@ interface SessionInputRecord {
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
-    readonly expectedRunId?: SessionRunId;
+    readonly expectedTurnId?: SessionTurnId;
     // (undocumented)
     readonly id: SessionInputId;
     // (undocumented)
@@ -733,34 +749,40 @@ interface SessionInputRecord {
 export function sessionInputRecordsToReplayMessages(inputs: readonly SessionInputRecord[]): CompiledContext["messages"];
 
 // @public (undocumented)
-type SessionInputState = "admitted" | "control_pending" | "claimed" | "completed" | "retry_pending" | "failed" | "cancelled";
+type SessionInputState = "admitted" | "control_pending" | "promoted" | "completed" | "failed" | "cancelled" | "rejected";
 
 // @public (undocumented)
 interface SessionMessageRecord {
+    // (undocumented)
+    readonly attemptId?: SessionAttemptId;
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
+    readonly executionBindingDigest: string;
+    // (undocumented)
     readonly id: MessageId;
     // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
-    readonly providerState?: ProviderState;
+    readonly providerState?: readonly ProviderState[];
     // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
     // (undocumented)
-    readonly runId?: SessionRunId;
+    readonly sequence: number;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
     readonly status: "completed" | "failed" | "partial";
     // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
     readonly updatedAt: number;
 }
 
 // @public (undocumented)
-type SessionRunId = string;
+type SessionTurnId = string;
 
 // @public (undocumented)
 export const SKILL_ACTIVATION_TOOL_NAME: "activate_skill";
@@ -837,6 +859,8 @@ export class SkillActivationTool implements ToolDefinition {
     readonly name: "activate_skill";
     // (undocumented)
     readonly risk: "read_only";
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -1086,6 +1110,14 @@ interface ToolAnnotations {
 }
 
 // @public (undocumented)
+interface ToolBindingEvidence {
+    // (undocumented)
+    readonly descriptor: ToolDescriptor;
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
+}
+
+// @public (undocumented)
 interface ToolCallMessagePart extends MessagePartBase {
     // (undocumented)
     readonly input: JsonValue;
@@ -1100,9 +1132,9 @@ interface ToolCallMessagePart extends MessagePartBase {
 // @public (undocumented)
 interface ToolDefinition extends ToolDescriptor {
     // (undocumented)
-    readonly drainsCancellation?: true;
-    // (undocumented)
     invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>;
+    // (undocumented)
+    readonly runtimeBinding: ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -1134,50 +1166,6 @@ interface ToolExecutionOutcome {
 }
 
 // @public (undocumented)
-interface ToolExecutionRecord {
-    // (undocumented)
-    readonly attempt: number;
-    // (undocumented)
-    readonly createdAt: number;
-    // (undocumented)
-    readonly descriptor: JsonValue;
-    // (undocumented)
-    readonly error?: JsonValue;
-    // (undocumented)
-    readonly finishedAt?: number;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly idempotencyKey: string;
-    // (undocumented)
-    readonly input: JsonValue;
-    // (undocumented)
-    readonly inputId: string;
-    // (undocumented)
-    readonly isError?: boolean;
-    // (undocumented)
-    readonly permission: JsonValue;
-    // (undocumented)
-    readonly principalId: string;
-    // (undocumented)
-    readonly result?: JsonValue;
-    // (undocumented)
-    readonly runId: string;
-    // (undocumented)
-    readonly sessionId: string;
-    // (undocumented)
-    readonly startedAt?: number;
-    // (undocumented)
-    readonly state: ToolExecutionState;
-    // (undocumented)
-    readonly toolCallId: string;
-    // (undocumented)
-    readonly toolName: string;
-    // (undocumented)
-    readonly updatedAt: number;
-}
-
-// @public (undocumented)
 interface ToolExecutionRequest extends ToolInvocationIdentity {
     // (undocumented)
     readonly budget?: {
@@ -1189,15 +1177,21 @@ interface ToolExecutionRequest extends ToolInvocationIdentity {
     // (undocumented)
     readonly idempotencyKey: string;
     // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
     readonly permissionPolicy?: ToolPermissionPolicy;
     // (undocumented)
-    readonly recoveryPolicy?: ToolRecoveryPolicy;
-    // (undocumented)
     readonly signal?: RuntimeAbortSignal;
+    // (undocumented)
+    readonly sourceMessageId: string;
     // (undocumented)
     readonly storage: ToolExecutionStore;
     // (undocumented)
     readonly timeoutMs?: number;
+    // (undocumented)
+    readonly workerId: string;
 }
 
 // @public (undocumented)
@@ -1209,9 +1203,6 @@ interface ToolExecutionResult {
     // (undocumented)
     readonly toolCallId: string;
 }
-
-// @public (undocumented)
-type ToolExecutionState = "running" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
 
 // @public (undocumented)
 interface ToolInputSchema extends Readonly<Record<string, JsonValue>> {
@@ -1236,13 +1227,15 @@ interface ToolInvocation extends ToolInvocationIdentity {
 // @public (undocumented)
 interface ToolInvocationIdentity {
     // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
     readonly inputId: string;
     // (undocumented)
     readonly principalId: string;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
@@ -1260,6 +1253,8 @@ type ToolPermissionDecision = {
 interface ToolPermissionPolicy {
     // (undocumented)
     authorize(request: ToolPermissionRequest): Promise<ToolPermissionDecision>;
+    // (undocumented)
+    snapshot(): ToolRuntimeBinding;
 }
 
 // @public (undocumented)
@@ -1268,17 +1263,6 @@ interface ToolPermissionRequest extends ToolInvocationIdentity {
     readonly call: ToolCallMessagePart;
     // (undocumented)
     readonly descriptor: ToolDescriptor;
-}
-
-// @public (undocumented)
-interface ToolRecoveryPolicy {
-    // (undocumented)
-    readonly maxAttempts: number;
-    // (undocumented)
-    retryIdempotent(request: {
-        readonly execution: ToolExecutionRecord;
-        readonly descriptor: ToolDescriptor;
-    }): Promise<boolean>;
 }
 
 // @public (undocumented)
@@ -1291,6 +1275,14 @@ class ToolRegistry {
     list(): ToolDescriptor[];
     // (undocumented)
     register(tool: ToolDefinition): void;
+    // (undocumented)
+    snapshot(): ToolRegistrySnapshot;
+}
+
+// @public (undocumented)
+interface ToolRegistrySnapshot {
+    // (undocumented)
+    readonly tools: readonly ToolBindingEvidence[];
 }
 
 // @public (undocumented)
@@ -1309,71 +1301,13 @@ interface ToolResultMessagePart extends MessagePartBase {
 type ToolRisk = "read_only" | "mutating" | "external";
 
 // @public (undocumented)
-interface UiSurfaceActionBridge {
+interface ToolRuntimeBinding {
     // (undocumented)
-    readonly allowedActions?: readonly string[];
+    readonly configurationDigest?: string;
     // (undocumented)
-    readonly kind: "runtime";
+    readonly implementationId: string;
     // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly route: "session.input" | "plugin.action" | "tool.call" | "app.action" | (string & {});
-    // (undocumented)
-    readonly target?: JsonValue;
-}
-
-// @public (undocumented)
-interface UiSurfaceEnvelope {
-    // (undocumented)
-    readonly actionBridge?: UiSurfaceActionBridge;
-    // (undocumented)
-    readonly fallback?: UiSurfaceFallback;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly payload: JsonValue;
-    // (undocumented)
-    readonly protocol: UiSurfaceProtocol;
-    // (undocumented)
-    readonly requiredCapabilities?: readonly string[];
-    // (undocumented)
-    readonly surfaceKind: string;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-type UiSurfaceFallback = UiSurfaceTextFallback | UiSurfaceResourceFallback;
-
-// @public (undocumented)
-interface UiSurfaceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly surface: UiSurfaceEnvelope;
-    // (undocumented)
-    readonly type: "ui_surface";
-}
-
-// @public (undocumented)
-type UiSurfaceProtocol = "a2ui" | "markdown" | "html-safe" | (string & {});
-
-// @public (undocumented)
-interface UiSurfaceResourceFallback {
-    // (undocumented)
-    readonly kind: "resource";
-    // (undocumented)
-    readonly label?: string;
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
-}
-
-// @public (undocumented)
-interface UiSurfaceTextFallback {
-    // (undocumented)
-    readonly kind: "text";
-    // (undocumented)
-    readonly text: string;
+    readonly implementationRevision: string;
 }
 
 // @public (undocumented)

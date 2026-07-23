@@ -16,6 +16,7 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert, isRecord } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import { waitForSurfaceConversation } from "./conversation-helpers.js"
 
 export const productAppHostEndpointContractScenario = createEvalScenario({
   id: "product.app-host-endpoint-contract",
@@ -68,15 +69,16 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
         { sessionId: "ses_eval_product_app_host_endpoint" },
         { requestId: "eval_host_endpoint_select" }
       )
-      const run = await client.dispatchProductCommand(
+      const run = await client.submitConversationOperation(
         {
-          command: "runAgentTurn",
-          input: {
-            text: "eval host endpoint turn",
-            sessionId: "ses_eval_product_app_host_endpoint"
-          }
+          text: "eval host endpoint turn",
+          sessionId: "ses_eval_product_app_host_endpoint"
         },
         { requestId: "eval_host_endpoint_run" }
+      )
+      await waitForSurfaceConversation(
+        client,
+        "ses_eval_product_app_host_endpoint"
       )
       const opened = await client.openWorkbench()
       const events = await client.readSurfaceEvents({ limit: 2 })
@@ -133,7 +135,7 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
       assert(
         descriptor.ok &&
           descriptor.value.kind === "product-app.surface-descriptor" &&
-          descriptor.value.commandCount === 18,
+          descriptor.value.commandCount === 23,
         "host endpoint client should read the Product App descriptor"
       )
       assert(
@@ -219,6 +221,7 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
         concreteAdapters: productApp.contains.concreteAdapters
       }
     } finally {
+      await surface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

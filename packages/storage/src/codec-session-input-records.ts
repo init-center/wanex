@@ -1,8 +1,8 @@
-import {
-  type AdmissionReceipt,
-  type JsonValue,
-  type SessionInputRecord,
-  type SubmitSessionRunReceipt
+import type {
+  AdmissionReceipt,
+  JsonValue,
+  SessionInputRecord,
+  SubmitSessionTurnReceipt
 } from "@wanex/protocol"
 
 import {
@@ -17,6 +17,7 @@ import {
   withOptionalFields
 } from "./codec-helpers.js"
 import { fromRpcSchedulerJobRecord } from "./codec-scheduler.js"
+import { fromRpcSessionTurnRecord } from "./codec-session-turn-records.js"
 import {
   expectRunControlPolicy,
   expectSessionInputIntent,
@@ -29,11 +30,8 @@ export function fromRpcAdmissionReceipt(value: JsonValue): AdmissionReceipt {
   }
   const durability = expectString(value.durability, "receipt.durability")
   const status = expectString(value.status, "receipt.status")
-  if (durability !== "local-durable") {
-    throw new Error(`invalid durability: ${durability}`)
-  }
-  if (status !== "admitted") {
-    throw new Error(`invalid admission status: ${status}`)
+  if (durability !== "local-durable" || status !== "admitted") {
+    throw new Error("invalid durable session input admission receipt")
   }
   return {
     inputId: expectString(value.input_id, "receipt.input_id"),
@@ -43,18 +41,21 @@ export function fromRpcAdmissionReceipt(value: JsonValue): AdmissionReceipt {
   }
 }
 
-export function fromRpcSubmitSessionRunReceipt(
+export function fromRpcSubmitSessionTurnReceipt(
   value: JsonValue
-): SubmitSessionRunReceipt {
+): SubmitSessionTurnReceipt {
   if (!isRecord(value)) {
-    throw new Error("submit session run receipt must be an object")
+    throw new Error("submit session turn receipt must be an object")
   }
   return {
     admission: fromRpcAdmissionReceipt(
-      expectJsonField(value, "admission", "submit session run admission")
+      expectJsonField(value, "admission", "submit session turn admission")
+    ),
+    turn: fromRpcSessionTurnRecord(
+      expectJsonField(value, "turn", "submit session turn")
     ),
     job: fromRpcSchedulerJobRecord(
-      expectJsonField(value, "job", "submit session run job")
+      expectJsonField(value, "job", "submit session turn job")
     )
   }
 }
@@ -90,6 +91,9 @@ export function fromRpcSessionInputRecord(
       value.run_control_policy === undefined
         ? undefined
         : expectRunControlPolicy(value.run_control_policy),
-    expectedRunId: optionalString(value.expected_run_id, "input.expected_run_id")
+    expectedTurnId: optionalString(
+      value.expected_turn_id,
+      "input.expected_turn_id"
+    )
   }) as SessionInputRecord
 }

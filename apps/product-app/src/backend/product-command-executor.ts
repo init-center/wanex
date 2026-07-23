@@ -10,13 +10,12 @@ import {
 } from "./product-command-validation.js"
 import {
   assertNoInput,
-  parseContinueWorkbenchInput,
   parseDiagnosticsDetailInput,
   parseDiagnosticsInput,
   parseMonitorInput,
   parseOverviewInput,
   parseRecentSessionsInput,
-  parseRunAgentTurnInput,
+  parseSubmitConversationOperationInput,
   parseSessionInputProvenanceInput,
   parseSessionTranscriptInput,
   parseSupportBundleInput,
@@ -104,11 +103,13 @@ export async function executeProductAppBackendCommand(
   try {
     validateProductAppBackendCommandInput(request, handlerRef)
     switch (handlerRef) {
-      case PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn:
+      case PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation:
         return completeCommand(
           request,
           handlerRef,
-          await options.commands.runAgentTurn(parseRunAgentTurnInput(request))
+          await options.commands.submitConversationOperation(
+            parseSubmitConversationOperationInput(request)
+          )
         )
       case PRODUCT_APP_BACKEND_HANDLER_REFS.status:
         assertNoInput(request)
@@ -150,14 +151,6 @@ export async function executeProductAppBackendCommand(
           request,
           handlerRef,
           await options.commands.readProductWorkbench(parseWorkbenchInput(request))
-        )
-      case PRODUCT_APP_BACKEND_HANDLER_REFS.continueProductWorkbenchSession:
-        return completeCommand(
-          request,
-          handlerRef,
-          await options.commands.continueProductWorkbenchSession(
-            parseContinueWorkbenchInput(request)
-          )
         )
       case PRODUCT_APP_BACKEND_HANDLER_REFS.readSessionInputProvenance:
         return completeCommand(

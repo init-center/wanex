@@ -1,17 +1,17 @@
 import {
-  normalizeWanexAppShellExecutionReference,
-  projectWanexAppShellJobExecutionReference
+  normalizeWanexAppExecutionReference,
+  projectWanexAppJobExecutionReference
 } from "./execution-reference.js"
-import type { WanexAppShellCommandContext } from "./command-context.js"
-import type { WanexAppShellExecutionReferenceCommands } from "./types-execution-reference.js"
+import type { WanexAppCommandContext } from "./command-context.js"
+import type { WanexAppExecutionReferenceCommands } from "./types-execution-reference.js"
 
-export function createWanexAppShellExecutionReferenceCommands(
-  context: WanexAppShellCommandContext
-): WanexAppShellExecutionReferenceCommands {
+export function createWanexAppExecutionReferenceCommands(
+  context: WanexAppCommandContext
+): WanexAppExecutionReferenceCommands {
   return {
     async readExecutionReference(request) {
       context.assertActive()
-      const reference = normalizeWanexAppShellExecutionReference(request)
+      const reference = normalizeWanexAppExecutionReference(request)
       if (reference.kind !== "job") {
         return {
           kind: "unsupported",
@@ -25,7 +25,7 @@ export function createWanexAppShellExecutionReferenceCommands(
           reference
         }
       }
-      return projectWanexAppShellJobExecutionReference(job)
+      return projectWanexAppJobExecutionReference(job)
     }
   }
 }

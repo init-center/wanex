@@ -3,7 +3,10 @@ import type {
   SchedulerJobRecord,
   SessionMessageRecord
 } from "@wanex/protocol"
-import type { SubmitUserTextRequest, SubmitUserTextResult } from "./types.js"
+import type {
+  DelegationSubmitUserTurnRequest,
+  DelegationSubmitUserTurnResult
+} from "./types.js"
 
 export interface DelegationExecutorWorkerRunSummary {
   readonly status: string
@@ -19,7 +22,9 @@ export interface DelegationExecutorRunOnceResult {
 }
 
 export interface DelegationExecutor {
-  submitUserText(request: SubmitUserTextRequest): Promise<SubmitUserTextResult>
+  submitUserTurn(
+    request: DelegationSubmitUserTurnRequest
+  ): Promise<DelegationSubmitUserTurnResult>
   runOnce(): Promise<DelegationExecutorRunOnceResult>
   listJobs(request: ListJobsRequest): Promise<SchedulerJobRecord[]>
   listSessionMessages(request: {
@@ -40,8 +45,8 @@ export function delegationExecutorFromRuntimeHost(
   host: DelegationRuntimeHostLike
 ): DelegationExecutor {
   return {
-    async submitUserText(request) {
-      return await host.submitUserText(request)
+    async submitUserTurn(request) {
+      return await host.submitUserTurn(request)
     },
     async runOnce() {
       return await host.runOnce()

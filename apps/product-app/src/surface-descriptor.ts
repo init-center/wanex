@@ -106,15 +106,45 @@ export const productAppSurfaceCommandDescriptors: readonly ProductAppSurfaceComm
     mutatesState: true
   },
   {
-    command: PRODUCT_APP_SURFACE_COMMANDS.startWorkbench,
-    title: "Start workbench",
-    input: "workbench-start",
+    command: PRODUCT_APP_SURFACE_COMMANDS.prepareConversationAttachment,
+    title: "Prepare conversation attachment",
+    input: "conversation-attachment-prepare",
     mutatesState: true
   },
   {
-    command: PRODUCT_APP_SURFACE_COMMANDS.continueWorkbench,
-    title: "Continue workbench",
-    input: "workbench-continue",
+    command: PRODUCT_APP_SURFACE_COMMANDS.readConversationAttachments,
+    title: "Read conversation attachments",
+    input: "conversation-attachment-read",
+    mutatesState: false
+  },
+  {
+    command: PRODUCT_APP_SURFACE_COMMANDS.removeConversationAttachment,
+    title: "Remove conversation attachment",
+    input: "conversation-attachment-remove",
+    mutatesState: true
+  },
+  {
+    command: PRODUCT_APP_SURFACE_COMMANDS.submitConversationOperation,
+    title: "Submit conversation operation",
+    input: "conversation-submit",
+    mutatesState: true
+  },
+  {
+    command: PRODUCT_APP_SURFACE_COMMANDS.readTrackedConversationOperation,
+    title: "Read tracked conversation operation",
+    input: "conversation-read",
+    mutatesState: false
+  },
+  {
+    command: PRODUCT_APP_SURFACE_COMMANDS.cancelTrackedConversationOperation,
+    title: "Cancel tracked conversation operation",
+    input: "conversation-cancel",
+    mutatesState: false
+  },
+  {
+    command: PRODUCT_APP_SURFACE_COMMANDS.regenerateTrackedConversationOperation,
+    title: "Regenerate tracked conversation operation",
+    input: "conversation-regenerate",
     mutatesState: true
   }
 ]

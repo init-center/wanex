@@ -192,7 +192,7 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | UiSurfaceEventType | ContextEventType | PlanEventType | ObjectiveEventType;
+type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | ContextEventType | PlanEventType | ObjectiveEventType;
 
 // @public (undocumented)
 type MessageId = string;
@@ -255,6 +255,8 @@ type RuntimeEventId = string;
 // @public (undocumented)
 interface RuntimeEventScope {
     // (undocumented)
+    readonly attemptId?: SessionAttemptId;
+    // (undocumented)
     readonly inputId?: SessionInputId;
     // (undocumented)
     readonly messageId?: MessageId;
@@ -265,9 +267,9 @@ interface RuntimeEventScope {
     // (undocumented)
     readonly resourceId?: ResourceId;
     // (undocumented)
-    readonly runId?: SessionRunId;
-    // (undocumented)
     readonly sessionId?: SessionId;
+    // (undocumented)
+    readonly turnId?: SessionTurnId;
 }
 
 // @public (undocumented)
@@ -277,7 +279,10 @@ type RuntimeEventType = KnownRuntimeEventType | (string & {});
 type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
 
 // @public (undocumented)
-type SessionEventType = "session.created" | "session.input.admitted" | "session.run.submitted" | "session.run.claimed" | "session.run.interrupt_requested" | "session.run.interrupted" | "session.run.steer_admitted" | "session.run.steer_rejected" | "session.ephemeral_query.completed" | "session.message.appended" | "session.run.completed" | "session.run.failed" | "session.run.cancelled";
+type SessionAttemptId = string;
+
+// @public (undocumented)
+type SessionEventType = "session.created" | "session.input.admitted" | "session.turn.submitted" | "session.turn.attempt_started" | "session.turn.interrupt_requested" | "session.turn.steer_accepted" | "session.turn.control_applied" | "session.turn.cancel_requested" | "session.turn.interrupted" | "session.turn.recovery_required" | "session.ephemeral_query.completed" | "session.message.appended" | "session.turn.succeeded" | "session.turn.failed" | "session.turn.cancelled";
 
 // @public (undocumented)
 type SessionId = string;
@@ -286,10 +291,7 @@ type SessionId = string;
 type SessionInputId = string;
 
 // @public (undocumented)
-type SessionRunId = string;
-
-// @public (undocumented)
-type UiSurfaceEventType = "ui.surface.emitted";
+type SessionTurnId = string;
 
 // @public (undocumented)
 const WANEX_PROTOCOL_VERSION: 1;

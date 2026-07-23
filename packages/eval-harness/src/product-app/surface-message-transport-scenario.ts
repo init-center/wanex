@@ -16,6 +16,7 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert, isRecord } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import { waitForSurfaceConversation } from "./conversation-helpers.js"
 
 export const productAppSurfaceMessageTransportScenario = createEvalScenario({
   id: "product.app-surface-message-transport-contract",
@@ -63,30 +64,29 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         { commandId: "product.status" },
         { requestId: "eval_message_transport_execute" }
       )
-      const started = await client.startWorkbench(
+      const submitted = await client.submitConversationOperation(
         {
-          text: "eval message transport started"
+          text: "eval message transport submitted",
+          sessionId: "ses_eval_product_app_message_transport_direct"
         },
-        { requestId: "eval_message_transport_start" }
+        { requestId: "eval_message_transport_submit" }
+      )
+      await waitForSurfaceConversation(
+        client,
+        "ses_eval_product_app_message_transport_direct"
       )
       const run = await client.dispatchProductCommand(
         {
-          command: "runAgentTurn",
-          input: {
-            text: "eval message transport turn",
-            sessionId: "ses_eval_product_app_message_transport"
-          }
+          command: "status"
         },
         { requestId: "eval_message_transport_run" }
       )
       const opened = await client.openWorkbench({
-        sessionId: "ses_eval_product_app_message_transport"
+        sessionId: "ses_eval_product_app_message_transport_direct"
       })
-      const continued = await client.continueWorkbench(
-        {
-          text: "eval message transport continued"
-        },
-        { requestId: "eval_message_transport_continue" }
+      const operation = await client.readTrackedConversationOperation(
+        { sessionId: "ses_eval_product_app_message_transport_direct" },
+        { requestId: "eval_message_transport_operation" }
       )
       const events = await client.readSurfaceEvents({ limit: 2 })
       const rejected = await handleProductAppSurfaceTransportRequest(surface, {
@@ -106,13 +106,13 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
       assert(
         descriptor.ok &&
           descriptor.value.kind === "product-app.surface-descriptor" &&
-          descriptor.value.commandCount === 18,
+          descriptor.value.commandCount === 23,
         "message transport should read the surface descriptor"
       )
       assert(
         commandCatalog.ok &&
           commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ),
         "message transport should read the typed product command catalog"
       )
@@ -123,10 +123,10 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         "message transport should execute a typed product command"
       )
       assert(
-        started.ok &&
-          isRecord(started.value) &&
-          started.value.kind === "product-app.workbench.started",
-        "message transport should start workbench"
+        submitted.ok &&
+          isRecord(submitted.value) &&
+          submitted.value.kind === "product-app.conversation-operation.found",
+        "message transport should submit a tracked conversation operation"
       )
       assert(run.ok, "message transport should dispatch product command")
       assert(
@@ -136,10 +136,10 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         "message transport should open workbench"
       )
       assert(
-        continued.ok &&
-          isRecord(continued.value) &&
-          continued.value.kind === "product-app.workbench.continued",
-        "message transport should continue workbench"
+        operation.ok &&
+          isRecord(operation.value) &&
+          operation.value.kind === "product-app.conversation-operation.found",
+        "message transport should read durable conversation progress"
       )
       assert(
         events.ok &&
@@ -183,11 +183,11 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
           ? typedExecution.value.commandId
           : null,
         runOk: run.ok,
-        startedKind:
-          started.ok && isRecord(started.value) ? started.value.kind : null,
+        submittedKind:
+          submitted.ok && isRecord(submitted.value) ? submitted.value.kind : null,
         openedKind: opened.ok && isRecord(opened.value) ? opened.value.kind : null,
-        continuedKind:
-          continued.ok && isRecord(continued.value) ? continued.value.kind : null,
+        operationKind:
+          operation.ok && isRecord(operation.value) ? operation.value.kind : null,
         eventCount: events.ok ? events.events.length : null,
         stateChanged: events.ok
           ? events.events.some(
@@ -202,6 +202,7 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         forbiddenPackages: productApp.contains.forbiddenPackages
       }
     } finally {
+      await surface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

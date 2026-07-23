@@ -24,9 +24,10 @@ export interface ProductAppLocalCliEnvironment {
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_KIND?: string
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_ID?: string
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_MODEL_ID?: string
+  readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_INPUT_MODALITIES?: string
+  readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_OUTPUT_MODALITIES?: string
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_BASE_URL?: string
-  readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_API_KEY?: string
-  readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_API_KEY_ENV?: string
+  readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_SECRET_REF?: string
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_PROFILES_FILE?: string
   readonly WANEX_PRODUCT_APP_LOCAL_PROVIDER_PROFILES_JSON?: string
   readonly WANEX_PRODUCT_APP_LOCAL_ACTIVE_PROVIDER_PROFILE_ID?: string
@@ -36,9 +37,10 @@ export interface ProductAppLocalCliEnvironment {
   readonly WANEX_PROVIDER_KIND?: string
   readonly WANEX_PROVIDER_ID?: string
   readonly WANEX_PROVIDER_MODEL_ID?: string
+  readonly WANEX_PROVIDER_INPUT_MODALITIES?: string
+  readonly WANEX_PROVIDER_OUTPUT_MODALITIES?: string
   readonly WANEX_PROVIDER_BASE_URL?: string
-  readonly WANEX_PROVIDER_API_KEY?: string
-  readonly WANEX_PROVIDER_API_KEY_ENV?: string
+  readonly WANEX_PROVIDER_SECRET_REF?: string
   readonly WANEX_PROVIDER_PROFILES_FILE?: string
   readonly WANEX_PROVIDER_PROFILES_JSON?: string
   readonly WANEX_ACTIVE_PROVIDER_PROFILE_ID?: string
@@ -82,8 +84,10 @@ const knownFlags = new Set([
   "provider-kind",
   "provider-id",
   "provider-model-id",
+  "provider-input-modalities",
+  "provider-output-modalities",
   "provider-base-url",
-  "provider-api-key-env",
+  "provider-secret-ref",
   "provider-profiles-file",
   "provider-profiles-json",
   "active-provider-profile-id"

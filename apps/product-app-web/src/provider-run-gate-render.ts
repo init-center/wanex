@@ -16,7 +16,7 @@ export function renderProductAppWebProviderRunGate(
     `<dt>Status</dt><dd>${escapeHtml(gate.status)}</dd>`,
     `<dt>Reason</dt><dd>${escapeHtml(gate.reason)}</dd>`,
     `<dt>Active</dt><dd>${escapeHtml(gate.activeProfileId)}</dd>`,
-    `<dt>Workbench</dt><dd>${escapeHtml(gate.canSubmitWorkbench ? "enabled" : "blocked")}</dd>`,
+    `<dt>Conversation</dt><dd>${escapeHtml(gate.canSubmitConversation ? "enabled" : "blocked")}</dd>`,
     `</dl>`,
     `</section>`
   ].join("")

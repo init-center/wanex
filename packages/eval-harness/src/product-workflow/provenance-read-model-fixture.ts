@@ -19,7 +19,7 @@ export interface EvalProvenanceRow {
   readonly parentRef?: string
   readonly intent?: SessionInputIntent
   readonly runControlPolicy?: RunControlPolicy
-  readonly expectedRunId?: string
+  readonly expectedTurnId?: string
   readonly metadataKeys: readonly string[]
 }
 
@@ -51,16 +51,16 @@ function projectEvalProvenanceRow(
     inputId: input.id,
     sessionId: input.sessionId,
     kind,
-    label: evalProvenanceLabels[kind],
+    label: evalProvenanceLabels[kind] ?? kind,
     ...(origin?.sourceRef === undefined ? {} : { sourceRef: origin.sourceRef }),
     ...(origin?.parentRef === undefined ? {} : { parentRef: origin.parentRef }),
     ...(input.intent === undefined ? {} : { intent: input.intent }),
     ...(input.runControlPolicy === undefined
       ? {}
       : { runControlPolicy: input.runControlPolicy }),
-    ...(input.expectedRunId === undefined
+    ...(input.expectedTurnId === undefined
       ? {}
-      : { expectedRunId: input.expectedRunId }),
+      : { expectedTurnId: input.expectedTurnId }),
     metadataKeys: Object.keys(origin?.metadata ?? {}).sort()
   }
 }

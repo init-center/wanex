@@ -11,6 +11,7 @@ const runtime = await createWanexRuntime({
   },
   provider: {
     kind: "fake",
+    capabilities: { input: ["text"], output: ["text"] },
     id: "external-minimal-agent",
     modelId: "external-minimal-model",
     responseText: "external minimal agent complete"
@@ -18,14 +19,16 @@ const runtime = await createWanexRuntime({
 })
 
 try {
-  const result = await runtime.run({ text: "run the external minimal agent" })
-  assert.equal(result.jobState, "succeeded")
+  const result = await runtime.run({
+    content: [{ type: "text", text: "run the external minimal agent" }]
+  })
+  assert.equal(result.state, "succeeded")
   assert.equal(result.assistantText, "external minimal agent complete")
   assert.equal(result.workerResults.includes("completed"), true)
   process.stdout.write(`${JSON.stringify({
     id: "minimal-agent",
     ok: true,
-    jobState: result.jobState,
+    state: result.state,
     assistantText: result.assistantText,
     messageCount: result.messageCount
   })}\n`)

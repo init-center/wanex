@@ -7,18 +7,18 @@ import type {
   AppExtensionTrustLevel
 } from "@wanex/extension"
 
-export interface WanexAppShellExtensionOptions {
+export interface WanexAppExtensionOptions {
   readonly snapshot: AppExtensionResolvedSnapshot
 }
 
-export interface WanexAppShellExtensionStatus {
+export interface WanexAppExtensionStatus {
   readonly configured: boolean
   readonly contributionCount: number
   readonly diagnosticCount: number
-  readonly byDomain: WanexAppShellExtensionDomainCounts
+  readonly byDomain: WanexAppExtensionDomainCounts
 }
 
-export interface WanexAppShellExtensionDomainCounts {
+export interface WanexAppExtensionDomainCounts {
   readonly instruction: number
   readonly skill: number
   readonly command: number
@@ -28,19 +28,19 @@ export interface WanexAppShellExtensionDomainCounts {
   readonly lifecycleHook: number
 }
 
-export interface WanexAppShellExtensionReadModel {
+export interface WanexAppExtensionReadModel {
   readonly configured: boolean
-  readonly counts: WanexAppShellExtensionDomainCounts
-  readonly contributions: readonly WanexAppShellExtensionContributionRow[]
-  readonly commands: readonly WanexAppShellCommandContributionRow[]
-  readonly agents: readonly WanexAppShellAgentContributionRow[]
-  readonly tools: readonly WanexAppShellToolContributionRow[]
-  readonly providerCatalog: readonly WanexAppShellProviderCatalogContributionRow[]
-  readonly lifecycleHooks: readonly WanexAppShellLifecycleHookContributionRow[]
-  readonly diagnostics: readonly WanexAppShellExtensionDiagnosticRow[]
+  readonly counts: WanexAppExtensionDomainCounts
+  readonly contributions: readonly WanexAppExtensionContributionRow[]
+  readonly commands: readonly WanexAppCommandContributionRow[]
+  readonly agents: readonly WanexAppAgentContributionRow[]
+  readonly tools: readonly WanexAppToolContributionRow[]
+  readonly providerCatalog: readonly WanexAppProviderCatalogContributionRow[]
+  readonly lifecycleHooks: readonly WanexAppLifecycleHookContributionRow[]
+  readonly diagnostics: readonly WanexAppExtensionDiagnosticRow[]
 }
 
-export interface WanexAppShellExtensionContributionRow {
+export interface WanexAppExtensionContributionRow {
   readonly id: string
   readonly domain: AppExtensionContributionDomain
   readonly sourceKind: AppExtensionSourceKind
@@ -54,8 +54,8 @@ export interface WanexAppShellExtensionContributionRow {
   readonly diagnosticCodes: readonly AppExtensionDiagnosticCode[]
 }
 
-export interface WanexAppShellCommandContributionRow
-  extends WanexAppShellExtensionContributionRow {
+export interface WanexAppCommandContributionRow
+  extends WanexAppExtensionContributionRow {
   readonly domain: "command"
   readonly name: string
   readonly title: string
@@ -64,8 +64,8 @@ export interface WanexAppShellCommandContributionRow
   readonly handlerRef: string
 }
 
-export interface WanexAppShellAgentContributionRow
-  extends WanexAppShellExtensionContributionRow {
+export interface WanexAppAgentContributionRow
+  extends WanexAppExtensionContributionRow {
   readonly domain: "agent"
   readonly name: string
   readonly title?: string
@@ -76,16 +76,16 @@ export interface WanexAppShellAgentContributionRow
   readonly toolRefs: readonly string[]
 }
 
-export interface WanexAppShellToolContributionRow
-  extends WanexAppShellExtensionContributionRow {
+export interface WanexAppToolContributionRow
+  extends WanexAppExtensionContributionRow {
   readonly domain: "tool"
   readonly name: string
   readonly permission?: "read" | "write" | "network" | "external"
   readonly handlerRef: string
 }
 
-export interface WanexAppShellProviderCatalogContributionRow
-  extends WanexAppShellExtensionContributionRow {
+export interface WanexAppProviderCatalogContributionRow
+  extends WanexAppExtensionContributionRow {
   readonly domain: "provider_catalog"
   readonly providerId: string
   readonly modelIds: readonly string[]
@@ -93,14 +93,14 @@ export interface WanexAppShellProviderCatalogContributionRow
   readonly defaultProfileId?: string
 }
 
-export interface WanexAppShellLifecycleHookContributionRow
-  extends WanexAppShellExtensionContributionRow {
+export interface WanexAppLifecycleHookContributionRow
+  extends WanexAppExtensionContributionRow {
   readonly domain: "lifecycle_hook"
   readonly event: string
   readonly handlerRef: string
 }
 
-export interface WanexAppShellExtensionDiagnosticRow {
+export interface WanexAppExtensionDiagnosticRow {
   readonly code: AppExtensionDiagnosticCode
   readonly severity: "info" | "warning" | "error"
   readonly message: string

@@ -10,7 +10,7 @@ use rusqlite::{params, OptionalExtension};
 use uuid::Uuid;
 
 const JOB_SELECT: &str = "SELECT id, kind, state, principal_id, payload_json,
-    scheduled_at, not_before, priority, attempt, max_attempts,
+    scheduled_at, not_before, priority, concurrency_key, attempt, max_attempts,
     retry_policy_json, idempotency_key, budget_grant_id,
     lease_owner, lease_token, lease_expires_at, result_json, last_error_json,
     created_at, updated_at, finished_at
@@ -18,10 +18,15 @@ const JOB_SELECT: &str = "SELECT id, kind, state, principal_id, payload_json,
 
 impl SystemService {
     pub fn enqueue_job(&self, request: &EnqueueJob) -> Result<SchedulerJobRecord> {
+        if request.kind == crate::SchedulerJobKind::SessionTurn {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "session.turn jobs must be created by submit_session_turn".to_string(),
+            ));
+        }
         validate_enqueue(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let job = enqueue_job_tx(&tx, request, now)?;
         tx.commit()?;
         Ok(job)
@@ -37,7 +42,7 @@ impl SystemService {
         let lease_expires_at = now + request.lease_ms;
         let lease_token = format!("joblease_{}", Uuid::now_v7());
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         reset_expired_leases_tx(&tx, now)?;
 
         let candidates = ready_candidates_tx(&tx, now, request.kinds.as_deref())?;
@@ -91,7 +96,7 @@ impl SystemService {
         let now = crate::util::now_ms();
         let lease_expires_at = now + request.lease_ms;
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let updated = tx.execute(
             "UPDATE scheduler_job
              SET lease_expires_at = ?, updated_at = ?
@@ -128,7 +133,7 @@ impl SystemService {
     pub fn complete_job(&self, request: &CompleteJob) -> Result<Option<SchedulerJobRecord>> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let job = complete_job_tx(&tx, request, now)?;
         tx.commit()?;
         Ok(job)
@@ -137,7 +142,7 @@ impl SystemService {
     pub fn fail_job(&self, request: &FailJob) -> Result<Option<SchedulerJobRecord>> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let updated = fail_job_tx(&tx, request, now)?;
         tx.commit()?;
         Ok(updated)
@@ -146,7 +151,7 @@ impl SystemService {
     pub fn cancel_job(&self, request: &CancelJob) -> Result<Option<SchedulerJobRecord>> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_optional_job_tx(&tx, &request.job_id)?;
         let Some(existing) = existing else {
             tx.commit()?;
@@ -274,11 +279,11 @@ pub(crate) fn enqueue_job_tx(
     tx.execute(
         "INSERT INTO scheduler_job (
             id, kind, state, principal_id, payload_json,
-            scheduled_at, not_before, priority, attempt, max_attempts,
+            scheduled_at, not_before, priority, concurrency_key, attempt, max_attempts,
             retry_policy_json, idempotency_key, budget_grant_id,
             lease_owner, lease_token, lease_expires_at, result_json, last_error_json,
             created_at, updated_at, finished_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?,
                    NULL, NULL, NULL, NULL, NULL, ?, ?, NULL)",
         params![
             id,
@@ -289,6 +294,7 @@ pub(crate) fn enqueue_job_tx(
             scheduled_at,
             request.not_before,
             priority,
+            request.concurrency_key,
             max_attempts,
             serde_json::to_string(&retry_policy)?,
             request.idempotency_key,
@@ -304,7 +310,8 @@ pub(crate) fn enqueue_job_tx(
         &serde_json::json!({
             "jobId": id,
             "kind": request.kind.as_str(),
-            "state": state
+            "state": state,
+            "concurrencyKey": request.concurrency_key
         }),
         now,
     )?;
@@ -381,6 +388,9 @@ pub(crate) fn fail_job_tx(
     {
         return Ok(None);
     }
+    if job.kind == "session.turn" {
+        return crate::turns::fail_session_turn_job_tx(tx, request, now);
+    }
 
     let can_retry =
         job.attempt < job.max_attempts && job.retry_policy.strategy != RetryStrategy::None;
@@ -454,6 +464,106 @@ pub(crate) fn fail_job_tx(
     get_optional_job_tx(tx, &request.job_id)
 }
 
+pub(crate) struct SessionTurnJobSettlement<'a> {
+    pub job_id: &'a str,
+    pub worker_id: &'a str,
+    pub lease_token: &'a str,
+    pub state: &'a str,
+    pub result: Option<&'a serde_json::Value>,
+    pub error: Option<&'a serde_json::Value>,
+}
+
+pub(crate) fn settle_job_without_retry_tx(
+    tx: &rusqlite::Transaction<'_>,
+    settlement: SessionTurnJobSettlement<'_>,
+    now: i64,
+) -> Result<SchedulerJobRecord> {
+    if !matches!(settlement.state, "succeeded" | "failed" | "cancelled") {
+        return Err(SystemServiceError::Invariant(
+            "invalid terminal scheduler job state".to_string(),
+        ));
+    }
+    let existing = get_job_tx(tx, settlement.job_id)?;
+    if is_terminal(&existing.state) {
+        return Ok(existing);
+    }
+    let updated = tx.execute(
+        "UPDATE scheduler_job
+         SET state = ?, lease_owner = NULL, lease_token = NULL,
+             lease_expires_at = NULL, result_json = ?, last_error_json = ?,
+             updated_at = ?, finished_at = ?
+         WHERE id = ? AND kind = 'session.turn' AND state = 'running'
+           AND lease_owner = ? AND lease_token = ? AND lease_expires_at > ?",
+        params![
+            settlement.state,
+            settlement.result.map(serde_json::to_string).transpose()?,
+            settlement.error.map(serde_json::to_string).transpose()?,
+            now,
+            now,
+            settlement.job_id,
+            settlement.worker_id,
+            settlement.lease_token,
+            now
+        ],
+    )?;
+    if updated == 0 {
+        return Err(SystemServiceError::Invariant(
+            "session turn settlement lost its scheduler lease".to_string(),
+        ));
+    }
+    append_scheduler_event_tx(
+        tx,
+        match settlement.state {
+            "succeeded" => "scheduler.job.succeeded",
+            "cancelled" => "scheduler.job.cancelled",
+            _ => "scheduler.job.failed",
+        },
+        settlement.job_id,
+        &serde_json::json!({
+            "jobId": settlement.job_id,
+            "workerId": settlement.worker_id,
+            "state": settlement.state
+        }),
+        now,
+    )?;
+    if let Some(grant_id) = &existing.budget_grant_id {
+        commit_budget_grant_tx(tx, grant_id, now)?;
+    }
+    get_job_tx(tx, settlement.job_id)
+}
+
+pub(crate) fn cancel_unstarted_job_tx(
+    tx: &rusqlite::Transaction<'_>,
+    job_id: &str,
+    reason: &str,
+    now: i64,
+) -> Result<SchedulerJobRecord> {
+    let existing = get_job_tx(tx, job_id)?;
+    if is_terminal(&existing.state) {
+        return Ok(existing);
+    }
+    let error = serde_json::json!({"type": "cancelled", "reason": reason});
+    let updated = tx.execute(
+        "UPDATE scheduler_job
+         SET state = 'cancelled', lease_owner = NULL, lease_token = NULL,
+             lease_expires_at = NULL, result_json = NULL, last_error_json = ?,
+             updated_at = ?, finished_at = ?
+         WHERE id = ? AND kind = 'session.turn'
+           AND state IN ('pending', 'ready', 'retry_scheduled', 'running')",
+        params![serde_json::to_string(&error)?, now, now, job_id],
+    )?;
+    if updated == 0 {
+        return Err(SystemServiceError::Invariant(
+            "queued session turn job could not be cancelled".to_string(),
+        ));
+    }
+    append_scheduler_event_tx(tx, "scheduler.job.cancelled", job_id, &error, now)?;
+    if let Some(grant_id) = &existing.budget_grant_id {
+        commit_budget_grant_tx(tx, grant_id, now)?;
+    }
+    get_job_tx(tx, job_id)
+}
+
 fn validate_enqueue(request: &EnqueueJob) -> Result<()> {
     if request.principal_id.is_empty() {
         return Err(SystemServiceError::InvalidJobRequest(
@@ -485,16 +595,57 @@ fn is_terminal(state: &str) -> bool {
 }
 
 fn reset_expired_leases_tx(tx: &rusqlite::Transaction<'_>, now: i64) -> Result<()> {
-    tx.execute(
-        "UPDATE scheduler_job
-         SET state = 'ready',
-             lease_owner = NULL,
-             lease_token = NULL,
-             lease_expires_at = NULL,
-             updated_at = ?
-         WHERE state = 'running' AND lease_expires_at <= ?",
-        params![now, now],
-    )?;
+    let expired = {
+        let mut stmt = tx.prepare(&format!(
+            "{JOB_SELECT} WHERE state = 'running' AND lease_expires_at <= ?"
+        ))?;
+        let rows = stmt.query_map(params![now], row_to_scheduler_job)?;
+        collect_jobs(rows)?
+    };
+    for job in expired {
+        if job.kind != "session.turn" {
+            tx.execute(
+                "UPDATE scheduler_job
+                 SET state = 'ready', lease_owner = NULL, lease_token = NULL,
+                     lease_expires_at = NULL, updated_at = ?
+                 WHERE id = ? AND state = 'running'",
+                params![now, job.id],
+            )?;
+            continue;
+        }
+
+        let promoted_attempt: Option<String> = tx
+            .query_row(
+                "SELECT id
+                 FROM session_attempt
+                 WHERE job_id = ? AND state = 'running'",
+                params![job.id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        if promoted_attempt.is_some() {
+            crate::turns::reconcile_expired_session_turn_job_tx(tx, &job, now)?;
+        } else {
+            tx.execute(
+                "UPDATE scheduler_job
+                 SET state = 'ready', attempt = MAX(attempt - 1, 0),
+                     lease_owner = NULL, lease_token = NULL, lease_expires_at = NULL,
+                     updated_at = ?
+                 WHERE id = ? AND state = 'running'",
+                params![now, job.id],
+            )?;
+            append_scheduler_event_tx(
+                tx,
+                "scheduler.job.released_before_attempt",
+                &job.id,
+                &serde_json::json!({
+                    "jobId": job.id,
+                    "reason": "lease_expired_before_turn_promotion"
+                }),
+                now,
+            )?;
+        }
+    }
     Ok(())
 }
 
@@ -503,42 +654,61 @@ fn ready_candidates_tx(
     now: i64,
     kinds: Option<&[crate::SchedulerJobKind]>,
 ) -> Result<Vec<String>> {
-    let mut candidates = Vec::new();
-    if let Some(kinds) = kinds {
-        for kind in kinds {
-            let mut stmt = tx.prepare(
-                "SELECT id FROM scheduler_job
-                 WHERE state IN ('pending', 'ready', 'retry_scheduled')
-                   AND COALESCE(not_before, scheduled_at) <= ?
-                   AND kind = ?
-                 ORDER BY priority DESC, scheduled_at ASC, id ASC
-                 LIMIT 1",
-            )?;
-            let rows = stmt.query_map(params![now, kind.as_str()], |row| row.get(0))?;
-            for row in rows {
-                candidates.push(row?);
-            }
-        }
-        candidates.sort();
-        candidates.truncate(1);
-        return Ok(candidates);
-    }
-
     let mut stmt = tx.prepare(
-        "SELECT id FROM scheduler_job
-         WHERE state IN ('pending', 'ready', 'retry_scheduled')
-           AND COALESCE(not_before, scheduled_at) <= ?
-         ORDER BY priority DESC, scheduled_at ASC, id ASC
-         LIMIT 1",
+        "SELECT candidate.id, candidate.kind
+         FROM scheduler_job candidate
+         WHERE candidate.state IN ('pending', 'ready', 'retry_scheduled')
+           AND COALESCE(candidate.not_before, candidate.scheduled_at) <= ?
+           AND (
+             candidate.concurrency_key IS NULL
+             OR NOT EXISTS (
+               SELECT 1 FROM scheduler_job active
+               WHERE active.concurrency_key = candidate.concurrency_key
+                 AND active.id != candidate.id
+                 AND active.state = 'running'
+             )
+           )
+           AND (
+             candidate.kind != 'session.turn'
+             OR NOT EXISTS (
+               SELECT 1 FROM scheduler_job earlier
+               WHERE earlier.concurrency_key = candidate.concurrency_key
+                 AND earlier.kind = 'session.turn'
+                 AND earlier.id != candidate.id
+                 AND earlier.state NOT IN ('succeeded', 'failed', 'cancelled')
+                 AND (
+                   earlier.created_at < candidate.created_at
+                   OR (earlier.created_at = candidate.created_at AND earlier.id < candidate.id)
+                 )
+             )
+           )
+         ORDER BY candidate.priority DESC, candidate.scheduled_at ASC, candidate.id ASC
+         LIMIT 128",
     )?;
-    let rows = stmt.query_map(params![now], |row| row.get(0))?;
+    let rows = stmt.query_map(params![now], |row| {
+        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+    })?;
+    let allowed = kinds.map(|values| {
+        values
+            .iter()
+            .map(|kind| kind.as_str())
+            .collect::<std::collections::HashSet<_>>()
+    });
+    let mut candidates = Vec::new();
     for row in rows {
-        candidates.push(row?);
+        let (id, kind) = row?;
+        if allowed
+            .as_ref()
+            .is_none_or(|allowed| allowed.contains(kind.as_str()))
+        {
+            candidates.push(id);
+            break;
+        }
     }
     Ok(candidates)
 }
 
-fn append_scheduler_event_tx(
+pub(crate) fn append_scheduler_event_tx(
     tx: &rusqlite::Transaction<'_>,
     event_type: &str,
     job_id: &str,
@@ -581,7 +751,7 @@ fn find_job_by_idempotency_tx(
     .map_err(Into::into)
 }
 
-fn get_optional_job_tx(
+pub(crate) fn get_optional_job_tx(
     tx: &rusqlite::Transaction<'_>,
     job_id: &str,
 ) -> Result<Option<SchedulerJobRecord>> {
@@ -594,7 +764,10 @@ fn get_optional_job_tx(
     .map_err(Into::into)
 }
 
-fn get_job_tx(tx: &rusqlite::Transaction<'_>, job_id: &str) -> Result<SchedulerJobRecord> {
+pub(crate) fn get_job_tx(
+    tx: &rusqlite::Transaction<'_>,
+    job_id: &str,
+) -> Result<SchedulerJobRecord> {
     get_optional_job_tx(tx, job_id)?
         .ok_or_else(|| SystemServiceError::Invariant(format!("scheduler job not found: {job_id}")))
 }

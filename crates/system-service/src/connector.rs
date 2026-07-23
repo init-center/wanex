@@ -46,7 +46,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
@@ -164,7 +164,7 @@ impl SystemService {
             None
         };
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = get_connector_registration_by_connector_tx(&tx, &request.connector_id)?
             .ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -216,7 +216,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         require_active_connector_tx(&tx, &request.connector_id)?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
@@ -307,7 +307,7 @@ impl SystemService {
         validate_non_empty("credential_id", &request.credential_id)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing =
             get_connector_credential_by_id_tx(&tx, &request.credential_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -360,7 +360,7 @@ impl SystemService {
         let lease_expires_at = now + request.lease_ms;
         let state = request.state.as_deref().unwrap_or("connecting");
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         if let Some(idempotency_key) = &request.idempotency_key {
             let existing = tx
                 .query_row(
@@ -455,7 +455,7 @@ impl SystemService {
         let lease_expires_at = now + request.lease_ms;
         let state = request.state.as_deref();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = require_owned_connector_session_tx(
             &tx,
             &request.session_id,
@@ -500,7 +500,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing = require_owned_connector_session_tx(
             &tx,
             &request.session_id,

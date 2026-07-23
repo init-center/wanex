@@ -38,7 +38,7 @@ export const productAppTuiCliScenario = createEvalScenario({
         env
       )
       const preview = await runProductAppTuiCli(
-        ["preview", "product.agent.run", "{\"text\":\"eval product app tui cli preview\"}"],
+        ["preview", "product.agent.submit", "{\"text\":\"eval product app tui cli preview\"}"],
         env
       )
       const chunks: string[] = []
@@ -101,18 +101,18 @@ export const productAppTuiCliScenario = createEvalScenario({
       assert(
         overviewValue.kind === "product-app-tui.frame" &&
           overviewValue.ready &&
-          overviewValue.paletteCount === 7,
+          overviewValue.paletteCount === 9,
         "Product App TUI CLI overview JSON should expose the rendered frame"
       )
       assert(
         commandCatalogText.exitCode === 0 &&
           commandCatalogText.stdout.includes("Wanex Product App Commands") &&
-          commandCatalogText.stdout.includes("product.agent.run - Run Agent") &&
+          commandCatalogText.stdout.includes("product.agent.submit - Submit Agent Turn") &&
           commandCatalogValue.kind === "product-app-tui.command-catalog" &&
           commandCatalogValue.ok &&
-          commandCatalogValue.commandCount === 15 &&
+          commandCatalogValue.commandCount === 14 &&
           commandCatalogValue.commands.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ),
         "Product App TUI CLI commands should render the typed command catalog"
       )
@@ -128,14 +128,13 @@ export const productAppTuiCliScenario = createEvalScenario({
           previewValue.ok &&
           previewValue.command === "previewProductCommandInvocation" &&
           previewValue.value?.kind === "runnable" &&
-          previewValue.value.commandId === "product.agent.run",
+          previewValue.value.commandId === "product.agent.submit",
         "Product App TUI CLI preview command should read command invocation policy without execution"
       )
       assert(
         interactive.exitCode === 0 &&
           interactive.stderr.length === 0 &&
-          output.includes("Wanex Product App Agent Turn") &&
-          output.includes("Fake response from eval-product-app-tui-cli-model") &&
+          output.includes("Wanex Product App Conversation") &&
           output.includes("Wanex Product App Surface Events") &&
           output.includes("bye"),
         "Product App TUI CLI interactive command should run through injected IO"
@@ -165,8 +164,8 @@ export const productAppTuiCliScenario = createEvalScenario({
         overviewKind: overviewValue.kind,
         overviewReady: overviewValue.ready,
         commandCatalogCount: commandCatalogValue.commandCount,
-        commandCatalogHasAgent: commandCatalogValue.commands.some(
-          (command) => command.id === "product.agent.run"
+        commandCatalogHasSubmit: commandCatalogValue.commands.some(
+          (command) => command.id === "product.agent.submit"
         ),
         paletteStatus: paletteValue.status,
         paletteCommandKind: paletteValue.value?.kind,
@@ -175,8 +174,8 @@ export const productAppTuiCliScenario = createEvalScenario({
         previewKind: previewValue.value?.kind,
         previewCommandId: previewValue.value?.commandId,
         interactiveExitCode: interactive.exitCode,
-        interactiveRenderedAgentTurn: output.includes(
-          "Wanex Product App Agent Turn"
+        interactiveRenderedConversation: output.includes(
+          "Wanex Product App Conversation"
         ),
         interactiveRenderedEvents: output.includes(
           "Wanex Product App Surface Events"

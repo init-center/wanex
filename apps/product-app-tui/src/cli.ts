@@ -1,6 +1,7 @@
 import {
   createProductAppShell,
-  createProductAppSurfaceAdapter
+  createProductAppSurfaceAdapter,
+  type ProductAppSurfaceAdapter
 } from "@wanex/product-app"
 import { productAppTuiCliAppOptions } from "./cli-app-options.js"
 import { parseProductAppTuiCliCommand } from "./cli-command-parser.js"
@@ -10,6 +11,7 @@ import { renderProductAppTuiCommandCatalog } from "./command-catalog-presenter.j
 import { renderProductAppTuiEvents } from "./events-presenter.js"
 import { renderProductAppTuiExecutionActivity } from "./execution-activity-presenter.js"
 import { createProductAppTuiHostSurfaceClient } from "./host-surface-client.js"
+import { createProductAppTuiAttachmentHost } from "./attachment-host.js"
 import { renderProductAppTuiFrame } from "./presenter.js"
 import { createProductAppTuiSurface } from "./surface.js"
 import type {
@@ -35,10 +37,12 @@ export async function main(
   try {
     const command = parseProductAppTuiCliCommand(argv)
     const app = await createProductAppShell(productAppTuiCliAppOptions(env))
+    let adapter: ProductAppSurfaceAdapter | undefined
     try {
-      const adapter = createProductAppSurfaceAdapter(app)
+      adapter = createProductAppSurfaceAdapter(app)
       const client = createProductAppTuiHostSurfaceClient({ surface: adapter })
       const surface = await createProductAppTuiSurface({ client })
+      const attachmentHost = createProductAppTuiAttachmentHost(app)
       switch (command.name) {
         case "overview": {
           const value = renderProductAppTuiFrame(surface.snapshot())
@@ -104,10 +108,18 @@ export async function main(
           )
         }
         case "interactive":
-          await runProductAppTuiCliCommand(command, surface, io)
+          await runProductAppTuiCliCommand(
+            command,
+            surface,
+            io,
+            attachmentHost
+          )
           return okEmpty()
       }
+      const unreachable: never = command
+      return fail(new Error(`unsupported Product App TUI command: ${String(unreachable)}`))
     } finally {
+      await adapter?.dispose()
       await app.dispose()
     }
   } catch (error) {

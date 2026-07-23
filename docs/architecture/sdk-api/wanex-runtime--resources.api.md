@@ -4,7 +4,19 @@
 
 ```ts
 
+import { CoreStore } from '@wanex/storage';
 import { RuntimeStore } from '@wanex/storage';
+
+// @public (undocumented)
+interface AdmittedUserMessage {
+    // (undocumented)
+    readonly content: readonly MessagePart[];
+    // (undocumented)
+    readonly resources: readonly ResourceInputEvidence[];
+}
+
+// @public (undocumented)
+export function admitUserMessage(storage: Pick<CoreStore, "getResource">, profile: ProviderProfile, input: readonly UserMessageInputPart[]): Promise<AdmittedUserMessage>;
 
 // @public (undocumented)
 export interface ArtifactBundle {
@@ -15,6 +27,9 @@ export interface ArtifactBundle {
     // (undocumented)
     readonly resources: readonly ResourceUiDescriptor[];
 }
+
+// @public (undocumented)
+export function assertTurnResourcesMatchBinding(content: readonly MessagePart[], resources: readonly ResourceInputEvidence[]): void;
 
 // @public (undocumented)
 export interface ContextResourceSummary {
@@ -65,6 +80,9 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
+type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
+
+// @public (undocumented)
 interface MessagePartBase {
     // (undocumented)
     readonly id: MessagePartId;
@@ -79,6 +97,26 @@ type MessagePartId = string;
 
 // @public (undocumented)
 type MessagePartVisibility = "user" | "assistant" | "internal" | "provider_replay_only";
+
+// @public (undocumented)
+interface PreparedProviderReplayMessage {
+    // (undocumented)
+    readonly content: readonly PreparedProviderReplayPart[];
+    // (undocumented)
+    readonly role: ProviderReplayMessage["role"];
+}
+
+// @public (undocumented)
+type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart> | PreparedProviderResourcePart;
+
+// @public (undocumented)
+interface PreparedProviderResourcePart extends ResourceMessagePart {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+}
+
+// @public (undocumented)
+export function prepareProviderReplayResources(storage: Pick<CoreStore, "getResource" | "readResourceContent">, capabilities: ProviderCapabilities, messages: readonly ProviderReplayMessage[]): Promise<PreparedProviderReplayMessage[]>;
 
 // @public (undocumented)
 export interface ProviderArtifactBase {
@@ -124,6 +162,14 @@ export interface ProviderBase64ArtifactOutput extends ProviderArtifactBase {
 }
 
 // @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
 export interface ProviderFileArtifactOutput extends ProviderArtifactBase {
     // (undocumented)
     readonly fileId: string;
@@ -142,7 +188,36 @@ export interface ProviderInlineBytesArtifactOutput extends ProviderArtifactBase 
 }
 
 // @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
 export function providerOutputToIngestRequest(output: ProviderArtifactOutput): IngestResourceRequest;
+
+// @public (undocumented)
+interface ProviderProfile {
+    // (undocumented)
+    readonly anthropicVersion?: string;
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly capabilities: ProviderCapabilities;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: ProviderProfileKind;
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
 
 // @public (undocumented)
 export interface ProviderRemoteUrlArtifactOutput extends ProviderArtifactBase {
@@ -154,6 +229,14 @@ export interface ProviderRemoteUrlArtifactOutput extends ProviderArtifactBase {
     readonly placeholderText?: string;
     // (undocumented)
     readonly url: string;
+}
+
+// @public (undocumented)
+interface ProviderReplayMessage {
+    // (undocumented)
+    readonly content: readonly MessagePart[];
+    // (undocumented)
+    readonly role: "user" | "assistant" | "tool" | "system";
 }
 
 // @public (undocumented)
@@ -220,17 +303,57 @@ export interface ProviderResourceInputRemoteUrlSource extends ProviderResourceIn
 export type ProviderResourceInputSource = ProviderResourceInputProviderFileSource | ProviderResourceInputRemoteUrlSource | ProviderResourceInputAsyncOperationSource | ProviderResourceInputLocalResourceSource;
 
 // @public (undocumented)
+interface ProviderState {
+    // (undocumented)
+    readonly modelId: string;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly replayPolicy: "required" | "optional" | "forbidden";
+    // (undocumented)
+    readonly stateKind: "reasoning" | "thinking" | "tool_replay" | "response_id" | "opaque";
+}
+
+// @public (undocumented)
+export function readExactResourceBytes(storage: Pick<CoreStore, "getResource" | "readResourceContent">, evidence: ResourceInputEvidence): Promise<Uint8Array>;
+
+// @public (undocumented)
+interface ReasoningMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly providerState?: ProviderState;
+    // (undocumented)
+    readonly text?: string;
+    // (undocumented)
+    readonly type: "reasoning";
+}
+
+// @public (undocumented)
 type ResourceId = string;
+
+// @public (undocumented)
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+export function resourceInputModality(resource: Pick<ResourceRecord, "kind" | "mediaType"> | ResourceInputEvidence): ProviderInputModality;
 
 // @public (undocumented)
 type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 
 // @public (undocumented)
-interface ResourceMessagePart extends MessagePartBase {
-    // (undocumented)
-    readonly mediaType?: string;
-    // (undocumented)
-    readonly resourceId: ResourceId;
+interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
     readonly type: "resource";
 }
@@ -346,6 +469,57 @@ export function sha256Bytes(bytes: Uint8Array): string;
 
 // @public (undocumented)
 export function stableResourceLogicalPath(kind: ResourceKind, bytes: Uint8Array, mediaType?: string): string;
+
+// @public (undocumented)
+interface TextMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
+interface ToolCallMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly input: JsonValue;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly toolName: string;
+    // (undocumented)
+    readonly type: "tool_call";
+}
+
+// @public (undocumented)
+interface ToolResultMessagePart extends MessagePartBase {
+    // (undocumented)
+    readonly isError: boolean;
+    // (undocumented)
+    readonly result: JsonValue;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly type: "tool_result";
+}
+
+// @public (undocumented)
+type UserMessageInputPart = UserTextMessageInputPart | UserResourceMessageInputPart;
+
+// @public (undocumented)
+interface UserResourceMessageInputPart {
+    // (undocumented)
+    readonly resourceId: ResourceInputEvidence["resourceId"];
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+interface UserTextMessageInputPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
 
 // @public (undocumented)
 export const WANEX_RUNTIME_RESOURCES: "wanex-runtime-resources";

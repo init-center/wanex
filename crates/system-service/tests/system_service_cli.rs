@@ -1,4 +1,5 @@
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
@@ -39,7 +40,8 @@ fn cli_enforces_storage_rpc_protocol_before_opening_store() {
             "storage.team",
             "storage.plugin",
             "storage.connector",
-            "storage.channel"
+            "storage.channel",
+            "storage.media_generation"
         ])
     );
     assert!(describe["value"]["schema_sha256"]
@@ -96,7 +98,8 @@ fn cli_enforces_storage_rpc_protocol_before_opening_store() {
                         "type": "config.updated",
                         "scope": {
                             "session_id": null,
-                            "run_id": null,
+                            "turn_id": null,
+                            "attempt_id": null,
                             "input_id": null,
                             "message_id": null,
                             "resource_id": null,
@@ -170,7 +173,8 @@ fn cli_appends_and_queries_events() {
                 "type": "session.input.admitted",
                 "scope": {
                     "session_id": "ses_cli_1",
-                    "run_id": null,
+                    "turn_id": null,
+                    "attempt_id": null,
                     "input_id": "inp_cli_1",
                     "message_id": null,
                     "resource_id": null,
@@ -228,7 +232,7 @@ fn cli_writes_file_and_reports_doctor() {
 }
 
 #[test]
-fn cli_runs_session_admission_and_claim_flow() {
+fn cli_runs_durable_turn_flow() {
     let dir = tempdir().unwrap();
 
     let session = run_cli(
@@ -243,45 +247,87 @@ fn cli_runs_session_admission_and_claim_flow() {
     assert_eq!(session["ok"], true);
     assert_eq!(session["value"]["id"], "ses_cli_phase2");
 
-    let admitted = run_cli(
+    let submitted = run_cli(
         dir.path().to_str().unwrap(),
         json!({
-            "command": "admit-session-input",
-            "id": "inp_cli_phase2",
-            "session_id": "ses_cli_phase2",
-            "principal_id": "user_cli",
-            "idempotency_key": "idem_cli_phase2",
-            "input_type": "user",
-            "content": [{ "type": "text", "id": "part_cli", "text": "hello" }],
-            "origin": null,
-            "intent": null
+            "command": "submit-session-turn",
+            "request": {
+                "id": "inp_cli_phase2",
+                "turn_id": "turn_cli_phase2",
+                "session_id": "ses_cli_phase2",
+                "principal_id": "user_cli",
+                "idempotency_key": "idem_cli_phase2",
+                "input_type": "user",
+                "content": [{ "type": "text", "id": "part_cli", "text": "hello" }],
+                "origin": null,
+                "intent": null,
+                "run_control_policy": null,
+                "expected_turn_id": null,
+                "job_id": "job_cli_phase2",
+                "job_idempotency_key": "job:idem_cli_phase2",
+                "execution_binding": test_execution_binding("cli_phase2"),
+                "max_steps": 4,
+                "parent_turn_id": null,
+                "regenerates_turn_id": null,
+                "scheduled_at": null,
+                "not_before": null,
+                "priority": null,
+                "budget_grant_id": null
+            }
         }),
     );
-    assert_eq!(admitted["ok"], true);
-    assert_eq!(admitted["value"]["input_id"], "inp_cli_phase2");
+    assert_eq!(submitted["ok"], true);
+    assert_eq!(
+        submitted["value"]["admission"]["input_id"],
+        "inp_cli_phase2"
+    );
+    assert_eq!(submitted["value"]["turn"]["id"], "turn_cli_phase2");
+    assert_eq!(submitted["value"]["job"]["id"], "job_cli_phase2");
 
     let claim = run_cli(
         dir.path().to_str().unwrap(),
         json!({
-            "command": "claim-runner",
-            "session_id": "ses_cli_phase2",
-            "runner_id": "runner_cli",
-            "lease_ms": 60000
+            "command": "claim-job",
+            "request": {
+                "worker_id": "worker_cli",
+                "lease_ms": 60000,
+                "kinds": ["session.turn"]
+            }
         }),
     );
     assert_eq!(claim["ok"], true);
-    assert_eq!(claim["value"]["input_id"], "inp_cli_phase2");
+    assert_eq!(claim["value"]["id"], "job_cli_phase2");
+
+    let started = run_cli(
+        dir.path().to_str().unwrap(),
+        json!({
+            "command": "start-session-turn-attempt",
+            "request": {
+                "session_id": "ses_cli_phase2",
+                "turn_id": "turn_cli_phase2",
+                "input_id": "inp_cli_phase2",
+                "job_id": "job_cli_phase2",
+                "worker_id": "worker_cli",
+                "lease_token": claim["value"]["lease_token"]
+            }
+        }),
+    );
+    assert_eq!(started["ok"], true);
+    assert_eq!(started["value"]["turn"]["state"], "running");
+    assert_eq!(started["value"]["input_message"]["role"], "user");
 
     let appended = run_cli(
         dir.path().to_str().unwrap(),
         json!({
             "command": "append-session-message",
             "session_id": "ses_cli_phase2",
-            "run_id": claim["value"]["run_id"],
-            "input_id": claim["value"]["input_id"],
-            "runner_id": claim["value"]["runner_id"],
+            "turn_id": "turn_cli_phase2",
+            "attempt_id": started["value"]["attempt"]["id"],
+            "input_id": "inp_cli_phase2",
+            "job_id": "job_cli_phase2",
+            "worker_id": "worker_cli",
             "lease_token": claim["value"]["lease_token"],
-            "idempotency_key": "message:run_cli_phase2:tool",
+            "idempotency_key": "message:turn_cli_phase2:tool",
             "role": "tool",
             "content": [{
                 "type": "tool_result",
@@ -289,26 +335,38 @@ fn cli_runs_session_admission_and_claim_flow() {
                 "toolCallId": "call_cli",
                 "result": { "ok": true },
                 "isError": false
-            }]
+            }],
+            "provider_state": null
         }),
     );
     assert_eq!(appended["ok"], true);
     assert_eq!(appended["value"]["role"], "tool");
 
-    let failed = run_cli(
+    let settled = run_cli(
         dir.path().to_str().unwrap(),
         json!({
-            "command": "fail-run",
-            "session_id": "ses_cli_phase2",
-            "run_id": claim["value"]["run_id"],
-            "input_id": claim["value"]["input_id"],
-            "runner_id": claim["value"]["runner_id"],
-            "lease_token": claim["value"]["lease_token"],
-            "error": { "message": "cli failure" }
+            "command": "settle-session-turn",
+            "request": {
+                "session_id": "ses_cli_phase2",
+                "turn_id": "turn_cli_phase2",
+                "attempt_id": started["value"]["attempt"]["id"],
+                "input_id": "inp_cli_phase2",
+                "job_id": "job_cli_phase2",
+                "worker_id": "worker_cli",
+                "lease_token": claim["value"]["lease_token"],
+                "outcome": "failed",
+                "provider_invocation_id": null,
+                "assistant_message": null,
+                "provider_state": null,
+                "result": null,
+                "error": { "message": "cli failure" },
+                "reason": "cli failure"
+            }
         }),
     );
-    assert_eq!(failed["ok"], true);
-    assert_eq!(failed["value"], true);
+    assert_eq!(settled["ok"], true);
+    assert_eq!(settled["value"]["turn"]["state"], "failed");
+    assert_eq!(settled["value"]["job"]["state"], "failed");
 }
 
 #[test]
@@ -373,6 +431,7 @@ fn cli_serve_process_handles_multiple_requests() {
                 "scheduled_at": null,
                 "not_before": null,
                 "priority": 1,
+                "concurrency_key": null,
                 "max_attempts": 1,
                 "retry_policy": null,
                 "idempotency_key": "idem_job_serve",
@@ -474,4 +533,44 @@ fn wire_request(request: Value) -> Value {
         "request_id": "rpc_cli_test",
         "request": request,
     })
+}
+
+fn test_execution_binding(label: &str) -> Value {
+    let profile = json!({
+        "id": format!("profile_{label}"),
+        "kind": "fake",
+        "providerId": "fake",
+        "modelId": format!("model_{label}"),
+        "capabilities": { "input": ["text"], "output": ["text"] }
+    });
+    let profile_digest = sha256_json(&profile);
+    let mut binding = json!({
+        "createdAt": 1,
+        "provider": {
+            "profileId": format!("profile_{label}"),
+            "profileDigest": profile_digest,
+            "adapterId": "fake",
+            "providerId": "fake",
+            "modelId": format!("model_{label}"),
+            "capabilities": { "input": ["text"], "output": ["text"] }
+        },
+        "resources": [],
+        "recovery": {
+            "providerMaxAttempts": 2,
+            "idempotentToolMaxAttempts": 2
+        }
+    });
+    let digest = sha256_json(&binding);
+    binding
+        .as_object_mut()
+        .unwrap()
+        .insert("digest".to_string(), json!(digest));
+    binding
+}
+
+fn sha256_json(value: &Value) -> String {
+    Sha256::digest(serde_json::to_string(value).unwrap().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }

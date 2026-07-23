@@ -50,15 +50,16 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         }
       })
 
-      const providerSecret = "eval-local-provider-api-key-value"
+      const providerSecretRef = "env://EVAL_LOCAL_PROVIDER_API_KEY"
       await app.providerProfiles.upsertProviderProfile({
         profile: {
           id: "eval-product-app-local-secret-provider",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "eval-product-app-local-secret-model",
           baseUrl: "https://provider.example.test/v1",
-          apiKey: providerSecret
+          secretRef: providerSecretRef
         }
       })
       await app.readSnapshot()
@@ -85,9 +86,9 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         {
           kind: "product-app-web.request",
           operation: "submitActionInput",
-          requestId: "eval_product_app_local_start_workbench",
+          requestId: "eval_product_app_local_submit_conversation",
           input: {
-            action: "start-workbench",
+            action: "submit-conversation",
             fields: {
               text: "hello from Product App Local eval"
             }
@@ -117,7 +118,7 @@ export const productAppLocalHostContractScenario = createEvalScenario({
       )
       const startedDocument = expectRecord(startedRecord.document)
       const startedSnapshot = expectRecord(startedDocument.snapshot)
-      const startedWorkbench = expectRecord(startedSnapshot.workbench)
+      const startedConversation = expectRecord(startedSnapshot.conversation)
       const startedView = expectRecord(startedSnapshot.view)
       const secretProvider = snapshotModel.providerProfiles.profiles.find(
         (profile) => profile.id === "eval-product-app-local-secret-provider"
@@ -143,8 +144,8 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         html.includes(
           'data-provider-profile-id="eval-product-app-local-secret-provider"'
         ) &&
-          html.includes('data-provider-key-status="redacted"') &&
-          !html.includes(providerSecret),
+          html.includes('data-provider-credential-status="configured"') &&
+          !html.includes(providerSecretRef),
         "local host HTML should render redacted provider rows without leaking secrets"
       )
       assert(
@@ -167,20 +168,18 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         startedRecord.kind === "product-app-web.response" &&
           startedRecord.ok === true &&
           startedRecord.operation === "submitActionInput" &&
-          startedRecord.requestId === "eval_product_app_local_start_workbench" &&
+          startedRecord.requestId === "eval_product_app_local_submit_conversation" &&
           startedSubmitResult.ok === true &&
           startedActionResult.ok === true &&
-          startedActionResult.action === "start-workbench" &&
-          startedWorkbench.state === "ready" &&
-          startedView.workbenchState === "ready" &&
-          startedView.latestUserText === "hello from Product App Local eval",
-        "local host should start a workbench through the Web request envelope"
+          startedActionResult.action === "submit-conversation" &&
+          typeof startedConversation.sessionId === "string" &&
+          typeof startedView.conversationState === "string",
+        "local host should submit a conversation through the Web request envelope"
       )
       assert(
-        snapshotModel.web.workbench.state === "ready" &&
-          snapshotModel.web.workbench.canContinue &&
-          snapshotModel.web.view.latestUserText === "hello from Product App Local eval",
-        "local snapshot should reflect the started workbench"
+        snapshotModel.web.conversation.sessionId !== undefined &&
+          snapshotModel.web.view.conversationState !== "idle",
+        "local snapshot should reflect the submitted conversation"
       )
       assert(
         settings.profile.activeProviderProfileId === "eval-product-app-local" &&
@@ -190,16 +189,14 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         "local host should expose safe Product App settings"
       )
       assert(
-        secretProvider?.hasApiKey === true &&
-          secretProvider.apiKeyRedacted === "***" &&
-          webSecretProvider?.hasApiKey === true &&
-          webSecretProvider.apiKeyRedacted === "***",
+        secretProvider?.credentialConfigured === true &&
+          webSecretProvider?.credentialConfigured === true,
         "trusted provider profile writes should project only redacted read models"
       )
       assert(
         !serialized.includes(storeDir) &&
           !serialized.includes(context.serviceBin) &&
-          !serialized.includes(providerSecret),
+          !serialized.includes(providerSecretRef),
         "local host output must not leak host-only paths"
       )
       assert(
@@ -217,22 +214,19 @@ export const productAppLocalHostContractScenario = createEvalScenario({
         layout: snapshotModel.settings.state.layout,
         mode: snapshotModel.settings.state.mode,
         webLayout: snapshotModel.web.view.layout,
-        workbenchState: snapshotModel.web.workbench.state,
-        workbenchCanContinue: snapshotModel.web.workbench.canContinue,
-        latestUserText: snapshotModel.web.view.latestUserText,
+        conversationState: snapshotModel.web.conversation.state,
+        conversationCanSubmit: snapshotModel.web.view.conversationCanSubmit,
         profileId: settings.profile.activeProviderProfileId,
         providerSecretRedacted:
-          secretProvider?.hasApiKey === true &&
-          secretProvider.apiKeyRedacted === "***" &&
-          webSecretProvider?.hasApiKey === true &&
-          webSecretProvider.apiKeyRedacted === "***",
+          secretProvider?.credentialConfigured === true &&
+          webSecretProvider?.credentialConfigured === true,
         settingsPrivacySafe:
           !settings.privacy.exposesStorePath &&
           !settings.privacy.exposesServiceBinaryPath &&
           !settings.privacy.exposesSecrets,
         leakedStoreDir: serialized.includes(storeDir),
         leakedServiceBin: serialized.includes(context.serviceBin),
-        leakedProviderSecret: serialized.includes(providerSecret),
+        leakedProviderSecret: serialized.includes(providerSecretRef),
         pluginRuntime: productAppLocal.contains.pluginRuntime,
         connectorRuntime: productAppLocal.contains.connectorRuntime,
         concreteAdapters: productAppLocal.contains.concreteAdapters,

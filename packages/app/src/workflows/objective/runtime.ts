@@ -99,9 +99,9 @@ export class ObjectiveWorkflow {
       ...(request.sessionInputId === undefined
         ? {}
         : { sessionInputId: request.sessionInputId }),
-      ...(request.sessionRunId === undefined
+      ...(request.sessionTurnId === undefined
         ? {}
-        : { sessionRunId: request.sessionRunId }),
+        : { sessionTurnId: request.sessionTurnId }),
       ...(request.schedulerJobId === undefined
         ? {}
         : { schedulerJobId: request.schedulerJobId }),

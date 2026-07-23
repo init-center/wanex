@@ -1,12 +1,19 @@
 import type { ToolCallMessagePart } from "@wanex/protocol"
+import {
+  assertToolRuntimeBinding,
+  canonicalizeToolEvidence,
+  compareCanonicalStrings
+} from "./evidence.js"
 import { toolResultPart } from "./parts.js"
 import type {
+  ToolBindingEvidence,
   ToolDefinition,
   ToolDescriptor,
   ToolExecutionOutcome,
   ToolExecutionRequest,
   ToolInputSchema,
-  ToolPermissionDecision
+  ToolPermissionDecision,
+  ToolRegistrySnapshot
 } from "./types.js"
 
 type InputValidator = ((value: unknown) => boolean) & {
@@ -22,13 +29,24 @@ export class ToolRegistry {
     if (this.tools.has(tool.name)) {
       throw new Error(`tool already registered: ${tool.name}`)
     }
-    this.tools.set(tool.name, tool)
+    const registered = normalizeToolDefinition(tool)
+    this.tools.set(registered.name, registered)
   }
 
   list(): ToolDescriptor[] {
     return [...this.tools.values()]
       .map(projectDescriptor)
-      .sort((left, right) => left.name.localeCompare(right.name))
+      .sort((left, right) => compareCanonicalStrings(left.name, right.name))
+  }
+
+  snapshot(): ToolRegistrySnapshot {
+    return {
+      tools: [...this.tools.values()]
+        .map(projectBindingEvidence)
+        .sort((left, right) =>
+          compareCanonicalStrings(left.descriptor.name, right.descriptor.name)
+        )
+    }
   }
 
   get(name: string): ToolDefinition | undefined {
@@ -44,24 +62,43 @@ export class ToolRegistry {
     const permission = await preflight(this, tool, descriptor, request)
     const receipt = await request.storage.beginToolExecution({
       sessionId: request.sessionId,
-      runId: request.runId,
+      turnId: request.turnId,
+      attemptId: request.attemptId,
       inputId: request.inputId,
+      sourceMessageId: request.sourceMessageId,
+      jobId: request.jobId,
+      workerId: request.workerId,
+      leaseToken: request.leaseToken,
       principalId: request.principalId,
       toolCallId: request.call.toolCallId,
       toolName: request.call.toolName,
       input: request.call.input,
-      descriptor: jsonClone(descriptor),
+      descriptor: jsonClone(
+        tool === undefined
+          ? descriptor
+          : executionDescriptor(descriptor, tool.runtimeBinding)
+      ),
       permission: jsonClone(permission),
+      state:
+        permission.status === "allow" && tool !== undefined
+          ? "running"
+          : permission.status === "approval_required"
+            ? "approval_required"
+            : "denied",
       idempotencyKey: request.idempotencyKey
     })
     if (!receipt.created) {
-      const reused = await recoverOrReuse(request, descriptor, permission, receipt.execution)
+      const reused = recoverOrReuse(request, descriptor, permission, receipt)
       if (reused !== undefined) return reused
     }
     if (permission.status !== "allow" || tool === undefined) {
       return rejectedOutcome(request.call, permission, descriptor)
     }
     const executionId = receipt.execution.id
+    const invocationAttemptId = receipt.invocationAttempt?.id
+    if (invocationAttemptId === undefined) {
+      throw new Error("running tool execution is missing its physical attempt")
+    }
     let invocationStarted = false
     try {
       if (request.budget !== undefined) {
@@ -70,12 +107,12 @@ export class ToolRegistry {
           usage: { toolCalls: 1 },
           source: "tool",
           sourceId: executionId,
-          idempotencyKey: `tool:${request.runId}:${request.call.toolCallId}`
+          idempotencyKey: `tool:${request.sourceMessageId}:${request.call.toolCallId}`
         })
       }
       invocationStarted = true
-      const result = await invokeWithControl(tool, request)
-      throwIfToolInvocationAborted(request.signal)
+      const invocation = await invokeWithControl(tool, request)
+      const result = invocation.result
       if (result.toolCallId !== request.call.toolCallId) {
         throw new Error(
           `tool returned mismatched toolCallId: ${result.toolCallId}`
@@ -87,30 +124,41 @@ export class ToolRegistry {
         result: toolResultPart(result.toolCallId, result.result, result.isError),
         invoked: true
       }
-      await request.storage.finishToolExecution({
-        executionId,
+      if (invocation.controlObserved && result.isError) {
+        const reason = request.signal?.aborted === true ? "aborted" : "timed_out"
+        await finishToolExecution(request, {
+          ...finishIdentity(request, executionId, invocationAttemptId),
+          state: "cancelled",
+          result: result.result,
+          isError: true,
+          error: { reason, message: "tool invocation ended during cancellation" }
+        })
+        return outcome
+      }
+      await finishToolExecution(request, {
+        ...finishIdentity(request, executionId, invocationAttemptId),
         state: result.isError ? "failed" : "succeeded",
         result: result.result,
         isError: result.isError
       })
       return outcome
     } catch (error) {
-    if (request.signal?.aborted === true || isControlError(error)) {
+      if (error instanceof ToolExecutionLeaseLostError) throw error
+      if (request.signal?.aborted === true || isControlError(error)) {
         const reason = request.signal?.aborted === true ? "aborted" : "timed_out"
-        await request.storage.finishToolExecution({
-          executionId,
+        await finishToolExecution(request, {
+          ...finishIdentity(request, executionId, invocationAttemptId),
           state: "cancelled",
           error: { reason, message: errorMessage(error) }
         })
-        if (request.signal?.aborted === true) {
-          throwIfToolInvocationAborted(request.signal)
-        }
+        const errorKind =
+          request.signal?.aborted === true ? "tool_cancelled" : "tool_timeout"
         return {
           descriptor,
           permission,
           result: toolResultPart(
             request.call.toolCallId,
-            { error: "tool_timeout", message: errorMessage(error) },
+            { error: errorKind, message: errorMessage(error) },
             true
           ),
           invoked: true
@@ -124,8 +172,8 @@ export class ToolRegistry {
         },
         true
       )
-      await request.storage.finishToolExecution({
-        executionId,
+      await finishToolExecution(request, {
+        ...finishIdentity(request, executionId, invocationAttemptId),
         state: "failed",
         result: result.result,
         isError: true,
@@ -150,6 +198,22 @@ export class ToolRegistry {
   }
 }
 
+class ToolExecutionLeaseLostError extends Error {
+  constructor() {
+    super("tool execution lost its active physical attempt lease")
+    this.name = "ToolExecutionLeaseLostError"
+  }
+}
+
+async function finishToolExecution(
+  request: ToolExecutionRequest,
+  finish: import("@wanex/protocol").FinishToolExecutionRequest
+): Promise<void> {
+  if (await request.storage.finishToolExecution(finish) === null) {
+    throw new ToolExecutionLeaseLostError()
+  }
+}
+
 async function preflight(
   registry: ToolRegistry,
   tool: ToolDefinition | undefined,
@@ -169,7 +233,8 @@ async function preflight(
       principalId: request.principalId,
       sessionId: request.sessionId,
       inputId: request.inputId,
-      runId: request.runId,
+      turnId: request.turnId,
+      attemptId: request.attemptId,
       call: request.call,
       descriptor
     })
@@ -181,32 +246,23 @@ async function preflight(
   }
 }
 
-async function recoverOrReuse(
+function recoverOrReuse(
   request: ToolExecutionRequest,
   descriptor: ToolDescriptor,
   permission: ToolPermissionDecision,
-  execution: import("@wanex/protocol").ToolExecutionRecord
-): Promise<ToolExecutionOutcome | undefined> {
+  receipt: import("@wanex/protocol").BeginToolExecutionReceipt
+): ToolExecutionOutcome | undefined {
+  const execution = receipt.execution
   if (execution.state === "running") {
     if (
-      descriptor.idempotent &&
-      request.recoveryPolicy !== undefined &&
-      await request.recoveryPolicy.retryIdempotent({ execution, descriptor })
+      receipt.invocationAttempt?.sessionAttemptId === request.attemptId &&
+      receipt.invocationAttempt.workerId === request.workerId &&
+      execution.currentInvocationAttemptId === receipt.invocationAttempt.id
     ) {
-      await request.storage.recoverToolExecution({
-        executionId: execution.id,
-        action: "retry"
-      })
       return undefined
     }
-    await request.storage.recoverToolExecution({
-      executionId: execution.id,
-      action: "require_recovery"
-    })
-    return rejectedOutcome(
-      request.call,
-      { status: "deny", reason: "recovery_required" },
-      descriptor
+    throw new Error(
+      "tool execution has no classifier-authorized physical attempt for this turn owner"
     )
   }
   if (execution.state === "succeeded" || execution.state === "failed") {
@@ -231,10 +287,31 @@ async function recoverOrReuse(
   )
 }
 
+function finishIdentity(
+  request: ToolExecutionRequest,
+  executionId: string,
+  invocationAttemptId: string
+) {
+  return {
+    sessionId: request.sessionId,
+    turnId: request.turnId,
+    sessionAttemptId: request.attemptId,
+    inputId: request.inputId,
+    jobId: request.jobId,
+    workerId: request.workerId,
+    leaseToken: request.leaseToken,
+    executionId,
+    invocationAttemptId
+  }
+}
+
 async function invokeWithControl(
   tool: ToolDefinition,
   request: ToolExecutionRequest
-): Promise<import("./types.js").ToolExecutionResult> {
+): Promise<{
+  readonly result: import("./types.js").ToolExecutionResult
+  readonly controlObserved: boolean
+}> {
   if (request.timeoutMs !== undefined && request.timeoutMs <= 0) {
     throw new Error("tool timeoutMs must be positive")
   }
@@ -256,14 +333,22 @@ async function invokeWithControl(
     principalId: request.principalId,
     sessionId: request.sessionId,
     inputId: request.inputId,
-    runId: request.runId,
+    turnId: request.turnId,
+    attemptId: request.attemptId,
     toolCallId: request.call.toolCallId,
     toolName: request.call.toolName,
     input: request.call.input,
     idempotencyKey: request.idempotencyKey,
     ...(signal === undefined ? {} : { signal })
   })
-  const candidates: Array<Promise<import("./types.js").ToolExecutionResult>> = [invocation]
+  const completed = invocation.then((result) => ({
+    result,
+    controlObserved: false
+  }))
+  const candidates: Array<Promise<{
+    readonly result: import("./types.js").ToolExecutionResult
+    readonly controlObserved: boolean
+  }>> = [completed]
 
   if (signal !== undefined) {
     candidates.push(new Promise((_, reject) => {
@@ -283,11 +368,15 @@ async function invokeWithControl(
   try {
     return await Promise.race(candidates)
   } catch (error) {
-    if (
-      isControlError(error) &&
-      tool.drainsCancellation
-    ) {
-      await invocation.catch(() => {})
+    if (isControlError(error)) {
+      try {
+        return {
+          result: await invocation,
+          controlObserved: true
+        }
+      } catch {
+        throw error
+      }
     }
     throw error
   } finally {
@@ -326,6 +415,7 @@ function jsonClone(value: unknown): import("@wanex/protocol").JsonValue {
 }
 
 function validateDescriptor(tool: ToolDefinition): void {
+  assertToolRuntimeBinding(tool.runtimeBinding)
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(tool.name)) {
     throw new Error(`invalid tool name: ${tool.name}`)
   }
@@ -342,6 +432,40 @@ function validateDescriptor(tool: ToolDefinition): void {
   ) {
     throw new Error(`invalid tool risk: ${tool.name}`)
   }
+  canonicalizeToolEvidence(projectDescriptor(tool), `tool descriptor ${tool.name}`)
+}
+
+function projectBindingEvidence(tool: ToolDefinition): ToolBindingEvidence {
+  return canonicalizeToolEvidence({
+    descriptor: projectDescriptor(tool),
+    runtimeBinding: tool.runtimeBinding
+  }, `tool binding ${tool.name}`) as unknown as ToolBindingEvidence
+}
+
+function normalizeToolDefinition(tool: ToolDefinition): ToolDefinition {
+  const evidence = projectBindingEvidence(tool)
+  const descriptor = deepFreeze(evidence.descriptor)
+  const runtimeBinding = deepFreeze(evidence.runtimeBinding)
+  return Object.freeze({
+    ...descriptor,
+    runtimeBinding,
+    invoke: tool.invoke.bind(tool)
+  })
+}
+
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) {
+    return value
+  }
+  for (const item of Object.values(value)) deepFreeze(item)
+  return Object.freeze(value)
+}
+
+function executionDescriptor(
+  descriptor: ToolDescriptor,
+  runtimeBinding: ToolDefinition["runtimeBinding"]
+): ToolDescriptor & { readonly runtimeBinding: ToolDefinition["runtimeBinding"] } {
+  return { ...descriptor, runtimeBinding }
 }
 
 function projectDescriptor(tool: ToolDefinition): ToolDescriptor {

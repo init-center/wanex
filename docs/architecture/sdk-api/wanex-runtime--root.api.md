@@ -20,6 +20,14 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
+interface ProviderCapabilities {
+    // (undocumented)
+    readonly input: readonly ProviderInputModality[];
+    // (undocumented)
+    readonly output: readonly ProviderOutputModality[];
+}
+
+// @public (undocumented)
 interface ProviderError {
     // (undocumented)
     readonly category: "authentication" | "authorization" | "rate_limit" | "invalid_request" | "not_found" | "conflict" | "server" | "network" | "timeout" | "aborted" | "protocol" | "unknown";
@@ -68,6 +76,12 @@ interface ProviderFinishEvent {
 }
 
 // @public (undocumented)
+type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+type ProviderOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
 interface ProviderReasoningDeltaEvent {
     // (undocumented)
     readonly delta: string;
@@ -82,17 +96,21 @@ interface ProviderReasoningDeltaEvent {
 // @public (undocumented)
 interface ProviderRunEvent {
     // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
     readonly event: ProviderEvent;
     // (undocumented)
     readonly inputId: string;
+    // (undocumented)
+    readonly jobId: string;
     // (undocumented)
     readonly modelId: string;
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
-    readonly runId: string;
-    // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
@@ -184,11 +202,90 @@ interface ProviderUsageEvent {
 }
 
 // @public (undocumented)
+interface ResolvedSecret {
+    // (undocumented)
+    dispose(): void;
+    // (undocumented)
+    readonly disposed: boolean;
+    // (undocumented)
+    readonly provider: string;
+    // (undocumented)
+    readonly ref: string;
+    // (undocumented)
+    reveal(): string;
+    // (undocumented)
+    toJSON(): never;
+}
+
+// @public (undocumented)
+type ResourceId = string;
+
+// @public (undocumented)
+interface ResourceInputEvidence {
+    // (undocumented)
+    readonly kind: ResourceKind;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly resourceId: ResourceId;
+    // (undocumented)
+    readonly sha256: string;
+    // (undocumented)
+    readonly sizeBytes: number;
+}
+
+// @public (undocumented)
+type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
+
+// @public (undocumented)
+interface SecretResolveContext {
+    // (undocumented)
+    readonly connectorId?: string;
+    // (undocumented)
+    readonly credentialId?: string;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly providerProfileId?: string;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+}
+
+// @public (undocumented)
+interface SecretResolverPort {
+    // (undocumented)
+    resolve(ref: string, context?: SecretResolveContext): Promise<ResolvedSecret>;
+}
+
+// @public (undocumented)
+type UserMessageInputPart = UserTextMessageInputPart | UserResourceMessageInputPart;
+
+// @public (undocumented)
+interface UserResourceMessageInputPart {
+    // (undocumented)
+    readonly resourceId: ResourceInputEvidence["resourceId"];
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+interface UserTextMessageInputPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
 export interface WanexRuntime {
+    // (undocumented)
+    cancelOperation(request: WanexRuntimeCancelOperationRequest): Promise<WanexRuntimeCancelOperationResult>;
     // (undocumented)
     dispose(): Promise<void>;
     // (undocumented)
     health(now?: number): WanexRuntimeHealth;
+    // (undocumented)
+    readOperation(request: WanexRuntimeReadOperationRequest): Promise<WanexRuntimeReadOperationResult>;
     // (undocumented)
     run(request: WanexRuntimeRunRequest): Promise<WanexRuntimeRunResult>;
     // (undocumented)
@@ -201,6 +298,18 @@ export interface WanexRuntime {
     stop(): Promise<void>;
     // (undocumented)
     submit(request: WanexRuntimeSubmitRequest): Promise<WanexRuntimeSubmitResult>;
+}
+
+// @public (undocumented)
+export interface WanexRuntimeCancelOperationRequest extends WanexRuntimeOperationReference {
+    // (undocumented)
+    readonly reason: string;
+}
+
+// @public (undocumented)
+export interface WanexRuntimeCancelOperationResult extends WanexRuntimeOperationReference {
+    // (undocumented)
+    readonly status: "cancelled" | "cancel_requested" | "already_terminal" | "missing";
 }
 
 // @public (undocumented)
@@ -220,7 +329,37 @@ export interface WanexRuntimeHealth {
 }
 
 // @public (undocumented)
-export type WanexRuntimeJobState = "queued" | "running" | "succeeded" | "failed" | "cancelled";
+export interface WanexRuntimeOperationReadModel extends WanexRuntimeOperationReference {
+    // (undocumented)
+    readonly activeAttemptId?: string;
+    // (undocumented)
+    readonly assistantText: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly messageCount: number;
+    // (undocumented)
+    readonly state: WanexRuntimeOperationState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export interface WanexRuntimeOperationReference {
+    // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: string;
+}
+
+// @public (undocumented)
+export type WanexRuntimeOperationState = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 
 // @public (undocumented)
 export interface WanexRuntimeOptions {
@@ -237,6 +376,8 @@ export interface WanexRuntimeOptions {
     // (undocumented)
     readonly provider?: WanexRuntimeProviderOptions;
     // (undocumented)
+    readonly secretResolver?: SecretResolverPort;
+    // (undocumented)
     readonly storage: WanexRuntimeStorageConfig;
     // (undocumented)
     readonly timeoutMs?: number;
@@ -251,18 +392,34 @@ export type WanexRuntimeProviderOptions = {
     readonly providerId?: string;
     readonly modelId?: string;
     readonly responseText?: string;
+    readonly capabilities?: ProviderCapabilities;
 } | {
     readonly kind: "openai-compatible" | "anthropic" | "deepseek";
     readonly id?: string;
     readonly providerId?: string;
     readonly modelId: string;
     readonly baseUrl?: string;
-    readonly apiKey?: string;
+    readonly secretRef?: string;
     readonly anthropicVersion?: string;
+    readonly capabilities: ProviderCapabilities;
 };
 
 // @public (undocumented)
 export type WanexRuntimeProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
+
+// @public (undocumented)
+export interface WanexRuntimeReadOperationRequest extends WanexRuntimeOperationReference {
+}
+
+// @public (undocumented)
+export type WanexRuntimeReadOperationResult = {
+    readonly kind: "found";
+    readonly reference: WanexRuntimeOperationReference;
+    readonly operation: WanexRuntimeOperationReadModel;
+} | {
+    readonly kind: "missing";
+    readonly reference: WanexRuntimeOperationReference;
+};
 
 // @public (undocumented)
 export interface WanexRuntimeRunOnceResult {
@@ -274,13 +431,13 @@ export interface WanexRuntimeRunOnceResult {
 export type WanexRuntimeRunRequest = WanexRuntimeSubmitRequest;
 
 // @public (undocumented)
-export interface WanexRuntimeRunResult extends WanexRuntimeSubmitResult {
+export interface WanexRuntimeRunResult extends WanexRuntimeOperationReference {
     // (undocumented)
     readonly assistantText: string;
     // (undocumented)
-    readonly jobState: WanexRuntimeJobState;
-    // (undocumented)
     readonly messageCount: number;
+    // (undocumented)
+    readonly state: WanexRuntimeOperationState;
     // (undocumented)
     readonly workerResults: readonly WanexRuntimeWorkerResultStatus[];
 }
@@ -313,27 +470,19 @@ export type WanexRuntimeStorageMode = LocalSystemServiceStorageMode;
 // @public (undocumented)
 export interface WanexRuntimeSubmitRequest {
     // (undocumented)
-    readonly maxSteps?: number;
+    readonly content: readonly UserMessageInputPart[];
     // (undocumented)
-    readonly mode?: "once" | "to_completion";
+    readonly maxSteps?: number;
     // (undocumented)
     readonly principalId?: string;
     // (undocumented)
     readonly sessionId?: string;
     // (undocumented)
-    readonly text: string;
-    // (undocumented)
     readonly title?: string;
 }
 
 // @public (undocumented)
-export interface WanexRuntimeSubmitResult {
-    // (undocumented)
-    readonly inputId: string;
-    // (undocumented)
-    readonly jobId: string;
-    // (undocumented)
-    readonly sessionId: string;
+export interface WanexRuntimeSubmitResult extends WanexRuntimeOperationReference {
 }
 
 // @public (undocumented)

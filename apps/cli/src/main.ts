@@ -12,6 +12,10 @@ import { sideQueryValue } from "./commands/side-query.js"
 import { supportBundleValue } from "./commands/support-bundle.js"
 import { errorResult, ok } from "./output.js"
 import type { CliEnvironment, CliResult } from "./types.js"
+import {
+  EnvSecretProvider,
+  SecretResolver
+} from "@wanex/runtime/secrets"
 
 export async function main(
   argv: readonly string[],
@@ -44,6 +48,7 @@ export async function main(
       handle.core,
       createPluginStore(handle.transport)
     )
+    const secretResolver = new SecretResolver([new EnvSecretProvider(env)])
     try {
       if (command.name === "init") {
         return ok(await doctorValue(storage, "init", command.options))
@@ -70,9 +75,9 @@ export async function main(
         return ok(await memorySweepValue(storage, command))
       }
       if (command.name === "side-query") {
-        return ok(await sideQueryValue(storage, command))
+        return ok(await sideQueryValue(storage, command, secretResolver))
       }
-      return ok(await runValue(storage, command))
+      return ok(await runValue(storage, command, secretResolver))
     } finally {
       await handle.dispose()
     }

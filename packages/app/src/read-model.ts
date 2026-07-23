@@ -6,16 +6,16 @@ import type {
   SessionMessageRecord
 } from "@wanex/protocol"
 import type {
-  WanexAppShellRecentSessionRow,
-  WanexAppShellRecentSessionsReadModel,
-  WanexAppShellSessionTranscriptPart,
-  WanexAppShellSessionTranscriptReadModel,
-  WanexAppShellSessionTranscriptRow,
-  WanexAppShellSessionInputProvenanceReadModel,
-  WanexAppShellSessionInputProvenanceRow
+  WanexAppRecentSessionRow,
+  WanexAppRecentSessionsReadModel,
+  WanexAppSessionTranscriptPart,
+  WanexAppSessionTranscriptReadModel,
+  WanexAppSessionTranscriptRow,
+  WanexAppSessionInputProvenanceReadModel,
+  WanexAppSessionInputProvenanceRow
 } from "./types-read-model.js"
 
-const provenanceLabels: Record<SessionInputOriginKind, string> = {
+const provenanceLabels: Record<string, string> = {
   interactive: "Interactive",
   scheduler: "Scheduled",
   connector: "Channel",
@@ -25,54 +25,54 @@ const provenanceLabels: Record<SessionInputOriginKind, string> = {
   plan: "Plan"
 }
 
-export function projectWanexAppShellSessionInputProvenance(
+export function projectWanexAppSessionInputProvenance(
   input: SessionInputRecord
-): WanexAppShellSessionInputProvenanceRow {
+): WanexAppSessionInputProvenanceRow {
   const origin = input.origin
   const kind = origin?.kind ?? "interactive"
   return {
     inputId: input.id,
     sessionId: input.sessionId,
     kind,
-    label: provenanceLabels[kind],
+    label: provenanceLabels[kind] ?? kind,
     ...(origin?.sourceRef === undefined ? {} : { sourceRef: origin.sourceRef }),
     ...(origin?.parentRef === undefined ? {} : { parentRef: origin.parentRef }),
     ...(input.intent === undefined ? {} : { intent: input.intent }),
     ...(input.runControlPolicy === undefined
       ? {}
       : { runControlPolicy: input.runControlPolicy }),
-    ...(input.expectedRunId === undefined
+    ...(input.expectedTurnId === undefined
       ? {}
-      : { expectedRunId: input.expectedRunId }),
+      : { expectedTurnId: input.expectedTurnId }),
     metadataKeys: Object.keys(origin?.metadata ?? {}).sort()
   }
 }
 
-export function projectWanexAppShellSessionInputProvenanceReadModel(
+export function projectWanexAppSessionInputProvenanceReadModel(
   sessionId: string,
   inputs: readonly SessionInputRecord[]
-): WanexAppShellSessionInputProvenanceReadModel {
+): WanexAppSessionInputProvenanceReadModel {
   return {
     sessionId,
-    rows: inputs.map(projectWanexAppShellSessionInputProvenance),
+    rows: inputs.map(projectWanexAppSessionInputProvenance),
     hasProductClientField: JSON.stringify(inputs).includes("\"client\"")
   }
 }
 
-export function projectWanexAppShellRecentSessionsReadModel(
+export function projectWanexAppRecentSessionsReadModel(
   sessions: readonly SessionRecord[],
   limit: number
-): WanexAppShellRecentSessionsReadModel {
+): WanexAppRecentSessionsReadModel {
   return {
-    kind: "app-shell.recent_sessions",
+    kind: "wanex-app.recent_sessions",
     limit,
-    rows: sessions.map(projectWanexAppShellRecentSession)
+    rows: sessions.map(projectWanexAppRecentSession)
   }
 }
 
-function projectWanexAppShellRecentSession(
+function projectWanexAppRecentSession(
   session: SessionRecord
-): WanexAppShellRecentSessionRow {
+): WanexAppRecentSessionRow {
   return {
     sessionId: session.id,
     ...(session.title === undefined ? {} : { title: session.title }),
@@ -86,17 +86,19 @@ function projectWanexAppShellRecentSession(
   }
 }
 
-export function projectWanexAppShellSessionTranscriptReadModel(
+export function projectWanexAppSessionTranscriptReadModel(
   sessionId: string,
   records: {
     readonly inputs: readonly SessionInputRecord[]
     readonly messages: readonly SessionMessageRecord[]
   }
-): WanexAppShellSessionTranscriptReadModel {
+): WanexAppSessionTranscriptReadModel {
   return {
     sessionId,
     rows: [
-      ...records.inputs.map(projectSessionInputTranscriptRow),
+      ...records.inputs
+        .filter((input) => input.status !== "promoted" && input.status !== "completed")
+        .map(projectSessionInputTranscriptRow),
       ...records.messages.map(projectSessionMessageTranscriptRow)
     ].sort(compareTranscriptRows)
   }
@@ -104,7 +106,7 @@ export function projectWanexAppShellSessionTranscriptReadModel(
 
 function projectSessionInputTranscriptRow(
   input: SessionInputRecord
-): WanexAppShellSessionTranscriptRow {
+): WanexAppSessionTranscriptRow {
   const parts = input.content.map(projectTranscriptPart)
   return {
     id: `input:${input.id}`,
@@ -123,7 +125,7 @@ function projectSessionInputTranscriptRow(
 
 function projectSessionMessageTranscriptRow(
   message: SessionMessageRecord
-): WanexAppShellSessionTranscriptRow {
+): WanexAppSessionTranscriptRow {
   const parts = message.content.map(projectTranscriptPart)
   return {
     id: `message:${message.id}`,
@@ -136,14 +138,16 @@ function projectSessionMessageTranscriptRow(
     updatedAt: message.updatedAt,
     text: transcriptText(parts),
     parts,
+    sequence: message.sequence,
+    turnId: message.turnId,
     ...(message.inputId === undefined ? {} : { inputId: message.inputId }),
-    ...(message.runId === undefined ? {} : { runId: message.runId })
+    ...(message.attemptId === undefined ? {} : { attemptId: message.attemptId })
   }
 }
 
 function projectTranscriptPart(
   part: MessagePart
-): WanexAppShellSessionTranscriptPart {
+): WanexAppSessionTranscriptPart {
   const visibility = part.visibility ?? "default"
   if (visibility === "internal" || visibility === "provider_replay_only") {
     return {
@@ -193,33 +197,22 @@ function projectTranscriptPart(
         type: "resource",
         visibility,
         resourceId: part.resourceId,
+        sha256: part.sha256,
+        sizeBytes: part.sizeBytes,
+        kind: part.kind,
         ...(part.mediaType === undefined ? {} : { mediaType: part.mediaType })
       }
-    case "ui_surface": {
-      const fallback = part.surface.fallback
-      return {
-        partId: part.id,
-        type: "ui_surface",
-        visibility,
-        protocol: part.surface.protocol,
-        surfaceKind: part.surface.surfaceKind,
-        ...(fallback?.kind === "text" ? { fallbackText: fallback.text } : {}),
-        ...(fallback?.kind === "resource"
-          ? { fallbackResourceId: fallback.resourceId }
-          : {})
-      }
-    }
   }
 }
 
 function transcriptText(
-  parts: readonly WanexAppShellSessionTranscriptPart[]
+  parts: readonly WanexAppSessionTranscriptPart[]
 ): string {
   return parts.map(transcriptPartText).filter(Boolean).join("\n")
 }
 
 function transcriptPartText(
-  part: WanexAppShellSessionTranscriptPart
+  part: WanexAppSessionTranscriptPart
 ): string {
   switch (part.type) {
     case "text":
@@ -228,12 +221,6 @@ function transcriptPartText(
       return part.hidden ? "" : part.text ?? ""
     case "resource":
       return `[resource:${part.resourceId}]`
-    case "ui_surface":
-      return part.fallbackText ?? (
-        part.fallbackResourceId === undefined
-          ? `[ui:${part.surfaceKind}]`
-          : `[resource:${part.fallbackResourceId}]`
-      )
     case "tool_call":
       return `[tool_call:${part.toolName}]`
     case "tool_result":
@@ -244,16 +231,18 @@ function transcriptPartText(
 }
 
 function compareTranscriptRows(
-  left: WanexAppShellSessionTranscriptRow,
-  right: WanexAppShellSessionTranscriptRow
+  left: WanexAppSessionTranscriptRow,
+  right: WanexAppSessionTranscriptRow
 ): number {
   return (
+    (left.sequence ?? Number.MAX_SAFE_INTEGER) -
+      (right.sequence ?? Number.MAX_SAFE_INTEGER) ||
     left.createdAt - right.createdAt ||
     rowKindOrder(left.kind) - rowKindOrder(right.kind) ||
     left.recordId.localeCompare(right.recordId)
   )
 }
 
-function rowKindOrder(kind: WanexAppShellSessionTranscriptRow["kind"]): number {
+function rowKindOrder(kind: WanexAppSessionTranscriptRow["kind"]): number {
   return kind === "input" ? 0 : 1
 }

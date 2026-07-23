@@ -6,6 +6,7 @@ import type { CoreStore } from "@wanex/storage"
 import {
   registerResourceCleanupHandler
 } from "./handlers.js"
+import type { ActiveExecutionAbortRegistry } from "./active-abort.js"
 import { WanexWorker } from "./worker.js"
 import type {
   WorkerHandler,
@@ -24,6 +25,8 @@ export interface WanexJobRuntimeOptions {
   readonly timeoutMs?: number
   readonly kinds?: readonly SchedulerJobKind[]
   readonly registerMaintenanceHandlers?: boolean
+  /** @internal */
+  readonly activeAbortRegistry?: ActiveExecutionAbortRegistry
 }
 
 export type RuntimeWorkerLoop = WorkerLoop
@@ -54,7 +57,10 @@ export class WanexJobRuntime {
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-      ...(options.kinds === undefined ? {} : { kinds: options.kinds })
+      ...(options.kinds === undefined ? {} : { kinds: options.kinds }),
+      ...(options.activeAbortRegistry === undefined
+        ? {}
+        : { activeAbortRegistry: options.activeAbortRegistry })
     })
 
     if (options.registerMaintenanceHandlers === true) {

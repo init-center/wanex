@@ -1,251 +1,271 @@
 use crate::event_store::append_event_tx;
-use crate::rows::row_to_session_run_control;
+use crate::messages::{insert_session_message_tx, NewSessionMessage};
+use crate::rows::row_to_session_turn_control;
 use crate::{
-    ApplySessionRunControl, ApplySessionRunControlReceipt, EventScope, InterruptSessionRun,
-    InterruptSessionRunReceipt, ListSessionRunControls, Result, SessionRunControlRecord,
-    SteerSessionRun, SteerSessionRunReceipt, SystemService, SystemServiceError,
+    ApplySessionTurnControl, ApplySessionTurnControlReceipt, EventScope, InterruptSessionTurn,
+    InterruptSessionTurnReceipt, ListSessionTurnControls, Result, SessionTurnControlRecord,
+    SteerSessionTurn, SteerSessionTurnReceipt, SystemService, SystemServiceError,
 };
-use rusqlite::{params, OptionalExtension};
-use serde_json::Value;
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, OptionalExtension};
 use uuid::Uuid;
 
-impl SystemService {
-    pub fn interrupt_session_run(
-        &self,
-        request: &InterruptSessionRun,
-    ) -> Result<InterruptSessionRunReceipt> {
-        validate_interrupt_session_run(request)?;
-        let now = crate::util::now_ms();
-        let idempotency_key = request
-            .idempotency_key
-            .clone()
-            .unwrap_or_else(|| format!("interrupt:{}:{}", request.session_id, request.run_id));
-        let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+const CONTROL_SELECT: &str = "SELECT id, session_id, turn_id, attempt_id, input_id,
+    principal_id, idempotency_key, kind, status, content_json, reason, origin_json,
+    metadata_json, created_at, updated_at, applied_at FROM session_turn_control";
 
-        if let Some(existing) =
-            get_run_control_by_idempotency_key(&tx, &request.session_id, &idempotency_key)?
-        {
-            ensure_existing_run_control_matches(&existing, "interrupt", &request.run_id)?;
+impl SystemService {
+    pub fn interrupt_session_turn(
+        &self,
+        request: &InterruptSessionTurn,
+    ) -> Result<InterruptSessionTurnReceipt> {
+        validate_interrupt(request)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        if !is_active_attempt_tx(
+            &tx,
+            &request.session_id,
+            &request.turn_id,
+            &request.attempt_id,
+        )? {
             tx.commit()?;
-            return Ok(InterruptSessionRunReceipt {
+            return Ok(InterruptSessionTurnReceipt {
+                session_id: request.session_id.clone(),
+                turn_id: request.turn_id.clone(),
+                attempt_id: request.attempt_id.clone(),
+                durability: "local-durable".to_string(),
+                status: "not_running".to_string(),
+                accepted_at: None,
+            });
+        }
+        let idempotency_key = request.idempotency_key.clone().unwrap_or_else(|| {
+            format!(
+                "session.turn.interrupt:{}:{}",
+                request.turn_id, request.attempt_id
+            )
+        });
+        if let Some(existing) =
+            find_control_by_idempotency_tx(&tx, &request.session_id, &idempotency_key)?
+        {
+            ensure_control_match(
+                &existing,
+                "interrupt",
+                &request.turn_id,
+                &request.attempt_id,
+            )?;
+            tx.commit()?;
+            return Ok(InterruptSessionTurnReceipt {
                 session_id: existing.session_id,
-                run_id: existing.run_id,
+                turn_id: existing.turn_id,
+                attempt_id: existing.attempt_id,
                 durability: "local-durable".to_string(),
                 status: "interrupt_requested".to_string(),
                 accepted_at: Some(existing.created_at),
             });
         }
-
-        let Some(active_run) = get_active_run_tx(&tx, &request.session_id, &request.run_id, now)?
-        else {
-            tx.commit()?;
-            return Ok(InterruptSessionRunReceipt {
-                session_id: request.session_id.clone(),
-                run_id: request.run_id.clone(),
-                durability: "local-durable".to_string(),
-                status: "not_running".to_string(),
-                accepted_at: None,
-            });
-        };
-
-        let control_id = format!("rctl_{}", Uuid::now_v7());
-        let origin_json = optional_json_string(&request.origin)?;
-        let metadata_json = optional_json_string(&request.metadata)?;
+        let control_id = format!("ctl_{}", Uuid::now_v7());
         tx.execute(
-            "INSERT INTO session_run_control (
-                id, session_id, run_id, input_id, principal_id, idempotency_key,
-                kind, status, content_json, reason, origin_json, provider_profile_id,
+            "INSERT INTO session_turn_control (
+                id, session_id, turn_id, attempt_id, input_id, principal_id,
+                idempotency_key, kind, status, content_json, reason, origin_json,
                 metadata_json, created_at, updated_at, applied_at
-             ) VALUES (?, ?, ?, NULL, ?, ?, 'interrupt', 'pending', NULL, ?, ?, NULL, ?, ?, ?, NULL)",
+             ) VALUES (?, ?, ?, ?, NULL, ?, ?, 'interrupt', 'pending', NULL, ?, ?, ?, ?, ?, NULL)",
             params![
                 control_id,
                 request.session_id,
-                active_run.run_id,
+                request.turn_id,
+                request.attempt_id,
                 request.principal_id,
                 idempotency_key,
                 request.reason,
-                origin_json,
-                metadata_json,
+                request
+                    .origin
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
+                request
+                    .metadata
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
                 now,
                 now
             ],
         )?;
-        append_event_tx(
+        append_control_event_tx(
             &tx,
-            &format!("evt_{}", Uuid::now_v7()),
-            "session.run.interrupt_requested",
-            &EventScope {
-                session_id: Some(request.session_id.clone()),
-                run_id: Some(active_run.run_id.clone()),
-                input_id: Some(active_run.input_id),
-                message_id: None,
-                resource_id: None,
-                ..EventScope::default()
+            ControlEvent {
+                event_type: "session.turn.interrupt_requested",
+                session_id: &request.session_id,
+                turn_id: &request.turn_id,
+                attempt_id: &request.attempt_id,
+                control_id: &control_id,
+                input_id: None,
             },
-            &serde_json::json!({
-                "runId": active_run.run_id,
-                "principalId": request.principal_id,
-                "reason": request.reason,
-                "status": "pending"
-            }),
             now,
         )?;
         tx.commit()?;
-
-        Ok(InterruptSessionRunReceipt {
+        Ok(InterruptSessionTurnReceipt {
             session_id: request.session_id.clone(),
-            run_id: request.run_id.clone(),
+            turn_id: request.turn_id.clone(),
+            attempt_id: request.attempt_id.clone(),
             durability: "local-durable".to_string(),
             status: "interrupt_requested".to_string(),
             accepted_at: Some(now),
         })
     }
 
-    pub fn steer_session_run(&self, request: &SteerSessionRun) -> Result<SteerSessionRunReceipt> {
-        validate_steer_session_run(request)?;
+    pub fn steer_session_turn(
+        &self,
+        request: &SteerSessionTurn,
+    ) -> Result<SteerSessionTurnReceipt> {
+        validate_steer(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
-
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        if !is_active_attempt_tx(
+            &tx,
+            &request.session_id,
+            &request.expected_turn_id,
+            &request.expected_attempt_id,
+        )? {
+            return Err(SystemServiceError::Invariant(
+                "expected turn attempt is not active for steering".to_string(),
+            ));
+        }
         if let Some(existing) =
-            get_run_control_by_idempotency_key(&tx, &request.session_id, &request.idempotency_key)?
+            find_control_by_idempotency_tx(&tx, &request.session_id, &request.idempotency_key)?
         {
-            ensure_existing_run_control_matches(&existing, "steer", &request.expected_run_id)?;
+            ensure_control_match(
+                &existing,
+                "steer",
+                &request.expected_turn_id,
+                &request.expected_attempt_id,
+            )?;
             tx.commit()?;
-            return Ok(SteerSessionRunReceipt {
+            return Ok(SteerSessionTurnReceipt {
                 session_id: existing.session_id,
-                run_id: existing.run_id,
+                turn_id: existing.turn_id,
+                attempt_id: existing.attempt_id,
                 durability: "local-durable".to_string(),
                 status: "accepted".to_string(),
                 accepted_at: Some(existing.created_at),
             });
         }
-
-        let Some(active_run) =
-            get_active_run_tx(&tx, &request.session_id, &request.expected_run_id, now)?
-        else {
-            append_steer_rejected_tx(
-                &tx,
-                request,
-                "expected_run_not_active",
-                "expected_run_id is not the active steerable run",
-                now,
-            )?;
-            tx.commit()?;
-            return Err(SystemServiceError::InvalidJobRequest(
-                "expected_run_id is not the active steerable run".to_string(),
-            ));
-        };
-
         let input_id = format!("inp_{}", Uuid::now_v7());
-        let input_idempotency_key = format!("run_control:steer:{}", request.idempotency_key);
-        let origin_json = optional_json_string(&request.origin)?;
-        let metadata_json = optional_json_string(&request.metadata)?;
-        let content_json = serde_json::to_string(&request.content)?;
+        let control_id = format!("ctl_{}", Uuid::now_v7());
         tx.execute(
             "INSERT INTO session_input (
                 id, session_id, principal_id, idempotency_key, input_type,
                 content_json, origin_json, intent, run_control_policy,
-                expected_run_id, status, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, 'user', ?, ?, 'steer', 'steer_at_safe_point', ?, 'control_pending', ?, ?)",
+                expected_turn_id, status, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, 'user', ?, ?, 'steer', 'steer_at_safe_point', ?,
+                       'control_pending', ?, ?)",
             params![
                 input_id,
                 request.session_id,
                 request.principal_id,
-                input_idempotency_key,
-                content_json,
-                origin_json,
-                active_run.run_id,
+                request.idempotency_key,
+                serde_json::to_string(&request.content)?,
+                request
+                    .origin
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
+                request.expected_turn_id,
                 now,
                 now
             ],
         )?;
-
-        let control_id = format!("rctl_{}", Uuid::now_v7());
         tx.execute(
-            "INSERT INTO session_run_control (
-                id, session_id, run_id, input_id, principal_id, idempotency_key,
-                kind, status, content_json, reason, origin_json, provider_profile_id,
+            "INSERT INTO session_turn_control (
+                id, session_id, turn_id, attempt_id, input_id, principal_id,
+                idempotency_key, kind, status, content_json, reason, origin_json,
                 metadata_json, created_at, updated_at, applied_at
-             ) VALUES (?, ?, ?, ?, ?, ?, 'steer', 'pending', ?, NULL, ?, ?, ?, ?, ?, NULL)",
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, 'steer', 'pending', ?, NULL, ?, ?, ?, ?, NULL)",
             params![
                 control_id,
                 request.session_id,
-                active_run.run_id,
+                request.expected_turn_id,
+                request.expected_attempt_id,
                 input_id,
                 request.principal_id,
                 request.idempotency_key,
                 serde_json::to_string(&request.content)?,
-                optional_json_string(&request.origin)?,
-                request.provider_profile_id,
-                metadata_json,
+                request
+                    .origin
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
+                request
+                    .metadata
+                    .as_ref()
+                    .map(serde_json::to_string)
+                    .transpose()?,
                 now,
                 now
             ],
         )?;
-        append_event_tx(
+        append_control_event_tx(
             &tx,
-            &format!("evt_{}", Uuid::now_v7()),
-            "session.run.steer_admitted",
-            &EventScope {
-                session_id: Some(request.session_id.clone()),
-                run_id: Some(active_run.run_id.clone()),
-                input_id: Some(input_id),
-                message_id: None,
-                resource_id: None,
-                ..EventScope::default()
+            ControlEvent {
+                event_type: "session.turn.steer_accepted",
+                session_id: &request.session_id,
+                turn_id: &request.expected_turn_id,
+                attempt_id: &request.expected_attempt_id,
+                control_id: &control_id,
+                input_id: Some(&input_id),
             },
-            &serde_json::json!({
-                "runId": active_run.run_id,
-                "principalId": request.principal_id,
-                "status": "pending"
-            }),
             now,
         )?;
         tx.commit()?;
-
-        Ok(SteerSessionRunReceipt {
+        Ok(SteerSessionTurnReceipt {
             session_id: request.session_id.clone(),
-            run_id: request.expected_run_id.clone(),
+            turn_id: request.expected_turn_id.clone(),
+            attempt_id: request.expected_attempt_id.clone(),
             durability: "local-durable".to_string(),
             status: "accepted".to_string(),
             accepted_at: Some(now),
         })
     }
 
-    pub fn list_session_run_controls(
+    pub fn list_session_turn_controls(
         &self,
-        request: &ListSessionRunControls,
-    ) -> Result<Vec<SessionRunControlRecord>> {
-        validate_list_session_run_controls(request)?;
+        request: &ListSessionTurnControls,
+    ) -> Result<Vec<SessionTurnControlRecord>> {
+        if request.session_id.is_empty() {
+            return Err(SystemServiceError::InvalidInput(
+                "session_id must not be empty".to_string(),
+            ));
+        }
         let conn = self.connect()?;
-        let limit = request.limit.unwrap_or(100).min(1000);
-        let mut stmt = conn.prepare(
-            "SELECT id, session_id, run_id, input_id, principal_id, idempotency_key,
-                    kind, status, content_json, reason, origin_json, provider_profile_id,
-                    metadata_json, created_at, updated_at, applied_at
-             FROM session_run_control
-             WHERE session_id = ?
-               AND (? IS NULL OR run_id = ?)
-               AND (? IS NULL OR kind = ?)
-               AND (? IS NULL OR status = ?)
-             ORDER BY created_at ASC, id ASC
-             LIMIT ?",
-        )?;
-        let rows = stmt.query_map(
-            params![
-                request.session_id,
-                request.run_id,
-                request.run_id,
-                request.kind,
-                request.kind,
-                request.status,
-                request.status,
-                limit
-            ],
-            row_to_session_run_control,
-        )?;
+        let mut clauses = vec!["session_id = ?"];
+        let mut values = vec![SqlValue::Text(request.session_id.clone())];
+        if let Some(turn_id) = &request.turn_id {
+            clauses.push("turn_id = ?");
+            values.push(SqlValue::Text(turn_id.clone()));
+        }
+        if let Some(attempt_id) = &request.attempt_id {
+            clauses.push("attempt_id = ?");
+            values.push(SqlValue::Text(attempt_id.clone()));
+        }
+        if let Some(kind) = &request.kind {
+            clauses.push("kind = ?");
+            values.push(SqlValue::Text(kind.clone()));
+        }
+        if let Some(status) = &request.status {
+            clauses.push("status = ?");
+            values.push(SqlValue::Text(status.clone()));
+        }
+        values.push(SqlValue::Integer(
+            request.limit.unwrap_or(100).clamp(1, 1000),
+        ));
+        let sql = format!(
+            "{CONTROL_SELECT} WHERE {} ORDER BY created_at ASC, id ASC LIMIT ?",
+            clauses.join(" AND ")
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params_from_iter(values), row_to_session_turn_control)?;
         let mut controls = Vec::new();
         for row in rows {
             controls.push(row?);
@@ -253,583 +273,260 @@ impl SystemService {
         Ok(controls)
     }
 
-    pub fn apply_session_run_control(
+    pub fn apply_session_turn_control(
         &self,
-        request: &ApplySessionRunControl,
-    ) -> Result<Option<ApplySessionRunControlReceipt>> {
-        validate_apply_session_run_control(request)?;
+        request: &ApplySessionTurnControl,
+    ) -> Result<Option<ApplySessionTurnControlReceipt>> {
+        validate_apply(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
-
-        let Some(existing) = get_run_control_by_id(&tx, &request.session_id, &request.control_id)?
-        else {
-            tx.commit()?;
-            return Ok(None);
-        };
-        if existing.run_id != request.run_id {
-            return Err(SystemServiceError::InvalidJobRequest(
-                "run-control run_id does not match request".to_string(),
-            ));
-        }
-        if existing.status != "pending" {
-            tx.commit()?;
-            return Ok(Some(ApplySessionRunControlReceipt {
-                control: existing,
-                effect: "already_resolved".to_string(),
-            }));
-        }
-
-        let Some(lease) = get_active_lease_tx(
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        let input_id = active_input_id_tx(&tx, &request.turn_id)?;
+        let Some(binding_digest) = crate::turns::validate_turn_attempt_lease_tx(
             &tx,
-            &request.session_id,
-            &request.run_id,
-            &request.runner_id,
-            &request.lease_token,
+            &crate::turns::TurnAttemptLeaseIdentity {
+                session_id: &request.session_id,
+                turn_id: &request.turn_id,
+                attempt_id: &request.attempt_id,
+                input_id: &input_id,
+                job_id: &request.job_id,
+                worker_id: &request.worker_id,
+                lease_token: &request.lease_token,
+            },
             now,
         )?
         else {
             tx.commit()?;
             return Ok(None);
         };
-
-        let effect = match existing.kind.as_str() {
-            "interrupt" => {
-                apply_interrupt_run_control_tx(&tx, &existing, &lease, now)?;
-                "interrupt_cancelled_run"
-            }
-            "steer" => {
-                apply_steer_run_control_tx(&tx, &existing, &lease, now)?;
-                "steer_completed_input"
-            }
-            _ => {
-                return Err(SystemServiceError::Invariant(format!(
-                    "unknown run-control kind: {}",
-                    existing.kind
-                )))
-            }
-        };
-        let Some(control) = get_run_control_by_id(&tx, &request.session_id, &request.control_id)?
-        else {
+        let control = get_control_tx(&tx, &request.control_id)?;
+        if control.session_id != request.session_id
+            || control.turn_id != request.turn_id
+            || control.attempt_id != request.attempt_id
+        {
             return Err(SystemServiceError::Invariant(
-                "applied run-control record disappeared".to_string(),
+                "session turn control target does not match".to_string(),
             ));
+        }
+        if control.status != "pending" {
+            tx.commit()?;
+            return Ok(Some(ApplySessionTurnControlReceipt {
+                control,
+                effect: "already_resolved".to_string(),
+            }));
+        }
+
+        let effect = if control.kind == "interrupt" {
+            tx.execute(
+                "UPDATE session_turn
+                 SET state = 'cancel_requested', cancel_requested_at = COALESCE(cancel_requested_at, ?),
+                     cancel_reason = COALESCE(cancel_reason, ?), updated_at = ?
+                 WHERE id = ? AND state IN ('running', 'cancel_requested')",
+                params![now, control.reason, now, request.turn_id],
+            )?;
+            "interrupt_requested_cancel"
+        } else {
+            let input_id = control.input_id.as_deref().ok_or_else(|| {
+                SystemServiceError::Invariant("steer control is missing its input".to_string())
+            })?;
+            let content = control.content.as_ref().ok_or_else(|| {
+                SystemServiceError::Invariant("steer control is missing content".to_string())
+            })?;
+            insert_session_message_tx(
+                &tx,
+                NewSessionMessage {
+                    session_id: &request.session_id,
+                    turn_id: &request.turn_id,
+                    attempt_id: Some(&request.attempt_id),
+                    input_id: Some(input_id),
+                    role: "user",
+                    status: "completed",
+                    content,
+                    provider_state: None,
+                    execution_binding_digest: &binding_digest,
+                    idempotency_key: Some(&format!("session.steer.promoted:{input_id}")),
+                },
+                now,
+            )?;
+            tx.execute(
+                "UPDATE session_input SET status = 'completed', updated_at = ?
+                 WHERE id = ? AND status = 'control_pending'",
+                params![now, input_id],
+            )?;
+            "steer_promoted_input"
         };
+        tx.execute(
+            "UPDATE session_turn_control
+             SET status = 'applied', updated_at = ?, applied_at = ?
+             WHERE id = ? AND status = 'pending'",
+            params![now, now, request.control_id],
+        )?;
+        append_control_event_tx(
+            &tx,
+            ControlEvent {
+                event_type: "session.turn.control_applied",
+                session_id: &request.session_id,
+                turn_id: &request.turn_id,
+                attempt_id: &request.attempt_id,
+                control_id: &request.control_id,
+                input_id: control.input_id.as_deref(),
+            },
+            now,
+        )?;
+        let control = get_control_tx(&tx, &request.control_id)?;
         tx.commit()?;
-        Ok(Some(ApplySessionRunControlReceipt {
+        Ok(Some(ApplySessionTurnControlReceipt {
             control,
             effect: effect.to_string(),
         }))
     }
 }
 
-#[derive(Debug, Clone)]
-struct ActiveRun {
-    run_id: String,
-    input_id: String,
-}
-
-#[derive(Debug, Clone)]
-struct ActiveLease {
-    session_id: String,
-    run_id: String,
-    input_id: String,
-    runner_id: String,
-    lease_token: String,
-}
-
-fn get_active_run_tx(
+fn is_active_attempt_tx(
     tx: &rusqlite::Transaction<'_>,
     session_id: &str,
-    run_id: &str,
-    now: i64,
-) -> Result<Option<ActiveRun>> {
+    turn_id: &str,
+    attempt_id: &str,
+) -> Result<bool> {
     tx.query_row(
-        "SELECT r.id, r.input_id
-         FROM session_run r
-         INNER JOIN session_runner_lease l
-           ON l.session_id = r.session_id
-          AND l.run_id = r.id
-          AND l.input_id = r.input_id
-         WHERE r.session_id = ?
-           AND r.id = ?
-           AND r.status = 'running'
-           AND l.expires_at > ?",
-        params![session_id, run_id, now],
-        |row| {
-            Ok(ActiveRun {
-                run_id: row.get(0)?,
-                input_id: row.get(1)?,
-            })
-        },
+        "SELECT EXISTS(
+           SELECT 1 FROM session_turn turn
+           INNER JOIN session_attempt attempt ON attempt.id = turn.current_attempt_id
+           WHERE turn.session_id = ? AND turn.id = ? AND attempt.id = ?
+             AND turn.state IN ('running', 'cancel_requested') AND attempt.state = 'running'
+         )",
+        params![session_id, turn_id, attempt_id],
+        |row| row.get(0),
     )
-    .optional()
     .map_err(Into::into)
 }
 
-fn get_active_lease_tx(
-    tx: &rusqlite::Transaction<'_>,
-    session_id: &str,
-    run_id: &str,
-    runner_id: &str,
-    lease_token: &str,
-    now: i64,
-) -> Result<Option<ActiveLease>> {
+fn active_input_id_tx(tx: &rusqlite::Transaction<'_>, turn_id: &str) -> Result<String> {
     tx.query_row(
-        "SELECT session_id, run_id, input_id, runner_id, lease_token
-         FROM session_runner_lease
-         WHERE session_id = ?
-           AND run_id = ?
-           AND runner_id = ?
-           AND lease_token = ?
-           AND expires_at > ?",
-        params![session_id, run_id, runner_id, lease_token, now],
-        |row| {
-            Ok(ActiveLease {
-                session_id: row.get(0)?,
-                run_id: row.get(1)?,
-                input_id: row.get(2)?,
-                runner_id: row.get(3)?,
-                lease_token: row.get(4)?,
-            })
-        },
+        "SELECT primary_input_id FROM session_turn WHERE id = ?",
+        params![turn_id],
+        |row| row.get(0),
     )
-    .optional()
     .map_err(Into::into)
 }
 
-fn get_run_control_by_id(
+fn get_control_tx(
     tx: &rusqlite::Transaction<'_>,
-    session_id: &str,
     control_id: &str,
-) -> Result<Option<SessionRunControlRecord>> {
+) -> Result<SessionTurnControlRecord> {
     tx.query_row(
-        "SELECT id, session_id, run_id, input_id, principal_id, idempotency_key,
-                kind, status, content_json, reason, origin_json, provider_profile_id,
-                metadata_json, created_at, updated_at, applied_at
-         FROM session_run_control
-         WHERE session_id = ? AND id = ?",
-        params![session_id, control_id],
-        row_to_session_run_control,
+        &format!("{CONTROL_SELECT} WHERE id = ?"),
+        params![control_id],
+        row_to_session_turn_control,
     )
-    .optional()
     .map_err(Into::into)
 }
 
-fn get_run_control_by_idempotency_key(
+fn find_control_by_idempotency_tx(
     tx: &rusqlite::Transaction<'_>,
     session_id: &str,
     idempotency_key: &str,
-) -> Result<Option<SessionRunControlRecord>> {
+) -> Result<Option<SessionTurnControlRecord>> {
     tx.query_row(
-        "SELECT id, session_id, run_id, input_id, principal_id, idempotency_key,
-                kind, status, content_json, reason, origin_json, provider_profile_id,
-                metadata_json, created_at, updated_at, applied_at
-         FROM session_run_control
-         WHERE session_id = ? AND idempotency_key = ?",
+        &format!("{CONTROL_SELECT} WHERE session_id = ? AND idempotency_key = ?"),
         params![session_id, idempotency_key],
-        row_to_session_run_control,
+        row_to_session_turn_control,
     )
     .optional()
     .map_err(Into::into)
 }
 
-fn apply_interrupt_run_control_tx(
-    tx: &rusqlite::Transaction<'_>,
-    control: &SessionRunControlRecord,
-    lease: &ActiveLease,
-    now: i64,
-) -> Result<()> {
-    let reason = control
-        .reason
-        .clone()
-        .unwrap_or_else(|| "interrupt requested".to_string());
-    let updated_control = tx.execute(
-        "UPDATE session_run_control
-         SET status = 'applied', updated_at = ?, applied_at = ?
-         WHERE id = ? AND session_id = ? AND status = 'pending'",
-        params![now, now, control.id, control.session_id],
-    )?;
-    if updated_control == 0 {
-        return Err(SystemServiceError::Invariant(
-            "interrupt apply could not mark control applied".to_string(),
-        ));
-    }
-    cancel_pending_run_controls_for_terminal_run_tx(
-        tx,
-        &control.session_id,
-        &control.run_id,
-        now,
-        Some(&control.id),
-    )?;
-    let updated_run = tx.execute(
-        "UPDATE session_run
-         SET status = 'cancelled', updated_at = ?, finished_at = ?, error_json = ?
-         WHERE id = ? AND session_id = ? AND status = 'running'",
-        params![
-            now,
-            now,
-            serde_json::to_string(&serde_json::json!({
-                "type": "interrupt",
-                "reason": reason,
-                "controlId": control.id
-            }))?,
-            control.run_id,
-            control.session_id
-        ],
-    )?;
-    if updated_run == 0 {
-        return Err(SystemServiceError::Invariant(
-            "interrupt apply could not cancel active run".to_string(),
-        ));
-    }
-    let updated_input = tx.execute(
-        "UPDATE session_input
-         SET status = 'cancelled', updated_at = ?
-         WHERE id = ? AND session_id = ? AND status = 'claimed'",
-        params![now, lease.input_id, lease.session_id],
-    )?;
-    if updated_input == 0 {
-        return Err(SystemServiceError::Invariant(
-            "interrupt apply could not cancel claimed input".to_string(),
-        ));
-    }
-    tx.execute(
-        "DELETE FROM session_runner_lease
-         WHERE session_id = ? AND run_id = ? AND runner_id = ? AND lease_token = ?",
-        params![
-            lease.session_id,
-            lease.run_id,
-            lease.runner_id,
-            lease.lease_token
-        ],
-    )?;
-    append_event_tx(
-        tx,
-        &format!("evt_{}", Uuid::now_v7()),
-        "session.run.cancelled",
-        &EventScope {
-            session_id: Some(control.session_id.clone()),
-            run_id: Some(control.run_id.clone()),
-            input_id: Some(lease.input_id.clone()),
-            message_id: None,
-            resource_id: None,
-            ..EventScope::default()
-        },
-        &serde_json::json!({
-            "runId": control.run_id,
-            "inputId": lease.input_id,
-            "status": "cancelled",
-            "reason": reason,
-            "controlId": control.id
-        }),
-        now,
-    )?;
-    append_event_tx(
-        tx,
-        &format!("evt_{}", Uuid::now_v7()),
-        "session.run.interrupt_applied",
-        &EventScope {
-            session_id: Some(control.session_id.clone()),
-            run_id: Some(control.run_id.clone()),
-            input_id: Some(lease.input_id.clone()),
-            message_id: None,
-            resource_id: None,
-            ..EventScope::default()
-        },
-        &serde_json::json!({
-            "runId": control.run_id,
-            "controlId": control.id,
-            "status": "applied"
-        }),
-        now,
-    )?;
-    Ok(())
-}
-
-fn apply_steer_run_control_tx(
-    tx: &rusqlite::Transaction<'_>,
-    control: &SessionRunControlRecord,
-    lease: &ActiveLease,
-    now: i64,
-) -> Result<()> {
-    if control.run_id != lease.run_id {
-        return Err(SystemServiceError::Invariant(
-            "steer control does not target active lease run".to_string(),
-        ));
-    }
-    let Some(input_id) = control.input_id.as_deref() else {
-        return Err(SystemServiceError::Invariant(
-            "steer control missing linked input".to_string(),
-        ));
-    };
-    let updated_input = tx.execute(
-        "UPDATE session_input
-         SET status = 'completed', updated_at = ?
-         WHERE id = ? AND session_id = ? AND status = 'control_pending'",
-        params![now, input_id, control.session_id],
-    )?;
-    if updated_input == 0 {
-        return Err(SystemServiceError::Invariant(
-            "steer apply could not complete control input".to_string(),
-        ));
-    }
-    let updated_control = tx.execute(
-        "UPDATE session_run_control
-         SET status = 'applied', updated_at = ?, applied_at = ?
-         WHERE id = ? AND session_id = ? AND status = 'pending'",
-        params![now, now, control.id, control.session_id],
-    )?;
-    if updated_control == 0 {
-        return Err(SystemServiceError::Invariant(
-            "steer apply could not mark control applied".to_string(),
-        ));
-    }
-    append_event_tx(
-        tx,
-        &format!("evt_{}", Uuid::now_v7()),
-        "session.run.steer_applied",
-        &EventScope {
-            session_id: Some(control.session_id.clone()),
-            run_id: Some(control.run_id.clone()),
-            input_id: Some(input_id.to_string()),
-            message_id: None,
-            resource_id: None,
-            ..EventScope::default()
-        },
-        &serde_json::json!({
-            "runId": control.run_id,
-            "controlId": control.id,
-            "inputId": input_id,
-            "status": "applied"
-        }),
-        now,
-    )?;
-    Ok(())
-}
-
-pub(crate) fn cancel_pending_run_controls_for_terminal_run_tx(
-    tx: &rusqlite::Transaction<'_>,
-    session_id: &str,
-    run_id: &str,
-    now: i64,
-    except_control_id: Option<&str>,
-) -> Result<()> {
-    let except = except_control_id.unwrap_or("");
-    let mut stmt = tx.prepare(
-        "SELECT input_id
-         FROM session_run_control
-         WHERE session_id = ?
-           AND run_id = ?
-           AND status = 'pending'
-           AND input_id IS NOT NULL
-           AND (? = '' OR id <> ?)",
-    )?;
-    let rows = stmt.query_map(params![session_id, run_id, except, except], |row| {
-        row.get::<_, String>(0)
-    })?;
-    let mut input_ids = Vec::new();
-    for row in rows {
-        input_ids.push(row?);
-    }
-    drop(stmt);
-
-    for input_id in input_ids {
-        tx.execute(
-            "UPDATE session_input
-             SET status = 'cancelled', updated_at = ?
-             WHERE id = ? AND session_id = ? AND status = 'control_pending'",
-            params![now, input_id, session_id],
-        )?;
-    }
-    tx.execute(
-        "UPDATE session_run_control
-         SET status = 'cancelled', updated_at = ?
-         WHERE session_id = ?
-           AND run_id = ?
-           AND status = 'pending'
-           AND (? = '' OR id <> ?)",
-        params![now, session_id, run_id, except, except],
-    )?;
-    Ok(())
-}
-
-fn append_steer_rejected_tx(
-    tx: &rusqlite::Transaction<'_>,
-    request: &SteerSessionRun,
-    reason_code: &str,
-    reason: &str,
-    now: i64,
-) -> Result<()> {
-    append_event_tx(
-        tx,
-        &format!("evt_{}", Uuid::now_v7()),
-        "session.run.steer_rejected",
-        &EventScope {
-            session_id: Some(request.session_id.clone()),
-            run_id: Some(request.expected_run_id.clone()),
-            input_id: None,
-            message_id: None,
-            resource_id: None,
-            ..EventScope::default()
-        },
-        &serde_json::json!({
-            "runId": request.expected_run_id,
-            "principalId": request.principal_id,
-            "reasonCode": reason_code,
-            "reason": reason,
-            "status": "rejected"
-        }),
-        now,
-    )?;
-    Ok(())
-}
-
-fn ensure_existing_run_control_matches(
-    existing: &SessionRunControlRecord,
+fn ensure_control_match(
+    control: &SessionTurnControlRecord,
     kind: &str,
-    run_id: &str,
+    turn_id: &str,
+    attempt_id: &str,
 ) -> Result<()> {
-    if existing.kind != kind || existing.run_id != run_id {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "idempotency_key is already used for a different run-control request".to_string(),
+    if control.kind != kind || control.turn_id != turn_id || control.attempt_id != attempt_id {
+        return Err(SystemServiceError::Invariant(
+            "conflicting repeated session turn control".to_string(),
         ));
     }
     Ok(())
 }
 
-fn optional_json_string(value: &Option<Value>) -> Result<Option<String>> {
-    value
-        .as_ref()
-        .map(serde_json::to_string)
-        .transpose()
-        .map_err(Into::into)
+struct ControlEvent<'a> {
+    event_type: &'a str,
+    session_id: &'a str,
+    turn_id: &'a str,
+    attempt_id: &'a str,
+    control_id: &'a str,
+    input_id: Option<&'a str>,
 }
 
-fn validate_interrupt_session_run(request: &InterruptSessionRun) -> Result<()> {
-    if request.session_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "session_id must not be empty".to_string(),
-        ));
-    }
-    if request.run_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "run_id must not be empty".to_string(),
-        ));
-    }
-    if request.reason.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "reason must not be empty".to_string(),
-        ));
-    }
-    if request.principal_id.as_deref().is_some_and(str::is_empty) {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "principal_id must not be empty".to_string(),
-        ));
-    }
-    if request
-        .idempotency_key
-        .as_deref()
-        .is_some_and(str::is_empty)
+fn append_control_event_tx(
+    tx: &rusqlite::Transaction<'_>,
+    event: ControlEvent<'_>,
+    now: i64,
+) -> Result<()> {
+    append_event_tx(
+        tx,
+        &format!("evt_{}", Uuid::now_v7()),
+        event.event_type,
+        &EventScope {
+            session_id: Some(event.session_id.to_string()),
+            turn_id: Some(event.turn_id.to_string()),
+            attempt_id: Some(event.attempt_id.to_string()),
+            input_id: event.input_id.map(ToOwned::to_owned),
+            ..EventScope::default()
+        },
+        &serde_json::json!({
+            "controlId": event.control_id,
+            "turnId": event.turn_id,
+            "attemptId": event.attempt_id
+        }),
+        now,
+    )
+}
+
+fn validate_interrupt(request: &InterruptSessionTurn) -> Result<()> {
+    if request.session_id.is_empty()
+        || request.turn_id.is_empty()
+        || request.attempt_id.is_empty()
+        || request.reason.is_empty()
     {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "idempotency_key must not be empty".to_string(),
+        return Err(SystemServiceError::InvalidInput(
+            "interrupt target and reason must not be empty".to_string(),
         ));
     }
     Ok(())
 }
 
-fn validate_steer_session_run(request: &SteerSessionRun) -> Result<()> {
-    if request.session_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "session_id must not be empty".to_string(),
-        ));
-    }
-    if request.principal_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "principal_id must not be empty".to_string(),
-        ));
-    }
-    if request.expected_run_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "expected_run_id must not be empty".to_string(),
-        ));
-    }
-    if request.idempotency_key.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "idempotency_key must not be empty".to_string(),
-        ));
-    }
-    if request.content.as_array().is_some_and(Vec::is_empty) {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "steer content must not be empty".to_string(),
-        ));
-    }
-    if request
-        .provider_profile_id
-        .as_deref()
-        .is_some_and(str::is_empty)
+fn validate_steer(request: &SteerSessionTurn) -> Result<()> {
+    if request.session_id.is_empty()
+        || request.principal_id.is_empty()
+        || request.expected_turn_id.is_empty()
+        || request.expected_attempt_id.is_empty()
+        || request.idempotency_key.is_empty()
     {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "provider_profile_id must not be empty".to_string(),
+        return Err(SystemServiceError::InvalidInput(
+            "steer execution identity must not be empty".to_string(),
         ));
     }
     Ok(())
 }
 
-fn validate_apply_session_run_control(request: &ApplySessionRunControl) -> Result<()> {
-    if request.session_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "session_id must not be empty".to_string(),
+fn validate_apply(request: &ApplySessionTurnControl) -> Result<()> {
+    if [
+        request.session_id.as_str(),
+        request.turn_id.as_str(),
+        request.attempt_id.as_str(),
+        request.control_id.as_str(),
+        request.job_id.as_str(),
+        request.worker_id.as_str(),
+        request.lease_token.as_str(),
+    ]
+    .iter()
+    .any(|value| value.is_empty())
+    {
+        return Err(SystemServiceError::InvalidInput(
+            "session turn control execution identity must not be empty".to_string(),
         ));
-    }
-    if request.run_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "run_id must not be empty".to_string(),
-        ));
-    }
-    if request.control_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "control_id must not be empty".to_string(),
-        ));
-    }
-    if request.runner_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "runner_id must not be empty".to_string(),
-        ));
-    }
-    if request.lease_token.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "lease_token must not be empty".to_string(),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_list_session_run_controls(request: &ListSessionRunControls) -> Result<()> {
-    if request.session_id.is_empty() {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "session_id must not be empty".to_string(),
-        ));
-    }
-    if request.limit.is_some_and(|limit| limit <= 0) {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "run-control list limit must be positive".to_string(),
-        ));
-    }
-    if let Some(kind) = request.kind.as_deref() {
-        if kind != "interrupt" && kind != "steer" {
-            return Err(SystemServiceError::InvalidJobRequest(
-                "run-control kind must be interrupt or steer".to_string(),
-            ));
-        }
-    }
-    if let Some(status) = request.status.as_deref() {
-        if !matches!(status, "pending" | "applied" | "rejected" | "cancelled") {
-            return Err(SystemServiceError::InvalidJobRequest(
-                "run-control status must be pending, applied, rejected, or cancelled".to_string(),
-            ));
-        }
     }
     Ok(())
 }

@@ -10,10 +10,11 @@ export const supportBundleOperationalScenario = createEvalScenario({
     await context.storage.putConfig("provider.profile.support", {
       id: "support",
       kind: "openai-compatible",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "deepseek",
       modelId: "deepseek-chat",
       baseUrl: "https://api.deepseek.com/v1",
-      apiKey: "secret-token"
+      secretRef: "env://EVAL_SUPPORT_API_KEY"
     })
     await context.storage.enqueueJob({
       id: "job_eval_support_bundle_memory",
@@ -37,7 +38,8 @@ export const supportBundleOperationalScenario = createEvalScenario({
         host: {
           started: true,
           workerCount: 1,
-          memoryWorkerCount: 1
+          memoryWorkerCount: 1,
+          mediaGenerationWorkerCount: 0
         },
         totalJobs: 2,
         stateCounts: [
@@ -45,10 +47,10 @@ export const supportBundleOperationalScenario = createEvalScenario({
           { state: "failed", count: 1 }
         ],
         kindCounts: [
-          { kind: "session.run", count: 1 },
+          { kind: "session.turn", count: 1 },
           { kind: "memory.compaction", count: 1 }
         ],
-        backlogByKind: [{ kind: "session.run", count: 1 }],
+        backlogByKind: [{ kind: "session.turn", count: 1 }],
         retryingByKind: [],
         failedByKind: [{ kind: "memory.compaction", count: 1 }],
         runningLeases: [],
@@ -59,6 +61,7 @@ export const supportBundleOperationalScenario = createEvalScenario({
         started: true,
         workerCount: 1,
         memoryWorkerCount: 1,
+        mediaGenerationWorkerCount: 0,
         loopCount: 1,
         activeLoopCount: 1,
         stoppedLoopCount: 0,
@@ -89,10 +92,11 @@ export const supportBundleOperationalScenario = createEvalScenario({
     })
     const serialized = JSON.stringify(bundle)
 
-    assert(!serialized.includes("secret-token"), "support bundle must redact secrets")
+    assert(!serialized.includes("EVAL_SUPPORT_API_KEY"), "support bundle must redact secret refs")
     assert(
-      bundle.providers[0]?.profile?.apiKey === "***",
-      "support bundle should expose redacted provider profile"
+      bundle.providers[0]?.profile?.credentialConfigured === true &&
+        !serialized.includes("secretRef"),
+      "support bundle should expose only safe provider profile metadata"
     )
     assert(
       bundle.diagnostics.diagnostics.some(
@@ -116,7 +120,9 @@ export const supportBundleOperationalScenario = createEvalScenario({
     )
 
     return {
-      providerRedacted: bundle.providers[0]?.profile?.apiKey === "***",
+      providerRedacted:
+        bundle.providers[0]?.profile?.credentialConfigured === true &&
+        !serialized.includes("secretRef"),
       runtimeHostIncluded: bundle.diagnostics.diagnostics.some(
         (entry) => entry.code === "app.runtime_host.summary"
       ),

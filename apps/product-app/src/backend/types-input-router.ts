@@ -1,7 +1,7 @@
 import type {
-  WanexAppShellRouteWorkflowEnvelopeResult,
-  WanexAppShellWorkflowEnvelope
-} from "@wanex/app/backend"
+  WanexAppRouteWorkflowEnvelopeResult,
+  WanexAppWorkflowEnvelope
+} from "@wanex/app"
 import type {
   AppDiagnosticsSnapshot,
   SupportBundle
@@ -10,10 +10,12 @@ import type {
   ProductAppBackendAgentContextMonitorStatus,
   ProductAppBackendAgentContextProfileReloadResult,
   ProductAppBackendCommands,
-  ProductAppBackendRunAgentTurnResult,
   ProductAppBackendShutdownResult,
   ProductAppBackendStatus
 } from "./types-app.js"
+import type {
+  ProductAppBackendConversationOperationReceipt
+} from "./types-conversation.js"
 
 export interface ProductAppBackendInputCommands {
   routeInput(
@@ -26,9 +28,9 @@ export interface ProductAppBackendInputCommands {
 
 export interface ProductAppBackendInputRouterCommands
   extends ProductAppBackendCommands {
-  routeAppShellWorkflowEnvelope(
-    request: ProductAppBackendAppShellWorkflowEnvelope
-  ): Promise<ProductAppBackendAppShellRouteWorkflowEnvelopeResult>
+  routeAppWorkflowEnvelope(
+    request: ProductAppBackendAppWorkflowEnvelope
+  ): Promise<ProductAppBackendAppRouteWorkflowEnvelopeResult>
 }
 
 export interface ProductAppBackendRouteInputRequest {
@@ -88,7 +90,7 @@ export interface ProductAppBackendChannelWorkflowEnvelope
 export interface ProductAppBackendGuidedFollowUpWorkflowEnvelope
   extends ProductAppBackendWorkflowEnvelopeBase {
   readonly kind: "guided_follow_up"
-  readonly activeRunId: string
+  readonly activeTurnId: string
   readonly sourceRef?: string
 }
 
@@ -99,10 +101,10 @@ export interface ProductAppBackendSideQueryWorkflowEnvelope
   readonly maxOutputTokens?: number
 }
 
-export type ProductAppBackendAppShellWorkflowEnvelope =
-  WanexAppShellWorkflowEnvelope
-export type ProductAppBackendAppShellRouteWorkflowEnvelopeResult =
-  WanexAppShellRouteWorkflowEnvelopeResult
+export type ProductAppBackendAppWorkflowEnvelope =
+  WanexAppWorkflowEnvelope
+export type ProductAppBackendAppRouteWorkflowEnvelopeResult =
+  WanexAppRouteWorkflowEnvelopeResult
 
 export type ProductAppBackendRouteInputResult =
   | ProductAppBackendRouteAgentResult
@@ -117,8 +119,8 @@ export type ProductAppBackendRouteInputResult =
 
 export interface ProductAppBackendRouteAgentResult {
   readonly kind: "agent"
-  readonly command: "runAgentTurn"
-  readonly result: ProductAppBackendRunAgentTurnResult
+  readonly command: "submitConversationOperation"
+  readonly result: ProductAppBackendConversationOperationReceipt
 }
 
 export interface ProductAppBackendRouteStatusResult {
@@ -160,7 +162,7 @@ export interface ProductAppBackendRouteShutdownResult {
 export interface ProductAppBackendRouteWorkflowEnvelopePassThroughResult {
   readonly kind: "guided_follow_up" | "side_query"
   readonly command: "queueGuidedFollowUp" | "askSideQuery"
-  readonly result: ProductAppBackendAppShellRouteWorkflowEnvelopeResult extends infer R
+  readonly result: ProductAppBackendAppRouteWorkflowEnvelopeResult extends infer R
     ? R extends { readonly result: infer Result }
       ? Result
       : never

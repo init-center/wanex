@@ -13,22 +13,25 @@ export const appDefaultEntryContractScenario = createEvalScenario({
     const app = await createWanexApp({
       storage: {
         kind: "local-system-service",
-        storeDir,
-        serviceBin: context.serviceBin
+        storeDir
       },
-      provider: {
+      artifacts: { explicitPath: context.serviceBin },
+      providerProfile: {
         id: "eval-app-default",
         modelId: "eval-app-model"
       }
     })
 
     try {
-      const run = await app.run({ text: "eval app default entry" })
+      const receipt = await app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "eval app default entry" }]
+      })
+      const operation = await waitForTerminal(app, receipt)
       const status = app.status()
 
       assert(
-        run.assistantText === "Fake response from eval-app-model",
-        "Wanex App should run an agent turn through the default entry"
+        operation.result?.assistantText === "Fake response from eval-app-model",
+        "Wanex App should complete a durable operation through the default entry"
       )
       assert(
         status.providerProfileId === "eval-app-default" &&
@@ -44,11 +47,15 @@ export const appDefaultEntryContractScenario = createEvalScenario({
 
       return {
         entry: "@wanex/app",
-        sessionId: run.sessionId,
-        assistantText: run.assistantText,
+        sessionId: receipt.sessionId,
+        inputId: receipt.inputId,
+        turnId: receipt.turnId,
+        jobId: receipt.jobId,
+        operationState: operation.state,
+        assistantText: operation.result?.assistantText,
         providerProfileId: status.providerProfileId,
         activeProviderProfileId: status.activeProviderProfileId,
-        messageCount: run.messageCount,
+        messageCount: operation.result?.messageCount,
         privateFieldCount: 0
       }
     } finally {
@@ -57,3 +64,24 @@ export const appDefaultEntryContractScenario = createEvalScenario({
     }
   }
 })
+
+async function waitForTerminal(
+  app: Awaited<ReturnType<typeof createWanexApp>>,
+  reference: {
+    readonly sessionId: string
+    readonly inputId: string
+    readonly turnId: string
+    readonly jobId: string
+  }
+) {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await app.commands.readConversationOperation(reference)
+    if (result.kind === "found" &&
+      ["succeeded", "failed", "cancelled", "interrupted", "recovery_required"]
+        .includes(result.operation.state)) {
+      return result.operation
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("Eval App operation did not reach terminal state")
+}

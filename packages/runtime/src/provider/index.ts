@@ -1,6 +1,7 @@
 export * from "./adapters/fake.js"
 export * from "./adapters/anthropic.js"
 export * from "./adapters/openai-compatible.js"
+export * from "./capabilities.js"
 export * from "./consume.js"
 export * from "./errors.js"
 export type * from "./http.js"

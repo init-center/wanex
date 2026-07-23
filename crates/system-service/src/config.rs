@@ -8,7 +8,7 @@ impl SystemService {
     pub fn put_config(&self, key: &str, value: &Value) -> Result<()> {
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         tx.execute(
             "INSERT INTO config_entry (key, value_json, updated_at)
              VALUES (?, ?, ?)

@@ -3,16 +3,16 @@ import type {
   SessionId
 } from "@wanex/protocol"
 import type {
-  WanexAppShellClassifierHint
+  WanexAppClassifierHint
 } from "./types-workflow-envelope.js"
 
-export interface WanexAppShellScheduleCommands {
+export interface WanexAppScheduleCommands {
   submitScheduledTick(
-    request: WanexAppShellSubmitScheduledTickRequest
-  ): Promise<WanexAppShellScheduledTickResult>
+    request: WanexAppSubmitScheduledTickRequest
+  ): Promise<WanexAppScheduledTickResult>
 }
 
-export interface WanexAppShellSubmitScheduledTickRequest {
+export interface WanexAppSubmitScheduledTickRequest {
   readonly scheduleId: string
   readonly tickId: string
   readonly text: string
@@ -25,14 +25,14 @@ export interface WanexAppShellSubmitScheduledTickRequest {
   readonly nonOverlap?: boolean
   readonly previousJobId?: string
   readonly activeJobScanLimit?: number
-  readonly classifier?: WanexAppShellClassifierHint
+  readonly classifier?: WanexAppClassifierHint
 }
 
-export type WanexAppShellScheduledTickResult =
-  | WanexAppShellScheduledTickSubmittedResult
-  | WanexAppShellScheduledTickSkippedResult
+export type WanexAppScheduledTickResult =
+  | WanexAppScheduledTickSubmittedResult
+  | WanexAppScheduledTickSkippedResult
 
-export interface WanexAppShellScheduledTickSubmittedResult {
+export interface WanexAppScheduledTickSubmittedResult {
   readonly status: "submitted"
   readonly scheduleId: string
   readonly tickId: string
@@ -44,18 +44,18 @@ export interface WanexAppShellScheduledTickSubmittedResult {
   readonly jobStatuses: readonly SchedulerJobState[]
 }
 
-export interface WanexAppShellScheduledTickSkippedResult {
+export interface WanexAppScheduledTickSkippedResult {
   readonly status: "skipped"
   readonly reason: "previous_job_active"
   readonly scheduleId: string
   readonly tickId: string
-  readonly previousJob: WanexAppShellScheduleJobSummary
+  readonly previousJob: WanexAppScheduleJobSummary
 }
 
-export interface WanexAppShellScheduleJobSummary {
+export interface WanexAppScheduleJobSummary {
   readonly jobId: string
   readonly state: SchedulerJobState
-  readonly kind: "session.run"
+  readonly kind: "session.turn"
   readonly scheduledAt: number
   readonly updatedAt: number
 }

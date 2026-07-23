@@ -1,8 +1,9 @@
 import type {
   PrincipalId,
+  SessionAttemptId,
   SessionId,
   SessionInputId,
-  SessionRunId
+  SessionTurnId
 } from "./ids.js"
 import type { JsonValue } from "./json.js"
 import type { MessagePart } from "./message.js"
@@ -13,8 +14,7 @@ export type SessionInputOriginKind =
   | "connector"
   | "agent"
   | "system"
-  | "objective"
-  | "plan"
+  | (string & {})
 
 export interface SessionInputOrigin {
   readonly kind: SessionInputOriginKind
@@ -34,39 +34,42 @@ export type RunControlPolicy =
   | "abort_current_then_run"
   | "steer_at_safe_point"
 
-export interface RunControlTarget {
-  readonly expectedRunId?: SessionRunId
+export interface SessionTurnControlTarget {
+  readonly expectedTurnId?: SessionTurnId
+  readonly expectedAttemptId?: SessionAttemptId
   readonly expectedInputId?: SessionInputId
 }
 
-export interface SessionRunControlOptions {
+export interface SessionTurnControlOptions {
   readonly intent?: SessionInputIntent
   readonly policy?: RunControlPolicy
-  readonly target?: RunControlTarget
+  readonly target?: SessionTurnControlTarget
 }
 
-export interface SteerSessionRunRequest {
+export interface SteerSessionTurnRequest {
   readonly sessionId: SessionId
   readonly principalId: PrincipalId
-  readonly expectedRunId: SessionRunId
+  readonly expectedTurnId: SessionTurnId
+  readonly expectedAttemptId: SessionAttemptId
   readonly idempotencyKey: string
   readonly content: readonly MessagePart[]
   readonly origin?: SessionInputOrigin
-  readonly providerProfileId?: string
   readonly metadata?: Readonly<Record<string, JsonValue>>
 }
 
-export interface SteerSessionRunReceipt {
+export interface SteerSessionTurnReceipt {
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly durability: "local-durable"
   readonly status: "accepted"
   readonly acceptedAt?: number
 }
 
-export interface InterruptSessionRunRequest {
+export interface InterruptSessionTurnRequest {
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly reason: string
   readonly principalId?: PrincipalId
   readonly idempotencyKey?: string
@@ -74,64 +77,68 @@ export interface InterruptSessionRunRequest {
   readonly metadata?: Readonly<Record<string, JsonValue>>
 }
 
-export interface InterruptSessionRunReceipt {
+export interface InterruptSessionTurnReceipt {
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly durability: "local-durable"
   readonly status: "interrupt_requested" | "not_running"
   readonly acceptedAt?: number
 }
 
-export type SessionRunControlKind = "interrupt" | "steer"
+export type SessionTurnControlKind = "interrupt" | "steer"
 
-export type SessionRunControlStatus =
+export type SessionTurnControlStatus =
   | "pending"
   | "applied"
   | "rejected"
   | "cancelled"
 
-export interface SessionRunControlRecord {
+export interface SessionTurnControlRecord {
   readonly id: string
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly inputId?: SessionInputId
   readonly principalId?: PrincipalId
   readonly idempotencyKey: string
-  readonly kind: SessionRunControlKind
-  readonly status: SessionRunControlStatus
+  readonly kind: SessionTurnControlKind
+  readonly status: SessionTurnControlStatus
   readonly content?: readonly MessagePart[]
   readonly reason?: string
   readonly origin?: SessionInputOrigin
-  readonly providerProfileId?: string
   readonly metadata?: Readonly<Record<string, JsonValue>>
   readonly createdAt: number
   readonly updatedAt: number
   readonly appliedAt?: number
 }
 
-export type SessionRunControlApplyEffect =
-  | "interrupt_cancelled_run"
-  | "steer_completed_input"
+export type SessionTurnControlApplyEffect =
+  | "interrupt_requested_cancel"
+  | "steer_promoted_input"
   | "already_resolved"
 
-export interface ApplySessionRunControlRequest {
+export interface ApplySessionTurnControlRequest {
   readonly sessionId: SessionId
-  readonly runId: SessionRunId
+  readonly turnId: SessionTurnId
+  readonly attemptId: SessionAttemptId
   readonly controlId: string
-  readonly runnerId: string
+  readonly jobId: string
+  readonly workerId: string
   readonly leaseToken: string
 }
 
-export interface ApplySessionRunControlReceipt {
-  readonly control: SessionRunControlRecord
-  readonly effect: SessionRunControlApplyEffect
+export interface ApplySessionTurnControlReceipt {
+  readonly control: SessionTurnControlRecord
+  readonly effect: SessionTurnControlApplyEffect
 }
 
-export interface ListSessionRunControlsRequest {
+export interface ListSessionTurnControlsRequest {
   readonly sessionId: SessionId
-  readonly runId?: SessionRunId
-  readonly kind?: SessionRunControlKind
-  readonly status?: SessionRunControlStatus
+  readonly turnId?: SessionTurnId
+  readonly attemptId?: SessionAttemptId
+  readonly kind?: SessionTurnControlKind
+  readonly status?: SessionTurnControlStatus
   readonly limit?: number
 }
 

@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./backend": "./src/backend.ts",
     "./diagnostics": "./src/diagnostics/index.ts",
     "./workflows/plan": "./src/workflows/plan/index.ts",
     "./workflows/objective": "./src/workflows/objective/index.ts"

@@ -40,7 +40,7 @@ interface EvalChannelEnvelope extends EvalWorkflowEnvelopeBase {
 
 interface EvalGuidedEnvelope extends EvalWorkflowEnvelopeBase {
   readonly kind: "guided_follow_up"
-  readonly activeRunId: string
+  readonly activeTurnId: string
   readonly sourceRef?: string
 }
 
@@ -60,7 +60,7 @@ export interface NormalizedEvalAgentEnvelope {
     readonly origin: SessionInputOrigin
     readonly intent: "normal" | "follow_up"
     readonly runControlPolicy?: "queue_after_current"
-    readonly expectedRunId?: string
+    readonly expectedTurnId?: string
   }
 }
 
@@ -120,7 +120,7 @@ export function normalizeEvalWorkflowEnvelope(
           origin: {
             kind: "interactive",
             sourceRef: envelope.sourceRef ?? "guided-follow-up",
-            parentRef: envelope.activeRunId,
+            parentRef: envelope.activeTurnId,
             metadata: {
               productPolicy: "queue_after_current",
               ...classifierMetadata(envelope.classifier)
@@ -128,7 +128,7 @@ export function normalizeEvalWorkflowEnvelope(
           },
           intent: "follow_up",
           runControlPolicy: "queue_after_current",
-          expectedRunId: envelope.activeRunId
+          expectedTurnId: envelope.activeTurnId
         }
       }
   }

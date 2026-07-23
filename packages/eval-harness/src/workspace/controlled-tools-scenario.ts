@@ -14,6 +14,7 @@ import {
   ExactWorkspaceProgramPolicy,
   registerWorkspaceCodingTools
 } from "@wanex/workspace/tools"
+import { settleEvalTurn, startEvalTurn } from "../durable-turn-fixture.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 
@@ -29,10 +30,14 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       id: "ses_eval_controlled_tools",
       kind: "agent"
     })
-    const admitted = await session.admit({
-      id: "inp_eval_controlled_tools",
+    const turn = await startEvalTurn({
+      session,
       sessionId: created.id,
       principalId,
+      inputId: "inp_eval_controlled_tools",
+      turnId: "turn_eval_controlled_tools",
+      jobId: "job_eval_controlled_tools",
+      workerId: "worker_eval_controlled_tools",
       idempotencyKey: "eval-controlled-tools:admit",
       content: [{
         type: "text",
@@ -40,13 +45,6 @@ export const workspaceControlledToolsScenario = createEvalScenario({
         text: "Exercise controlled workspace tools"
       }]
     })
-    const claim = await session.claimRunner({
-      sessionId: created.id,
-      runnerId: "runner_eval_controlled_tools",
-      leaseMs: 60_000
-    })
-    assert(claim !== null, "controlled workspace tool run should be claimed")
-
     const workspace = new WorkspaceRuntime({
       storage: context.storage,
       rootDir: context.workspaceRootDir,
@@ -60,11 +58,80 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       executionHost: new NodeExecutionHost(),
       programPolicy: new ExactWorkspaceProgramPolicy({ node: process.execPath })
     })
+    const targetRelativePath = "phase753-controlled.txt"
+    const targetPath = join(context.workspaceRootDir, targetRelativePath)
+    const approvedInput = {
+      program: "node",
+      args: ["-e", "process.stdout.write('wanex-controlled')"]
+    } as const
+    const applyInput = {
+      id: "cs_eval_controlled_tools",
+      title: "Controlled tool edit",
+      changes: [{
+        path: targetRelativePath,
+        kind: "update",
+        baseText: "before\n",
+        targetText: "after\n"
+      }]
+    } as const
+    const permissionDeniedInput = {
+      program: "node",
+      args: ["--version"]
+    } as const
+    const programDeniedInput = {
+      program: "sh",
+      args: ["-c", "echo unsafe"]
+    } as const
+    const pathEscapeInput = { path: "../outside.txt" } as const
+    const cancelInput = {
+      program: "node",
+      args: [
+        "-e",
+        "const{spawn}=require('node:child_process');const{writeFileSync}=require('node:fs');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});writeFileSync('phase753-grandchild.pid',String(c.pid));setInterval(()=>{},1000)"
+      ]
+    } as const
+    await writeFile(targetPath, "before\n", "utf8")
+    const sourceMessage = await session.appendMessage({
+      ...turn.identity,
+      idempotencyKey: "eval-controlled-tools:assistant-source",
+      role: "assistant",
+      content: [
+        toolCallPart("call_eval_controlled_exec", "workspace_exec", approvedInput),
+        toolCallPart(
+          "call_eval_controlled_apply",
+          "workspace_apply_changeset",
+          applyInput
+        ),
+        toolCallPart(
+          "call_eval_controlled_permission_denied",
+          "workspace_exec",
+          permissionDeniedInput
+        ),
+        toolCallPart(
+          "call_eval_controlled_program_denied",
+          "workspace_exec",
+          programDeniedInput
+        ),
+        toolCallPart(
+          "call_eval_controlled_path_escape",
+          "workspace_read_text",
+          pathEscapeInput
+        ),
+        toolCallPart(
+          "call_eval_controlled_cancel",
+          "workspace_exec",
+          cancelInput
+        )
+      ]
+    })
+    assert(
+      sourceMessage !== null,
+      "controlled workspace tool source message should be persisted"
+    )
     const identity = {
       principalId,
-      sessionId: created.id,
-      inputId: admitted.inputId,
-      runId: claim.runId
+      ...turn.identity,
+      sourceMessageId: sourceMessage.id
     }
 
     const approved = await executeTool({
@@ -73,10 +140,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       identity,
       toolCallId: "call_eval_controlled_exec",
       toolName: "workspace_exec",
-      input: {
-        program: "node",
-        args: ["-e", "process.stdout.write('wanex-controlled')"]
-      },
+      input: approvedInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
     assert(approved.invoked, "approved command should invoke the execution host")
@@ -89,25 +153,13 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       "approved command should retain stdout"
     )
 
-    const targetRelativePath = "phase753-controlled.txt"
-    const targetPath = join(context.workspaceRootDir, targetRelativePath)
-    await writeFile(targetPath, "before\n", "utf8")
     const applied = await executeTool({
       registry,
       storage: context.storage,
       identity,
       toolCallId: "call_eval_controlled_apply",
       toolName: "workspace_apply_changeset",
-      input: {
-        id: "cs_eval_controlled_tools",
-        title: "Controlled tool edit",
-        changes: [{
-          path: targetRelativePath,
-          kind: "update",
-          baseText: "before\n",
-          targetText: "after\n"
-        }]
-      },
+      input: applyInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
     assert(!applied.result.isError, "changeset tool should apply")
@@ -127,7 +179,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       identity,
       toolCallId: "call_eval_controlled_permission_denied",
       toolName: "workspace_exec",
-      input: { program: "node", args: ["--version"] },
+      input: permissionDeniedInput,
       permissionPolicy: new RiskBoundToolPolicy(["read_only"])
     })
     assert(!permissionDenied.invoked, "permission denial should prevent invocation")
@@ -142,7 +194,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       identity,
       toolCallId: "call_eval_controlled_program_denied",
       toolName: "workspace_exec",
-      input: { program: "sh", args: ["-c", "echo unsafe"] },
+      input: programDeniedInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
     assert(programDenied.result.isError, "unapproved program should fail closed")
@@ -157,7 +209,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       identity,
       toolCallId: "call_eval_controlled_path_escape",
       toolName: "workspace_read_text",
-      input: { path: "../outside.txt" },
+      input: pathEscapeInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
     assert(escaped.result.isError, "path escape should fail closed")
@@ -167,12 +219,13 @@ export const workspaceControlledToolsScenario = createEvalScenario({
           registry,
           storage: context.storage,
           identity,
-          workspaceRootDir: context.workspaceRootDir
+          workspaceRootDir: context.workspaceRootDir,
+          input: cancelInput
         })
       : false
 
     const executions = (await context.storage.listToolExecutions({}))
-      .filter((execution) => execution.runId === claim.runId)
+      .filter((execution) => execution.turnId === turn.identity.turnId)
     const states = Object.fromEntries(
       executions.map((execution) => [execution.toolCallId, execution.state])
     )
@@ -192,6 +245,11 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       assert(states.call_eval_controlled_cancel === "cancelled",
         "cancelled process should be durably cancelled after cleanup")
     }
+    await settleEvalTurn(session, turn, [{
+        type: "text",
+        id: "assistant_eval_controlled_tools_complete",
+        text: "Controlled workspace tool checks completed."
+      }])
 
     return {
       approvedStdout,
@@ -207,6 +265,7 @@ async function cancelProcessTree(options: {
   readonly storage: Parameters<typeof executeTool>[0]["storage"]
   readonly identity: ToolIdentity
   readonly workspaceRootDir: string
+  readonly input: JsonValue
 }): Promise<true> {
   const pidFileName = "phase753-grandchild.pid"
   const pidFile = join(options.workspaceRootDir, pidFileName)
@@ -217,26 +276,22 @@ async function cancelProcessTree(options: {
     identity: options.identity,
     toolCallId: "call_eval_controlled_cancel",
     toolName: "workspace_exec",
-    input: {
-      program: "node",
-      args: [
-        "-e",
-        "const{spawn}=require('node:child_process');const{writeFileSync}=require('node:fs');const c=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'});writeFileSync('phase753-grandchild.pid',String(c.pid));setInterval(()=>{},1000)"
-      ]
-    },
+    input: options.input,
     permissionPolicy: new AllowAllToolsPolicy(),
     signal: controller.signal
   })
   const grandchildPid = Number(await waitForTextFile(pidFile, 2_000))
   assert(Number.isInteger(grandchildPid), "grandchild pid should be recorded")
   controller.abort()
-  let cancelled = false
-  try {
-    await execution
-  } catch (error) {
-    cancelled = error instanceof Error && error.message.includes("aborted")
-  }
-  assert(cancelled, "parent cancellation should reject the tool call")
+  const cancelled = await execution
+  assert(cancelled.invoked, "parent cancellation should stop an invoked tool call")
+  assert(cancelled.result.isError, "parent cancellation should return a tool error")
+  const cancellationResult = jsonRecord(cancelled.result.result)
+  assert(
+    cancellationResult.termination === "cancelled" &&
+      cancellationResult.cleanup === "completed",
+    "parent cancellation should return completed process-tree cleanup evidence"
+  )
   await assertProcessGone(grandchildPid)
   return true
 }
@@ -245,7 +300,12 @@ interface ToolIdentity {
   readonly principalId: string
   readonly sessionId: string
   readonly inputId: string
-  readonly runId: string
+  readonly turnId: string
+  readonly attemptId: string
+  readonly sourceMessageId: string
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
 }
 
 async function executeTool(options: {
@@ -272,6 +332,20 @@ async function executeTool(options: {
     permissionPolicy: options.permissionPolicy,
     ...(options.signal === undefined ? {} : { signal: options.signal })
   })
+}
+
+function toolCallPart(
+  toolCallId: string,
+  toolName: string,
+  input: JsonValue
+): import("@wanex/protocol").ToolCallMessagePart {
+  return {
+    type: "tool_call",
+    id: "part_" + toolCallId,
+    toolCallId,
+    toolName,
+    input
+  }
 }
 
 function jsonRecord(value: JsonValue | undefined): Record<string, JsonValue> {

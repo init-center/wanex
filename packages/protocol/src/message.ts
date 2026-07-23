@@ -1,7 +1,7 @@
 import type { JsonValue } from "./json.js"
-import type { MessagePartId, ResourceId } from "./ids.js"
+import type { MessagePartId } from "./ids.js"
 import type { ProviderState } from "./provider.js"
-import type { UiSurfaceEnvelope } from "./ui-surface.js"
+import type { ResourceInputEvidence } from "./resource.js"
 
 export type MessagePartVisibility =
   | "user"
@@ -15,7 +15,20 @@ export type MessagePart =
   | ToolCallMessagePart
   | ToolResultMessagePart
   | ResourceMessagePart
-  | UiSurfaceMessagePart
+
+export type UserMessageInputPart =
+  | UserTextMessageInputPart
+  | UserResourceMessageInputPart
+
+export interface UserTextMessageInputPart {
+  readonly type: "text"
+  readonly text: string
+}
+
+export interface UserResourceMessageInputPart {
+  readonly type: "resource"
+  readonly resourceId: ResourceInputEvidence["resourceId"]
+}
 
 export interface MessagePartBase {
   readonly id: MessagePartId
@@ -48,13 +61,8 @@ export interface ToolResultMessagePart extends MessagePartBase {
   readonly isError: boolean
 }
 
-export interface ResourceMessagePart extends MessagePartBase {
+export interface ResourceMessagePart
+  extends MessagePartBase,
+    ResourceInputEvidence {
   readonly type: "resource"
-  readonly resourceId: ResourceId
-  readonly mediaType?: string
-}
-
-export interface UiSurfaceMessagePart extends MessagePartBase {
-  readonly type: "ui_surface"
-  readonly surface: UiSurfaceEnvelope
 }

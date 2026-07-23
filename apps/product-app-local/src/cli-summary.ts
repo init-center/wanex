@@ -49,8 +49,8 @@ export interface ProductAppLocalCliJsonProviderReadinessSummary {
   readonly profileCount: number
   readonly canRun: boolean
   readonly attentionRequired: boolean
-  readonly requiresApiKey: boolean
-  readonly hasApiKey: boolean
+  readonly requiresCredential: boolean
+  readonly credentialConfigured: boolean
 }
 
 export interface ProductAppLocalCliJsonProviderProfileSummary {
@@ -58,10 +58,9 @@ export interface ProductAppLocalCliJsonProviderProfileSummary {
   readonly kind: string
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProductAppLocalSnapshot["providerProfiles"]["profiles"][number]["capabilities"]
   readonly active: boolean
-  readonly hasApiKey: boolean
-  readonly baseUrl?: string
-  readonly apiKeyRedacted?: string
+  readonly credentialConfigured: boolean
 }
 
 export interface ProductAppLocalCliJsonProductSummary {
@@ -75,7 +74,10 @@ export interface ProductAppLocalCliJsonProductSummary {
 export interface ProductAppLocalCliJsonWebSummary {
   readonly ready: boolean
   readonly workbenchState: string
-  readonly workbenchCanContinue: boolean
+  readonly conversationState: string
+  readonly conversationCanSubmit: boolean
+  readonly conversationCanCancel: boolean
+  readonly conversationCanRegenerate: boolean
   readonly operationStatus: ProductAppLocalSnapshot["web"]["view"]["operationStatus"]
   readonly providerRunGate: ProductAppLocalSnapshot["web"]["view"]["providerRunGate"]
 }
@@ -105,7 +107,7 @@ export function formatProductAppLocalCliStartupSummary(
     `Provider readiness: ${input.snapshot.web.view.settings.profile.readiness.status}`,
     `Provider can run: ${input.snapshot.web.view.settings.profile.readiness.canRun ? "yes" : "no"}`,
     `Provider run gate: ${input.snapshot.web.view.providerRunGate.state}`,
-    `Workbench submit: ${input.snapshot.web.view.providerRunGate.canSubmitWorkbench ? "enabled" : "blocked"}`,
+    `Conversation submit: ${input.snapshot.web.view.providerRunGate.canSubmitConversation ? "enabled" : "blocked"}`,
     ...formatProductAppLocalCliProviderProfileRows(input.snapshot),
     `Layout: ${settings.state.layout}`,
     `Mode: ${settings.state.mode}`,
@@ -157,7 +159,11 @@ export function projectProductAppLocalCliStartupSummary(
     web: {
       ready: input.snapshot.web.view.ready,
       workbenchState: input.snapshot.web.view.workbenchState,
-      workbenchCanContinue: input.snapshot.web.view.workbenchCanContinue,
+      conversationState: input.snapshot.web.view.conversationState,
+      conversationCanSubmit: input.snapshot.web.view.conversationCanSubmit,
+      conversationCanCancel: input.snapshot.web.view.conversationCanCancel,
+      conversationCanRegenerate:
+        input.snapshot.web.view.conversationCanRegenerate,
       operationStatus: input.snapshot.web.view.operationStatus,
       providerRunGate: input.snapshot.web.view.providerRunGate
     },
@@ -191,8 +197,8 @@ function projectProductAppLocalCliProviderReadiness(
     profileCount: readiness.profileCount,
     canRun: readiness.canRun,
     attentionRequired: readiness.attentionRequired,
-    requiresApiKey: readiness.requiresApiKey,
-    hasApiKey: readiness.hasApiKey
+    requiresCredential: readiness.requiresCredential,
+    credentialConfigured: readiness.credentialConfigured
   }
 }
 
@@ -204,12 +210,9 @@ function projectProductAppLocalCliProviderProfile(
     kind: profile.kind,
     providerId: profile.providerId,
     modelId: profile.modelId,
+    capabilities: profile.capabilities,
     active: profile.active,
-    hasApiKey: profile.hasApiKey,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.apiKeyRedacted === undefined
-      ? {}
-      : { apiKeyRedacted: profile.apiKeyRedacted })
+    credentialConfigured: profile.credentialConfigured
   }
 }
 
@@ -218,10 +221,10 @@ function formatProductAppLocalCliProviderProfileRows(
 ): readonly string[] {
   return snapshot.providerProfiles.profiles.map((profile) => {
     const status = profile.active ? "active" : "available"
-    const baseUrl =
-      profile.baseUrl === undefined ? "" : ` baseUrl=${profile.baseUrl}`
-    const key = profile.hasApiKey ? " key=redacted" : " key=none"
-    return `  - ${status} ${profile.id} ${profile.kind}/${profile.providerId} model=${profile.modelId}${baseUrl}${key}`
+    const credential = profile.credentialConfigured
+      ? " credential=configured"
+      : " credential=none"
+    return `  - ${status} ${profile.id} ${profile.kind}/${profile.providerId} model=${profile.modelId}${credential}`
   })
 }
 

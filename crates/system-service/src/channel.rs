@@ -12,7 +12,7 @@ use crate::{
     FailChannelDelivery, FailJob, IngestChannelInboundEvent, ListChannelBindings,
     ListChannelInboundEvents, ListChannelProjections, ProjectChannelInboundEvent,
     PutChannelBinding, Result, RevokeChannelBinding, SchedulerJobKind, SchedulerJobRecord,
-    SubmitChannelDelivery, SubmitSessionRun, SystemService, SystemServiceError,
+    SubmitChannelDelivery, SubmitSessionTurn, SystemService, SystemServiceError,
     UpdateChannelInboundEventState,
 };
 use rusqlite::{params, OptionalExtension};
@@ -43,7 +43,7 @@ const CHANNEL_PROJECTION_SELECT: &str = "SELECT
 
 const SCHEDULER_JOB_SELECT: &str = "SELECT
     id, kind, state, principal_id, payload_json, scheduled_at, not_before,
-    priority, attempt, max_attempts, retry_policy_json, idempotency_key,
+    priority, concurrency_key, attempt, max_attempts, retry_policy_json, idempotency_key,
     budget_grant_id, lease_owner, lease_token, lease_expires_at,
     result_json, last_error_json, created_at, updated_at, finished_at
  FROM scheduler_job";
@@ -62,7 +62,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         require_connector_capability_tx(&tx, &request.connector_id, "channel.connect")?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
@@ -182,7 +182,7 @@ impl SystemService {
         }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing =
             get_channel_binding_by_id_tx(&tx, &request.binding_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -235,7 +235,7 @@ impl SystemService {
         let now = crate::util::now_ms();
         let received_at = request.received_at.unwrap_or(now);
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         require_connector_capability_tx(&tx, &request.connector_id, "channel.receive")?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
@@ -368,7 +368,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let existing =
             get_channel_inbound_event_by_id_tx(&tx, &request.event_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -419,7 +419,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         require_connector_capability_tx(&tx, &request.connector_id, "channel.deliver")?;
 
         if let Some(idempotency_key) = &request.idempotency_key {
@@ -489,6 +489,7 @@ impl SystemService {
                 scheduled_at: request.scheduled_at,
                 not_before: request.not_before,
                 priority: request.priority,
+                concurrency_key: None,
                 max_attempts: request.max_attempts,
                 retry_policy: request.retry_policy.clone(),
                 idempotency_key: Some(job_idempotency_key),
@@ -533,7 +534,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let delivery =
             get_channel_delivery_by_id_tx(&tx, &request.delivery_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -621,7 +622,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
         let delivery =
             get_channel_delivery_by_id_tx(&tx, &request.delivery_id)?.ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
@@ -728,7 +729,7 @@ impl SystemService {
             .transpose()?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
-        let tx = conn.transaction()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
 
         let inbound = get_channel_inbound_event_by_id_tx(&tx, &request.inbound_event_id)?
             .ok_or_else(|| {
@@ -924,7 +925,7 @@ fn validate_project_channel_inbound_event(request: &ProjectChannelInboundEvent) 
 fn validate_projection_target_kind(kind: &str) -> Result<()> {
     if !matches!(
         kind,
-        "session.run" | "team.turn" | "workspace.task" | "ignored"
+        "session.turn" | "team.turn" | "workspace.task" | "ignored"
     ) {
         return Err(SystemServiceError::Invariant(format!(
             "invalid channel projection target kind: {kind}"
@@ -1166,11 +1167,16 @@ fn apply_projection_target_tx(
     now: i64,
 ) -> Result<ProjectionOutcome> {
     match target {
-        ProjectionTarget::SessionRun(target) => {
-            let receipt =
-                submit_session_run_projection_tx(tx, projection_id, inbound_event_id, target, now)?;
+        ProjectionTarget::SessionTurn(target) => {
+            let receipt = submit_session_turn_projection_tx(
+                tx,
+                projection_id,
+                inbound_event_id,
+                target,
+                now,
+            )?;
             Ok(ProjectionOutcome {
-                target_id: Some(receipt.admission.input_id),
+                target_id: Some(receipt.turn.id),
                 job: Some(receipt.job),
             })
         }
@@ -1201,23 +1207,27 @@ fn apply_projection_target_tx(
     }
 }
 
-fn submit_session_run_projection_tx(
+fn submit_session_turn_projection_tx(
     tx: &rusqlite::Transaction<'_>,
     projection_id: &str,
     inbound_event_id: &str,
-    target: &SessionRunProjectionTarget,
+    target: &SessionTurnProjectionTarget,
     now: i64,
-) -> Result<crate::SubmitSessionRunReceipt> {
-    crate::sessions::submit_session_run_tx(
+) -> Result<crate::SubmitSessionTurnReceipt> {
+    crate::sessions::submit_session_turn_tx(
         tx,
-        &SubmitSessionRun {
+        &SubmitSessionTurn {
             id: target
                 .input_id
                 .clone()
                 .or_else(|| Some(format!("inp_{projection_id}"))),
+            turn_id: target
+                .turn_id
+                .clone()
+                .or_else(|| Some(format!("turn_{projection_id}"))),
             session_id: target.session_id.clone(),
             principal_id: target.principal_id.clone(),
-            idempotency_key: format!("channel.projection:{inbound_event_id}:session.run"),
+            idempotency_key: format!("channel.projection:{inbound_event_id}:session.turn"),
             input_type: target.input_type.clone(),
             content: target.content.clone(),
             origin: Some(serde_json::json!({
@@ -1227,19 +1237,18 @@ fn submit_session_run_projection_tx(
             })),
             intent: Some("normal".to_string()),
             run_control_policy: None,
-            expected_run_id: None,
+            expected_turn_id: None,
             job_id: target.job_id.clone(),
             job_idempotency_key: Some(format!(
-                "channel.projection:{inbound_event_id}:session.run:job"
+                "channel.projection:{inbound_event_id}:session.turn:job"
             )),
-            mode: target.mode.clone(),
+            execution_binding: target.execution_binding.clone(),
             max_steps: target.max_steps,
-            provider_profile_id: target.provider_profile_id.clone(),
+            parent_turn_id: target.parent_turn_id.clone(),
+            regenerates_turn_id: target.regenerates_turn_id.clone(),
             scheduled_at: target.scheduled_at,
             not_before: target.not_before,
             priority: target.priority,
-            max_attempts: target.max_attempts,
-            retry_policy: target.retry_policy.clone(),
             budget_grant_id: target.budget_grant_id.clone(),
         },
         now,
@@ -1291,6 +1300,7 @@ fn enqueue_workspace_task_projection_tx(
             scheduled_at: target.scheduled_at,
             not_before: target.not_before,
             priority: target.priority,
+            concurrency_key: None,
             max_attempts: target.max_attempts,
             retry_policy: target.retry_policy.clone(),
             idempotency_key: Some(format!(
@@ -1338,7 +1348,7 @@ struct ProjectionOutcome {
 
 #[derive(Debug)]
 enum ProjectionTarget {
-    SessionRun(SessionRunProjectionTarget),
+    SessionTurn(SessionTurnProjectionTarget),
     TeamTurn(TeamTurnProjectionTarget),
     WorkspaceTask(WorkspaceTaskProjectionTarget),
     Ignored(()),
@@ -1349,7 +1359,9 @@ impl ProjectionTarget {
         let kind = expect_json_string(value, "kind")?;
         validate_projection_target_kind(kind)?;
         match kind {
-            "session.run" => Ok(Self::SessionRun(SessionRunProjectionTarget::parse(value)?)),
+            "session.turn" => Ok(Self::SessionTurn(SessionTurnProjectionTarget::parse(
+                value,
+            )?)),
             "team.turn" => Ok(Self::TeamTurn(TeamTurnProjectionTarget::parse(value)?)),
             "workspace.task" => Ok(Self::WorkspaceTask(WorkspaceTaskProjectionTarget::parse(
                 value,
@@ -1369,7 +1381,7 @@ impl ProjectionTarget {
 
     fn kind(&self) -> &'static str {
         match self {
-            Self::SessionRun(_) => "session.run",
+            Self::SessionTurn(_) => "session.turn",
             Self::TeamTurn(_) => "team.turn",
             Self::WorkspaceTask(_) => "workspace.task",
             Self::Ignored(_) => "ignored",
@@ -1378,41 +1390,41 @@ impl ProjectionTarget {
 }
 
 #[derive(Debug)]
-struct SessionRunProjectionTarget {
+struct SessionTurnProjectionTarget {
     session_id: String,
     principal_id: String,
     content: serde_json::Value,
     input_id: Option<String>,
+    turn_id: Option<String>,
     input_type: Option<String>,
-    mode: Option<String>,
+    execution_binding: serde_json::Value,
     max_steps: Option<i64>,
-    provider_profile_id: Option<String>,
+    parent_turn_id: Option<String>,
+    regenerates_turn_id: Option<String>,
     job_id: Option<String>,
     scheduled_at: Option<i64>,
     not_before: Option<i64>,
     priority: Option<i64>,
-    max_attempts: Option<i64>,
-    retry_policy: Option<crate::RetryPolicy>,
     budget_grant_id: Option<String>,
 }
 
-impl SessionRunProjectionTarget {
+impl SessionTurnProjectionTarget {
     fn parse(value: &serde_json::Value) -> Result<Self> {
         Ok(Self {
             session_id: required_string(value, "sessionId")?,
             principal_id: required_string(value, "principalId")?,
             content: required_json(value, "content")?.clone(),
             input_id: optional_string_json(value, "inputId")?,
+            turn_id: optional_string_json(value, "turnId")?,
             input_type: optional_string_json(value, "inputType")?,
-            mode: optional_string_json(value, "mode")?,
+            execution_binding: required_json(value, "executionBinding")?.clone(),
             max_steps: optional_i64_json(value, "maxSteps")?,
-            provider_profile_id: optional_string_json(value, "providerProfileId")?,
+            parent_turn_id: optional_string_json(value, "parentTurnId")?,
+            regenerates_turn_id: optional_string_json(value, "regeneratesTurnId")?,
             job_id: optional_string_json(value, "jobId")?,
             scheduled_at: optional_i64_json(value, "scheduledAt")?,
             not_before: optional_i64_json(value, "notBefore")?,
             priority: optional_i64_json(value, "priority")?,
-            max_attempts: optional_i64_json(value, "maxAttempts")?,
-            retry_policy: optional_retry_policy_json(value, "retryPolicy")?,
             budget_grant_id: optional_string_json(value, "budgetGrantId")?,
         })
     }

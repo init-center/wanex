@@ -1,12 +1,20 @@
 import { randomUUID } from "node:crypto"
 import type {
-  SubmitUserTextRequest,
-  SubmitUserTextResult
+  SubmitUserTurnRequest,
+  SubmitUserTurnResult
 } from "../execution/agent-runtime/index.js"
 import type {
   DoctorReport,
+  InterruptSessionTurnReceipt,
+  InterruptSessionTurnRequest,
   ListJobsRequest,
-  SchedulerJobRecord
+  RequestSessionTurnCancelReceipt,
+  RequestSessionTurnCancelRequest,
+  RequestMediaGenerationCancelRequest,
+  SchedulerJobRecord,
+  SteerSessionTurnReceipt,
+  SteerSessionTurnRequest,
+  MediaGenerationOperationRecord
 } from "@wanex/protocol"
 import {
   createStorageHandle,
@@ -17,6 +25,7 @@ import {
   getRuntimeHostJobSummary,
   type RuntimeHostJobSummary
 } from "./job-summary.js"
+import { ActiveExecutionAbortRegistry } from "../jobs/active-abort.js"
 import { RuntimeHostLoopLifecycle } from "./loop-lifecycle.js"
 import {
   createRuntimeHostMemoryWorkers,
@@ -35,9 +44,14 @@ import type {
   RuntimeHostJobSummaryRequest,
   RuntimeHostRunOnceResult,
   RuntimeHostStatus,
+  RuntimeHostMediaGenerationRequest,
+  RuntimeHostSubmitMediaGenerationResult,
   WanexRuntimeHostOptions
 } from "./types.js"
-import { createRuntimeHostAgentWorkers } from "./worker-factory.js"
+import {
+  createRuntimeHostAgentWorkers,
+  createRuntimeHostMediaGenerationWorkers
+} from "./worker-factory.js"
 
 export type {
   RuntimeHostMemoryCompactionOptions,
@@ -50,8 +64,12 @@ export const WANEX_RUNTIME_HOST = "wanex-runtime-host" as const
 
 export class WanexRuntimeHost {
   readonly storage: CoreStore
+  readonly #activeAbortRegistry: ActiveExecutionAbortRegistry
 
   private readonly workers: ReturnType<typeof createRuntimeHostAgentWorkers>
+  private readonly mediaGenerationWorkers: ReturnType<
+    typeof createRuntimeHostMediaGenerationWorkers
+  >
   private readonly memoryWorkers: RuntimeHostMemoryWorker[]
   private readonly loopLifecycle: RuntimeHostLoopLifecycle
   private readonly memoryCompaction: RuntimeHostMemoryCompactionConfig | undefined
@@ -78,28 +96,36 @@ export class WanexRuntimeHost {
     this.memoryCompaction = normalizeMemoryCompactionOptions(
       options.memoryCompaction
     )
+    this.#activeAbortRegistry = new ActiveExecutionAbortRegistry()
     this.workers = createRuntimeHostAgentWorkers({
       storage: this.storage,
+      activeAbortRegistry: this.#activeAbortRegistry,
       ...(options.workerCount === undefined
         ? {}
         : { workerCount: options.workerCount }),
       ...(options.providerProfileId === undefined
         ? {}
         : { providerProfileId: options.providerProfileId }),
+      ...(options.secretResolver === undefined
+        ? {}
+        : { secretResolver: options.secretResolver }),
       ...(options.provider === undefined ? {} : { provider: options.provider }),
       ...(options.tools === undefined ? {} : { tools: options.tools }),
       ...(options.toolPermissionPolicy === undefined
         ? {}
         : { toolPermissionPolicy: options.toolPermissionPolicy }),
-      ...(options.toolRecoveryPolicy === undefined
+      ...(options.recovery === undefined
         ? {}
-        : { toolRecoveryPolicy: options.toolRecoveryPolicy }),
+        : { recovery: options.recovery }),
       ...(options.toolMaxConcurrency === undefined
         ? {}
         : { toolMaxConcurrency: options.toolMaxConcurrency }),
       ...(options.contextCompiler === undefined
         ? {}
         : { contextCompiler: options.contextCompiler }),
+      ...(options.agentContext === undefined
+        ? {}
+        : { agentContext: options.agentContext }),
       ...(options.fakeResponseText === undefined
         ? {}
         : { fakeResponseText: options.fakeResponseText }),
@@ -110,7 +136,28 @@ export class WanexRuntimeHost {
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
-        : { observeProviderEvent: options.observeProviderEvent })
+        : { observeProviderEvent: options.observeProviderEvent }),
+      ...(options.resolveAgentContext === undefined
+        ? {}
+        : { resolveAgentContext: options.resolveAgentContext })
+    })
+    this.mediaGenerationWorkers = createRuntimeHostMediaGenerationWorkers({
+      storage: this.storage,
+      activeAbortRegistry: this.#activeAbortRegistry,
+      ...(options.mediaGenerationAdapters === undefined
+        ? {}
+        : { mediaGenerationAdapters: options.mediaGenerationAdapters }),
+      ...(options.mediaGenerationWorkerCount === undefined
+        ? {}
+        : { mediaGenerationWorkerCount: options.mediaGenerationWorkerCount }),
+      ...(options.mediaGenerationMaxOutputBytes === undefined
+        ? {}
+        : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
+      ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
+      ...(options.heartbeatIntervalMs === undefined
+        ? {}
+        : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
+      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
     })
     this.memoryWorkers = createRuntimeHostMemoryWorkers({
       storage: this.storage,
@@ -129,7 +176,8 @@ export class WanexRuntimeHost {
     return {
       started: this.started,
       workerCount: this.workers.length,
-      memoryWorkerCount: this.memoryWorkers.length
+      memoryWorkerCount: this.memoryWorkers.length,
+      mediaGenerationWorkerCount: this.mediaGenerationWorkers.length
     }
   }
 
@@ -142,23 +190,91 @@ export class WanexRuntimeHost {
       started: this.started,
       workerCount: this.workers.length,
       memoryWorkerCount: this.memoryWorkers.length,
+      mediaGenerationWorkerCount: this.mediaGenerationWorkers.length,
       loopCount: loops.length,
       activeLoopCount: loops.filter((loop) => !loop.stopped).length,
       stoppedLoopCount: loops.filter((loop) => loop.stopped).length,
+      activeExecutionCount: this.#activeAbortRegistry.size,
       loops
     }
   }
 
-  async submitUserText(
-    request: SubmitUserTextRequest
-  ): Promise<SubmitUserTextResult> {
-    return await this.workers[0]!.submitUserText(request)
+  async submitUserTurn(
+    request: SubmitUserTurnRequest
+  ): Promise<SubmitUserTurnResult> {
+    const submitted = await this.workers[0]!.submitUserTurn(request)
+    this.wake()
+    return submitted
+  }
+
+  async requestSessionTurnCancel(
+    request: RequestSessionTurnCancelRequest
+  ): Promise<RequestSessionTurnCancelReceipt> {
+    const receipt = await this.storage.requestSessionTurnCancel(request)
+    if (receipt.status === "cancel_requested") {
+      this.#activeAbortRegistry.abort(
+        { jobId: request.jobId },
+        { kind: "cancel", message: request.reason }
+      )
+    }
+    return receipt
+  }
+
+  async interruptSessionTurn(
+    request: InterruptSessionTurnRequest
+  ): Promise<InterruptSessionTurnReceipt> {
+    const receipt = await this.storage.interruptSessionTurn(request)
+    if (receipt.status === "interrupt_requested") {
+      this.#activeAbortRegistry.abortAttempt(request.attemptId, {
+        kind: "interrupt",
+        message: request.reason
+      })
+    }
+    return receipt
+  }
+
+  async steerSessionTurn(
+    request: SteerSessionTurnRequest
+  ): Promise<SteerSessionTurnReceipt> {
+    return await this.storage.steerSessionTurn(request)
   }
 
   async runEphemeralQuery(
     request: RuntimeHostEphemeralQueryRequest
   ): Promise<RuntimeHostEphemeralQueryResult> {
     return await this.workers[0]!.runEphemeralQuery(request)
+  }
+
+  async submitMediaGeneration(
+    request: RuntimeHostMediaGenerationRequest
+  ): Promise<RuntimeHostSubmitMediaGenerationResult> {
+    const worker = this.requireMediaGenerationWorker()
+    const submitted = await worker.submit(request)
+    this.wake()
+    return submitted
+  }
+
+  async getMediaGenerationOperation(
+    operationId: string
+  ): Promise<MediaGenerationOperationRecord | null> {
+    return await this.storage.getMediaGenerationOperation({ operationId })
+  }
+
+  async requestMediaGenerationCancel(
+    request: RequestMediaGenerationCancelRequest
+  ): Promise<MediaGenerationOperationRecord | null> {
+    const worker = this.mediaGenerationWorkers[0]
+    if (worker !== undefined) {
+      return await worker.cancel(request.operationId, request.reason)
+    }
+    const operation = await this.storage.requestMediaGenerationCancel(request)
+    if (operation?.state === "cancel_requested") {
+      this.#activeAbortRegistry.abort(
+        { jobId: operation.jobId },
+        { kind: "cancel", message: request.reason }
+      )
+    }
+    return operation
   }
 
   start(): void {
@@ -172,13 +288,24 @@ export class WanexRuntimeHost {
     this.loopLifecycle.start({
       workers: this.workers,
       memoryWorkers: this.memoryWorkers,
+      mediaGenerationWorkers: this.mediaGenerationWorkers,
       startedAt: Date.now()
     })
+  }
+
+  wake(): void {
+    if (!this.started || this.disposed) {
+      return
+    }
+    this.loopLifecycle.wake()
   }
 
   async runOnce(): Promise<RuntimeHostRunOnceResult> {
     const results = await Promise.all(
       this.workers.map(async (worker) => await worker.runOnce())
+    )
+    const mediaGeneration = await Promise.all(
+      this.mediaGenerationWorkers.map(async (worker) => await worker.runOnce())
     )
     const memory = await runMemoryCompactionOnce({
       storage: this.storage,
@@ -188,6 +315,7 @@ export class WanexRuntimeHost {
     })
     return {
       results,
+      ...(mediaGeneration.length === 0 ? {} : { mediaGeneration }),
       ...(memory === undefined ? {} : { memory })
     }
   }
@@ -211,8 +339,20 @@ export class WanexRuntimeHost {
     })
   }
 
+  private requireMediaGenerationWorker() {
+    const worker = this.mediaGenerationWorkers[0]
+    if (worker === undefined) {
+      throw new Error("runtime host has no media generation adapters")
+    }
+    return worker
+  }
+
   async stop(): Promise<void> {
     this.started = false
+    this.#activeAbortRegistry.abortAll({
+      kind: "host_shutdown",
+      message: "runtime host is stopping"
+    })
     await this.loopLifecycle.stop()
   }
 

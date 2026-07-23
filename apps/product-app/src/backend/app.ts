@@ -1,4 +1,4 @@
-import { createWanexAppShell } from "@wanex/app/backend"
+import { createWanexApp } from "@wanex/app"
 import { readProductAppBackendCapabilities } from "./capability-readiness.js"
 import { readProductAppBackendDiagnosticsDetail } from "./product-diagnostics-detail.js"
 import {
@@ -7,7 +7,6 @@ import {
 } from "./input-router.js"
 import { readProductAppBackendOverview } from "./product-overview.js"
 import {
-  continueProductAppBackendWorkbenchSession,
   readProductAppBackendWorkbench
 } from "./product-workbench.js"
 import { createProductAppBackendCommandRegistry } from "./product-command-registry.js"
@@ -22,7 +21,7 @@ import type {
 export async function createProductAppBackendApp(
   options: ProductAppBackendAppOptions
 ): Promise<ProductAppBackendApp> {
-  const shell = await createWanexAppShell({
+  const app = await createWanexApp({
     ...options,
     providerProfile: {
       ...options.providerProfile,
@@ -31,28 +30,26 @@ export async function createProductAppBackendApp(
     }
   })
 
-  const status = (): ProductAppBackendStatus => shell.status()
+  const status = (): ProductAppBackendStatus => app.status()
   const commandRegistry = createProductAppBackendCommandRegistry({
     commands: {
-      runAgentTurn: shell.commands.runAgentTurn,
-      setAgentContextProfile: shell.commands.setAgentContextProfile,
-      refreshAgentContextProfile: shell.commands.refreshAgentContextProfile,
-      startAgentContextMonitor: shell.commands.startAgentContextMonitor,
-      stopAgentContextMonitor: shell.commands.stopAgentContextMonitor,
-      readDiagnostics: shell.commands.readDiagnostics,
-      buildSupportBundle: shell.commands.buildSupportBundle,
-      readRecentSessions: shell.commands.readRecentSessions,
-      readSessionInputProvenance: shell.commands.readSessionInputProvenance,
-      readSessionTranscript: shell.commands.readSessionTranscript,
+      submitConversationOperation: app.commands.submitConversationOperation,
+      setAgentContextProfile: app.commands.setAgentContextProfile,
+      refreshAgentContextProfile: app.commands.refreshAgentContextProfile,
+      startAgentContextMonitor: app.commands.startAgentContextMonitor,
+      stopAgentContextMonitor: app.commands.stopAgentContextMonitor,
+      readDiagnostics: app.commands.readDiagnostics,
+      buildSupportBundle: app.commands.buildSupportBundle,
+      readRecentSessions: app.commands.readRecentSessions,
+      readSessionInputProvenance: app.commands.readSessionInputProvenance,
+      readSessionTranscript: app.commands.readSessionTranscript,
       readProductWorkbench: async (request) =>
         await routerCommands.readProductWorkbench(request),
-      continueProductWorkbenchSession: async (request) =>
-        await routerCommands.continueProductWorkbenchSession(request),
       readProductOverview: async (options) =>
         await routerCommands.readProductOverview(options),
       readProductDiagnosticsDetail: async (options) =>
         await routerCommands.readProductDiagnosticsDetail(options),
-      shutdown: shell.commands.shutdown
+      shutdown: app.commands.shutdown
     },
     ...(options.extensions?.snapshot === undefined
       ? {}
@@ -64,27 +61,25 @@ export async function createProductAppBackendApp(
   })
 
   const routerCommands: ProductAppBackendInputRouterCommands = {
-    runAgentTurn: shell.commands.runAgentTurn,
-    setAgentContextProfile: shell.commands.setAgentContextProfile,
-    refreshAgentContextProfile: shell.commands.refreshAgentContextProfile,
-    startAgentContextMonitor: shell.commands.startAgentContextMonitor,
-    stopAgentContextMonitor: shell.commands.stopAgentContextMonitor,
-    readDiagnostics: shell.commands.readDiagnostics,
-    buildSupportBundle: shell.commands.buildSupportBundle,
-    readRecentSessions: shell.commands.readRecentSessions,
-    readSessionInputProvenance: shell.commands.readSessionInputProvenance,
-    readSessionTranscript: shell.commands.readSessionTranscript,
-    readExecutionReference: shell.commands.readExecutionReference,
+    submitConversationOperation: app.commands.submitConversationOperation,
+    readConversationOperation: app.commands.readConversationOperation,
+    cancelConversationOperation: app.commands.cancelConversationOperation,
+    setAgentContextProfile: app.commands.setAgentContextProfile,
+    refreshAgentContextProfile: app.commands.refreshAgentContextProfile,
+    startAgentContextMonitor: app.commands.startAgentContextMonitor,
+    stopAgentContextMonitor: app.commands.stopAgentContextMonitor,
+    readDiagnostics: app.commands.readDiagnostics,
+    buildSupportBundle: app.commands.buildSupportBundle,
+    readRecentSessions: app.commands.readRecentSessions,
+    readSessionInputProvenance: app.commands.readSessionInputProvenance,
+    readSessionTranscript: app.commands.readSessionTranscript,
+    ingestResource: app.commands.ingestResource,
+    readResource: app.commands.readResource,
+    readExecutionReference: app.commands.readExecutionReference,
     async readProductWorkbench(request) {
       return await readProductAppBackendWorkbench(routerCommands, request)
     },
-    async continueProductWorkbenchSession(request) {
-      return await continueProductAppBackendWorkbenchSession(
-        routerCommands,
-        request
-      )
-    },
-    readExtensionContributions: shell.commands.readExtensionContributions,
+    readExtensionContributions: app.commands.readExtensionContributions,
     readProductCapabilities: () =>
       readProductAppBackendCapabilities(status(), {
         extensionCommandExecutorConfigured:
@@ -116,13 +111,13 @@ export async function createProductAppBackendApp(
     previewProductCommandInvocation:
       commandRegistry.previewProductCommandInvocation,
     executeProductCommand: commandRegistry.executeProductCommand,
-    readActiveProviderProfile: shell.commands.readActiveProviderProfile,
-    setActiveProviderProfile: shell.commands.setActiveProviderProfile,
-    upsertProviderProfile: shell.commands.upsertProviderProfile,
-    readProviderProfile: shell.commands.readProviderProfile,
-    listProviderProfiles: shell.commands.listProviderProfiles,
-    shutdown: shell.commands.shutdown,
-    routeAppShellWorkflowEnvelope: shell.commands.routeWorkflowEnvelope,
+    readActiveProviderProfile: app.commands.readActiveProviderProfile,
+    setActiveProviderProfile: app.commands.setActiveProviderProfile,
+    upsertProviderProfile: app.commands.upsertProviderProfile,
+    readProviderProfile: app.commands.readProviderProfile,
+    listProviderProfiles: app.commands.listProviderProfiles,
+    shutdown: app.commands.shutdown,
+    routeAppWorkflowEnvelope: app.commands.routeWorkflowEnvelope,
     async routeInput(request) {
       return await routeProductAppBackendInput({ commands: routerCommands, status }, request)
     },
@@ -139,9 +134,10 @@ export async function createProductAppBackendApp(
 
   return {
     commands: routerCommands,
+    events: app.events,
     status,
     async dispose() {
-      await shell.dispose()
+      await app.dispose()
     }
   }
 }

@@ -1,15 +1,15 @@
 import type {
-  WanexAppShellCommandEnvelope,
-  WanexAppShellSafeError
+  WanexAppCommandEnvelope,
+  WanexAppSafeError
 } from "./types-result-envelope.js"
 
 const pathLikePattern =
   /(?:\/Users\/|\/private\/|\/var\/|[A-Za-z]:\\|\\Users\\|storeDir|serviceBin|apiKey|secret|token)/i
 
-export async function runWanexAppShellSafeCommand<T>(request: {
+export async function runWanexAppSafeCommand<T>(request: {
   readonly command: string
   run(): Promise<T> | T
-}): Promise<WanexAppShellCommandEnvelope<T>> {
+}): Promise<WanexAppCommandEnvelope<T>> {
   try {
     return {
       ok: true,
@@ -20,16 +20,16 @@ export async function runWanexAppShellSafeCommand<T>(request: {
     return {
       ok: false,
       command: request.command,
-      error: projectWanexAppShellSafeError(error)
+      error: projectWanexAppSafeError(error)
     }
   }
 }
 
-export function projectWanexAppShellSafeError(
+export function projectWanexAppSafeError(
   error: unknown
-): WanexAppShellSafeError {
+): WanexAppSafeError {
   const message = error instanceof Error ? error.message : String(error)
-  if (message === "app shell is disposed") {
+  if (message === "app is disposed") {
     return {
       code: "lifecycle_error",
       category: "lifecycle",

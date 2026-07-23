@@ -1,53 +1,53 @@
 import type {
-  WanexAppShellExecutionReferenceCommands,
-  WanexAppShellExecutionReferenceReadResult,
-  WanexAppShellReadExecutionReferenceRequest,
-  WanexAppShellReadRecentSessionsRequest,
-  WanexAppShellReadModelCommands,
-  WanexAppShellRecentSessionRow,
-  WanexAppShellRecentSessionsReadModel,
-  WanexAppShellSessionInputProvenanceKind,
-  WanexAppShellSessionInputProvenanceReadModel,
-  WanexAppShellSessionInputProvenanceRow,
-  WanexAppShellSessionTranscriptPart,
-  WanexAppShellSessionTranscriptReadModel,
-  WanexAppShellSessionTranscriptRole,
-  WanexAppShellSessionTranscriptRow,
-  WanexAppShellSessionTranscriptRowKind
-} from "@wanex/app/backend"
+  WanexAppExecutionReferenceCommands,
+  WanexAppExecutionReferenceReadResult,
+  WanexAppReadExecutionReferenceRequest,
+  WanexAppReadRecentSessionsRequest,
+  WanexAppReadModelCommands,
+  WanexAppRecentSessionRow,
+  WanexAppRecentSessionsReadModel,
+  WanexAppSessionInputProvenanceKind,
+  WanexAppSessionInputProvenanceReadModel,
+  WanexAppSessionInputProvenanceRow,
+  WanexAppSessionTranscriptPart,
+  WanexAppSessionTranscriptReadModel,
+  WanexAppSessionTranscriptRole,
+  WanexAppSessionTranscriptRow,
+  WanexAppSessionTranscriptRowKind
+} from "@wanex/app"
 
 export interface ProductAppBackendReadModelCommands
-  extends WanexAppShellReadModelCommands,
-    WanexAppShellExecutionReferenceCommands {}
+  extends WanexAppReadModelCommands,
+    WanexAppExecutionReferenceCommands {}
 
 export type ProductAppBackendReadExecutionReferenceRequest =
-  WanexAppShellReadExecutionReferenceRequest
+  WanexAppReadExecutionReferenceRequest
 export type ProductAppBackendExecutionReferenceReadResult =
-  WanexAppShellExecutionReferenceReadResult
+  WanexAppExecutionReferenceReadResult
 
 export type ProductAppBackendReadSessionInputProvenanceRequest =
-  Parameters<WanexAppShellReadModelCommands["readSessionInputProvenance"]>[0]
+  Parameters<WanexAppReadModelCommands["readSessionInputProvenance"]>[0]
 export type ProductAppBackendReadSessionTranscriptRequest =
-  Parameters<WanexAppShellReadModelCommands["readSessionTranscript"]>[0]
+  Parameters<WanexAppReadModelCommands["readSessionTranscript"]>[0]
 export type ProductAppBackendReadRecentSessionsRequest =
-  WanexAppShellReadRecentSessionsRequest
+  WanexAppReadRecentSessionsRequest
 export type ProductAppBackendRecentSessionsReadModel =
-  WanexAppShellRecentSessionsReadModel
+  WanexAppRecentSessionsReadModel
 export type ProductAppBackendRecentSessionRow =
-  WanexAppShellRecentSessionRow
+  WanexAppRecentSessionRow
 export type ProductAppBackendSessionInputProvenanceKind =
-  WanexAppShellSessionInputProvenanceKind
+  WanexAppSessionInputProvenanceKind
 export type ProductAppBackendSessionInputProvenanceReadModel =
-  WanexAppShellSessionInputProvenanceReadModel
+  WanexAppSessionInputProvenanceReadModel
 export type ProductAppBackendSessionInputProvenanceRow =
-  WanexAppShellSessionInputProvenanceRow
+  WanexAppSessionInputProvenanceRow
 export type ProductAppBackendSessionTranscriptReadModel =
-  WanexAppShellSessionTranscriptReadModel
+  WanexAppSessionTranscriptReadModel
 export type ProductAppBackendSessionTranscriptRow =
-  WanexAppShellSessionTranscriptRow
+  WanexAppSessionTranscriptRow
 export type ProductAppBackendSessionTranscriptRowKind =
-  WanexAppShellSessionTranscriptRowKind
+  WanexAppSessionTranscriptRowKind
 export type ProductAppBackendSessionTranscriptRole =
-  WanexAppShellSessionTranscriptRole
+  WanexAppSessionTranscriptRole
 export type ProductAppBackendSessionTranscriptPart =
-  WanexAppShellSessionTranscriptPart
+  WanexAppSessionTranscriptPart

@@ -69,7 +69,7 @@ export function parseProductAppBackendPortWorkflowEnvelope(
       return {
         kind,
         ...base,
-        activeRunId: parseString(record, "activeRunId", "guided follow-up input"),
+        activeTurnId: parseString(record, "activeTurnId", "guided follow-up input"),
         ...optionalString(record, "sourceRef")
       }
     case "side_query":

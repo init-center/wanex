@@ -14,7 +14,11 @@ import {
   ToolRegistry
 } from "@wanex/runtime/tools"
 import { WanexSessionCore } from "@wanex/runtime/sessions"
-import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  createTestTurnExecutionBinding,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import { WorkspaceRuntime } from "../src/index.js"
 import {
   ExactWorkspaceProgramPolicy,
@@ -59,6 +63,62 @@ describe("@wanex/workspace/tools", () => {
       ["workspace_exec", "external"],
       ["workspace_read_text", "read_only"]
     ])
+  })
+
+  it("binds workspace roots, limits, identities, and program policy deterministically", async () => {
+    const environment = await createEnvironment()
+    const host = new RecordingExecutionHost()
+    const first = workspaceEvidenceRegistry({
+      rootDir: environment.rootDir,
+      runtime: environment.runtime,
+      host,
+      programs: { node: process.execPath }
+    })
+    const same = workspaceEvidenceRegistry({
+      rootDir: environment.rootDir,
+      runtime: environment.runtime,
+      host,
+      programs: { node: process.execPath }
+    })
+    expect(same.snapshot()).toEqual(first.snapshot())
+
+    const changedRoot = workspaceEvidenceRegistry({
+      rootDir: join(environment.rootDir, "other"),
+      runtime: environment.runtime,
+      host,
+      programs: { node: process.execPath }
+    })
+    expect(toolBinding(changedRoot, "workspace_read_text")).not.toEqual(
+      toolBinding(first, "workspace_read_text")
+    )
+    expect(toolBinding(changedRoot, "workspace_exec")).not.toEqual(
+      toolBinding(first, "workspace_exec")
+    )
+
+    const changedProgramPolicy = workspaceEvidenceRegistry({
+      rootDir: environment.rootDir,
+      runtime: environment.runtime,
+      host,
+      programs: { nodejs: process.execPath }
+    })
+    expect(toolBinding(changedProgramPolicy, "workspace_exec")).not.toEqual(
+      toolBinding(first, "workspace_exec")
+    )
+
+    const changedRuntime = new WorkspaceRuntime({
+      storage: environment.client,
+      rootDir: environment.rootDir,
+      workspaceId: "workspace_tools_other"
+    })
+    const changedWorkspace = workspaceEvidenceRegistry({
+      rootDir: environment.rootDir,
+      runtime: changedRuntime,
+      host,
+      programs: { node: process.execPath }
+    })
+    expect(toolBinding(changedWorkspace, "workspace_apply_changeset")).not.toEqual(
+      toolBinding(first, "workspace_apply_changeset")
+    )
   })
 
   it("records permission denial before calling the execution host", async () => {
@@ -255,9 +315,35 @@ function executionRequest(options: {
       toolName: options.toolName,
       input: options.input
     },
-    idempotencyKey: `workspace-tools:${options.toolCallId}`,
+    idempotencyKey: `tool:${options.identity.sourceMessageId}:${options.toolCallId}`,
     permissionPolicy: options.permissionPolicy
   }
+}
+
+function workspaceEvidenceRegistry(options: {
+  readonly rootDir: string
+  readonly runtime: WorkspaceRuntime
+  readonly host: ExecutionHost
+  readonly programs: Readonly<Record<string, string>>
+}): ToolRegistry {
+  const registry = new ToolRegistry()
+  registerWorkspaceCodingTools(registry, {
+    rootDir: options.rootDir,
+    runtime: options.runtime,
+    executionHost: options.host,
+    programPolicy: new ExactWorkspaceProgramPolicy(options.programs)
+  })
+  return registry
+}
+
+function toolBinding(registry: ToolRegistry, name: string) {
+  const evidence = registry.snapshot().tools.find(
+    (tool) => tool.descriptor.name === name
+  )
+  if (evidence === undefined) {
+    throw new Error(`missing workspace tool evidence: ${name}`)
+  }
+  return evidence.runtimeBinding
 }
 
 async function createEnvironment(): Promise<{
@@ -280,20 +366,47 @@ async function createEnvironment(): Promise<{
     id: "ses_workspace_tools",
     kind: "agent"
   })
-  const admitted = await session.admit({
+  const submitted = await session.submitTurn({
     id: "inp_workspace_tools",
+    turnId: "turn_workspace_tools",
     sessionId: created.id,
     principalId: "principal_workspace_tools",
     idempotencyKey: "workspace-tools:admission",
-    content: [{ type: "text", id: "part_workspace_tools", text: "test tools" }]
+    content: [{ type: "text", id: "part_workspace_tools", text: "test tools" }],
+    jobId: "job_workspace_tools",
+    executionBinding: createTestTurnExecutionBinding()
   })
-  const claim = await session.claimRunner({
+  const workerId = "worker_workspace_tools"
+  const job = await session.claimJob({
+    workerId,
+    leaseMs: 60_000,
+    kinds: ["session.turn"]
+  })
+  if (job === null || job.leaseToken === undefined) {
+    throw new Error("workspace tools test turn job was not claimed")
+  }
+  const started = await session.startTurnAttempt({
     sessionId: created.id,
-    runnerId: "runner_workspace_tools",
-    leaseMs: 60_000
+    turnId: submitted.turn.id,
+    inputId: submitted.admission.inputId,
+    jobId: submitted.job.id,
+    workerId,
+    leaseToken: job.leaseToken
   })
-  if (claim === null) {
-    throw new Error("workspace tools test run was not claimed")
+  const source = await session.appendMessage({
+    sessionId: created.id,
+    turnId: submitted.turn.id,
+    attemptId: started.attempt.id,
+    inputId: submitted.admission.inputId,
+    jobId: submitted.job.id,
+    workerId,
+    leaseToken: job.leaseToken,
+    idempotencyKey: "workspace-tools:source-message",
+    role: "assistant",
+    content: workspaceToolCalls()
+  })
+  if (source === null) {
+    throw new Error("workspace tools source message was not appended")
   }
   return {
     rootDir,
@@ -306,8 +419,13 @@ async function createEnvironment(): Promise<{
     identity: {
       principalId: "principal_workspace_tools",
       sessionId: created.id,
-      inputId: admitted.inputId,
-      runId: claim.runId
+      inputId: submitted.admission.inputId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
+      sourceMessageId: source.id,
+      jobId: submitted.job.id,
+      workerId,
+      leaseToken: job.leaseToken
     }
   }
 }
@@ -316,7 +434,58 @@ interface ToolIdentity {
   readonly principalId: string
   readonly sessionId: string
   readonly inputId: string
-  readonly runId: string
+  readonly turnId: string
+  readonly attemptId: string
+  readonly sourceMessageId: string
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+}
+
+function workspaceToolCalls(): import("@wanex/protocol").ToolCallMessagePart[] {
+  return [
+    toolCall("call_exec_denied", "workspace_exec", {
+      program: "node",
+      args: ["--version"]
+    }),
+    toolCall("call_exec_program_denied", "workspace_exec", {
+      program: "sh",
+      args: ["-c", "echo unsafe"]
+    }),
+    toolCall("call_exec_cwd_escape", "workspace_exec", {
+      program: "node",
+      args: ["--version"],
+      cwd: "../outside"
+    }),
+    toolCall("call_read", "workspace_read_text", { path: "notes.txt" }),
+    toolCall("call_apply", "workspace_apply_changeset", {
+      id: "cs_workspace_tool",
+      changes: [{
+        path: "app.ts",
+        kind: "update",
+        baseText: "before\n",
+        targetText: "after\n"
+      }]
+    }),
+    toolCall("call_exec_allowed", "workspace_exec", {
+      program: "node",
+      args: ["-e", "process.stdout.write('controlled')"]
+    })
+  ]
+}
+
+function toolCall(
+  toolCallId: string,
+  toolName: string,
+  input: import("@wanex/protocol").JsonValue
+): import("@wanex/protocol").ToolCallMessagePart {
+  return {
+    type: "tool_call",
+    id: `source_${toolCallId}`,
+    toolCallId,
+    toolName,
+    input
+  }
 }
 
 async function tempDir(prefix: string): Promise<string> {

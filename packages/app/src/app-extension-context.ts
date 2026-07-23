@@ -19,7 +19,7 @@ import type {
   SkillSource
 } from "@wanex/runtime/context"
 
-export async function prepareWanexAppShellExtensionAgentContext(options: {
+export async function prepareWanexAppExtensionAgentContext(options: {
   readonly base?: PreparedAgentContext
   readonly snapshot?: AppExtensionResolvedSnapshot
 }): Promise<PreparedAgentContext | undefined> {

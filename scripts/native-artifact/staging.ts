@@ -24,6 +24,12 @@ const execFileAsync = promisify(execFile)
 export const NATIVE_ARTIFACT_MANIFEST_FILE = "runtime-artifacts.json"
 
 const targetById = new Map<string, Omit<RuntimeArtifactTarget, "systemService">>([
+  ["linux-x64", {
+    id: "linux-x64",
+    rustTarget: "x86_64-unknown-linux-gnu",
+    platform: "linux",
+    arch: "x64"
+  }],
   ["darwin-arm64", {
     id: "darwin-arm64",
     rustTarget: "aarch64-apple-darwin",
@@ -54,6 +60,12 @@ export interface StageNativeArtifactOptions {
   readonly build?: boolean
 }
 
+export interface StageNativeArtifactCliOptions {
+  readonly targetId?: string
+  readonly outputDir?: string
+  readonly sourceBin?: string
+}
+
 export interface NativeArtifactStageReceipt {
   readonly targetId: string
   readonly rustTarget: string
@@ -63,6 +75,34 @@ export interface NativeArtifactStageReceipt {
   readonly bytes: number
   readonly sha256: string
   readonly fileCount: number
+}
+
+export function parseStageNativeArtifactArgs(
+  values: readonly string[]
+): StageNativeArtifactCliOptions {
+  const parsed: {
+    targetId?: string
+    outputDir?: string
+    sourceBin?: string
+  } = {}
+  for (let index = 0; index < values.length; index += 1) {
+    const name = values[index]
+    if (name === "--") continue
+    const value = values[index + 1]
+    if (
+      name !== "--target" &&
+      name !== "--output-dir" &&
+      name !== "--source-bin"
+    ) {
+      throw new Error(`unknown native artifact argument: ${String(name)}`)
+    }
+    if (!value) throw new Error(`${name} requires a value`)
+    if (name === "--target") parsed.targetId = value
+    if (name === "--output-dir") parsed.outputDir = resolve(value)
+    if (name === "--source-bin") parsed.sourceBin = resolve(value)
+    index += 1
+  }
+  return parsed
 }
 
 export async function stageNativeArtifact(

@@ -11,8 +11,8 @@ import {
   findPackageRoleCoverageViolations,
   findPackageRoleDependencyViolations
 } from "./audit/public-contracts/package-role-policy.mjs"
-import { findProtocolDeprecatedAliasViolations } from "./audit/public-contracts/protocol-deprecated-aliases.mjs"
 import { findProtocolExportGraphViolations } from "./audit/public-contracts/protocol-export-graph.mjs"
+import { findProtocolSourcePolicyViolations } from "./audit/public-contracts/protocol-source-policy.mjs"
 import { findForbiddenRootExportViolations } from "./audit/public-contracts/root-export-policy.mjs"
 import { findForbiddenSourceImports } from "./audit/public-contracts/source-import-policy.mjs"
 
@@ -188,7 +188,7 @@ failures.push(
 )
 
 failures.push(
-  ...(await findProtocolDeprecatedAliasViolations({
+  ...(await findProtocolSourcePolicyViolations({
     rootDir,
     protocolSourceDir
   }))

@@ -3,9 +3,9 @@ import {
   type RunControlPolicy,
   type SessionInputIntent,
   type SessionInputOrigin,
-  type SessionRunControlApplyEffect,
-  type SessionRunControlKind,
-  type SessionRunControlStatus
+  type SessionTurnControlApplyEffect,
+  type SessionTurnControlKind,
+  type SessionTurnControlStatus
 } from "@wanex/protocol"
 
 import {
@@ -26,16 +26,8 @@ export function expectSessionInputOrigin(value: unknown): SessionInputOrigin {
     throw new Error("session input origin must be an object")
   }
   const kind = expectString(value.kind, "origin.kind")
-  if (
-    kind !== "interactive" &&
-    kind !== "scheduler" &&
-    kind !== "connector" &&
-    kind !== "agent" &&
-    kind !== "system" &&
-    kind !== "objective" &&
-    kind !== "plan"
-  ) {
-    throw new Error(`invalid origin kind: ${kind}`)
+  if (kind.length === 0) {
+    throw new Error("origin kind must not be empty")
   }
   return withOptionalFields(
     { kind },
@@ -109,20 +101,20 @@ export function expectRunControlPolicy(value: unknown): RunControlPolicy {
   return policy
 }
 
-export function expectSessionRunControlKind(
+export function expectSessionTurnControlKind(
   value: unknown
-): SessionRunControlKind {
-  const kind = expectString(value, "run_control.kind")
+): SessionTurnControlKind {
+  const kind = expectString(value, "turn_control.kind")
   if (kind !== "interrupt" && kind !== "steer") {
     throw new Error(`invalid run-control kind: ${kind}`)
   }
   return kind
 }
 
-export function expectSessionRunControlStatus(
+export function expectSessionTurnControlStatus(
   value: unknown
-): SessionRunControlStatus {
-  const status = expectString(value, "run_control.status")
+): SessionTurnControlStatus {
+  const status = expectString(value, "turn_control.status")
   if (
     status !== "pending" &&
     status !== "applied" &&
@@ -134,13 +126,13 @@ export function expectSessionRunControlStatus(
   return status
 }
 
-export function expectSessionRunControlApplyEffect(
+export function expectSessionTurnControlApplyEffect(
   value: unknown
-): SessionRunControlApplyEffect {
-  const effect = expectString(value, "run_control.effect")
+): SessionTurnControlApplyEffect {
+  const effect = expectString(value, "turn_control.effect")
   if (
-    effect !== "interrupt_cancelled_run" &&
-    effect !== "steer_completed_input" &&
+    effect !== "interrupt_requested_cancel" &&
+    effect !== "steer_promoted_input" &&
     effect !== "already_resolved"
   ) {
     throw new Error(`invalid run-control apply effect: ${effect}`)

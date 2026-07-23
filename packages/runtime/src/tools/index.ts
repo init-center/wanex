@@ -1,4 +1,6 @@
 export * from "./builtins.js"
+export { createToolRuntimeBinding } from "./evidence.js"
+export type { CreateToolRuntimeBindingOptions } from "./evidence.js"
 export * from "./parts.js"
 export * from "./policy.js"
 export * from "./provider.js"

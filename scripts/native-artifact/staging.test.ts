@@ -5,10 +5,26 @@ import { describe, expect, it } from "vitest"
 import {
   auditNativeArtifactDirectory,
   nativeTargetId,
+  parseStageNativeArtifactArgs,
   stageNativeArtifact
 } from "./staging.js"
 
 describe("native artifact staging", () => {
+  it("parses the documented pnpm argument separator", () => {
+    expect(parseStageNativeArtifactArgs([
+      "--",
+      "--target",
+      "linux-x64",
+      "--output-dir",
+      "target/custom-native"
+    ])).toEqual({
+      targetId: "linux-x64",
+      outputDir: expect.stringMatching(/target\/custom-native$/)
+    })
+    expect(() => parseStageNativeArtifactArgs(["--unknown"]))
+      .toThrow("unknown native artifact argument")
+  })
+
   it("stages only one verified target and deterministic manifest", async () => {
     const workspaceRoot = await fixtureWorkspace()
     const sourceBin = join(workspaceRoot, "source-bin")
@@ -85,7 +101,7 @@ describe("native artifact staging", () => {
     await writeFile(sourceBin, "fixture")
     await expect(stageNativeArtifact({
       workspaceRoot,
-      targetId: "linux-x64",
+      targetId: "linux-arm64",
       sourceBin,
       releaseVersion: "1.0.0",
       serviceVersion: "1.0.0",
@@ -106,7 +122,8 @@ describe("native artifact staging", () => {
     expect(nativeTargetId("darwin", "arm64")).toBe("darwin-arm64")
     expect(nativeTargetId("darwin", "x64")).toBe("darwin-x64")
     expect(nativeTargetId("win32", "x64")).toBe("win32-x64")
-    expect(() => nativeTargetId("linux", "x64")).toThrow("unsupported")
+    expect(nativeTargetId("linux", "x64")).toBe("linux-x64")
+    expect(() => nativeTargetId("linux", "arm64")).toThrow("unsupported")
   })
 })
 

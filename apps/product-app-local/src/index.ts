@@ -6,7 +6,8 @@ import {
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter,
-  type ProductAppShell
+  type ProductAppShell,
+  type ProductAppSurfaceAdapter
 } from "@wanex/product-app"
 import {
   createProductAppWebController,
@@ -33,7 +34,11 @@ import {
 import {
   createProductAppLocalProviderSetupCommands
 } from "./provider-setup.js"
+import {
+  projectProductAppLocalProviderProfiles
+} from "./provider-profile-read-model.js"
 import { createStorageProductAppStateStore } from "./state-store-storage.js"
+import { createProductAppLocalAttachmentUploadPort } from "./attachment-upload.js"
 
 export type * from "./types.js"
 export * from "./cli-open.js"
@@ -44,6 +49,7 @@ export * from "./cli-summary.js"
 export * from "./provider-profiles.js"
 export * from "./provider-setup.js"
 export * from "./state-store-storage.js"
+export * from "./attachment-upload.js"
 
 export async function startProductAppLocalWebApp(
   options: StartProductAppLocalWebAppOptions
@@ -56,6 +62,7 @@ export async function startProductAppLocalWebApp(
   })
 
   let productApp: ProductAppShell | undefined
+  let surface: ProductAppSurfaceAdapter | undefined
   let webController: ProductAppWebController | undefined
   let host: ProductAppWebNodeHostServer | undefined
 
@@ -68,6 +75,9 @@ export async function startProductAppLocalWebApp(
           transport: runtime.transport
         }
       },
+      ...(options.secretResolver === undefined
+        ? {}
+        : { secretResolver: options.secretResolver }),
       stateStore: createStorageProductAppStateStore({
         storage: runtime.storage
       }),
@@ -81,24 +91,29 @@ export async function startProductAppLocalWebApp(
       providerProfiles
     })
 
-    const surface = createProductAppSurfaceAdapter(productApp)
+    surface = createProductAppSurfaceAdapter(productApp)
     const client = createProductAppWebHostSurfaceClient({ surface })
     webController = await createProductAppWebController({ client })
+    const attachments = createProductAppLocalAttachmentUploadPort(productApp)
     host = await listenProductAppWebNodeHost({
       controller: webController,
+      attachments,
       ...(options.web ?? {})
     })
 
     return createProductAppLocalWebAppHandle({
       runtime,
       productApp,
+      surface,
       webController,
-      host
+      host,
+      attachments
     })
   } catch (error) {
     await closeStartedProductAppLocalWebApp({
       runtime,
       productApp,
+      surface,
       host
     })
     throw error
@@ -108,8 +123,10 @@ export async function startProductAppLocalWebApp(
 function createProductAppLocalWebAppHandle(request: {
   readonly runtime: BootstrappedWanexStorage
   readonly productApp: ProductAppShell
+  readonly surface: ProductAppSurfaceAdapter
   readonly webController: ProductAppWebController
   readonly host: ProductAppWebNodeHostServer
+  readonly attachments: ReturnType<typeof createProductAppLocalAttachmentUploadPort>
 }): ProductAppLocalWebApp {
   let closed = false
   return {
@@ -119,6 +136,7 @@ function createProductAppLocalWebAppHandle(request: {
       request.productApp
     ),
     settings: createProductAppLocalSettingsCommands(request.productApp),
+    attachments: request.attachments,
     webController: request.webController,
     host: request.host,
     url: request.host.url,
@@ -137,6 +155,7 @@ function createProductAppLocalWebAppHandle(request: {
 
 async function readProductAppLocalSnapshot(request: {
   readonly productApp: ProductAppShell
+  readonly surface: ProductAppSurfaceAdapter
   readonly webController: ProductAppWebController
   readonly host: ProductAppWebNodeHostServer
 }): Promise<ProductAppLocalSnapshot> {
@@ -145,7 +164,9 @@ async function readProductAppLocalSnapshot(request: {
     kind: "product-app-local.snapshot",
     url: request.host.url,
     settings: request.productApp.readSettings(),
-    providerProfiles: await request.productApp.providerProfiles.listProviderProfiles(),
+    providerProfiles: projectProductAppLocalProviderProfiles(
+      await request.productApp.providerProfiles.listProviderProfiles()
+    ),
     web: web.snapshot,
     privacy: {
       exposesStorePath: false,
@@ -173,11 +194,13 @@ function createProductAppLocalSettingsCommands(
 async function closeStartedProductAppLocalWebApp(request: {
   readonly runtime: BootstrappedWanexStorage
   readonly productApp: ProductAppShell | undefined
+  readonly surface: ProductAppSurfaceAdapter | undefined
   readonly host: ProductAppWebNodeHostServer | undefined
 }): Promise<void> {
   let firstError: unknown
   for (const close of [
     async () => await request.host?.close(),
+    async () => await request.surface?.dispose(),
     async () => await request.productApp?.dispose(),
     async () => await request.runtime.dispose()
   ]) {

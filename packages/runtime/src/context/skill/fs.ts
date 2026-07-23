@@ -33,7 +33,7 @@ export const nodeSkillFileSystem: SkillFileSystem = {
       return {
         isFile: result.isFile(),
         isDirectory: result.isDirectory(),
-        mtimeMs: result.mtimeMs
+        mtimeMs: Math.trunc(result.mtimeMs)
       }
     } catch (error) {
       if (isMissingFileError(error)) {

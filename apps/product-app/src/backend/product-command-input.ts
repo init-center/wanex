@@ -3,39 +3,39 @@ import type {
   ProductAppBackendDiagnosticsOptions,
   ProductAppBackendExecuteCommandRequest,
   ProductAppBackendOverviewOptions,
-  ProductAppBackendContinueWorkbenchSessionRequest,
+  ProductAppBackendSubmitConversationOperationRequest,
   ProductAppBackendReadRecentSessionsRequest,
   ProductAppBackendReadWorkbenchRequest,
-  ProductAppBackendRunAgentTurnRequest,
   ProductAppBackendSupportBundleOptions
 } from "./types.js"
 
-export function parseRunAgentTurnInput(
+export function parseSubmitConversationOperationInput(
   request: ProductAppBackendExecuteCommandRequest
-): ProductAppBackendRunAgentTurnRequest {
+): ProductAppBackendSubmitConversationOperationRequest {
   const input = request.input
   if (typeof input === "string") {
     const text = input.trim()
     if (text.length === 0) {
-      throw new Error("runAgentTurn text must not be empty")
+      throw new Error("submitConversationOperation text must not be empty")
     }
-    return { text }
+    return { content: [{ type: "text", text }] }
   }
   if (!isRecord(input) || typeof input.text !== "string") {
-    throw new Error("runAgentTurn input requires text")
+    throw new Error("submitConversationOperation input requires text")
   }
   const text = input.text.trim()
   if (text.length === 0) {
-    throw new Error("runAgentTurn text must not be empty")
+    throw new Error("submitConversationOperation text must not be empty")
   }
   return {
-    text,
+    content: [{ type: "text", text }],
     ...optionalString(input, "sessionId"),
     ...optionalString(input, "principalId"),
     ...optionalString(input, "inputId"),
     ...optionalString(input, "idempotencyKey"),
     ...optionalString(input, "jobId"),
-    ...optionalString(input, "jobIdempotencyKey")
+    ...optionalString(input, "expectedTurnId"),
+    ...optionalString(input, "regeneratesTurnId")
   }
 }
 
@@ -125,33 +125,6 @@ export function parseWorkbenchInput(
   }
   return {
     sessionId: request.input.sessionId
-  }
-}
-
-export function parseContinueWorkbenchInput(
-  request: ProductAppBackendExecuteCommandRequest
-): ProductAppBackendContinueWorkbenchSessionRequest {
-  if (!isRecord(request.input) || typeof request.input.sessionId !== "string") {
-    throw new Error("continueProductWorkbenchSession input requires sessionId")
-  }
-  if (request.input.sessionId.trim().length === 0) {
-    throw new Error("sessionId must not be empty")
-  }
-  if (typeof request.input.text !== "string") {
-    throw new Error("continueProductWorkbenchSession input requires text")
-  }
-  const text = request.input.text.trim()
-  if (text.length === 0) {
-    throw new Error("continueProductWorkbenchSession text must not be empty")
-  }
-  return {
-    sessionId: request.input.sessionId,
-    text,
-    ...optionalString(request.input, "principalId"),
-    ...optionalString(request.input, "inputId"),
-    ...optionalString(request.input, "idempotencyKey"),
-    ...optionalString(request.input, "jobId"),
-    ...optionalString(request.input, "jobIdempotencyKey")
   }
 }
 

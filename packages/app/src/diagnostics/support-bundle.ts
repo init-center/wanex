@@ -1,9 +1,13 @@
 import type {
   DoctorReport,
-  ProviderProfile,
   RuntimeEvent
 } from "@wanex/protocol"
-import { providerConfigKey, providerProfileFromJson, redactProfile } from "@wanex/runtime/provider"
+import {
+  providerConfigKey,
+  providerProfileFromJson,
+  summarizeProviderProfile,
+  type ProviderProfileSummary
+} from "@wanex/runtime/provider"
 import type { CoreStore } from "@wanex/storage"
 import type { PluginStore } from "@wanex/storage/plugin"
 import {
@@ -42,7 +46,7 @@ export interface SupportBundle {
   readonly generatedAt: number
   readonly doctor: DoctorReport
   readonly diagnostics: AppDiagnosticsSnapshot
-  readonly providers: readonly RedactedProviderProfileSummary[]
+  readonly providers: readonly SupportBundleProviderProfileSummary[]
   readonly events: readonly SupportBundleEventSummary[]
   readonly limits: SupportBundleLimits
 }
@@ -53,10 +57,10 @@ export interface SupportBundleLimits {
   readonly pluginLimit: number
 }
 
-export interface RedactedProviderProfileSummary {
+export interface SupportBundleProviderProfileSummary {
   readonly id: string
   readonly found: boolean
-  readonly profile?: ProviderProfile
+  readonly profile?: ProviderProfileSummary
 }
 
 export interface SupportBundleEventSummary {
@@ -153,9 +157,9 @@ export async function buildSupportBundle(
 async function readProviderSummaries(
   storage: SupportBundleStore,
   profileIds: readonly string[]
-): Promise<RedactedProviderProfileSummary[]> {
+): Promise<SupportBundleProviderProfileSummary[]> {
   return await Promise.all(
-    profileIds.map(async (id): Promise<RedactedProviderProfileSummary> => {
+    profileIds.map(async (id): Promise<SupportBundleProviderProfileSummary> => {
       const value = await storage.getConfig(providerConfigKey(id))
       if (value === null) {
         return {
@@ -166,7 +170,7 @@ async function readProviderSummaries(
       return {
         id,
         found: true,
-        profile: redactProfile(providerProfileFromJson(value))
+        profile: summarizeProviderProfile(providerProfileFromJson(value))
       }
     })
   )

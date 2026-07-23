@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@wanex/extension": "workspace:*",
-    "@wanex/product-app": "workspace:*"
+    "@wanex/product-app": "workspace:*",
+    "@wanex/protocol": "workspace:*"
   }
 }

@@ -171,7 +171,7 @@ export interface ChannelDeliveryAcknowledgement {
 }
 
 export type ChannelProjectionTargetKind =
-  | "session.run"
+  | "session.turn"
   | "team.turn"
   | "workspace.task"
   | "ignored"
@@ -190,22 +190,22 @@ export interface ChannelProjectionRecord {
   readonly updatedAt: number
 }
 
-export interface SessionRunProjectionTarget {
-  readonly kind: "session.run"
+export interface SessionTurnProjectionTarget {
+  readonly kind: "session.turn"
   readonly sessionId: string
   readonly principalId: PrincipalId
   readonly content: JsonValue
   readonly inputId?: string
+  readonly turnId?: string
   readonly inputType?: string
-  readonly mode?: string
+  readonly executionBinding: import("./session.js").SessionTurnExecutionBinding
   readonly maxSteps?: number
-  readonly providerProfileId?: string
+  readonly parentTurnId?: string
+  readonly regeneratesTurnId?: string
   readonly jobId?: string
   readonly scheduledAt?: number
   readonly notBefore?: number
   readonly priority?: number
-  readonly maxAttempts?: number
-  readonly retryPolicy?: RetryPolicy
   readonly budgetGrantId?: string
 }
 
@@ -246,7 +246,7 @@ export interface IgnoredProjectionTarget {
 }
 
 export type ChannelProjectionTarget =
-  | SessionRunProjectionTarget
+  | SessionTurnProjectionTarget
   | TeamTurnProjectionTarget
   | WorkspaceTaskProjectionTarget
   | IgnoredProjectionTarget

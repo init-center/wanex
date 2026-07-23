@@ -3,7 +3,7 @@ import type {
   ConnectorSessionRecord,
   JsonValue
 } from "@wanex/protocol"
-import type { SecretResolver } from "./host-security/index.js"
+import type { SecretResolverPort } from "@wanex/runtime/secrets"
 import type { IngestConnectorEventRequest } from "./runtime.js"
 import type { ConnectorRuntime } from "./runtime.js"
 import type { ConnectorHostContext } from "./host.js"
@@ -15,7 +15,7 @@ export function createConnectorHostContext(request: {
   readonly ownerId: string
   readonly leaseMs: number
   readonly credentialSecretRef: string | undefined
-  readonly secretResolver: SecretResolver | undefined
+  readonly secretResolver: SecretResolverPort | undefined
   readonly controller: AbortController
   readonly getSession: () => ConnectorSessionRecord
   readonly setSession: (session: ConnectorSessionRecord) => void

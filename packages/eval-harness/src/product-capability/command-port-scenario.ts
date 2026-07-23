@@ -5,6 +5,7 @@ import {
   PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS
 } from "@wanex/product-app/backend"
 import { createEvalScenario } from "../runner.js"
+import { waitForBackendConversation } from "../product-app/conversation-helpers.js"
 import { assert } from "../scenario-utils.js"
 import { createProductCapabilityStoreDir, isRecord } from "./helpers.js"
 
@@ -40,13 +41,13 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         command:
           PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.explainProductCommandContribution,
         input: {
-          commandId: "product.agent.run"
+          commandId: "product.agent.submit"
         }
       })
       const preview = await port.dispatch({
         command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.previewProductCommandInvocation,
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "preview through product command port"
           }
@@ -61,7 +62,7 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
       const run = await port.dispatch({
         command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.executeProductCommand,
         input: {
-          commandId: "product.agent.run",
+          commandId: "product.agent.submit",
           input: {
             text: "through product command port",
             sessionId: "ses_eval_product_app_backend_command_port"
@@ -115,7 +116,7 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         isRecord(commandValue) &&
           Array.isArray(commandValue.commands) &&
           commandValue.commands.some(
-            (item) => isRecord(item) && item.id === "product.agent.run"
+            (item) => isRecord(item) && item.id === "product.agent.submit"
           ),
         "command port should expose product command contributions"
       )
@@ -143,18 +144,26 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         isRecord(runValue) &&
           runValue.kind === "completed" &&
           isRecord(runValue.value) &&
-          runValue.value.assistantText ===
-            "Fake response from eval-product-port-model",
-        "executeProductCommand port request should run through the product allow-list"
+          runValue.value.sessionId ===
+            "ses_eval_product_app_backend_command_port" &&
+          typeof runValue.value.jobId === "string" &&
+          typeof runValue.value.state === "string",
+        "executeProductCommand should return an asynchronous conversation receipt"
       )
       const runResult = runValue.value
+      await waitForBackendConversation(app.commands, {
+        sessionId: String(runResult.sessionId),
+        inputId: String(runResult.inputId),
+        turnId: String(runResult.turnId),
+        jobId: String(runResult.jobId)
+      })
       assert(
         typeof routeValue.command === "string",
         "route command should be a string"
       )
       assert(
-        typeof runResult.assistantText === "string",
-        "assistant text should be a string"
+        typeof runResult.state === "string",
+        "conversation receipt state should be a string"
       )
       assert(
         rejected.error.code === "unknown_command",
@@ -181,7 +190,8 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         previewInputAccepted:
           isRecord(previewValue) && previewValue.inputAccepted === true,
         routeCommand: routeValue.command,
-        assistantText: runResult.assistantText,
+        operationState: runResult.state,
+        operationSessionId: String(runResult.sessionId),
         unknownPortCode: rejected.error.code,
         malformedPortCode: malformed.error.code,
         unknownRouteCode: invalid.error.code

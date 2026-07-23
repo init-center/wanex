@@ -1,3 +1,5 @@
+import type { JsonValue } from "@wanex/protocol"
+
 export type WorkspaceProgramDecision =
   | {
       readonly status: "allow"
@@ -10,6 +12,7 @@ export type WorkspaceProgramDecision =
     }
 
 export interface WorkspaceProgramPolicy {
+  snapshot(): JsonValue
   authorize(request: {
     readonly program: string
     readonly args: readonly string[]
@@ -50,6 +53,17 @@ export class ExactWorkspaceProgramPolicy implements WorkspaceProgramPolicy {
           status: "allow",
           executable,
           reason: `workspace program alias allowed: ${request.program}`
-        }
+      }
+  }
+
+  snapshot(): JsonValue {
+    return {
+      kind: "exact",
+      programs: Object.fromEntries(
+        [...this.programs.entries()].sort(([left], [right]) =>
+          left < right ? -1 : left > right ? 1 : 0
+        )
+      )
+    }
   }
 }

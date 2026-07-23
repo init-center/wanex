@@ -6,7 +6,7 @@ import type {
 } from "./types.js"
 
 export const PRODUCT_APP_BACKEND_CAPABILITY_IDS = {
-  appShell: "app-shell",
+  appHost: "wanex-app",
   productCommandRegistry: "product-command-registry",
   agentTurn: "agent-turn",
   diagnosticsSupport: "diagnostics-support",
@@ -23,16 +23,17 @@ export function readProductAppBackendCapabilities(
 ): ProductAppBackendCapabilityReadModel {
   const capabilities: ProductAppBackendCapabilityRow[] = [
     enabledCapability({
-      id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.appShell,
-      title: "App Shell command surface",
+      id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.appHost,
+      title: "App command surface",
       ownerPackage: "@wanex/app",
       commandIds: [
-        "runAgentTurn",
+        "submitConversationOperation",
+        "readConversationOperation",
+        "cancelConversationOperation",
         "readDiagnostics",
         "buildSupportBundle",
         "readRecentSessions",
         "readProductWorkbench",
-        "continueProductWorkbenchSession",
         "readSessionInputProvenance",
         "readSessionTranscript",
         "routeWorkflowEnvelope",
@@ -47,7 +48,6 @@ export function readProductAppBackendCapabilities(
         "readProductOverview",
         "readRecentSessions",
         "readProductWorkbench",
-        "continueProductWorkbenchSession",
         "readProductDiagnosticsDetail",
         "readProductCommands",
         "explainProductCommandContribution",
@@ -59,7 +59,7 @@ export function readProductAppBackendCapabilities(
       id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.agentTurn,
       title: "Agent turn execution",
       ownerPackage: "@wanex/app",
-      commandIds: ["product.agent.run"]
+      commandIds: ["product.agent.submit"]
     }),
     enabledCapability({
       id: PRODUCT_APP_BACKEND_CAPABILITY_IDS.diagnosticsSupport,

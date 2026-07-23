@@ -56,15 +56,16 @@ export async function startProductAppLocalDemoHost(
 
   try {
     if (options.seed) {
-      await localApp.productApp.dispatchProductCommand({
-        command: "runAgentTurn",
-        input: {
-          text: options.seedText,
-          sessionId: options.sessionId
-        }
+      const submitted = await localApp.productApp.submitConversationOperation({
+        text: options.seedText,
+        sessionId: options.sessionId
       })
-
-      await localApp.productApp.selectSession({ sessionId: options.sessionId })
+      if (submitted.kind !== "product-app.conversation-operation.found") {
+        throw new Error(
+          `seeded Product App Local demo failed to submit conversation: ${submitted.message}`
+        )
+      }
+      await waitForSeedConversation(localApp.productApp, options.sessionId)
 
       const opened = await localApp.webController.submitActionInput(
         {
@@ -92,6 +93,28 @@ export async function startProductAppLocalDemoHost(
     await localApp.close()
     throw error
   }
+}
+
+async function waitForSeedConversation(
+  app: ProductAppShell,
+  sessionId: string
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const result = await app.readTrackedConversationOperation({ sessionId })
+    if (
+      result.kind === "product-app.conversation-operation.found" &&
+      result.operation.capabilities.terminal
+    ) {
+      if (result.operation.state !== "succeeded") {
+        throw new Error(
+          `seeded Product App Local demo conversation ended as ${result.operation.state}`
+        )
+      }
+      return
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("seeded Product App Local demo conversation did not finish")
 }
 
 function demoHostHandle(request: {

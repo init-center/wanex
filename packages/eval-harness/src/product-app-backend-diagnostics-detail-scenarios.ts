@@ -11,12 +11,13 @@ import {
   type FootprintReport
 } from "./distribution-audit.js"
 import { assertProductAppBackendClosureExcludes } from "./product-app-backend-eval-utils.js"
+import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
 export const productAppBackendDiagnosticsDetailScenario = createEvalScenario({
   id: "product.skeleton-diagnostics-detail-contract",
-  title: "App Shell command runtime projects diagnostics detail state",
+  title: "App command runtime projects diagnostics detail state",
   tags: ["product-path", "diagnostics", "command-port", "distribution"],
   async run(context) {
     const storeDir = await mkdtemp(
@@ -32,10 +33,11 @@ export const productAppBackendDiagnosticsDetailScenario = createEvalScenario({
     })
 
     try {
-      await shell.commands.runAgentTurn({
-        text: "seed eval diagnostics detail",
+      const receipt = await shell.commands.submitConversationOperation({
+        content: [{ type: "text", text: "seed eval diagnostics detail" }],
         sessionId: "ses_eval_product_diagnostics_detail"
       })
+      await waitForBackendConversation(shell.commands, receipt)
 
       const typed = await shell.commands.readProductDiagnosticsDetail({
         now: 8_201,

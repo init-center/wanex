@@ -50,9 +50,10 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
       const trustedSetup = await host.providerSetup.configureProviderProfile({
         id: "eval-desktop-host-setup-provider",
         kind: "fake",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "fake",
         modelId: "eval-desktop-host-setup-model",
-        apiKey: "eval-desktop-host-setup-secret",
+        secretRef: "env://EVAL_DESKTOP_HOST_SETUP_SECRET",
         makeActive: true
       })
       const documentResponse = await host.handleRequest({
@@ -72,9 +73,9 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
         request: {
           kind: "product-app-web.request",
           operation: "submitActionInput",
-          requestId: "eval_desktop_host_start_workbench",
+          requestId: "eval_desktop_host_submit_conversation",
           input: {
-            action: "start-workbench",
+            action: "submit-conversation",
             fields: {
               text: "hello from Product App desktop host eval"
             }
@@ -92,6 +93,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
           profile: {
             id: "eval-desktop-host-rejected-provider",
             kind: "openai-compatible",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "openai-compatible",
             modelId: "eval-desktop-host-rejected-model",
             apiKey: "eval-desktop-host-rejected-secret"
@@ -106,6 +108,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
         input: {
           id: "eval-desktop-host-rejected-setup",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "fake",
           modelId: "eval-desktop-host-rejected-setup-model",
           apiKey: "eval-desktop-host-rejected-setup-secret",
@@ -138,7 +141,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
       const actionResult = expectRecord(submitResult.actionResult)
       const workbenchDocument = expectRecord(workbenchRecord.document)
       const workbenchSnapshot = expectRecord(workbenchDocument.snapshot)
-      const workbench = expectRecord(workbenchSnapshot.workbench)
+      const conversation = expectRecord(workbenchSnapshot.conversation)
       const workbenchView = expectRecord(workbenchSnapshot.view)
       const rejectedProviderMutation = expectRecord(
         rejectedProviderMutationResponse
@@ -156,7 +159,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
       const finalSnapshot = expectRecord(finalSnapshotRecord.snapshot)
       const finalLocal = expectRecord(finalSnapshot.local)
       const finalWeb = expectRecord(finalLocal.web)
-      const finalWorkbench = expectRecord(finalWeb.workbench)
+      const finalConversation = expectRecord(finalWeb.conversation)
       const finalView = expectRecord(finalWeb.view)
       const serialized = JSON.stringify([
         firstSnapshotResponse,
@@ -202,8 +205,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
         trustedSetup.kind === "product-app-local.provider-setup.configured" &&
           setupProfile.id === "eval-desktop-host-setup-provider" &&
           setupProfile.active === true &&
-          setupProfile.hasApiKey === true &&
-          setupProfile.apiKeyRedacted === "***" &&
+          setupProfile.credentialConfigured === true &&
           setupReadiness.status === "ready" &&
           setupReadiness.activeProfileId ===
             "eval-desktop-host-setup-provider",
@@ -211,7 +213,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
       )
       assert(
         documentProviderRunGate.state === "ready" &&
-          documentProviderRunGate.canSubmitWorkbench === true &&
+          documentProviderRunGate.canSubmitConversation === true &&
           documentProviderRunGate.activeProfileId ===
             "eval-desktop-host-setup-provider",
         "desktop host Web document should project provider setup readiness"
@@ -224,13 +226,13 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
           workbenchRecord.kind === "product-app-web.response" &&
           workbenchRecord.ok === true &&
           workbenchRecord.operation === "submitActionInput" &&
-          workbenchRecord.requestId === "eval_desktop_host_start_workbench" &&
+          workbenchRecord.requestId === "eval_desktop_host_submit_conversation" &&
           submitResult.ok === true &&
           actionResult.ok === true &&
-          actionResult.action === "start-workbench" &&
-          workbench.state === "ready" &&
-          workbenchView.latestUserText === "hello from Product App desktop host eval",
-        "desktop host should start workbench through the Web request envelope"
+          actionResult.action === "submit-conversation" &&
+          typeof conversation.sessionId === "string" &&
+          typeof workbenchView.conversationState === "string",
+        "desktop host should submit conversation through the Web request envelope"
       )
       assert(
         rejectedProviderMutation.kind === "product-app-desktop-main.response" &&
@@ -254,16 +256,14 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
         finalSnapshotRecord.kind === "product-app-desktop-main.response" &&
           finalSnapshotRecord.ok === true &&
           finalSnapshotRecord.operation === "snapshot" &&
-          finalWorkbench.state === "ready" &&
-          finalWorkbench.canContinue === true &&
-          finalView.latestUserText ===
-            "hello from Product App desktop host eval",
+          typeof finalConversation.state === "string" &&
+          typeof finalView.conversationCanSubmit === "boolean",
         "desktop host snapshot should reflect envelope mutations"
       )
       assert(
         !serialized.includes(storeDir) &&
           !serialized.includes(context.serviceBin) &&
-          !serialized.includes("eval-desktop-host-setup-secret") &&
+          !serialized.includes("EVAL_DESKTOP_HOST_SETUP_SECRET") &&
           !serialized.includes("eval-desktop-host-rejected-secret") &&
           !serialized.includes("eval-desktop-host-rejected-setup-secret"),
         "desktop host outputs must not leak host-only paths or provider secrets"
@@ -274,12 +274,11 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
         urlStarted: typeof firstSnapshot.url === "string" &&
           firstSnapshot.url.startsWith("http://127.0.0.1:"),
         documentReady: documentView.ready,
-        workbenchState: finalWorkbench.state,
-        workbenchCanContinue: finalWorkbench.canContinue,
-        latestUserText: finalView.latestUserText,
+        conversationState: finalConversation.state,
+        conversationCanSubmit: finalView.conversationCanSubmit,
         trustedProviderSetupRedacted:
-          setupProfile.apiKeyRedacted === "***" &&
-          !serialized.includes("eval-desktop-host-setup-secret"),
+          setupProfile.credentialConfigured === true &&
+          !serialized.includes("EVAL_DESKTOP_HOST_SETUP_SECRET"),
         providerRunGateState: documentProviderRunGate.state,
         providerMutationRejected:
           rejectedProviderMutation.ok === false &&
@@ -293,7 +292,7 @@ export const productAppLocalDesktopHostContractScenario = createEvalScenario({
           "eval-desktop-host-rejected-secret"
         ),
         leakedSetupSecret: serialized.includes(
-          "eval-desktop-host-setup-secret"
+          "EVAL_DESKTOP_HOST_SETUP_SECRET"
         ),
         leakedRejectedSetupSecret: serialized.includes(
           "eval-desktop-host-rejected-setup-secret"

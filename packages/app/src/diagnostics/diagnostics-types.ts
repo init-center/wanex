@@ -125,6 +125,7 @@ export interface BaseRuntimeHostJobSummary {
     readonly started: boolean
     readonly workerCount: number
     readonly memoryWorkerCount: number
+    readonly mediaGenerationWorkerCount: number
   }
   readonly totalJobs: number
   readonly stateCounts: readonly BaseRuntimeHostJobStateCount[]
@@ -161,6 +162,7 @@ export interface BaseRuntimeHostHealthSnapshot {
   readonly started: boolean
   readonly workerCount: number
   readonly memoryWorkerCount: number
+  readonly mediaGenerationWorkerCount: number
   readonly loopCount: number
   readonly activeLoopCount: number
   readonly stoppedLoopCount: number
@@ -169,7 +171,7 @@ export interface BaseRuntimeHostHealthSnapshot {
 
 export interface BaseRuntimeHostLoopHealth {
   readonly id: string
-  readonly kind: "agent" | "memory"
+  readonly kind: "agent" | "memory" | "media_generation"
   readonly index: number
   readonly startedAt: number
   readonly stopped: boolean

@@ -1,12 +1,15 @@
 import type {
+  ProductAppBackendProviderProfileListReadModel,
+  ProductAppBackendProviderProfileReadModel
+} from "@wanex/product-app/backend"
+import type {
   ProductAppSafeError,
-  ProductAppProviderProfileListReadModel,
   ProductAppProviderProfileReadModel,
   ProductAppProviderReadinessReadModel
 } from "./types.js"
 
 export function projectProductAppProviderReadiness(
-  profiles: ProductAppProviderProfileListReadModel
+  profiles: ProductAppBackendProviderProfileListReadModel
 ): ProductAppProviderReadinessReadModel {
   const activeProfile = profiles.profiles.find(
     (profile) => profile.id === profiles.activeProfileId
@@ -19,23 +22,23 @@ export function projectProductAppProviderReadiness(
       profileCount: profiles.profiles.length,
       canRun: false,
       attentionRequired: true,
-      requiresApiKey: false,
-      hasApiKey: false
+      requiresCredential: false,
+      credentialConfigured: false
     }
   }
 
-  const requiresApiKey = providerRequiresApiKey(activeProfile)
-  if (requiresApiKey && !activeProfile.hasApiKey) {
+  const requiresCredential = providerRequiresCredential(activeProfile)
+  if (requiresCredential && !activeProfile.credentialConfigured) {
     return {
-      status: "missing_required_api_key",
-      reason: "active_profile_missing_api_key",
+      status: "missing_required_credential",
+      reason: "active_profile_missing_credential",
       activeProfileId: profiles.activeProfileId,
       profileCount: profiles.profiles.length,
       canRun: false,
       attentionRequired: true,
-      requiresApiKey,
-      hasApiKey: false,
-      activeProfile: cloneProviderProfileReadModel(activeProfile)
+      requiresCredential,
+      credentialConfigured: false,
+      activeProfile: projectProductAppProviderProfile(activeProfile)
     }
   }
 
@@ -46,9 +49,9 @@ export function projectProductAppProviderReadiness(
     profileCount: profiles.profiles.length,
     canRun: true,
     attentionRequired: false,
-    requiresApiKey,
-    hasApiKey: activeProfile.hasApiKey,
-    activeProfile: cloneProviderProfileReadModel(activeProfile)
+    requiresCredential,
+    credentialConfigured: activeProfile.credentialConfigured,
+    activeProfile: projectProductAppProviderProfile(activeProfile)
   }
 }
 
@@ -70,13 +73,13 @@ function productAppProviderNotReadyMessage(
       return "provider is ready"
     case "missing_active_profile":
       return `provider is not ready: active profile ${readiness.activeProfileId} is missing`
-    case "missing_required_api_key":
-      return `provider is not ready: active profile ${readiness.activeProfileId} is missing a required API key`
+    case "missing_required_credential":
+      return `provider is not ready: active profile ${readiness.activeProfileId} is missing a required credential`
   }
 }
 
-function providerRequiresApiKey(
-  profile: ProductAppProviderProfileReadModel
+function providerRequiresCredential(
+  profile: ProductAppBackendProviderProfileReadModel
 ): boolean {
   switch (profile.kind) {
     case "fake":
@@ -88,22 +91,25 @@ function providerRequiresApiKey(
   }
 }
 
-function cloneProviderProfileReadModel(
-  profile: ProductAppProviderProfileReadModel
+export function projectProductAppProviderProfile(
+  profile: ProductAppBackendProviderProfileReadModel
 ): ProductAppProviderProfileReadModel {
   return {
     id: profile.id,
     kind: profile.kind,
     providerId: profile.providerId,
     modelId: profile.modelId,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: profile.anthropicVersion }),
-    hasApiKey: profile.hasApiKey,
-    ...(profile.apiKeyRedacted === undefined
-      ? {}
-      : { apiKeyRedacted: profile.apiKeyRedacted }),
+    capabilities: profile.capabilities,
+    credentialConfigured: profile.credentialConfigured,
     active: profile.active
+  }
+}
+
+export function projectProductAppProviderProfiles(
+  profiles: ProductAppBackendProviderProfileListReadModel
+) {
+  return {
+    activeProfileId: profiles.activeProfileId,
+    profiles: profiles.profiles.map(projectProductAppProviderProfile)
   }
 }

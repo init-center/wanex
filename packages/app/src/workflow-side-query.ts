@@ -1,8 +1,8 @@
 import type { MessagePart, TextMessagePart } from "@wanex/protocol"
-import type { BootstrappedWanexAppShellRuntime } from "./runtime.js"
+import type { BootstrappedWanexAppRuntime } from "./runtime.js"
 import type {
-  WanexAppShellAskSideQueryRequest,
-  WanexAppShellAskSideQueryResult
+  WanexAppAskSideQueryRequest,
+  WanexAppAskSideQueryResult
 } from "./types-workflow.js"
 import {
   defaultPrincipalId,
@@ -11,13 +11,13 @@ import {
 
 const defaultSideQuerySourceRef = "side-query"
 
-export async function askWanexAppShellSideQuery(
-  runtime: BootstrappedWanexAppShellRuntime,
+export async function askWanexAppSideQuery(
+  runtime: BootstrappedWanexAppRuntime,
   options: {
-    readonly request: WanexAppShellAskSideQueryRequest
+    readonly request: WanexAppAskSideQueryRequest
     readonly providerProfileId: string
   }
-): Promise<WanexAppShellAskSideQueryResult> {
+): Promise<WanexAppAskSideQueryResult> {
   const question = normalizeQuestion(options.request.question)
   const sourceRef =
     normalizeOptionalRef(options.request.sourceRef) ?? defaultSideQuerySourceRef

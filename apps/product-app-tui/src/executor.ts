@@ -60,10 +60,22 @@ async function runCommand(request: {
       return await request.client.selectSession(parseSessionSelector(request.input))
     case PRODUCT_APP_TUI_COMMANDS.openWorkbench:
       return await request.client.openWorkbench(parseOpenWorkbenchInput(request.input))
-    case PRODUCT_APP_TUI_COMMANDS.startWorkbench:
-      return await request.client.startWorkbench(parseStartWorkbenchInput(request.input))
-    case PRODUCT_APP_TUI_COMMANDS.continueWorkbench:
-      return await request.client.continueWorkbench(parseContinueWorkbenchInput(request.input))
+    case PRODUCT_APP_TUI_COMMANDS.submitConversation:
+      return await request.client.submitConversationOperation(
+        parseSubmitConversationInput(request.input)
+      )
+    case PRODUCT_APP_TUI_COMMANDS.readConversationOperation:
+      return await request.client.readTrackedConversationOperation(
+        parseOptionalSessionInput(request.input, "readConversationOperation")
+      )
+    case PRODUCT_APP_TUI_COMMANDS.cancelConversation:
+      return await request.client.cancelTrackedConversationOperation(
+        parseCancelConversationInput(request.input)
+      )
+    case PRODUCT_APP_TUI_COMMANDS.regenerateConversation:
+      return await request.client.regenerateTrackedConversationOperation(
+        parseOptionalSessionInput(request.input, "regenerateConversation")
+      )
   }
 }
 
@@ -101,43 +113,68 @@ function parseOpenWorkbenchInput(
   }
 }
 
-function parseContinueWorkbenchInput(input: unknown): {
+function parseSubmitConversationInput(input: unknown): {
   readonly text: string
   readonly sessionId?: string
 } {
   if (typeof input === "string") {
     return { text: input }
   }
-  const record = requireRecord(input, "continueWorkbench input")
+  const record = requireRecord(input, "submitConversation input")
   return {
-    text: requireString(record.text, "continueWorkbench input.text"),
+    text: requireString(record.text, "submitConversation input.text"),
     ...(record.sessionId === undefined
       ? {}
       : {
           sessionId: requireString(
             record.sessionId,
-            "continueWorkbench input.sessionId"
+            "submitConversation input.sessionId"
           )
         })
   }
 }
 
-function parseStartWorkbenchInput(input: unknown): {
-  readonly text: string
-  readonly sessionId?: string
-} {
+function parseOptionalSessionInput(
+  input: unknown,
+  command: string
+): { readonly sessionId?: string } | undefined {
+  if (input === undefined) return undefined
   if (typeof input === "string") {
-    return { text: input }
+    return { sessionId: requireString(input, `${command} input`) }
   }
-  const record = requireRecord(input, "startWorkbench input")
+  const record = requireRecord(input, `${command} input`)
+  return record.sessionId === undefined
+    ? {}
+    : {
+        sessionId: requireString(
+          record.sessionId,
+          `${command} input.sessionId`
+        )
+      }
+}
+
+function parseCancelConversationInput(input: unknown): {
+  readonly sessionId?: string
+  readonly reason: string
+} {
+  if (input === undefined) {
+    return { reason: "user requested cancellation" }
+  }
+  if (typeof input === "string") {
+    return { reason: requireString(input, "cancelConversation input") }
+  }
+  const record = requireRecord(input, "cancelConversation input")
   return {
-    text: requireString(record.text, "startWorkbench input.text"),
+    reason:
+      record.reason === undefined
+        ? "user requested cancellation"
+        : requireString(record.reason, "cancelConversation input.reason"),
     ...(record.sessionId === undefined
       ? {}
       : {
           sessionId: requireString(
             record.sessionId,
-            "startWorkbench input.sessionId"
+            "cancelConversation input.sessionId"
           )
         })
   }

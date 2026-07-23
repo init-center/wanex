@@ -2,45 +2,76 @@ import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
   AppendSessionMessageRequest,
-  ApplySessionRunControlReceipt,
-  ApplySessionRunControlRequest,
+  ApplySessionTurnControlReceipt,
+  ApplySessionTurnControlRequest,
+  BeginProviderInvocationRequest,
   CreateSessionRequest,
-  InterruptSessionRunReceipt,
-  InterruptSessionRunRequest,
+  InterruptSessionTurnReceipt,
+  InterruptSessionTurnRequest,
+  FinishProviderInvocationReceipt,
+  FinishProviderInvocationRequest,
+  ListSessionAttemptsRequest,
+  ListProviderInvocationsRequest,
   ListSessionInputsRequest,
   ListSessionMessagesRequest,
-  ListSessionRunControlsRequest,
+  ListSessionTurnControlsRequest,
+  ListSessionTurnsRequest,
   ListSessionsRequest,
+  MarkProviderInvocationOutputRequest,
+  ProviderInvocationRecord,
+  RequestSessionTurnCancelReceipt,
+  RequestSessionTurnCancelRequest,
+  SessionAttemptRecord,
   SessionInputRecord,
   SessionMessageRecord,
   SessionRecord,
-  SessionRunControlRecord,
-  SteerSessionRunReceipt,
-  SteerSessionRunRequest,
-  SubmitSessionRunReceipt,
-  SubmitSessionRunRequest
+  SessionTurnControlRecord,
+  SessionTurnRecord,
+  SettleSessionTurnReceipt,
+  SettleSessionTurnRequest,
+  StartSessionTurnAttemptReceipt,
+  StartSessionTurnAttemptRequest,
+  SteerSessionTurnReceipt,
+  SteerSessionTurnRequest,
+  SubmitSessionTurnReceipt,
+  SubmitSessionTurnRequest
 } from "@wanex/protocol"
 
 import {
   assertArray,
   fromRpcAdmissionReceipt,
-  fromRpcApplySessionRunControlReceipt,
-  fromRpcInterruptSessionRunReceipt,
+  fromRpcApplySessionTurnControlReceipt,
+  fromRpcFinishProviderInvocationReceipt,
+  fromRpcInterruptSessionTurnReceipt,
+  fromRpcProviderInvocationRecord,
+  fromRpcRequestSessionTurnCancelReceipt,
+  fromRpcSessionAttemptRecord,
   fromRpcSessionInputRecord,
   fromRpcSessionMessageRecord,
   fromRpcSessionRecord,
-  fromRpcSessionRunControlRecord,
-  fromRpcSteerSessionRunReceipt,
-  fromRpcSubmitSessionRunReceipt,
+  fromRpcSessionTurnControlRecord,
+  fromRpcSessionTurnRecord,
+  fromRpcSettleSessionTurnReceipt,
+  fromRpcStartSessionTurnAttemptReceipt,
+  fromRpcSteerSessionTurnReceipt,
+  fromRpcSubmitSessionTurnReceipt,
   messagePartsToJson,
   sessionInputOriginToJson,
-  toRpcApplySessionRunControlRequest,
-  toRpcInterruptSessionRunRequest,
+  toRpcApplySessionTurnControlRequest,
+  toRpcBeginProviderInvocationRequest,
+  toRpcFinishProviderInvocationRequest,
+  toRpcInterruptSessionTurnRequest,
+  toRpcListProviderInvocationsRequest,
   toRpcListSessionsRequest,
-  toRpcListSessionRunControlsRequest,
-  toRpcSteerSessionRunRequest,
-  toRpcSubmitSessionRunRequest
+  toRpcListSessionTurnControlsRequest,
+  toRpcRequestSessionTurnCancelRequest,
+  toRpcMarkProviderInvocationOutputRequest,
+  toRpcSettleSessionTurnRequest,
+  toRpcStartSessionTurnAttemptRequest,
+  toRpcSteerSessionTurnRequest,
+  toRpcSubmitSessionTurnRequest
 } from "./codec.js"
+import { toRpcJsonValueFromUnknown } from "./codec-common.js"
 import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { SessionsStorageRpcCommand } from "./generated/storage-rpc.js"
 
@@ -56,10 +87,7 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
   }
 
   async getSession(id: string): Promise<SessionRecord | null> {
-    const value = await this.callSession({
-      command: "get-session",
-      id
-    })
+    const value = await this.callSession({ command: "get-session", id })
     return value === null ? null : fromRpcSessionRecord(value)
   }
 
@@ -89,55 +117,126 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
     return fromRpcAdmissionReceipt(value)
   }
 
-  async submitSessionRun(
-    request: SubmitSessionRunRequest
-  ): Promise<SubmitSessionRunReceipt> {
+  async submitSessionTurn(
+    request: SubmitSessionTurnRequest
+  ): Promise<SubmitSessionTurnReceipt> {
     const value = await this.callSession({
-      command: "submit-session-run",
-      request: toRpcSubmitSessionRunRequest(request)
+      command: "submit-session-turn",
+      request: toRpcSubmitSessionTurnRequest(request)
     })
-    return fromRpcSubmitSessionRunReceipt(value)
+    return fromRpcSubmitSessionTurnReceipt(value)
   }
 
-  async interruptSessionRun(
-    request: InterruptSessionRunRequest
-  ): Promise<InterruptSessionRunReceipt> {
+  async startSessionTurnAttempt(
+    request: StartSessionTurnAttemptRequest
+  ): Promise<StartSessionTurnAttemptReceipt> {
     const value = await this.callSession({
-      command: "interrupt-session-run",
-      request: toRpcInterruptSessionRunRequest(request)
+      command: "start-session-turn-attempt",
+      request: toRpcStartSessionTurnAttemptRequest(request)
     })
-    return fromRpcInterruptSessionRunReceipt(value)
+    return fromRpcStartSessionTurnAttemptReceipt(value)
   }
 
-  async steerSessionRun(
-    request: SteerSessionRunRequest
-  ): Promise<SteerSessionRunReceipt> {
+  async settleSessionTurn(
+    request: SettleSessionTurnRequest
+  ): Promise<SettleSessionTurnReceipt> {
     const value = await this.callSession({
-      command: "steer-session-run",
-      request: toRpcSteerSessionRunRequest(request)
+      command: "settle-session-turn",
+      request: toRpcSettleSessionTurnRequest(request)
     })
-    return fromRpcSteerSessionRunReceipt(value)
+    return fromRpcSettleSessionTurnReceipt(value)
   }
 
-  async listSessionRunControls(
-    request: ListSessionRunControlsRequest
-  ): Promise<SessionRunControlRecord[]> {
+  async beginProviderInvocation(
+    request: BeginProviderInvocationRequest
+  ): Promise<ProviderInvocationRecord> {
     const value = await this.callSession({
-      command: "list-session-run-controls",
-      request: toRpcListSessionRunControlsRequest(request)
+      command: "begin-provider-invocation",
+      request: toRpcBeginProviderInvocationRequest(request)
     })
-    assertArray(value, "session run controls")
-    return value.map(fromRpcSessionRunControlRecord)
+    return fromRpcProviderInvocationRecord(value)
   }
 
-  async applySessionRunControl(
-    request: ApplySessionRunControlRequest
-  ): Promise<ApplySessionRunControlReceipt | null> {
+  async markProviderInvocationOutput(
+    request: MarkProviderInvocationOutputRequest
+  ): Promise<ProviderInvocationRecord | null> {
     const value = await this.callSession({
-      command: "apply-session-run-control",
-      request: toRpcApplySessionRunControlRequest(request)
+      command: "mark-provider-invocation-output",
+      request: toRpcMarkProviderInvocationOutputRequest(request)
     })
-    return value === null ? null : fromRpcApplySessionRunControlReceipt(value)
+    return value === null ? null : fromRpcProviderInvocationRecord(value)
+  }
+
+  async finishProviderInvocation(
+    request: FinishProviderInvocationRequest
+  ): Promise<FinishProviderInvocationReceipt | null> {
+    const value = await this.callSession({
+      command: "finish-provider-invocation",
+      request: toRpcFinishProviderInvocationRequest(request)
+    })
+    return value === null ? null : fromRpcFinishProviderInvocationReceipt(value)
+  }
+
+  async listProviderInvocations(
+    request: ListProviderInvocationsRequest
+  ): Promise<ProviderInvocationRecord[]> {
+    const value = await this.callSession({
+      command: "list-provider-invocations",
+      request: toRpcListProviderInvocationsRequest(request)
+    })
+    assertArray(value, "provider invocations")
+    return value.map(fromRpcProviderInvocationRecord)
+  }
+
+  async requestSessionTurnCancel(
+    request: RequestSessionTurnCancelRequest
+  ): Promise<RequestSessionTurnCancelReceipt> {
+    const value = await this.callSession({
+      command: "request-session-turn-cancel",
+      request: toRpcRequestSessionTurnCancelRequest(request)
+    })
+    return fromRpcRequestSessionTurnCancelReceipt(value)
+  }
+
+  async interruptSessionTurn(
+    request: InterruptSessionTurnRequest
+  ): Promise<InterruptSessionTurnReceipt> {
+    const value = await this.callSession({
+      command: "interrupt-session-turn",
+      request: toRpcInterruptSessionTurnRequest(request)
+    })
+    return fromRpcInterruptSessionTurnReceipt(value)
+  }
+
+  async steerSessionTurn(
+    request: SteerSessionTurnRequest
+  ): Promise<SteerSessionTurnReceipt> {
+    const value = await this.callSession({
+      command: "steer-session-turn",
+      request: toRpcSteerSessionTurnRequest(request)
+    })
+    return fromRpcSteerSessionTurnReceipt(value)
+  }
+
+  async listSessionTurnControls(
+    request: ListSessionTurnControlsRequest
+  ): Promise<SessionTurnControlRecord[]> {
+    const value = await this.callSession({
+      command: "list-session-turn-controls",
+      request: toRpcListSessionTurnControlsRequest(request)
+    })
+    assertArray(value, "session turn controls")
+    return value.map(fromRpcSessionTurnControlRecord)
+  }
+
+  async applySessionTurnControl(
+    request: ApplySessionTurnControlRequest
+  ): Promise<ApplySessionTurnControlReceipt | null> {
+    const value = await this.callSession({
+      command: "apply-session-turn-control",
+      request: toRpcApplySessionTurnControlRequest(request)
+    })
+    return value === null ? null : fromRpcApplySessionTurnControlReceipt(value)
   }
 
   async listSessionInputs(
@@ -162,19 +261,48 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
     return value.map(fromRpcSessionMessageRecord)
   }
 
+  async listSessionTurns(
+    request: ListSessionTurnsRequest
+  ): Promise<SessionTurnRecord[]> {
+    const value = await this.callSession({
+      command: "list-session-turns",
+      session_id: request.sessionId,
+      state: request.state ?? null
+    })
+    assertArray(value, "session turns")
+    return value.map(fromRpcSessionTurnRecord)
+  }
+
+  async listSessionAttempts(
+    request: ListSessionAttemptsRequest
+  ): Promise<SessionAttemptRecord[]> {
+    const value = await this.callSession({
+      command: "list-session-attempts",
+      turn_id: request.turnId
+    })
+    assertArray(value, "session attempts")
+    return value.map(fromRpcSessionAttemptRecord)
+  }
+
   async appendSessionMessage(
     request: AppendSessionMessageRequest
   ): Promise<SessionMessageRecord | null> {
     const value = await this.callSession({
       command: "append-session-message",
       session_id: request.sessionId,
-      run_id: request.runId,
+      turn_id: request.turnId,
+      attempt_id: request.attemptId,
       input_id: request.inputId,
-      runner_id: request.runnerId,
+      job_id: request.jobId,
+      worker_id: request.workerId,
       lease_token: request.leaseToken,
       idempotency_key: request.idempotencyKey,
       role: request.role,
-      content: messagePartsToJson(request.content)
+      content: messagePartsToJson(request.content),
+      provider_state:
+        request.providerState === undefined
+          ? null
+          : toRpcJsonValueFromUnknown([...request.providerState])
     })
     return value === null ? null : fromRpcSessionMessageRecord(value)
   }

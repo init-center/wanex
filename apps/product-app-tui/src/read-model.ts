@@ -6,7 +6,7 @@ import type {
 export function productAppTuiDiagnostics(
   snapshot: Pick<
     ProductAppTuiSurfaceSnapshot,
-    "descriptor" | "status" | "home" | "settings" | "commandCatalog" | "events"
+    "descriptor" | "status" | "home" | "settings" | "commandCatalog" | "conversation" | "events"
   >
 ): readonly ProductAppTuiDiagnostic[] {
   return [
@@ -34,6 +34,11 @@ export function productAppTuiDiagnostics(
       snapshot.commandCatalog,
       "product-app-tui.command_catalog_failed",
       "readProductCommands"
+    ),
+    ...commandDiagnostic(
+      snapshot.conversation,
+      "product-app-tui.conversation_failed",
+      "readTrackedConversationOperation"
     ),
     ...eventsDiagnostic(snapshot.events)
   ]

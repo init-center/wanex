@@ -1,12 +1,15 @@
 import type {
   ProductAppHomeReadModel,
   ProductAppHomeOptions,
-  ProductAppContinueWorkbenchResult,
+  ProductAppCancelTrackedConversationOperationResult,
   ProductAppCommandCatalogReadModel,
+  ProductAppConversationOperationReadModel,
   ProductAppOpenWorkbenchResult,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationResult,
   ProductAppSettingsReadModel,
   ProductAppShellStatus,
-  ProductAppStartWorkbenchResult,
+  ProductAppSubmitConversationOperationResult,
   ProductAppSurfaceClient,
   ProductAppSurfaceClientCommandEnvelope,
   ProductAppSurfaceClientDescriptorResult,
@@ -53,6 +56,7 @@ export interface ProductAppTuiSurfaceSnapshot {
   readonly home: ProductAppSurfaceClientCommandEnvelope<ProductAppHomeReadModel>
   readonly settings: ProductAppSurfaceClientCommandEnvelope<ProductAppSettingsReadModel>
   readonly commandCatalog: ProductAppSurfaceClientCommandEnvelope<ProductAppCommandCatalogReadModel>
+  readonly conversation: ProductAppSurfaceClientCommandEnvelope<ProductAppReadTrackedConversationOperationResult>
   readonly events: ProductAppSurfaceClientEventsResult
   readonly diagnostics: readonly ProductAppTuiDiagnostic[]
   readonly readModel: TuiShellReadModel
@@ -72,6 +76,7 @@ export type ProductAppTuiDiagnosticCode =
   | "product-app-tui.home_failed"
   | "product-app-tui.settings_failed"
   | "product-app-tui.command_catalog_failed"
+  | "product-app-tui.conversation_failed"
   | "product-app-tui.events_failed"
   | "product-app-tui.invalid_input"
   | "product-app-tui.unknown_command"
@@ -137,6 +142,17 @@ export interface ProductAppTuiLineSessionOptions {
   readonly input: AsyncIterable<string>
   readonly write: (chunk: string) => void | Promise<void>
   readonly renderOptions?: RenderProductAppTuiFrameOptions
+  readonly attachmentHost?: ProductAppTuiAttachmentHost
+}
+
+export interface ProductAppTuiAttachmentHost {
+  attachPath(request: {
+    readonly path: string
+    readonly sessionId?: string
+  }): Promise<{
+    readonly resourceId: string
+    readonly label?: string
+  }>
 }
 
 export interface ProductAppTuiLineSessionResult {
@@ -144,9 +160,12 @@ export interface ProductAppTuiLineSessionResult {
   readonly handledLineCount: number
   readonly commandCount: number
   readonly askCommandCount: number
+  readonly attachCommandCount: number
   readonly selectCommandCount: number
   readonly workbenchCommandCount: number
-  readonly continueCommandCount: number
+  readonly operationCommandCount: number
+  readonly cancelCommandCount: number
+  readonly regenerateCommandCount: number
   readonly paletteCommandCount: number
   readonly catalogCommandCount: number
   readonly previewCommandCount: number
@@ -159,10 +178,7 @@ export interface ProductAppTuiLineSessionResult {
   readonly activeSessionId?: string
 }
 
-export type ProductAppTuiWorkbench =
-  | ProductAppOpenWorkbenchResult
-  | ProductAppStartWorkbenchResult
-  | ProductAppContinueWorkbenchResult
+export type ProductAppTuiWorkbench = ProductAppOpenWorkbenchResult
 
 export interface ProductAppTuiRenderedWorkbench {
   readonly kind: "product-app-tui.workbench"
@@ -176,10 +192,32 @@ export interface ProductAppTuiRenderedWorkbench {
   readonly latestUpdatedAt?: number
   readonly latestUserText?: string
   readonly latestAssistantText?: string
-  readonly continued: boolean
   readonly lines: readonly string[]
   readonly text: string
 }
+
+export type ProductAppTuiConversationOperation =
+  | ProductAppSubmitConversationOperationResult
+  | ProductAppReadTrackedConversationOperationResult
+  | ProductAppCancelTrackedConversationOperationResult
+  | ProductAppRegenerateTrackedConversationOperationResult
+
+export interface ProductAppTuiRenderedConversationOperation {
+  readonly kind: "product-app-tui.conversation-operation"
+  readonly sourceKind: ProductAppTuiConversationOperation["kind"]
+  readonly state: string
+  readonly sessionId?: string
+  readonly operationId?: string
+  readonly rowCount: number
+  readonly cancellable: boolean
+  readonly regeneratable: boolean
+  readonly terminal: boolean
+  readonly lines: readonly string[]
+  readonly text: string
+}
+
+export type ProductAppTuiConversationOperationReadModel =
+  ProductAppConversationOperationReadModel
 
 export interface ProductAppTuiRenderedEvents {
   readonly kind: "product-app-tui.events"

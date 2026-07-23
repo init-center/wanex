@@ -62,7 +62,8 @@ export async function executeProductAppCommandWithPolicy(request: {
 const REFERENCE_FIELDS = {
   sessionId: "session",
   jobId: "job",
-  runId: "run",
+  turnId: "turn",
+  attemptId: "attempt",
   resourceId: "resource",
   proposalId: "proposal",
   taskId: "task",
@@ -189,8 +190,7 @@ async function productAppCommandRequiresRunnableProvider(request: {
   readonly command: ProductAppBackendCommandPortRequest
 }): Promise<boolean> {
   switch (request.command.command) {
-    case PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.runAgentTurn:
-    case PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.continueProductWorkbenchSession:
+    case PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation:
       return true
     case PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.routeInput:
       return routeInputMayRunAgent(request.command.input)
@@ -252,8 +252,8 @@ async function executeProductCommandMayRunProvider(request: {
 
 function productAppHandlerRequiresRunnableProvider(handlerRef: string): boolean {
   return (
-    handlerRef === PRODUCT_APP_BACKEND_HANDLER_REFS.runAgentTurn ||
-    handlerRef === PRODUCT_APP_BACKEND_HANDLER_REFS.continueProductWorkbenchSession
+    handlerRef ===
+      PRODUCT_APP_BACKEND_HANDLER_REFS.submitConversationOperation
   )
 }
 

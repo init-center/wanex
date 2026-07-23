@@ -10,6 +10,7 @@ import {
 } from "./distribution-audit.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
+import { waitForProductConversation } from "./product-app/conversation-helpers.js"
 import { mktemp } from "./product-bootstrap/helpers.js"
 
 export {
@@ -34,10 +35,13 @@ export {
   productAppFeedbackMatrixScenario
 } from "./product-app/feedback-matrix-scenario.js"
 export {
+  productAppConversationLifecycleScenario
+} from "./product-app/conversation-lifecycle-scenario.js"
+export {
   declarativeCommandInputProductScenario
 } from "./product-app/declarative-input-scenario.js"
 
-export const productAppShellContractScenario = createEvalScenario({
+export const productAppContractScenario = createEvalScenario({
   id: "product.app-shell-contract",
   title: "Product App consumes the frozen upper app integration contract",
   tags: ["product-app", "upper-app", "product-path"],
@@ -67,23 +71,27 @@ export const productAppShellContractScenario = createEvalScenario({
     try {
       const home = await app.readHome({ overview: { now: 9400 } })
       const settings = app.readSettings()
-      const run = await app.dispatchProductCommand({
-        command: "runAgentTurn",
-        input: {
-          text: "eval product app turn",
-          sessionId: "ses_eval_product_app"
-        }
+      const run = await app.submitConversationOperation({
+        text: "eval product app turn",
+        sessionId: "ses_eval_product_app"
       })
-      assert(run.ok, "product app should dispatch agent turn through product port")
+      assert(
+        run.kind === "product-app.conversation-operation.found",
+        "product app should return a tracked conversation receipt"
+      )
+      await waitForProductConversation(app, "ses_eval_product_app")
       const selected = await app.selectSession({
         sessionId: "ses_eval_product_app"
       })
       const opened = await app.openWorkbench()
-      const continued = await app.continueWorkbench({
-        text: "eval product app continued"
+      const continued = await app.submitConversationOperation({
+        text: "eval product app continued",
+        sessionId: "ses_eval_product_app"
       })
-      const started = await app.startWorkbench({
-        text: "eval product app started"
+      await waitForProductConversation(app, "ses_eval_product_app")
+      const refreshed = await app.openWorkbench()
+      const regenerated = await app.regenerateTrackedConversationOperation({
+        sessionId: "ses_eval_product_app"
       })
       const json = await app.dispatchProductCommandJson(
         JSON.stringify({ command: "status" })
@@ -119,12 +127,13 @@ export const productAppShellContractScenario = createEvalScenario({
       )
       assert(
         opened.kind === "product-app.workbench.opened" &&
-          continued.kind === "product-app.workbench.continued",
-        "workbench should open and continue through the selected session"
+          refreshed.kind === "product-app.workbench.opened",
+        "workbench should remain a read-only canonical transcript projection"
       )
       assert(
-        started.kind === "product-app.workbench.started",
-        "workbench should start without a preselected session"
+        continued.kind === "product-app.conversation-operation.found" &&
+          regenerated.kind === "product-app.conversation-operation.found",
+        "conversation submit and regeneration should return tracked operations"
       )
       assert(
         json.status === "success" && json.envelope.ok,
@@ -151,7 +160,8 @@ export const productAppShellContractScenario = createEvalScenario({
         rendererCalls: home.rendererBoundary.rendererCalls,
         openedKind: opened.kind,
         continuedKind: continued.kind,
-        startedKind: started.kind,
+        refreshedKind: refreshed.kind,
+        regeneratedKind: regenerated.kind,
         jsonStatus: json.status,
         pluginRuntime: productApp.contains.pluginRuntime,
         connectorRuntime: productApp.contains.connectorRuntime,
@@ -190,36 +200,34 @@ export const productAppSurfaceContractScenario = createEvalScenario({
 
     try {
       const descriptor = surface.descriptor()
-      const started = await surface.dispatchSurfaceCommand({
-        command: "startWorkbench",
-        requestId: "eval_surface_start",
+      const submitted = await surface.dispatchSurfaceCommand({
+        command: "submitConversationOperation",
+        requestId: "eval_surface_submit",
         input: {
-          text: "eval surface started"
+          text: "eval surface submitted",
+          sessionId: "ses_eval_product_app_surface_direct"
         }
       })
+      await waitForProductConversation(app, "ses_eval_product_app_surface_direct")
       const run = await surface.dispatchSurfaceCommand({
         command: "dispatchProductCommand",
         requestId: "eval_surface_run",
         input: {
-          command: "runAgentTurn",
-          input: {
-            text: "eval surface turn",
-            sessionId: "ses_eval_product_app_surface"
-          }
+          command: "status"
         }
       })
       const opened = await surface.dispatchSurfaceCommand({
         command: "openWorkbench",
         requestId: "eval_surface_open",
         input: {
-          sessionId: "ses_eval_product_app_surface"
+          sessionId: "ses_eval_product_app_surface_direct"
         }
       })
-      const continued = await surface.dispatchSurfaceCommand({
-        command: "continueWorkbench",
-        requestId: "eval_surface_continue",
+      const operation = await surface.dispatchSurfaceCommand({
+        command: "readTrackedConversationOperation",
+        requestId: "eval_surface_operation",
         input: {
-          text: "eval surface continued"
+          sessionId: "ses_eval_product_app_surface_direct"
         }
       })
       const invalid = await surface.dispatchSurfaceCommand({
@@ -237,14 +245,14 @@ export const productAppSurfaceContractScenario = createEvalScenario({
 
       assert(
         descriptor.transport === "app-owned-ipc-or-api" &&
-          descriptor.commandCount === 18,
+          descriptor.commandCount === 23,
         "surface descriptor should be transport-neutral and complete"
       )
       assert(
-        started.ok &&
-          isRecord(started.value) &&
-          started.value.kind === "product-app.workbench.started",
-        "surface should start workbench without a preselected session"
+        submitted.ok &&
+          isRecord(submitted.value) &&
+          submitted.value.kind === "product-app.conversation-operation.found",
+        "surface should return an asynchronous conversation receipt"
       )
       assert(
         !descriptor.rendererBoundary.rendererMayOpenStorage &&
@@ -252,7 +260,7 @@ export const productAppSurfaceContractScenario = createEvalScenario({
           !descriptor.rendererBoundary.rendererMayReceiveServiceBinaryPath,
         "surface descriptor should preserve renderer isolation"
       )
-      assert(run.ok, "surface should dispatch product command")
+      assert(run.ok, "surface should dispatch a generic product command")
       assert(
         opened.ok &&
           isRecord(opened.value) &&
@@ -260,10 +268,10 @@ export const productAppSurfaceContractScenario = createEvalScenario({
         "surface should open workbench"
       )
       assert(
-        continued.ok &&
-          isRecord(continued.value) &&
-          continued.value.kind === "product-app.workbench.continued",
-        "surface should continue workbench through selected session"
+        operation.ok &&
+          isRecord(operation.value) &&
+          operation.value.kind === "product-app.conversation-operation.found",
+        "surface should read the durable tracked conversation operation"
       )
       assert(
         !invalid.ok &&
@@ -289,9 +297,9 @@ export const productAppSurfaceContractScenario = createEvalScenario({
         transport: descriptor.transport,
         commandCount: descriptor.commandCount,
         rendererCalls: descriptor.rendererBoundary.rendererCalls,
-        startedKind: isRecord(started.value) ? started.value.kind : null,
+        submittedKind: isRecord(submitted.value) ? submitted.value.kind : null,
         openedKind: isRecord(opened.value) ? opened.value.kind : null,
-        continuedKind: isRecord(continued.value) ? continued.value.kind : null,
+        operationKind: isRecord(operation.value) ? operation.value.kind : null,
         invalidCode: invalid.ok ? null : invalid.error.code,
         eventCount: events.length,
         stateChanged: events.some(
@@ -302,6 +310,7 @@ export const productAppSurfaceContractScenario = createEvalScenario({
         concreteAdapters: productApp.contains.concreteAdapters
       }
     } finally {
+      await surface.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

@@ -12,8 +12,10 @@
     "./host": "./src/host/index.ts",
     "./jobs": "./src/jobs/index.ts",
     "./memory": "./src/memory/index.ts",
+    "./media-generation": "./src/media-generation/index.ts",
     "./provider": "./src/provider/index.ts",
     "./resources": "./src/resources/index.ts",
+    "./secrets": "./src/secrets/index.ts",
     "./sessions": "./src/sessions/index.ts",
     "./tools": "./src/tools/index.ts"
   },

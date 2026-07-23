@@ -18,8 +18,8 @@ export const cliSupportBundleOperationalScenario = createEvalScenario({
       "deepseek",
       "--model",
       "deepseek-chat",
-      "--api-key",
-      "eval-cli-secret"
+      "--secret-ref",
+      "env://EVAL_CLI_SUPPORT_API_KEY"
     ])
     await runCli(context, [
       "run",
@@ -42,12 +42,13 @@ export const cliSupportBundleOperationalScenario = createEvalScenario({
     ])
     const value = expectRecord(response.value)
     const serialized = JSON.stringify(value)
-    assert(!serialized.includes("eval-cli-secret"), "CLI bundle must redact secrets")
+    assert(!serialized.includes("EVAL_CLI_SUPPORT_API_KEY"), "CLI bundle must redact secret refs")
     const providers = expectArray(value.providers).map(expectRecord)
     assert(
       providers[0]?.profile !== undefined &&
-        expectRecord(providers[0].profile).apiKey === "***",
-      "CLI bundle should expose redacted provider profile"
+        expectRecord(providers[0].profile).credentialConfigured === true &&
+        !serialized.includes("secretRef"),
+      "CLI bundle should expose only safe provider profile metadata"
     )
     return {
       providerRedacted: true,

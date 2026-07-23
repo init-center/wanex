@@ -122,24 +122,34 @@ describe("private Electron production boundary", () => {
     })
   })
 
-  it("keeps native macOS and Windows execution in the release matrix", async () => {
+  it("freezes the native full-verification and distribution matrix", async () => {
     const workflow = await readFile(join(
       boundaryRoot,
       "../../.github/workflows/native-electron-boundary.yml"
     ), "utf8")
-    expect(workflowTriggerPaths(workflow, "pull_request"))
-      .toEqual(expectedNativeWorkflowPaths)
-    expect(workflowTriggerPaths(workflow, "push"))
-      .toEqual(expectedNativeWorkflowPaths)
+    expect(workflow).toContain("pull_request:\n")
+    expect(workflow).toContain("push:\n    branches: [main]")
+    expect(workflow).not.toContain("paths:")
     expect(workflow).toContain(
       "concurrency:\n" +
-      "  group: native-electron-boundary-${{ github.workflow }}-${{ github.ref }}\n" +
+      "  group: cross-platform-release-${{ github.workflow }}-${{ github.ref }}\n" +
       "  cancel-in-progress: true"
     )
+    expect(workflow).toContain("needs: verify")
+    expect(workflow).toContain("os: ubuntu-24.04\n            target: linux-x64")
     expect(workflow).toContain("os: macos-15")
-    expect(workflow).toContain("os: windows-latest")
+    expect(workflow).toContain("os: macos-15-intel\n            target: darwin-x64")
+    expect(workflow).toContain("os: windows-2025\n            target: win32-x64")
+    expect(workflow.match(/run: pnpm verify/g)).toHaveLength(1)
+    expect(workflow).toContain(
+      "pnpm stage:native -- --target ${{ matrix.target }}"
+    )
+    expect(workflow).toContain("pnpm proof:native-runtime -- --samples 5")
     expect(workflow).toContain("pnpm proof:electron-boundary -- --samples 5")
-    expect(workflow).toContain("if: success()")
+    expect(workflow).toContain(
+      "pnpm audit:host-distribution -- --target ${{ matrix.target }}"
+    )
+    expect(workflow).toContain("if: always()")
     expect(workflow).toContain(
       "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
     )
@@ -162,40 +172,6 @@ describe("private Electron production boundary", () => {
       .toBe(true)
   })
 })
-
-const expectedNativeWorkflowPaths = [
-  ".github/workflows/native-electron-boundary.yml",
-  "Cargo.lock",
-  "Cargo.toml",
-  "crates/**",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "apps/product-app-local/**",
-  "scripts/electron-boundary/**",
-  "scripts/native-artifact/**",
-  "packages/runtime/**",
-  "packages/storage/**"
-]
-
-function workflowTriggerPaths(workflow, trigger) {
-  const lines = workflow.split(/\r?\n/)
-  const start = lines.indexOf(`  ${trigger}:`)
-  if (start === -1) {
-    return []
-  }
-  const paths = []
-  for (const line of lines.slice(start + 1)) {
-    if (/^(?:\S|  [a-zA-Z_][a-zA-Z0-9_-]*:)/.test(line)) {
-      break
-    }
-    const match = line.match(/^ {6}- "([^"]+)"$/)
-    if (match !== null) {
-      paths.push(match[1])
-    }
-  }
-  return paths
-}
 
 function sample(artifactVerification, wallTimeMs) {
   return {

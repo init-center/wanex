@@ -43,6 +43,7 @@ export function toRpcEnqueueJobRequest(request: EnqueueJobRequest): EnqueueJobWi
     scheduled_at: request.scheduledAt ?? null,
     not_before: request.notBefore ?? null,
     priority: request.priority ?? null,
+    concurrency_key: request.concurrencyKey ?? null,
     max_attempts: request.maxAttempts ?? null,
     retry_policy:
       request.retryPolicy === undefined
@@ -139,6 +140,10 @@ export function fromRpcSchedulerJobRecord(
   }
   return withOptionalFields(record, {
     notBefore: optionalNumber(value.not_before, "job.not_before"),
+    concurrencyKey: optionalString(
+      value.concurrency_key,
+      "job.concurrency_key"
+    ),
     idempotencyKey: optionalString(value.idempotency_key, "job.idempotency_key"),
     budgetGrantId: optionalString(value.budget_grant_id, "job.budget_grant_id"),
     leaseOwner: optionalString(value.lease_owner, "job.lease_owner"),

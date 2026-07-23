@@ -9,19 +9,39 @@ import type {
   ProductAppBackendExecutionReferenceReadResult,
   ProductAppBackendReadExecutionReferenceRequest,
   ProductAppBackendCommandRegistryReadModel,
-  ProductAppBackendContinueWorkbenchSessionResult,
   ProductAppBackendIntegrationContract,
   ProductAppBackendOverviewOptions,
   ProductAppBackendOverviewReadModel,
   ProductAppBackendProviderProfileCommands,
-  ProductAppBackendProviderProfileListReadModel,
   ProductAppBackendProviderProfileReadModel,
   ProductAppBackendPreviewCommandInvocationRequest,
-  ProductAppBackendRunAgentTurnResult,
   ProductAppBackendSafeError,
   ProductAppBackendStatus,
   ProductAppBackendWorkbenchReadModel
 } from "@wanex/product-app/backend"
+import type {
+  ProductAppCancelTrackedConversationOperationRequest,
+  ProductAppCancelTrackedConversationOperationResult,
+  ProductAppConversationEvents,
+  ProductAppReadTrackedConversationOperationRequest,
+  ProductAppReadTrackedConversationOperationResult,
+  ProductAppRegenerateTrackedConversationOperationRequest,
+  ProductAppRegenerateTrackedConversationOperationResult,
+  ProductAppSubmitConversationOperationRequest,
+  ProductAppSubmitConversationOperationResult,
+  ProductAppTrustedConversationOperationReference
+} from "./types-conversation.js"
+import type {
+  ProductAppConversationAttachmentsReadModel,
+  ProductAppPrepareConversationAttachmentRequest,
+  ProductAppPrepareConversationAttachmentResult,
+  ProductAppReadConversationAttachmentsRequest,
+  ProductAppRemoveConversationAttachmentRequest,
+  ProductAppRemoveConversationAttachmentResult
+} from "./types-attachments.js"
+
+export type * from "./types-conversation.js"
+export type * from "./types-attachments.js"
 
 export interface ProductAppSafeError
   extends Omit<ProductAppBackendSafeError, "code"> {
@@ -88,17 +108,27 @@ export interface ProductAppStateSnapshot {
 
 export interface ProductAppStateStore {
   load(): Promise<ProductAppStateStoreLoadResult>
-  save(state: ProductAppStateSnapshot): Promise<void>
+  save(state: ProductAppTrustedStateSnapshot): Promise<void>
 }
 
 export type ProductAppStateStoreLoadResult =
   | {
       readonly found: true
-      readonly state: ProductAppInitialState
+      readonly state: ProductAppTrustedStateSnapshot
     }
   | {
       readonly found: false
     }
+
+export interface ProductAppTrustedStateSnapshot {
+  readonly ui: ProductAppStateSnapshot
+  readonly trackedConversationOperations: Readonly<
+    Record<string, ProductAppTrustedConversationOperationReference>
+  >
+  readonly conversationAttachmentDrafts: Readonly<
+    Record<string, readonly import("./types-attachments.js").ProductAppAttachmentDraft[]>
+  >
+}
 
 export interface ProductAppShellStatus {
   readonly kind: "product-app.status"
@@ -125,12 +155,12 @@ export interface ProductAppHomeReadModel {
 export type ProductAppProviderReadinessStatus =
   | "ready"
   | "missing_active_profile"
-  | "missing_required_api_key"
+  | "missing_required_credential"
 
 export type ProductAppProviderReadinessReason =
   | "active_profile_ready"
   | "active_profile_missing"
-  | "active_profile_missing_api_key"
+  | "active_profile_missing_credential"
 
 export interface ProductAppProviderReadinessReadModel {
   readonly status: ProductAppProviderReadinessStatus
@@ -139,8 +169,8 @@ export interface ProductAppProviderReadinessReadModel {
   readonly profileCount: number
   readonly canRun: boolean
   readonly attentionRequired: boolean
-  readonly requiresApiKey: boolean
-  readonly hasApiKey: boolean
+  readonly requiresCredential: boolean
+  readonly credentialConfigured: boolean
   readonly activeProfile?: ProductAppProviderProfileReadModel
 }
 
@@ -189,6 +219,8 @@ export interface ProductAppCommandPortSummary {
 }
 
 export interface ProductAppShell {
+  readonly events: ProductAppConversationEvents
+  readonly trustedResources: import("@wanex/product-app/backend").ProductAppBackendResourceCommands
   status(): ProductAppShellStatus
   readHome(options?: ProductAppHomeOptions): Promise<ProductAppHomeReadModel>
   readSettings(): ProductAppSettingsReadModel
@@ -220,21 +252,45 @@ export interface ProductAppShell {
   openWorkbench(
     request?: ProductAppOpenWorkbenchRequest
   ): Promise<ProductAppOpenWorkbenchResult>
-  startWorkbench(
-    request: ProductAppStartWorkbenchRequest
-  ): Promise<ProductAppStartWorkbenchResult>
-  continueWorkbench(
-    request: ProductAppContinueWorkbenchRequest
-  ): Promise<ProductAppContinueWorkbenchResult>
+  prepareConversationAttachment(
+    request: ProductAppPrepareConversationAttachmentRequest
+  ): Promise<ProductAppPrepareConversationAttachmentResult>
+  readConversationAttachments(
+    request?: ProductAppReadConversationAttachmentsRequest
+  ): ProductAppConversationAttachmentsReadModel
+  removeConversationAttachment(
+    request: ProductAppRemoveConversationAttachmentRequest
+  ): Promise<ProductAppRemoveConversationAttachmentResult>
+  submitConversationOperation(
+    request: ProductAppSubmitConversationOperationRequest
+  ): Promise<ProductAppSubmitConversationOperationResult>
+  readTrackedConversationOperation(
+    request?: ProductAppReadTrackedConversationOperationRequest
+  ): Promise<ProductAppReadTrackedConversationOperationResult>
+  cancelTrackedConversationOperation(
+    request: ProductAppCancelTrackedConversationOperationRequest
+  ): Promise<ProductAppCancelTrackedConversationOperationResult>
+  regenerateTrackedConversationOperation(
+    request?: ProductAppRegenerateTrackedConversationOperationRequest
+  ): Promise<ProductAppRegenerateTrackedConversationOperationResult>
   dispose(): Promise<void>
 }
 
 export type ProductAppProviderProfileCommands =
   ProductAppBackendProviderProfileCommands
-export type ProductAppProviderProfileReadModel =
-  ProductAppBackendProviderProfileReadModel
-export type ProductAppProviderProfileListReadModel =
-  ProductAppBackendProviderProfileListReadModel
+export interface ProductAppProviderProfileReadModel {
+  readonly id: string
+  readonly kind: ProductAppBackendProviderProfileReadModel["kind"]
+  readonly providerId: string
+  readonly modelId: string
+  readonly capabilities: ProductAppBackendProviderProfileReadModel["capabilities"]
+  readonly credentialConfigured: boolean
+  readonly active: boolean
+}
+export interface ProductAppProviderProfileListReadModel {
+  readonly activeProfileId: string
+  readonly profiles: readonly ProductAppProviderProfileReadModel[]
+}
 export type ProductAppCommandCatalogReadModel =
   ProductAppBackendCommandRegistryReadModel
 
@@ -286,7 +342,8 @@ export interface ProductAppCommandExecutionReference {
   readonly kind:
     | "session"
     | "job"
-    | "run"
+    | "turn"
+    | "attempt"
     | "resource"
     | "proposal"
     | "task"
@@ -330,27 +387,6 @@ export type ProductAppOpenWorkbenchResult =
   | ProductAppWorkbenchNoSessionResult
   | ProductAppWorkbenchFailedResult
 
-export interface ProductAppStartWorkbenchRequest {
-  readonly text: string
-  readonly sessionId?: string
-  readonly principalId?: string
-  readonly inputId?: string
-  readonly idempotencyKey?: string
-  readonly jobId?: string
-  readonly jobIdempotencyKey?: string
-}
-
-export type ProductAppStartWorkbenchResult =
-  | ProductAppWorkbenchStartedResult
-  | ProductAppWorkbenchFailedResult
-
-export interface ProductAppWorkbenchStartedResult {
-  readonly kind: "product-app.workbench.started"
-  readonly sessionId: string
-  readonly turn: ProductAppBackendRunAgentTurnResult
-  readonly workbench: ProductAppBackendWorkbenchReadModel
-}
-
 export interface ProductAppWorkbenchOpenedResult {
   readonly kind: "product-app.workbench.opened"
   readonly sessionId: string
@@ -366,25 +402,4 @@ export interface ProductAppWorkbenchFailedResult {
   readonly kind: "product-app.workbench.failed"
   readonly sessionId?: string
   readonly error: ProductAppSafeError
-}
-
-export interface ProductAppContinueWorkbenchRequest {
-  readonly sessionId?: string
-  readonly text: string
-  readonly principalId?: string
-  readonly inputId?: string
-  readonly idempotencyKey?: string
-  readonly jobId?: string
-  readonly jobIdempotencyKey?: string
-}
-
-export type ProductAppContinueWorkbenchResult =
-  | ProductAppWorkbenchContinuedResult
-  | ProductAppWorkbenchNoSessionResult
-  | ProductAppWorkbenchFailedResult
-
-export interface ProductAppWorkbenchContinuedResult {
-  readonly kind: "product-app.workbench.continued"
-  readonly sessionId: string
-  readonly result: ProductAppBackendContinueWorkbenchSessionResult
 }

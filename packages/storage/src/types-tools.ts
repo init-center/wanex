@@ -2,8 +2,9 @@ import type {
   BeginToolExecutionRequest,
   BeginToolExecutionReceipt,
   FinishToolExecutionRequest,
+  ListToolExecutionAttemptsRequest,
   ListToolExecutionsRequest,
-  RecoverToolExecutionRequest,
+  ToolExecutionAttemptRecord,
   ToolExecutionRecord
 } from "@wanex/protocol"
 
@@ -14,11 +15,11 @@ export interface ToolExecutionStore {
   finishToolExecution(
     request: FinishToolExecutionRequest
   ): Promise<ToolExecutionRecord | null>
-  recoverToolExecution(
-    request: RecoverToolExecutionRequest
-  ): Promise<ToolExecutionRecord | null>
   getToolExecution(executionId: string): Promise<ToolExecutionRecord | null>
   listToolExecutions(
     request: ListToolExecutionsRequest
   ): Promise<ToolExecutionRecord[]>
+  listToolExecutionAttempts(
+    request: ListToolExecutionAttemptsRequest
+  ): Promise<ToolExecutionAttemptRecord[]>
 }

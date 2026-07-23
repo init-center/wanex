@@ -6,8 +6,10 @@ export const PRODUCT_APP_TUI_HANDLER_REFS = {
   readHome: "product-app-tui.handler.home.read",
   selectSession: "product-app-tui.handler.session.select",
   openWorkbench: "product-app-tui.handler.workbench.open",
-  startWorkbench: "product-app-tui.handler.workbench.start",
-  continueWorkbench: "product-app-tui.handler.workbench.continue"
+  submitConversation: "product-app-tui.handler.conversation.submit",
+  readConversationOperation: "product-app-tui.handler.conversation.read",
+  cancelConversation: "product-app-tui.handler.conversation.cancel",
+  regenerateConversation: "product-app-tui.handler.conversation.regenerate"
 } as const
 
 export const PRODUCT_APP_TUI_COMMANDS = {
@@ -16,8 +18,10 @@ export const PRODUCT_APP_TUI_COMMANDS = {
   readHome: "product-app.home.read",
   selectSession: "product-app.session.select",
   openWorkbench: "product-app.workbench.open",
-  startWorkbench: "product-app.workbench.start",
-  continueWorkbench: "product-app.workbench.continue"
+  submitConversation: "product-app.conversation.submit",
+  readConversationOperation: "product-app.conversation.read",
+  cancelConversation: "product-app.conversation.cancel",
+  regenerateConversation: "product-app.conversation.regenerate"
 } as const
 
 export const productAppTuiCommandRows: readonly ProductAppTuiCommandRow[] = [
@@ -57,17 +61,31 @@ export const productAppTuiCommandRows: readonly ProductAppTuiCommandRow[] = [
     mutatesState: true
   },
   {
-    id: PRODUCT_APP_TUI_COMMANDS.startWorkbench,
-    title: "Start workbench",
-    category: "Workbench",
-    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.startWorkbench,
+    id: PRODUCT_APP_TUI_COMMANDS.submitConversation,
+    title: "Submit conversation",
+    category: "Conversation",
+    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.submitConversation,
     mutatesState: true
   },
   {
-    id: PRODUCT_APP_TUI_COMMANDS.continueWorkbench,
-    title: "Continue workbench",
-    category: "Workbench",
-    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.continueWorkbench,
+    id: PRODUCT_APP_TUI_COMMANDS.readConversationOperation,
+    title: "Read conversation operation",
+    category: "Conversation",
+    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.readConversationOperation,
+    mutatesState: false
+  },
+  {
+    id: PRODUCT_APP_TUI_COMMANDS.cancelConversation,
+    title: "Cancel conversation",
+    category: "Conversation",
+    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.cancelConversation,
+    mutatesState: true
+  },
+  {
+    id: PRODUCT_APP_TUI_COMMANDS.regenerateConversation,
+    title: "Regenerate conversation",
+    category: "Conversation",
+    handlerRef: PRODUCT_APP_TUI_HANDLER_REFS.regenerateConversation,
     mutatesState: true
   }
 ]

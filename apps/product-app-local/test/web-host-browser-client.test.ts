@@ -248,7 +248,7 @@ describe("Product App Local Web host browser client", () => {
     expect(surfaceText(window)).toContain("diagnostics")
   })
 
-  it("submits workbench composer textarea values through the request envelope", async () => {
+  it("submits conversation textarea values through the request envelope", async () => {
     const window = createWindow()
     const fetchCalls: FetchCall[] = []
     installDocument(window, {
@@ -257,9 +257,9 @@ describe("Product App Local Web host browser client", () => {
         `<section data-wanex-product-app-web="surface">`,
         `<h1>Wanex Product App</h1>`,
         `<section data-panel="workbench">`,
-        `<form data-action="continue-workbench" data-workbench-composer>`,
+        `<form data-action="submit-conversation">`,
         `<textarea name="text">hello from textarea</textarea>`,
-        `<p data-workbench-composer-status role="status" aria-live="polite">Ready to send</p>`,
+        `<p-status role="status" aria-live="polite">Ready to send</p>`,
         `<button type="submit">Send</button>`,
         `</form>`,
         `</section>`,
@@ -277,9 +277,9 @@ describe("Product App Local Web host browser client", () => {
           html: [
             `<section data-wanex-product-app-web="surface">`,
             `<p>continued</p>`,
-            `<form data-action="continue-workbench" data-workbench-composer>`,
+            `<form data-action="submit-conversation">`,
             `<textarea name="text"></textarea>`,
-            `<p data-workbench-composer-status role="status" aria-live="polite">Ready to send</p>`,
+            `<p-status role="status" aria-live="polite">Ready to send</p>`,
             `<button type="submit">Send</button>`,
             `</form>`,
             `</section>`
@@ -293,10 +293,12 @@ describe("Product App Local Web host browser client", () => {
 
     installBrowserClient(window)
     const form = submitFirstForm(window)
-    expect(form.getAttribute("data-workbench-composer-state")).toBe("submitting")
     expect(
-      form.querySelector("[data-workbench-composer-status]")?.textContent
-    ).toBe("Sending...")
+      window.document
+        .querySelector(SURFACE_SELECTOR)
+        ?.getAttribute("aria-busy")
+    ).toBe("true")
+    expect((form.querySelector("button") as HTMLButtonElement).disabled).toBe(true)
     await window.happyDOM.whenAsyncComplete()
 
     expect(fetchCalls).toHaveLength(1)
@@ -304,7 +306,7 @@ describe("Product App Local Web host browser client", () => {
     expect(body).toMatchObject({
       operation: "submitActionInput",
       input: {
-        action: "continue-workbench",
+        action: "submit-conversation",
         fields: {
           text: "hello from textarea"
         }
@@ -317,13 +319,10 @@ describe("Product App Local Web host browser client", () => {
     expect(
       textarea?.value
     ).toBe("")
-    expect(
-      window.document.querySelector("[data-workbench-composer-status]")?.textContent
-    ).toBe("Ready to send")
     expect(activeElementName(window)).toBe("text")
   })
 
-  it("does not submit a blocked workbench composer", async () => {
+  it("does not submit a disabled conversation form", async () => {
     const window = createWindow()
     const fetchCalls: FetchCall[] = []
     installDocument(window, {
@@ -331,9 +330,9 @@ describe("Product App Local Web host browser client", () => {
       surfaceHtml: [
         `<section data-wanex-product-app-web="surface">`,
         `<section data-panel="workbench">`,
-        `<form data-action="start-workbench" data-workbench-composer data-workbench-composer-state="blocked">`,
+        `<form data-action="submit-conversation">`,
         `<textarea name="text" disabled>blocked text</textarea>`,
-        `<p data-workbench-composer-status role="status" aria-live="polite">Host setup required</p>`,
+        `<p-status role="status" aria-live="polite">Host setup required</p>`,
         `<button type="submit" disabled>Start</button>`,
         `</form>`,
         `</section>`,
@@ -361,21 +360,18 @@ describe("Product App Local Web host browser client", () => {
     await window.happyDOM.whenAsyncComplete()
 
     expect(fetchCalls).toHaveLength(0)
-    expect(form.getAttribute("data-workbench-composer-state")).toBe("blocked")
-    expect(
-      window.document.querySelector("[data-workbench-composer-status]")?.textContent
-    ).toBe("Host setup required")
+    expect((form.querySelector("button") as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it("projects workbench composer errors after a replaced surface", async () => {
+  it("projects conversation form errors after a replaced surface", async () => {
     const window = createWindow()
     installDocument(window, {
       requestPath: "/wanex/product-app-web/request",
       surfaceHtml: [
         `<section data-wanex-product-app-web="surface">`,
-        `<form data-action="continue-workbench" data-workbench-composer>`,
+        `<form data-action="submit-conversation">`,
         `<textarea name="text">bad text</textarea>`,
-        `<p data-workbench-composer-status role="status" aria-live="polite">Ready to send</p>`,
+        `<p-status role="status" aria-live="polite">Ready to send</p>`,
         `<button type="submit">Send</button>`,
         `</form>`,
         `</section>`
@@ -390,9 +386,9 @@ describe("Product App Local Web host browser client", () => {
           kind: "product-app-web.document",
           html: [
             `<section data-wanex-product-app-web="surface">`,
-            `<form data-action="continue-workbench" data-workbench-composer>`,
+            `<form data-action="submit-conversation">`,
             `<textarea name="text">bad text</textarea>`,
-            `<p data-workbench-composer-status role="status" aria-live="polite">Ready to send</p>`,
+            `<p-status role="status" aria-live="polite">Ready to send</p>`,
             `<button type="submit">Send</button>`,
             `</form>`,
             `</section>`
@@ -416,11 +412,6 @@ describe("Product App Local Web host browser client", () => {
     submitFirstForm(window)
     await window.happyDOM.whenAsyncComplete()
 
-    const nextForm = window.document.querySelector("[data-workbench-composer]")
-    expect(nextForm?.getAttribute("data-workbench-composer-state")).toBe("error")
-    expect(
-      nextForm?.querySelector("[data-workbench-composer-status]")?.textContent
-    ).toBe("text must not be empty")
     expect(
       window.document.querySelector("[data-wanex-product-app-web-alert]")?.textContent
     ).toBe("text must not be empty")
@@ -504,7 +495,7 @@ describe("Product App Local Web host browser client", () => {
       pollIntervalMs: 10,
       surfaceHtml: [
         `<section data-wanex-product-app-web="surface">`,
-        `<form data-action="continue-workbench" data-workbench-composer>`,
+        `<form data-action="submit-conversation">`,
         `<textarea name="text">draft message</textarea>`,
         `<button type="submit">Send</button>`,
         `</form>`,

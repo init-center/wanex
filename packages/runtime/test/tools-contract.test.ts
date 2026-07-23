@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest"
 import type {
   BeginToolExecutionRequest,
   FinishToolExecutionRequest,
-  RecoverToolExecutionRequest,
+  ToolExecutionAttemptRecord,
   ToolExecutionRecord
 } from "@wanex/protocol"
 import type { ToolExecutionStore } from "@wanex/storage"
 import {
   AllowAllToolsPolicy,
-  BoundedIdempotentRecoveryPolicy,
+  createToolRuntimeBinding,
   EchoTool,
   RiskBoundToolPolicy,
   ToolRegistry,
@@ -20,7 +20,12 @@ const identity = {
   principalId: "principal",
   sessionId: "session",
   inputId: "input",
-  runId: "run"
+  turnId: "turn",
+  attemptId: "attempt",
+  sourceMessageId: "message",
+  jobId: "job",
+  workerId: "worker",
+  leaseToken: "lease"
 }
 
 describe("Runtime tool contract", () => {
@@ -36,7 +41,89 @@ describe("Runtime tool contract", () => {
         idempotent: true
       }
     ])
+    expect(registry.list()[0]).not.toHaveProperty("runtimeBinding")
+    expect(registry.snapshot()).toEqual({
+      tools: [{
+        descriptor: expect.objectContaining({ name: "echo" }),
+        runtimeBinding: {
+          implementationId: "wanex.runtime.tool.echo",
+          implementationRevision: "1"
+        }
+      }]
+    })
     expect(() => registry.register(new EchoTool())).toThrow("already registered")
+    expect(() => registry.register({
+      ...new EchoTool(),
+      name: "malformed_binding",
+      runtimeBinding: {
+        implementationId: "wanex.test.malformed",
+        implementationRevision: "1",
+        secret: "must-not-persist"
+      } as never,
+      async invoke(invocation) {
+        return {
+          toolCallId: invocation.toolCallId,
+          result: null,
+          isError: false
+        }
+      }
+    })).toThrow("unsupported fields")
+    expect(() => registry.register({
+      ...new EchoTool(),
+      name: "malformed_schema",
+      inputSchema: {
+        type: "object",
+        invalid: undefined
+      } as never,
+      async invoke(invocation) {
+        return {
+          toolCallId: invocation.toolCallId,
+          result: null,
+          isError: false
+        }
+      }
+    })).toThrow("only JSON values")
+  })
+
+  it("freezes registered definitions and uses locale-independent ordering", async () => {
+    const calls: string[] = []
+    const alpha = mutableTool("alpha", calls)
+    const upperAlpha = mutableTool("Alpha", calls)
+    const registry = new ToolRegistry()
+    registry.register(alpha)
+    registry.register(upperAlpha)
+
+    alpha.runtimeBinding.implementationRevision = "mutated"
+    alpha.inputSchema.properties.value.type = "number"
+    alpha.invoke = async (invocation) => {
+      calls.push("mutated")
+      return { toolCallId: invocation.toolCallId, result: null, isError: false }
+    }
+
+    expect(registry.snapshot().tools.map((tool) => tool.descriptor.name)).toEqual([
+      "Alpha",
+      "alpha"
+    ])
+    expect(registry.get("alpha")?.runtimeBinding).toEqual({
+      implementationId: "wanex.test.alpha",
+      implementationRevision: "1"
+    })
+    expect(registry.get("alpha")?.inputSchema).toEqual({
+      type: "object",
+      properties: { value: { type: "string" } }
+    })
+    await registry.get("alpha")?.invoke({
+      principalId: "principal",
+      sessionId: "session",
+      inputId: "input",
+      turnId: "turn",
+      attemptId: "attempt",
+      toolCallId: "call",
+      toolName: "alpha",
+      input: { value: "original" },
+      idempotencyKey: "tool:call"
+    })
+    expect(calls).toEqual(["original"])
   })
 
   it("fails closed without permission and on invalid input", async () => {
@@ -73,7 +160,7 @@ describe("Runtime tool contract", () => {
     expect(tool.calls).toBe(0)
   })
 
-  it("enforces risk policy and passes stable invocation identity", async () => {
+  it("passes logical invocation identity without leaking lease authority", async () => {
     const tool = new RecordingTool()
     const registry = new ToolRegistry()
     registry.register(tool)
@@ -99,10 +186,17 @@ describe("Runtime tool contract", () => {
       permissionPolicy: new AllowAllToolsPolicy()
     })).resolves.toMatchObject({ invoked: true, result: { isError: false } })
     expect(tool.lastInvocation).toMatchObject({
-      ...identity,
+      principalId: identity.principalId,
+      sessionId: identity.sessionId,
+      inputId: identity.inputId,
+      turnId: identity.turnId,
+      attemptId: identity.attemptId,
       toolCallId: "call",
       idempotencyKey: "tool:run:call"
     })
+    expect(tool.lastInvocation).not.toHaveProperty("leaseToken")
+    expect(tool.lastInvocation).not.toHaveProperty("workerId")
+    expect(tool.lastInvocation).not.toHaveProperty("jobId")
   })
 
   it("reuses durable terminal results without invoking twice", async () => {
@@ -116,11 +210,21 @@ describe("Runtime tool contract", () => {
     await expect(registry.execute(request)).resolves.toMatchObject({ invoked: false })
     expect(tool.calls).toBe(1)
     await expect(storage.listToolExecutions({})).resolves.toMatchObject([
-      { state: "succeeded", attempt: 1 }
+      {
+        state: "succeeded",
+        attemptCount: 1,
+        descriptor: {
+          idempotent: false,
+          runtimeBinding: {
+            implementationId: "wanex.test.tool.recording",
+            implementationRevision: "1"
+          }
+        }
+      }
     ])
   })
 
-  it("requires an explicit bounded policy before retrying uncertain idempotent work", async () => {
+  it("retries only after durable classification marks idempotent work retry-ready", async () => {
     const registry = new ToolRegistry()
     const tool = new IdempotentRecordingTool()
     registry.register(tool)
@@ -132,22 +236,29 @@ describe("Runtime tool contract", () => {
       tool.name
     )
     await seedRunningExecution(failClosedStorage, failClosed, tool)
-    await expect(registry.execute(failClosed)).resolves.toMatchObject({
-      invoked: false,
-      permission: { status: "deny", reason: "recovery_required" }
-    })
+    await expect(registry.execute({
+      ...failClosed,
+      attemptId: "attempt_recovered_fail_closed",
+      workerId: "worker_recovered_fail_closed",
+      leaseToken: "lease_recovered_fail_closed"
+    })).rejects.toThrow(
+      "classifier-authorized physical attempt"
+    )
     expect(tool.calls).toBe(0)
 
     const retryStorage = new MemoryToolExecutionStore()
     const retry = executionRequest(retryStorage, "call_retry", tool.name)
     await seedRunningExecution(retryStorage, retry, tool)
+    retryStorage.markRetryReady(`toolx_${retry.call.toolCallId}`)
     await expect(registry.execute({
       ...retry,
-      recoveryPolicy: new BoundedIdempotentRecoveryPolicy(2)
+      attemptId: "attempt_recovered",
+      workerId: "worker_recovered",
+      leaseToken: "lease_recovered"
     })).resolves.toMatchObject({ invoked: true })
     expect(tool.calls).toBe(1)
     await expect(retryStorage.listToolExecutions({})).resolves.toMatchObject([
-      { state: "succeeded", attempt: 2 }
+      { state: "succeeded", attemptCount: 2 }
     ])
   })
 
@@ -174,7 +285,10 @@ describe("Runtime tool contract", () => {
       signal: controller.signal
     })
     setTimeout(() => controller.abort(), 5)
-    await expect(cancelled).rejects.toThrow("tool invocation aborted")
+    await expect(cancelled).resolves.toMatchObject({
+      invoked: true,
+      result: { isError: true, result: { error: "tool_cancelled" } }
+    })
     await expect(cancellationStorage.listToolExecutions({})).resolves.toMatchObject([
       { state: "cancelled", error: { reason: "aborted" } }
     ])
@@ -193,7 +307,10 @@ describe("Runtime tool contract", () => {
     })
     setTimeout(() => controller.abort(), 5)
 
-    await expect(cancelled).rejects.toThrow("tool invocation aborted")
+    await expect(cancelled).resolves.toMatchObject({
+      invoked: true,
+      result: { isError: true }
+    })
     expect(tool.cleanupComplete).toBe(true)
     await expect(storage.listToolExecutions({})).resolves.toMatchObject([
       { state: "cancelled", error: { reason: "aborted" } }
@@ -223,6 +340,47 @@ describe("Runtime tool contract", () => {
     ])
   })
 })
+
+interface MutableTestTool {
+  name: string
+  description: string
+  inputSchema: {
+    type: "object"
+    properties: { value: { type: string } }
+  }
+  risk: "read_only"
+  idempotent: boolean
+  runtimeBinding: {
+    implementationId: string
+    implementationRevision: string
+  }
+  invoke: (invocation: ToolInvocation) => Promise<{
+    toolCallId: string
+    result: null
+    isError: boolean
+  }>
+}
+
+function mutableTool(name: string, calls: string[]): MutableTestTool {
+  return {
+    name,
+    description: `Mutable ${name} tool.`,
+    inputSchema: {
+      type: "object",
+      properties: { value: { type: "string" } }
+    },
+    risk: "read_only",
+    idempotent: true,
+    runtimeBinding: {
+      implementationId: `wanex.test.${name}`,
+      implementationRevision: "1"
+    },
+    async invoke(invocation) {
+      calls.push("original")
+      return { toolCallId: invocation.toolCallId, result: null, isError: false }
+    }
+  }
+}
 
 function executionRequest(
   storage: ToolExecutionStore,
@@ -259,9 +417,11 @@ async function seedRunningExecution(
       description: tool.description,
       inputSchema: tool.inputSchema,
       risk: tool.risk,
-      idempotent: tool.idempotent
+      idempotent: tool.idempotent,
+      runtimeBinding: { ...tool.runtimeBinding }
     },
     permission: { status: "allow", reason: "test" },
+    state: "running",
     idempotencyKey: request.idempotencyKey
   })
 }
@@ -277,6 +437,10 @@ class RecordingTool implements ToolDefinition {
   } as const
   readonly risk = "mutating" as const
   readonly idempotent: boolean = false
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.tool.recording",
+    implementationRevision: "1"
+  })
   calls = 0
   lastInvocation: ToolInvocation | undefined
 
@@ -298,9 +462,20 @@ class HangingTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.tool.hanging",
+    implementationRevision: "1"
+  })
 
-  async invoke(): Promise<never> {
-    return await new Promise<never>(() => {})
+  async invoke(invocation: ToolInvocation): Promise<never> {
+    await new Promise<void>((resolve) => {
+      if (invocation.signal?.aborted === true) {
+        resolve()
+        return
+      }
+      invocation.signal?.addEventListener("abort", resolve, { once: true })
+    })
+    throw new Error("tool observed cancellation")
   }
 }
 
@@ -310,7 +485,10 @@ class CleanupAwareTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "external" as const
   readonly idempotent = false
-  readonly drainsCancellation = true as const
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.tool.cleanup-aware",
+    implementationRevision: "1"
+  })
   cleanupComplete = false
 
   async invoke(invocation: ToolInvocation) {
@@ -332,33 +510,67 @@ class CleanupAwareTool implements ToolDefinition {
 
 class MemoryToolExecutionStore implements ToolExecutionStore {
   private readonly records = new Map<string, ToolExecutionRecord>()
+  private readonly attempts = new Map<string, ToolExecutionAttemptRecord>()
 
   async beginToolExecution(request: BeginToolExecutionRequest) {
     const existing = [...this.records.values()].find(
-      (item) => item.runId === request.runId && item.toolCallId === request.toolCallId
+      (item) =>
+        item.sourceMessageId === request.sourceMessageId &&
+        item.toolCallId === request.toolCallId
     )
-    if (existing !== undefined) return { execution: existing, created: false }
-    const status = (request.permission as { readonly status?: string }).status
+    if (existing !== undefined) {
+      if (existing.state === "retry_ready" && request.state === "running") {
+        const attempt = this.createAttempt(existing, request, existing.attemptCount + 1)
+        const execution = {
+          ...existing,
+          state: "running" as const,
+          currentInvocationAttemptId: attempt.id,
+          attemptCount: attempt.attemptNumber,
+          updatedAt: Date.now()
+        }
+        this.records.set(execution.id, execution)
+        return { execution, invocationAttempt: attempt, created: false }
+      }
+      const invocationAttempt = existing.currentInvocationAttemptId === undefined
+        ? undefined
+        : this.attempts.get(existing.currentInvocationAttemptId)
+      return {
+        execution: existing,
+        ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
+        created: false
+      }
+    }
     const now = Date.now()
     const execution: ToolExecutionRecord = {
       id: `toolx_${request.toolCallId}`,
       sessionId: request.sessionId,
-      runId: request.runId,
+      turnId: request.turnId,
       inputId: request.inputId,
+      sourceMessageId: request.sourceMessageId,
       principalId: request.principalId,
       toolCallId: request.toolCallId,
       toolName: request.toolName,
       input: request.input,
       descriptor: request.descriptor,
       permission: request.permission,
-      state: status === "allow" ? "running" : status === "approval_required" ? "approval_required" : "denied",
-      attempt: 1,
+      state: request.state,
+      attemptCount: request.state === "running" ? 1 : 0,
       idempotencyKey: request.idempotencyKey,
       createdAt: now,
       updatedAt: now
     }
-    this.records.set(execution.id, execution)
-    return { execution, created: true }
+    const invocationAttempt = request.state === "running"
+      ? this.createAttempt(execution, request, 1)
+      : undefined
+    const stored = invocationAttempt === undefined
+      ? execution
+      : { ...execution, currentInvocationAttemptId: invocationAttempt.id }
+    this.records.set(stored.id, stored)
+    return {
+      execution: stored,
+      ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
+      created: true
+    }
   }
 
   async finishToolExecution(request: FinishToolExecutionRequest) {
@@ -377,24 +589,48 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
     return next
   }
 
-  async recoverToolExecution(request: RecoverToolExecutionRequest) {
-    const existing = this.records.get(request.executionId)
-    if (existing === undefined) return null
-    const next: ToolExecutionRecord = {
-      ...existing,
-      state: request.action === "retry" ? "running" : "recovery_required",
-      attempt: request.action === "retry" ? existing.attempt + 1 : existing.attempt,
-      updatedAt: Date.now()
-    }
-    this.records.set(next.id, next)
-    return next
-  }
-
   async getToolExecution(executionId: string) {
     return this.records.get(executionId) ?? null
   }
 
   async listToolExecutions(_request: unknown = {}) {
     return [...this.records.values()]
+  }
+
+  async listToolExecutionAttempts(request: { readonly executionId: string }) {
+    return [...this.attempts.values()].filter(
+      (attempt) => attempt.executionId === request.executionId
+    )
+  }
+
+  markRetryReady(executionId: string): void {
+    const existing = this.records.get(executionId)
+    if (existing === undefined) throw new Error("missing execution")
+    this.records.set(executionId, {
+      ...existing,
+      state: "retry_ready",
+      updatedAt: Date.now()
+    })
+  }
+
+  private createAttempt(
+    execution: Pick<ToolExecutionRecord, "id">,
+    request: BeginToolExecutionRequest,
+    attemptNumber: number
+  ): ToolExecutionAttemptRecord {
+    const now = Date.now()
+    const attempt: ToolExecutionAttemptRecord = {
+      id: `toolattempt_${request.toolCallId}_${attemptNumber}`,
+      executionId: execution.id,
+      sessionAttemptId: request.attemptId,
+      jobId: request.jobId,
+      workerId: request.workerId,
+      attemptNumber,
+      state: "running",
+      startedAt: now,
+      updatedAt: now
+    }
+    this.attempts.set(attempt.id, attempt)
+    return attempt
   }
 }

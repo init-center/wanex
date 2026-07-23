@@ -3,12 +3,18 @@ import type {
   ToolPermissionDecision,
   ToolPermissionPolicy,
   ToolPermissionRequest,
-  ToolRecoveryPolicy,
   ToolRisk
 } from "./types.js"
-import type { ToolExecutionRecord } from "@wanex/protocol"
+import { createToolRuntimeBinding } from "./evidence.js"
 
 export class AllowAllToolsPolicy implements ToolPermissionPolicy {
+  snapshot() {
+    return createToolRuntimeBinding({
+      implementationId: "wanex.runtime.tool-policy.allow-all",
+      implementationRevision: "1"
+    })
+  }
+
   async authorize(): Promise<ToolPermissionDecision> {
     return { status: "allow", reason: "explicit_allow_all_policy" }
   }
@@ -21,29 +27,21 @@ export class RiskBoundToolPolicy implements ToolPermissionPolicy {
     this.allowedRisks = new Set(allowedRisks)
   }
 
+  snapshot() {
+    return createToolRuntimeBinding({
+      implementationId: "wanex.runtime.tool-policy.risk-bound",
+      implementationRevision: "1",
+      configuration: {
+        allowedRisks: [...this.allowedRisks].sort()
+      }
+    })
+  }
+
   async authorize(
     request: ToolPermissionRequest
   ): Promise<ToolPermissionDecision> {
     return this.allowedRisks.has(request.descriptor.risk)
       ? { status: "allow", reason: `risk_allowed:${request.descriptor.risk}` }
       : { status: "deny", reason: `risk_denied:${request.descriptor.risk}` }
-  }
-}
-
-export class BoundedIdempotentRecoveryPolicy implements ToolRecoveryPolicy {
-  readonly maxAttempts: number
-
-  constructor(maxAttempts: number) {
-    if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
-      throw new Error("tool recovery maxAttempts must be a positive integer")
-    }
-    this.maxAttempts = maxAttempts
-  }
-
-  async retryIdempotent(request: {
-    readonly execution: ToolExecutionRecord
-    readonly descriptor: ToolDescriptor
-  }): Promise<boolean> {
-    return request.descriptor.idempotent && request.execution.attempt < this.maxAttempts
   }
 }

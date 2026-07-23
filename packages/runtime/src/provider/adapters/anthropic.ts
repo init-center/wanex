@@ -1,9 +1,14 @@
 import type {
   JsonValue,
   MessagePart,
+  ProviderCapabilities,
   ProviderState,
   ToolCallMessagePart
 } from "@wanex/protocol"
+import {
+  ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES,
+  assertProfileCapabilitiesSupported
+} from "../capabilities.js"
 import {
   providerErrorEvent,
   providerStreamFailureEvent
@@ -13,12 +18,13 @@ import {
   httpProviderError,
   type ProviderFetch
 } from "../http.js"
-import { textContent } from "../replay.js"
+import { requirePreparedProviderResource, textContent } from "../replay.js"
 import { parseServerSentEvents } from "../sse.js"
 import type {
   ProviderAdapter,
   ProviderEvent,
   ProviderFinishEvent,
+  PreparedProviderResourcePart,
   ProviderReplayMessage,
   ProviderRequest,
   ProviderUsage
@@ -36,6 +42,7 @@ export interface AnthropicAdapterOptions {
   readonly apiKey: string
   readonly anthropicVersion?: string
   readonly fetch?: ProviderFetch
+  readonly capabilities?: ProviderCapabilities
 }
 
 interface AnthropicBlock {
@@ -48,8 +55,10 @@ interface AnthropicBlock {
 }
 
 export class AnthropicAdapter implements ProviderAdapter {
+  readonly kind = "anthropic" as const
   readonly providerId = "anthropic"
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   private readonly baseUrl: string
   private readonly apiKey: string
   private readonly version: string
@@ -57,6 +66,10 @@ export class AnthropicAdapter implements ProviderAdapter {
 
   constructor(options: AnthropicAdapterOptions) {
     this.modelId = options.modelId
+    this.capabilities = assertProfileCapabilitiesSupported(
+      "anthropic",
+      options.capabilities ?? ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES
+    )
     this.baseUrl = options.baseUrl.replace(/\/+$/, "")
     this.apiKey = options.apiKey
     this.version = options.anthropicVersion ?? "2023-06-01"
@@ -131,7 +144,9 @@ export class AnthropicAdapter implements ProviderAdapter {
     }
   }
 
-  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+  buildReplayMessages(
+    messages: readonly ProviderReplayMessage[]
+  ): JsonValue[] {
     return messages.flatMap((message): JsonValue[] => {
       if (message.role === "system") {
         return []
@@ -155,7 +170,7 @@ export class AnthropicAdapter implements ProviderAdapter {
             }))
         }]
       }
-      return [{ role: message.role, content: textContent(message.content) }]
+      return [{ role: message.role, content: anthropicUserContent(message) }]
     })
   }
 
@@ -323,7 +338,62 @@ export class AnthropicAdapter implements ProviderAdapter {
   }
 }
 
-function anthropicSystemField(messages: readonly ProviderReplayMessage[]) {
+function anthropicUserContent(message: ProviderReplayMessage): JsonValue {
+  const resources = message.content.filter((part) => part.type === "resource")
+  if (resources.length === 0) {
+    return textContent(message.content)
+  }
+  if (message.role !== "user") {
+    throw new Error("Anthropic resource input is only valid in user messages")
+  }
+  return message.content.map((part): JsonValue => {
+    if (part.type === "text") {
+      return { type: "text", text: part.text }
+    }
+    if (part.type !== "resource") {
+      throw new Error(`Anthropic user resource message contains invalid part: ${part.type}`)
+    }
+    const prepared = requirePreparedProviderResource(part)
+    const data = Buffer.from(prepared.bytes).toString("base64")
+    if (prepared.kind === "image" && isAnthropicImageType(prepared.mediaType)) {
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: prepared.mediaType!,
+          data
+        }
+      }
+    }
+    if (
+      prepared.kind === "document" &&
+      prepared.mediaType === "application/pdf"
+    ) {
+      return {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data
+        }
+      }
+    }
+    throw new Error(
+      `Anthropic messages adapter does not support ${prepared.kind} resource input: ${prepared.resourceId}`
+    )
+  })
+}
+
+function isAnthropicImageType(mediaType: string | undefined): boolean {
+  return mediaType === "image/jpeg" ||
+    mediaType === "image/png" ||
+    mediaType === "image/gif" ||
+    mediaType === "image/webp"
+}
+
+function anthropicSystemField(
+  messages: readonly ProviderReplayMessage[]
+) {
   const system = messages
     .filter((message) => message.role === "system")
     .map((message) => textContent(message.content))

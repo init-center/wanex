@@ -42,15 +42,23 @@ export function startWorkerLoop(
           options.onResult?.(result)
           controller.schedule(
             tick,
-            result.status === "idle" ? idleIntervalMs : 0
+            controller.consumeWakeRequest()
+              ? 0
+              : result.status === "idle"
+                ? idleIntervalMs
+                : 0
           )
         })
         .catch((error: unknown) => {
           options.onError?.(error)
-          controller.schedule(tick, errorIntervalMs)
+          controller.schedule(
+            tick,
+            controller.consumeWakeRequest() ? 0 : errorIntervalMs
+          )
         })
     )
   }
+  controller.attach(tick)
   controller.schedule(tick, 0)
   return controller
 }
@@ -58,10 +66,34 @@ export function startWorkerLoop(
 class WorkerLoopController implements WorkerLoop {
   private timer: ReturnType<typeof setTimeout> | undefined
   private active: Promise<void> | undefined
+  private tick: (() => void) | undefined
+  private wakeRequested = false
   private isStopped = false
 
   get stopped(): boolean {
     return this.isStopped
+  }
+
+  attach(tick: () => void): void {
+    this.tick = tick
+  }
+
+  wake(): void {
+    if (this.isStopped || this.tick === undefined) {
+      return
+    }
+    if (this.active !== undefined) {
+      this.wakeRequested = true
+      return
+    }
+    this.wakeRequested = false
+    this.schedule(this.tick, 0)
+  }
+
+  consumeWakeRequest(): boolean {
+    const requested = this.wakeRequested
+    this.wakeRequested = false
+    return requested
   }
 
   stop(): void {
@@ -82,7 +114,10 @@ class WorkerLoopController implements WorkerLoop {
     if (this.timer !== undefined) {
       clearTimeout(this.timer)
     }
-    this.timer = setTimeout(callback, delayMs)
+    this.timer = setTimeout(() => {
+      this.timer = undefined
+      callback()
+    }, delayMs)
   }
 
   run(work: Promise<void>): void {

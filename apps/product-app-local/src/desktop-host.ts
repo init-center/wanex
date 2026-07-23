@@ -37,6 +37,7 @@ function createProductAppDesktopMainHost(
     settings: local.settings,
     providerProfiles: local.providerProfiles,
     providerSetup: local.providerSetup,
+    attachments: local.attachments,
     async readSnapshot() {
       return projectProductAppDesktopMainSnapshot(await local.readSnapshot())
     },

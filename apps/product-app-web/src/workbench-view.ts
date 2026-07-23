@@ -22,8 +22,7 @@ export function idleProductAppWebWorkbench(
   return baseWorkbench({
     state: "idle",
     ...(selectedSessionId === undefined ? {} : { sessionId: selectedSessionId }),
-    canOpen: selectedSessionId !== undefined,
-    canContinue: false
+    canOpen: selectedSessionId !== undefined
   })
 }
 
@@ -41,8 +40,7 @@ export function normalizeProductAppWebWorkbenchForSelectedSession(
     return baseWorkbench({
       state: "no-session",
       message: "select a session before opening the workbench",
-      canOpen: false,
-      canContinue: false
+      canOpen: false
     })
   }
   if (workbench.sessionId !== undefined && workbench.sessionId !== selectedSessionId) {
@@ -54,8 +52,7 @@ export function normalizeProductAppWebWorkbenchForSelectedSession(
   return {
     ...workbench,
     sessionId: workbench.sessionId ?? selectedSessionId,
-    canOpen: true,
-    canContinue: workbench.state === "ready"
+    canOpen: true
   }
 }
 
@@ -68,22 +65,11 @@ export function productAppWebWorkbenchFromResult(
         sessionId: result.sessionId,
         workbench: result.workbench
       })
-    case "product-app.workbench.started":
-      return readyWorkbench({
-        sessionId: result.sessionId,
-        workbench: result.workbench
-      })
-    case "product-app.workbench.continued":
-      return readyWorkbench({
-        sessionId: result.sessionId,
-        workbench: result.result.workbench
-      })
     case "product-app.workbench.no-session":
       return baseWorkbench({
         state: "no-session",
         message: result.message,
-        canOpen: false,
-        canContinue: false
+        canOpen: false
       })
     case "product-app.workbench.failed":
       return baseWorkbench({
@@ -95,8 +81,7 @@ export function productAppWebWorkbenchFromResult(
           category: result.error.category,
           message: result.error.message
         },
-        canOpen: true,
-        canContinue: false
+        canOpen: true
       })
   }
 }
@@ -136,8 +121,7 @@ function readyWorkbench(request: {
       originKinds: provenanceOriginKinds
     },
     rows: request.workbench.transcript.rows.map(projectTranscriptRow),
-    canOpen: true,
-    canContinue: true
+    canOpen: true
   }
 }
 
@@ -154,7 +138,8 @@ function projectTranscriptRow(
     text: row.text,
     partCount: row.parts.length,
     ...(row.inputId === undefined ? {} : { inputId: row.inputId }),
-    ...(row.runId === undefined ? {} : { runId: row.runId })
+    ...(row.turnId === undefined ? {} : { turnId: row.turnId }),
+    ...(row.attemptId === undefined ? {} : { attemptId: row.attemptId })
   }
 }
 
@@ -164,7 +149,6 @@ function baseWorkbench(request: {
   readonly message?: string
   readonly error?: ProductAppWebWorkbenchViewModel["error"]
   readonly canOpen: boolean
-  readonly canContinue: boolean
 }): ProductAppWebWorkbenchViewModel {
   return {
     kind: "product-app-web.workbench",
@@ -179,8 +163,7 @@ function baseWorkbench(request: {
       originKinds: []
     },
     rows: [],
-    canOpen: request.canOpen,
-    canContinue: request.canContinue
+    canOpen: request.canOpen
   }
 }
 

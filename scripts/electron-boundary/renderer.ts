@@ -34,9 +34,9 @@ window.wanexBoundarySmoke = async () => {
     request: {
       kind: "product-app-web.request",
       operation: "submitActionInput",
-      requestId: "electron_start_workbench",
+      requestId: "electron_submit_conversation",
       input: {
-        action: "start-workbench",
+        action: "submit-conversation",
         fields: { text: "electron production boundary" }
       },
       options: { pollAfterAction: { limit: 64 } }
@@ -58,7 +58,7 @@ window.wanexBoundarySmoke = async () => {
     profilesOk: responseOk(profiles),
     hotConfigOk: responseOk(selected) &&
       readRecord(finalProfiles).activeProfileId === "electron-secondary",
-    actionOk: completedWorkbenchAction(action),
+    actionOk: completedConversationAction(action),
     isolatedResponse: privacyFlagsAreSafe(finalPrivacy),
     privacyOk
   }
@@ -88,21 +88,25 @@ function responseOk(value: unknown): boolean {
     response.ok === true
 }
 
-function completedWorkbenchAction(value: unknown): boolean {
+function completedConversationAction(value: unknown): boolean {
   if (!responseOk(value)) return false
   const webResponse = readRecord(readRecord(value).webResponse)
   const submitResult = readRecord(webResponse.submitResult)
   const actionResult = readRecord(submitResult.actionResult)
   const document = readRecord(webResponse.document)
   const snapshot = readRecord(document.snapshot)
-  const workbench = readRecord(snapshot.workbench)
-  const summary = readRecord(workbench.summary)
+  const conversation = readRecord(snapshot.conversation)
+  const operation = readRecord(conversation.operation)
+  const transcript = readRecord(operation.transcript)
+  const rows = Array.isArray(transcript.rows) ? transcript.rows : []
   return webResponse.ok === true &&
     submitResult.ok === true &&
     actionResult.ok === true &&
-    actionResult.action === "start-workbench" &&
-    workbench.state === "ready" &&
-    summary.latestUserText === "electron production boundary"
+    actionResult.action === "submit-conversation" &&
+    typeof conversation.sessionId === "string" &&
+    rows.some((row) =>
+      readRecord(row).text === "electron production boundary"
+    )
 }
 
 function privacyFlagsAreSafe(value: unknown): boolean {

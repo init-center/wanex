@@ -7,7 +7,7 @@ export const PRODUCT_APP_BACKEND_INTEGRATION_CONTRACT = {
   recommendedPackage: "@wanex/product-app",
   recommendedEntryPoint: "@wanex/product-app",
   rendererEntryPoint: "@wanex/product-app/surface-client",
-  backendDependencies: ["@wanex/app/backend"],
+  backendDependencies: ["@wanex/app"],
   forbiddenDefaultDependencies: [
     "@wanex/storage",
     "@wanex/plugin",

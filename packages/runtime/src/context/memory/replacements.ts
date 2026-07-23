@@ -94,7 +94,6 @@ function compactableTextLength(part: MessagePart): number | null {
       return JSON.stringify(part.result).length
     case "tool_call":
     case "resource":
-    case "ui_surface":
       return null
   }
 }

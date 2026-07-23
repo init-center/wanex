@@ -25,8 +25,8 @@
       "disposition": "retain",
       "targetOwner": "@wanex/connector",
       "targetPhase": "Phase 752",
-      "rationale": "External-channel contracts, host lifecycle, packaging policy, and scoped credential resolution share one optional capability owner.",
-      "evidence": "Connector, host-security, and conformance fixtures were consolidated; 33 owner tests and packlist exclusion pass."
+      "rationale": "External-channel contracts, host lifecycle, and packaging policy share one optional capability owner while generic secret resolution belongs to Runtime.",
+      "evidence": "Connector consumes the lazy @wanex/runtime/secrets port; conformance and lifecycle tests keep Connector out of Runtime/App default closure."
     },
     "@wanex/eval-harness": {
       "path": "packages/eval-harness",
@@ -511,10 +511,10 @@
       "path": "packages/secret-runtime",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/connector/host-security",
-      "targetPhase": "Phase 752",
-      "rationale": "A separate security package exists only if plugin and connector hosts independently consume one provider.",
-      "evidence": "Implementation and owner tests moved to @wanex/connector/host-security; the old package was deleted without an alias in Phase 752."
+      "targetOwner": "@wanex/runtime/secrets",
+      "targetPhase": "Phase 760",
+      "rationale": "Provider execution and Connector hosts share a small lazy resolver, but no independent publication or dependency closure justifies another package.",
+      "evidence": "Generic providers, resolver lifecycle, and owner tests moved to @wanex/runtime/secrets; Connector consumes the subpath and the old Connector forwarding surface was deleted."
     },
     "@wanex/session-core": {
       "path": "packages/session-core",

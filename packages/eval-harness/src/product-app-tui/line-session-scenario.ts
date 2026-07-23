@@ -19,6 +19,10 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import {
+  waitForProductConversation,
+  waitForProductJob
+} from "../product-app/conversation-helpers.js"
 import { lines } from "./helpers.js"
 
 export const productAppTuiLineSessionScenario = createEvalScenario({
@@ -52,24 +56,35 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         client,
         now: () => 9801
       })
-      await app.startWorkbench({
-        text: "eval product app tui tracked execution",
-        sessionId: "ses_eval_product_app_tui_execution",
-        jobId: "job_eval_product_app_tui_execution"
+      await app.submitConversationOperation({
+        text: "eval product app tui tracked conversation",
+        sessionId: "ses_eval_product_app_tui_execution"
       })
+      await waitForProductConversation(app, "ses_eval_product_app_tui_execution")
+      await app.dispatchProductCommand({
+        command: "submitConversationOperation",
+        input: {
+          text: "eval product app tui tracked execution",
+          sessionId: "ses_eval_product_app_tui_job",
+          jobId: "job_eval_product_app_tui_execution"
+        }
+      })
+      await waitForProductJob(app, "job_eval_product_app_tui_execution")
+      await surface.refresh()
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
         surface,
         input: lines([
           "help",
-          "ask eval product app tui line",
+          "operation",
           "workbench",
-          "continue eval product app tui continued",
+          "regenerate",
+          "cancel eval product app tui cancellation",
           "events 8",
           "commands",
           "palette",
           "palette product-app.workbench.open",
-          "preview product.agent.run {\"text\":\"eval product app tui preview\"}",
+          "preview product.agent.submit {\"text\":\"eval product app tui preview\"}",
           "execute product.status",
           "execution job_eval_product_app_tui_execution",
           "refresh",
@@ -91,9 +106,11 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
       assert(
         result.kind === "product-app-tui.line-session" &&
           result.quit &&
-          result.askCommandCount === 1 &&
+          result.askCommandCount === 0 &&
           result.workbenchCommandCount === 1 &&
-          result.continueCommandCount === 1 &&
+          result.operationCommandCount === 1 &&
+          result.cancelCommandCount === 1 &&
+          result.regenerateCommandCount === 1 &&
           result.paletteCommandCount === 1 &&
           result.catalogCommandCount === 1 &&
           result.previewCommandCount === 1 &&
@@ -116,26 +133,26 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         "Product App TUI line session should render initial frame and help"
       )
       assert(
-        output.includes("Wanex Product App Agent Turn") &&
-          output.includes("Fake response from eval-product-app-tui-line-model"),
-        "Product App TUI line session should run ask through Product App"
+        output.includes("Wanex Product App Conversation") &&
+          output.includes("state:succeeded"),
+        "Product App TUI line session should read durable conversation progress"
       )
       assert(
           output.includes("Wanex Product App Workbench") &&
-          output.includes("Continued") &&
+          output.includes("cancel:") &&
           output.includes("Wanex Product App Surface Events"),
-          "Product App TUI line session should open workbench, continue, and read events"
+          "Product App TUI line session should open workbench, cancel, and read events"
         )
       assert(
         output.includes("Wanex Product App Commands") &&
-          output.includes("product.agent.run - Run Agent") &&
-          output.includes("handler:wanex.product-app.backend.runAgentTurn"),
+          output.includes("product.agent.submit - Submit Agent Turn") &&
+          output.includes("handler:wanex.product-app.backend.submitConversationOperation"),
         "Product App TUI line session should render the typed command catalog"
       )
       assert(
         output.includes("Wanex Product App Command Preview") &&
           output.includes("status:runnable") &&
-          output.includes("command:product.agent.run") &&
+          output.includes("command:product.agent.submit") &&
           output.includes("input:accepted"),
         "Product App TUI line session should render command invocation previews without executing them"
       )
@@ -149,7 +166,7 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
       assert(
         output.includes("Wanex Product App Execution Activity") &&
           output.includes("state:succeeded") &&
-          output.includes("jobKind:session.run"),
+          output.includes("jobKind:session.turn"),
         "Product App TUI line session should render bounded durable execution activity"
       )
       assert(
@@ -180,7 +197,9 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         commandCount: result.commandCount,
         askCommandCount: result.askCommandCount,
         workbenchCommandCount: result.workbenchCommandCount,
-        continueCommandCount: result.continueCommandCount,
+        operationCommandCount: result.operationCommandCount,
+        cancelCommandCount: result.cancelCommandCount,
+        regenerateCommandCount: result.regenerateCommandCount,
         paletteCommandCount: result.paletteCommandCount,
         catalogCommandCount: result.catalogCommandCount,
         previewCommandCount: result.previewCommandCount,
@@ -192,7 +211,7 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         activeSessionId: result.activeSessionId,
         renderedInitialFrame: output.includes("Wanex Product App TUI"),
         renderedHelp: output.includes("Commands:"),
-        askCompleted: output.includes("Wanex Product App Agent Turn"),
+        conversationRendered: output.includes("Wanex Product App Conversation"),
         workbenchRendered: output.includes("Wanex Product App Workbench"),
         commandCatalogRendered: output.includes("Wanex Product App Commands"),
         previewRendered: output.includes("Wanex Product App Command Preview"),
@@ -210,6 +229,7 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         productAppTuiConnectorRuntime: productAppTui.contains.connectorRuntime
       }
     } finally {
+      await surfaceAdapter.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

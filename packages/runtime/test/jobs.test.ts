@@ -1,8 +1,10 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { setTimeout as delay } from "node:timers/promises"
 import { afterEach, describe, expect, it } from "vitest"
 import { WanexSessionCore } from "../src/sessions/index.js"
+import { HeartbeatLoop } from "../src/jobs/heartbeat.js"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import {
   registerResourceCleanupHandler,
@@ -28,6 +30,34 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/jobs", () => {
+  it("serializes heartbeats and waits for an active beat during stop", async () => {
+    const firstStarted = deferredVoid()
+    const releaseFirst = deferredVoid()
+    let calls = 0
+    const heartbeat = new HeartbeatLoop(async () => {
+      calls += 1
+      firstStarted.resolve()
+      await releaseFirst.promise
+    }, 1)
+
+    heartbeat.start()
+    await firstStarted.promise
+    await delay(10)
+    expect(calls).toBe(1)
+
+    let stopped = false
+    const stopping = heartbeat.stop().then(() => {
+      stopped = true
+    })
+    await delay(1)
+    expect(stopped).toBe(false)
+    releaseFirst.resolve()
+    await stopping
+    expect(stopped).toBe(true)
+    await delay(5)
+    expect(calls).toBe(1)
+  })
+
   it("runs and stops the shared worker loop without overlapping ticks", async () => {
     let active = 0
     let maxActive = 0
@@ -57,6 +87,52 @@ describe("@wanex/runtime/jobs", () => {
     expect(loop.stopped).toBe(true)
     expect(maxActive).toBe(1)
     expect(calls).toBe(stoppedAt)
+  })
+
+  it("wakes an idle loop immediately without overlapping active work", async () => {
+    let active = 0
+    let maxActive = 0
+    let calls = 0
+    let releaseActive: (() => void) | undefined
+    const loop = startWorkerLoop(
+      {
+        async runOnce() {
+          active += 1
+          maxActive = Math.max(maxActive, active)
+          calls += 1
+          if (calls === 2) {
+            await new Promise<void>((resolve) => {
+              releaseActive = resolve
+            })
+          }
+          active -= 1
+          return { status: "idle" as const }
+        }
+      },
+      { idleIntervalMs: 10_000 }
+    )
+
+    while (calls < 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    const wokeAt = Date.now()
+    loop.wake()
+    while (calls < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    expect(Date.now() - wokeAt).toBeLessThan(500)
+
+    loop.wake()
+    loop.wake()
+    releaseActive?.()
+    while (calls < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 1))
+    }
+    loop.stop()
+    await loop.waitForIdle()
+
+    expect(maxActive).toBe(1)
+    expect(calls).toBe(3)
   })
 
   it("claims a job dispatches a handler and completes it", async () => {
@@ -172,8 +248,18 @@ describe("@wanex/runtime/jobs", () => {
       leaseMs: 60_000,
       timeoutMs: 5
     })
-    worker.register("config.sync", async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50))
+    let abortObserved = false
+    let cleanupComplete = false
+    worker.register("config.sync", async ({ signal }) => {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener("abort", () => {
+          abortObserved = true
+          void delay(20).then(() => {
+            cleanupComplete = true
+            resolve()
+          })
+        }, { once: true })
+      })
     })
 
     const result = await worker.runOnce()
@@ -185,6 +271,8 @@ describe("@wanex/runtime/jobs", () => {
     expect(result.error.name).toBe("WanexWorkerTimeoutError")
     expect(result.job?.state).toBe("failed")
     expect(result.job?.result).toBeUndefined()
+    expect(abortObserved).toBe(true)
+    expect(cleanupComplete).toBe(true)
   })
 
   it("allows handlers to heartbeat explicitly", async () => {
@@ -321,4 +409,15 @@ async function createSessionCoreWithStorage(): Promise<{
     session: new WanexSessionCore({ storage }),
     storage
   }
+}
+
+function deferredVoid(): {
+  readonly promise: Promise<void>
+  resolve(): void
+} {
+  let resolve!: () => void
+  const promise = new Promise<void>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
 }

@@ -34,6 +34,13 @@ export type {
 export { sha256Bytes, stableResourceLogicalPath } from "./path.js"
 export { providerOutputToIngestRequest } from "./provider-output.js"
 export {
+  admitUserMessage,
+  assertTurnResourcesMatchBinding,
+  prepareProviderReplayResources,
+  readExactResourceBytes,
+  resourceInputModality
+} from "./input.js"
+export {
   resourceToContextSummary,
   resourceToMessagePart,
   resourceToProviderInput,

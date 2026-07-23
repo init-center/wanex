@@ -2,7 +2,6 @@ import type {
   JsonValue,
   RuntimeAbortSignal,
   ToolCallMessagePart,
-  ToolExecutionRecord,
   ToolResultMessagePart
 } from "@wanex/protocol"
 import type { SchedulerStore, ToolExecutionStore } from "@wanex/storage"
@@ -30,8 +29,23 @@ export interface ToolDescriptor {
   readonly annotations?: ToolAnnotations
 }
 
+export interface ToolRuntimeBinding {
+  readonly implementationId: string
+  readonly implementationRevision: string
+  readonly configurationDigest?: string
+}
+
+export interface ToolBindingEvidence {
+  readonly descriptor: ToolDescriptor
+  readonly runtimeBinding: ToolRuntimeBinding
+}
+
+export interface ToolRegistrySnapshot {
+  readonly tools: readonly ToolBindingEvidence[]
+}
+
 export interface ToolDefinition extends ToolDescriptor {
-  readonly drainsCancellation?: true
+  readonly runtimeBinding: ToolRuntimeBinding
   invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>
 }
 
@@ -39,7 +53,8 @@ export interface ToolInvocationIdentity {
   readonly principalId: string
   readonly sessionId: string
   readonly inputId: string
-  readonly runId: string
+  readonly turnId: string
+  readonly attemptId: string
 }
 
 export interface ToolInvocation extends ToolInvocationIdentity {
@@ -74,22 +89,18 @@ export interface ToolPermissionRequest extends ToolInvocationIdentity {
 }
 
 export interface ToolPermissionPolicy {
+  snapshot(): ToolRuntimeBinding
   authorize(request: ToolPermissionRequest): Promise<ToolPermissionDecision>
 }
 
-export interface ToolRecoveryPolicy {
-  readonly maxAttempts: number
-  retryIdempotent(request: {
-    readonly execution: ToolExecutionRecord
-    readonly descriptor: ToolDescriptor
-  }): Promise<boolean>
-}
-
 export interface ToolExecutionRequest extends ToolInvocationIdentity {
+  readonly sourceMessageId: string
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
   readonly call: ToolCallMessagePart
   readonly idempotencyKey: string
   readonly permissionPolicy?: ToolPermissionPolicy
-  readonly recoveryPolicy?: ToolRecoveryPolicy
   readonly signal?: RuntimeAbortSignal
   readonly timeoutMs?: number
   readonly storage: ToolExecutionStore

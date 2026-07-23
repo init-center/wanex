@@ -84,7 +84,7 @@ interface ObjectiveAttemptRecord {
     // (undocumented)
     readonly sessionInputId?: SessionInputId;
     // (undocumented)
-    readonly sessionRunId?: SessionRunId;
+    readonly sessionTurnId?: SessionTurnId;
     // (undocumented)
     readonly startedAt?: number;
     // (undocumented)
@@ -139,7 +139,7 @@ interface ObjectiveReference {
 }
 
 // @public (undocumented)
-type ObjectiveReferenceKind = "session" | "session_input" | "session_run" | "scheduler_job" | "plan_proposal" | "workspace_change_proposal" | "delegation_graph" | "resource" | "context_epoch";
+type ObjectiveReferenceKind = "session" | "session_input" | "session_turn" | "scheduler_job" | "plan_proposal" | "workspace_change_proposal" | "delegation_graph" | "resource" | "context_epoch";
 
 // @public (undocumented)
 type ObjectiveRunOperationKind = "start" | "record_blocked" | "mark_succeeded" | "mark_failed" | "cancel";
@@ -315,7 +315,7 @@ export interface RecordObjectiveAttemptRequest {
     // (undocumented)
     readonly sessionInputId?: string;
     // (undocumented)
-    readonly sessionRunId?: string;
+    readonly sessionTurnId?: string;
     // (undocumented)
     readonly startedAt?: number;
     // (undocumented)
@@ -360,7 +360,7 @@ type SessionId = string;
 type SessionInputId = string;
 
 // @public (undocumented)
-type SessionRunId = string;
+type SessionTurnId = string;
 
 // @public (undocumented)
 export const WANEX_APP_OBJECTIVE_WORKFLOW: "wanex-app-objective-workflow";

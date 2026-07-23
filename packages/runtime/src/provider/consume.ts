@@ -27,6 +27,7 @@ export async function consumeProviderStream(options: {
   readonly provider: ProviderAdapter
   readonly request: ProviderRequest
   readonly observe?: (event: ProviderEvent) => void
+  readonly checkpoint?: (event: ProviderEvent) => Promise<void>
 }): Promise<ProviderTurnResult> {
   const assembler = new ProviderTurnAssembler(
     options.provider.providerId,
@@ -39,12 +40,13 @@ export async function consumeProviderStream(options: {
       if (terminal !== undefined) {
         assembler.fail("provider emitted an event after its terminal event")
       }
+      assembler.accept(event)
+      await options.checkpoint?.(event)
       try {
         options.observe?.(event)
       } catch {
         // Observation is auxiliary; a UI or diagnostic subscriber cannot fail a run.
       }
-      assembler.accept(event)
       if (event.type === "finish" || event.type === "error") {
         terminal = event
       }

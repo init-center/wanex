@@ -20,6 +20,7 @@ import {
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 import { mktemp } from "../product-bootstrap/helpers.js"
+import { waitForProductConversation } from "../product-app/conversation-helpers.js"
 import { completedCommandId } from "./helpers.js"
 
 export const productAppTuiSurfaceScenario = createEvalScenario({
@@ -54,19 +55,14 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
         now: () => 9701
       })
       const frame = renderProductAppTuiFrame(surface.snapshot())
-      const started = await surface.controller.executePaletteEntry({
-        id: "product-app-tui.palette.workbench-start",
-        input: {
-          text: "eval product app tui started"
-        }
-      })
-      const run = await client.dispatchProductCommand({
-        command: "runAgentTurn",
+      const submitted = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-submit",
         input: {
           text: "eval product app tui turn",
           sessionId: "ses_eval_product_app_tui"
         }
       })
+      await waitForProductConversation(app, "ses_eval_product_app_tui")
       const selected = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.session-select",
         input: {
@@ -76,11 +72,13 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
       const opened = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.workbench-open"
       })
-      const continued = await surface.controller.executePaletteEntry({
-        id: "product-app-tui.palette.workbench-continue",
-        input: {
-          text: "eval product app tui continued"
-        }
+      const operation = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-read",
+        input: { sessionId: "ses_eval_product_app_tui" }
+      })
+      const regenerated = await surface.controller.executePaletteEntry({
+        id: "product-app-tui.palette.conversation-regenerate",
+        input: { sessionId: "ses_eval_product_app_tui" }
       })
       const refreshed = await surface.refresh()
       const refreshedFrame = renderProductAppTuiFrame(refreshed)
@@ -91,11 +89,10 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
       const productApp = entryByName(footprint, "@wanex/product-app")
       const productAppTui = entryByName(footprint, "@wanex/product-app-tui")
 
-      assert(run.ok, "Product App TUI setup should create a session turn")
       assert(
-        surface.snapshot().readModel.palette.length === 7 &&
+        surface.snapshot().readModel.palette.length === 9 &&
           surface.snapshot().readModel.palette.some(
-            (entry) => entry.id === "product-app-tui.palette.workbench-start"
+            (entry) => entry.id === "product-app-tui.palette.conversation-submit"
           ) &&
           surface.snapshot().readModel.statusItems.length === 8 &&
           surface.snapshot().readModel.statusItems.some(
@@ -112,9 +109,9 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
       assert(
         frame.kind === "product-app-tui.frame" &&
           frame.ready &&
-          frame.productCommandCount === 15 &&
+          frame.productCommandCount === 14 &&
           frame.text.includes("Wanex Product App TUI") &&
-          frame.text.includes("product-commands:15") &&
+          frame.text.includes("product-commands:14") &&
           frame.text.includes("profile:eval-product-app-tui") &&
           frame.text.includes("provider:ready") &&
           frame.text.includes("theme:system"),
@@ -122,20 +119,23 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
       )
       assert(
         selected.status === "completed" &&
-          started.status === "completed" &&
+          submitted.status === "completed" &&
           opened.status === "completed" &&
-          continued.status === "completed",
+          operation.status === "completed" &&
+          regenerated.status === "completed",
         "Product App TUI commands should complete through the TUI controller"
       )
       assert(
         completedCommandId(selected.value) ===
           PRODUCT_APP_TUI_COMMANDS.selectSession &&
-          completedCommandId(started.value) ===
-            PRODUCT_APP_TUI_COMMANDS.startWorkbench &&
+          completedCommandId(submitted.value) ===
+            PRODUCT_APP_TUI_COMMANDS.submitConversation &&
           completedCommandId(opened.value) ===
             PRODUCT_APP_TUI_COMMANDS.openWorkbench &&
-          completedCommandId(continued.value) ===
-            PRODUCT_APP_TUI_COMMANDS.continueWorkbench,
+          completedCommandId(operation.value) ===
+            PRODUCT_APP_TUI_COMMANDS.readConversationOperation &&
+          completedCommandId(regenerated.value) ===
+            PRODUCT_APP_TUI_COMMANDS.regenerateConversation,
         "TUI command values should identify Product App TUI commands"
       )
       assert(
@@ -171,20 +171,21 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
         frameKind: frame.kind,
         frameReady: frame.ready,
         productCommandCount: frame.productCommandCount,
-        hasAgentCommand:
+        hasSubmitCommand:
           finalSnapshot.commandCatalog.ok &&
           finalSnapshot.commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.run"
+            (command) => command.id === "product.agent.submit"
           ),
         paletteCount: finalSnapshot.readModel.palette.length,
         statusItemCount: finalSnapshot.readModel.statusItems.length,
         providerReadinessStatus: finalSnapshot.home.ok
           ? finalSnapshot.home.value.providerReadiness.status
           : "unknown",
-        startedStatus: started.status,
+        submittedStatus: submitted.status,
         selectedStatus: selected.status,
         openedStatus: opened.status,
-        continuedStatus: continued.status,
+        operationStatus: operation.status,
+        regeneratedStatus: regenerated.status,
         selectedSessionId: refreshed.status.ok
           ? refreshed.status.value.state.selectedSessionId
           : null,
@@ -200,6 +201,7 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
         productAppTuiConcreteAdapters: productAppTui.contains.concreteAdapters
       }
     } finally {
+      await surfaceAdapter.dispose()
       await app.dispose()
       await rm(storeDir, { recursive: true, force: true })
     }

@@ -1,24 +1,24 @@
 import type {
   AppDiagnosticsSnapshot,
   SupportBundle
-} from "@wanex/app/diagnostics"
+} from "./diagnostics/index.js"
 import type { RuntimeHostDiagnosticsInput } from "@wanex/runtime/host"
 
-export interface WanexAppShellDiagnosticsCommands {
+export interface WanexAppDiagnosticsCommands {
   readDiagnostics(
-    options?: WanexAppShellDiagnosticsOptions
+    options?: WanexAppDiagnosticsOptions
   ): Promise<AppDiagnosticsSnapshot>
   buildSupportBundle(
-    options?: WanexAppShellSupportBundleOptions
+    options?: WanexAppSupportBundleOptions
   ): Promise<SupportBundle>
 }
 
-export interface WanexAppShellDiagnosticsOptions {
+export interface WanexAppDiagnosticsOptions {
   readonly now?: number
   readonly runtimeHost?: RuntimeHostDiagnosticsInput
 }
 
-export interface WanexAppShellSupportBundleOptions {
+export interface WanexAppSupportBundleOptions {
   readonly now?: number
   readonly eventLimit?: number
   readonly jobLimit?: number

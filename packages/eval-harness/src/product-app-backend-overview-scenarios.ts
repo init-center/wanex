@@ -12,12 +12,13 @@ import {
   type FootprintReport
 } from "./distribution-audit.js"
 import { assertProductAppBackendClosureExcludes } from "./product-app-backend-eval-utils.js"
+import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
 export const productAppBackendOverviewScenario = createEvalScenario({
   id: "product.skeleton-overview-contract",
-  title: "App Shell command runtime summarizes first-screen state",
+  title: "App command runtime summarizes first-screen state",
   tags: ["product-path", "overview", "distribution"],
   async run(context) {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-eval-product-overview-"))
@@ -31,10 +32,11 @@ export const productAppBackendOverviewScenario = createEvalScenario({
     })
 
     try {
-      await shell.commands.runAgentTurn({
-        text: "seed overview scenario",
+      const receipt = await shell.commands.submitConversationOperation({
+        content: [{ type: "text", text: "seed overview scenario" }],
         sessionId: "ses_eval_product_overview"
       })
+      await waitForBackendConversation(shell.commands, receipt)
       const typed = await shell.commands.readProductOverview({
         now: 8_001,
         recentSessionLimit: 2
@@ -110,7 +112,7 @@ function assertOverview(value: unknown, generatedAt: number): asserts value is {
   )
   assert(isRecord(value.commands), "overview should include commands")
   assert(
-    value.commands.totalCount === 15 &&
+    value.commands.totalCount === 14 &&
       Array.isArray(value.commands.primary) &&
       value.commands.primary.some(
         (command) => isRecord(command) && command.id === "product.overview.read"
@@ -136,7 +138,7 @@ function assertOverview(value: unknown, generatedAt: number): asserts value is {
   assert(
     Array.isArray(value.recommendedActions) &&
       value.recommendedActions.some(
-        (action) => isRecord(action) && action.commandId === "product.agent.run"
+        (action) => isRecord(action) && action.commandId === "product.agent.submit"
       ),
     "overview should include recommended product actions"
   )

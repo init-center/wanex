@@ -30,8 +30,8 @@ export const agentSideQueryContractScenario = createEvalScenario({
         storage: runtime.storage,
         fakeResponseText: "eval side query response"
       })
-      await agent.submitAndRunUserText({
-        text: "durable side-query context",
+      await agent.submitAndRunUserTurn({
+        content: [{ type: "text", text: "durable side-query context" }],
         sessionId: "ses_eval_agent_side_query",
         principalId: "eval-agent-side-query-user"
       })
@@ -42,7 +42,7 @@ export const agentSideQueryContractScenario = createEvalScenario({
         runtime.storage.listSessionMessages({
           sessionId: "ses_eval_agent_side_query"
         }),
-        runtime.storage.listJobs({ kind: "session.run", limit: 20 })
+        runtime.storage.listJobs({ kind: "session.turn", limit: 20 })
       ])
       const result = await agent.runEphemeralQuery({
         sessionId: "ses_eval_agent_side_query",
@@ -56,7 +56,7 @@ export const agentSideQueryContractScenario = createEvalScenario({
         runtime.storage.listSessionMessages({
           sessionId: "ses_eval_agent_side_query"
         }),
-        runtime.storage.listJobs({ kind: "session.run", limit: 20 })
+        runtime.storage.listJobs({ kind: "session.turn", limit: 20 })
       ])
 
       assert(

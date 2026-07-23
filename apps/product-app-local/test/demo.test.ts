@@ -214,7 +214,7 @@ describe("Product App Local demo", () => {
     await expect(pathExists(storeDir)).resolves.toBe(true)
   })
 
-  it("starts the blank demo host and accepts the first workbench turn over HTTP", async () => {
+  it("starts the blank demo host and accepts the first conversation over HTTP", async () => {
     const demo = await startProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       serviceBin,
@@ -228,7 +228,8 @@ describe("Product App Local demo", () => {
 
     const html = await fetchText(`${demo.url}/`)
     expect(html).toContain("Wanex Product App")
-    expect(html).toContain('data-workbench-composer-kind="start"')
+    expect(html).toContain('data-action="submit-conversation"')
+    expect(html).toContain('data-conversation-state="idle"')
     expect(html).toContain("Start a workbench session")
     expect(html).toContain('data-poll-interval-ms="0"')
     expect(demo.sessionId).toBeUndefined()
@@ -238,7 +239,7 @@ describe("Product App Local demo", () => {
       operation: "submitActionInput",
       requestId: "demo_blank_start",
       input: {
-        action: "start-workbench",
+        action: "submit-conversation",
         fields: {
           text: "demo host first turn"
         }
@@ -254,27 +255,24 @@ describe("Product App Local demo", () => {
         ok: true,
         actionResult: {
           ok: true,
-          action: "start-workbench"
+          action: "submit-conversation"
         }
       },
       document: {
         snapshot: {
-          workbench: {
-            state: "ready",
-            summary: {
-              latestUserText: "demo host first turn"
+          conversation: {
+            operation: {
+              kind: "product-app.conversation-operation"
             }
           },
           view: {
-            workbenchCanContinue: true
+            selectedSessionTitle: "demo host first turn"
           }
         }
       }
     })
-    expect(response.document.html).toContain(
-      'data-workbench-composer-kind="continue"'
-    )
-    expect(response.document.html).toContain("Ready to send")
+    expect(response.document.html).toContain('data-action="submit-conversation"')
+    expect(response.document.html).toContain("demo host first turn")
   })
 
   it("keeps chat focused and exposes workbench and diagnostics explicitly", async () => {
@@ -362,8 +360,8 @@ describe("Product App Local demo", () => {
     expect(demo.sessionId).toBe("ses_demo_seeded_lifecycle")
     expect(html).toContain("seeded lifecycle turn")
     expect(html).toContain('data-session-id="ses_demo_seeded_lifecycle"')
-    expect(html).toContain('data-workbench-composer-kind="continue"')
-    expect(html).toContain("Ready to send")
+    expect(html).toContain('data-action="submit-conversation"')
+    expect(html).toContain('data-conversation-state="succeeded"')
   })
 
   it("persists Product App renderer state across demo host restarts", async () => {

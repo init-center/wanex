@@ -1,17 +1,17 @@
-import { createWanexAppShell } from "./app.js"
+import { createWanexApp } from "./app.js"
 import type {
-  WanexAppShellSmokeRequest,
-  WanexAppShellSmokeResult
+  WanexAppSmokeRequest,
+  WanexAppSmokeResult
 } from "./types-smoke.js"
 
-export async function runWanexAppShellSmoke(
-  request: WanexAppShellSmokeRequest
-): Promise<WanexAppShellSmokeResult> {
-  const app = await createWanexAppShell(request)
+export async function runWanexAppSmoke(
+  request: WanexAppSmokeRequest
+): Promise<WanexAppSmokeResult> {
+  const app = await createWanexApp(request)
   try {
     const run = await app.commands.runAgentTurn({
-      text: request.text ?? "hello from app shell",
-      sessionId: "ses_app_shell_smoke"
+      content: [{ type: "text", text: request.text ?? "hello from app" }],
+      sessionId: "ses_wanex_app_smoke"
     })
     const diagnostics = await app.commands.readDiagnostics({
       now: 3_456

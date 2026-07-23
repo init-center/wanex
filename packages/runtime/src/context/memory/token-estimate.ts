@@ -25,8 +25,6 @@ export function estimatePartTokens(part: MessagePart): number {
       return estimateTextTokens(`${part.toolName} ${JSON.stringify(part.input)}`)
     case "resource":
       return 16
-    case "ui_surface":
-      return estimateTextTokens(JSON.stringify(part.surface.payload))
   }
 }
 

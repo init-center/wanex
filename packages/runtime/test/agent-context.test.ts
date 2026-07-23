@@ -338,8 +338,9 @@ function toolIdentity(toolCallId: string) {
     principalId: "test",
     sessionId: "session",
     inputId: "input",
-    runId: "run",
-    idempotencyKey: `tool:run:${toolCallId}`
+    turnId: "turn",
+    attemptId: "attempt",
+    idempotencyKey: `tool:turn:${toolCallId}`
   }
 }
 

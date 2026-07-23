@@ -3,45 +3,45 @@ import type {
   SchedulerJobState
 } from "@wanex/protocol"
 
-export interface WanexAppShellExecutionReferenceCommands {
+export interface WanexAppExecutionReferenceCommands {
   readExecutionReference(
-    request: WanexAppShellReadExecutionReferenceRequest
-  ): Promise<WanexAppShellExecutionReferenceReadResult>
+    request: WanexAppReadExecutionReferenceRequest
+  ): Promise<WanexAppExecutionReferenceReadResult>
 }
 
-export interface WanexAppShellReadExecutionReferenceRequest {
+export interface WanexAppReadExecutionReferenceRequest {
   readonly kind: string
   readonly id: string
 }
 
-export type WanexAppShellExecutionReferenceReadResult =
-  | WanexAppShellExecutionReferenceFoundResult
-  | WanexAppShellExecutionReferenceMissingResult
-  | WanexAppShellExecutionReferenceUnsupportedResult
+export type WanexAppExecutionReferenceReadResult =
+  | WanexAppExecutionReferenceFoundResult
+  | WanexAppExecutionReferenceMissingResult
+  | WanexAppExecutionReferenceUnsupportedResult
 
-export interface WanexAppShellExecutionReferenceFoundResult {
+export interface WanexAppExecutionReferenceFoundResult {
   readonly kind: "found"
-  readonly reference: WanexAppShellExecutionReference
-  readonly activity: WanexAppShellJobExecutionActivityReadModel
+  readonly reference: WanexAppExecutionReference
+  readonly activity: WanexAppJobExecutionActivityReadModel
 }
 
-export interface WanexAppShellExecutionReferenceMissingResult {
+export interface WanexAppExecutionReferenceMissingResult {
   readonly kind: "missing"
-  readonly reference: WanexAppShellExecutionReference
+  readonly reference: WanexAppExecutionReference
 }
 
-export interface WanexAppShellExecutionReferenceUnsupportedResult {
+export interface WanexAppExecutionReferenceUnsupportedResult {
   readonly kind: "unsupported"
-  readonly reference: WanexAppShellExecutionReference
+  readonly reference: WanexAppExecutionReference
 }
 
-export interface WanexAppShellExecutionReference {
+export interface WanexAppExecutionReference {
   readonly kind: string
   readonly id: string
 }
 
-export interface WanexAppShellJobExecutionActivityReadModel {
-  readonly kind: "app-shell.execution.job"
+export interface WanexAppJobExecutionActivityReadModel {
+  readonly kind: "wanex-app.execution.job"
   readonly jobKind: SchedulerJobKind
   readonly state: SchedulerJobState
   readonly attempt: number
@@ -51,10 +51,10 @@ export interface WanexAppShellJobExecutionActivityReadModel {
   readonly createdAt: number
   readonly updatedAt: number
   readonly finishedAt?: number
-  readonly failureCategory?: WanexAppShellExecutionFailureCategory
+  readonly failureCategory?: WanexAppExecutionFailureCategory
 }
 
-export type WanexAppShellExecutionFailureCategory =
+export type WanexAppExecutionFailureCategory =
   | "retry_pending"
   | "terminal_failure"
   | "cancelled"

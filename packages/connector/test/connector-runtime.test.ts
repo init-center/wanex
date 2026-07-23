@@ -6,9 +6,13 @@ import { afterEach, describe, expect, it } from "vitest"
 import {
   SecretResolver,
   StaticSecretProvider
-} from "../src/host-security/index.js"
+} from "@wanex/runtime/secrets"
 import { WanexSessionCore } from "@wanex/runtime/sessions"
-import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  createTestTurnExecutionBinding,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import { WanexWorker } from "@wanex/runtime/jobs"
 import { ConnectorHost, ConnectorRuntime } from "../src/index.js"
 
@@ -301,11 +305,13 @@ describe("@wanex/connector", () => {
       id: "chproj_connector_session",
       inboundEventId: inbound.id,
       target: {
-        kind: "session.run",
+        kind: "session.turn",
         sessionId: "ses_connector_projection",
         principalId: "principal_connector_projection",
         inputId: "inp_connector_projection",
+        turnId: "turn_connector_projection",
         jobId: "job_connector_projection",
+        executionBinding: createTestTurnExecutionBinding(),
         content: [{ type: "text", id: "part_connector_projection", text: "run" }]
       },
       idempotencyKey: "connector-projection-session"
@@ -313,13 +319,13 @@ describe("@wanex/connector", () => {
 
     expect(projection.projection).toMatchObject({
       id: "chproj_connector_session",
-      targetKind: "session.run",
-      targetId: "inp_connector_projection",
+      targetKind: "session.turn",
+      targetId: "turn_connector_projection",
       targetJobId: "job_connector_projection"
     })
     expect(projection.job).toMatchObject({
       id: "job_connector_projection",
-      kind: "session.run"
+      kind: "session.turn"
     })
     await expect(
       runtime.listProjections({ inboundEventId: inbound.id })

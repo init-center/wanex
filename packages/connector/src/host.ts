@@ -5,8 +5,8 @@ import type {
 } from "@wanex/protocol"
 import type {
   ResolvedSecret,
-  SecretResolver
-} from "./host-security/index.js"
+  SecretResolverPort
+} from "@wanex/runtime/secrets"
 import type {
   WanexWorker,
   WorkerRunOnceResult
@@ -32,7 +32,7 @@ export interface ConnectorHostOptions {
   readonly sessionMetadata?: JsonValue
   readonly idempotencyKey?: string
   readonly credentialSecretRef?: string
-  readonly secretResolver?: SecretResolver
+  readonly secretResolver?: SecretResolverPort
   readonly worker?: WanexWorker
   readonly adapter: ConnectorAdapter
 }
@@ -78,7 +78,7 @@ export class ConnectorHost {
   private readonly sessionMetadata: JsonValue | undefined
   private readonly idempotencyKey: string | undefined
   private readonly credentialSecretRef: string | undefined
-  private readonly secretResolver: SecretResolver | undefined
+  private readonly secretResolver: SecretResolverPort | undefined
   private readonly worker: WanexWorker | undefined
   private readonly adapter: ConnectorAdapter
   private active: ActiveConnectorHostRun | null = null

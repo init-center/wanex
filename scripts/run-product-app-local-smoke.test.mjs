@@ -78,8 +78,8 @@ describe("run-product-app-local-smoke", () => {
         "setup-model",
         "--provider-base-url",
         "https://provider.example.test/v1",
-        "--provider-api-key-env",
-        "SETUP_API_KEY",
+        "--provider-secret-ref",
+        "env://SETUP_API_KEY",
         "--active-provider-profile-id",
         "setup-openai"
       ],
@@ -116,8 +116,8 @@ describe("run-product-app-local-smoke", () => {
         "setup-model",
         "--provider-base-url",
         "https://provider.example.test/v1",
-        "--provider-api-key-env",
-        "SETUP_API_KEY",
+        "--provider-secret-ref",
+        "env://SETUP_API_KEY",
         "--active-provider-profile-id",
         "setup-openai"
       ]
@@ -176,15 +176,17 @@ describe("run-product-app-local-smoke", () => {
         {
           id: "smoke-fake",
           kind: "fake",
+          capabilities: { input: ["text"], output: ["text"] },
           modelId: "smoke-fake-model"
         },
         {
           id: "smoke-openai",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "smoke-openai-model",
           baseUrl: "https://smoke.example.test/v1",
-          apiKeyEnv: "SMOKE_API_KEY"
+          secretRef: "env://SMOKE_API_KEY"
         }
       ],
       activeProfileId: "smoke-fake"

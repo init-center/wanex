@@ -31,9 +31,9 @@ not perform package installation.
 
 `runConnectorAdapterContractHarness` is the standard connector adapter lifecycle
 contract. Concrete adapter packages can use it to prove they start through
-`ConnectorHost`, resolve secrets through `SecretResolver`, ingest inbound
-events durably, acknowledge delivery jobs atomically, and stop with the expected
-connector session state.
+`ConnectorHost`, resolve secrets through `@wanex/runtime/secrets`, ingest
+inbound events durably, acknowledge delivery jobs atomically, and stop with the
+expected connector session state.
 
 `packaging` owns the connector adapter distribution contract. Adapter packages
 declare `ConnectorAdapterPackagingSpec` from this package so hosts can validate

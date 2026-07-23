@@ -1,9 +1,15 @@
 import type {
   JsonValue,
   MessagePart,
+  ProviderCapabilities,
   ProviderState,
   ToolCallMessagePart
 } from "@wanex/protocol"
+import {
+  assertProfileCapabilitiesSupported,
+  OPENAI_CHAT_PROVIDER_CAPABILITIES,
+  TEXT_PROVIDER_CAPABILITIES
+} from "../capabilities.js"
 import {
   providerErrorEvent,
   providerStreamFailureEvent
@@ -13,12 +19,17 @@ import {
   httpProviderError,
   type ProviderFetch
 } from "../http.js"
-import { textContent, toolCallsToOpenAI } from "../replay.js"
+import {
+  requirePreparedProviderResource,
+  textContent,
+  toolCallsToOpenAI
+} from "../replay.js"
 import { parseServerSentEvents } from "../sse.js"
 import type {
   ProviderAdapter,
   ProviderEvent,
   ProviderFinishEvent,
+  PreparedProviderResourcePart,
   ProviderReplayMessage,
   ProviderRequest,
   ProviderUsage
@@ -38,6 +49,7 @@ export interface OpenAICompatibleAdapterOptions {
   readonly apiKey: string
   readonly fetch?: ProviderFetch
   readonly reasoningReplay?: "optional" | "required"
+  readonly capabilities?: ProviderCapabilities
 }
 
 interface OpenAIToolStreamState {
@@ -46,8 +58,10 @@ interface OpenAIToolStreamState {
 }
 
 export class OpenAICompatibleAdapter implements ProviderAdapter {
+  readonly kind = "openai-compatible" as const
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   protected readonly reasoningReplay: "optional" | "required"
   private readonly baseUrl: string
   private readonly apiKey: string
@@ -56,6 +70,10 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   constructor(options: OpenAICompatibleAdapterOptions) {
     this.providerId = options.providerId
     this.modelId = options.modelId
+    this.capabilities = assertProfileCapabilitiesSupported(
+      "openai-compatible",
+      options.capabilities ?? OPENAI_CHAT_PROVIDER_CAPABILITIES
+    )
     this.baseUrl = options.baseUrl.replace(/\/+$/, "")
     this.apiKey = options.apiKey
     this.fetchImpl = options.fetch ?? globalProviderFetch
@@ -134,7 +152,9 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     }
   }
 
-  buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[] {
+  buildReplayMessages(
+    messages: readonly ProviderReplayMessage[]
+  ): JsonValue[] {
     return messages.map((message) => {
       const toolCalls = message.content.filter(
         (part): part is ToolCallMessagePart => part.type === "tool_call"
@@ -166,7 +186,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       }
       return {
         role: message.role,
-        content: textContent(message.content),
+        content: openAIMessageContent(message),
         ...(reasoningContent === undefined
           ? {}
           : { reasoning_content: reasoningContent }),
@@ -285,9 +305,50 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 }
 
+function openAIMessageContent(message: ProviderReplayMessage): JsonValue {
+  const resources = message.content.filter((part) => part.type === "resource")
+  if (resources.length === 0) {
+    return textContent(message.content)
+  }
+  if (message.role !== "user") {
+    throw new Error("OpenAI resource input is only valid in user messages")
+  }
+  return message.content.map((part): JsonValue => {
+    if (part.type === "text") {
+      return { type: "text", text: part.text }
+    }
+    if (part.type !== "resource") {
+      throw new Error(`OpenAI user resource message contains invalid part: ${part.type}`)
+    }
+    const prepared = requirePreparedProviderResource(part)
+    if (
+      prepared.kind !== "image" ||
+      prepared.mediaType?.startsWith("image/") !== true
+    ) {
+      throw new Error(
+        `OpenAI chat adapter does not support ${prepared.kind} resource input: ${prepared.resourceId}`
+      )
+    }
+    return {
+      type: "image_url",
+      image_url: {
+        url: `data:${prepared.mediaType};base64,${Buffer.from(prepared.bytes).toString("base64")}`
+      }
+    }
+  })
+}
+
 export class DeepSeekThinkingAdapter extends OpenAICompatibleAdapter {
   constructor(options: Omit<OpenAICompatibleAdapterOptions, "providerId" | "reasoningReplay">) {
-    super({ ...options, providerId: "deepseek", reasoningReplay: "required" })
+    super({
+      ...options,
+      providerId: "deepseek",
+      reasoningReplay: "required",
+      capabilities: assertProfileCapabilitiesSupported(
+        "deepseek",
+        options.capabilities ?? TEXT_PROVIDER_CAPABILITIES
+      )
+    })
   }
 }
 

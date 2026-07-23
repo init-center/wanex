@@ -62,6 +62,9 @@ Do not expose internal filesystem paths or create forwarding packages.
 
 - Runtime owns a lazy Execution-host subpath for bounded argv processes and
   process-tree cleanup; it is absent from Runtime/App root facade closure.
+- Runtime owns the lazy Secrets subpath used by Provider execution and
+  Connector hosts; secret values are resolved in trusted hosts and never enter
+  durable provider profiles.
 - Workspace owns changesets, review/apply, isolation, Git/worktrees, tasks,
   canonical path confinement, and explicitly registered coding tools.
 - Team owns conversation, delegation, and delegation graphs as separate policy
@@ -70,8 +73,9 @@ Do not expose internal filesystem paths or create forwarding packages.
   source hosting without runtime dependencies.
 - Plugin owns trust, install, sandbox, subprocess, catalog, and action workers;
   Product command projection belongs to Product App Command Host.
-- Connector owns adapter contracts, packaging, leases, delivery, supervision,
-  and host-security; deterministic adapters are test fixtures only.
+- Connector owns adapter contracts, packaging, leases, delivery, and
+  supervision; it consumes Runtime Secrets rather than owning another resolver.
+  Deterministic adapters are test fixtures only.
 - Product App TUI owns its contribution resolver, shell read model, controller,
   presenter, and terminal host.
 

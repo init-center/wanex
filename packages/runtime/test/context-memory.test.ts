@@ -34,21 +34,18 @@ describe("../src/context/memory/index.js", () => {
     )
   })
 
-  it("estimates ui surface tokens from the canonical surface payload", () => {
+  it("uses a bounded token projection for immutable resources", () => {
     const tokens = estimatePartTokens({
-      id: "part_surface",
-      type: "ui_surface",
-      surface: {
-        protocol: "a2ui",
-        version: "1",
-        surfaceKind: "preview",
-        payload: {
-          title: "Surface payload"
-        }
-      }
+      id: "part_resource",
+      type: "resource",
+      resourceId: "res_a2ui_payload",
+      sha256: "a".repeat(64),
+      sizeBytes: 128,
+      kind: "artifact",
+      mediaType: "application/json"
     })
 
-    expect(tokens).toBe(Math.ceil(JSON.stringify({ title: "Surface payload" }).length / 4))
+    expect(tokens).toBe(16)
   })
 
   it("compacts old long assistant text while protecting recent user turns", async () => {
@@ -138,7 +135,7 @@ describe("../src/context/memory/index.js", () => {
           id: "inp_new",
           text: "new user text",
           createdAt: 1,
-          status: "claimed"
+          status: "promoted"
         })
       ],
       messages: [
@@ -366,11 +363,14 @@ function message(request: {
   return {
     id: request.id,
     sessionId: "ses_context",
+    sequence: request.createdAt,
+    turnId: "turn_" + request.id,
+    attemptId: "attempt_" + request.id,
     inputId: request.inputId,
-    runId: `run_${request.id}`,
     role: request.role,
     status: "completed",
     content: request.content,
+    executionBindingDigest: "binding_" + request.id,
     createdAt: request.createdAt,
     updatedAt: request.createdAt
   }

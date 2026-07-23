@@ -4,7 +4,7 @@ import {
   protocolProviderError,
   type ProviderAdapter,
   type ProviderEvent,
-  type ProviderReplayMessage,
+  type PreparedProviderReplayMessage,
   type ProviderToolChoice,
   type ProviderToolDefinition,
   type ProviderTurnResult
@@ -15,10 +15,11 @@ import { runCancellable } from "./cancellable.js"
 export async function runProviderCompletion(
   provider: ProviderAdapter,
   request: {
-    readonly messages: readonly ProviderReplayMessage[]
+    readonly messages: readonly PreparedProviderReplayMessage[]
     readonly signal: RuntimeAbortSignal | undefined
     readonly timeoutMs: number | undefined
     readonly observe?: (event: ProviderEvent) => void
+    readonly checkpoint?: (event: ProviderEvent) => Promise<void>
     readonly tools?: readonly ProviderToolDefinition[]
     readonly toolChoice?: ProviderToolChoice
     readonly parallelToolCalls?: boolean
@@ -50,7 +51,10 @@ export async function runProviderCompletion(
               outputObserved = true
             }
             request.observe?.(event)
-          }
+          },
+          ...(request.checkpoint === undefined
+            ? {}
+            : { checkpoint: request.checkpoint })
         }),
       {
         signal: request.signal,

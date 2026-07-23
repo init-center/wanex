@@ -1,16 +1,30 @@
 import {
   createStorageHandle,
+  type CoreStore,
   type StorageHandle
 } from "@wanex/storage"
-import type { SessionMessageRecord, TextMessagePart } from "@wanex/protocol"
-import { writeProviderProfile } from "./provider/index.js"
+import type {
+  ProviderCapabilities,
+  SchedulerJobRecord,
+  SchedulerJobState,
+  SessionMessageRecord,
+  SessionTurnState,
+  TextMessagePart
+} from "@wanex/protocol"
+import {
+  FakeProviderAdapter,
+  writeProviderProfile
+} from "./provider/index.js"
 import { WanexRuntimeHost } from "./host/host.js"
 import type {
   WanexRuntime,
+  WanexRuntimeCancelOperationResult,
   WanexRuntimeHealth,
-  WanexRuntimeJobState,
+  WanexRuntimeOperationReference,
+  WanexRuntimeOperationState,
   WanexRuntimeOptions,
   WanexRuntimeProviderOptions,
+  WanexRuntimeReadOperationResult,
   WanexRuntimeRunOnceResult,
   WanexRuntimeRunResult,
   WanexRuntimeStatus,
@@ -23,8 +37,9 @@ const defaultProviderId = "wanex-runtime-default"
 export async function createWanexRuntime(
   options: WanexRuntimeOptions
 ): Promise<WanexRuntime> {
-  const storage = openRuntimeStorage(options.storage)
   const provider = normalizeProvider(options.provider)
+  validateProviderRuntimeOptions(provider, options.secretResolver !== undefined)
+  const storage = openRuntimeStorage(options.storage)
 
   try {
     await writeProviderProfile(storage.core, {
@@ -32,8 +47,11 @@ export async function createWanexRuntime(
       kind: provider.kind,
       providerId: provider.providerId,
       modelId: provider.modelId,
+      capabilities: provider.capabilities,
       ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-      ...(provider.apiKey === undefined ? {} : { apiKey: provider.apiKey }),
+      ...(provider.secretRef === undefined
+        ? {}
+        : { secretRef: provider.secretRef }),
       ...(provider.anthropicVersion === undefined
         ? {}
         : { anthropicVersion: provider.anthropicVersion })
@@ -43,9 +61,19 @@ export async function createWanexRuntime(
       storage: storage.core,
       workerCount: options.workerCount ?? 1,
       providerProfileId: provider.id,
+      ...(options.secretResolver === undefined
+        ? {}
+        : { secretResolver: options.secretResolver }),
       ...(provider.responseText === undefined
         ? {}
-        : { fakeResponseText: provider.responseText }),
+        : {
+            provider: new FakeProviderAdapter({
+              providerId: provider.providerId,
+              modelId: provider.modelId,
+              responseText: provider.responseText,
+              capabilities: provider.capabilities
+            })
+          }),
       ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
       ...(options.heartbeatIntervalMs === undefined
         ? {}
@@ -96,12 +124,26 @@ export async function createWanexRuntime(
       },
       async submit(request): Promise<WanexRuntimeSubmitResult> {
         assertActive()
-        const submitted = await host.submitUserText(request)
+        const submitted = await host.submitUserTurn(request)
         return {
           sessionId: submitted.session.id,
           inputId: submitted.inputId,
+          turnId: submitted.turnId,
           jobId: submitted.receipt.job.id
         }
+      },
+      async readOperation(request): Promise<WanexRuntimeReadOperationResult> {
+        assertActive()
+        return await readRuntimeOperation(storage.core, request)
+      },
+      async cancelOperation(request): Promise<WanexRuntimeCancelOperationResult> {
+        assertActive()
+        const reference = operationReference(request)
+        const receipt = await host.requestSessionTurnCancel({
+          ...reference,
+          reason: requiredString(request.reason, "runtime cancel reason")
+        })
+        return { ...reference, status: receipt.status }
       },
       async runOnce(): Promise<WanexRuntimeRunOnceResult> {
         assertActive()
@@ -117,24 +159,23 @@ export async function createWanexRuntime(
         if (host.status().started) {
           throw new Error("wanex runtime run requires stopped background workers")
         }
-        const submitted = await host.submitUserText(request)
-        const run = await host.runOnce()
-        const [job, messages] = await Promise.all([
-          storage.core.getJob({ jobId: submitted.receipt.job.id }),
-          storage.core.listSessionMessages({
-            sessionId: submitted.session.id
-          })
-        ])
-        if (job === null) {
-          throw new Error("wanex runtime submitted job was not found")
-        }
-        return {
+        const submitted = await host.submitUserTurn(request)
+        const reference = {
           sessionId: submitted.session.id,
           inputId: submitted.inputId,
-          jobId: submitted.receipt.job.id,
-          jobState: projectJobState(job.state),
-          assistantText: assistantText(messages),
-          messageCount: messages.length,
+          turnId: submitted.turnId,
+          jobId: submitted.receipt.job.id
+        }
+        const run = await host.runOnce()
+        const read = await readRuntimeOperation(storage.core, reference)
+        if (read.kind === "missing") {
+          throw new Error("wanex runtime submitted operation was not found")
+        }
+        return {
+          ...reference,
+          state: read.operation.state,
+          assistantText: read.operation.assistantText,
+          messageCount: read.operation.messageCount,
           workerResults: run.results.map((item) =>
             projectWorkerStatus(item.worker.status)
           )
@@ -181,8 +222,9 @@ interface NormalizedProvider {
   readonly kind: "fake" | "openai-compatible" | "anthropic" | "deepseek"
   readonly providerId: string
   readonly modelId: string
+  readonly capabilities: ProviderCapabilities
   readonly baseUrl?: string
-  readonly apiKey?: string
+  readonly secretRef?: string
   readonly anthropicVersion?: string
   readonly responseText?: string
 }
@@ -194,6 +236,7 @@ function normalizeProvider(
     return {
       id: defaultProviderId,
       kind: "fake",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "fake",
       modelId: "wanex-runtime-model",
       responseText: "Wanex runtime response"
@@ -205,6 +248,10 @@ function normalizeProvider(
       kind: "fake",
       providerId: provider.providerId ?? "fake",
       modelId: provider.modelId ?? "wanex-runtime-model",
+      capabilities: provider.capabilities ?? {
+        input: ["text"],
+        output: ["text"]
+      },
       responseText: provider.responseText ?? "Wanex runtime response"
     }
   }
@@ -218,8 +265,11 @@ function normalizeProvider(
       kind: provider.kind,
       providerId: provider.providerId ?? provider.kind,
       modelId: provider.modelId,
+      capabilities: provider.capabilities,
       ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-      ...(provider.apiKey === undefined ? {} : { apiKey: provider.apiKey }),
+      ...(provider.secretRef === undefined
+        ? {}
+        : { secretRef: provider.secretRef }),
       ...(provider.anthropicVersion === undefined
         ? {}
         : { anthropicVersion: provider.anthropicVersion })
@@ -228,27 +278,149 @@ function normalizeProvider(
   throw new Error(`unsupported runtime provider: ${String(provider.kind)}`)
 }
 
-function assistantText(messages: readonly SessionMessageRecord[]): string {
+function validateProviderRuntimeOptions(
+  provider: NormalizedProvider,
+  secretResolverConfigured: boolean
+): void {
+  if (provider.kind === "fake") return
+  if (provider.baseUrl === undefined || provider.baseUrl.length === 0) {
+    throw new Error(`${provider.kind} provider requires baseUrl`)
+  }
+  if (provider.secretRef === undefined || provider.secretRef.length === 0) {
+    throw new Error(`${provider.kind} provider requires secretRef`)
+  }
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(provider.secretRef)) {
+    throw new Error(
+      `${provider.kind} provider secretRef must include a URI scheme`
+    )
+  }
+  if (!secretResolverConfigured) {
+    throw new Error(`${provider.kind} provider requires secret resolver`)
+  }
+}
+
+function assistantText(
+  messages: readonly SessionMessageRecord[],
+  turnId: string
+): string {
   return messages
+    .filter((message) => message.turnId === turnId && message.role === "assistant")
     .flatMap((message) => message.content)
     .filter((part): part is TextMessagePart => part.type === "text")
     .map((part) => part.text)
     .join("\n")
 }
 
-function projectWorkerStatus(status: string): WanexRuntimeWorkerResultStatus {
-  return status === "completed" || status === "failed" ? status : "idle"
+async function readRuntimeOperation(
+  storage: CoreStore,
+  request: WanexRuntimeOperationReference
+): Promise<WanexRuntimeReadOperationResult> {
+  const reference = operationReference(request)
+  const [job, turns] = await Promise.all([
+    storage.getJob({ jobId: reference.jobId }),
+    storage.listSessionTurns({ sessionId: reference.sessionId })
+  ])
+  if (!matchesRuntimeOperationJob(job, reference)) {
+    return { kind: "missing", reference }
+  }
+  const turn = turns.find((candidate) =>
+    candidate.id === reference.turnId &&
+    candidate.primaryInputId === reference.inputId &&
+    candidate.jobId === reference.jobId
+  )
+  if (turn === undefined) {
+    return { kind: "missing", reference }
+  }
+  const messages = await storage.listSessionMessages({
+    sessionId: reference.sessionId
+  })
+  const operationMessages = messages.filter(
+    (message) => message.turnId === reference.turnId
+  )
+  return {
+    kind: "found",
+    reference,
+    operation: {
+      ...reference,
+      state: runtimeOperationState(job.state, turn.state),
+      createdAt: job.createdAt,
+      updatedAt: job.updatedAt,
+      ...(job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt }),
+      ...(turn.currentAttemptId === undefined
+        ? {}
+        : { activeAttemptId: turn.currentAttemptId }),
+      assistantText: assistantText(operationMessages, reference.turnId),
+      messageCount: operationMessages.length
+    }
+  }
 }
 
-function projectJobState(state: string): WanexRuntimeJobState {
-  switch (state) {
+function matchesRuntimeOperationJob(
+  job: SchedulerJobRecord | null,
+  reference: WanexRuntimeOperationReference
+): job is SchedulerJobRecord {
+  if (job === null || job.kind !== "session.turn") {
+    return false
+  }
+  const payload = job.payload
+  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
+    return false
+  }
+  const record = payload as Readonly<Record<string, unknown>>
+  return (
+    record.sessionId === reference.sessionId &&
+    record.turnId === reference.turnId &&
+    record.inputId === reference.inputId
+  )
+}
+
+function runtimeOperationState(
+  jobState: SchedulerJobState,
+  turnState: SessionTurnState
+): WanexRuntimeOperationState {
+  switch (turnState) {
     case "queued":
+      return "queued"
+    case "running":
+    case "cancel_requested":
+    case "succeeded":
+    case "failed":
+    case "cancelled":
+    case "interrupted":
+    case "recovery_required":
+      return turnState
+  }
+  switch (jobState) {
+    case "pending":
+    case "ready":
+    case "retry_scheduled":
+      return "queued"
     case "running":
     case "succeeded":
     case "failed":
     case "cancelled":
-      return state
-    default:
-      throw new Error(`unsupported runtime job state: ${state}`)
+      return jobState
   }
+}
+
+function operationReference(
+  request: WanexRuntimeOperationReference
+): WanexRuntimeOperationReference {
+  return {
+    sessionId: requiredString(request.sessionId, "runtime operation sessionId"),
+    inputId: requiredString(request.inputId, "runtime operation inputId"),
+    turnId: requiredString(request.turnId, "runtime operation turnId"),
+    jobId: requiredString(request.jobId, "runtime operation jobId")
+  }
+}
+
+function requiredString(value: string, label: string): string {
+  if (value.length === 0) {
+    throw new Error(`${label} must not be empty`)
+  }
+  return value
+}
+
+function projectWorkerStatus(status: string): WanexRuntimeWorkerResultStatus {
+  return status === "completed" || status === "failed" ? status : "idle"
 }

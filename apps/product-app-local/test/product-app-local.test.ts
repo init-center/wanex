@@ -270,7 +270,7 @@ describe("@wanex/product-app-local", () => {
             id: "local-snapshot",
             active: true,
             modelId: "local-snapshot-model",
-            hasApiKey: false
+            credentialConfigured: false
           }
         ]
       },
@@ -316,10 +316,11 @@ describe("@wanex/product-app-local", () => {
       providerProfiles: profileCatalog({
         id: "local-openai-compatible",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "local-openai-model",
         baseUrl: "https://api.example.invalid/v1",
-        apiKey: "local-provider-secret"
+        secretRef: "env://LOCAL_PROVIDER_SECRET"
       }),
       web: {
         hostname: "127.0.0.1",
@@ -335,18 +336,20 @@ describe("@wanex/product-app-local", () => {
         {
           id: "local-openai-compatible",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "local-openai-model",
-          baseUrl: "https://api.example.invalid/v1",
-          hasApiKey: true,
-          apiKeyRedacted: "***",
+          credentialConfigured: true,
           active: true
         }
       ]
     })
-    expect(JSON.stringify(snapshot)).not.toContain("local-provider-secret")
+    expect(JSON.stringify(snapshot)).not.toContain(
+      "https://api.example.invalid/v1"
+    )
+    expect(JSON.stringify(snapshot)).not.toContain("LOCAL_PROVIDER_SECRET")
     expect(JSON.stringify(await app.providerProfiles.listProviderProfiles()))
-      .not.toContain("local-provider-secret")
+      .not.toContain("LOCAL_PROVIDER_SECRET")
   })
 
   it("seeds multiple trusted provider profiles and can choose the startup active profile", async () => {
@@ -366,10 +369,11 @@ describe("@wanex/product-app-local", () => {
           {
             id: "local-catalog-openai",
             kind: "openai-compatible",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "openai-compatible",
             modelId: "local-catalog-openai-model",
             baseUrl: "https://catalog.example.invalid/v1",
-            apiKey: "catalog-provider-secret"
+            secretRef: "env://CATALOG_PROVIDER_SECRET"
           }
         ],
         activeProfileId: "local-catalog-openai"
@@ -389,21 +393,20 @@ describe("@wanex/product-app-local", () => {
           id: "local-catalog-fake",
           active: false,
           modelId: "local-catalog-fake-model",
-          hasApiKey: false
+          credentialConfigured: false
         }),
         expect.objectContaining({
           id: "local-catalog-openai",
           active: true,
           modelId: "local-catalog-openai-model",
-          hasApiKey: true,
-          apiKeyRedacted: "***"
+          credentialConfigured: true,
         })
       ])
     })
     expect(snapshot.providerProfiles.profiles).toHaveLength(2)
     expect(snapshot.settings.profile.activeProviderProfileId)
       .toBe("local-catalog-openai")
-    expect(JSON.stringify(snapshot)).not.toContain("catalog-provider-secret")
+    expect(JSON.stringify(snapshot)).not.toContain("CATALOG_PROVIDER_SECRET")
   })
 
   it("rejects invalid trusted provider profile catalogs", async () => {
@@ -456,7 +459,7 @@ describe("@wanex/product-app-local", () => {
     )
   })
 
-  it("starts a workbench session through the local Web request envelope", async () => {
+  it("submits a conversation through the local Web request envelope", async () => {
     const storeDir = await tempDir("wanex-product-app-local-workbench-")
     const app = await startProductAppLocalWebApp({
       storage: {
@@ -480,7 +483,7 @@ describe("@wanex/product-app-local", () => {
       operation: "submitActionInput",
       requestId: "product_app_local_start_workbench",
       input: {
-        action: "start-workbench",
+        action: "submit-conversation",
         fields: {
           text: "hello from Product App Local workbench"
         }
@@ -497,52 +500,50 @@ describe("@wanex/product-app-local", () => {
       requestId: "product_app_local_start_workbench",
       document: {
         snapshot: {
-          workbench: {
-            state: "ready",
-            canContinue: true,
-            summary: {
-              inputCount: 1,
-              messageCount: 1,
-              latestUserText: "hello from Product App Local workbench"
+          conversation: {
+            operation: {
+              kind: "product-app.conversation-operation"
             }
           },
           view: {
-            workbenchState: "ready",
-            workbenchCanContinue: true,
             sessionCount: 1,
-            latestUserText: "hello from Product App Local workbench"
+            selectedSessionTitle: "hello from Product App Local workbench"
           }
         },
-        html: expect.stringContaining('data-action="continue-workbench"')
+        html: expect.stringContaining('data-action="submit-conversation"')
       },
       submitResult: {
         ok: true,
         actionResult: {
           ok: true,
-          action: "start-workbench"
+          action: "submit-conversation"
         }
       }
     })
 
-    const snapshot = await app.readSnapshot()
-    expect(snapshot.web.workbench).toMatchObject({
-      state: "ready",
-      canContinue: true,
-      summary: {
-        inputCount: 1,
-        messageCount: 1,
-        latestUserText: "hello from Product App Local workbench"
+    const snapshot = await waitForLocalConversationTerminal(app)
+    expect(snapshot.web.conversation).toMatchObject({
+      state: "succeeded",
+      operation: {
+        capabilities: {
+          terminal: true,
+          regeneratable: true
+        }
       }
     })
+    expect(
+      snapshot.web.conversation.operation?.transcript.rows.some(
+        (row) => row.text === "hello from Product App Local workbench"
+      )
+    ).toBe(true)
     expect(snapshot.web.view).toMatchObject({
-      workbenchState: "ready",
-      workbenchCanContinue: true,
+      conversationCanSubmit: true,
       sessionCount: 1,
-      latestUserText: "hello from Product App Local workbench"
+      selectedSessionTitle: "hello from Product App Local workbench"
     })
-    expect(snapshot.web.workbench.sessionId).toMatch(/^ses_/)
+    expect(snapshot.web.conversation.sessionId).toMatch(/^ses_/)
     expect(snapshot.settings.state.selectedSessionId).toBe(
-      snapshot.web.workbench.sessionId
+      snapshot.web.conversation.sessionId
     )
     expect(JSON.stringify(snapshot)).not.toContain(storeDir)
     expect(JSON.stringify(snapshot)).not.toContain(serviceBin)
@@ -644,9 +645,9 @@ describe("@wanex/product-app-local", () => {
     expect(summary).toContain("Provider readiness: ready")
     expect(summary).toContain("Provider can run: yes")
     expect(summary).toContain("Provider run gate: ready")
-    expect(summary).toContain("Workbench submit: enabled")
+    expect(summary).toContain("Conversation submit: enabled")
     expect(summary).toContain(
-      "  - active local-cli-summary fake/fake model=local-cli-summary-model key=none"
+      "  - active local-cli-summary fake/fake model=local-cli-summary-model credential=none"
     )
     expect(summary).toContain("Layout: split")
     expect(summary).toContain("Mode: chat")
@@ -680,17 +681,18 @@ describe("@wanex/product-app-local", () => {
           profileCount: 1,
           canRun: true,
           attentionRequired: false,
-          requiresApiKey: false,
-          hasApiKey: false
+          requiresCredential: false,
+          credentialConfigured: false
         },
         profiles: [
           {
             id: "local-cli-summary",
             kind: "fake",
+            capabilities: { input: ["text"], output: ["text"] },
             providerId: "fake",
             modelId: "local-cli-summary-model",
             active: true,
-            hasApiKey: false
+            credentialConfigured: false
           }
         ]
       },
@@ -703,7 +705,10 @@ describe("@wanex/product-app-local", () => {
       web: {
         ready: true,
         workbenchState: "idle",
-        workbenchCanContinue: false,
+        conversationState: "idle",
+        conversationCanSubmit: true,
+        conversationCanCancel: false,
+        conversationCanRegenerate: false,
         operationStatus: {
           kind: "product-app-web.operation-status",
           state: "idle",
@@ -715,7 +720,7 @@ describe("@wanex/product-app-local", () => {
           reason: "active_profile_ready",
           activeProfileId: "local-cli-summary",
           canRun: true,
-          canSubmitWorkbench: true,
+          canSubmitConversation: true,
           attentionRequired: false,
           message: "Provider ready"
         }
@@ -758,6 +763,7 @@ describe("@wanex/product-app-local", () => {
       profile: {
         id: "local-cli-openai-missing-key",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "local-cli-openai-missing-key-model",
         baseUrl: "https://provider.example.test/v1"
@@ -791,28 +797,28 @@ describe("@wanex/product-app-local", () => {
       snapshot
     })
 
-    expect(summary).toContain("Provider readiness: missing_required_api_key")
+    expect(summary).toContain("Provider readiness: missing_required_credential")
     expect(summary).toContain("Provider can run: no")
     expect(summary).toContain("Provider run gate: blocked")
-    expect(summary).toContain("Workbench submit: blocked")
+    expect(summary).toContain("Conversation submit: blocked")
     expect(summary).toContain("Last operation: idle")
     expect(jsonSummary.provider.readiness).toEqual({
-      status: "missing_required_api_key",
-      reason: "active_profile_missing_api_key",
+      status: "missing_required_credential",
+      reason: "active_profile_missing_credential",
       activeProfileId: "local-cli-openai-missing-key",
       profileCount: 2,
       canRun: false,
       attentionRequired: true,
-      requiresApiKey: true,
-      hasApiKey: false
+      requiresCredential: true,
+      credentialConfigured: false
     })
     expect(jsonSummary.web.providerRunGate).toEqual({
       state: "blocked",
-      status: "missing_required_api_key",
-      reason: "active_profile_missing_api_key",
+      status: "missing_required_credential",
+      reason: "active_profile_missing_credential",
       activeProfileId: "local-cli-openai-missing-key",
       canRun: false,
-      canSubmitWorkbench: false,
+      canSubmitConversation: false,
       attentionRequired: true,
       message: "Host setup required"
     })
@@ -874,7 +880,7 @@ describe("@wanex/product-app-local", () => {
         layoutAction: {
           ok: true
         },
-        workbenchAction: {
+        conversationAction: {
           ok: true
         },
         privacy: {
@@ -897,15 +903,16 @@ describe("@wanex/product-app-local", () => {
         },
         web: {
           ready: true,
-          workbenchState: "ready",
-          workbenchCanContinue: true,
+          workbenchState: "idle",
+          conversationState: "succeeded",
+          conversationCanSubmit: true,
           operationStatus: {
             state: "succeeded",
-            action: "start-workbench"
+            action: "submit-conversation"
           },
           providerRunGate: {
             state: "ready",
-            canSubmitWorkbench: true
+            canSubmitConversation: true
           }
         },
         privacy: {
@@ -958,10 +965,11 @@ describe("@wanex/product-app-local", () => {
             {
               id: "local-cli-setup-openai",
               kind: "openai-compatible",
+              capabilities: { input: ["text"], output: ["text"] },
               providerId: "openai-compatible",
               modelId: "local-cli-setup-openai-model",
               baseUrl: "https://provider.example.test/v1",
-              apiKey: "local-cli-setup-secret"
+              secretRef: "env://LOCAL_CLI_SETUP_SECRET"
             }
           ],
           activeProfileId: "local-cli-setup-openai"
@@ -978,8 +986,7 @@ describe("@wanex/product-app-local", () => {
           profile: {
             id: "local-cli-setup-openai",
             active: true,
-            hasApiKey: true,
-            apiKeyRedacted: "***"
+            credentialConfigured: true,
           },
           readiness: {
             status: "ready",
@@ -1001,7 +1008,7 @@ describe("@wanex/product-app-local", () => {
     })
     const json = formatProductAppLocalCliProviderSetupResult(result)
     expect(JSON.parse(json)).toEqual(result)
-    expect(json).not.toContain("local-cli-setup-secret")
+    expect(json).not.toContain("LOCAL_CLI_SETUP_SECRET")
     expect(json).toContain(storeDir)
     expect(json).toContain(serviceBin)
   })
@@ -1033,7 +1040,7 @@ describe("@wanex/product-app-local", () => {
             id: "local-initial",
             active: true,
             modelId: "local-initial-model",
-            hasApiKey: false
+            credentialConfigured: false
           }
         ]
       })
@@ -1043,10 +1050,11 @@ describe("@wanex/product-app-local", () => {
         profile: {
           id: "local-second",
           kind: "openai-compatible",
+          capabilities: { input: ["text"], output: ["text"] },
           providerId: "openai-compatible",
           modelId: "local-second-model",
           baseUrl: "https://provider.example.test/v1",
-          apiKey: "local-second-secret"
+          secretRef: "env://LOCAL_SECOND_SECRET"
         },
         makeActive: true
       })
@@ -1054,8 +1062,7 @@ describe("@wanex/product-app-local", () => {
       id: "local-second",
       active: true,
       modelId: "local-second-model",
-      hasApiKey: true,
-      apiKeyRedacted: "***"
+      credentialConfigured: true,
     })
     expect(first.settings.readSettings().profile.activeProviderProfileId)
       .toBe("local-second")
@@ -1065,8 +1072,7 @@ describe("@wanex/product-app-local", () => {
         expect.objectContaining({
           id: "local-second",
           active: true,
-          hasApiKey: true,
-          apiKeyRedacted: "***"
+          credentialConfigured: true,
         })
       ])
     )
@@ -1075,14 +1081,13 @@ describe("@wanex/product-app-local", () => {
         expect.objectContaining({
           id: "local-second",
           active: true,
-          hasApiKey: true,
-          apiKeyRedacted: "***",
-          baseUrl: "https://provider.example.test/v1"
+          credentialConfigured: true
         })
       ])
     )
     const firstSerialized = JSON.stringify(firstSnapshot)
-    expect(firstSerialized).not.toContain("local-second-secret")
+    expect(firstSerialized).not.toContain("https://provider.example.test/v1")
+    expect(firstSerialized).not.toContain("LOCAL_SECOND_SECRET")
     expect(firstSerialized).not.toContain(storeDir)
     expect(firstSerialized).not.toContain(serviceBin)
 
@@ -1113,8 +1118,7 @@ describe("@wanex/product-app-local", () => {
         id: "local-second",
         active: true,
         modelId: "local-second-model",
-        hasApiKey: true,
-        apiKeyRedacted: "***"
+        credentialConfigured: true,
       })
   })
 
@@ -1140,10 +1144,11 @@ describe("@wanex/product-app-local", () => {
     const result = await app.providerSetup.configureProviderProfile({
       id: "local-setup-openai",
       kind: "openai-compatible",
+      capabilities: { input: ["text"], output: ["text"] },
       providerId: "openai-compatible",
       modelId: "local-setup-openai-model",
       baseUrl: "https://provider.example.test/v1",
-      apiKey: "local-setup-secret",
+      secretRef: "env://LOCAL_SETUP_SECRET",
       makeActive: true
     })
 
@@ -1152,12 +1157,12 @@ describe("@wanex/product-app-local", () => {
       profile: {
         id: "local-setup-openai",
         kind: "openai-compatible",
+        capabilities: { input: ["text"], output: ["text"] },
         providerId: "openai-compatible",
         modelId: "local-setup-openai-model",
         baseUrl: "https://provider.example.test/v1",
         active: true,
-        hasApiKey: true,
-        apiKeyRedacted: "***"
+        credentialConfigured: true,
       },
       readiness: {
         status: "ready",
@@ -1166,11 +1171,11 @@ describe("@wanex/product-app-local", () => {
         profileCount: 2,
         canRun: true,
         attentionRequired: false,
-        requiresApiKey: true,
-        hasApiKey: true
+        requiresCredential: true,
+        credentialConfigured: true
       }
     })
-    expect(JSON.stringify(result)).not.toContain("local-setup-secret")
+    expect(JSON.stringify(result)).not.toContain("LOCAL_SETUP_SECRET")
 
     const snapshot = await app.readSnapshot()
     expect(snapshot.web.view.settings.profile.readiness).toMatchObject({
@@ -1178,7 +1183,7 @@ describe("@wanex/product-app-local", () => {
       activeProfileId: "local-setup-openai",
       canRun: true
     })
-    expect(JSON.stringify(snapshot)).not.toContain("local-setup-secret")
+    expect(JSON.stringify(snapshot)).not.toContain("LOCAL_SETUP_SECRET")
     expect(JSON.stringify(snapshot)).not.toContain(storeDir)
     expect(JSON.stringify(snapshot)).not.toContain(serviceBin)
   })
@@ -1188,6 +1193,19 @@ async function tempDir(prefix: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix))
   tempDirs.push(dir)
   return dir
+}
+
+async function waitForLocalConversationTerminal(
+  app: ProductAppLocalWebApp
+): Promise<Awaited<ReturnType<ProductAppLocalWebApp["readSnapshot"]>>> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    const snapshot = await app.readSnapshot()
+    if (snapshot.web.conversation.operation?.capabilities.terminal) {
+      return snapshot
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("Product App Local conversation did not finish")
 }
 
 function profileCatalog(

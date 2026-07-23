@@ -1,4 +1,4 @@
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import type {
   CompileContextInput,
@@ -16,18 +16,29 @@ import {
   renderInstructionSnapshot
 } from "../src/context/instruction/index.js"
 
+const fixtureRoot = resolve("instruction-runtime-fixture")
+const projectRoot = join(fixtureRoot, "repo")
+const packageDir = join(projectRoot, "packages", "pkg")
+const appDir = join(projectRoot, "app")
+const otherRoot = join(fixtureRoot, "other")
+const globalConfigDir = join(fixtureRoot, "home", "user", ".wanex")
+const globalInstructions = join(globalConfigDir, "AGENTS.md")
+const repoInstructions = join(projectRoot, "AGENTS.md")
+const packageInstructions = join(packageDir, "AGENTS.md")
+const appInstructions = join(appDir, "AGENTS.md")
+
 describe("@wanex/runtime/context instruction", () => {
   it("discovers global and trusted project AGENTS.md in deterministic order", async () => {
     const fs = memoryFs({
-      "/home/user/.wanex/AGENTS.md": "Global rule",
-      "/repo/AGENTS.md": "Repo rule",
-      "/repo/packages/pkg/AGENTS.md": "Package rule"
+      [globalInstructions]: "Global rule",
+      [repoInstructions]: "Repo rule",
+      [packageInstructions]: "Package rule"
     })
 
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo/packages/pkg",
-      projectRoot: "/repo",
-      globalConfigDir: "/home/user/.wanex",
+      cwd: packageDir,
+      projectRoot,
+      globalConfigDir,
       trust: { projectInstructions: "trusted" },
       fs
     })
@@ -35,9 +46,9 @@ describe("@wanex/runtime/context instruction", () => {
     expect(snapshot.status).toBe("available")
     expect(snapshot.diagnostics).toEqual([])
     expect(snapshot.sources.map((source) => [source.scope, source.path])).toEqual([
-      ["global", "/home/user/.wanex/AGENTS.md"],
-      ["project", "/repo/AGENTS.md"],
-      ["project", "/repo/packages/pkg/AGENTS.md"]
+      ["global", globalInstructions],
+      ["project", repoInstructions],
+      ["project", packageInstructions]
     ])
     expect(snapshot.sources.map((source) => source.order)).toEqual([0, 1, 2])
     expect(renderInstructionSnapshot({ snapshot })).toContain("Global rule")
@@ -46,14 +57,14 @@ describe("@wanex/runtime/context instruction", () => {
 
   it("projects per-source provenance into provider replay metadata", async () => {
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo/packages/pkg",
-      projectRoot: "/repo",
-      globalConfigDir: "/home/user/.wanex",
+      cwd: packageDir,
+      projectRoot,
+      globalConfigDir,
       trust: { projectInstructions: "trusted" },
       fs: memoryFs({
-        "/home/user/.wanex/AGENTS.md": "Global rule",
-        "/repo/AGENTS.md": "Repo rule",
-        "/repo/packages/pkg/AGENTS.md": "Package rule"
+        [globalInstructions]: "Global rule",
+        [repoInstructions]: "Repo rule",
+        [packageInstructions]: "Package rule"
       })
     })
 
@@ -69,7 +80,7 @@ describe("@wanex/runtime/context instruction", () => {
           expect.objectContaining({
             id: expect.stringMatching(/^global:/u),
             scope: "global",
-            path: "/home/user/.wanex/AGENTS.md",
+            path: globalInstructions,
             target: "AGENTS.md",
             order: 0,
             byteLength: Buffer.byteLength("Global rule"),
@@ -79,14 +90,14 @@ describe("@wanex/runtime/context instruction", () => {
           expect.objectContaining({
             id: expect.stringMatching(/^project:/u),
             scope: "project",
-            path: "/repo/AGENTS.md",
+            path: repoInstructions,
             order: 1,
             hash: snapshot.sources[1]?.hash
           }),
           expect.objectContaining({
             id: expect.stringMatching(/^project:/u),
             scope: "project",
-            path: "/repo/packages/pkg/AGENTS.md",
+            path: packageInstructions,
             order: 2,
             hash: snapshot.sources[2]?.hash
           })
@@ -97,43 +108,43 @@ describe("@wanex/runtime/context instruction", () => {
 
   it("keeps project instructions out of context until the workspace is trusted", async () => {
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo/app",
-      projectRoot: "/repo",
-      globalConfigDir: "/home/user/.wanex",
+      cwd: appDir,
+      projectRoot,
+      globalConfigDir,
       fs: memoryFs({
-        "/home/user/.wanex/AGENTS.md": "Global rule",
-        "/repo/AGENTS.md": "Do project thing",
-        "/repo/app/AGENTS.md": "Do app thing"
+        [globalInstructions]: "Global rule",
+        [repoInstructions]: "Do project thing",
+        [appInstructions]: "Do app thing"
       })
     })
 
     expect(snapshot.status).toBe("available")
     expect(snapshot.sources.map((source) => source.path)).toEqual([
-      "/home/user/.wanex/AGENTS.md"
+      globalInstructions
     ])
     expect(snapshot.diagnostics).toEqual([
       expect.objectContaining({
         code: "instruction.project_untrusted",
         severity: "warning",
-        path: "/repo/AGENTS.md"
+        path: repoInstructions
       }),
       expect.objectContaining({
         code: "instruction.project_untrusted",
         severity: "warning",
-        path: "/repo/app/AGENTS.md"
+        path: appInstructions
       })
     ])
   })
 
   it("returns unavailable when a discovered instruction disappears before read", async () => {
     const fs = memoryFs({
-      "/repo/AGENTS.md": "present"
+      [repoInstructions]: "present"
     })
     fs.readFile = async () => undefined
 
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectInstructions: "trusted" },
       fs
     })
@@ -143,7 +154,7 @@ describe("@wanex/runtime/context instruction", () => {
       expect.objectContaining({
         code: "instruction.source_missing",
         severity: "warning",
-        path: "/repo/AGENTS.md"
+        path: repoInstructions
       })
     ])
   })
@@ -151,7 +162,7 @@ describe("@wanex/runtime/context instruction", () => {
   it("rejects unsafe targets and cwd outside projectRoot", async () => {
     await expect(
       discoverInstructionSnapshot({
-        cwd: "/repo",
+        cwd: projectRoot,
         targets: ["../AGENTS.md"],
         fs: memoryFs({})
       })
@@ -164,8 +175,8 @@ describe("@wanex/runtime/context instruction", () => {
 
     await expect(
       discoverInstructionSnapshot({
-        cwd: "/other",
-        projectRoot: "/repo",
+        cwd: otherRoot,
+        projectRoot,
         fs: memoryFs({})
       })
     ).resolves.toMatchObject({
@@ -178,11 +189,11 @@ describe("@wanex/runtime/context instruction", () => {
 
   it("prepends instruction context before delegating to a downstream compiler", async () => {
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectInstructions: "trusted" },
       fs: memoryFs({
-        "/repo/AGENTS.md": "Always prefer tests."
+        [repoInstructions]: "Always prefer tests."
       })
     })
     const downstream = new RecordingCompiler()
@@ -231,11 +242,11 @@ describe("@wanex/runtime/context instruction", () => {
 
   it("can compile instruction-only replay without a downstream compiler", async () => {
     const snapshot = await discoverInstructionSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectInstructions: "trusted" },
       fs: memoryFs({
-        "/repo/AGENTS.md": "One rule"
+        [repoInstructions]: "One rule"
       })
     })
     const compiler = new InstructionContextCompiler({ snapshot })
@@ -293,14 +304,14 @@ class RecordingCompiler implements ContextCompiler {
 
 function memoryFs(files: Record<string, string>): InstructionFileSystem {
   const normalized = new Map(
-    Object.entries(files).map(([path, content]) => [join(path), content])
+    Object.entries(files).map(([path, content]) => [resolve(path), content])
   )
   return {
     async readFile(path) {
-      return normalized.get(join(path))
+      return normalized.get(resolve(path))
     },
     async stat(path): Promise<InstructionFileStat | undefined> {
-      if (!normalized.has(join(path))) {
+      if (!normalized.has(resolve(path))) {
         return undefined
       }
       return {

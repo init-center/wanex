@@ -1,4 +1,4 @@
-import { resolve } from "node:path"
+import { join, resolve, sep } from "node:path"
 import { describe, expect, it } from "vitest"
 import type {
   CompileContextInput,
@@ -19,25 +19,42 @@ import {
   skillSnapshotToSystemPart
 } from "../src/context/skill/index.js"
 
+const fixtureRoot = resolve("skill-runtime-fixture")
+const projectRoot = join(fixtureRoot, "repo")
+const appDir = join(projectRoot, "app")
+const packageAppDir = join(projectRoot, "packages", "app")
+const globalSkillsDir = join(fixtureRoot, "home", "user", ".wanex", "skills")
+const projectSkillsDir = join(projectRoot, ".agents", "skills")
+const appSkillsDir = join(appDir, ".wanex", "skills")
+const packageAppSkillsDir = join(packageAppDir, ".wanex", "skills")
+
+function skillFile(
+  directory: string,
+  name: string,
+  ...segments: readonly string[]
+): string {
+  return join(directory, name, ...segments)
+}
+
 describe("../src/context/skill/index.js", () => {
   it("discovers global and trusted project skills in deterministic order", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo/packages/app",
-      projectRoot: "/repo",
-      globalSkillDirs: ["/home/user/.wanex/skills"],
+      cwd: packageAppDir,
+      projectRoot,
+      globalSkillDirs: [globalSkillsDir],
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/home/user/.wanex/skills/review-pr/SKILL.md": skillMd({
+        [skillFile(globalSkillsDir, "review-pr", "SKILL.md")]: skillMd({
           name: "review-pr",
           description: "Review pull requests.",
           body: "Global review body"
         }),
-        "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
           name: "write-tests",
           description: "Write focused tests.",
           body: "Repo test body"
         }),
-        "/repo/packages/app/.wanex/skills/refactor-module/SKILL.md": skillMd({
+        [skillFile(packageAppSkillsDir, "refactor-module", "SKILL.md")]: skillMd({
           name: "refactor-module",
           description: "Refactor one module safely.",
           body: "App refactor body"
@@ -57,21 +74,21 @@ describe("../src/context/skill/index.js", () => {
 
   it("keeps project skills out of context until the workspace is trusted", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo/app",
-      projectRoot: "/repo",
-      globalSkillDirs: ["/home/user/.wanex/skills"],
+      cwd: appDir,
+      projectRoot,
+      globalSkillDirs: [globalSkillsDir],
       fs: memoryFs({
-        "/home/user/.wanex/skills/global-skill/SKILL.md": skillMd({
+        [skillFile(globalSkillsDir, "global-skill", "SKILL.md")]: skillMd({
           name: "global-skill",
           description: "Use globally.",
           body: "Global body"
         }),
-        "/repo/.agents/skills/project-skill/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "project-skill", "SKILL.md")]: skillMd({
           name: "project-skill",
           description: "Use in project.",
           body: "Project body"
         }),
-        "/repo/app/.wanex/skills/app-skill/SKILL.md": skillMd({
+        [skillFile(appSkillsDir, "app-skill", "SKILL.md")]: skillMd({
           name: "app-skill",
           description: "Use in app.",
           body: "App body"
@@ -85,28 +102,28 @@ describe("../src/context/skill/index.js", () => {
       expect.objectContaining({
         code: "skill.project_untrusted",
         severity: "warning",
-        path: "/repo/.agents/skills"
+        path: projectSkillsDir
       }),
       expect.objectContaining({
         code: "skill.project_untrusted",
         severity: "warning",
-        path: "/repo/app/.wanex/skills"
+        path: appSkillsDir
       })
     ])
   })
 
   it("reports invalid skill metadata without failing the whole snapshot", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/repo/.agents/skills/good-skill/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "good-skill", "SKILL.md")]: skillMd({
           name: "good-skill",
           description: "Good skill.",
           body: "Good body"
         }),
-        "/repo/.agents/skills/BadName/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "BadName", "SKILL.md")]: skillMd({
           name: "BadName",
           description: "Bad skill.",
           body: "Bad body"
@@ -120,23 +137,23 @@ describe("../src/context/skill/index.js", () => {
       expect.objectContaining({
         code: "skill.invalid_frontmatter",
         severity: "warning",
-        path: "/repo/.agents/skills/BadName/SKILL.md"
+        path: skillFile(projectSkillsDir, "BadName", "SKILL.md")
       })
     ])
   })
 
   it("rejects directory/name mismatches and overlong descriptions", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/repo/.agents/skills/actual-name/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "actual-name", "SKILL.md")]: skillMd({
           name: "declared-name",
           description: "Mismatch.",
           body: "Mismatch body"
         }),
-        "/repo/.agents/skills/too-long/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "too-long", "SKILL.md")]: skillMd({
           name: "too-long",
           description: "x".repeat(1025),
           body: "Long body"
@@ -149,12 +166,12 @@ describe("../src/context/skill/index.js", () => {
     expect(snapshot.diagnostics).toEqual([
       expect.objectContaining({
         code: "skill.invalid_frontmatter",
-        path: "/repo/.agents/skills/actual-name/SKILL.md",
+        path: skillFile(projectSkillsDir, "actual-name", "SKILL.md"),
         message: expect.stringContaining("directory")
       }),
       expect.objectContaining({
         code: "skill.invalid_frontmatter",
-        path: "/repo/.agents/skills/too-long/SKILL.md",
+        path: skillFile(projectSkillsDir, "too-long", "SKILL.md"),
         message: expect.stringContaining("description")
       })
     ])
@@ -162,17 +179,17 @@ describe("../src/context/skill/index.js", () => {
 
   it("keeps the first skill when duplicate names are discovered", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
-      globalSkillDirs: ["/home/user/.wanex/skills"],
+      cwd: projectRoot,
+      projectRoot,
+      globalSkillDirs: [globalSkillsDir],
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/home/user/.wanex/skills/shared-skill/SKILL.md": skillMd({
+        [skillFile(globalSkillsDir, "shared-skill", "SKILL.md")]: skillMd({
           name: "shared-skill",
           description: "Global copy.",
           body: "Global body"
         }),
-        "/repo/.agents/skills/shared-skill/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "shared-skill", "SKILL.md")]: skillMd({
           name: "shared-skill",
           description: "Project copy.",
           body: "Project body"
@@ -189,18 +206,18 @@ describe("../src/context/skill/index.js", () => {
       expect.objectContaining({
         code: "skill.duplicate_name",
         skillName: "shared-skill",
-        path: "/repo/.agents/skills/shared-skill/SKILL.md"
+        path: skillFile(projectSkillsDir, "shared-skill", "SKILL.md")
       })
     ])
   })
 
   it("renders only skill catalog metadata and never full skill bodies", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
           name: "write-tests",
           description: "Write tests with <care>.",
           body: "SECRET FULL SKILL BODY"
@@ -219,11 +236,11 @@ describe("../src/context/skill/index.js", () => {
 
   it("projects per-source catalog provenance into provider replay metadata", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
           name: "write-tests",
           description: "Write focused tests.",
           body: "SECRET FULL SKILL BODY",
@@ -243,8 +260,8 @@ describe("../src/context/skill/index.js", () => {
           id: expect.stringMatching(/^project:/u),
           scope: "project",
           name: "write-tests",
-          directory: "/repo/.agents/skills/write-tests",
-          path: "/repo/.agents/skills/write-tests/SKILL.md",
+          directory: skillFile(projectSkillsDir, "write-tests"),
+          path: skillFile(projectSkillsDir, "write-tests", "SKILL.md"),
           order: 0,
           byteLength: expect.any(Number),
           hash: snapshot.sources[0]?.hash,
@@ -262,11 +279,11 @@ describe("../src/context/skill/index.js", () => {
 
   it("prepends skill catalog context before delegating to a downstream compiler", async () => {
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs: memoryFs({
-        "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+        [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
           name: "write-tests",
           description: "Write focused tests.",
           body: "Skill body"
@@ -317,7 +334,7 @@ describe("../src/context/skill/index.js", () => {
   it("rejects unsafe project skill directory options", async () => {
     await expect(
       discoverSkillSnapshot({
-        cwd: "/repo",
+        cwd: projectRoot,
         projectSkillDirs: ["../skills"],
         fs: memoryFs({})
       })
@@ -331,18 +348,18 @@ describe("../src/context/skill/index.js", () => {
 
   it("activates one skill lazily with full content and bounded supporting file index", async () => {
     const fs = memoryFs({
-      "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+      [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
         name: "write-tests",
         description: "Write focused tests.",
         body: "Read references/testing.md when changing test policy."
       }),
-      "/repo/.agents/skills/write-tests/references/testing.md": "Testing reference",
-      "/repo/.agents/skills/write-tests/scripts/run-tests.sh": "#!/bin/sh\nexit 0",
-      "/repo/.agents/skills/write-tests/assets/logo.png": "fake"
+      [skillFile(projectSkillsDir, "write-tests", "references", "testing.md")]: "Testing reference",
+      [skillFile(projectSkillsDir, "write-tests", "scripts", "run-tests.sh")]: "#!/bin/sh\nexit 0",
+      [skillFile(projectSkillsDir, "write-tests", "assets", "logo.png")]: "fake"
     })
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs
     })
@@ -376,15 +393,15 @@ describe("../src/context/skill/index.js", () => {
 
   it("exposes activation as a tool-core ToolDefinition", async () => {
     const fs = memoryFs({
-      "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+      [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
         name: "write-tests",
         description: "Write focused tests.",
         body: "Full skill body"
       })
     })
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs
     })
@@ -448,15 +465,15 @@ describe("../src/context/skill/index.js", () => {
 
   it("fails activation closed when SKILL.md changes to invalid metadata", async () => {
     const fs = memoryFs({
-      "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+      [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
         name: "write-tests",
         description: "Write focused tests.",
         body: "Original body"
       })
     })
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs
     })
@@ -481,15 +498,15 @@ describe("../src/context/skill/index.js", () => {
 
   it("fails activation closed when SKILL.md changes to a valid same-name source", async () => {
     const fs = memoryFs({
-      "/repo/.agents/skills/write-tests/SKILL.md": skillMd({
+      [skillFile(projectSkillsDir, "write-tests", "SKILL.md")]: skillMd({
         name: "write-tests",
         description: "Write focused tests.",
         body: "Original body"
       })
     })
     const snapshot = await discoverSkillSnapshot({
-      cwd: "/repo",
-      projectRoot: "/repo",
+      cwd: projectRoot,
+      projectRoot,
       trust: { projectSkills: "trusted" },
       fs
     })
@@ -593,14 +610,14 @@ function memoryFs(files: Readonly<Record<string, string>>): SkillFileSystem {
     },
     async readDir(path) {
       const base = normalize(path)
-      const prefix = base.endsWith("/") ? base : `${base}/`
+      const prefix = base.endsWith(sep) ? base : `${base}${sep}`
       const entries = new Map<string, SkillDirEntry>()
       for (const filePath of normalized.keys()) {
         if (!filePath.startsWith(prefix)) {
           continue
         }
         const rest = filePath.slice(prefix.length)
-        const [first, ...remaining] = rest.split("/")
+        const [first, ...remaining] = rest.split(sep)
         if (first === undefined || first.length === 0) {
           continue
         }
@@ -615,9 +632,9 @@ function memoryFs(files: Readonly<Record<string, string>>): SkillFileSystem {
     async stat(path) {
       const normalizedPath = normalize(path)
       const direct = normalized.has(normalizedPath)
-      const prefix = normalizedPath.endsWith("/")
+      const prefix = normalizedPath.endsWith(sep)
         ? normalizedPath
-        : `${normalizedPath}/`
+        : `${normalizedPath}${sep}`
       const directory = [...normalized.keys()].some((filePath) =>
         filePath.startsWith(prefix)
       )

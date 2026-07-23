@@ -7,7 +7,10 @@ import type {
   JsonValue,
   ToolResultMessagePart
 } from "@wanex/protocol"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import { WanexAgentRunner } from "../src/execution/core/index.js"
 import {
   FakeProviderAdapter,
@@ -31,8 +34,10 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
+const stores: StorageTestStore[] = []
 
 afterEach(async () => {
+  await Promise.all(stores.splice(0).map((store) => store.dispose()))
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   )
@@ -539,12 +544,14 @@ describe("Runtime exact turn runner", () => {
 async function createStore() {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runner-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({
+  const store = createStorageTestStore({
     kind: "local-system-service",
-    mode: "oneshot",
+    mode: "persistent",
     storeDir,
     serviceBin
   })
+  stores.push(store)
+  return store
 }
 
 async function seedToolCallCheckpoint(

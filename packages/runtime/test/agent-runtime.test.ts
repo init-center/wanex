@@ -20,8 +20,12 @@ const serviceBin = join(
 )
 
 const tempDirs: string[] = []
+const stores: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (stores.length > 0) {
+    await stores.pop()?.dispose()
+  }
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
     if (dir) {
@@ -268,17 +272,18 @@ describe("@wanex/runtime/host agent runtime", () => {
 
     expect(loop.stopped).toBe(true)
     expect(closed).toBe(false)
-    await storage.dispose()
   })
 })
 
 async function createTestStore(): Promise<StorageTestStore> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runtime-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({ kind: "local-system-service", mode: "oneshot",
+  const store = createStorageTestStore({ kind: "local-system-service", mode: "persistent",
     storeDir,
     serviceBin
   })
+  stores.push(store)
+  return store
 }
 
 async function eventually(assertion: () => Promise<void>): Promise<void> {

@@ -9,7 +9,7 @@ import {
   writeFile
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   parseRuntimeArtifactManifest,
@@ -64,7 +64,7 @@ describe("@wanex/runtime/bootstrap artifact resolution", () => {
       { source: "environment", path: "/env/wanex-system-service" },
       {
         source: "manifest",
-        path: "/packaged/darwin-arm64/wanex-system-service"
+        path: resolve("/packaged", "darwin-arm64/wanex-system-service")
       }
     ])
   })

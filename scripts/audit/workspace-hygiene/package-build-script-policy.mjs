@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 import { forbiddenGeneratedDirs, skippedDirs } from "./policy-constants.mjs"
 
 export async function findPackageBuildScriptFailures(rootDir) {
@@ -9,7 +10,7 @@ export async function findPackageBuildScriptFailures(rootDir) {
   })
   const failures = []
   for (const packageJsonPath of packageJsonPaths) {
-    const relPath = relative(rootDir, packageJsonPath)
+    const relPath = repositoryRelativePath(rootDir, packageJsonPath)
     const manifest = JSON.parse(await readFile(packageJsonPath, "utf8"))
     const buildScript = manifest.scripts?.build
     if (packageJsonPath === join(rootDir, "package.json")) {

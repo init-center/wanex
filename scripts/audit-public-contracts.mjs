@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readdir, readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { dirname, join, relative } from "node:path"
+import { dirname, join } from "node:path"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 import { findManifestDependencyViolations } from "./audit/public-contracts/manifest-dependency-policy.mjs"
 import {
   facadeApiContract,
@@ -86,7 +87,7 @@ for (const requiredText of requiredPublicContractEntryPhrases) {
 for (const packageJsonPath of packageJsonPaths) {
   const packageDir = dirname(packageJsonPath)
   const manifest = JSON.parse(await readFile(packageJsonPath, "utf8"))
-  const relDir = relative(rootDir, packageDir)
+  const relDir = repositoryRelativePath(rootDir, packageDir)
   const sourceIndex = join(packageDir, "src/index.ts")
   const readmePath = join(packageDir, "README.md")
   const packageInfo = {

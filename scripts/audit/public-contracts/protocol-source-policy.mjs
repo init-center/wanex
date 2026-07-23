@@ -1,11 +1,12 @@
 import { readdir, readFile } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 
 export async function findProtocolSourcePolicyViolations(options) {
   const sourceFiles = await findSourceFiles(options.protocolSourceDir)
   const violations = []
   for (const sourceFile of sourceFiles) {
-    const relSourceFile = relative(options.rootDir, sourceFile)
+    const relSourceFile = repositoryRelativePath(options.rootDir, sourceFile)
     const source = await readFile(sourceFile, "utf8")
     if (source.includes("@deprecated")) {
       violations.push({

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
 import { readdir, readFile } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 import {
   findArtifactFileFailures,
   findCompiledModuleFailures,
@@ -81,7 +82,9 @@ if (failures.length === 0) {
 async function listFiles(root) {
   const paths = []
   for (const entry of await readdir(root, { recursive: true, withFileTypes: true })) {
-    if (entry.isFile()) paths.push(relative(root, join(entry.parentPath, entry.name)))
+    if (entry.isFile()) {
+      paths.push(repositoryRelativePath(root, join(entry.parentPath, entry.name)))
+    }
   }
   return paths.sort()
 }

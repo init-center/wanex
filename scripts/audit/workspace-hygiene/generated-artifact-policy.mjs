@@ -1,5 +1,6 @@
 import { readdir, stat } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 import { forbiddenGeneratedDirs, skippedDirs } from "./policy-constants.mjs"
 
 const forbiddenFilePatterns = [
@@ -37,7 +38,7 @@ async function findGeneratedArtifactFailuresInDir(request) {
   const failures = []
   for (const entry of entries) {
     const fullPath = join(request.dir, entry.name)
-    const relPath = relative(request.rootDir, fullPath)
+    const relPath = repositoryRelativePath(request.rootDir, fullPath)
     if (entry.isDirectory()) {
       if (skippedDirs.has(entry.name)) {
         continue

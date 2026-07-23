@@ -1,5 +1,6 @@
 import { readdir, readFile, stat } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 import { forbiddenGeneratedDirs, skippedDirs } from "./policy-constants.mjs"
 
 const forbiddenTypeScriptEmitOptions = new Set([
@@ -19,7 +20,7 @@ export async function findTypeScriptConfigFailures(rootDir) {
   })
   const failures = []
   for (const tsconfigPath of tsconfigPaths) {
-    const relPath = relative(rootDir, tsconfigPath)
+    const relPath = repositoryRelativePath(rootDir, tsconfigPath)
     const raw = await readFile(tsconfigPath, "utf8")
     const config = JSON.parse(raw)
     const bytes = (await stat(tsconfigPath)).size

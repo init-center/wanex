@@ -4,6 +4,7 @@ import { promisify } from "node:util"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { normalizeRepositoryPath } from "./audit/repository-path.mjs"
 
 const execFileAsync = promisify(execFile)
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -50,6 +51,11 @@ afterEach(async () => {
 })
 
 describe("audit-public-contracts", () => {
+  it("serializes repository paths independently of host separators", () => {
+    expect(normalizeRepositoryPath("packages\\runtime\\src\\index.ts"))
+      .toBe("packages/runtime/src/index.ts")
+  })
+
   it("passes for the committed public contracts", async () => {
     const result = await runAudit()
     expect(result.code).toBe(0)

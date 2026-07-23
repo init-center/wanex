@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 import { isAppPackage, upperAppPackages } from "./app-package-boundaries.mjs"
 
 const packageScopedSourceImportAllowlist = new Map([
@@ -94,7 +95,7 @@ export async function findForbiddenSourceImports(options) {
   const sourceFiles = await findSourceFiles(options.packageDir)
   const violations = []
   for (const sourceFile of sourceFiles) {
-    const relSourceFile = relative(options.rootDir, sourceFile)
+    const relSourceFile = repositoryRelativePath(options.rootDir, sourceFile)
     const imports = importedPackageSpecifiers(await readFile(sourceFile, "utf8"))
     for (const imported of imports) {
       if (!isForbiddenSourceImport(options.packageName, relSourceFile, imported)) {

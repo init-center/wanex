@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readdir, readFile, writeFile } from "node:fs/promises"
-import { dirname, join, relative } from "node:path"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 import { findPackageDispositionViolations } from "./audit/package-governance/package-disposition-policy.mjs"
 import {
   createConsumerBaseline,
@@ -78,7 +79,7 @@ async function readWorkspaceManifests(workspaceRoot) {
         const manifest = JSON.parse(await readFile(path, "utf8"))
         manifests.push({
           name: manifest.name,
-          path: relative(workspaceRoot, dirname(path)),
+          path: repositoryRelativePath(workspaceRoot, dirname(path)),
           manifest
         })
       } catch (error) {

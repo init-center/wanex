@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readdir, readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { dirname, join, relative } from "node:path"
+import { dirname, join } from "node:path"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const json = process.argv.includes("--json")
@@ -30,7 +31,7 @@ for (const packageJsonPath of packageJsonPaths) {
   const files = []
   for (const filePath of packageSourceFiles) {
     const lineCount = await countLines(filePath)
-    const rel = relative(rootDir, filePath)
+    const rel = repositoryRelativePath(rootDir, filePath)
     const file = {
       path: rel,
       lines: lineCount,
@@ -74,7 +75,7 @@ for (const packageJsonPath of packageJsonPaths) {
   }
   packages.push({
     name: manifest.name,
-    path: relative(rootDir, packageDir),
+    path: repositoryRelativePath(rootDir, packageDir),
     dependencyCount: Object.keys(manifest.dependencies ?? {}).length,
     exportKeys: exportKeys(manifest.exports),
     sourceFileCount: files.length,

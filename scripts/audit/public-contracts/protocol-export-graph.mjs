@@ -1,5 +1,6 @@
 import { readdir, readFile } from "node:fs/promises"
-import { dirname, join, normalize, relative, resolve } from "node:path"
+import { dirname, join, normalize, resolve } from "node:path"
+import { repositoryRelativePath } from "../repository-path.mjs"
 
 export async function findProtocolExportGraphViolations(options) {
   const sourceFiles = await findSourceFiles(options.protocolSourceDir)
@@ -16,21 +17,27 @@ export async function findProtocolExportGraphViolations(options) {
   })
 
   return [
-    ...missingTargets.map((target) => ({
-      code: "missing-protocol-export-target",
-      package: "@wanex/protocol",
-      path: relative(options.rootDir, target.from),
-      message: `protocol export ${target.specifier} in ${relative(options.rootDir, target.from)} does not resolve to a source module`
-    })),
+    ...missingTargets.map((target) => {
+      const path = repositoryRelativePath(options.rootDir, target.from)
+      return {
+        code: "missing-protocol-export-target",
+        package: "@wanex/protocol",
+        path,
+        message: `protocol export ${target.specifier} in ${path} does not resolve to a source module`
+      }
+    }),
     ...sourceFiles
       .filter((sourceFile) => normalize(sourceFile) !== indexPath)
       .filter((sourceFile) => !reachable.has(normalize(sourceFile)))
-      .map((sourceFile) => ({
-        code: "unreachable-protocol-source-module",
-        package: "@wanex/protocol",
-        path: relative(options.rootDir, sourceFile),
-        message: `protocol source module ${relative(options.rootDir, sourceFile)} must be reachable from packages/protocol/src/index.ts`
-      }))
+      .map((sourceFile) => {
+        const path = repositoryRelativePath(options.rootDir, sourceFile)
+        return {
+          code: "unreachable-protocol-source-module",
+          package: "@wanex/protocol",
+          path,
+          message: `protocol source module ${path} must be reachable from packages/protocol/src/index.ts`
+        }
+      })
   ]
 }
 

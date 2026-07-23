@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readdir, readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { dirname, join, relative } from "node:path"
+import { dirname, join } from "node:path"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 import { findPacklistFilePolicyFailures } from "./audit/package-packlist/packlist-file-policy.mjs"
 import {
   binFiles,
@@ -51,7 +52,7 @@ for (const packageJsonPath of packageJsonPaths) {
   failures.push(...packageFailures)
   packages.push({
     name: manifest.name,
-    path: relative(rootDir, packageDir),
+    path: repositoryRelativePath(rootDir, packageDir),
     packlistFileCount: packlist.length,
     packlistBytes: sum(packlist.map((file) => file.bytes)),
     filesField: Array.isArray(manifest.files) ? manifest.files : null,
@@ -128,7 +129,7 @@ async function findPackageFiles(dir, packageRoot) {
       const fileStat = await stat(fullPath)
       files.push({
         absolutePath: fullPath,
-        path: relative(packageRoot, fullPath),
+        path: repositoryRelativePath(packageRoot, fullPath),
         bytes: fileStat.size
       })
     }

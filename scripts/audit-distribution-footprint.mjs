@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { readdir, readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
-import { dirname, join, relative } from "node:path"
+import { dirname, join } from "node:path"
+import { repositoryRelativePath } from "./audit/repository-path.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const json = process.argv.includes("--json")
@@ -80,7 +81,7 @@ async function readWorkspaceManifests(root) {
     const packageDir = dirname(packageJsonPath)
     manifests.set(manifest.name, {
       name: manifest.name,
-      path: relative(root, packageJsonPath),
+      path: repositoryRelativePath(root, packageJsonPath),
       dir: packageDir,
       manifest,
       dependencies: Object.keys({
@@ -129,9 +130,9 @@ async function readPackageMetrics(manifests) {
     const fileStats = await Promise.all(
       files.map(async (filePath) => {
         const fileStat = await stat(filePath)
-        const packageRelativePath = relative(manifest.dir, filePath)
+        const packageRelativePath = repositoryRelativePath(manifest.dir, filePath)
         return {
-          path: relative(rootDir, filePath),
+          path: repositoryRelativePath(rootDir, filePath),
           packageRelativePath,
           bytes: fileStat.size,
           isSource: packageRelativePath.startsWith("src/") && packageRelativePath.endsWith(".ts"),

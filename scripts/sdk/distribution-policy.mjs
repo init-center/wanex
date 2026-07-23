@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises"
-import { dirname, join, relative, resolve } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { repositoryRelativePath } from "../audit/repository-path.mjs"
 
 export const workspaceRoot = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 export const sdkPolicyPath = join(
@@ -27,7 +28,7 @@ export async function loadSdkDistributionPolicy() {
     packages.push({
       name,
       packageDir,
-      relativeDir: relative(workspaceRoot, packageDir),
+      relativeDir: repositoryRelativePath(workspaceRoot, packageDir),
       platform: configured.platform,
       manifest,
       entries: readExportEntries(manifest)

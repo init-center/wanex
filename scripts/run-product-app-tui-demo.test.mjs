@@ -7,6 +7,10 @@ import {
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const appDir = join(rootDir, "apps/product-app-tui")
+const serviceBin = join(
+  rootDir,
+  `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
+)
 
 describe("run-product-app-tui-demo", () => {
   it("runs Product App TUI with a temporary store by default", async () => {
@@ -31,9 +35,7 @@ describe("run-product-app-tui-demo", () => {
       ],
       env: {
         WANEX_STORE_DIR: "/tmp/wanex-product-app-tui-demo-test",
-        WANEX_SYSTEM_SERVICE_BIN: expect.stringContaining(
-          `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
-        )
+        WANEX_SYSTEM_SERVICE_BIN: serviceBin
       }
     })
   })

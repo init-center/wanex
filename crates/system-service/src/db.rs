@@ -8,6 +8,10 @@ const CURRENT_SCHEMA_NAME: &str = "baseline";
 impl SystemService {
     pub(crate) fn initialize_schema(&self) -> Result<()> {
         let conn = self.connect()?;
+        if application_table_count(&conn)? != 0 {
+            return validate_schema_marker(&conn);
+        }
+
         conn.execute_batch("BEGIN IMMEDIATE")?;
         let initialize = (|| {
             if application_table_count(&conn)? == 0 {

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import {
   createProductAppTuiDemoRun
 } from "./run-product-app-tui-demo.mjs"
+
+const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const appDir = join(rootDir, "apps/product-app-tui")
 
 describe("run-product-app-tui-demo", () => {
   it("runs Product App TUI with a temporary store by default", async () => {
@@ -18,7 +23,7 @@ describe("run-product-app-tui-demo", () => {
       args: [
         "--silent",
         "--dir",
-        expect.stringContaining("apps/product-app-tui"),
+        appDir,
         "exec",
         "tsx",
         "./src/main.ts",
@@ -49,7 +54,7 @@ describe("run-product-app-tui-demo", () => {
     expect(demo.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-tui"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",
@@ -75,7 +80,7 @@ describe("run-product-app-tui-demo", () => {
     expect(demo.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-tui"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",

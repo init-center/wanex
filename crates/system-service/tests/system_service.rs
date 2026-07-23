@@ -1,4 +1,4 @@
-use std::sync::{Arc, Barrier};
+use std::sync::{mpsc, Arc, Barrier};
 use std::time::Duration;
 
 use serde_json::json;
@@ -231,6 +231,42 @@ fn opens_empty_store_concurrently_without_duplicate_baseline() {
     for worker in workers {
         assert_eq!(worker.join().unwrap().unwrap(), CURRENT_SCHEMA_VERSION);
     }
+}
+
+#[test]
+fn opens_initialized_store_without_waiting_for_a_write_lock() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let holder_db_path = service.db_path().to_path_buf();
+    let (lock_ready_tx, lock_ready_rx) = mpsc::channel();
+    let (release_tx, release_rx) = mpsc::channel();
+    let holder = std::thread::spawn(move || {
+        let mut locked = rusqlite::Connection::open(holder_db_path).unwrap();
+        let transaction = locked
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .unwrap();
+        lock_ready_tx.send(()).unwrap();
+        release_rx.recv().unwrap();
+        transaction.rollback()
+    });
+    lock_ready_rx.recv().unwrap();
+
+    let root = dir.path().to_path_buf();
+    let (opened_tx, opened_rx) = mpsc::channel();
+    let opener = std::thread::spawn(move || {
+        opened_tx
+            .send(SystemService::open(root).map(|_| ()))
+            .unwrap();
+    });
+    let opened_while_locked = opened_rx.recv_timeout(Duration::from_secs(1));
+
+    release_tx.send(()).unwrap();
+    holder.join().unwrap().unwrap();
+    opener.join().unwrap();
+    assert!(
+        matches!(opened_while_locked, Ok(Ok(()))),
+        "opening an initialized store requested the active SQLite write lock: {opened_while_locked:?}"
+    );
 }
 
 #[test]

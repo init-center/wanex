@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import {
   createProductAppLocalSmokeRun
 } from "./run-product-app-local-smoke.mjs"
+
+const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const appDir = join(rootDir, "apps/product-app-local")
 
 describe("run-product-app-local-smoke", () => {
   it("runs Product App Local smoke through a temporary profile root", async () => {
@@ -17,7 +22,7 @@ describe("run-product-app-local-smoke", () => {
       args: [
         "--silent",
         "--dir",
-        expect.stringContaining("apps/product-app-local"),
+        appDir,
         "exec",
         "tsx",
         "./src/main.ts",
@@ -48,7 +53,7 @@ describe("run-product-app-local-smoke", () => {
     expect(smoke.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-local"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",
@@ -93,7 +98,7 @@ describe("run-product-app-local-smoke", () => {
       args: [
         "--silent",
         "--dir",
-        expect.stringContaining("apps/product-app-local"),
+        appDir,
         "exec",
         "tsx",
         "./src/main.ts",
@@ -152,7 +157,7 @@ describe("run-product-app-local-smoke", () => {
     expect(smoke.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-local"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",
@@ -205,7 +210,7 @@ describe("run-product-app-local-smoke", () => {
     expect(smoke.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-local"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",
@@ -240,7 +245,7 @@ describe("run-product-app-local-smoke", () => {
     expect(smoke.step.args).toEqual([
       "--silent",
       "--dir",
-      expect.stringContaining("apps/product-app-local"),
+      appDir,
       "exec",
       "tsx",
       "./src/main.ts",

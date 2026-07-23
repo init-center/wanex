@@ -273,9 +273,12 @@ describe("@wanex/runtime/media-generation", () => {
     })
 
     await eventually(async () => {
-      await expect(
-        host.getMediaGenerationOperation(submitted.operation.id)
-      ).resolves.toMatchObject({ state: "succeeded" })
+      const operation = await host.getMediaGenerationOperation(
+        submitted.operation.id
+      )
+      expect(operation, JSON.stringify(operation?.error ?? null)).toMatchObject({
+        state: "succeeded"
+      })
     })
     const health = host.getHealthSnapshot()
     expect(health.mediaGenerationWorkerCount).toBe(1)

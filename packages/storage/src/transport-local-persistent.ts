@@ -28,6 +28,7 @@ export class PersistentSystemServiceStorageWireTransport
   implements StorageWireTransport {
   readonly storeDir: string
   readonly serviceBin: string
+  private readonly serviceArgsPrefix: readonly string[]
   private readonly restartBackoff: TransportRestartBackoff
   private readonly startupTimeoutMs: number
   private readonly requestTimeoutMs: number
@@ -49,6 +50,7 @@ export class PersistentSystemServiceStorageWireTransport
   constructor(options: PersistentSystemServiceTransportOptions) {
     this.storeDir = options.storeDir
     this.serviceBin = options.serviceBin
+    this.serviceArgsPrefix = [...(options.serviceArgsPrefix ?? [])]
     this.restartBackoff = new TransportRestartBackoff(
       options.restartBackoffMs ?? 25,
       options.sleep ?? defaultTransportRestartSleep
@@ -174,7 +176,12 @@ export class PersistentSystemServiceStorageWireTransport
     }
     let child: ChildProcessWithoutNullStreams
     try {
-      child = spawn(this.serviceBin, ["--store", this.storeDir, "--serve"], {
+      child = spawn(this.serviceBin, [
+        ...this.serviceArgsPrefix,
+        "--store",
+        this.storeDir,
+        "--serve"
+      ], {
         detached: this.platform !== "win32",
         windowsHide: true,
         stdio: ["pipe", "pipe", "pipe"]

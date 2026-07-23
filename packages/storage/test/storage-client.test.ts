@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createHash } from "node:crypto"
 import { createServer, type Server } from "node:http"
 import { tmpdir } from "node:os"
@@ -1433,7 +1433,7 @@ describe("@wanex/storage", () => {
   })
 
   it("classifies one-shot local transport spawn and invalid JSON failures", async () => {
-    const invalidJsonBin = await createFakeSystemServiceBin(`
+    const invalidJsonService = await createFakeSystemServiceCommand(`
 const input = await new Promise((resolve) => {
   let data = ""
   process.stdin.on("data", (chunk) => data += chunk)
@@ -1444,7 +1444,7 @@ process.stdout.write("not json")
 `)
     const invalidJsonTransport = new OneShotSystemServiceStorageWireTransport({
       storeDir: "/unused",
-      serviceBin: invalidJsonBin
+      ...invalidJsonService
     })
 
     await expect(invalidJsonTransport.exchange(wireRequest({ command: "doctor" }))).rejects.toMatchObject({
@@ -1463,7 +1463,7 @@ process.stdout.write("not json")
   })
 
   it("classifies persistent local malformed stdout and recovers on the next call", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 const storeIndex = process.argv.indexOf("--store")
@@ -1494,7 +1494,7 @@ process.stdin.on("data", () => {
     tempDirs.push(storeDir)
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       restartBackoffMs: 0
     })
 
@@ -1512,7 +1512,7 @@ process.stdin.on("data", () => {
   })
 
   it("classifies unexpected persistent local process close and recovers with bounded backoff", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 const storeIndex = process.argv.indexOf("--store")
@@ -1543,7 +1543,7 @@ process.stdin.on("data", () => {
     const sleeps: number[] = []
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       restartBackoffMs: 7,
       sleep: async (ms) => {
         sleeps.push(ms)
@@ -1578,14 +1578,14 @@ process.stdin.on("data", () => {
   })
 
   it("closes pending persistent calls and never restarts after close", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 process.stdin.resume()
 `)
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-storage-persistent-dispose-"))
     tempDirs.push(storeDir)
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       restartBackoffMs: 0
     })
 
@@ -1606,7 +1606,7 @@ process.stdin.resume()
   })
 
   it("times out an unresponsive persistent request and cleans its child", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 process.stdin.resume()
 setInterval(() => {}, 1000)
 `)
@@ -1615,7 +1615,7 @@ setInterval(() => {}, 1000)
     let terminations = 0
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       requestTimeoutMs: 20,
       cleanupTimeoutMs: 500,
       restartBackoffMs: 0,
@@ -1638,7 +1638,7 @@ setInterval(() => {}, 1000)
   })
 
   it("uses one injected Windows tree cleanup for concurrent close calls", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 process.stdin.resume()
 process.stdin.on("end", () => {})
 setInterval(() => {}, 1000)
@@ -1648,7 +1648,7 @@ setInterval(() => {}, 1000)
     const platforms: NodeJS.Platform[] = []
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       platform: "win32",
       requestTimeoutMs: 5_000,
       shutdownGraceMs: 20,
@@ -1675,7 +1675,7 @@ setInterval(() => {}, 1000)
   })
 
   it("reports a bounded process-tree cleanup failure without an unhandled rejection", async () => {
-    const fakeBin = await createFakeSystemServiceBin(`
+    const fakeService = await createFakeSystemServiceCommand(`
 process.stdin.resume()
 setInterval(() => {}, 1000)
 `)
@@ -1683,7 +1683,7 @@ setInterval(() => {}, 1000)
     tempDirs.push(storeDir)
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir,
-      serviceBin: fakeBin,
+      ...fakeService,
       requestTimeoutMs: 20,
       cleanupTimeoutMs: 20,
       restartBackoffMs: 0,
@@ -3719,11 +3719,16 @@ function wireRequest(request: StorageRpcCommand): StorageRpcRequestEnvelope {
   }
 }
 
-async function createFakeSystemServiceBin(source: string): Promise<string> {
+async function createFakeSystemServiceCommand(source: string): Promise<{
+  readonly serviceBin: string
+  readonly serviceArgsPrefix: readonly string[]
+}> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-fake-system-service-"))
   tempDirs.push(dir)
-  const bin = join(dir, "fake-system-service.mjs")
-  await writeFile(bin, `#!/usr/bin/env node\n${source}\n`, "utf8")
-  await chmod(bin, 0o755)
-  return bin
+  const script = join(dir, "fake-system-service.mjs")
+  await writeFile(script, `${source}\n`, "utf8")
+  return {
+    serviceBin: process.execPath,
+    serviceArgsPrefix: [script]
+  }
 }

@@ -53,19 +53,21 @@ After an intentional and documented boundary change, regenerate with:
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-The current Phase 770 baseline is:
+The current Phase 774 baseline is:
 
 | Facade | Bytes | Static inputs | Workspace packages |
 | --- | ---: | ---: | ---: |
-| `@wanex/runtime` | 318,358 | 239 | 3 |
-| `@wanex/app` | 1,056,298 | 423 | 4 |
+| `@wanex/runtime` | 358,257 | 245 | 3 |
+| `@wanex/app` | 1,105,298 | 432 | 4 |
 
-These are reviewed ceilings, not performance targets. The Phase 770 review
-accepts the durable turn/active-abort path and exact provider capability and
-resource-input path in Runtime, together with the trusted conversation
-operation facade in App. The closure remains restricted to three Runtime
-workspace packages and four App workspace packages; no Product, Team, Plugin,
-Connector, Workspace, or presentation package entered either default facade.
+These are reviewed ceilings, not performance targets. The Phase 774 review
+accepts the durable turn/active-abort, provider/resource, and explicit System
+Service launch-descriptor paths in Runtime, together with the trusted
+conversation operation facade in App. The launch descriptor added 338 bytes to
+each facade while adding no static input or workspace package. The closure
+remains restricted to three Runtime workspace packages and four App workspace
+packages; no Product, Team, Plugin, Connector, Workspace, or presentation
+package entered either default facade.
 
 ## Audit
 

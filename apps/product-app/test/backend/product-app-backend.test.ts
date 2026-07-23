@@ -2462,21 +2462,13 @@ describe("@wanex/product-app backend", () => {
 
   it("projects guided follow-up envelopes as queue-after-current input", async () => {
     const storeDir = await createStoreDir()
-    const app = await createProductAppBackendApp({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: serviceBin
-      }
-    })
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",
       storeDir,
       serviceBin
     })
+    let app: Awaited<ReturnType<typeof createProductAppBackendApp>> | undefined
 
     try {
       await storage.createSession({
@@ -2524,6 +2516,15 @@ describe("@wanex/product-app backend", () => {
         jobId: submitted.job.id,
         workerId,
         leaseToken: job.leaseToken
+      })
+      app = await createProductAppBackendApp({
+        storage: {
+          kind: "local-system-service",
+          storeDir
+        },
+        artifacts: {
+          explicitPath: serviceBin
+        }
       })
 
       await expect(
@@ -2592,7 +2593,7 @@ describe("@wanex/product-app backend", () => {
 
     } finally {
       await storage.dispose()
-      await app.dispose()
+      await app?.dispose()
     }
   })
 

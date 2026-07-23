@@ -34,6 +34,7 @@ export interface StorageProtocolTransportOptions {
 export interface SystemServiceTransportOptions {
   readonly storeDir: string
   readonly serviceBin: string
+  readonly serviceArgsPrefix?: readonly string[]
 }
 
 export interface PersistentSystemServiceTransportOptions

@@ -16,6 +16,7 @@ export function assertExecutable(
 
 export function runJsonCommand(
   serviceBin: string,
+  serviceArgsPrefix: readonly string[],
   storeDir: string,
   request: unknown
 ): Promise<unknown> {
@@ -32,7 +33,7 @@ export function runJsonCommand(
     }
     let child: ChildProcessWithoutNullStreams
     try {
-      child = spawn(serviceBin, ["--store", storeDir], {
+      child = spawn(serviceBin, [...serviceArgsPrefix, "--store", storeDir], {
         stdio: ["pipe", "pipe", "pipe"]
       })
     } catch (error) {

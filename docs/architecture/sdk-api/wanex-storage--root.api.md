@@ -5857,6 +5857,8 @@ export class SystemServiceClientError extends Error {
 // @public (undocumented)
 export interface SystemServiceTransportOptions {
     // (undocumented)
+    readonly serviceArgsPrefix?: readonly string[];
+    // (undocumented)
     readonly serviceBin: string;
     // (undocumented)
     readonly storeDir: string;

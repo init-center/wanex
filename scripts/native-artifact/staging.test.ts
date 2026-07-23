@@ -1,6 +1,6 @@
 import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   auditNativeArtifactDirectory,
@@ -19,7 +19,7 @@ describe("native artifact staging", () => {
       "target/custom-native"
     ])).toEqual({
       targetId: "linux-x64",
-      outputDir: expect.stringMatching(/target\/custom-native$/)
+      outputDir: resolve("target/custom-native")
     })
     expect(() => parseStageNativeArtifactArgs(["--unknown"]))
       .toThrow("unknown native artifact argument")

@@ -94,7 +94,10 @@ export async function packageElectronBoundary() {
   if (outputPaths.length !== 1) {
     throw new Error(`expected one Electron package, received ${outputPaths.length}`)
   }
-  const packaged = await auditPackagedElectronBoundary(outputPaths[0])
+  const packaged = await auditPackagedElectronBoundary({
+    packageDir: outputPaths[0],
+    stagedNativeDir: nativeArtifactDir
+  })
   return { staging, packaged }
 }
 
@@ -150,7 +153,10 @@ export async function auditElectronStaging(root = stagingDir) {
   }
 }
 
-export async function auditPackagedElectronBoundary(packageDir) {
+export async function auditPackagedElectronBoundary({
+  packageDir,
+  stagedNativeDir
+}) {
   const resourcesDir = process.platform === "darwin"
     ? join(packageDir, "Wanex Boundary.app/Contents/Resources")
     : join(packageDir, "resources")
@@ -195,7 +201,7 @@ export async function auditPackagedElectronBoundary(packageDir) {
   if (!nativeFiles.some((item) => item.path.endsWith("/runtime-artifacts.json"))) {
     throw new Error("packaged Electron native resource is missing its manifest")
   }
-  const stagedNativeFiles = await listFiles(nativeArtifactDir)
+  const stagedNativeFiles = await listFiles(stagedNativeDir)
   for (const staged of stagedNativeFiles) {
     const packaged = nativeFiles.find((item) =>
       item.path === `${nativePrefix}${staged.path}`
@@ -204,7 +210,7 @@ export async function auditPackagedElectronBoundary(packageDir) {
       throw new Error(`packaged Electron native resource differs: ${staged.path}`)
     }
     const [stagedBytes, packagedBytes] = await Promise.all([
-      readFile(join(nativeArtifactDir, staged.path)),
+      readFile(join(stagedNativeDir, staged.path)),
       readFile(join(resourcesDir, "native", staged.path))
     ])
     if (!stagedBytes.equals(packagedBytes)) {

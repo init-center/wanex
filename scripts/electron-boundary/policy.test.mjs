@@ -8,7 +8,6 @@ import {
   auditPackagedElectronBoundary,
   boundaryRoot,
   buildElectronBoundary,
-  nativeArtifactDir,
   normalizeAsarEntry,
   stagingDir
 } from "./build.mjs"
@@ -75,20 +74,27 @@ describe("private Electron production boundary", () => {
     await buildElectronBoundary()
     const root = await mkdtemp(join(tmpdir(), "wanex-electron-package-policy-"))
     tempDirs.push(root)
+    const stagedNativeDir = await createNativeFixture()
     const resources = process.platform === "darwin"
       ? join(root, "Wanex Boundary.app/Contents/Resources")
       : join(root, "resources")
     await mkdir(resources, { recursive: true })
     await createPackage(stagingDir, join(resources, "app.asar"))
-    await cp(nativeArtifactDir, join(resources, "native"), { recursive: true })
-    await expect(auditPackagedElectronBoundary(root)).resolves.toMatchObject({
+    await cp(stagedNativeDir, join(resources, "native"), { recursive: true })
+    await expect(auditPackagedElectronBoundary({
+      packageDir: root,
+      stagedNativeDir
+    })).resolves.toMatchObject({
       hasApplicationNodeModules: false,
       hasAsarUnpacked: false,
       asarEntryCount: 5,
       nativeFileCount: 2
     })
     await writeFile(join(resources, "native", "runtime-artifacts.json"), "{}", "utf8")
-    await expect(auditPackagedElectronBoundary(root)).rejects.toThrow(
+    await expect(auditPackagedElectronBoundary({
+      packageDir: root,
+      stagedNativeDir
+    })).rejects.toThrow(
       "native resource differs"
     )
   }, 15_000)
@@ -195,5 +201,17 @@ async function copyToTemp(source, prefix) {
   tempDirs.push(root)
   await rm(root, { recursive: true, force: true })
   await cp(source, root, { recursive: true })
+  return root
+}
+
+async function createNativeFixture() {
+  const root = await mkdtemp(join(tmpdir(), "wanex-native-package-policy-"))
+  tempDirs.push(root)
+  const executableDir = join(root, "fixture-target")
+  await mkdir(executableDir, { recursive: true })
+  await Promise.all([
+    writeFile(join(root, "runtime-artifacts.json"), '{"kind":"fixture"}\n', "utf8"),
+    writeFile(join(executableDir, "wanex-system-service"), "fixture-native", "utf8")
+  ])
   return root
 }

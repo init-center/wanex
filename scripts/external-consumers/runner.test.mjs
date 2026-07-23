@@ -51,6 +51,19 @@ describe("external consumer runner policy", () => {
       "package lock contains forbidden path /workspace/wanex",
       "installed @wanex/runtime version 1.0.0 differs from 0.0.0"
     ]))
+
+    const windowsLock = fixtureLock()
+    windowsLock.packages["node_modules/@wanex/runtime"].resolved =
+      "https://registry.example/C:/workspace/wanex/runtime.tgz"
+    expect(inspectExternalPackageLock({
+      lock: windowsLock,
+      topLevelNames: ["@wanex/runtime"],
+      expectedWanex: {
+        "@wanex/runtime": "0.0.0",
+        "@wanex/storage": "0.0.0"
+      },
+      forbiddenPaths: ["C:\\workspace\\wanex"]
+    })).toContain("package lock contains forbidden path C:/workspace/wanex")
   })
 
   it("rejects workspace-contained roots and cleans external roots on failure", async () => {

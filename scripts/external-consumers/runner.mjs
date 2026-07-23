@@ -60,12 +60,16 @@ export function inspectExternalPackageLock(options) {
     if (serialized.includes(marker)) failures.push(`package lock contains ${marker}`)
   }
   for (const forbiddenPath of options.forbiddenPaths ?? []) {
-    const normalized = resolve(forbiddenPath)
-    if (
-      serialized.includes(normalized) ||
-      serialized.includes(normalized.replaceAll("\\", "/"))
-    ) {
-      failures.push(`package lock contains forbidden path ${normalized}`)
+    const portablePath = forbiddenPath.replaceAll("\\", "/")
+    const resolvedPath = resolve(forbiddenPath)
+    const forbiddenMarkers = new Set([
+      forbiddenPath,
+      portablePath,
+      resolvedPath,
+      resolvedPath.replaceAll("\\", "/")
+    ])
+    if ([...forbiddenMarkers].some((marker) => serialized.includes(marker))) {
+      failures.push(`package lock contains forbidden path ${portablePath}`)
     }
   }
 

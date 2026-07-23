@@ -2439,9 +2439,10 @@ fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
             text: "after",
         },
     );
-    let after_job = claim_session_turn_job(&service, "worker_expire_after", 50).unwrap();
+    let after_job = claim_session_turn_job(&service, "worker_expire_after", 60_000).unwrap();
     let abandoned = start_test_turn(&service, &after, &after_job, "worker_expire_after");
-    std::thread::sleep(Duration::from_millis(75));
+    shorten_test_job_lease(&service, &after_job, "worker_expire_after");
+    std::thread::sleep(Duration::from_millis(20));
 
     service
         .create_session(Some("ses_expire_trigger"), None, Some("agent"))

@@ -30,7 +30,7 @@ export async function createProductAppTuiDemoRun(options) {
   const storeDir = explicitStoreDir ?? await options.createTempRoot()
   const serviceBin =
     env.WANEX_SYSTEM_SERVICE_BIN ??
-    join(rootDir, "target/debug/wanex-system-service")
+    join(rootDir, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
 
   return {
     cleanupDir: explicitStoreDir === undefined ? storeDir : undefined,

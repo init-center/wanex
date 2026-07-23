@@ -11,7 +11,7 @@ import { WorkspaceGitRuntime } from "../../src/git/index.js"
 const execFileAsync = promisify(execFile)
 const serviceBin = join(
   import.meta.dirname,
-  "../../../../target/debug/wanex-system-service"
+  `../../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 
 const tempDirs: string[] = []

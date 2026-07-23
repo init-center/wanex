@@ -139,7 +139,7 @@ export function parseProductAppLocalCliOptions(
     env.WANEX_SYSTEM_SERVICE_BIN
   const serviceBin =
     serviceBinInput === undefined
-      ? resolvePath(input.artifactRoot, "target/debug/wanex-system-service")
+      ? resolvePath(input.artifactRoot, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
       : resolvePath(input.cwd, serviceBinInput)
   const storage = parseStorage({
     cwd: input.cwd,

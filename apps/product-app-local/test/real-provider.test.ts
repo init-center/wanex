@@ -14,7 +14,7 @@ import {
 
 const serviceBin = join(
   import.meta.dirname,
-  "../../../target/debug/wanex-system-service"
+  `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const secretRef = "env://WANEX_PRODUCT_REAL_PROVIDER_KEY"
 const secretValue = "product-local-real-provider-secret"

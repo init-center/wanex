@@ -10,7 +10,7 @@ import type {
 } from "@wanex/protocol"
 import { createStorageTestStore } from "../src/testing.js"
 
-const serviceBin = join(import.meta.dirname, "../../../target/debug/wanex-system-service")
+const serviceBin = join(import.meta.dirname, `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
 const tempDirs: string[] = []
 
 afterEach(async () => {

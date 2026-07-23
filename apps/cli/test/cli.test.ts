@@ -11,7 +11,7 @@ import { parseCommand } from "../src/args.js"
 const execFileAsync = promisify(execFile)
 const serviceBin = join(
   import.meta.dirname,
-  "../../../target/debug/wanex-system-service"
+  `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const cliEntry = join(import.meta.dirname, "../src/index.ts")
 const tsxBin = join(import.meta.dirname, "../../../node_modules/tsx/dist/cli.mjs")

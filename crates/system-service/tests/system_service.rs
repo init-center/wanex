@@ -245,7 +245,7 @@ fn waits_for_short_lived_sqlite_write_lock() {
     let holder_writer_started = Arc::clone(&writer_started);
     let holder = std::thread::spawn(move || {
         let mut locked = rusqlite::Connection::open(holder_db_path).unwrap();
-        locked.pragma_update(None, "busy_timeout", 0).unwrap();
+        locked.busy_timeout(Duration::from_secs(5)).unwrap();
         let tx = locked
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .unwrap();

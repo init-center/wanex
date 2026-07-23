@@ -27,7 +27,7 @@ describe("run-product-app-tui-demo", () => {
       env: {
         WANEX_STORE_DIR: "/tmp/wanex-product-app-tui-demo-test",
         WANEX_SYSTEM_SERVICE_BIN: expect.stringContaining(
-          "target/debug/wanex-system-service"
+          `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
         )
       }
     })

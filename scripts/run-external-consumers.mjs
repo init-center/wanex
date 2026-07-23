@@ -33,7 +33,7 @@ import {
 const execFileAsync = promisify(execFile)
 const args = parseArgs(process.argv.slice(2))
 const serviceBin = resolve(
-  args.serviceBin ?? join(workspaceRoot, "target/debug/wanex-system-service")
+  args.serviceBin ?? join(workspaceRoot, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
 )
 await access(serviceBin, constants.X_OK)
 

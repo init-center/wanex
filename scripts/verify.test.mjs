@@ -75,14 +75,7 @@ describe("verify", () => {
       "warnings"
     ])
     expect(stepByName(steps, "Eval harness CLI smoke").args).toEqual([
-      "--filter",
-      "@wanex/eval-harness",
-      "eval",
-      "--",
-      "--service-bin",
-      "../../target/debug/wanex-system-service",
-      "--plugin-host-fixture",
-      "../plugin/test/fixtures/plugin-host-fixture.mjs"
+      "./scripts/run-eval-harness.mjs"
     ])
   })
 })

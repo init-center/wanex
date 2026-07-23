@@ -40,12 +40,11 @@ runtime packages, deterministic adapters, and fixtures instead.
 Run the built-in regression suite:
 
 ```bash
-pnpm --filter @wanex/eval-harness eval -- \
-  --service-bin ../../target/debug/wanex-system-service \
-  --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs
+node ./scripts/run-eval-harness.mjs
 ```
 
-This is the same eval path used by `pnpm verify`.
+This repository runner selects Cargo's exact host executable name and is the
+same eval path used by `pnpm verify`.
 
 By default, the CLI creates an isolated temporary store and workspace for each
 executed scenario. This keeps the release gate order-independent and prevents
@@ -57,9 +56,7 @@ shared persistent store for debugging.
 Useful filters:
 
 ```bash
-pnpm --filter @wanex/eval-harness eval -- \
-  --service-bin ../../target/debug/wanex-system-service \
-  --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs \
+node ./scripts/run-eval-harness.mjs \
   --only workspace.apply-undo-reapply,provider.deepseek-thinking-fidelity
 ```
 

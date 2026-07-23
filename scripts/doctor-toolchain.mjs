@@ -120,7 +120,7 @@ export async function buildToolchainDoctorReport(options = {}) {
     await checkFileExists({
       id: "system_service.debug_binary",
       label: "system-service debug binary",
-      path: join(root, "target/debug/wanex-system-service"),
+      path: join(root, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`),
       exists,
       required: false
     })

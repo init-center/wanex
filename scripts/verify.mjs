@@ -225,17 +225,8 @@ export function createVerifySteps() {
     },
     {
       name: "Eval harness CLI smoke",
-      command: "pnpm",
-      args: [
-        "--filter",
-        "@wanex/eval-harness",
-        "eval",
-        "--",
-        "--service-bin",
-        "../../target/debug/wanex-system-service",
-        "--plugin-host-fixture",
-        "../plugin/test/fixtures/plugin-host-fixture.mjs"
-      ]
+      command: "node",
+      args: ["./scripts/run-eval-harness.mjs"]
     }
   ]
 }

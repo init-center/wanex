@@ -87,7 +87,7 @@ pnpm audit:sdk-determinism
 cargo fmt -- --check
 cargo test
 cargo clippy --all-targets -- -D warnings
-pnpm --filter @wanex/eval-harness eval -- --service-bin ../../target/debug/wanex-system-service --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs
+node ./scripts/run-eval-harness.mjs
 ```
 
 The final eval-harness step runs the built-in product regression suite through
@@ -265,18 +265,14 @@ npm exec --yes --package=pnpm@latest-11 -- pnpm verify
 Run a targeted eval scenario:
 
 ```bash
-pnpm --filter @wanex/eval-harness eval -- \
-  --service-bin ../../target/debug/wanex-system-service \
-  --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs \
+node ./scripts/run-eval-harness.mjs \
   --only workspace.apply-undo-reapply
 ```
 
 Run the same full eval suite used by `pnpm verify`:
 
 ```bash
-pnpm --filter @wanex/eval-harness eval -- \
-  --service-bin ../../target/debug/wanex-system-service \
-  --plugin-host-fixture ../plugin/test/fixtures/plugin-host-fixture.mjs
+node ./scripts/run-eval-harness.mjs
 ```
 
 ## Native Release Matrix

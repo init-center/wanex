@@ -59,13 +59,17 @@ flow explicitly.
 ```ts
 import { startProductAppLocalWebApp } from "@wanex/product-app-local"
 
+const serviceBin = process.platform === "win32"
+  ? "./target/debug/wanex-system-service.exe"
+  : "./target/debug/wanex-system-service"
+
 const app = await startProductAppLocalWebApp({
   storage: {
     kind: "profile",
     rootDir: "./.wanex",
     profileId: "default"
   },
-  serviceBin: "./target/debug/wanex-system-service",
+  serviceBin,
   providerProfiles: {
     profiles: [
       {
@@ -120,13 +124,17 @@ import {
   startProductAppDesktopMainHost
 } from "@wanex/product-app-local/desktop-host"
 
+const serviceBin = process.platform === "win32"
+  ? "./target/debug/wanex-system-service.exe"
+  : "./target/debug/wanex-system-service"
+
 const host = await startProductAppDesktopMainHost({
   storage: {
     kind: "profile",
     rootDir: "./.wanex",
     profileId: "default"
   },
-  serviceBin: "./target/debug/wanex-system-service"
+  serviceBin
 })
 
 const snapshot = await host.handleRequest({
@@ -181,7 +189,6 @@ pnpm --filter @wanex/product-app-local start -- \
   --provider-model-id gpt-4.1-mini \
   --provider-base-url https://api.example.test/v1 \
   --provider-secret-ref env://OPENAI_API_KEY \
-  --service-bin ../../target/debug/wanex-system-service \
   --port 57015 \
   --summary-format json \
   --open

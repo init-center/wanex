@@ -85,7 +85,7 @@ describe("@wanex/product-app-local CLI options", () => {
       setupProvider: false,
       summaryFormat: "text",
       hostname: "127.0.0.1",
-      serviceBin: "/workspace/wanex/target/debug/wanex-system-service",
+      serviceBin: `/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
       storage: {
         kind: "profile",
         rootDir: "/workspace/product/.wanex-product-app-local",
@@ -560,10 +560,10 @@ describe("@wanex/product-app-local CLI options", () => {
       parseProductAppLocalCliOptions({
         cwd: "/workspace/wanex/apps/product-app-local",
         artifactRoot: "/workspace/wanex",
-        args: ["--service-bin", "../../target/debug/wanex-system-service"],
+        args: ["--service-bin", `../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`],
         env: {}
       }).serviceBin
-    ).toBe("/workspace/wanex/target/debug/wanex-system-service")
+    ).toBe(`/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
   })
 
   it("rejects ambiguous storage options", () => {

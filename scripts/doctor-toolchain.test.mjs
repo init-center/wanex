@@ -215,7 +215,7 @@ async function createFixtureRoot(options) {
   await writeFile(join(rootDir, "crates/system-service/Cargo.toml"), "[package]\n")
   if (options.binary) {
     await mkdir(join(rootDir, "target/debug"), { recursive: true })
-    await writeFile(join(rootDir, "target/debug/wanex-system-service"), "")
+    await writeFile(join(rootDir, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`), "")
   }
   return rootDir
 }

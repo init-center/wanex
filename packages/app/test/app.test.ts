@@ -395,6 +395,7 @@ describe("@wanex/app", () => {
         explicitPath: serviceBin
       }
     })
+    await app.stop()
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",

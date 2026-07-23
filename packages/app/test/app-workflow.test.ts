@@ -16,6 +16,7 @@ describe("@wanex/app workflow commands", () => {
         explicitPath: serviceBin
       }
     })
+    await app.stop()
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",
@@ -374,6 +375,7 @@ describe("@wanex/app workflow commands", () => {
         explicitPath: serviceBin
       }
     })
+    await app.stop()
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",
@@ -432,6 +434,7 @@ describe("@wanex/app workflow commands", () => {
         }
       })
 
+      app.start()
       await app.commands.runAgentTurn({
         content: [{ type: "text", text: "durable side query envelope context" }],
         sessionId: "ses_wanex_app_envelope_side"

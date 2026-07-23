@@ -1,3 +1,4 @@
+import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   parseNativeRuntimeProofArgs,
@@ -16,7 +17,7 @@ describe("native Runtime proof", () => {
       "target/custom-native"
     ])).toEqual({
       samples: 3,
-      artifactDir: expect.stringMatching(/target\/custom-native$/)
+      artifactDir: resolve("target/custom-native")
     })
     expect(() => parseNativeRuntimeProofArgs(["--samples", "0"]))
       .toThrow("positive integer")

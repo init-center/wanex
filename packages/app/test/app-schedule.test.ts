@@ -91,6 +91,7 @@ describe("@wanex/app schedule commands", () => {
         explicitPath: serviceBin
       }
     })
+    await app.stop()
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",
@@ -174,6 +175,7 @@ describe("@wanex/app schedule commands", () => {
         explicitPath: serviceBin
       }
     })
+    await app.stop()
     const storage = createStorageTestStore({
       kind: "local-system-service",
       mode: "oneshot",

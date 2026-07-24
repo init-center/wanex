@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
 import { afterEach, describe, expect, it } from "vitest"
 import type { JsonValue } from "@wanex/protocol"
@@ -704,17 +704,17 @@ describe("@wanex/cli", () => {
       maxSteps: 4,
       context: {
         instructions: {
-          cwd: "/repo/app",
-          projectRoot: "/repo",
-          globalConfigDir: "/home/user/.wanex",
+          cwd: resolve("/repo/app"),
+          projectRoot: resolve("/repo"),
+          globalConfigDir: resolve("/home/user/.wanex"),
           trust: { projectInstructions: "trusted" }
         },
         skills: {
-          cwd: "/repo/app",
-          projectRoot: "/repo",
+          cwd: resolve("/repo/app"),
+          projectRoot: resolve("/repo"),
           globalSkillDirs: [
-            "/home/user/.wanex/skills",
-            "/opt/wanex/skills"
+            resolve("/home/user/.wanex/skills"),
+            resolve("/opt/wanex/skills")
           ],
           trust: { projectSkills: "trusted" },
           registerActivationTool: true,
@@ -748,7 +748,7 @@ describe("@wanex/cli", () => {
       options: {
         store: {
           kind: "local-profile",
-          rootDir: "/tmp/home/.wanex",
+          rootDir: join(resolve("/tmp/home"), ".wanex"),
           profileId: "work"
         }
       }

@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -10,8 +9,9 @@ import {
 } from "./distribution-audit.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
-import { waitForProductConversation } from "./product-app/conversation-helpers.js"
-import { mktemp } from "./product-bootstrap/helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./product-app/conversation-helpers.js"
 
 export {
   productAppHostEndpointContractScenario
@@ -46,15 +46,12 @@ export const productAppContractScenario = createEvalScenario({
   title: "Product App consumes the frozen upper app integration contract",
   tags: ["product-app", "upper-app", "product-path"],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-"
+    })
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app",
         modelId: "eval-product-app-model"
@@ -71,6 +68,9 @@ export const productAppContractScenario = createEvalScenario({
     try {
       const home = await app.readHome({ overview: { now: 9400 } })
       const settings = app.readSettings()
+      const initialSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app"
+      })
       const run = await app.submitConversationOperation({
         text: "eval product app turn",
         sessionId: "ses_eval_product_app"
@@ -79,16 +79,23 @@ export const productAppContractScenario = createEvalScenario({
         run.kind === "product-app.conversation-operation.found",
         "product app should return a tracked conversation receipt"
       )
-      await waitForProductConversation(app, "ses_eval_product_app")
+      await initialSettlement
       const selected = await app.selectSession({
         sessionId: "ses_eval_product_app"
       })
       const opened = await app.openWorkbench()
+      const continuedSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app"
+      })
       const continued = await app.submitConversationOperation({
         text: "eval product app continued",
         sessionId: "ses_eval_product_app"
       })
-      await waitForProductConversation(app, "ses_eval_product_app")
+      assert(
+        continued.kind === "product-app.conversation-operation.found",
+        "continued conversation should be admitted before settlement"
+      )
+      await continuedSettlement
       const refreshed = await app.openWorkbench()
       const regenerated = await app.regenerateTrackedConversationOperation({
         sessionId: "ses_eval_product_app"
@@ -170,7 +177,7 @@ export const productAppContractScenario = createEvalScenario({
       }
     } finally {
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })
@@ -180,15 +187,12 @@ export const productAppSurfaceContractScenario = createEvalScenario({
   title: "Product App exposes a transport-neutral surface adapter",
   tags: ["product-app", "surface", "upper-app", "product-path"],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-surface-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-surface-"
+    })
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-surface",
         modelId: "eval-product-app-surface-model"
@@ -200,6 +204,9 @@ export const productAppSurfaceContractScenario = createEvalScenario({
 
     try {
       const descriptor = surface.descriptor()
+      const conversationSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app_surface_direct"
+      })
       const submitted = await surface.dispatchSurfaceCommand({
         command: "submitConversationOperation",
         requestId: "eval_surface_submit",
@@ -208,7 +215,13 @@ export const productAppSurfaceContractScenario = createEvalScenario({
           sessionId: "ses_eval_product_app_surface_direct"
         }
       })
-      await waitForProductConversation(app, "ses_eval_product_app_surface_direct")
+      assert(
+        submitted.ok &&
+          isRecord(submitted.value) &&
+          submitted.value.kind === "product-app.conversation-operation.found",
+        "surface should return an asynchronous conversation receipt"
+      )
+      await conversationSettlement
       const run = await surface.dispatchSurfaceCommand({
         command: "dispatchProductCommand",
         requestId: "eval_surface_run",
@@ -247,12 +260,6 @@ export const productAppSurfaceContractScenario = createEvalScenario({
         descriptor.transport === "app-owned-ipc-or-api" &&
           descriptor.commandCount === 23,
         "surface descriptor should be transport-neutral and complete"
-      )
-      assert(
-        submitted.ok &&
-          isRecord(submitted.value) &&
-          submitted.value.kind === "product-app.conversation-operation.found",
-        "surface should return an asynchronous conversation receipt"
       )
       assert(
         !descriptor.rendererBoundary.rendererMayOpenStorage &&
@@ -312,7 +319,7 @@ export const productAppSurfaceContractScenario = createEvalScenario({
     } finally {
       await surface.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

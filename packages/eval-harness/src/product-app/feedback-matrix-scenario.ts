@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -24,9 +23,10 @@ import {
 } from "@wanex/product-app-tui"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
 import { lines } from "../product-app-tui/helpers.js"
-import { waitForProductConversation } from "./conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./conversation-helpers.js"
 
 const BLOCKED_PROFILE_ID = "eval-feedback-missing-key"
 const READY_PROFILE_ID = "eval-feedback-ready"
@@ -44,15 +44,13 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
     "product-path"
   ],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-feedback-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-feedback-"
+    })
+    const storeDir = storage.storeDir
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: BLOCKED_PROFILE_ID,
         kind: "openai-compatible",
@@ -132,32 +130,45 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
       const readyDocument = await web.refresh()
       await tui.refresh()
 
+      const readyWebSettlement = storage.settlements.waitForNext()
       const readyWeb = expectSubmitResponse(
         await handleProductAppWebRequest(web, webSubmitConversationRequest({
           requestId: "eval_feedback_web_ready",
           text: "web should report succeeded provider"
         }))
       )
+      assert(
+        readyWeb.submitResult.ok,
+        "ready Web conversation should be admitted before settlement"
+      )
+      await readyWebSettlement
       const readyWebSessionId = readyWeb.document.snapshot.conversation.sessionId
       assert(
         typeof readyWebSessionId === "string",
         "ready Web submit should select a conversation session"
       )
-      const settledReadyWeb = await waitForWebConversation(web, readyWebSessionId)
+      const settledReadyWeb = (await web.pollEvents({ limit: 20 })).snapshot
       const readyWebPreview = expectSubmitResponse(
         await handleProductAppWebRequest(web, webPreviewCommandRequest({
           requestId: "eval_feedback_web_preview_ready",
           text: "web preview should report runnable provider"
         }))
       )
+      const readyWebExecutionSettlement = storage.settlements.waitForNext()
       const readyWebExecution = expectSubmitResponse(
         await handleProductAppWebRequest(web, webExecuteCommandRequest({
           requestId: "eval_feedback_web_execute_ready",
           text: "web execution should complete after setup"
         }))
       )
+      assert(
+        readyWebExecution.submitResult.ok,
+        "ready Web command execution should be admitted before settlement"
+      )
+      await readyWebExecutionSettlement
       await tui.refresh()
       const readyTuiChunks: string[] = []
+      const readyTuiSettlement = storage.settlements.waitForNext()
       const readyTui = await runProductAppTuiLineSession({
         surface: tui,
         input: lines([
@@ -171,10 +182,14 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
         }
       })
       assert(
+        readyTui.blockedCommandCount === 0,
+        "ready TUI conversation should be admitted before settlement"
+      )
+      await readyTuiSettlement
+      assert(
         typeof readyTui.activeSessionId === "string",
         "ready TUI submit should select a conversation session"
       )
-      await waitForProductConversation(app, readyTui.activeSessionId)
       const settledTuiChunks: string[] = []
       await runProductAppTuiLineSession({
         surface: tui,
@@ -344,7 +359,7 @@ export const productAppFeedbackMatrixScenario = createEvalScenario({
     } finally {
       await productSurface.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })
@@ -428,23 +443,6 @@ function webExecuteCommandRequest(request: {
     },
     options: { pollAfterAction: false }
   }
-}
-
-async function waitForWebConversation(
-  web: Awaited<ReturnType<typeof createProductAppWebController>>,
-  sessionId: string
-) {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const document = await web.pollEvents({ limit: 20 })
-    if (
-      document.snapshot.conversation.sessionId === sessionId &&
-      document.snapshot.conversation.operation?.capabilities.terminal === true
-    ) {
-      return document.snapshot
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10))
-  }
-  throw new Error(`Web conversation did not settle: ${sessionId}`)
 }
 
 function expectSubmitResponse(

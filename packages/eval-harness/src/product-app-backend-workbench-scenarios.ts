@@ -1,12 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import {
   PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS,
   createProductAppBackendShell,
   type ProductAppBackendConversationOperationReceipt
 } from "@wanex/product-app/backend"
-import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
@@ -17,10 +16,12 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
   title: "App command runtime reads canonical selected-session transcripts",
   tags: ["product-path", "workbench", "session"],
   async run(context) {
-    const storeDir = await mkdtemp(join(tmpdir(), "wanex-eval-product-workbench-"))
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-workbench-"
+    })
     const shell = await createProductAppBackendShell({
-      storage: { kind: "local-system-service", storeDir },
-      artifacts: { explicitPath: context.serviceBin },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-workbench",
         modelId: "eval-product-workbench-model"
@@ -32,7 +33,7 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
         content: [{ type: "text", text: "seed workbench" }],
         sessionId
       })
-      await waitForBackendConversation(shell.commands, receipt)
+      await storage.settlements.waitForJob(receipt.jobId)
       const typed = await shell.commands.readProductWorkbench({ sessionId })
       const port = await shell.dispatch({
         command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductWorkbench,
@@ -56,7 +57,7 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
         "conversation submit JSON dispatch should succeed"
       )
       assertConversationReceipt(submitted.envelope.value)
-      await waitForBackendConversation(shell.commands, submitted.envelope.value)
+      await storage.settlements.waitForJob(submitted.envelope.value.jobId)
       const refreshed = await shell.commands.readProductWorkbench({ sessionId })
       assertWorkbench(refreshed, 2, "submit another turn")
 
@@ -71,7 +72,7 @@ export const productAppBackendWorkbenchScenario = createEvalScenario({
       }
     } finally {
       await shell.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

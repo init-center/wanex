@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -18,10 +17,8 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
 import {
-  waitForProductConversation,
-  waitForProductJob
+  createConversationSettlementFixture
 } from "../product-app/conversation-helpers.js"
 import { lines } from "./helpers.js"
 
@@ -30,15 +27,12 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
   title: "Product App TUI line session runs through the surface client",
   tags: ["product-app", "tui", "interactive", "upper-app", "product-path"],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-tui-line-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-tui-line-"
+    })
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-tui-line",
         modelId: "eval-product-app-tui-line-model"
@@ -56,12 +50,19 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
         client,
         now: () => 9801
       })
-      await app.submitConversationOperation({
+      const trackedSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app_tui_execution"
+      })
+      const tracked = await app.submitConversationOperation({
         text: "eval product app tui tracked conversation",
         sessionId: "ses_eval_product_app_tui_execution"
       })
-      await waitForProductConversation(app, "ses_eval_product_app_tui_execution")
-      await app.dispatchProductCommand({
+      assert(
+        tracked.kind === "product-app.conversation-operation.found",
+        "tracked TUI conversation should be admitted before settlement"
+      )
+      await trackedSettlement
+      const execution = await app.dispatchProductCommand({
         command: "submitConversationOperation",
         input: {
           text: "eval product app tui tracked execution",
@@ -69,7 +70,13 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
           jobId: "job_eval_product_app_tui_execution"
         }
       })
-      await waitForProductJob(app, "job_eval_product_app_tui_execution")
+      assert(
+        execution.ok,
+        "tracked TUI execution should be admitted before settlement"
+      )
+      await storage.settlements.waitForJob(
+        "job_eval_product_app_tui_execution"
+      )
       await surface.refresh()
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
@@ -231,7 +238,7 @@ export const productAppTuiLineSessionScenario = createEvalScenario({
     } finally {
       await surfaceAdapter.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

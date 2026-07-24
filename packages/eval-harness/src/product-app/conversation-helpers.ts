@@ -1,96 +1,169 @@
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import type {
-  ProductAppShell
-} from "@wanex/product-app"
-import type {
-  ProductAppBackendCommands,
-  ProductAppBackendConversationOperationReference
-} from "@wanex/product-app/backend"
-import type {
-  ProductAppSurfaceClient
-} from "@wanex/product-app/surface-client"
+  SettleSessionTurnReceipt
+} from "@wanex/protocol"
+import {
+  createStorageHandle,
+  type CoreStore,
+  type StorageHandle
+} from "@wanex/storage"
 
-const DEFAULT_TIMEOUT_MS = 2_000
-
-export async function waitForBackendConversation(
-  commands: Pick<ProductAppBackendCommands, "readConversationOperation">,
-  reference: ProductAppBackendConversationOperationReference
-): Promise<void> {
-  const deadline = Date.now() + DEFAULT_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const result = await commands.readConversationOperation(reference)
-    if (result.kind === "found" && isTerminalState(result.operation.state)) {
-      return
-    }
-    await delay(10)
+export interface ConversationSettlementFixture {
+  readonly storeDir: string
+  readonly storage: {
+    readonly kind: "injected"
+    readonly handle: Pick<StorageHandle, "core" | "transport">
   }
-  throw new Error(`backend conversation did not settle: ${reference.sessionId}`)
+  readonly settlements: ConversationSettlementObserver
+  dispose(): Promise<void>
 }
 
-export async function waitForProductConversation(
-  app: Pick<ProductAppShell, "readTrackedConversationOperation">,
-  sessionId: string
-): Promise<void> {
-  const deadline = Date.now() + DEFAULT_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const result = await app.readTrackedConversationOperation({ sessionId })
-    if (
-      result.kind === "product-app.conversation-operation.found" &&
-      result.operation.capabilities.terminal
-    ) {
-      return
-    }
-    await delay(10)
+export interface ConversationSettlementObserver {
+  readonly storage: CoreStore
+  waitForJob(jobId: string): Promise<SettleSessionTurnReceipt>
+  waitForNext(
+    filter?: ConversationSettlementFilter
+  ): Promise<SettleSessionTurnReceipt>
+}
+
+export interface ConversationSettlementFilter {
+  readonly sessionId?: string
+  readonly jobId?: string
+}
+
+interface SettlementWaiter {
+  readonly filter: ConversationSettlementFilter
+  readonly resolve: (receipt: SettleSessionTurnReceipt) => void
+}
+
+export async function createConversationSettlementFixture(options: {
+  readonly serviceBin: string
+  readonly prefix: string
+}): Promise<ConversationSettlementFixture> {
+  const storeDir = await mkdtemp(join(tmpdir(), options.prefix))
+  const handle = createStorageHandle({
+    kind: "local-system-service",
+    mode: "persistent",
+    storeDir,
+    serviceBin: options.serviceBin
+  })
+
+  try {
+    await handle.core.doctor()
+  } catch (error) {
+    await handle.dispose()
+    await rm(storeDir, { recursive: true, force: true })
+    throw error
   }
-  throw new Error(`product conversation did not settle: ${sessionId}`)
-}
 
-export async function waitForProductJob(
-  app: Pick<ProductAppShell, "readExecutionReference">,
-  jobId: string
-): Promise<void> {
-  const deadline = Date.now() + DEFAULT_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const result = await app.readExecutionReference({ kind: "job", id: jobId })
-    if (
-      result.kind === "found" &&
-      (result.activity.state === "succeeded" ||
-        result.activity.state === "failed" ||
-        result.activity.state === "cancelled")
-    ) {
-      return
+  const settlements = observeConversationSettlementStorage(handle.core)
+  let disposed = false
+  return {
+    storeDir,
+    storage: {
+      kind: "injected",
+      handle: {
+        core: settlements.storage,
+        transport: handle.transport
+      }
+    },
+    settlements,
+    async dispose() {
+      if (disposed) {
+        return
+      }
+      disposed = true
+      await handle.dispose()
+      await rm(storeDir, { recursive: true, force: true })
     }
-    await delay(10)
   }
-  throw new Error(`product job did not settle: ${jobId}`)
 }
 
-export async function waitForSurfaceConversation(
-  client: Pick<ProductAppSurfaceClient, "readTrackedConversationOperation">,
-  sessionId: string
-): Promise<void> {
-  const deadline = Date.now() + DEFAULT_TIMEOUT_MS
-  while (Date.now() < deadline) {
-    const result = await client.readTrackedConversationOperation({ sessionId })
-    if (
-      result.ok &&
-      result.value.kind === "product-app.conversation-operation.found" &&
-      result.value.operation.capabilities.terminal
-    ) {
-      return
+export function observeConversationSettlementStorage(
+  storage: CoreStore
+): ConversationSettlementObserver {
+  const settled: SettleSessionTurnReceipt[] = []
+  const waiters = new Set<SettlementWaiter>()
+
+  const observed = new Proxy(storage, {
+    get(target, property) {
+      if (property === "settleSessionTurn") {
+        return async (
+          request: Parameters<CoreStore["settleSessionTurn"]>[0]
+        ) => {
+          const receipt = await target.settleSessionTurn(request)
+          settled.push(receipt)
+          for (const waiter of waiters) {
+            if (!matchesSettlement(receipt, waiter.filter)) {
+              continue
+            }
+            waiters.delete(waiter)
+            waiter.resolve(receipt)
+          }
+          return receipt
+        }
+      }
+      const value = Reflect.get(target, property, target)
+      return typeof value === "function" ? value.bind(target) : value
     }
-    await delay(10)
+  })
+
+  return {
+    storage: observed,
+    waitForJob(jobId) {
+      const normalized = normalizeRequiredId(jobId, "jobId")
+      const existing = settled.find(
+        (receipt) => receipt.job.id === normalized
+      )
+      return existing === undefined
+        ? waitForNext({ jobId: normalized })
+        : Promise.resolve(existing)
+    },
+    waitForNext
   }
-  throw new Error(`surface conversation did not settle: ${sessionId}`)
+
+  function waitForNext(
+    filter: ConversationSettlementFilter = {}
+  ): Promise<SettleSessionTurnReceipt> {
+    const normalized = normalizeFilter(filter)
+    return new Promise((resolve) => {
+      waiters.add({ filter: normalized, resolve })
+    })
+  }
 }
 
-function isTerminalState(state: string): boolean {
-  return state === "succeeded" ||
-    state === "failed" ||
-    state === "cancelled" ||
-    state === "interrupted" ||
-    state === "recovery_required"
+function matchesSettlement(
+  receipt: SettleSessionTurnReceipt,
+  filter: ConversationSettlementFilter
+): boolean {
+  return (
+    (filter.sessionId === undefined ||
+      receipt.turn.sessionId === filter.sessionId) &&
+    (filter.jobId === undefined || receipt.job.id === filter.jobId)
+  )
 }
 
-async function delay(milliseconds: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, milliseconds))
+function normalizeFilter(
+  filter: ConversationSettlementFilter
+): ConversationSettlementFilter {
+  return {
+    ...(filter.sessionId === undefined
+      ? {}
+      : {
+          sessionId: normalizeRequiredId(filter.sessionId, "sessionId")
+        }),
+    ...(filter.jobId === undefined
+      ? {}
+      : { jobId: normalizeRequiredId(filter.jobId, "jobId") })
+  }
+}
+
+function normalizeRequiredId(value: string, label: string): string {
+  const normalized = value.trim()
+  if (normalized.length === 0) {
+    throw new Error(`conversation settlement ${label} must not be empty`)
+  }
+  return normalized
 }

@@ -1,28 +1,26 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppBackendCommandPort,
   createProductAppBackendApp,
   PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS
 } from "@wanex/product-app/backend"
 import { createEvalScenario } from "../runner.js"
-import { waitForBackendConversation } from "../product-app/conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "../product-app/conversation-helpers.js"
 import { assert } from "../scenario-utils.js"
-import { createProductCapabilityStoreDir, isRecord } from "./helpers.js"
+import { isRecord } from "./helpers.js"
 
 export const productAppBackendCommandPortScenario = createEvalScenario({
   id: "product.skeleton-command-port-contract",
   title: "Product App Backend exposes a reusable safe command port",
   tags: ["product-path", "command-port"],
   async run(context) {
-    const storeDir = await createProductCapabilityStoreDir()
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-backend-command-port-"
+    })
     const app = await createProductAppBackendApp({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-port",
         modelId: "eval-product-port-model"
@@ -151,12 +149,7 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         "executeProductCommand should return an asynchronous conversation receipt"
       )
       const runResult = runValue.value
-      await waitForBackendConversation(app.commands, {
-        sessionId: String(runResult.sessionId),
-        inputId: String(runResult.inputId),
-        turnId: String(runResult.turnId),
-        jobId: String(runResult.jobId)
-      })
+      await storage.settlements.waitForJob(String(runResult.jobId))
       assert(
         typeof routeValue.command === "string",
         "route command should be a string"
@@ -198,7 +191,7 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
       }
     } finally {
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

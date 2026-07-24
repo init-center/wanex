@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -15,8 +14,9 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert, isRecord } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
-import { waitForSurfaceConversation } from "./conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./conversation-helpers.js"
 
 export const productAppHostEndpointContractScenario = createEvalScenario({
   id: "product.app-host-endpoint-contract",
@@ -30,15 +30,13 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
     "product-path"
   ],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-host-endpoint-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-host-endpoint-"
+    })
+    const storeDir = storage.storeDir
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-host-endpoint",
         modelId: "eval-product-app-host-endpoint-model"
@@ -69,6 +67,9 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
         { sessionId: "ses_eval_product_app_host_endpoint" },
         { requestId: "eval_host_endpoint_select" }
       )
+      const conversationSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app_host_endpoint"
+      })
       const run = await client.submitConversationOperation(
         {
           text: "eval host endpoint turn",
@@ -76,10 +77,12 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
         },
         { requestId: "eval_host_endpoint_run" }
       )
-      await waitForSurfaceConversation(
-        client,
-        "ses_eval_product_app_host_endpoint"
+      assert(
+        run.ok &&
+          run.value.kind === "product-app.conversation-operation.found",
+        "host endpoint should admit the conversation before settlement"
       )
+      await conversationSettlement
       const opened = await client.openWorkbench()
       const events = await client.readSurfaceEvents({ limit: 2 })
       const lastSequence =
@@ -223,7 +226,7 @@ export const productAppHostEndpointContractScenario = createEvalScenario({
     } finally {
       await surface.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

@@ -1,6 +1,3 @@
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import {
   createProductAppBackendShell,
   PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS
@@ -11,7 +8,9 @@ import {
   type FootprintReport
 } from "./distribution-audit.js"
 import { assertProductAppBackendClosureExcludes } from "./product-app-backend-eval-utils.js"
-import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
@@ -20,12 +19,12 @@ export const productAppBackendDiagnosticsDetailScenario = createEvalScenario({
   title: "App command runtime projects diagnostics detail state",
   tags: ["product-path", "diagnostics", "command-port", "distribution"],
   async run(context) {
-    const storeDir = await mkdtemp(
-      join(tmpdir(), "wanex-eval-product-diagnostics-detail-")
-    )
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-diagnostics-detail-"
+    })
     const shell = await createProductAppBackendShell({
-      storage: { kind: "local-system-service", storeDir },
-      artifacts: { explicitPath: context.serviceBin },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-diagnostics-detail",
         modelId: "eval-product-diagnostics-detail-model"
@@ -37,7 +36,7 @@ export const productAppBackendDiagnosticsDetailScenario = createEvalScenario({
         content: [{ type: "text", text: "seed eval diagnostics detail" }],
         sessionId: "ses_eval_product_diagnostics_detail"
       })
-      await waitForBackendConversation(shell.commands, receipt)
+      await storage.settlements.waitForJob(receipt.jobId)
 
       const typed = await shell.commands.readProductDiagnosticsDetail({
         now: 8_201,
@@ -106,7 +105,7 @@ export const productAppBackendDiagnosticsDetailScenario = createEvalScenario({
       }
     } finally {
       await shell.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

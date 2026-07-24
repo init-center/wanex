@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -25,10 +24,8 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
 import {
-  waitForProductConversation,
-  waitForProductJob
+  createConversationSettlementFixture
 } from "./conversation-helpers.js"
 
 export const productAppWebSurfaceContractScenario = createEvalScenario({
@@ -42,15 +39,13 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
     "product-path"
   ],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-web-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-web-"
+    })
+    const storeDir = storage.storeDir
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-web",
         modelId: "eval-product-app-web-model",
@@ -150,7 +145,7 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           }
         }
       })
-      await app.dispatchProductCommand({
+      const trackedExecution = await app.dispatchProductCommand({
         command: "submitConversationOperation",
         input: {
           text: "eval product app web tracked execution",
@@ -158,7 +153,13 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           jobId: "job_eval_product_app_web_execution"
         }
       })
-      await waitForProductJob(app, "job_eval_product_app_web_execution")
+      assert(
+        trackedExecution.ok,
+        "Web execution activity should be admitted before settlement"
+      )
+      await storage.settlements.waitForJob(
+        "job_eval_product_app_web_execution"
+      )
       const executionActivity = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
@@ -171,19 +172,33 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
           }
         }
       })
-      const submittedToSelectedConversation = await handleProductAppWebRequest(web, {
-        kind: "product-app-web.request",
-        operation: "submitActionInput",
-        requestId: "eval_web_submit_selected_conversation",
-        input: {
-          action: "submit-conversation",
-          fields: {
-            text: "eval product app web selected conversation",
-            sessionId: "ses_eval_product_app_web"
+      const selectedConversationSettlement =
+        storage.settlements.waitForNext({
+          sessionId: "ses_eval_product_app_web"
+        })
+      const submittedToSelectedConversation = await handleProductAppWebRequest(
+        web,
+        {
+          kind: "product-app-web.request",
+          operation: "submitActionInput",
+          requestId: "eval_web_submit_selected_conversation",
+          input: {
+            action: "submit-conversation",
+            fields: {
+              text: "eval product app web selected conversation",
+              sessionId: "ses_eval_product_app_web"
+            }
           }
         }
-      })
-      await waitForProductConversation(app, "ses_eval_product_app_web")
+      )
+      assert(
+        submittedToSelectedConversation.ok &&
+          submittedToSelectedConversation.operation ===
+            "submitActionInput" &&
+          submittedToSelectedConversation.submitResult.ok,
+        "selected Web conversation should be admitted before settlement"
+      )
+      await selectedConversationSettlement
       const openedWorkbench = await handleProductAppWebRequest(web, {
         kind: "product-app-web.request",
         operation: "submitActionInput",
@@ -539,7 +554,7 @@ export const productAppWebSurfaceContractScenario = createEvalScenario({
       await nodeHost?.close()
       await productSurface.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

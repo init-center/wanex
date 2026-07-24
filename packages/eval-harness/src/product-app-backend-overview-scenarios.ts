@@ -1,6 +1,3 @@
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join } from "node:path"
 import {
   createProductAppBackendShell,
   PRODUCT_APP_BACKEND_CAPABILITY_IDS,
@@ -12,7 +9,9 @@ import {
   type FootprintReport
 } from "./distribution-audit.js"
 import { assertProductAppBackendClosureExcludes } from "./product-app-backend-eval-utils.js"
-import { waitForBackendConversation } from "./product-app/conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./product-app/conversation-helpers.js"
 import { createEvalScenario } from "./runner.js"
 import { assert, isRecord } from "./scenario-utils.js"
 
@@ -21,10 +20,12 @@ export const productAppBackendOverviewScenario = createEvalScenario({
   title: "App command runtime summarizes first-screen state",
   tags: ["product-path", "overview", "distribution"],
   async run(context) {
-    const storeDir = await mkdtemp(join(tmpdir(), "wanex-eval-product-overview-"))
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-overview-"
+    })
     const shell = await createProductAppBackendShell({
-      storage: { kind: "local-system-service", storeDir },
-      artifacts: { explicitPath: context.serviceBin },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-overview",
         modelId: "eval-product-overview-model"
@@ -36,7 +37,7 @@ export const productAppBackendOverviewScenario = createEvalScenario({
         content: [{ type: "text", text: "seed overview scenario" }],
         sessionId: "ses_eval_product_overview"
       })
-      await waitForBackendConversation(shell.commands, receipt)
+      await storage.settlements.waitForJob(receipt.jobId)
       const typed = await shell.commands.readProductOverview({
         now: 8_001,
         recentSessionLimit: 2
@@ -80,7 +81,7 @@ export const productAppBackendOverviewScenario = createEvalScenario({
       }
     } finally {
       await shell.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -19,8 +18,9 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
-import { waitForProductConversation } from "../product-app/conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "../product-app/conversation-helpers.js"
 import { completedCommandId } from "./helpers.js"
 
 export const productAppTuiSurfaceScenario = createEvalScenario({
@@ -28,15 +28,12 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
   title: "Product App TUI consumes Product App through the surface client",
   tags: ["product-app", "tui", "surface-client", "upper-app", "product-path"],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-tui-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-tui-"
+    })
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-tui",
         modelId: "eval-product-app-tui-model"
@@ -55,6 +52,9 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
         now: () => 9701
       })
       const frame = renderProductAppTuiFrame(surface.snapshot())
+      const conversationSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app_tui"
+      })
       const submitted = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.conversation-submit",
         input: {
@@ -62,7 +62,11 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
           sessionId: "ses_eval_product_app_tui"
         }
       })
-      await waitForProductConversation(app, "ses_eval_product_app_tui")
+      assert(
+        submitted.status === "completed",
+        "TUI submit command should complete admission before settlement"
+      )
+      await conversationSettlement
       const selected = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.session-select",
         input: {
@@ -203,7 +207,7 @@ export const productAppTuiSurfaceScenario = createEvalScenario({
     } finally {
       await surfaceAdapter.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

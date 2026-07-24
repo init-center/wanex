@@ -1,4 +1,3 @@
-import { rm } from "node:fs/promises"
 import {
   createProductAppShell,
   createProductAppSurfaceAdapter
@@ -15,8 +14,9 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert, isRecord } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
-import { waitForSurfaceConversation } from "./conversation-helpers.js"
+import {
+  createConversationSettlementFixture
+} from "./conversation-helpers.js"
 
 export const productAppSurfaceMessageTransportScenario = createEvalScenario({
   id: "product.app-surface-message-transport-contract",
@@ -30,15 +30,12 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
     "product-path"
   ],
   async run(context) {
-    const storeDir = await mktemp("wanex-eval-product-app-message-transport-")
+    const storage = await createConversationSettlementFixture({
+      serviceBin: context.serviceBin,
+      prefix: "wanex-eval-product-app-message-transport-"
+    })
     const app = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: context.serviceBin
-      },
+      storage: storage.storage,
       providerProfile: {
         id: "eval-product-app-message-transport",
         modelId: "eval-product-app-message-transport-model"
@@ -64,6 +61,9 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         { commandId: "product.status" },
         { requestId: "eval_message_transport_execute" }
       )
+      const conversationSettlement = storage.settlements.waitForNext({
+        sessionId: "ses_eval_product_app_message_transport_direct"
+      })
       const submitted = await client.submitConversationOperation(
         {
           text: "eval message transport submitted",
@@ -71,10 +71,13 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
         },
         { requestId: "eval_message_transport_submit" }
       )
-      await waitForSurfaceConversation(
-        client,
-        "ses_eval_product_app_message_transport_direct"
+      assert(
+        submitted.ok &&
+          submitted.value.kind ===
+            "product-app.conversation-operation.found",
+        "message transport should submit a tracked conversation operation"
       )
+      await conversationSettlement
       const run = await client.dispatchProductCommand(
         {
           command: "status"
@@ -121,12 +124,6 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
           typedExecution.value.kind === "completed" &&
           typedExecution.value.commandId === "product.status",
         "message transport should execute a typed product command"
-      )
-      assert(
-        submitted.ok &&
-          isRecord(submitted.value) &&
-          submitted.value.kind === "product-app.conversation-operation.found",
-        "message transport should submit a tracked conversation operation"
       )
       assert(run.ok, "message transport should dispatch product command")
       assert(
@@ -204,7 +201,7 @@ export const productAppSurfaceMessageTransportScenario = createEvalScenario({
     } finally {
       await surface.dispose()
       await app.dispose()
-      await rm(storeDir, { recursive: true, force: true })
+      await storage.dispose()
     }
   }
 })

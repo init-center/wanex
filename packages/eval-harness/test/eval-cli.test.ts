@@ -3,7 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createEvalScenario } from "../src/index.js"
-import { runEvalCli } from "../src/cli-main.js"
+import {
+  runEvalCli,
+  type EvalCliScenarioProgress
+} from "../src/cli-main.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -219,6 +222,7 @@ describe("wanex-eval CLI", () => {
 
   it("does not allocate a default store for skipped scenarios", async () => {
     const seenStores: string[] = []
+    const progress: EvalCliScenarioProgress[] = []
     const result = await runEvalCli(
       [
         "--service-bin",
@@ -246,7 +250,12 @@ describe("wanex-eval CLI", () => {
             return { ran: true }
           }
         })
-      ]
+      ],
+      {
+        onProgress(event) {
+          progress.push(event)
+        }
+      }
     )
 
     expect(result.exitCode).toBe(0)
@@ -259,6 +268,44 @@ describe("wanex-eval CLI", () => {
     })
     expect(body.value.results.map((item: { readonly id: string }) => item.id))
       .toEqual(["skip", "run"])
+    expect(progress).toEqual([
+      {
+        kind: "wanex-eval.scenario-progress",
+        sequence: 1,
+        phase: "skipped",
+        scenarioId: "skip",
+        scenarioIndex: 1,
+        scenarioCount: 2,
+        status: "skipped",
+        durationMs: 0
+      },
+      {
+        kind: "wanex-eval.scenario-progress",
+        sequence: 2,
+        phase: "started",
+        scenarioId: "run",
+        scenarioIndex: 2,
+        scenarioCount: 2
+      },
+      {
+        kind: "wanex-eval.scenario-progress",
+        sequence: 3,
+        phase: "completed",
+        scenarioId: "run",
+        scenarioIndex: 2,
+        scenarioCount: 2,
+        status: "passed",
+        durationMs: expect.any(Number)
+      },
+      {
+        kind: "wanex-eval.scenario-progress",
+        sequence: 4,
+        phase: "cleaned",
+        scenarioId: "run",
+        scenarioIndex: 2,
+        scenarioCount: 2
+      }
+    ])
   })
 
   it("uses WANEX_EVAL_STORE_DIR when provided", async () => {

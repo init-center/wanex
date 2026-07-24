@@ -216,7 +216,8 @@ describe("private Electron production boundary", () => {
     expect(workflow).toContain(
       "pnpm stage:native -- --target ${{ matrix.target }}"
     )
-    expect(workflow).toContain("pnpm proof:native-runtime -- --samples 5")
+    expect(workflow).toContain("pnpm proof:native-runtime")
+    expect(workflow).not.toContain("pnpm proof:native-runtime -- --samples")
     expect(workflow).toContain("pnpm proof:electron-boundary")
     expect(workflow).not.toContain(
       "pnpm proof:electron-boundary -- --samples"

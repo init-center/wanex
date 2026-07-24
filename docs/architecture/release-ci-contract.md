@@ -286,7 +286,7 @@ Electron workflow. Complete `pnpm verify` runs natively on:
 - Windows Server 2025 x64.
 
 Only after all verify jobs pass does the native distribution matrix stage an
-explicit target and execute `pnpm proof:native-runtime -- --samples 5`.
+explicit target and execute `pnpm proof:native-runtime`.
 macOS arm64/x64 and Windows x64 also execute the existing Electron production
 boundary with its fixed one-cold/four-warm sample contract.
 `pnpm audit:host-distribution` enforces the reviewed target budget, and

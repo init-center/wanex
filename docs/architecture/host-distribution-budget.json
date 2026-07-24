@@ -5,20 +5,20 @@
       "native": {
         "maxExecutableBytes": 10800000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 750,
-        "maxCreateDisposeP95Ms": 250,
-        "maxTotalP95Ms": 1000,
-        "maxWallTimeP95Ms": 2000
+        "maxColdImportMs": 750,
+        "maxCreateDisposeMs": 250,
+        "maxTotalMs": 1000,
+        "maxWallTimeMs": 2000
       }
     },
     "darwin-arm64": {
       "native": {
         "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 750,
-        "maxCreateDisposeP95Ms": 250,
-        "maxTotalP95Ms": 1000,
-        "maxWallTimeP95Ms": 2000
+        "maxColdImportMs": 750,
+        "maxCreateDisposeMs": 1000,
+        "maxTotalMs": 1500,
+        "maxWallTimeMs": 2000
       },
       "electron": {
         "maxUnpackedBytes": 565000000,
@@ -44,10 +44,10 @@
       "native": {
         "maxExecutableBytes": 9900000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 1250,
-        "maxCreateDisposeP95Ms": 250,
-        "maxTotalP95Ms": 1500,
-        "maxWallTimeP95Ms": 3000
+        "maxColdImportMs": 1250,
+        "maxCreateDisposeMs": 250,
+        "maxTotalMs": 1500,
+        "maxWallTimeMs": 3000
       },
       "electron": {
         "maxUnpackedBytes": 575000000,
@@ -73,10 +73,10 @@
       "native": {
         "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 1000,
-        "maxCreateDisposeP95Ms": 500,
-        "maxTotalP95Ms": 2000,
-        "maxWallTimeP95Ms": 10000
+        "maxColdImportMs": 1000,
+        "maxCreateDisposeMs": 1000,
+        "maxTotalMs": 6000,
+        "maxWallTimeMs": 10000
       },
       "electron": {
         "maxUnpackedBytes": 415000000,

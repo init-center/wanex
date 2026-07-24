@@ -84,7 +84,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm stage:native -- --target ${{ matrix.target }}
-      - run: pnpm proof:native-runtime -- --samples 5
+      - run: pnpm proof:native-runtime
       - if: matrix.electron
         run: pnpm check:electron-boundary
       - if: matrix.electron

@@ -6,6 +6,10 @@ import {
   ELECTRON_PROOF_SAMPLE_COUNT,
   summarizeElectronSamples
 } from "./electron-boundary/metrics.mjs"
+import {
+  NATIVE_RELEASE_SAMPLE_COUNT,
+  summarizeNativeRuntimeSamples
+} from "./native-runtime-metrics.mjs"
 
 const workspaceRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -96,47 +100,70 @@ export function auditHostDistributionData(request) {
   const native = requireRecord(request.native, "native Runtime proof receipt")
   const nativeTarget = requireRecord(native.target, "native Runtime proof target")
   const nativeArtifact = requireRecord(native.artifact, "native Runtime proof artifact")
-  const nativeSummary = requireRecord(native.summary, "native Runtime proof summary")
+  const declaredNativeSummary = requireRecord(
+    native.summary,
+    "native Runtime proof summary"
+  )
+  const nativeSamples = requireArray(
+    native.samples,
+    "native Runtime proof samples"
+  )
+  const nativeSummary = summarizeNativeRuntimeSamples(nativeSamples)
   expectEqual(failures, "native receipt kind", native.kind, "wanex.native-runtime.proof-receipt")
   expectEqual(failures, "native receipt ok", native.ok, true)
   expectEqual(failures, "native target", nativeTarget.id, request.targetId)
+  expectEqual(
+    failures,
+    "native sample count",
+    native.sampleCount,
+    NATIVE_RELEASE_SAMPLE_COUNT
+  )
+  expectEqual(
+    failures,
+    "native raw sample count",
+    nativeSamples.length,
+    NATIVE_RELEASE_SAMPLE_COUNT
+  )
+  if (JSON.stringify(declaredNativeSummary) !== JSON.stringify(nativeSummary)) {
+    failures.push("native declared summary does not match raw samples")
+  }
   expectEqual(failures, "native artifact file count", nativeArtifact.fileCount, nativeBudget.exactFileCount)
   expectEqual(failures, "native node_modules exclusion", native.noNodeModulesBesideArtifact, true)
   expectEqual(failures, "native process cleanup", native.noOwnedProcessAfterRun, true)
   expectMaximum(failures, "native executable bytes", nativeArtifact.bytes, nativeBudget.maxExecutableBytes)
   expectMaximum(
     failures,
-    "native cold import p95 ms",
-    p95(nativeSummary, "coldImport"),
-    nativeBudget.maxColdImportP95Ms
+    "native cold import maximum ms",
+    maximum(nativeSummary, "coldImport"),
+    nativeBudget.maxColdImportMs
   )
   expectMaximum(
     failures,
-    "native create/dispose p95 ms",
-    p95(nativeSummary, "createDispose"),
-    nativeBudget.maxCreateDisposeP95Ms
+    "native create/dispose maximum ms",
+    maximum(nativeSummary, "createDispose"),
+    nativeBudget.maxCreateDisposeMs
   )
   expectMaximum(
     failures,
-    "native total p95 ms",
-    p95(nativeSummary, "total"),
-    nativeBudget.maxTotalP95Ms
+    "native total maximum ms",
+    maximum(nativeSummary, "total"),
+    nativeBudget.maxTotalMs
   )
   expectMaximum(
     failures,
-    "native wall time p95 ms",
-    p95(nativeSummary, "wallTime"),
-    nativeBudget.maxWallTimeP95Ms
+    "native wall time maximum ms",
+    maximum(nativeSummary, "wallTime"),
+    nativeBudget.maxWallTimeMs
   )
 
   const observed = {
     native: {
       executableBytes: nativeArtifact.bytes,
       fileCount: nativeArtifact.fileCount,
-      coldImportP95Ms: p95(nativeSummary, "coldImport"),
-      createDisposeP95Ms: p95(nativeSummary, "createDispose"),
-      totalP95Ms: p95(nativeSummary, "total"),
-      wallTimeP95Ms: p95(nativeSummary, "wallTime")
+      coldImportMaximumMs: maximum(nativeSummary, "coldImport"),
+      createDisposeMaximumMs: maximum(nativeSummary, "createDispose"),
+      totalMaximumMs: maximum(nativeSummary, "total"),
+      wallTimeMaximumMs: maximum(nativeSummary, "wallTime")
     }
   }
 
@@ -256,10 +283,6 @@ export function auditHostDistributionData(request) {
     observed,
     failures
   }
-}
-
-function p95(summary, metric) {
-  return requireRecord(summary[metric], `${metric} summary`).p95Ms
 }
 
 function maximum(metrics, metric) {

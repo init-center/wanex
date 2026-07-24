@@ -12,6 +12,12 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  NATIVE_RELEASE_SAMPLE_COUNT,
+  summarizeNativeRuntimeSamples
+} from "./native-runtime-metrics.mjs"
+
+export { summarizeNativeRuntimeSamples }
 
 const entryPath = fileURLToPath(import.meta.url)
 const workspaceRoot = dirname(dirname(entryPath))
@@ -19,7 +25,6 @@ const manifestFile = "runtime-artifacts.json"
 const sampleTimeoutMs = 60_000
 
 export interface NativeRuntimeProofOptions {
-  readonly samples: number
   readonly artifactDir?: string
 }
 
@@ -60,27 +65,19 @@ if (import.meta.main) {
 export function parseNativeRuntimeProofArgs(
   args: readonly string[]
 ): NativeRuntimeProofOptions {
-  let samples = 1
   let artifactDir: string | undefined
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index]
     if (name === "--") continue
-    if (name !== "--samples" && name !== "--artifact-dir") {
+    if (name !== "--artifact-dir") {
       throw new Error(`unknown native Runtime proof argument: ${String(name)}`)
     }
     const value = args[index + 1]
     if (!value) throw new Error(`${name} requires a value`)
-    if (name === "--samples") {
-      samples = positiveInteger(value, "native Runtime proof samples")
-    } else {
-      artifactDir = resolve(value)
-    }
+    artifactDir = resolve(value)
     index += 1
   }
-  return {
-    samples,
-    ...(artifactDir === undefined ? {} : { artifactDir })
-  }
+  return artifactDir === undefined ? {} : { artifactDir }
 }
 
 export async function proveNativeRuntime(options: NativeRuntimeProofOptions) {
@@ -140,7 +137,7 @@ export async function proveNativeRuntime(options: NativeRuntimeProofOptions) {
     const artifactVerificationMs = performance.now() - verifiedAt
 
     const samples: NativeRuntimeProofSample[] = []
-    for (let index = 0; index < options.samples; index += 1) {
+    for (let index = 0; index < NATIVE_RELEASE_SAMPLE_COUNT; index += 1) {
       const storeDir = join(proofRoot, `样本 ${index + 1}`, "store 数据")
       await mkdir(dirname(storeDir), { recursive: true })
       const measured = await measureNativeRuntimeSample(
@@ -199,38 +196,6 @@ export async function measureNativeRuntimeSample<T>(
   const wallTimeMs = now() - startedAt
   await auditOwnedProcesses()
   return { sample, wallTimeMs }
-}
-
-export function summarizeNativeRuntimeSamples(
-  samples: readonly NativeRuntimeProofSample[]
-) {
-  if (samples.length === 0) {
-    throw new Error("native Runtime proof summary requires samples")
-  }
-  const metrics = [
-    "coldImport",
-    "artifactVerification",
-    "create",
-    "createDispose",
-    "turn",
-    "dispose",
-    "total",
-    "wallTime"
-  ] as const
-  return Object.fromEntries(metrics.map((metric) => {
-    const values = samples.map((sample) => {
-      if (metric === "wallTime") return sample.wallTimeMs
-      if (metric === "createDispose") {
-        return sample.timingsMs.create + sample.timingsMs.dispose
-      }
-      return sample.timingsMs[metric]
-    }).sort((left, right) => left - right)
-    return [metric, {
-      medianMs: percentile(values, 0.5),
-      p95Ms: percentile(values, 0.95),
-      samplesMs: values
-    }]
-  }))
 }
 
 interface InternalSampleOptions {
@@ -514,18 +479,6 @@ async function sha256File(path: string): Promise<string> {
 
 function sha256Bytes(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")
-}
-
-function percentile(values: readonly number[], ratio: number): number {
-  return values[Math.min(values.length - 1, Math.ceil(values.length * ratio) - 1)]!
-}
-
-function positiveInteger(value: string, label: string): number {
-  const parsed = Number(value)
-  if (!Number.isSafeInteger(parsed) || parsed < 1) {
-    throw new Error(`${label} must be a positive integer`)
-  }
-  return parsed
 }
 
 function appendBounded(current: string, chunk: string): string {

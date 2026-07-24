@@ -9,43 +9,46 @@ import {
 
 describe("native Runtime proof", () => {
   it("parses only the explicit proof arguments", () => {
-    expect(parseNativeRuntimeProofArgs([])).toEqual({ samples: 1 })
+    expect(parseNativeRuntimeProofArgs([])).toEqual({})
     expect(parseNativeRuntimeProofArgs([
       "--",
-      "--samples",
-      "3",
       "--artifact-dir",
       "target/custom-native"
     ])).toEqual({
-      samples: 3,
       artifactDir: resolve("target/custom-native")
     })
-    expect(() => parseNativeRuntimeProofArgs(["--samples", "0"]))
-      .toThrow("positive integer")
+    expect(() => parseNativeRuntimeProofArgs(["--samples", "5"]))
+      .toThrow("unknown native Runtime proof argument")
     expect(() => parseNativeRuntimeProofArgs(["--unknown"]))
       .toThrow("unknown native Runtime proof argument")
   })
 
-  it("reports deterministic median and p95 samples", () => {
-    const samples = [sample(30), sample(10), sample(20)]
+  it("reports deterministic median and maximum samples", () => {
+    const samples = [sample(0, 30), sample(1, 10), sample(2, 20)]
     expect(summarizeNativeRuntimeSamples(samples)).toMatchObject({
       coldImport: {
         medianMs: 20,
-        p95Ms: 30,
+        maximumMs: 30,
         samplesMs: [10, 20, 30]
       },
       createDispose: {
         medianMs: 46,
-        p95Ms: 66,
+        maximumMs: 66,
         samplesMs: [26, 46, 66]
       },
       wallTime: {
         medianMs: 120,
-        p95Ms: 130,
+        maximumMs: 130,
         samplesMs: [110, 120, 130]
       }
     })
     expect(() => summarizeNativeRuntimeSamples([])).toThrow("requires samples")
+    expect(() => summarizeNativeRuntimeSamples([
+      sample(1, 10)
+    ])).toThrow("sample 0 has an invalid index")
+    expect(() => summarizeNativeRuntimeSamples([
+      { ...sample(0, 10), temperature: "warm" as "cold" }
+    ])).toThrow("sample 0 must be cold")
   })
 
   it("excludes the process audit from sample wall time without weakening it", async () => {
@@ -78,9 +81,9 @@ describe("native Runtime proof", () => {
   })
 })
 
-function sample(value: number): NativeRuntimeProofSample {
+function sample(index: number, value: number): NativeRuntimeProofSample {
   return {
-    index: value,
+    index,
     temperature: "cold",
     targetId: "darwin-arm64",
     state: "succeeded",

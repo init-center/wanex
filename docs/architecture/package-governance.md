@@ -57,17 +57,19 @@ The current Phase 774 baseline is:
 
 | Facade | Bytes | Static inputs | Workspace packages |
 | --- | ---: | ---: | ---: |
-| `@wanex/runtime` | 358,257 | 245 | 3 |
-| `@wanex/app` | 1,105,298 | 432 | 4 |
+| `@wanex/runtime` | 359,111 | 245 | 3 |
+| `@wanex/app` | 1,106,179 | 432 | 4 |
 
 These are reviewed ceilings, not performance targets. The Phase 774 review
 accepts the durable turn/active-abort, provider/resource, and explicit System
 Service launch-descriptor paths in Runtime, together with the trusted
-conversation operation facade in App. The launch descriptor added 338 bytes to
-each facade while adding no static input or workspace package. The closure
-remains restricted to three Runtime workspace packages and four App workspace
-packages; no Product, Team, Plugin, Connector, Workspace, or presentation
-package entered either default facade.
+conversation operation facade in App. It also accepts the single-flight
+shutdown state required for concurrent stop/dispose callers to join provider
+and tool cleanup before owned Storage closes. The reviewed lifecycle correction
+adds 854 Runtime bytes and 846 App bytes while adding no static input or
+workspace package. The closure remains restricted to three Runtime workspace
+packages and four App workspace packages; no Product, Team, Plugin, Connector,
+Workspace, or presentation package entered either default facade.
 
 ## Audit
 

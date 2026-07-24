@@ -44,15 +44,18 @@ impl SystemService {
             fs::create_dir_all(parent)?;
         }
 
+        let resource_id = crate::util::resource_id_for_path(logical_path);
+        let lock_path = self
+            .root_dir
+            .join("locks")
+            .join("resource-write")
+            .join(format!("{resource_id}.lock"));
         let prepared = crate::atomic_file::prepare_replacement(&absolute_path, content)?;
-        let mut conn = self.connect()?;
-        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let _path_lock = crate::atomic_file::acquire_path_write_lock(&lock_path)?;
         prepared.commit()?;
-
         crate::util::sync_parent_dir(&absolute_path)?;
 
         let updated_at = crate::util::now_ms();
-        let resource_id = crate::util::resource_id_for_path(logical_path);
         let record = FileRecord {
             resource_id: resource_id.clone(),
             logical_path: logical_path.to_string(),
@@ -62,6 +65,8 @@ impl SystemService {
             updated_at,
         };
 
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
         tx.execute(
             "INSERT INTO resource (
                 id, logical_path, absolute_path, kind, origin, media_type, label,

@@ -1,7 +1,32 @@
-use std::fs::{self, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
+
+pub(crate) fn acquire_path_write_lock(lock_path: &Path) -> io::Result<PathWriteLock> {
+    if let Some(parent) = lock_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(lock_path)?;
+    file.lock()?;
+    Ok(PathWriteLock { _file: file })
+}
+
+pub(crate) struct PathWriteLock {
+    _file: File,
+}
+
+impl PathWriteLock {
+    #[cfg(test)]
+    fn file(&self) -> &File {
+        &self._file
+    }
+}
 
 pub(crate) fn prepare_replacement(
     destination: &Path,
@@ -109,9 +134,45 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::prepare_replacement;
-    use std::fs;
+    use super::{acquire_path_write_lock, prepare_replacement};
+    use std::fs::{self, OpenOptions};
     use tempfile::tempdir;
+
+    #[test]
+    fn path_write_lock_is_owned_by_the_open_handle() {
+        let dir = tempdir().unwrap();
+        let lock_path = dir.path().join("locks/resource.lock");
+        let first = acquire_path_write_lock(&lock_path).unwrap();
+        let second = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .unwrap();
+
+        assert!(matches!(
+            second.try_lock(),
+            Err(std::fs::TryLockError::WouldBlock)
+        ));
+        drop(first);
+        second.try_lock().unwrap();
+        second.unlock().unwrap();
+    }
+
+    #[test]
+    fn path_write_lock_uses_one_stable_file() {
+        let dir = tempdir().unwrap();
+        let lock_path = dir.path().join("locks/resource.lock");
+
+        let first = acquire_path_write_lock(&lock_path).unwrap();
+        let first_metadata = first.file().metadata().unwrap();
+        drop(first);
+        let second = acquire_path_write_lock(&lock_path).unwrap();
+        let second_metadata = second.file().metadata().unwrap();
+
+        assert_eq!(first_metadata.len(), 0);
+        assert_eq!(second_metadata.len(), 0);
+        assert!(lock_path.exists());
+    }
 
     #[test]
     fn prepared_replacement_is_invisible_until_commit() {

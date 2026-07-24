@@ -1,3 +1,4 @@
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -229,6 +230,85 @@ fn cli_writes_file_and_reports_doctor() {
     let doctor = run_cli(dir.path().to_str().unwrap(), json!({ "command": "doctor" }));
     assert_eq!(doctor["ok"], true);
     assert_eq!(doctor["value"]["schema_version"], CURRENT_SCHEMA_VERSION);
+}
+
+#[test]
+fn cli_serializes_cross_process_atomic_replacement() {
+    const WRITERS: usize = 8;
+    let dir = tempdir().unwrap();
+    let store = dir.path().to_str().unwrap();
+    run_cli(store, json!({ "command": "doctor" }));
+
+    let payloads = (0..WRITERS)
+        .map(|index| format!("process-{index}:{}", "x".repeat(64 * 1024)).into_bytes())
+        .collect::<Vec<_>>();
+    let bin = env!("CARGO_BIN_EXE_wanex-system-service");
+    let mut children = (0..WRITERS)
+        .map(|_| {
+            Command::new(bin)
+                .args(["--store", store])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .spawn()
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    for (index, child) in children.iter_mut().enumerate() {
+        let request = wire_request(json!({
+            "command": "write-atomic-file",
+            "logical_path": "concurrent/跨进程 output.txt",
+            "content_base64": STANDARD.encode(&payloads[index]),
+            "expected_sha256": null
+        }));
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(request.to_string().as_bytes())
+            .unwrap();
+    }
+
+    let records = children
+        .into_iter()
+        .map(|child| {
+            let output = child.wait_with_output().unwrap();
+            assert!(
+                output.status.success(),
+                "cross-process write failed: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let response: Value = serde_json::from_slice(&output.stdout).unwrap();
+            assert_eq!(response["ok"], true);
+            response["value"].clone()
+        })
+        .collect::<Vec<_>>();
+
+    let final_path = records[0]["absolute_path"].as_str().unwrap();
+    let final_content = fs::read(final_path).unwrap();
+    assert!(payloads.iter().any(|payload| payload == &final_content));
+    let stored = run_cli(
+        store,
+        json!({
+            "command": "get-resource",
+            "resource_id": records[0]["resource_id"]
+        }),
+    );
+    assert_eq!(stored["value"]["sha256"], sha256_hex(&final_content));
+    assert_eq!(stored["value"]["size_bytes"], final_content.len());
+
+    let lock_files = fs::read_dir(dir.path().join("locks/resource-write"))
+        .unwrap()
+        .collect::<std::io::Result<Vec<_>>>()
+        .unwrap();
+    assert_eq!(lock_files.len(), 1);
+    let temp_files = fs::read_dir(std::path::Path::new(final_path).parent().unwrap())
+        .unwrap()
+        .filter_map(std::result::Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().contains(".tmp-"))
+        .collect::<Vec<_>>();
+    assert!(temp_files.is_empty());
 }
 
 #[test]
@@ -570,6 +650,13 @@ fn test_execution_binding(label: &str) -> Value {
 
 fn sha256_json(value: &Value) -> String {
     Sha256::digest(serde_json::to_string(value).unwrap().as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+fn sha256_hex(content: &[u8]) -> String {
+    Sha256::digest(content)
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()

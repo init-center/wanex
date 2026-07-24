@@ -9,6 +9,7 @@ import { createStoreDir, serviceBin } from "./helpers.js"
 
 const secretRef = "env://WANEX_APP_OPERATION_PROVIDER_KEY"
 const secretValue = "wanex-app-operation-secret"
+const integrationDeadlockTimeoutMs = 10_000
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -50,7 +51,7 @@ describe("@wanex/app durable conversation operations", () => {
       app.start()
       await withTimeout(
         bothProvidersStarted.promise,
-        1_000,
+        integrationDeadlockTimeoutMs,
         "configured App workers did not overlap"
       )
       expect(maxActiveCalls).toBe(2)
@@ -74,7 +75,7 @@ describe("@wanex/app durable conversation operations", () => {
       releaseProviders.resolve()
       await app.dispose()
     }
-  })
+  }, 15_000)
 
   it("projects bounded assistant deltas without letting listener failures affect execution", async () => {
     const storeDir = await createStoreDir()

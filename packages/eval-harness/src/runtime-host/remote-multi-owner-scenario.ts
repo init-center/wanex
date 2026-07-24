@@ -21,10 +21,18 @@ import type {
 import { startEvalRemoteStorageServer } from "../eval-remote-storage-server.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
+import {
+  RemoteMultiOwnerCoordinator,
+  ScenarioRunScope,
+  type RemoteHostOwner
+} from "./remote-multi-owner-coordination.js"
 
 const sessionCount = 32
 const workersPerHost = 4
 const combinedWorkerCount = workersPerHost * 2
+const remoteRequestTimeoutMs = 10_000
+const remoteHeartbeatIntervalMs = 500
+const coordinationLivenessMs = 30_000
 
 type SubmittedTurn = Awaited<
   ReturnType<WanexRuntimeHost["submitUserTurn"]>
@@ -67,23 +75,24 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
       resolveStorageWireTransport: pool.resolveStorageWireTransport
     })
     const server = await startEvalRemoteStorageServer(controlPlane.handle)
-    const coordinator = new MultiOwnerProviderCoordinator()
+    const coordinator = new RemoteMultiOwnerCoordinator()
+    const runs = new ScenarioRunScope()
     const storageConfig = {
       kind: "remote-http" as const,
       endpoint: server.endpoint,
       token: "runtime-host-shared-token",
-      timeoutMs: 10_000
+      timeoutMs: remoteRequestTimeoutMs
     }
     const hostA = new WanexRuntimeHost({
       storageConfig,
       workerCount: workersPerHost,
-      heartbeatIntervalMs: 20,
+      heartbeatIntervalMs: remoteHeartbeatIntervalMs,
       provider: new MultiOwnerProbeProvider("host-a", coordinator)
     })
     const hostB = new WanexRuntimeHost({
       storageConfig,
       workerCount: workersPerHost,
-      heartbeatIntervalMs: 20,
+      heartbeatIntervalMs: remoteHeartbeatIntervalMs,
       provider: new MultiOwnerProbeProvider("host-b", coordinator)
     })
     const expectedTurns: ExpectedTurn[] = []
@@ -100,7 +109,9 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
 
       for (let wave = 0; wave < sessionCount / combinedWorkerCount; wave += 1) {
         const gate = coordinator.armGate(combinedWorkerCount)
-        const running = Promise.all([hostA.runOnce(), hostB.runOnce()])
+        const running = runs.track(
+          Promise.all([hostA.runOnce(), hostB.runOnce()])
+        )
         await withDeadline(gate.ready, `parallel wave ${wave} did not fill all workers`)
         assert(
           coordinator.active === combinedWorkerCount,
@@ -134,7 +145,9 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
       )
       for (const label of ["first", "second"]) {
         const gate = coordinator.armGate(1)
-        const running = Promise.all([hostA.runOnce(), hostB.runOnce()])
+        const running = runs.track(
+          Promise.all([hostA.runOnce(), hostB.runOnce()])
+        )
         await withDeadline(gate.ready, `same-session ${label} turn did not start`)
         gate.release()
         const results = await running
@@ -150,7 +163,7 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
         sessionId: "ses_eval_remote_cancel"
       })
       expectedTurns.push({ submitted: cancelled, label: "remote-cancel", assistant: false })
-      const cancellationRun = hostA.runOnce()
+      const cancellationRun = runs.track(hostA.runOnce())
       await withDeadline(
         coordinator.cancellationStarted.promise,
         "remote cancellation provider did not start"
@@ -178,11 +191,13 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
 
       expectedTurns.push(await submitAndRunReusable(
         hostA,
+        runs,
         "host-a-after-cancel",
         "ses_eval_host_a_after_cancel"
       ))
       expectedTurns.push(await submitAndRunReusable(
         hostB,
+        runs,
         "host-b-after-cancel",
         "ses_eval_host_b_after_cancel"
       ))
@@ -196,16 +211,18 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
         label: "host-a-planned-failure",
         assistant: false
       })
-      const failureRun = await hostA.runOnce()
+      const failureRun = await runs.track(hostA.runOnce())
       assertStatuses([failureRun], 0, workersPerHost - 1, "host A failure", 1)
 
       expectedTurns.push(await submitAndRunReusable(
         hostB,
+        runs,
         "host-b-after-host-a-failure",
         "ses_eval_host_b_after_failure"
       ))
       expectedTurns.push(await submitAndRunReusable(
         hostA,
+        runs,
         "host-a-after-own-failure",
         "ses_eval_host_a_after_failure"
       ))
@@ -251,15 +268,25 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
         createdTransports
       }
     } finally {
-      await Promise.allSettled([hostA.dispose(), hostB.dispose()])
-      await server.close()
-      await pool.close()
+      coordinator.abortGate()
+      await Promise.allSettled([hostA.stop(), hostB.stop()])
+      await runs.join()
+      try {
+        await Promise.all([hostA.dispose(), hostB.dispose()])
+      } finally {
+        try {
+          await server.close()
+        } finally {
+          await pool.close()
+        }
+      }
     }
   }
 })
 
 async function submitAndRunReusable(
   host: WanexRuntimeHost,
+  runs: ScenarioRunScope,
   label: string,
   sessionId: string
 ): Promise<ExpectedTurn> {
@@ -267,7 +294,7 @@ async function submitAndRunReusable(
     content: [{ type: "text", text: label }],
     sessionId
   })
-  const result = await host.runOnce()
+  const result = await runs.track(host.runOnce())
   assertStatuses([result], 1, workersPerHost - 1, label)
   return { submitted, label, assistant: true }
 }
@@ -319,92 +346,6 @@ function assertStatuses(
   assert(count("failed") === failed, `${label} failed worker count differs`)
 }
 
-type HostOwner = "host-a" | "host-b"
-
-class MultiOwnerProviderCoordinator {
-  readonly cancellationStarted = deferred<void>()
-  readonly cancellationAborted = deferred<void>()
-  active = 0
-  maxActive = 0
-  sameSessionMaxActive = 0
-  cancellationAbortCount = 0
-  private sameSessionActive = 0
-  private gate: ProviderGate | undefined
-  private readonly dispatches = new Map<string, number>()
-  private readonly ownerDispatches = new Map<HostOwner, number>()
-
-  get dispatchCount(): number {
-    return [...this.dispatches.values()].reduce((sum, count) => sum + count, 0)
-  }
-
-  get duplicateDispatchLabels(): string[] {
-    return [...this.dispatches]
-      .filter(([, count]) => count !== 1)
-      .map(([label]) => label)
-      .sort()
-  }
-
-  ownerDispatchCount(owner: HostOwner): number {
-    return this.ownerDispatches.get(owner) ?? 0
-  }
-
-  armGate(expected: number): { readonly ready: Promise<void>; release(): void } {
-    if (this.gate !== undefined) throw new Error("provider gate is already armed")
-    const ready = deferred<void>()
-    const released = deferred<void>()
-    const gate: ProviderGate = { expected, entered: 0, ready, released }
-    this.gate = gate
-    return {
-      ready: ready.promise,
-      release: () => {
-        if (this.gate !== gate || gate.entered !== expected) {
-          throw new Error("provider gate released before its exact capacity")
-        }
-        this.gate = undefined
-        released.resolve()
-      }
-    }
-  }
-
-  async enter(owner: HostOwner, label: string): Promise<() => void> {
-    this.dispatches.set(label, (this.dispatches.get(label) ?? 0) + 1)
-    this.ownerDispatches.set(owner, (this.ownerDispatches.get(owner) ?? 0) + 1)
-    this.active += 1
-    this.maxActive = Math.max(this.maxActive, this.active)
-    const sameSession = label.startsWith("same-session-")
-    if (sameSession) {
-      this.sameSessionActive += 1
-      this.sameSessionMaxActive = Math.max(
-        this.sameSessionMaxActive,
-        this.sameSessionActive
-      )
-    }
-    const gate = this.gate
-    if (gate !== undefined) {
-      gate.entered += 1
-      if (gate.entered > gate.expected) {
-        throw new Error("provider gate admitted too many executions")
-      }
-      if (gate.entered === gate.expected) gate.ready.resolve()
-      await gate.released.promise
-    }
-    let left = false
-    return () => {
-      if (left) return
-      left = true
-      this.active -= 1
-      if (sameSession) this.sameSessionActive -= 1
-    }
-  }
-}
-
-interface ProviderGate {
-  readonly expected: number
-  entered: number
-  readonly ready: Deferred<void>
-  readonly released: Deferred<void>
-}
-
 class MultiOwnerProbeProvider implements ProviderAdapter {
   readonly kind = "fake" as const
   readonly capabilities = { input: ["text"], output: ["text"] } as const
@@ -412,8 +353,8 @@ class MultiOwnerProbeProvider implements ProviderAdapter {
   readonly modelId = "remote-multi-owner-probe-model"
 
   constructor(
-    private readonly owner: HostOwner,
-    private readonly coordinator: MultiOwnerProviderCoordinator
+    private readonly owner: RemoteHostOwner,
+    private readonly coordinator: RemoteMultiOwnerCoordinator
   ) {}
 
   async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
@@ -500,23 +441,13 @@ async function withDeadline<T>(promise: Promise<T>, message: string): Promise<T>
     return await Promise.race([
       promise,
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error(message)), 10_000)
+        timeout = setTimeout(
+          () => reject(new Error(message)),
+          coordinationLivenessMs
+        )
       })
     ])
   } finally {
     if (timeout !== undefined) clearTimeout(timeout)
   }
-}
-
-interface Deferred<T> {
-  readonly promise: Promise<T>
-  resolve(value: T): void
-}
-
-function deferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((complete) => {
-    resolve = complete
-  })
-  return { promise, resolve }
 }

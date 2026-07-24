@@ -38,6 +38,7 @@ describe("@wanex/app durable conversation operations", () => {
     )
 
     try {
+      await app.stop()
       const first = await app.commands.submitConversationOperation({
         content: [{ type: "text", text: "parallel first" }],
         sessionId: "ses_app_parallel_first"
@@ -46,6 +47,7 @@ describe("@wanex/app durable conversation operations", () => {
         content: [{ type: "text", text: "parallel second" }],
         sessionId: "ses_app_parallel_second"
       })
+      app.start()
       await withTimeout(
         bothProvidersStarted.promise,
         1_000,

@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { DeterministicContextCompiler } from "../src/context/memory/index.js"
 import type {
   ProviderAdapter,
@@ -16,7 +16,11 @@ import type {
   SchedulerJobRecord,
   TextMessagePart
 } from "@wanex/protocol"
-import { createStorageHandle, type CoreStore } from "@wanex/storage"
+import {
+  createStorageHandle,
+  type CoreStore,
+  type StorageHandle
+} from "@wanex/storage"
 import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
@@ -38,8 +42,23 @@ const serviceBin = join(
 const expectedSchemaVersion = 1
 
 const tempDirs: string[] = []
+let testStorageHandle: StorageHandle | undefined
+
+beforeEach(async () => {
+  const storeDir = await mkdtemp(join(tmpdir(), "wanex-runtime-host-"))
+  tempDirs.push(storeDir)
+  testStorageHandle = createStorageHandle({
+    kind: "local-system-service",
+    mode: "persistent",
+    storeDir,
+    serviceBin
+  })
+  await testStorageHandle.core.doctor()
+})
 
 afterEach(async () => {
+  await testStorageHandle?.dispose()
+  testStorageHandle = undefined
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
     if (dir) {
@@ -293,14 +312,7 @@ describe("@wanex/runtime/host", () => {
 
   it("hands lease loss to durable recovery instead of ordinary cancellation", async () => {
     const provider = new AbortAwareBlockingProvider(false)
-    const storeDir = await mkdtemp(join(tmpdir(), "wanex-runtime-host-lease-loss-"))
-    tempDirs.push(storeDir)
-    const handle = createStorageHandle({
-      kind: "local-system-service",
-      mode: "persistent",
-      storeDir,
-      serviceBin
-    })
+    const handle = requireTestStorageHandle()
     let loseLease = false
     const storage = new Proxy(handle.core, {
       get(target, property) {
@@ -339,7 +351,6 @@ describe("@wanex/runtime/host", () => {
       )).toBe(false)
     } finally {
       await host.dispose()
-      await handle.dispose()
     }
   })
 
@@ -903,41 +914,30 @@ describe("@wanex/runtime/host", () => {
   })
 
   it("uses app-owned injected storage without closing it on stop", async () => {
-    const storeDir = await mkdtemp(join(tmpdir(), "wanex-runtime-host-owned-"))
-    tempDirs.push(storeDir)
-    const handle = createStorageHandle({
-      kind: "local-system-service",
-      mode: "persistent",
-      storeDir,
-      serviceBin
-    })
+    const handle = requireTestStorageHandle()
 
     const host = new WanexRuntimeHost({
       storage: handle.core,
       workerCount: 1,
       fakeResponseText: "injected storage response"
     })
-    try {
-      await host.submitUserTurn({
-        content: [{ type: "text", text: "owned" }],
-        sessionId: "ses_host_owned_storage"
-      })
-      const result = await host.runOnce()
-      expect(result.results[0]?.worker.status).toBe("completed")
-      await host.stop()
-      await host.stop()
-      await host.dispose()
-      await host.dispose()
-      await expect(handle.core.doctor()).resolves.toMatchObject({
-        schemaVersion: expectedSchemaVersion
-      })
-    } finally {
-      await handle.dispose()
-    }
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "owned" }],
+      sessionId: "ses_host_owned_storage"
+    })
+    const result = await host.runOnce()
+    expect(result.results[0]?.worker.status).toBe("completed")
+    await host.stop()
+    await host.stop()
+    await host.dispose()
+    await host.dispose()
+    await expect(handle.core.doctor()).resolves.toMatchObject({
+      schemaVersion: expectedSchemaVersion
+    })
   })
 
   it("disposes host-owned storage idempotently", async () => {
-    const host = await createHost({
+    const host = await createOwnedHost({
       workerCount: 1,
       fakeResponseText: "owned storage lifecycle"
     })
@@ -1283,6 +1283,18 @@ async function createHost(
     "storage" | "storageConfig"
   >
 ): Promise<WanexRuntimeHost> {
+  return new WanexRuntimeHost({
+    storage: requireTestStorageHandle().core,
+    ...options
+  })
+}
+
+async function createOwnedHost(
+  options: Omit<
+    ConstructorParameters<typeof WanexRuntimeHost>[0],
+    "storage" | "storageConfig"
+  >
+): Promise<WanexRuntimeHost> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-runtime-host-"))
   tempDirs.push(storeDir)
   return new WanexRuntimeHost({
@@ -1294,6 +1306,13 @@ async function createHost(
     },
     ...options
   })
+}
+
+function requireTestStorageHandle(): StorageHandle {
+  if (testStorageHandle === undefined) {
+    throw new Error("runtime host test storage is not initialized")
+  }
+  return testStorageHandle
 }
 
 function userText(messages: readonly ProviderReplayMessage[]): string {

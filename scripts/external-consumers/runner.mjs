@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { relative, resolve, sep } from "node:path"
+import * as nativePath from "node:path"
 
 export async function withExternalFixtureRoot(workspaceRoot, run) {
-  const root = await mkdtemp(resolve(tmpdir(), "wanex-external-consumers-"))
+  const root = await mkdtemp(nativePath.resolve(tmpdir(), "wanex-external-consumers-"))
   assertPathOutsideWorkspace(root, workspaceRoot)
   try {
     return await run(root)
@@ -13,15 +13,22 @@ export async function withExternalFixtureRoot(workspaceRoot, run) {
 }
 
 export function assertPathOutsideWorkspace(path, workspaceRoot) {
-  const candidate = resolve(path)
-  const workspace = resolve(workspaceRoot)
-  const fromWorkspace = relative(workspace, candidate)
-  if (
-    fromWorkspace === "" ||
-    (!fromWorkspace.startsWith(`..${sep}`) && fromWorkspace !== "..")
-  ) {
-    throw new Error(`external consumer root must be outside workspace: ${candidate}`)
+  if (isPathInsideOrEqual(path, workspaceRoot)) {
+    throw new Error(
+      `external consumer root must be outside workspace: ${nativePath.resolve(path)}`
+    )
   }
+}
+
+export function isPathInsideOrEqual(path, workspaceRoot, pathApi = nativePath) {
+  const candidate = pathApi.resolve(path)
+  const workspace = pathApi.resolve(workspaceRoot)
+  const fromWorkspace = pathApi.relative(workspace, candidate)
+  return fromWorkspace === "" || (
+    !pathApi.isAbsolute(fromWorkspace) &&
+    fromWorkspace !== ".." &&
+    !fromWorkspace.startsWith(`..${pathApi.sep}`)
+  )
 }
 
 export function expectedWanexClosure(topLevelNames, registryPackages) {
@@ -61,7 +68,7 @@ export function inspectExternalPackageLock(options) {
   }
   for (const forbiddenPath of options.forbiddenPaths ?? []) {
     const portablePath = forbiddenPath.replaceAll("\\", "/")
-    const resolvedPath = resolve(forbiddenPath)
+    const resolvedPath = nativePath.resolve(forbiddenPath)
     const forbiddenMarkers = new Set([
       forbiddenPath,
       portablePath,

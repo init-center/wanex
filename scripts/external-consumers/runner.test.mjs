@@ -1,11 +1,12 @@
 import { access, mkdir, readFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, win32 } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   assertPathOutsideWorkspace,
   expectedWanexClosure,
   inspectExternalPackageLock,
+  isPathInsideOrEqual,
   withExternalFixtureRoot
 } from "./runner.mjs"
 
@@ -69,6 +70,16 @@ describe("external consumer runner policy", () => {
   it("rejects workspace-contained roots and cleans external roots on failure", async () => {
     expect(() => assertPathOutsideWorkspace("/workspace/wanex/tmp", "/workspace/wanex"))
       .toThrow("must be outside workspace")
+    expect(isPathInsideOrEqual(
+      "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\wanex-external-consumers",
+      "D:\\a\\wanex\\wanex",
+      win32
+    )).toBe(false)
+    expect(isPathInsideOrEqual(
+      "D:\\a\\wanex\\wanex\\tmp",
+      "D:\\a\\wanex\\wanex",
+      win32
+    )).toBe(true)
 
     let createdRoot
     await expect(withExternalFixtureRoot(join(tmpdir(), "wanex-workspace-fixture"), async (root) => {

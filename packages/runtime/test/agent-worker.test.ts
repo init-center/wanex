@@ -2,7 +2,10 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import { WanexWorker } from "../src/jobs/index.js"
 import { registerSessionTurnHandler } from "../src/execution/worker/index.js"
 import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
@@ -25,8 +28,12 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
+const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (clients.length > 0) {
+    await clients.pop()?.dispose()
+  }
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   )
@@ -369,12 +376,14 @@ describe("session.turn worker handler", () => {
 async function createStore() {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-worker-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({
+  const storage = createStorageTestStore({
     kind: "local-system-service",
-    mode: "oneshot",
+    mode: "persistent",
     storeDir,
     serviceBin
   })
+  clients.push(storage)
+  return storage
 }
 
 function registryWithTool(

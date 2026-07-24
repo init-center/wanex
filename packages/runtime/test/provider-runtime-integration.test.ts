@@ -3,7 +3,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { JsonValue } from "@wanex/protocol"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import { WanexAgentRuntime } from "../src/host/index.js"
 import type {
   ProviderAdapter,
@@ -17,8 +20,12 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
+const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (clients.length > 0) {
+    await clients.pop()?.dispose()
+  }
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   )
@@ -108,12 +115,14 @@ describe("provider runtime integration", () => {
 async function createStore() {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-provider-runtime-"))
   tempDirs.push(storeDir)
-  return createStorageTestStore({
+  const storage = createStorageTestStore({
     kind: "local-system-service",
-    mode: "oneshot",
+    mode: "persistent",
     storeDir,
     serviceBin
   })
+  clients.push(storage)
+  return storage
 }
 
 class TextProvider implements ProviderAdapter {

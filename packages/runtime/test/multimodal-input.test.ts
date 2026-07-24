@@ -28,7 +28,7 @@ describe("resource-bearing provider input", () => {
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
       kind: "local-system-service",
-      mode: "oneshot",
+      mode: "persistent",
       storeDir,
       serviceBin
     })
@@ -120,7 +120,7 @@ describe("resource-bearing provider input", () => {
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
       kind: "local-system-service",
-      mode: "oneshot",
+      mode: "persistent",
       storeDir,
       serviceBin
     })
@@ -172,7 +172,7 @@ describe("resource-bearing provider input", () => {
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
       kind: "local-system-service",
-      mode: "oneshot",
+      mode: "persistent",
       storeDir,
       serviceBin
     })
@@ -218,7 +218,7 @@ describe("resource-bearing provider input", () => {
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
       kind: "local-system-service",
-      mode: "oneshot",
+      mode: "persistent",
       storeDir,
       serviceBin
     })

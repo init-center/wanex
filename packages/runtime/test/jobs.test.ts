@@ -19,8 +19,12 @@ const serviceBin = join(
 )
 
 const tempDirs: string[] = []
+const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (clients.length > 0) {
+    await clients.pop()?.dispose()
+  }
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
     if (dir) {
@@ -401,10 +405,13 @@ async function createSessionCoreWithStorage(): Promise<{
 }> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-worker-core-"))
   tempDirs.push(storeDir)
-  const storage = createStorageTestStore({ kind: "local-system-service", mode: "oneshot",
+  const storage = createStorageTestStore({
+    kind: "local-system-service",
+    mode: "persistent",
     storeDir,
     serviceBin
   })
+  clients.push(storage)
   return {
     session: new WanexSessionCore({ storage }),
     storage

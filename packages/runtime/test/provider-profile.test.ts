@@ -2,7 +2,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import {
   AnthropicAdapter,
   DeepSeekThinkingAdapter,
@@ -22,8 +25,12 @@ import {
 
 const serviceBin = join(import.meta.dirname, `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
 const tempDirs: string[] = []
+const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (clients.length > 0) {
+    await clients.pop()?.dispose()
+  }
   await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
@@ -31,7 +38,8 @@ describe("Runtime provider profiles", () => {
   it("persists profiles through the storage boundary", async () => {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-provider-profile-"))
     tempDirs.push(storeDir)
-    const storage = createStorageTestStore({ kind: "local-system-service", mode: "oneshot", storeDir, serviceBin })
+    const storage = createStorageTestStore({ kind: "local-system-service", mode: "persistent", storeDir, serviceBin })
+    clients.push(storage)
     const secretValue = "provider-secret-value"
     const secretRef = "static://provider/anthropic-main"
     const secretResolver = new SecretResolver([

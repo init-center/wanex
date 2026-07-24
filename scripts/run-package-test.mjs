@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { dirname } from "node:path"
+import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -44,29 +44,9 @@ export async function runPackageTest(options = {}) {
     skipSystemServiceBuild,
     vitestArgs
   })) {
-    await runStep(step, env, step.command === "cargo" ? rootDir : packageDir)
+    await runProcessStep(step, {
+      cwd: step.command === "cargo" ? rootDir : packageDir,
+      env
+    })
   }
-}
-
-function runStep(step, env, cwd) {
-  console.log(`\n==> ${step.name}`)
-  console.log(`$ ${step.command} ${step.args.join(" ")}`)
-  return new Promise((resolve, reject) => {
-    const child = spawn(step.command, step.args, {
-      cwd,
-      env,
-      stdio: "inherit",
-      shell: process.platform === "win32"
-    })
-    child.on("error", reject)
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      const detail =
-        signal === null ? `exit code ${String(code)}` : `signal ${signal}`
-      reject(new Error(`${step.name} failed with ${detail}`))
-    })
-  })
 }

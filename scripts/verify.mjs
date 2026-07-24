@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
+import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
@@ -233,28 +233,6 @@ export function createVerifySteps() {
 
 export async function runVerify() {
   for (const step of createVerifySteps()) {
-    await runStep(step)
+    await runProcessStep(step, { cwd: rootDir })
   }
-}
-
-function runStep(step) {
-  console.log(`\n==> ${step.name}`)
-  console.log(`$ ${step.command} ${step.args.join(" ")}`)
-  return new Promise((resolve, reject) => {
-    const child = spawn(step.command, step.args, {
-      cwd: rootDir,
-      stdio: "inherit",
-      shell: process.platform === "win32"
-    })
-    child.on("error", reject)
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      const detail =
-        signal === null ? `exit code ${String(code)}` : `signal ${signal}`
-      reject(new Error(`${step.name} failed with ${detail}`))
-    })
-  })
 }

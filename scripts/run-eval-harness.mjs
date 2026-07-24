@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
 import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
+import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -34,25 +34,8 @@ export function createEvalHarnessStep(
 }
 
 export async function runEvalHarness(forwardedArgs = []) {
-  await runStep(createEvalHarnessStep(forwardedArgs))
-}
-
-function runStep(step) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(step.command, step.args, {
-      cwd: rootDir,
-      stdio: "inherit",
-      shell: process.platform === "win32"
-    })
-    child.on("error", reject)
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      const detail =
-        signal === null ? `exit code ${String(code)}` : `signal ${signal}`
-      reject(new Error(`${step.name} failed with ${detail}`))
-    })
+  await runProcessStep(createEvalHarnessStep(forwardedArgs), {
+    cwd: rootDir,
+    log: false
   })
 }

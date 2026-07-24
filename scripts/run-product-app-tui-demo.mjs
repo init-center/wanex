@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const appDir = join(rootDir, "apps/product-app-tui")
@@ -15,7 +15,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     createTempRoot: createProductAppTuiDemoTempRoot
   })
   try {
-    await runStep(demo.step)
+    await runProcessStep(demo.step, {
+      cwd: rootDir,
+      env: {
+        ...process.env,
+        ...demo.step.env
+      }
+    })
   } finally {
     if (demo.cleanupDir !== undefined) {
       await rm(demo.cleanupDir, { recursive: true, force: true })
@@ -60,28 +66,4 @@ export async function createProductAppTuiDemoTempRoot() {
 
 function normalizeForwardedArgs(args) {
   return args.filter((arg) => arg !== "--")
-}
-
-function runStep(step) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(step.command, step.args, {
-      cwd: rootDir,
-      env: {
-        ...process.env,
-        ...step.env
-      },
-      stdio: "inherit",
-      shell: process.platform === "win32"
-    })
-    child.on("error", reject)
-    child.on("exit", (code, signal) => {
-      if (code === 0) {
-        resolve()
-        return
-      }
-      const detail =
-        signal === null ? `exit code ${String(code)}` : `signal ${signal}`
-      reject(new Error(`${step.name} failed with ${detail}`))
-    })
-  })
 }

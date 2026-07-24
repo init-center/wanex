@@ -238,7 +238,7 @@ describe("@wanex/runtime/host", () => {
       content: [{ type: "text", text: "cancel blocked tool" }],
       sessionId: "ses_host_tool_cancel"
     })
-    host.start()
+    const running = host.runOnce()
     await tool.started.promise
 
     const receipt = await host.requestSessionTurnCancel({
@@ -254,10 +254,9 @@ describe("@wanex/runtime/host", () => {
     expect(host.getHealthSnapshot().activeExecutionCount).toBe(1)
 
     tool.releaseCleanup.resolve()
-    await eventually(async () => {
-      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
-      expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
-    })
+    await running
+    await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+    expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
     expect(tool.cleanupComplete).toBe(true)
     const messages = await host.storage.listSessionMessages({
       sessionId: submitted.session.id

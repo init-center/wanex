@@ -2,7 +2,10 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
-import { createStorageTestStore } from "@wanex/storage/testing"
+import {
+  createStorageTestStore,
+  type StorageTestStore
+} from "@wanex/storage/testing"
 import {
   DeepSeekThinkingAdapter,
   MissingRequiredProviderStateError,
@@ -16,8 +19,12 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
+const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  while (clients.length > 0) {
+    await clients.pop()?.dispose()
+  }
   await Promise.all(
     tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
   )
@@ -49,10 +56,11 @@ describe("DeepSeek provider fidelity", () => {
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
       kind: "local-system-service",
-      mode: "oneshot",
+      mode: "persistent",
       storeDir,
       serviceBin
     })
+    clients.push(storage)
     const adapter = createAdapter()
     const result = await consumeProviderStream({
       provider: adapter,

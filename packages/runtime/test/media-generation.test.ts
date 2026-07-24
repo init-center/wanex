@@ -436,7 +436,7 @@ async function createStore(name: string): Promise<StorageTestStore> {
   tempDirs.push(storeDir)
   const storage = createStorageTestStore({
     kind: "local-system-service",
-    mode: "oneshot",
+    mode: "persistent",
     storeDir,
     serviceBin
   })

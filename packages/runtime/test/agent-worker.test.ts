@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import {
   createStorageTestStore,
   type StorageTestStore
@@ -28,20 +28,34 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
-const clients: StorageTestStore[] = []
+let testStore: StorageTestStore | undefined
+
+beforeEach(async () => {
+  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-worker-"))
+  tempDirs.push(storeDir)
+  testStore = createStorageTestStore({
+    kind: "local-system-service",
+    mode: "persistent",
+    storeDir,
+    serviceBin
+  })
+  await testStore.doctor()
+})
 
 afterEach(async () => {
-  while (clients.length > 0) {
-    await clients.pop()?.dispose()
+  await testStore?.dispose()
+  testStore = undefined
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop()
+    if (dir) {
+      await rm(dir, { recursive: true, force: true })
+    }
   }
-  await Promise.all(
-    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
-  )
 })
 
 describe("session.turn worker handler", () => {
   it("claims the exact job, starts its attempt, and settles the transcript", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     await session.create({ id: "ses_worker_turn", kind: "agent" })
     const submitted = await session.submitTurn({
@@ -108,7 +122,7 @@ describe("session.turn worker handler", () => {
   })
 
   it("executes the immutable admitted provider binding after profile config changes", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     await session.create({ id: "ses_worker_binding", kind: "agent" })
     const admittedProfile = fakeProfile("binding_original")
@@ -154,7 +168,7 @@ describe("session.turn worker handler", () => {
   })
 
   it("fails the turn when resolved tool context no longer matches admission", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     await session.create({ id: "ses_worker_context", kind: "agent" })
     const admittedTools = registryWithTool("tool_a")
@@ -208,7 +222,7 @@ describe("session.turn worker handler", () => {
   })
 
   it("rejects same-descriptor tool implementation drift before provider dispatch", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     const profile = fakeProfile("worker_tool_revision")
     const provider = new CountingFakeProvider({
@@ -264,7 +278,7 @@ describe("session.turn worker handler", () => {
   })
 
   it("rejects tool configuration drift before dispatch", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     const profile = fakeProfile("worker_tool_configuration")
     const provider = new CountingFakeProvider({
@@ -318,7 +332,7 @@ describe("session.turn worker handler", () => {
   })
 
   it("rejects permission-policy drift before dispatch", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     const profile = fakeProfile("worker_tool_permission")
     const provider = new CountingFakeProvider({
@@ -373,17 +387,11 @@ describe("session.turn worker handler", () => {
   })
 })
 
-async function createStore() {
-  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-worker-"))
-  tempDirs.push(storeDir)
-  const storage = createStorageTestStore({
-    kind: "local-system-service",
-    mode: "persistent",
-    storeDir,
-    serviceBin
-  })
-  clients.push(storage)
-  return storage
+function requireTestStore(): StorageTestStore {
+  if (testStore === undefined) {
+    throw new Error("agent worker test store is not initialized")
+  }
+  return testStore
 }
 
 function registryWithTool(

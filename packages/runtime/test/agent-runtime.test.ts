@@ -13,6 +13,7 @@ import type { TextMessagePart } from "@wanex/protocol"
 import { writeProviderProfile } from "@wanex/runtime/provider"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WanexAgentRuntime } from "../src/execution/agent-runtime/index.js"
+import type { WorkerRunOnceResult } from "../src/jobs/index.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -165,24 +166,52 @@ describe("@wanex/runtime/host agent runtime", () => {
     })
 
     try {
-      const loop = runtime.start({ idleIntervalMs: 10 })
-
-      await eventually(async () => {
-        const messages = await runtime.session.listMessages({
-          sessionId: "ses_agent_runtime_loop"
-        })
-        const assistant = messages.find(
-          (message) =>
-            message.turnId === submitted.turnId && message.role === "assistant"
-        )
-        expect(assistant?.content).toEqual([
-          {
-            type: "text",
-            id: "text_0",
-            text: "loop response"
-          }
-        ])
+      let resolveWorkerResult:
+        | ((result: WorkerRunOnceResult) => void)
+        | undefined
+      let rejectWorkerResult: ((reason?: unknown) => void) | undefined
+      const workerResult = new Promise<WorkerRunOnceResult>((resolve, reject) => {
+        resolveWorkerResult = resolve
+        rejectWorkerResult = reject
       })
+      const loop = runtime.start({
+        idleIntervalMs: 10,
+        onResult: (result) => {
+          if (result.status === "idle") {
+            return
+          }
+          if (result.job?.id !== submitted.receipt.job.id) {
+            rejectWorkerResult?.(
+              new Error(
+                `worker loop settled unexpected job: ${result.job?.id ?? "none"}`
+              )
+            )
+            return
+          }
+          resolveWorkerResult?.(result)
+        },
+        onError: (error) => rejectWorkerResult?.(error)
+      })
+      const settled = await workerResult
+      expect(settled).toMatchObject({
+        status: "completed",
+        job: { id: submitted.receipt.job.id }
+      })
+
+      const messages = await runtime.session.listMessages({
+        sessionId: "ses_agent_runtime_loop"
+      })
+      const assistant = messages.find(
+        (message) =>
+          message.turnId === submitted.turnId && message.role === "assistant"
+      )
+      expect(assistant?.content).toEqual([
+        {
+          type: "text",
+          id: "text_0",
+          text: "loop response"
+        }
+      ])
       loop.stop()
       expect(loop.stopped).toBe(true)
     } finally {
@@ -284,21 +313,6 @@ async function createTestStore(): Promise<StorageTestStore> {
   })
   stores.push(store)
   return store
-}
-
-async function eventually(assertion: () => Promise<void>): Promise<void> {
-  const started = Date.now()
-  let lastError: unknown
-  while (Date.now() - started < 1_000) {
-    try {
-      await assertion()
-      return
-    } catch (error) {
-      lastError = error
-      await delay(20)
-    }
-  }
-  throw lastError
 }
 
 class RecordingProvider extends FakeProviderAdapter {

@@ -47,6 +47,43 @@ describe("shell-free process steps", () => {
     })
   })
 
+  it("runs the pnpm PowerShell shim with an argument array on Windows", () => {
+    expect(
+      resolveStepCommand(
+        {
+          command: "pnpm",
+          args: ["--filter", "@wanex/runtime", "test", "value & echo unsafe"]
+        },
+        {
+          env: {
+            PNPM_HOME: "D:\\setup-pnpm\\node_modules\\.bin",
+            SystemRoot: "C:\\Windows"
+          },
+          fileExists: (path) =>
+            path ===
+            "D:\\setup-pnpm\\node_modules\\.bin\\bin\\pnpm.ps1",
+          platform: "win32"
+        }
+      )
+    ).toEqual({
+      command:
+        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      args: [
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        "D:\\setup-pnpm\\node_modules\\.bin\\bin\\pnpm.ps1",
+        "--filter",
+        "@wanex/runtime",
+        "test",
+        "value & echo unsafe"
+      ]
+    })
+  })
+
   it("runs Vitest through its package binary with the current Node", () => {
     expect(
       resolveStepCommand(
@@ -70,7 +107,7 @@ describe("shell-free process steps", () => {
     })
   })
 
-  it("fails closed when a Windows pnpm lifecycle is unavailable", () => {
+  it("fails closed when no Windows pnpm entry is available", () => {
     expect(() =>
       resolveStepCommand(
         {
@@ -83,7 +120,7 @@ describe("shell-free process steps", () => {
         }
       )
     ).toThrow(
-      "Windows repository scripts must run through pnpm so npm_execpath identifies the pnpm CLI"
+      "Windows repository scripts require a pnpm JavaScript CLI or pnpm.ps1 shim"
     )
   })
 
@@ -101,7 +138,7 @@ describe("shell-free process steps", () => {
           platform: "win32"
         }
       )
-    ).toThrow(/npm_execpath/)
+    ).toThrow(/pnpm JavaScript CLI or pnpm\.ps1 shim/)
   })
 
   it("launches native commands directly on every platform", () => {

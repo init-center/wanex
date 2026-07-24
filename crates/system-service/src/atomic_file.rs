@@ -3,48 +3,53 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub(crate) fn write_replacing(destination: &Path, content: &[u8]) -> io::Result<()> {
+pub(crate) fn prepare_replacement(
+    destination: &Path,
+    content: &[u8],
+) -> io::Result<PreparedReplacement> {
     let temp_path = destination.with_extension(format!("tmp-{}", Uuid::now_v7()));
-    let mut temp = PendingTempFile::new(temp_path);
+    let pending = PreparedReplacement::new(temp_path, destination.to_path_buf());
     {
         let mut file = OpenOptions::new()
             .create_new(true)
             .write(true)
-            .open(temp.path())?;
+            .open(pending.temp_path())?;
         file.write_all(content)?;
         file.sync_all()?;
     }
-    replace_file(temp.path(), destination)?;
-    temp.commit();
-    Ok(())
+    Ok(pending)
 }
 
-struct PendingTempFile {
-    path: PathBuf,
+pub(crate) struct PreparedReplacement {
+    temp_path: PathBuf,
+    destination: PathBuf,
     committed: bool,
 }
 
-impl PendingTempFile {
-    fn new(path: PathBuf) -> Self {
+impl PreparedReplacement {
+    fn new(temp_path: PathBuf, destination: PathBuf) -> Self {
         Self {
-            path,
+            temp_path,
+            destination,
             committed: false,
         }
     }
 
-    fn path(&self) -> &Path {
-        &self.path
+    fn temp_path(&self) -> &Path {
+        &self.temp_path
     }
 
-    fn commit(&mut self) {
+    pub(crate) fn commit(mut self) -> io::Result<()> {
+        replace_file(&self.temp_path, &self.destination)?;
         self.committed = true;
+        Ok(())
     }
 }
 
-impl Drop for PendingTempFile {
+impl Drop for PreparedReplacement {
     fn drop(&mut self) {
         if !self.committed {
-            let _ = fs::remove_file(&self.path);
+            let _ = fs::remove_file(&self.temp_path);
         }
     }
 }
@@ -100,4 +105,41 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
         thread::sleep(Duration::from_millis(5 * u64::from(attempt + 1)));
     }
     unreachable!("Windows replacement loop always returns")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::prepare_replacement;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn prepared_replacement_is_invisible_until_commit() {
+        let dir = tempdir().unwrap();
+        let destination = dir.path().join("output.txt");
+        fs::write(&destination, b"before").unwrap();
+
+        let prepared = prepare_replacement(&destination, b"after").unwrap();
+        let temp_path = prepared.temp_path().to_path_buf();
+        assert_eq!(fs::read(&destination).unwrap(), b"before");
+        assert_eq!(fs::read(&temp_path).unwrap(), b"after");
+
+        prepared.commit().unwrap();
+        assert_eq!(fs::read(&destination).unwrap(), b"after");
+        assert!(!temp_path.exists());
+    }
+
+    #[test]
+    fn dropping_prepared_replacement_removes_temp_and_preserves_destination() {
+        let dir = tempdir().unwrap();
+        let destination = dir.path().join("output.txt");
+        fs::write(&destination, b"before").unwrap();
+
+        let prepared = prepare_replacement(&destination, b"after").unwrap();
+        let temp_path = prepared.temp_path().to_path_buf();
+        drop(prepared);
+
+        assert_eq!(fs::read(&destination).unwrap(), b"before");
+        assert!(!temp_path.exists());
+    }
 }

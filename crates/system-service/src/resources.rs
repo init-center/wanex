@@ -44,9 +44,10 @@ impl SystemService {
             fs::create_dir_all(parent)?;
         }
 
+        let prepared = crate::atomic_file::prepare_replacement(&absolute_path, content)?;
         let mut conn = self.connect()?;
         let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
-        crate::atomic_file::write_replacing(&absolute_path, content)?;
+        prepared.commit()?;
 
         crate::util::sync_parent_dir(&absolute_path)?;
 

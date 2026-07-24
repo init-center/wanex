@@ -1,9 +1,7 @@
 import { spawn } from "node:child_process"
-import { readFileSync } from "node:fs"
-import { createRequire } from "node:module"
+import { existsSync, readFileSync } from "node:fs"
+import { findPackageJSON } from "node:module"
 import { dirname, resolve } from "node:path"
-
-const require = createRequire(import.meta.url)
 
 export function resolveStepCommand(step, options = {}) {
   const platform = options.platform ?? process.platform
@@ -40,6 +38,21 @@ export function resolveStepCommand(step, options = {}) {
     }
   }
 
+  if (step.command === "npm" && platform === "win32") {
+    const npmCli =
+      options.npmCli ??
+      resolveBundledNpmCli({ env, nodeExecutable })
+    if (!isNpmJavaScriptCli(npmCli)) {
+      throw new Error(
+        "Windows npm steps must run through the npm JavaScript CLI bundled with Node"
+      )
+    }
+    return {
+      command: nodeExecutable,
+      args: [npmCli, ...step.args]
+    }
+  }
+
   return {
     command: step.command,
     args: [...step.args]
@@ -56,7 +69,8 @@ export function runProcessStep(step, options = {}) {
       : { nodeExecutable: options.nodeExecutable }),
     ...(options.packageManagerCli === undefined
       ? {}
-      : { packageManagerCli: options.packageManagerCli })
+      : { packageManagerCli: options.packageManagerCli }),
+    ...(options.npmCli === undefined ? {} : { npmCli: options.npmCli })
   })
   if (options.log !== false) {
     console.log(`\n==> ${step.name}`)
@@ -89,8 +103,36 @@ function isPnpmJavaScriptCli(value) {
   return /(?:^|[\\/])pnpm(?:\.[cm]?js)?$/i.test(value)
 }
 
-function resolvePackageBinary(packageName, binaryName) {
-  const manifestPath = require.resolve(`${packageName}/package.json`)
+function isNpmJavaScriptCli(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return false
+  }
+  return /(?:^|[\\/])npm-cli\.js$/i.test(value)
+}
+
+function resolveBundledNpmCli(options) {
+  const nodeDir = dirname(options.nodeExecutable)
+  const candidates = [
+    options.env.npm_execpath,
+    resolve(nodeDir, "node_modules/npm/bin/npm-cli.js"),
+    resolve(nodeDir, "../lib/node_modules/npm/bin/npm-cli.js")
+  ]
+  const npmCli = candidates.find(
+    (candidate) => isNpmJavaScriptCli(candidate) && existsSync(candidate)
+  )
+  if (npmCli === undefined) {
+    throw new Error(
+      "Windows npm steps require the npm JavaScript CLI bundled with the active Node installation"
+    )
+  }
+  return npmCli
+}
+
+export function resolvePackageBinary(packageName, binaryName) {
+  const manifestPath = findPackageJSON(packageName, import.meta.url)
+  if (manifestPath === undefined) {
+    throw new Error(`cannot locate the ${packageName} package manifest`)
+  }
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
   const bin = typeof manifest.bin === "string"
     ? manifest.bin

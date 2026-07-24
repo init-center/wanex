@@ -29,6 +29,7 @@ import {
   inspectExternalPackageLock,
   withExternalFixtureRoot
 } from "./external-consumers/runner.mjs"
+import { resolveStepCommand } from "./process-step.mjs"
 
 const execFileAsync = promisify(execFile)
 const args = parseArgs(process.argv.slice(2))
@@ -122,12 +123,18 @@ async function runFixture(context) {
     npm_config_ignore_scripts: "true",
     npm_config_update_notifier: "false"
   }
-  await execFileAsync("npm", [
-    "install",
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund"
-  ], {
+  const installCommand = resolveStepCommand({
+    command: "npm",
+    args: [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund"
+    ]
+  }, {
+    env: childEnvironment
+  })
+  await execFileAsync(installCommand.command, installCommand.args, {
     cwd: projectDir,
     env: childEnvironment,
     maxBuffer: 20 * 1024 * 1024

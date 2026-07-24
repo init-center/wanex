@@ -3,6 +3,7 @@ import { execFile } from "node:child_process"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { promisify } from "node:util"
+import { resolvePackageBinary } from "./process-step.mjs"
 import { loadSdkDistributionPolicy, workspaceRoot } from "./sdk/distribution-policy.mjs"
 
 const execFileAsync = promisify(execFile)
@@ -18,13 +19,24 @@ for (const artifact of report.packages) {
   for (const validation of [
     {
       name: "publint",
-      command: join(workspaceRoot, "node_modules/.bin/publint"),
-      args: ["run", tarball, "--strict"]
+      command: process.execPath,
+      args: [
+        resolvePackageBinary("publint", "publint"),
+        "run",
+        tarball,
+        "--strict"
+      ]
     },
     {
       name: "attw",
-      command: join(workspaceRoot, "node_modules/.bin/attw"),
-      args: [tarball, "--profile", "esm-only", "--quiet"]
+      command: process.execPath,
+      args: [
+        resolvePackageBinary("@arethetypeswrong/cli", "attw"),
+        tarball,
+        "--profile",
+        "esm-only",
+        "--quiet"
+      ]
     }
   ]) {
     try {

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import { execFile } from "node:child_process"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
 import { build } from "esbuild"
+import { resolveStepCommand } from "./process-step.mjs"
 import { loadSdkDistributionPolicy } from "./sdk/distribution-policy.mjs"
 
 const execFileAsync = promisify(execFile)
@@ -25,15 +27,19 @@ try {
   const tarballs = report.packages.map((artifact) =>
     join(policy.outputDir, "tarballs", artifact.filename)
   )
-  await execFileAsync("npm", [
-    "install",
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund",
-    ...tarballs,
-    "typescript@6.0.3",
-    "@types/node@26.0.1"
-  ], {
+  const installCommand = resolveStepCommand({
+    command: "npm",
+    args: [
+      "install",
+      "--ignore-scripts",
+      "--no-audit",
+      "--no-fund",
+      ...tarballs,
+      "typescript@6.0.3",
+      "@types/node@26.0.1"
+    ]
+  })
+  await execFileAsync(installCommand.command, installCommand.args, {
     cwd: projectDir,
     maxBuffer: 20 * 1024 * 1024
   })
@@ -75,7 +81,9 @@ try {
     },
     include: ["types.ts"]
   }, null, 2)}\n`, "utf8")
-  await execFileAsync(join(projectDir, "node_modules/.bin/tsc"), ["-p", "tsconfig.json"], {
+  const projectRequire = createRequire(join(projectDir, "package.json"))
+  const tscCli = projectRequire.resolve("typescript/bin/tsc")
+  await execFileAsync(process.execPath, [tscCli, "-p", "tsconfig.json"], {
     cwd: projectDir,
     maxBuffer: 20 * 1024 * 1024
   })

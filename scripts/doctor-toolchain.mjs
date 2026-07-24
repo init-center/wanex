@@ -54,6 +54,16 @@ export async function buildToolchainDoctorReport(options = {}) {
   )
   checks.push(
     await checkCommandAvailable({
+      id: "npm.available",
+      label: "npm available",
+      command: "npm",
+      args: ["--version"],
+      required: true,
+      run
+    })
+  )
+  checks.push(
+    await checkCommandAvailable({
       id: "corepack.available",
       label: "Corepack available",
       command: "corepack",

@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
 import { execFile } from "node:child_process"
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { basename, join } from "node:path"
 import { promisify } from "node:util"
+import { resolveStepCommand } from "./process-step.mjs"
 import {
   encodedPackageName,
   loadSdkDistributionPolicy
@@ -21,31 +22,50 @@ await mkdir(reportRoot, { recursive: true })
 const artifacts = []
 for (const packageInfo of policy.packages) {
   const stagingDir = join(stagingRoot, encodedPackageName(packageInfo.name))
+  const packCommand = resolveStepCommand({
+    command: "pnpm",
+    args: [
+      "--config.ignore-scripts=true",
+      "pack",
+      "--json",
+      "--skip-manifest-obfuscation",
+      "--pack-destination",
+      tarballRoot
+    ]
+  })
   const { stdout } = await execFileAsync(
-    "npm",
-    ["pack", "--ignore-scripts", "--json", "--pack-destination", tarballRoot],
+    packCommand.command,
+    packCommand.args,
     { cwd: stagingDir, maxBuffer: 10 * 1024 * 1024 }
   )
-  const packed = JSON.parse(stdout)[0]
-  if (packed === undefined) {
-    throw new Error(`npm pack returned no artifact for ${packageInfo.name}`)
+  const packed = JSON.parse(stdout)
+  if (
+    typeof packed?.filename !== "string" ||
+    !Array.isArray(packed.files)
+  ) {
+    throw new Error(`pnpm pack returned no artifact for ${packageInfo.name}`)
   }
-  const tarballPath = join(tarballRoot, packed.filename)
+  const filename = basename(packed.filename)
+  const tarballPath = join(tarballRoot, filename)
   const bytes = await readFile(tarballPath)
   const manifest = JSON.parse(await readFile(join(stagingDir, "package.json"), "utf8"))
+  const files = await Promise.all(
+    packed.files.map(async (file) => ({
+      path: file.path,
+      bytes: (await stat(join(stagingDir, file.path))).size
+    }))
+  )
   artifacts.push({
     name: packageInfo.name,
     version: manifest.version,
-    filename: packed.filename,
+    filename,
     bytes: bytes.byteLength,
     sha256: createHash("sha256").update(bytes).digest("hex"),
     entries: packageInfo.entries.map((entry) => entry.exportPath),
     dependencies: manifest.dependencies ?? {},
-    files: packed.files
-      .map((file) => ({ path: file.path, bytes: file.size }))
-      .sort((left, right) => left.path.localeCompare(right.path))
+    files: files.sort((left, right) => left.path.localeCompare(right.path))
   })
-  console.log(`${packageInfo.name}: ${packed.filename}`)
+  console.log(`${packageInfo.name}: ${filename}`)
 }
 
 const report = {

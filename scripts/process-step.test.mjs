@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { resolveStepCommand } from "./process-step.mjs"
+import {
+  resolvePackageBinary,
+  resolveStepCommand
+} from "./process-step.mjs"
 
 describe("shell-free process steps", () => {
   it("runs Node steps through the current Node executable", () => {
@@ -48,6 +51,30 @@ describe("shell-free process steps", () => {
     })
   })
 
+  it("runs the Node-bundled npm CLI on Windows without a command shim", () => {
+    expect(
+      resolveStepCommand(
+        {
+          command: "npm",
+          args: ["install", "--ignore-scripts", "value & echo unsafe"]
+        },
+        {
+          nodeExecutable: "D:\\node\\node.exe",
+          npmCli: "D:\\node\\node_modules\\npm\\bin\\npm-cli.js",
+          platform: "win32"
+        }
+      )
+    ).toEqual({
+      command: "D:\\node\\node.exe",
+      args: [
+        "D:\\node\\node_modules\\npm\\bin\\npm-cli.js",
+        "install",
+        "--ignore-scripts",
+        "value & echo unsafe"
+      ]
+    })
+  })
+
   it("runs Vitest through its package binary with the current Node", () => {
     expect(
       resolveStepCommand(
@@ -69,6 +96,11 @@ describe("shell-free process steps", () => {
         "--maxWorkers=1"
       ]
     })
+  })
+
+  it("resolves package binaries when exports hide package.json", () => {
+    expect(resolvePackageBinary("publint", "publint"))
+      .toMatch(/[\\/]publint[\\/].+\.js$/)
   })
 
   it("fails closed when a Windows pnpm lifecycle is unavailable", () => {
@@ -103,6 +135,22 @@ describe("shell-free process steps", () => {
         }
       )
     ).toThrow(/npm_execpath/)
+  })
+
+  it("does not accept a pnpm CLI as the Windows npm executable", () => {
+    expect(() =>
+      resolveStepCommand(
+        {
+          command: "npm",
+          args: ["install"]
+        },
+        {
+          nodeExecutable: "D:\\node\\node.exe",
+          npmCli: "D:\\node\\node_modules\\pnpm\\bin\\pnpm.mjs",
+          platform: "win32"
+        }
+      )
+    ).toThrow(/npm JavaScript CLI/)
   })
 
   it("launches native commands directly on every platform", () => {

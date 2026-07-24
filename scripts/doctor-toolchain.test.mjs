@@ -71,6 +71,7 @@ describe("doctor-toolchain", () => {
       nodeVersion: "26.4.0",
       runCommand: fakeRunner({
         "pnpm --version": "11.7.0\n",
+        "npm --version": "11.7.0\n",
         "corepack --version": "0.35.0\n",
         "corepack pnpm --version": "11.9.0\n",
         "cargo --version": "cargo 1.90.0\n",
@@ -97,6 +98,11 @@ describe("doctor-toolchain", () => {
       expected: "pnpm@11.9.0",
       actual: "pnpm@11.9.0"
     })
+    expect(report.checks.find((check) => check.id === "npm.available"))
+      .toMatchObject({
+        status: "pass",
+        required: true
+      })
     expect(
       report.checks.find((check) => check.id === "system_service.debug_binary")
     ).toMatchObject({
@@ -119,6 +125,7 @@ describe("doctor-toolchain", () => {
       nodeVersion: "25.9.0",
       runCommand: fakeRunner({
         "pnpm --version": "10.18.0\n",
+        "npm --version": "11.7.0\n",
         "corepack --version": "0.35.0\n",
         "corepack pnpm --version": "12.0.0\n",
         "cargo --version": "cargo 1.90.0\n",
@@ -176,6 +183,7 @@ describe("doctor-toolchain", () => {
       nodeVersion: "26.4.0",
       runCommand: fakeRunner({
         "pnpm --version": "11.7.0\n",
+        "npm --version": "11.7.0\n",
         "cargo --version": "cargo 1.90.0\n",
         "rustc --version": "rustc 1.90.0\n",
         "cargo fmt --version": "rustfmt 1.90.0\n",

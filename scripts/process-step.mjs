@@ -4,7 +4,6 @@ import { createRequire } from "node:module"
 import { dirname, resolve } from "node:path"
 
 const require = createRequire(import.meta.url)
-const defaultVitestCli = resolvePackageBinary("vitest", "vitest")
 
 export function resolveStepCommand(step, options = {}) {
   const platform = options.platform ?? process.platform
@@ -21,7 +20,10 @@ export function resolveStepCommand(step, options = {}) {
   if (step.command === "vitest") {
     return {
       command: nodeExecutable,
-      args: [options.vitestCli ?? defaultVitestCli, ...step.args]
+      args: [
+        options.vitestCli ?? resolvePackageBinary("vitest", "vitest"),
+        ...step.args
+      ]
     }
   }
 

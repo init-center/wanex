@@ -5,6 +5,7 @@ import { constants } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import { promisify } from "node:util"
+import { resolveStepCommand } from "./process-step.mjs"
 
 const execFileAsync = promisify(execFile)
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -421,7 +422,8 @@ function firstLine(value) {
 
 async function runCommand(command, args) {
   try {
-    const result = await execFileAsync(command, args, {
+    const resolved = resolveStepCommand({ command, args })
+    const result = await execFileAsync(resolved.command, resolved.args, {
       cwd: rootDir,
       timeout: 10_000,
       windowsHide: true

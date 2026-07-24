@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import type {
   JsonValue,
   ToolResultMessagePart
@@ -34,18 +34,34 @@ const serviceBin = join(
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
 const tempDirs: string[] = []
-const stores: StorageTestStore[] = []
+let testStore: StorageTestStore | undefined
+
+beforeEach(async () => {
+  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runner-"))
+  tempDirs.push(storeDir)
+  testStore = createStorageTestStore({
+    kind: "local-system-service",
+    mode: "persistent",
+    storeDir,
+    serviceBin
+  })
+  await testStore.doctor()
+})
 
 afterEach(async () => {
-  await Promise.all(stores.splice(0).map((store) => store.dispose()))
-  await Promise.all(
-    tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }))
-  )
+  await testStore?.dispose()
+  testStore = undefined
+  while (tempDirs.length > 0) {
+    const dir = tempDirs.pop()
+    if (dir) {
+      await rm(dir, { recursive: true, force: true })
+    }
+  }
 })
 
 describe("Runtime exact turn runner", () => {
   it("settles one exact started attempt with a canonical assistant message", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, { suffix: "runner_final" })
     const runner = new WanexAgentRunner({
       session: fixture.session,
@@ -74,7 +90,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("recovers a provider checkpoint and applies pending steering exactly once", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_steer_recovery"
     })
@@ -194,7 +210,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("continues tool calls to a final response with source-message fencing", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_tools",
       maxSteps: 4
@@ -265,7 +281,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("resumes an incomplete durable tool batch before another provider call", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_resume_tools",
       maxSteps: 4
@@ -304,7 +320,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("reuses a settled durable tool outcome without invoking the tool again", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_reuse_tool",
       maxSteps: 4
@@ -349,7 +365,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("records a retryable provider retry as invocation number two", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_provider_retry"
     })
@@ -379,7 +395,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("honors cancellation before resuming a durable tool batch", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_cancel_resume"
     })
@@ -415,7 +431,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("fails closed when a durable tool result batch does not match its calls", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_mismatched_tools"
     })
@@ -449,7 +465,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("fails closed as recovery-required after observed provider output", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_ambiguous"
     })
@@ -470,7 +486,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("fails a bounded turn that never reaches a final response", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_bounded",
       maxSteps: 1
@@ -512,7 +528,7 @@ describe("Runtime exact turn runner", () => {
   })
 
   it("observes a durable cancellation request before invoking the provider", async () => {
-    const storage = await createStore()
+    const storage = requireTestStore()
     const fixture = await createStartedTurn(storage, {
       suffix: "runner_cancel"
     })
@@ -541,17 +557,11 @@ describe("Runtime exact turn runner", () => {
   })
 })
 
-async function createStore() {
-  const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runner-"))
-  tempDirs.push(storeDir)
-  const store = createStorageTestStore({
-    kind: "local-system-service",
-    mode: "persistent",
-    storeDir,
-    serviceBin
-  })
-  stores.push(store)
-  return store
+function requireTestStore(): StorageTestStore {
+  if (testStore === undefined) {
+    throw new Error("agent runner test store is not initialized")
+  }
+  return testStore
 }
 
 async function seedToolCallCheckpoint(

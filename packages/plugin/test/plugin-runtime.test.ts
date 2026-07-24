@@ -1,6 +1,6 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join, relative } from "node:path"
+import { basename, dirname, join, relative, resolve } from "node:path"
 import { execPath } from "node:process"
 import { afterEach, describe, expect, it } from "vitest"
 import type { JsonValue } from "@wanex/protocol"
@@ -1107,16 +1107,18 @@ describe("@wanex/plugin", () => {
   })
 
   it("resolves trusted plugin commands inside the install root", () => {
-    expect(resolveTrustedPluginCommand("/plugins/demo", "bin/plugin.mjs")).toBe(
-      "/plugins/demo/bin/plugin.mjs"
+    const installRoot = resolve(tmpdir(), "wanex-plugin-test", "demo")
+
+    expect(resolveTrustedPluginCommand(installRoot, "bin/plugin.mjs")).toBe(
+      resolve(installRoot, "bin/plugin.mjs")
     )
 
     expect(() =>
-      resolveTrustedPluginCommand("/plugins/demo", "/usr/bin/node")
+      resolveTrustedPluginCommand(installRoot, execPath)
     ).toThrow(/must be relative/)
 
     expect(() =>
-      resolveTrustedPluginCommand("/plugins/demo", "../escape.mjs")
+      resolveTrustedPluginCommand(installRoot, "../escape.mjs")
     ).toThrow(/escapes install root/)
   })
 

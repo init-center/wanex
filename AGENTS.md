@@ -195,11 +195,14 @@ freezes final target ceilings; and passes a second enforcing run.
 Run 40 exposed and the local implementation corrected a Windows-only SDK
 declaration bundling defect: cross-host module-ID classification now treats
 POSIX, drive-letter, and UNC absolute paths as filesystem paths, never package
-imports. Workspace package tests now use controlled two-level parallelism
-(two packages, one Vitest worker per package by default) rather than forced
-package serialization or unconstrained nested worker pools. Complete local
-`pnpm verify` passes; the correction still requires authoritative Windows CI
-evidence.
+imports. Workspace package tests now run two packages concurrently by default;
+the Runtime package runs first in an exclusive lane under its own Vitest
+isolation policy, and the remaining packages use one worker per package.
+`WANEX_TEST_CONCURRENCY` can lower or raise only the parallel package-process
+budget. Run 41 rejected the former global one-worker override on Windows
+Runtime, so that override was removed directly. Complete local verification
+and authoritative Windows CI evidence remain required for the corrected
+policy.
 
 ## Course-Correction Guardrail
 

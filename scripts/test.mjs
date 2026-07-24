@@ -18,7 +18,8 @@ export function createWorkspaceTestSteps(options = {}) {
   const workspaceConcurrency = options.workspaceConcurrency ??
     defaultWorkspaceConcurrency
   assertPositiveInteger(workspaceConcurrency, "workspace test concurrency")
-  const vitestArgs = withDefaultPackageWorkerLimit(options.vitestArgs ?? [])
+  const vitestArgs = options.vitestArgs ?? []
+  const parallelVitestArgs = withDefaultPackageWorkerLimit(vitestArgs)
   return [
     {
       name: "System service binary",
@@ -26,14 +27,29 @@ export function createWorkspaceTestSteps(options = {}) {
       args: ["build", "-p", "wanex-system-service"]
     },
     {
-      name: "Package tests",
+      name: "Runtime package tests",
+      command: "pnpm",
+      args: [
+        "--filter",
+        "@wanex/runtime",
+        "test",
+        ...vitestArgs
+      ],
+      env: {
+        WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
+      }
+    },
+    {
+      name: "Parallel package tests",
       command: "pnpm",
       args: [
         "-r",
+        "--filter",
+        "!@wanex/runtime",
         "--if-present",
         `--workspace-concurrency=${workspaceConcurrency}`,
         "test",
-        ...vitestArgs
+        ...parallelVitestArgs
       ],
       env: {
         WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"

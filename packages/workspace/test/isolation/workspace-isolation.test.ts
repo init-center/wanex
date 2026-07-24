@@ -126,6 +126,8 @@ async function createRepo(): Promise<string> {
   await git(repoDir, ["init"])
   await git(repoDir, ["config", "user.email", "wanex@example.local"])
   await git(repoDir, ["config", "user.name", "Wanex Test"])
+  await git(repoDir, ["config", "core.autocrlf", "false"])
+  await git(repoDir, ["config", "core.eol", "lf"])
   await writeFile(join(repoDir, "README.md"), "base\n", "utf8")
   await git(repoDir, ["add", "README.md"])
   await git(repoDir, ["commit", "-m", "initial"])

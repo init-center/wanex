@@ -8,8 +8,13 @@ import { createPluginStore } from "../src/plugin.js"
 import { createWorkspaceStore } from "../src/workspace.js"
 
 describe("storage handle and borrowed facets", () => {
-  it("owns one transport and disposes it exactly once", async () => {
-    const close = vi.fn(async () => undefined)
+  it("owns one transport and joins concurrent disposal exactly once", async () => {
+    const closeStarted = deferred<void>()
+    const releaseClose = deferred<void>()
+    const close = vi.fn(async () => {
+      closeStarted.resolve()
+      await releaseClose.promise
+    })
     const transport = fakeTransport(close)
     const handle = createStorageHandleFromTransport(transport, {
       ownership: "owned"
@@ -22,8 +27,17 @@ describe("storage handle and borrowed facets", () => {
     expect(handle.core).not.toHaveProperty("close")
     expect(handle.core).not.toHaveProperty("dispose")
 
-    await handle.dispose()
-    await handle.dispose()
+    const firstDispose = handle.dispose()
+    await closeStarted.promise
+    let secondDisposeCompleted = false
+    const secondDispose = handle.dispose().then(() => {
+      secondDisposeCompleted = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(secondDisposeCompleted).toBe(false)
+    releaseClose.resolve()
+    await Promise.all([firstDispose, secondDispose])
     expect(close).toHaveBeenCalledTimes(1)
   })
 
@@ -59,4 +73,12 @@ function fakeTransport(close: () => Promise<void>): StorageTransport {
     },
     close
   }
+}
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((complete) => {
+    resolve = complete
+  })
+  return { promise, resolve }
 }

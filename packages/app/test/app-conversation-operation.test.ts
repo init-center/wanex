@@ -188,6 +188,48 @@ describe("@wanex/app durable conversation operations", () => {
     }
   })
 
+  it("joins concurrent App disposal until provider cleanup completes", async () => {
+    const storeDir = await createStoreDir()
+    const providerStarted = deferred<void>()
+    const providerAborted = deferred<void>()
+    const releaseCleanup = deferred<void>()
+    let cleanupComplete = false
+    vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+      providerStarted.resolve()
+      await waitForAbort(init?.signal)
+      providerAborted.resolve()
+      await releaseCleanup.promise
+      cleanupComplete = true
+      throw new DOMException("provider request aborted", "AbortError")
+    })
+    const app = await createRealProviderApp(storeDir, {
+      WANEX_APP_OPERATION_PROVIDER_KEY: secretValue
+    })
+    await app.commands.submitConversationOperation({
+      content: [{ type: "text", text: "dispose through App" }],
+      sessionId: "ses_app_concurrent_dispose"
+    })
+    await providerStarted.promise
+
+    const firstDispose = app.dispose()
+    await providerAborted.promise
+    let secondDisposeCompleted = false
+    const secondDispose = app.dispose().then(() => {
+      secondDisposeCompleted = true
+    })
+
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(secondDisposeCompleted).toBe(false)
+    } finally {
+      releaseCleanup.resolve()
+      await Promise.allSettled([firstDispose, secondDispose])
+    }
+
+    expect(cleanupComplete).toBe(true)
+    await expect(app.dispose()).resolves.toBeUndefined()
+  })
+
   it("interrupts the exact active attempt and preserves its product state", async () => {
     const storeDir = await createStoreDir()
     const providerStarted = deferred<void>()

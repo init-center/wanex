@@ -70,6 +70,7 @@ export async function createWanexApp(
   const mediaGenerationOperations =
     new WanexAppMediaGenerationOperationController({ host })
   let disposed = false
+  let disposePromise: Promise<void> | undefined
   let activeProviderProfileId = providerProfileId
 
   await initializeWanexAppProviderProfile({
@@ -94,15 +95,18 @@ export async function createWanexApp(
   conversationOperations.start()
 
   const dispose = async (): Promise<void> => {
-    if (disposed) {
-      return
+    if (disposePromise !== undefined) {
+      return await disposePromise
     }
     disposed = true
-    await agentContextMonitor.stop()
-    mediaGenerationOperations.dispose()
-    await conversationOperations.dispose()
-    events.dispose()
-    await runtime.dispose()
+    disposePromise = (async () => {
+      await agentContextMonitor.stop()
+      mediaGenerationOperations.dispose()
+      await conversationOperations.dispose()
+      events.dispose()
+      await runtime.dispose()
+    })()
+    return await disposePromise
   }
 
   const assertActive = (): void => {

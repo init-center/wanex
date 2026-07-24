@@ -76,6 +76,8 @@ export class WanexRuntimeHost {
   private readonly storageHandle: StorageHandle | undefined
   private started = false
   private disposed = false
+  private stopPromise: Promise<void> | undefined
+  private disposePromise: Promise<void> | undefined
 
   constructor(options: WanexRuntimeHostOptions) {
     if (options.storage !== undefined) {
@@ -281,6 +283,9 @@ export class WanexRuntimeHost {
     if (this.disposed) {
       throw new Error("runtime host is disposed")
     }
+    if (this.stopPromise !== undefined) {
+      throw new Error("runtime host is stopping")
+    }
     if (this.started) {
       return
     }
@@ -348,19 +353,36 @@ export class WanexRuntimeHost {
   }
 
   async stop(): Promise<void> {
+    if (this.stopPromise !== undefined) {
+      return await this.stopPromise
+    }
     this.started = false
     this.#activeAbortRegistry.abortAll({
       kind: "host_shutdown",
       message: "runtime host is stopping"
     })
-    await this.loopLifecycle.stop()
+    const stopping = this.loopLifecycle.stop()
+    this.stopPromise = stopping
+    try {
+      await stopping
+    } finally {
+      if (this.stopPromise === stopping) {
+        this.stopPromise = undefined
+      }
+    }
   }
 
   async dispose(): Promise<void> {
-    if (this.disposed) {
-      return
+    if (this.disposePromise !== undefined) {
+      return await this.disposePromise
     }
     this.disposed = true
+    const disposing = this.disposeOwnedResources()
+    this.disposePromise = disposing
+    return await disposing
+  }
+
+  private async disposeOwnedResources(): Promise<void> {
     await this.stop()
     await this.storageHandle?.dispose()
   }

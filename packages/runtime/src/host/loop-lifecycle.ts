@@ -122,9 +122,9 @@ export class RuntimeHostLoopLifecycle {
     for (const loop of loops) {
       loop.stop()
     }
+    await Promise.all(loops.map(async (loop) => await loop.waitForIdle()))
     this.agentLoops.length = 0
     this.memoryLoops.length = 0
     this.mediaGenerationLoops.length = 0
-    await Promise.all(loops.map(async (loop) => await loop.waitForIdle()))
   }
 }

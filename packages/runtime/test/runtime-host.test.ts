@@ -309,6 +309,36 @@ describe("@wanex/runtime/host", () => {
     await host.dispose()
   })
 
+  it("joins overlapping stop and dispose before closing owned storage", async () => {
+    const provider = new ShutdownCleanupBlockingProvider()
+    const host = await createOwnedHost({ provider })
+    await host.submitUserTurn({
+      content: [{ type: "text", text: "overlapping host shutdown" }],
+      sessionId: "ses_host_overlapping_shutdown"
+    })
+    host.start()
+    await provider.started.promise
+
+    const stopping = host.stop()
+    await provider.aborted.promise
+    expect(() => host.start()).toThrow("runtime host is stopping")
+    let disposeCompleted = false
+    const disposing = host.dispose().then(() => {
+      disposeCompleted = true
+    })
+
+    try {
+      await delay(10)
+      expect(disposeCompleted).toBe(false)
+    } finally {
+      provider.releaseCleanup.resolve()
+      await Promise.allSettled([stopping, disposing])
+    }
+
+    expect(provider.cleanupComplete).toBe(true)
+    await expect(host.dispose()).resolves.toBeUndefined()
+  })
+
   it("hands lease loss to durable recovery instead of ordinary cancellation", async () => {
     const provider = new AbortAwareBlockingProvider(false)
     const handle = requireTestStorageHandle()
@@ -1174,6 +1204,32 @@ class AbortAwareBlockingProvider extends ConcurrentProbeProvider {
         providerId: this.providerId,
         modelId: this.modelId,
         phase: this.emitPartialOutput ? "stream" : "request"
+      }
+    }
+  }
+}
+
+class ShutdownCleanupBlockingProvider extends ConcurrentProbeProvider {
+  readonly started = deferred<void>()
+  readonly aborted = deferred<void>()
+  readonly releaseCleanup = deferred<void>()
+  cleanupComplete = false
+
+  override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    this.started.resolve()
+    await waitForAbort(request.signal)
+    this.aborted.resolve()
+    await this.releaseCleanup.promise
+    this.cleanupComplete = true
+    yield {
+      type: "error",
+      error: {
+        category: "aborted",
+        message: "provider request aborted after cleanup",
+        retryable: false,
+        providerId: this.providerId,
+        modelId: this.modelId,
+        phase: "request"
       }
     }
   }

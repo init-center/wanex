@@ -128,7 +128,7 @@ function createProductAppLocalWebAppHandle(request: {
   readonly host: ProductAppWebNodeHostServer
   readonly attachments: ReturnType<typeof createProductAppLocalAttachmentUploadPort>
 }): ProductAppLocalWebApp {
-  let closed = false
+  let closePromise: Promise<void> | undefined
   return {
     productApp: request.productApp,
     providerProfiles: request.productApp.providerProfiles,
@@ -144,11 +144,11 @@ function createProductAppLocalWebAppHandle(request: {
       return await readProductAppLocalSnapshot(request)
     },
     async close() {
-      if (closed) {
-        return
+      if (closePromise !== undefined) {
+        return await closePromise
       }
-      closed = true
-      await closeStartedProductAppLocalWebApp(request)
+      closePromise = closeStartedProductAppLocalWebApp(request)
+      return await closePromise
     }
   }
 }

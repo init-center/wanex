@@ -30,7 +30,7 @@ export async function startProductAppDesktopMainHost(
 function createProductAppDesktopMainHost(
   local: ProductAppLocalWebApp
 ): ProductAppDesktopMainHost {
-  let closed = false
+  let closePromise: Promise<void> | undefined
   return {
     kind: "product-app-desktop-main.host",
     url: local.url,
@@ -48,11 +48,11 @@ function createProductAppDesktopMainHost(
       return await handleProductAppDesktopMainRequest(local, request)
     },
     async close() {
-      if (closed) {
-        return
+      if (closePromise !== undefined) {
+        return await closePromise
       }
-      closed = true
-      await local.close()
+      closePromise = local.close()
+      return await closePromise
     }
   }
 }

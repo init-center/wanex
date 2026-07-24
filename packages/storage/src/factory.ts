@@ -58,18 +58,20 @@ export function createStorageHandleFromTransport(
   transport: StorageTransport,
   options: InjectedStorageTransportOptions
 ): StorageHandle {
-  let disposed = false
+  let disposePromise: Promise<void> | undefined
   return {
     transport,
     core: createCoreStore(transport),
     async dispose() {
-      if (disposed) {
-        return
+      if (disposePromise !== undefined) {
+        return await disposePromise
       }
-      disposed = true
-      if (options.ownership === "owned") {
-        await transport.close?.()
-      }
+      disposePromise = (async () => {
+        if (options.ownership === "owned") {
+          await transport.close?.()
+        }
+      })()
+      return await disposePromise
     }
   }
 }

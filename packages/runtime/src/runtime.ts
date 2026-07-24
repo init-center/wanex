@@ -90,6 +90,7 @@ export async function createWanexRuntime(
         : { observeProviderEvent: options.observeProviderEvent })
     })
     let disposed = false
+    let disposePromise: Promise<void> | undefined
 
     const assertActive = (): void => {
       if (disposed) {
@@ -192,12 +193,15 @@ export async function createWanexRuntime(
         await host.stop()
       },
       async dispose(): Promise<void> {
-        if (disposed) {
-          return
+        if (disposePromise !== undefined) {
+          return await disposePromise
         }
         disposed = true
-        await host.dispose()
-        await storage.dispose()
+        disposePromise = (async () => {
+          await host.dispose()
+          await storage.dispose()
+        })()
+        return await disposePromise
       }
     }
   } catch (error) {

@@ -51,25 +51,33 @@ external `native` directory with the same manifest/executable bytes. There is
 no application `node_modules` directory and no `app.asar.unpacked` tree.
 
 `docs/architecture/host-distribution-budget.json` owns executable/package
-bytes, exact ASAR/native file counts, and cold lifecycle p95 ceilings. Static
-Runtime/App bundle bytes and input closure remain solely in the facade
-footprint audit.
+bytes, exact ASAR/native file counts, native cold lifecycle p95 ceilings, and
+separate Electron cold/warm ceilings. Static Runtime/App bundle bytes and input
+closure remain solely in the facade footprint audit.
 
-The first-release target ceilings are frozen from two successful native
-distribution runs. Byte limits use the largest observation plus 10 percent,
-rounded upward to a stable size boundary. Package file limits use the largest
-observation plus 10 percent, rounded upward to ten files. Timing limits are at
-least twice the largest observed p95 and rounded upward to a stable release
-safety boundary. Each target owns its own values; do not average heterogeneous
-runner classes or refresh a failed ceiling without reviewing the artifact
-closure and receipt history.
+The first-release target ceilings are frozen from reviewed native distribution
+runs. Byte limits use the largest observation plus 10 percent, rounded upward
+to a stable size boundary. Package file limits use the largest observation
+plus 10 percent, rounded upward to ten files. Native proof samples are all
+cold, so their five-value summaries retain p95. The Electron proof has a
+different fixed contract: exactly one cold launch followed by four warm
+launches. It reports the cold timing directly and the warm median, maximum, and
+raw timings. Four samples cannot establish a meaningful p95, so the release
+gate truthfully enforces the warm maximum.
 
-| Target | Native executable | Native total/wall p95 | Electron unpacked/files | Electron total/wall p95 |
-| --- | ---: | ---: | ---: | ---: |
-| `linux-x64` | 10,800,000 B | 1,000 / 2,000 ms | n/a | n/a |
-| `darwin-arm64` | 9,600,000 B | 1,000 / 2,000 ms | 565,000,000 B / 310 | 4,000 / 8,000 ms |
-| `darwin-x64` | 9,900,000 B | 1,500 / 3,000 ms | 575,000,000 B / 310 | 4,000 / 7,000 ms |
-| `win32-x64` | 9,600,000 B | 2,000 / 10,000 ms | 415,000,000 B / 90 | 4,000 / 7,000 ms |
+Electron wall timing stops when the packaged process exits. Receipt parsing
+and the mandatory process-table audit occur afterward and remain fatal
+correctness checks, but their cost is excluded from startup performance. Each
+target owns its own cold and warm values; do not average heterogeneous runner
+classes or refresh a failed ceiling without reviewing the artifact closure,
+raw samples, and receipt history.
+
+| Target | Native executable | Native total/wall p95 | Electron unpacked/files | Electron cold total/wall | Electron warm total/wall max |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `linux-x64` | 10,800,000 B | 1,000 / 2,000 ms | n/a | n/a | n/a |
+| `darwin-arm64` | 9,600,000 B | 1,000 / 2,000 ms | 565,000,000 B / 310 | 3,000 / 5,000 ms | 1,500 / 2,500 ms |
+| `darwin-x64` | 9,900,000 B | 1,500 / 3,000 ms | 575,000,000 B / 310 | 8,000 / 12,000 ms | 3,500 / 6,000 ms |
+| `win32-x64` | 9,600,000 B | 2,000 / 10,000 ms | 415,000,000 B / 90 | 3,000 / 5,000 ms | 2,500 / 3,000 ms |
 
 Manifest hashes prove the staged resources remain immutable during a proof and
 match the packaged native files. They do not claim cross-build reproducibility:
@@ -87,7 +95,7 @@ pnpm release:sdk
 pnpm proof:sdk-consumers
 pnpm stage:native -- --target darwin-arm64
 pnpm proof:native-runtime -- --samples 5
-pnpm proof:electron-boundary -- --samples 5
+pnpm proof:electron-boundary
 pnpm audit:host-distribution -- --target darwin-arm64
 ```
 

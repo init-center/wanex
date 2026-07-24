@@ -12,9 +12,10 @@ import {
   stagingDir
 } from "./build.mjs"
 import {
-  parseProofArgs,
-  summarizeSamples
+  assertCanonicalProofArgs,
+  measureElectronBoundarySample
 } from "./proof.mjs"
+import { summarizeElectronSamples } from "./metrics.mjs"
 
 const tempDirs = []
 
@@ -106,26 +107,91 @@ describe("private Electron production boundary", () => {
     expect(normalizeAsarEntry("../unexpected.js")).toBe("/../unexpected.js")
   })
 
-  it("freezes native sample parsing and percentile reporting", () => {
-    expect(parseProofArgs([])).toEqual({ samples: 1 })
-    expect(parseProofArgs(["--", "--samples", "5"])).toEqual({ samples: 5 })
-    expect(() => parseProofArgs(["--samples", "0"])).toThrow("positive integer")
-    expect(summarizeSamples([
-      sample(10, 100),
-      sample(20, 200),
-      sample(30, 300)
+  it("freezes one cold and four warm Electron samples", () => {
+    expect(assertCanonicalProofArgs([])).toBeUndefined()
+    expect(assertCanonicalProofArgs(["--"])).toBeUndefined()
+    expect(() => assertCanonicalProofArgs(["--samples", "5"]))
+      .toThrow("unknown Electron proof argument")
+    expect(summarizeElectronSamples([
+      sample(0, "cold", 50, 500),
+      sample(1, "warm", 10, 100),
+      sample(2, "warm", 20, 200),
+      sample(3, "warm", 30, 300),
+      sample(4, "warm", 40, 400)
     ])).toMatchObject({
-      artifactVerification: {
-        medianMs: 20,
-        p95Ms: 30,
-        samplesMs: [10, 20, 30]
+      cold: {
+        sampleCount: 1,
+        timingsMs: {
+          artifactVerification: 50,
+          wallTime: 500
+        }
       },
-      wallTime: {
-        medianMs: 200,
-        p95Ms: 300,
-        samplesMs: [100, 200, 300]
+      warm: {
+        sampleCount: 4,
+        metrics: {
+          artifactVerification: {
+            medianMs: 25,
+            maximumMs: 40,
+            samplesMs: [10, 20, 30, 40]
+          },
+          wallTime: {
+            medianMs: 250,
+            maximumMs: 400,
+            samplesMs: [100, 200, 300, 400]
+          }
+        }
       }
     })
+    expect(() => summarizeElectronSamples([
+      sample(0, "cold", 10, 100)
+    ])).toThrow("requires exactly 5 samples")
+    expect(() => summarizeElectronSamples([
+      sample(0, "cold", 10, 100),
+      sample(1, "warm", 10, 100),
+      sample(2, "cold", 10, 100),
+      sample(3, "warm", 10, 100),
+      sample(4, "warm", 10, 100)
+    ])).toThrow("sample 2 must be warm")
+  })
+
+  it("excludes process inspection from Electron wall time", async () => {
+    let now = 0
+    let audited = false
+    await expect(measureElectronBoundarySample(
+      async () => {
+        now = 25
+        return { stdout: "", stderr: "" }
+      },
+      async () => {
+        audited = true
+        now = 250
+      },
+      () => now
+    )).resolves.toEqual({
+      output: { stdout: "", stderr: "" },
+      wallTimeMs: 25
+    })
+    expect(audited).toBe(true)
+  })
+
+  it("keeps Electron process inspection mandatory on success and failure", async () => {
+    await expect(measureElectronBoundarySample(
+      async () => ({ stdout: "", stderr: "" }),
+      async () => {
+        throw new Error("process inspection failed")
+      }
+    )).rejects.toThrow("process inspection failed")
+
+    let auditedAfterRunFailure = false
+    await expect(measureElectronBoundarySample(
+      async () => {
+        throw new Error("Electron failed")
+      },
+      async () => {
+        auditedAfterRunFailure = true
+      }
+    )).rejects.toThrow("Electron failed")
+    expect(auditedAfterRunFailure).toBe(true)
   })
 
   it("freezes the native full-verification and distribution matrix", async () => {
@@ -151,7 +217,10 @@ describe("private Electron production boundary", () => {
       "pnpm stage:native -- --target ${{ matrix.target }}"
     )
     expect(workflow).toContain("pnpm proof:native-runtime -- --samples 5")
-    expect(workflow).toContain("pnpm proof:electron-boundary -- --samples 5")
+    expect(workflow).toContain("pnpm proof:electron-boundary")
+    expect(workflow).not.toContain(
+      "pnpm proof:electron-boundary -- --samples"
+    )
     expect(workflow).toContain(
       "pnpm audit:host-distribution -- --target ${{ matrix.target }}"
     )
@@ -179,8 +248,10 @@ describe("private Electron production boundary", () => {
   })
 })
 
-function sample(artifactVerification, wallTimeMs) {
+function sample(index, temperature, artifactVerification, wallTimeMs) {
   return {
+    index,
+    temperature,
     wallTimeMs,
     runtime: {
       timingsMs: {

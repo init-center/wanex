@@ -4,38 +4,31 @@ import { createHash } from "node:crypto"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { fileURLToPath } from "node:url"
 import {
   distributionRoot,
   packageElectronBoundary,
   packagedExecutable
 } from "./build.mjs"
+import {
+  ELECTRON_PROOF_SAMPLE_COUNT,
+  summarizeElectronSamples
+} from "./metrics.mjs"
 
 if (import.meta.main) {
-  const options = parseProofArgs(process.argv.slice(2))
-  const receipt = await proveElectronBoundary(options)
+  assertCanonicalProofArgs(process.argv.slice(2))
+  const receipt = await proveElectronBoundary()
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
 }
 
-export function parseProofArgs(args) {
-  let samples = 1
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index]
-    if (arg === "--") continue
-    if (arg !== "--samples") {
+export function assertCanonicalProofArgs(args) {
+  for (const arg of args) {
+    if (arg !== "--") {
       throw new Error(`unknown Electron proof argument: ${arg}`)
     }
-    const value = Number(args[index + 1])
-    if (!Number.isSafeInteger(value) || value < 1) {
-      throw new Error("Electron proof samples must be a positive integer")
-    }
-    samples = value
-    index += 1
   }
-  return { samples }
 }
 
-export async function proveElectronBoundary(options) {
+export async function proveElectronBoundary() {
   const proofRoot = await mkdtemp(join(tmpdir(), "Wanex 证明 空格-"))
   const userDataDir = join(proofRoot, "用户 数据")
   try {
@@ -45,13 +38,15 @@ export async function proveElectronBoundary(options) {
       buildReceipt.packaged.packageDir
     )
     const samples = []
-    for (let index = 0; index < options.samples; index += 1) {
+    for (let index = 0; index < ELECTRON_PROOF_SAMPLE_COUNT; index += 1) {
       const receiptPath = join(proofRoot, `runtime-receipt-${index}.json`)
-      const startedAt = Date.now()
-      const output = await run(executable, {
-        WANEX_ELECTRON_SMOKE_RECEIPT: receiptPath,
-        WANEX_ELECTRON_SMOKE_USER_DATA: userDataDir
-      }, 60_000)
+      const measured = await measureElectronBoundarySample(
+        () => run(executable, {
+          WANEX_ELECTRON_SMOKE_RECEIPT: receiptPath,
+          WANEX_ELECTRON_SMOKE_USER_DATA: userDataDir
+        }, 60_000),
+        () => assertNoOwnedProcess(userDataDir)
+      )
       const runtime = JSON.parse(await readFile(receiptPath, "utf8"))
       if (
         runtime.kind !== "wanex.electron-boundary.runtime-receipt" ||
@@ -61,16 +56,16 @@ export async function proveElectronBoundary(options) {
           `Electron boundary runtime proof failed: ${JSON.stringify(runtime)}`
         )
       }
-      const failureEvidence = `${output.stderr}\n${JSON.stringify(runtime)}`
+      const failureEvidence =
+        `${measured.output.stderr}\n${JSON.stringify(runtime)}`
       if (/EPERM[\s\S]{0,160}rename|rename[\s\S]{0,160}EPERM/i.test(failureEvidence)) {
         throw new Error("Electron boundary emitted an EPERM rename failure")
       }
-      await assertNoOwnedProcess(userDataDir)
       samples.push({
         index,
         temperature: index === 0 ? "cold" : "warm",
         runtime,
-        wallTimeMs: Date.now() - startedAt
+        wallTimeMs: measured.wallTimeMs
       })
     }
     const immutableAfter = await hashImmutableResources(
@@ -95,7 +90,7 @@ export async function proveElectronBoundary(options) {
       immutableResources: immutableAfter,
       sampleCount: samples.length,
       samples,
-      summary: summarizeSamples(samples),
+      summary: summarizeElectronSamples(samples),
       noEpermRename: true,
       noOwnedProcessAfterRun: true
     }
@@ -110,29 +105,35 @@ export async function proveElectronBoundary(options) {
   }
 }
 
-export function summarizeSamples(samples) {
-  const metricNames = [
-    "processToAppReady",
-    "artifactVerification",
-    "hostStartup",
-    "rendererLoad",
-    "rendererRoundTrip",
-    "shutdown",
-    "total",
-    "wallTime"
-  ]
-  return Object.fromEntries(metricNames.map((name) => {
-    const values = samples.map((sample) =>
-      name === "wallTime"
-        ? sample.wallTimeMs
-        : sample.runtime.timingsMs[name]
-    ).sort((left, right) => left - right)
-    return [name, {
-      medianMs: percentile(values, 0.5),
-      p95Ms: percentile(values, 0.95),
-      samplesMs: values
-    }]
-  }))
+export async function measureElectronBoundarySample(
+  runSample,
+  auditOwnedProcesses,
+  now = () => Date.now()
+) {
+  const startedAt = now()
+  let output
+  let runFailure
+  try {
+    output = await runSample()
+  } catch (error) {
+    runFailure = error
+  }
+  const wallTimeMs = now() - startedAt
+  let auditFailure
+  try {
+    await auditOwnedProcesses()
+  } catch (error) {
+    auditFailure = error
+  }
+  if (runFailure !== undefined && auditFailure !== undefined) {
+    throw new AggregateError(
+      [runFailure, auditFailure],
+      "Electron sample execution and process audit both failed"
+    )
+  }
+  if (runFailure !== undefined) throw runFailure
+  if (auditFailure !== undefined) throw auditFailure
+  return { output, wallTimeMs }
 }
 
 async function hashImmutableResources(packageDir) {
@@ -261,8 +262,4 @@ function terminateProcessTree(child) {
 
 function appendBounded(current, chunk) {
   return `${current}${chunk}`.slice(-1024 * 1024)
-}
-
-function percentile(values, ratio) {
-  return values[Math.min(values.length - 1, Math.ceil(values.length * ratio) - 1)]
 }

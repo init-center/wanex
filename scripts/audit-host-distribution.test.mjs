@@ -3,6 +3,7 @@ import {
   auditHostDistributionData,
   parseHostDistributionAuditArgs
 } from "./audit-host-distribution.mjs"
+import { summarizeElectronSamples } from "./electron-boundary/metrics.mjs"
 
 describe("host distribution budget", () => {
   it("parses only explicit audit paths and target", () => {
@@ -39,6 +40,8 @@ describe("host distribution budget", () => {
     const electron = electronReceipt()
     electron.packaged.unpackedBytes = 101
     electron.packaged.hasApplicationNodeModules = true
+    electron.samples[0].runtime.timingsMs.total = 101
+    electron.summary = summarizeElectronSamples(electron.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -50,8 +53,38 @@ describe("host distribution budget", () => {
       expect.stringContaining("native executable bytes"),
       expect.stringContaining("native total p95 ms"),
       expect.stringContaining("Electron unpacked bytes"),
-      expect.stringContaining("Electron node_modules exclusion")
+      expect.stringContaining("Electron node_modules exclusion"),
+      expect.stringContaining("Electron cold total ms")
     ]))
+  })
+
+  it("enforces warm ceilings independently from the cold sample", () => {
+    const electron = electronReceipt()
+    electron.samples[3].runtime.timingsMs.total = 101
+    electron.summary = summarizeElectronSamples(electron.samples)
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
+      electron
+    })
+    expect(result.failures).toEqual([
+      expect.stringContaining("Electron warm total maximum ms")
+    ])
+  })
+
+  it("rejects a declared Electron summary that differs from raw samples", () => {
+    const electron = electronReceipt()
+    electron.summary.cold.timingsMs.total = 49
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
+      electron
+    })
+    expect(result.failures).toEqual([
+      "Electron declared summary does not match raw samples"
+    ])
   })
 })
 
@@ -87,11 +120,17 @@ function electronBudget() {
     exactAsarEntryCount: 5,
     maxNativeBytes: 100,
     exactNativeFileCount: 2,
-    maxArtifactVerificationP95Ms: 100,
-    maxHostStartupP95Ms: 100,
-    maxShutdownP95Ms: 100,
-    maxTotalP95Ms: 100,
-    maxWallTimeP95Ms: 100
+    cold: {
+      maxTotalMs: 100,
+      maxWallTimeMs: 100
+    },
+    warm: {
+      maxArtifactVerificationMs: 100,
+      maxHostStartupMs: 100,
+      maxShutdownMs: 100,
+      maxTotalMs: 100,
+      maxWallTimeMs: 100
+    }
   }
 }
 
@@ -113,6 +152,22 @@ function nativeReceipt() {
 }
 
 function electronReceipt() {
+  const samples = Array.from({ length: 5 }, (_, index) => ({
+    index,
+    temperature: index === 0 ? "cold" : "warm",
+    wallTimeMs: 50,
+    runtime: {
+      timingsMs: Object.fromEntries([
+        "processToAppReady",
+        "artifactVerification",
+        "hostStartup",
+        "rendererLoad",
+        "rendererRoundTrip",
+        "shutdown",
+        "total"
+      ].map((metric) => [metric, 50]))
+    }
+  }))
   return {
     kind: "wanex.electron-boundary.proof-receipt",
     ok: true,
@@ -128,12 +183,10 @@ function electronReceipt() {
       hasApplicationNodeModules: false,
       hasAsarUnpacked: false
     },
-    summary: Object.fromEntries([
-      "artifactVerification",
-      "hostStartup",
-      "shutdown",
-      "total",
-      "wallTime"
-    ].map((metric) => [metric, { p95Ms: 50 }]))
+    sampleCount: 5,
+    samples,
+    summary: summarizeElectronSamples(samples),
+    noEpermRename: true,
+    noOwnedProcessAfterRun: true
   }
 }

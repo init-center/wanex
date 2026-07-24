@@ -90,7 +90,7 @@ jobs:
       - if: matrix.electron
         run: pnpm test:electron-boundary
       - if: matrix.electron
-        run: pnpm proof:electron-boundary -- --samples 5
+        run: pnpm proof:electron-boundary
       - run: pnpm audit:host-distribution -- --target ${{ matrix.target }}
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

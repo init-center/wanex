@@ -2,6 +2,10 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import {
+  ELECTRON_PROOF_SAMPLE_COUNT,
+  summarizeElectronSamples
+} from "./electron-boundary/metrics.mjs"
 
 const workspaceRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -138,12 +142,38 @@ export function auditHostDistributionData(request) {
 
   if (targetBudget.electron !== undefined) {
     const electronBudget = requireRecord(targetBudget.electron, "Electron budget")
+    const coldBudget = requireRecord(electronBudget.cold, "Electron cold budget")
+    const warmBudget = requireRecord(electronBudget.warm, "Electron warm budget")
     const electron = requireRecord(request.electron, "Electron proof receipt")
     const packaged = requireRecord(electron.packaged, "Electron packaged receipt")
-    const summary = requireRecord(electron.summary, "Electron proof summary")
+    const declaredSummary = requireRecord(
+      electron.summary,
+      "Electron proof summary"
+    )
+    const samples = requireArray(electron.samples, "Electron proof samples")
+    const summary = summarizeElectronSamples(samples)
+    const coldTimings = requireRecord(
+      summary.cold.timingsMs,
+      "Electron cold timings"
+    )
+    const warmMetrics = requireRecord(
+      summary.warm.metrics,
+      "Electron warm metrics"
+    )
     expectEqual(failures, "Electron receipt kind", electron.kind, "wanex.electron-boundary.proof-receipt")
     expectEqual(failures, "Electron receipt ok", electron.ok, true)
     expectEqual(failures, "Electron target", `${packaged.platform}-${packaged.arch}`, request.targetId)
+    expectEqual(
+      failures,
+      "Electron sample count",
+      electron.sampleCount,
+      ELECTRON_PROOF_SAMPLE_COUNT
+    )
+    if (JSON.stringify(declaredSummary) !== JSON.stringify(summary)) {
+      failures.push("Electron declared summary does not match raw samples")
+    }
+    expectEqual(failures, "Electron EPERM rename exclusion", electron.noEpermRename, true)
+    expectEqual(failures, "Electron process cleanup", electron.noOwnedProcessAfterRun, true)
     expectEqual(failures, "Electron ASAR entry count", packaged.asarEntryCount, electronBudget.exactAsarEntryCount)
     expectEqual(failures, "Electron native file count", packaged.nativeFileCount, electronBudget.exactNativeFileCount)
     expectEqual(failures, "Electron node_modules exclusion", packaged.hasApplicationNodeModules, false)
@@ -154,33 +184,45 @@ export function auditHostDistributionData(request) {
     expectMaximum(failures, "Electron native bytes", packaged.nativeBytes, electronBudget.maxNativeBytes)
     expectMaximum(
       failures,
-      "Electron artifact verification p95 ms",
-      p95(summary, "artifactVerification"),
-      electronBudget.maxArtifactVerificationP95Ms
+      "Electron cold total ms",
+      coldTimings.total,
+      coldBudget.maxTotalMs
     )
     expectMaximum(
       failures,
-      "Electron host startup p95 ms",
-      p95(summary, "hostStartup"),
-      electronBudget.maxHostStartupP95Ms
+      "Electron cold wall time ms",
+      coldTimings.wallTime,
+      coldBudget.maxWallTimeMs
     )
     expectMaximum(
       failures,
-      "Electron shutdown p95 ms",
-      p95(summary, "shutdown"),
-      electronBudget.maxShutdownP95Ms
+      "Electron warm artifact verification maximum ms",
+      maximum(warmMetrics, "artifactVerification"),
+      warmBudget.maxArtifactVerificationMs
     )
     expectMaximum(
       failures,
-      "Electron total p95 ms",
-      p95(summary, "total"),
-      electronBudget.maxTotalP95Ms
+      "Electron warm host startup maximum ms",
+      maximum(warmMetrics, "hostStartup"),
+      warmBudget.maxHostStartupMs
     )
     expectMaximum(
       failures,
-      "Electron wall time p95 ms",
-      p95(summary, "wallTime"),
-      electronBudget.maxWallTimeP95Ms
+      "Electron warm shutdown maximum ms",
+      maximum(warmMetrics, "shutdown"),
+      warmBudget.maxShutdownMs
+    )
+    expectMaximum(
+      failures,
+      "Electron warm total maximum ms",
+      maximum(warmMetrics, "total"),
+      warmBudget.maxTotalMs
+    )
+    expectMaximum(
+      failures,
+      "Electron warm wall time maximum ms",
+      maximum(warmMetrics, "wallTime"),
+      warmBudget.maxWallTimeMs
     )
     observed.electron = {
       unpackedBytes: packaged.unpackedBytes,
@@ -189,11 +231,18 @@ export function auditHostDistributionData(request) {
       asarEntryCount: packaged.asarEntryCount,
       nativeBytes: packaged.nativeBytes,
       nativeFileCount: packaged.nativeFileCount,
-      artifactVerificationP95Ms: p95(summary, "artifactVerification"),
-      hostStartupP95Ms: p95(summary, "hostStartup"),
-      shutdownP95Ms: p95(summary, "shutdown"),
-      totalP95Ms: p95(summary, "total"),
-      wallTimeP95Ms: p95(summary, "wallTime")
+      cold: {
+        totalMs: coldTimings.total,
+        wallTimeMs: coldTimings.wallTime
+      },
+      warm: {
+        artifactVerificationMaximumMs:
+          maximum(warmMetrics, "artifactVerification"),
+        hostStartupMaximumMs: maximum(warmMetrics, "hostStartup"),
+        shutdownMaximumMs: maximum(warmMetrics, "shutdown"),
+        totalMaximumMs: maximum(warmMetrics, "total"),
+        wallTimeMaximumMs: maximum(warmMetrics, "wallTime")
+      }
     }
   } else if (request.electron !== undefined) {
     failures.push("headless target must not provide an Electron receipt")
@@ -211,6 +260,10 @@ export function auditHostDistributionData(request) {
 
 function p95(summary, metric) {
   return requireRecord(summary[metric], `${metric} summary`).p95Ms
+}
+
+function maximum(metrics, metric) {
+  return requireRecord(metrics[metric], `${metric} summary`).maximumMs
 }
 
 function expectEqual(failures, label, observed, expected) {
@@ -232,6 +285,13 @@ function expectMaximum(failures, label, observed, maximum) {
 function requireRecord(value, label) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`${label} must be an object`)
+  }
+  return value
+}
+
+function requireArray(value, label) {
+  if (!Array.isArray(value)) {
+    throw new Error(`${label} must be an array`)
   }
   return value
 }

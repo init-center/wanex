@@ -288,8 +288,9 @@ Electron workflow. Complete `pnpm verify` runs natively on:
 Only after all verify jobs pass does the native distribution matrix stage an
 explicit target and execute `pnpm proof:native-runtime -- --samples 5`.
 macOS arm64/x64 and Windows x64 also execute the existing Electron production
-boundary. `pnpm audit:host-distribution` enforces the reviewed target budget,
-and structured receipts upload even when budget enforcement fails.
+boundary with its fixed one-cold/four-warm sample contract.
+`pnpm audit:host-distribution` enforces the reviewed target budget, and
+structured receipts upload even when budget enforcement fails.
 
 Cross-compilation does not qualify a target. Windows-specific atomic replace
 and process-tree code must compile and execute on the Windows runner, and each

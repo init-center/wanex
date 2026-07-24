@@ -143,14 +143,15 @@ export async function proveNativeRuntime(options: NativeRuntimeProofOptions) {
     for (let index = 0; index < options.samples; index += 1) {
       const storeDir = join(proofRoot, `样本 ${index + 1}`, "store 数据")
       await mkdir(dirname(storeDir), { recursive: true })
-      const startedAt = performance.now()
-      const sample = await runSampleProcess({ artifactDir, storeDir })
-      await assertNoOwnedProcess(storeDir)
+      const measured = await measureNativeRuntimeSample(
+        () => runSampleProcess({ artifactDir, storeDir }),
+        () => assertNoOwnedProcess(storeDir)
+      )
       samples.push({
-        ...sample,
+        ...measured.sample,
         index,
         temperature: "cold",
-        wallTimeMs: performance.now() - startedAt
+        wallTimeMs: measured.wallTimeMs
       })
     }
 
@@ -186,6 +187,18 @@ export async function proveNativeRuntime(options: NativeRuntimeProofOptions) {
   } finally {
     await rm(proofRoot, { recursive: true, force: true })
   }
+}
+
+export async function measureNativeRuntimeSample<T>(
+  runSample: () => Promise<T>,
+  auditOwnedProcesses: () => Promise<void>,
+  now: () => number = () => performance.now()
+): Promise<{ readonly sample: T; readonly wallTimeMs: number }> {
+  const startedAt = now()
+  const sample = await runSample()
+  const wallTimeMs = now() - startedAt
+  await auditOwnedProcesses()
+  return { sample, wallTimeMs }
 }
 
 export function summarizeNativeRuntimeSamples(

@@ -1,6 +1,7 @@
 import { resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
+  measureNativeRuntimeSample,
   parseNativeRuntimeProofArgs,
   summarizeNativeRuntimeSamples,
   type NativeRuntimeProofSample
@@ -45,6 +46,35 @@ describe("native Runtime proof", () => {
       }
     })
     expect(() => summarizeNativeRuntimeSamples([])).toThrow("requires samples")
+  })
+
+  it("excludes the process audit from sample wall time without weakening it", async () => {
+    let clock = 100
+    let audited = false
+    const measured = await measureNativeRuntimeSample(
+      async () => {
+        clock = 140
+        return "completed"
+      },
+      async () => {
+        audited = true
+        clock = 10_000
+      },
+      () => clock
+    )
+
+    expect(measured).toEqual({
+      sample: "completed",
+      wallTimeMs: 40
+    })
+    expect(audited).toBe(true)
+
+    await expect(measureNativeRuntimeSample(
+      async () => "completed",
+      async () => {
+        throw new Error("owned process remains")
+      }
+    )).rejects.toThrow("owned process remains")
   })
 })
 

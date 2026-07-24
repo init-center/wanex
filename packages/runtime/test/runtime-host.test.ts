@@ -717,11 +717,14 @@ describe("@wanex/runtime/host", () => {
   })
 
   it("stops worker loops without disposing host-owned storage", async () => {
+    const observedStorage = observeRuntimeHostStorage(
+      requireTestStorageHandle().core
+    )
     const host = await createHost({
       workerCount: 2,
       fakeResponseText: "host loop response",
       idleIntervalMs: 10
-    })
+    }, observedStorage.storage)
     host.start()
     expect(host.status()).toEqual({
       started: true,
@@ -734,13 +737,11 @@ describe("@wanex/runtime/host", () => {
       sessionId: "ses_host_loop"
     })
 
-    await eventually(async () => {
-      const jobs = await host.listJobs({ state: "succeeded" })
-      expect(jobs).toHaveLength(1)
-    })
+    await observedStorage.turnSettled
+    await host.stop()
+    await expect(host.listJobs({ state: "succeeded" })).resolves.toHaveLength(1)
     const report = await host.doctor()
     expect(report.schemaVersion).toBe(expectedSchemaVersion)
-    await host.stop()
     expect(host.status()).toEqual({
       started: false,
       workerCount: 2,
@@ -758,38 +759,38 @@ describe("@wanex/runtime/host", () => {
   })
 
   it("wakes a long-idle background worker after local submission", async () => {
+    const provider = new DispatchProbeProvider("host wake response")
+    const observedStorage = observeRuntimeHostStorage(
+      requireTestStorageHandle().core
+    )
     const host = await createHost({
       workerCount: 1,
-      fakeResponseText: "host wake response",
+      provider,
       idleIntervalMs: 10_000
-    })
+    }, observedStorage.storage)
     host.start()
 
     try {
-      await eventually(async () => {
-        expect(
-          host
-            .getHealthSnapshot()
-            .loops.find((loop) => loop.kind === "agent")?.idleCount
-        ).toBeGreaterThan(0)
-      })
-      const submittedAt = Date.now()
+      await observedStorage.agentIdleClaim
       await host.submitUserTurn({
         content: [{ type: "text", text: "wake now" }],
         sessionId: "ses_host_wake"
       })
-      await eventually(async () => {
-        await expect(
-          host.listJobs({ kind: "session.turn", state: "succeeded" })
-        ).resolves.toHaveLength(1)
-      })
-      expect(Date.now() - submittedAt).toBeLessThan(1_000)
+      await provider.started.promise
+      await observedStorage.turnSettled
+      await host.stop()
+      await expect(
+        host.listJobs({ kind: "session.turn", state: "succeeded" })
+      ).resolves.toHaveLength(1)
     } finally {
       await host.dispose()
     }
   })
 
   it("reports process-local live health for started worker loops", async () => {
+    const observedStorage = observeRuntimeHostStorage(
+      requireTestStorageHandle().core
+    )
     const host = await createHost({
       workerCount: 1,
       fakeResponseText: "host health response",
@@ -798,7 +799,7 @@ describe("@wanex/runtime/host", () => {
         enabled: true,
         workerCount: 1
       }
-    })
+    }, observedStorage.storage)
     expect(host.getHealthSnapshot({ now: 10 })).toEqual({
       generatedAt: 10,
       started: false,
@@ -828,29 +829,15 @@ describe("@wanex/runtime/host", () => {
       "memory"
     ])
 
-    await eventually(async () => {
-      const health = host.getHealthSnapshot({ now: 12 })
-      expect(
-        health.loops.find((loop) => loop.kind === "agent")?.runCount
-      ).toBeGreaterThan(0)
-      expect(
-        health.loops.find((loop) => loop.kind === "memory")?.runCount
-      ).toBeGreaterThan(0)
-    })
-
+    await Promise.all([
+      observedStorage.agentIdleClaim,
+      observedStorage.memoryIdleClaim
+    ])
     await host.submitUserTurn({
       content: [{ type: "text", text: "health" }],
       sessionId: "ses_host_health"
     })
-    await eventually(async () => {
-      const health = host.getHealthSnapshot({ now: 13 })
-      const completedCount = health.loops.reduce(
-        (total, loop) => total + loop.completedCount,
-        0
-      )
-      expect(completedCount).toBeGreaterThan(0)
-    })
-
+    await observedStorage.turnSettled
     await host.stop()
     const stopped = host.getHealthSnapshot({ now: 20 })
     expect(stopped).toMatchObject({
@@ -862,6 +849,13 @@ describe("@wanex/runtime/host", () => {
       activeLoopCount: 0,
       stoppedLoopCount: 2
     })
+    expect(stopped.loops.every((loop) => loop.runCount > 0)).toBe(true)
+    expect(
+      stopped.loops.reduce(
+        (total, loop) => total + loop.completedCount,
+        0
+      )
+    ).toBeGreaterThan(0)
     expect(stopped.loops.every((loop) => loop.stopped)).toBe(true)
     await host.dispose()
   })
@@ -1135,6 +1129,21 @@ class ConcurrentProbeProvider implements ProviderAdapter {
   }
 }
 
+class DispatchProbeProvider extends ConcurrentProbeProvider {
+  readonly started = deferred<void>()
+
+  constructor(private readonly responseText: string) {
+    super()
+  }
+
+  override async *stream(
+    _request: ProviderRequest
+  ): AsyncIterable<ProviderEvent> {
+    this.started.resolve()
+    yield* textEvents(this.responseText)
+  }
+}
+
 class AbortAwareBlockingProvider extends ConcurrentProbeProvider {
   readonly started = deferred<void>()
   readonly aborted = deferred<void>()
@@ -1280,10 +1289,11 @@ async function createHost(
   options: Omit<
     ConstructorParameters<typeof WanexRuntimeHost>[0],
     "storage" | "storageConfig"
-  >
+  >,
+  storage: CoreStore = requireTestStorageHandle().core
 ): Promise<WanexRuntimeHost> {
   return new WanexRuntimeHost({
-    storage: requireTestStorageHandle().core,
+    storage,
     ...options
   })
 }
@@ -1312,6 +1322,56 @@ function requireTestStorageHandle(): StorageHandle {
     throw new Error("runtime host test storage is not initialized")
   }
   return testStorageHandle
+}
+
+function observeRuntimeHostStorage(
+  storage: CoreStore
+): {
+  readonly storage: CoreStore
+  readonly agentIdleClaim: Promise<void>
+  readonly memoryIdleClaim: Promise<void>
+  readonly turnSettled: Promise<void>
+} {
+  const agentIdleClaim = deferred<void>()
+  const memoryIdleClaim = deferred<void>()
+  const turnSettled = deferred<void>()
+
+  return {
+    storage: new Proxy(storage, {
+      get(target, property) {
+        if (property === "claimJob") {
+          return async (
+            request: Parameters<CoreStore["claimJob"]>[0]
+          ) => {
+            const claimed = await target.claimJob(request)
+            if (claimed === null) {
+              if (request.kinds?.includes("session.turn") === true) {
+                agentIdleClaim.resolve()
+              }
+              if (request.kinds?.includes("memory.compaction") === true) {
+                memoryIdleClaim.resolve()
+              }
+            }
+            return claimed
+          }
+        }
+        if (property === "settleSessionTurn") {
+          return async (
+            request: Parameters<CoreStore["settleSessionTurn"]>[0]
+          ) => {
+            const receipt = await target.settleSessionTurn(request)
+            turnSettled.resolve()
+            return receipt
+          }
+        }
+        const value = Reflect.get(target, property, target)
+        return typeof value === "function" ? value.bind(target) : value
+      }
+    }),
+    agentIdleClaim: agentIdleClaim.promise,
+    memoryIdleClaim: memoryIdleClaim.promise,
+    turnSettled: turnSettled.promise
+  }
 }
 
 function userText(messages: readonly ProviderReplayMessage[]): string {

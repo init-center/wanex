@@ -3,81 +3,81 @@
   "targets": {
     "linux-x64": {
       "native": {
-        "maxExecutableBytes": 20000000,
+        "maxExecutableBytes": 10800000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 1000,
-        "maxCreateDisposeP95Ms": 8000,
-        "maxTotalP95Ms": 15000,
-        "maxWallTimeP95Ms": 30000
+        "maxColdImportP95Ms": 750,
+        "maxCreateDisposeP95Ms": 250,
+        "maxTotalP95Ms": 1000,
+        "maxWallTimeP95Ms": 2000
       }
     },
     "darwin-arm64": {
       "native": {
-        "maxExecutableBytes": 20000000,
+        "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 1000,
-        "maxCreateDisposeP95Ms": 8000,
-        "maxTotalP95Ms": 15000,
-        "maxWallTimeP95Ms": 30000
+        "maxColdImportP95Ms": 750,
+        "maxCreateDisposeP95Ms": 250,
+        "maxTotalP95Ms": 1000,
+        "maxWallTimeP95Ms": 2000
       },
       "electron": {
-        "maxUnpackedBytes": 750000000,
-        "maxPackageFileCount": 500,
-        "maxAsarBytes": 3000000,
+        "maxUnpackedBytes": 565000000,
+        "maxPackageFileCount": 310,
+        "maxAsarBytes": 1750000,
         "exactAsarEntryCount": 5,
-        "maxNativeBytes": 20000000,
+        "maxNativeBytes": 9600000,
         "exactNativeFileCount": 2,
-        "maxArtifactVerificationP95Ms": 1000,
-        "maxHostStartupP95Ms": 8000,
-        "maxShutdownP95Ms": 5000,
-        "maxTotalP95Ms": 20000,
-        "maxWallTimeP95Ms": 60000
+        "maxArtifactVerificationP95Ms": 250,
+        "maxHostStartupP95Ms": 500,
+        "maxShutdownP95Ms": 500,
+        "maxTotalP95Ms": 4000,
+        "maxWallTimeP95Ms": 8000
       }
     },
     "darwin-x64": {
       "native": {
-        "maxExecutableBytes": 20000000,
+        "maxExecutableBytes": 9900000,
         "exactFileCount": 2,
-        "maxColdImportP95Ms": 1000,
-        "maxCreateDisposeP95Ms": 8000,
-        "maxTotalP95Ms": 15000,
-        "maxWallTimeP95Ms": 30000
+        "maxColdImportP95Ms": 1250,
+        "maxCreateDisposeP95Ms": 250,
+        "maxTotalP95Ms": 1500,
+        "maxWallTimeP95Ms": 3000
       },
       "electron": {
-        "maxUnpackedBytes": 750000000,
-        "maxPackageFileCount": 500,
-        "maxAsarBytes": 3000000,
+        "maxUnpackedBytes": 575000000,
+        "maxPackageFileCount": 310,
+        "maxAsarBytes": 1750000,
         "exactAsarEntryCount": 5,
-        "maxNativeBytes": 20000000,
+        "maxNativeBytes": 9900000,
         "exactNativeFileCount": 2,
-        "maxArtifactVerificationP95Ms": 1000,
-        "maxHostStartupP95Ms": 8000,
-        "maxShutdownP95Ms": 5000,
-        "maxTotalP95Ms": 20000,
-        "maxWallTimeP95Ms": 60000
+        "maxArtifactVerificationP95Ms": 250,
+        "maxHostStartupP95Ms": 500,
+        "maxShutdownP95Ms": 250,
+        "maxTotalP95Ms": 4000,
+        "maxWallTimeP95Ms": 7000
       }
     },
     "win32-x64": {
       "native": {
-        "maxExecutableBytes": 20000000,
+        "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
         "maxColdImportP95Ms": 1000,
-        "maxCreateDisposeP95Ms": 8000,
-        "maxTotalP95Ms": 15000,
-        "maxWallTimeP95Ms": 30000
+        "maxCreateDisposeP95Ms": 500,
+        "maxTotalP95Ms": 2000,
+        "maxWallTimeP95Ms": 10000
       },
       "electron": {
-        "maxUnpackedBytes": 750000000,
-        "maxPackageFileCount": 500,
-        "maxAsarBytes": 3000000,
+        "maxUnpackedBytes": 415000000,
+        "maxPackageFileCount": 90,
+        "maxAsarBytes": 1750000,
         "exactAsarEntryCount": 5,
-        "maxNativeBytes": 20000000,
+        "maxNativeBytes": 9600000,
         "exactNativeFileCount": 2,
-        "maxArtifactVerificationP95Ms": 1000,
-        "maxHostStartupP95Ms": 8000,
-        "maxShutdownP95Ms": 5000,
-        "maxTotalP95Ms": 20000,
-        "maxWallTimeP95Ms": 60000
+        "maxArtifactVerificationP95Ms": 250,
+        "maxHostStartupP95Ms": 2000,
+        "maxShutdownP95Ms": 250,
+        "maxTotalP95Ms": 4000,
+        "maxWallTimeP95Ms": 7000
       }
     }
   }

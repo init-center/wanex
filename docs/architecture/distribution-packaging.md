@@ -55,6 +55,27 @@ bytes, exact ASAR/native file counts, and cold lifecycle p95 ceilings. Static
 Runtime/App bundle bytes and input closure remain solely in the facade
 footprint audit.
 
+The first-release target ceilings are frozen from two successful native
+distribution runs. Byte limits use the largest observation plus 10 percent,
+rounded upward to a stable size boundary. Package file limits use the largest
+observation plus 10 percent, rounded upward to ten files. Timing limits are at
+least twice the largest observed p95 and rounded upward to a stable release
+safety boundary. Each target owns its own values; do not average heterogeneous
+runner classes or refresh a failed ceiling without reviewing the artifact
+closure and receipt history.
+
+| Target | Native executable | Native total/wall p95 | Electron unpacked/files | Electron total/wall p95 |
+| --- | ---: | ---: | ---: | ---: |
+| `linux-x64` | 10,800,000 B | 1,000 / 2,000 ms | n/a | n/a |
+| `darwin-arm64` | 9,600,000 B | 1,000 / 2,000 ms | 565,000,000 B / 310 | 4,000 / 8,000 ms |
+| `darwin-x64` | 9,900,000 B | 1,500 / 3,000 ms | 575,000,000 B / 310 | 4,000 / 7,000 ms |
+| `win32-x64` | 9,600,000 B | 2,000 / 10,000 ms | 415,000,000 B / 90 | 4,000 / 7,000 ms |
+
+Manifest hashes prove the staged resources remain immutable during a proof and
+match the packaged native files. They do not claim cross-build reproducibility:
+MSVC PE timestamps/debug identity, and later signing or notarization, may
+change artifact hashes between otherwise equivalent builds.
+
 Run:
 
 ```bash

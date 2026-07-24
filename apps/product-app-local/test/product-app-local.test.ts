@@ -15,6 +15,7 @@ import {
   type ProductAppLocalProviderProfilesOptions,
   type ProductAppLocalWebApp
 } from "../src/index.js"
+import { containsSensitiveText } from "../src/sensitive-value.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -199,8 +200,8 @@ describe("@wanex/product-app-local", () => {
         density: "compact"
       }
     })
-    expect(JSON.stringify(firstSettings)).not.toContain(storeDir)
-    expect(JSON.stringify(firstSettings)).not.toContain(serviceBin)
+    expect(containsSensitiveText(firstSettings, storeDir)).toBe(false)
+    expect(containsSensitiveText(firstSettings, serviceBin)).toBe(false)
 
     await first.close()
     apps.pop()
@@ -289,8 +290,8 @@ describe("@wanex/product-app-local", () => {
         exposesRendererMutationApi: false
       }
     })
-    expect(JSON.stringify(initial)).not.toContain(storeDir)
-    expect(JSON.stringify(initial)).not.toContain(serviceBin)
+    expect(containsSensitiveText(initial, storeDir)).toBe(false)
+    expect(containsSensitiveText(initial, serviceBin)).toBe(false)
 
     await app.settings.setLayout({ layout: "diagnostics" })
     await app.settings.setMode({ mode: "diagnostics" })
@@ -545,8 +546,8 @@ describe("@wanex/product-app-local", () => {
     expect(snapshot.settings.state.selectedSessionId).toBe(
       snapshot.web.conversation.sessionId
     )
-    expect(JSON.stringify(snapshot)).not.toContain(storeDir)
-    expect(JSON.stringify(snapshot)).not.toContain(serviceBin)
+    expect(containsSensitiveText(snapshot, storeDir)).toBe(false)
+    expect(containsSensitiveText(snapshot, serviceBin)).toBe(false)
   })
 
   it("formats CLI startup output from the safe host snapshot", async () => {
@@ -827,7 +828,7 @@ describe("@wanex/product-app-local", () => {
       state: "idle",
       message: "No operation yet"
     })
-    expect(JSON.stringify(jsonSummary)).toContain(serviceBin)
+    expect(jsonSummary.serviceBinary).toBe(serviceBin)
   })
 
   it("runs a bounded CLI smoke check through the local product path", async () => {
@@ -922,9 +923,13 @@ describe("@wanex/product-app-local", () => {
       }
     })
     const json = formatProductAppLocalCliSmokeResult(result)
-    expect(JSON.parse(json)).toEqual(result)
-    expect(json).toContain(storeDir)
-    expect(json).toContain(serviceBin)
+    const parsed = JSON.parse(json)
+    expect(parsed).toEqual(result)
+    expect(parsed.startup.storage).toEqual({
+      kind: "store-dir",
+      storeDir
+    })
+    expect(parsed.startup.serviceBinary).toBe(serviceBin)
   })
 
   it("runs a bounded CLI provider setup through the trusted host facade", async () => {
@@ -1007,10 +1012,14 @@ describe("@wanex/product-app-local", () => {
       }
     })
     const json = formatProductAppLocalCliProviderSetupResult(result)
-    expect(JSON.parse(json)).toEqual(result)
+    const parsed = JSON.parse(json)
+    expect(parsed).toEqual(result)
     expect(json).not.toContain("LOCAL_CLI_SETUP_SECRET")
-    expect(json).toContain(storeDir)
-    expect(json).toContain(serviceBin)
+    expect(parsed.startup.storage).toEqual({
+      kind: "store-dir",
+      storeDir
+    })
+    expect(parsed.startup.serviceBinary).toBe(serviceBin)
   })
 
   it("manages provider profiles through the trusted host facade", async () => {
@@ -1088,8 +1097,8 @@ describe("@wanex/product-app-local", () => {
     const firstSerialized = JSON.stringify(firstSnapshot)
     expect(firstSerialized).not.toContain("https://provider.example.test/v1")
     expect(firstSerialized).not.toContain("LOCAL_SECOND_SECRET")
-    expect(firstSerialized).not.toContain(storeDir)
-    expect(firstSerialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(firstSnapshot, storeDir)).toBe(false)
+    expect(containsSensitiveText(firstSnapshot, serviceBin)).toBe(false)
 
     await first.close()
     apps.pop()
@@ -1184,8 +1193,8 @@ describe("@wanex/product-app-local", () => {
       canRun: true
     })
     expect(JSON.stringify(snapshot)).not.toContain("LOCAL_SETUP_SECRET")
-    expect(JSON.stringify(snapshot)).not.toContain(storeDir)
-    expect(JSON.stringify(snapshot)).not.toContain(serviceBin)
+    expect(containsSensitiveText(snapshot, storeDir)).toBe(false)
+    expect(containsSensitiveText(snapshot, serviceBin)).toBe(false)
   })
 })
 

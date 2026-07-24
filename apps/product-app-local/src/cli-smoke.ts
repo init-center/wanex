@@ -8,6 +8,7 @@ import type {
 import type {
   ProductAppLocalWebApp
 } from "./types.js"
+import { containsSensitiveText } from "./sensitive-value.js"
 
 export interface ProductAppLocalCliSmokeInput {
   readonly app: ProductAppLocalWebApp
@@ -67,12 +68,12 @@ export async function runProductAppLocalCliSmoke(
   })
   await waitForConversationTerminal(input.app)
   const snapshot = await input.app.readSnapshot()
-  const serialized = JSON.stringify([
+  const productDocuments = [
     html,
     layout,
     conversation,
     snapshot
-  ])
+  ]
   const checks = {
     document: check(
       html.includes("<!doctype html>") &&
@@ -93,8 +94,8 @@ export async function runProductAppLocalCliSmoke(
       "conversation action submits through the Web request envelope"
     ),
     privacy: check(
-      !serialized.includes(input.options.serviceBin) &&
-        !containsStoragePath(serialized, input.options),
+      !containsSensitiveText(productDocuments, input.options.serviceBin) &&
+        !containsStoragePath(productDocuments, input.options),
       "smoke output does not leak host-only paths through product documents"
     )
   }
@@ -166,13 +167,13 @@ function readPath(value: unknown, path: readonly string[]): unknown {
 }
 
 function containsStoragePath(
-  serialized: string,
+  value: unknown,
   options: ProductAppLocalCliOptions
 ): boolean {
   if (options.storage.kind === "store-dir") {
-    return serialized.includes(options.storage.storeDir)
+    return containsSensitiveText(value, options.storage.storeDir)
   }
-  return serialized.includes(options.storage.rootDir)
+  return containsSensitiveText(value, options.storage.rootDir)
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {

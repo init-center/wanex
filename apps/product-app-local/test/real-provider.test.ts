@@ -11,6 +11,7 @@ import {
   startProductAppLocalWebApp,
   type ProductAppLocalWebApp
 } from "../src/index.js"
+import { containsSensitiveText } from "../src/sensitive-value.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -114,16 +115,17 @@ describe("@wanex/product-app-local real provider", () => {
     })
     expect(document.html).toContain(assistantText)
 
-    const rendererSerialized = JSON.stringify([
+    const rendererValues = [
       initialHtml,
       response,
       snapshot,
       document
-    ])
+    ]
+    const rendererSerialized = JSON.stringify(rendererValues)
     expect(rendererSerialized).not.toContain(secretRef)
     expect(rendererSerialized).not.toContain(secretValue)
-    expect(rendererSerialized).not.toContain(storeDir)
-    expect(rendererSerialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(rendererValues, storeDir)).toBe(false)
+    expect(containsSensitiveText(rendererValues, serviceBin)).toBe(false)
 
     const stateDb = await readFile(join(storeDir, "state.db"))
     expect(stateDb.includes(secretRef)).toBe(true)
@@ -186,8 +188,8 @@ describe("@wanex/product-app-local real provider", () => {
     const serialized = JSON.stringify(response)
     expect(serialized).not.toContain(secretRef)
     expect(serialized).not.toContain("WANEX_PRODUCT_REAL_PROVIDER_KEY")
-    expect(serialized).not.toContain(storeDir)
-    expect(serialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(response, storeDir)).toBe(false)
+    expect(containsSensitiveText(response, serviceBin)).toBe(false)
 
     const stillRunning = await fetch(`${app.url}/`)
     expect(stillRunning.status).toBe(200)

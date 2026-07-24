@@ -1,6 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
   createProductAppLocalBrowserOpenCommand,
@@ -52,10 +52,10 @@ describe("@wanex/product-app-local CLI options", () => {
       hostname: "0.0.0.0",
       port: 57015,
       pollIntervalMs: 0,
-      serviceBin: "/repo/target/custom-system-service",
+      serviceBin: resolve("/repo/target/custom-system-service"),
       storage: {
         kind: "store-dir",
-        storeDir: "/repo/store"
+        storeDir: resolve("/repo/store")
       },
       providerProfiles: {
         profiles: [
@@ -85,10 +85,12 @@ describe("@wanex/product-app-local CLI options", () => {
       setupProvider: false,
       summaryFormat: "text",
       hostname: "127.0.0.1",
-      serviceBin: `/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
+      serviceBin: resolve(
+        `/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
+      ),
       storage: {
         kind: "profile",
-        rootDir: "/workspace/product/.wanex-product-app-local",
+        rootDir: resolve("/workspace/product/.wanex-product-app-local"),
         profileId: "default"
       },
       providerProfiles: {
@@ -133,10 +135,10 @@ describe("@wanex/product-app-local CLI options", () => {
       hostname: "127.0.0.2",
       port: 57016,
       pollIntervalMs: 1500,
-      serviceBin: "/repo/target/env-system-service",
+      serviceBin: resolve("/repo/target/env-system-service"),
       storage: {
         kind: "profile",
-        rootDir: "/repo/profiles",
+        rootDir: resolve("/repo/profiles"),
         profileId: "work"
       },
       providerProfiles: {
@@ -563,7 +565,9 @@ describe("@wanex/product-app-local CLI options", () => {
         args: ["--service-bin", `../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`],
         env: {}
       }).serviceBin
-    ).toBe(`/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
+    ).toBe(resolve(
+      `/workspace/wanex/target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
+    ))
   })
 
   it("rejects ambiguous storage options", () => {

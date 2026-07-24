@@ -6,6 +6,7 @@ import {
   startProductAppDesktopMainHost,
   type ProductAppDesktopMainHost
 } from "@wanex/product-app-local/desktop-host"
+import { containsSensitiveText } from "../src/sensitive-value.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -74,9 +75,8 @@ describe("@wanex/product-app-local/desktop-host", () => {
         exposesRendererMutationApi: false
       }
     })
-    const serialized = JSON.stringify(snapshot)
-    expect(serialized).not.toContain(storeDir)
-    expect(serialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(snapshot, storeDir)).toBe(false)
+    expect(containsSensitiveText(snapshot, serviceBin)).toBe(false)
   })
 
   it("handles Product App Web request envelopes for desktop IPC adapters", async () => {
@@ -153,9 +153,8 @@ describe("@wanex/product-app-local/desktop-host", () => {
         }
       }
     })
-    const serialized = JSON.stringify(conversation)
-    expect(serialized).not.toContain(storeDir)
-    expect(serialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(conversation, storeDir)).toBe(false)
+    expect(containsSensitiveText(conversation, serviceBin)).toBe(false)
   })
 
   it("returns Product App Web request errors without throwing", async () => {
@@ -391,16 +390,17 @@ describe("@wanex/product-app-local/desktop-host", () => {
       }
     })
 
-    const serialized = JSON.stringify([
+    const rendererValues = [
       snapshot,
       profiles,
       selected,
       rejectedMutation,
       rejectedSetup,
       conversation
-    ])
-    expect(serialized).not.toContain(storeDir)
-    expect(serialized).not.toContain(serviceBin)
+    ]
+    const serialized = JSON.stringify(rendererValues)
+    expect(containsSensitiveText(rendererValues, storeDir)).toBe(false)
+    expect(containsSensitiveText(rendererValues, serviceBin)).toBe(false)
     expect(serialized).not.toContain("DESKTOP_HOST_TEST_SECRET")
     expect(serialized).not.toContain("secret-from-rejected-request")
     expect(serialized).not.toContain("secret-from-rejected-setup")
@@ -462,10 +462,11 @@ describe("@wanex/product-app-local/desktop-host", () => {
       canRun: true
     })
 
-    const serialized = JSON.stringify([result, snapshot])
+    const rendererValues = [result, snapshot]
+    const serialized = JSON.stringify(rendererValues)
     expect(serialized).not.toContain("DESKTOP_HOST_SETUP_SECRET")
-    expect(serialized).not.toContain(storeDir)
-    expect(serialized).not.toContain(serviceBin)
+    expect(containsSensitiveText(rendererValues, storeDir)).toBe(false)
+    expect(containsSensitiveText(rendererValues, serviceBin)).toBe(false)
   })
 
   it("returns structured desktop host request errors", async () => {

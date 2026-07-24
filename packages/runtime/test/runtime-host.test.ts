@@ -361,7 +361,7 @@ describe("@wanex/runtime/host", () => {
       content: [{ type: "text", text: "initial direction" }],
       sessionId: "ses_host_steer"
     })
-    host.start()
+    const running = host.runOnce()
     await provider.firstStarted.promise
     const turn = (
       await host.storage.listSessionTurns({ sessionId: submitted.session.id })
@@ -385,14 +385,14 @@ describe("@wanex/runtime/host", () => {
     await expect(host.listJobs({ state: "running" })).resolves.toHaveLength(1)
 
     provider.releaseFirst.resolve()
-    await eventually(async () => {
-      const jobs = await host.listJobs({})
-      expect(jobs).toHaveLength(1)
-      expect(
-        jobs[0]?.state,
-        JSON.stringify(jobs[0]?.lastError)
-      ).toBe("succeeded")
-    })
+    const result = await running
+    expect(result.results[0]?.worker.status).toBe("completed")
+    const jobs = await host.listJobs({})
+    expect(jobs).toHaveLength(1)
+    expect(
+      jobs[0]?.state,
+      JSON.stringify(jobs[0]?.lastError)
+    ).toBe("succeeded")
     expect(provider.calls).toBe(2)
     expect(provider.abortCount).toBe(0)
     const messages = await host.storage.listSessionMessages({

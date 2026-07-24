@@ -54,11 +54,6 @@ export function createVerifySteps() {
       args: ["test:electron-boundary"]
     },
     {
-      name: "Product App Web demo tests",
-      command: "pnpm",
-      args: ["test:product-app-web-demo"]
-    },
-    {
       name: "Product App Local smoke script tests",
       command: "pnpm",
       args: ["test:product-app-local-smoke-script"]

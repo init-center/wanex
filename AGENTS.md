@@ -195,9 +195,13 @@ freezes final target ceilings; and passes a second enforcing run.
 Run 40 exposed and the local implementation corrected a Windows-only SDK
 declaration bundling defect: cross-host module-ID classification now treats
 POSIX, drive-letter, and UNC absolute paths as filesystem paths, never package
-imports. Workspace package tests now run two packages concurrently by default;
-the Runtime package runs first in an exclusive lane under its own Vitest
-isolation policy, and the remaining packages use one worker per package.
+imports. Workspace package tests now run two packages concurrently by default.
+Runtime runs first in an exclusive lane under its own Vitest isolation policy;
+Product App Local follows in an exclusive native integration lane with one
+Vitest worker; and the remaining packages use one worker per package. Complete
+Verify executes Product App Local demo coverage only through the canonical
+workspace package test step; `pnpm test:product-app-web-demo` remains the
+focused developer command and is not duplicated earlier in Verify.
 `WANEX_TEST_CONCURRENCY` can lower or raise only the parallel package-process
 budget. Run 41 rejected the former global one-worker override on Windows
 Runtime, so that override was removed directly. Complete local verification

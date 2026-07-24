@@ -6,7 +6,7 @@ import {
 } from "./test.mjs"
 
 describe("workspace test runner", () => {
-  it("builds once, isolates Runtime, and bounds the parallel package lane", () => {
+  it("builds once, isolates native packages, and bounds the parallel package lane", () => {
     const steps = createWorkspaceTestSteps()
 
     expect(steps).toEqual([
@@ -28,12 +28,27 @@ describe("workspace test runner", () => {
         }
       },
       {
+        name: "Product App Local package tests",
+        command: "pnpm",
+        args: [
+          "--filter",
+          "@wanex/product-app-local",
+          "test",
+          "--maxWorkers=1"
+        ],
+        env: {
+          WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
+        }
+      },
+      {
         name: "Parallel package tests",
         command: "pnpm",
         args: [
           "-r",
           "--filter",
           "!@wanex/runtime",
+          "--filter",
+          "!@wanex/product-app-local",
           "--if-present",
           "--workspace-concurrency=2",
           "test",
@@ -59,9 +74,18 @@ describe("workspace test runner", () => {
       "--runInBand"
     ])
     expect(steps[2].args).toEqual([
+      "--filter",
+      "@wanex/product-app-local",
+      "test",
+      "--maxWorkers=1",
+      "--runInBand"
+    ])
+    expect(steps[3].args).toEqual([
       "-r",
       "--filter",
       "!@wanex/runtime",
+      "--filter",
+      "!@wanex/product-app-local",
       "--if-present",
       "--workspace-concurrency=2",
       "test",
@@ -73,7 +97,7 @@ describe("workspace test runner", () => {
   it("supports an explicit package concurrency budget", () => {
     const steps = createWorkspaceTestSteps({ workspaceConcurrency: 4 })
 
-    expect(steps[2].args).toContain("--workspace-concurrency=4")
+    expect(steps[3].args).toContain("--workspace-concurrency=4")
   })
 
   it("parses and validates the environment concurrency override", () => {
@@ -101,9 +125,18 @@ describe("workspace test runner", () => {
       "3"
     ])
     expect(steps[2].args).toEqual([
+      "--filter",
+      "@wanex/product-app-local",
+      "test",
+      "--maxWorkers",
+      "3"
+    ])
+    expect(steps[3].args).toEqual([
       "-r",
       "--filter",
       "!@wanex/runtime",
+      "--filter",
+      "!@wanex/product-app-local",
       "--if-present",
       "--workspace-concurrency=2",
       "test",

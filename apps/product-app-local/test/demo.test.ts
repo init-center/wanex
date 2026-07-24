@@ -1,7 +1,7 @@
 import { access, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { describe, expect, it, onTestFinished } from "vitest"
 import {
   startProductAppLocalDemoHost,
   type ProductAppLocalDemoHost
@@ -13,24 +13,10 @@ import {
   parseProductAppLocalDemoPort
 } from "../src/demo-options.js"
 
-const tempDirs: string[] = []
-const demoHosts: ProductAppLocalDemoHost[] = []
 const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-
-afterEach(async () => {
-  while (demoHosts.length > 0) {
-    await demoHosts.pop()?.close()
-  }
-  while (tempDirs.length > 0) {
-    const dir = tempDirs.pop()
-    if (dir !== undefined) {
-      await rm(dir, { recursive: true, force: true })
-    }
-  }
-})
 
 describe("Product App Local demo", () => {
   it("parses explicit flags and ignores the pnpm separator", () => {
@@ -157,14 +143,13 @@ describe("Product App Local demo", () => {
 
   it("creates a temporary store when no directory is provided", async () => {
     const dir = await ensureProductAppLocalDemoStoreDir(undefined)
-    tempDirs.push(dir)
+    registerTempDirCleanup(dir)
 
     expect(dir).toContain("wanex-product-app-web-demo-")
   })
 
   it("creates an explicit store directory recursively", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wanex-product-app-web-demo-test-"))
-    tempDirs.push(root)
+    const root = await createTestTempDir("wanex-product-app-web-demo-test-")
     const storeDir = join(root, "nested/store")
 
     const created = await ensureProductAppLocalDemoStoreDir(storeDir)
@@ -173,7 +158,7 @@ describe("Product App Local demo", () => {
   })
 
   it("cleans up the default temporary demo store on close", async () => {
-    const demo = await startProductAppLocalDemoHost({
+    const demo = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       serviceBin,
       sessionId: "ses_demo_temp_cleanup",
@@ -182,21 +167,18 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(demo)
     const storeDir = demo.storeDir
 
     await expect(pathExists(storeDir)).resolves.toBe(true)
     await demo.close()
-    demoHosts.splice(demoHosts.indexOf(demo), 1)
 
     await expect(pathExists(storeDir)).resolves.toBe(false)
   })
 
   it("keeps an explicit demo store directory after close", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wanex-product-app-web-demo-explicit-"))
-    tempDirs.push(root)
+    const root = await createTestTempDir("wanex-product-app-web-demo-explicit-")
     const storeDir = join(root, "store")
-    const demo = await startProductAppLocalDemoHost({
+    const demo = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       storeDir,
       serviceBin,
@@ -206,16 +188,14 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(demo)
 
     await demo.close()
-    demoHosts.splice(demoHosts.indexOf(demo), 1)
 
     await expect(pathExists(storeDir)).resolves.toBe(true)
   })
 
   it("starts the blank demo host and accepts the first conversation over HTTP", async () => {
-    const demo = await startProductAppLocalDemoHost({
+    const demo = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       serviceBin,
       sessionId: "ses_demo_blank",
@@ -224,7 +204,6 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(demo)
 
     const html = await fetchText(`${demo.url}/`)
     expect(html).toContain("Wanex Product App")
@@ -276,7 +255,7 @@ describe("Product App Local demo", () => {
   })
 
   it("keeps chat focused and exposes workbench and diagnostics explicitly", async () => {
-    const demo = await startProductAppLocalDemoHost({
+    const demo = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       serviceBin,
       sessionId: "ses_demo_modes",
@@ -285,7 +264,6 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(demo)
 
     const chat = await fetchText(`${demo.url}/`)
     expect(chat).toContain('data-product-mode="chat"')
@@ -345,7 +323,7 @@ describe("Product App Local demo", () => {
   })
 
   it("starts the seeded demo host with the selected seeded session", async () => {
-    const demo = await startProductAppLocalDemoHost({
+    const demo = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       serviceBin,
       sessionId: "ses_demo_seeded_lifecycle",
@@ -354,7 +332,6 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(demo)
 
     const html = await fetchText(`${demo.url}/`)
     expect(demo.sessionId).toBe("ses_demo_seeded_lifecycle")
@@ -365,11 +342,10 @@ describe("Product App Local demo", () => {
   })
 
   it("persists Product App renderer state across demo host restarts", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wanex-product-app-web-demo-state-"))
-    tempDirs.push(root)
+    const root = await createTestTempDir("wanex-product-app-web-demo-state-")
     const storeDir = join(root, "store")
 
-    const first = await startProductAppLocalDemoHost({
+    const first = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       storeDir,
       serviceBin,
@@ -379,7 +355,6 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(first)
 
     const changed = await postJson(`${first.url}/wanex/product-app-web/request`, {
       kind: "product-app-web.request",
@@ -458,9 +433,8 @@ describe("Product App Local demo", () => {
     })
 
     await first.close()
-    demoHosts.splice(demoHosts.indexOf(first), 1)
 
-    const second = await startProductAppLocalDemoHost({
+    const second = await startTestProductAppLocalDemoHost({
       hostname: "127.0.0.1",
       storeDir,
       serviceBin,
@@ -470,7 +444,6 @@ describe("Product App Local demo", () => {
       open: false,
       pollIntervalMs: 0
     })
-    demoHosts.push(second)
 
     const html = await fetchText(`${second.url}/`)
     expect(html).toContain('data-product-mode="diagnostics"')
@@ -481,8 +454,30 @@ describe("Product App Local demo", () => {
     expect(html).toContain('data-product-density="compact"')
     expect(html).toContain('<option value="dark" selected>Dark</option>')
     expect(html).toContain('<option value="compact" selected>Compact</option>')
+
+    await second.close()
   })
 })
+
+async function startTestProductAppLocalDemoHost(
+  options: Parameters<typeof startProductAppLocalDemoHost>[0]
+): Promise<ProductAppLocalDemoHost> {
+  const demo = await startProductAppLocalDemoHost(options)
+  onTestFinished(async () => await demo.close())
+  return demo
+}
+
+async function createTestTempDir(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  registerTempDirCleanup(dir)
+  return dir
+}
+
+function registerTempDirCleanup(dir: string): void {
+  onTestFinished(async () => {
+    await rm(dir, { recursive: true, force: true })
+  })
+}
 
 async function fetchText(url: string): Promise<string> {
   const response = await fetch(url)

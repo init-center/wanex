@@ -60,6 +60,9 @@ describe("verify", () => {
     expect(stepByName(steps, "Electron boundary policy tests").args).toEqual([
       "test:electron-boundary"
     ])
+    expect(
+      steps.some((step) => step.name === "Product App Web demo tests")
+    ).toBe(false)
     expect(stepByName(steps, "Product App TUI demo script tests").args).toEqual([
       "test:product-app-tui-demo-script"
     ])

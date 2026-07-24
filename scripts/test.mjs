@@ -40,12 +40,27 @@ export function createWorkspaceTestSteps(options = {}) {
       }
     },
     {
+      name: "Product App Local package tests",
+      command: "pnpm",
+      args: [
+        "--filter",
+        "@wanex/product-app-local",
+        "test",
+        ...parallelVitestArgs
+      ],
+      env: {
+        WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
+      }
+    },
+    {
       name: "Parallel package tests",
       command: "pnpm",
       args: [
         "-r",
         "--filter",
         "!@wanex/runtime",
+        "--filter",
+        "!@wanex/product-app-local",
         "--if-present",
         `--workspace-concurrency=${workspaceConcurrency}`,
         "test",

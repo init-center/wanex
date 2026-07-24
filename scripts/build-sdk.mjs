@@ -9,9 +9,11 @@ import {
   artifactBareImportIsExternal,
   createStagingManifest,
   encodedPackageName,
+  isAbsoluteModuleId,
   loadSdkDistributionPolicy,
   workspaceRoot
 } from "./sdk/distribution-policy.mjs"
+import { extractModuleSpecifiers } from "./sdk/artifact-policy.mjs"
 
 const options = parseArgs(process.argv.slice(2))
 const policy = await loadSdkDistributionPolicy()
@@ -149,10 +151,13 @@ async function assertNoInternalProtocol(stagingDir) {
     ) {
       throw new Error(`internal protocol leaked into ${path}`)
     }
-    if (content.includes(workspaceRoot)) {
+    if (
+      content.includes(workspaceRoot) ||
+      extractModuleSpecifiers(content).some((specifier) => isAbsoluteModuleId(specifier))
+    ) {
       throw new Error(`absolute workspace path leaked into ${path}`)
     }
-    if (/(?:packages|apps)\/[^\n"']+\/src\//.test(content)) {
+    if (/(?:packages|apps)[\\/]+[^\n"']+[\\/]+src[\\/]+/.test(content)) {
       throw new Error(`workspace source path leaked into ${path}`)
     }
   }

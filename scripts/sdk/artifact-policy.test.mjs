@@ -39,6 +39,25 @@ describe("compiled SDK artifact policy", () => {
     ])
   })
 
+  it("rejects Windows source imports as absolute paths rather than packages", () => {
+    const failures = findCompiledModuleFailures({
+      packageName: "@wanex/runtime",
+      dependencies: {},
+      workspaceRoot: String.raw`D:\a\wanex\wanex`,
+      content: String.raw`
+        import type { JsonValue } from "D:\\a\\wanex\\wanex\\packages\\protocol\\src\\index.ts"
+      `
+    })
+
+    expect(failures.map((failure) => failure.code)).toEqual([
+      "artifact-absolute-path",
+      "artifact-source-path"
+    ])
+    expect(failures).not.toContainEqual(
+      expect.objectContaining({ code: "artifact-undeclared-import" })
+    )
+  })
+
   it("requires only compiled entry files", () => {
     expect(findArtifactFileFailures([
       "package.json",

@@ -192,6 +192,15 @@ directly. Phase 774 remains incomplete until native CI passes complete
 each staged binary; executes the three Electron targets; reviews every receipt;
 freezes final target ceilings; and passes a second enforcing run.
 
+Run 40 exposed and the local implementation corrected a Windows-only SDK
+declaration bundling defect: cross-host module-ID classification now treats
+POSIX, drive-letter, and UNC absolute paths as filesystem paths, never package
+imports. Workspace package tests now use controlled two-level parallelism
+(two packages, one Vitest worker per package by default) rather than forced
+package serialization or unconstrained nested worker pools. Complete local
+`pnpm verify` passes; the correction still requires authoritative Windows CI
+evidence.
+
 ## Course-Correction Guardrail
 
 Every phase from Phase 744 onward must pass this gate before code changes:

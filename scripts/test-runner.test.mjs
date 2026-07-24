@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { createPackageTestSteps } from "./run-package-test.mjs"
-import { createWorkspaceTestSteps } from "./test.mjs"
+import {
+  createWorkspaceTestSteps,
+  parseWorkspaceTestConcurrency
+} from "./test.mjs"
 
 describe("workspace test runner", () => {
   it("builds the system-service once before recursive package tests", () => {
@@ -18,8 +21,9 @@ describe("workspace test runner", () => {
         args: [
           "-r",
           "--if-present",
-          "--workspace-concurrency=1",
-          "test"
+          "--workspace-concurrency=2",
+          "test",
+          "--maxWorkers=1"
         ],
         env: {
           WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
@@ -36,10 +40,43 @@ describe("workspace test runner", () => {
     expect(steps[1].args).toEqual([
       "-r",
       "--if-present",
-      "--workspace-concurrency=1",
+      "--workspace-concurrency=2",
       "test",
       "--maxWorkers=1",
       "--runInBand"
+    ])
+  })
+
+  it("supports an explicit package concurrency budget", () => {
+    const steps = createWorkspaceTestSteps({ workspaceConcurrency: 4 })
+
+    expect(steps[1].args).toContain("--workspace-concurrency=4")
+  })
+
+  it("parses and validates the environment concurrency override", () => {
+    expect(parseWorkspaceTestConcurrency(undefined)).toBe(2)
+    expect(parseWorkspaceTestConcurrency("")).toBe(2)
+    expect(parseWorkspaceTestConcurrency("3")).toBe(3)
+    expect(() => parseWorkspaceTestConcurrency("0")).toThrow(
+      "WANEX_TEST_CONCURRENCY must be a positive integer"
+    )
+    expect(() => parseWorkspaceTestConcurrency("2.5")).toThrow(
+      "WANEX_TEST_CONCURRENCY must be a positive integer"
+    )
+  })
+
+  it("preserves an explicit package worker budget", () => {
+    const steps = createWorkspaceTestSteps({
+      vitestArgs: ["--maxWorkers", "3"]
+    })
+
+    expect(steps[1].args).toEqual([
+      "-r",
+      "--if-present",
+      "--workspace-concurrency=2",
+      "test",
+      "--maxWorkers",
+      "3"
     ])
   })
 })

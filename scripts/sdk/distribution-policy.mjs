@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { dirname, join, posix, resolve, win32 } from "node:path"
 import { fileURLToPath } from "node:url"
 import { repositoryRelativePath } from "../audit/repository-path.mjs"
 
@@ -117,7 +117,14 @@ export function artifactBareImportIsExternal(id, policy) {
 }
 
 export function isBareImport(id) {
-  return id.startsWith("node:") || (!id.startsWith(".") && !id.startsWith("/"))
+  return id.startsWith("node:") || (
+    !id.startsWith(".") &&
+    !isAbsoluteModuleId(id)
+  )
+}
+
+export function isAbsoluteModuleId(id) {
+  return posix.isAbsolute(id) || win32.isAbsolute(id)
 }
 
 function projectRuntimeDependencies(packageInfo) {

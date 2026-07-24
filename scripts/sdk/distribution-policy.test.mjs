@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  artifactBareImportIsExternal,
   createStagingManifest,
+  isBareImport,
   loadSdkDistributionPolicy,
   readExportEntries
 } from "./distribution-policy.mjs"
@@ -77,5 +79,21 @@ describe("SDK distribution policy", () => {
         artifactPath: "delegation/graph"
       }
     ])
+  })
+
+  it("does not externalize absolute module identifiers from either path dialect", () => {
+    const policy = { internalBundledPackages: ["@wanex/protocol"] }
+    const internalIds = [
+      "/workspace/wanex/packages/protocol/src/index.ts",
+      String.raw`D:\a\wanex\wanex\packages\protocol\src\index.ts`,
+      String.raw`\\server\share\wanex\packages\protocol\src\index.ts`
+    ]
+
+    for (const id of internalIds) {
+      expect(isBareImport(id)).toBe(false)
+      expect(artifactBareImportIsExternal(id, policy)).toBe(false)
+    }
+    expect(artifactBareImportIsExternal("@wanex/storage", policy)).toBe(true)
+    expect(artifactBareImportIsExternal("@wanex/protocol", policy)).toBe(false)
   })
 })

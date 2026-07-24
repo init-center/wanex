@@ -1,4 +1,5 @@
 import { builtinModules } from "node:module"
+import { isAbsoluteModuleId } from "./distribution-policy.mjs"
 
 const builtinSet = new Set([
   ...builtinModules,
@@ -97,18 +98,26 @@ export function findArtifactFileFailures(files, packageInfo) {
 
 export function findCompiledModuleFailures(request) {
   const failures = []
-  if (request.content.includes(request.workspaceRoot)) {
+  const specifiers = extractModuleSpecifiers(request.content)
+  if (
+    request.content.includes(request.workspaceRoot) ||
+    specifiers.some((specifier) => isAbsoluteModuleId(specifier))
+  ) {
     failures.push(failure("artifact-absolute-path", "absolute workspace path leaked"))
   }
-  if (/(?:packages|apps)\/[^\n"']+\/src\//.test(request.content)) {
+  if (/(?:packages|apps)[\\/]+[^\n"']+[\\/]+src[\\/]+/.test(request.content)) {
     failures.push(failure("artifact-source-path", "workspace source path leaked"))
   }
-  for (const specifier of extractModuleSpecifiers(request.content)) {
+  for (const specifier of specifiers) {
     if (specifier === "@wanex/protocol" || specifier.startsWith("@wanex/protocol/")) {
       failures.push(failure("artifact-protocol-import", "internal Protocol import leaked"))
       continue
     }
-    if (specifier.startsWith(".") || specifier.startsWith("/") || builtinSet.has(specifier)) {
+    if (
+      specifier.startsWith(".") ||
+      isAbsoluteModuleId(specifier) ||
+      builtinSet.has(specifier)
+    ) {
       continue
     }
     const dependency = packageNameForSpecifier(specifier)

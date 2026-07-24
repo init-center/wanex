@@ -4,6 +4,7 @@ import { dirname } from "node:path"
 import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const defaultWorkspaceConcurrency = 2
 
 if (import.meta.main) {
   await runWorkspaceTests({
@@ -14,7 +15,10 @@ if (import.meta.main) {
 }
 
 export function createWorkspaceTestSteps(options = {}) {
-  const vitestArgs = options.vitestArgs ?? []
+  const workspaceConcurrency = options.workspaceConcurrency ??
+    defaultWorkspaceConcurrency
+  assertPositiveInteger(workspaceConcurrency, "workspace test concurrency")
+  const vitestArgs = withDefaultPackageWorkerLimit(options.vitestArgs ?? [])
   return [
     {
       name: "System service binary",
@@ -27,7 +31,7 @@ export function createWorkspaceTestSteps(options = {}) {
       args: [
         "-r",
         "--if-present",
-        "--workspace-concurrency=1",
+        `--workspace-concurrency=${workspaceConcurrency}`,
         "test",
         ...vitestArgs
       ],
@@ -41,8 +45,14 @@ export function createWorkspaceTestSteps(options = {}) {
 export async function runWorkspaceTests(options = {}) {
   const env = options.env ?? process.env
   const vitestArgs = options.vitestArgs ?? []
+  const workspaceConcurrency = parseWorkspaceTestConcurrency(
+    env.WANEX_TEST_CONCURRENCY
+  )
 
-  for (const step of createWorkspaceTestSteps({ vitestArgs })) {
+  for (const step of createWorkspaceTestSteps({
+    vitestArgs,
+    workspaceConcurrency
+  })) {
     await runProcessStep(step, {
       cwd: rootDir,
       env: {
@@ -50,5 +60,28 @@ export async function runWorkspaceTests(options = {}) {
         ...(step.env ?? {})
       }
     })
+  }
+}
+
+export function parseWorkspaceTestConcurrency(value) {
+  if (value === undefined || value === "") return defaultWorkspaceConcurrency
+  if (!/^[1-9]\d*$/.test(value)) {
+    throw new Error("WANEX_TEST_CONCURRENCY must be a positive integer")
+  }
+  return Number.parseInt(value, 10)
+}
+
+function withDefaultPackageWorkerLimit(vitestArgs) {
+  if (vitestArgs.some((arg) =>
+    arg === "--maxWorkers" || arg.startsWith("--maxWorkers=")
+  )) {
+    return [...vitestArgs]
+  }
+  return ["--maxWorkers=1", ...vitestArgs]
+}
+
+function assertPositiveInteger(value, name) {
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`)
   }
 }

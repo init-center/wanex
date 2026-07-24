@@ -41,7 +41,7 @@ export interface NativeRuntimeProofSample {
   }
 }
 
-if (resolve(process.argv[1] ?? "") === entryPath) {
+if (import.meta.main) {
   try {
     const args = process.argv.slice(2)
     if (args.includes("--internal-sample")) {

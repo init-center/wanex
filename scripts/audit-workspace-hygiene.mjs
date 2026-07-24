@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url"
 import { dirname } from "node:path"
+import { findExecutableEntryFailures } from "./audit/workspace-hygiene/executable-entry-policy.mjs"
 import { findGeneratedArtifactFailures } from "./audit/workspace-hygiene/generated-artifact-policy.mjs"
 import { findPackageBuildScriptFailures } from "./audit/workspace-hygiene/package-build-script-policy.mjs"
 import { findTypeScriptConfigFailures } from "./audit/workspace-hygiene/typescript-config-policy.mjs"
@@ -9,6 +10,7 @@ const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const json = process.argv.includes("--json")
 
 const failures = [
+  ...(await findExecutableEntryFailures(rootDir)),
   ...(await findGeneratedArtifactFailures(rootDir)),
   ...(await findPackageBuildScriptFailures(rootDir)),
   ...(await findTypeScriptConfigFailures(rootDir))

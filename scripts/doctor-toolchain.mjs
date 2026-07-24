@@ -471,7 +471,7 @@ export function printToolchainDoctorText(report) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   const json = process.argv.includes("--json")
   const report = await buildToolchainDoctorReport()
   if (json) {

@@ -11,7 +11,7 @@ import {
   packagedExecutable
 } from "./build.mjs"
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const options = parseProofArgs(process.argv.slice(2))
   const receipt = await proveElectronBoundary(options)
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)

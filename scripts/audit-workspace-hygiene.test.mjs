@@ -89,6 +89,30 @@ describe("audit-workspace-hygiene", () => {
       ])
     )
   })
+
+  it("rejects manual ESM main-module detection", async () => {
+    await mkdir(fixtureDir, { recursive: true })
+    await writeFile(
+      join(fixtureDir, "entry.mjs"),
+      [
+        ["if (import.meta.url === `file://${process.argv", "[1]}`) {"].join(""),
+        "  console.log('ran')",
+        "}",
+        ""
+      ].join("\n"),
+      "utf8"
+    )
+
+    const result = await runAudit()
+
+    expect(result.code).toBe(1)
+    expect(result.report.failures).toContainEqual(
+      expect.objectContaining({
+        code: "forbidden-manual-main-module-detection",
+        path: "scripts/__audit_workspace_hygiene_fixture/entry.mjs"
+      })
+    )
+  })
 })
 
 async function runAudit() {

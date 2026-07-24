@@ -2,7 +2,7 @@
 export { main } from "./main.js"
 export type { CliEnvironment, CliResult } from "./types.js"
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   const { main } = await import("./main.js")
   const result = await main(process.argv.slice(2), process.env)
   if (result.stdout.length > 0) {

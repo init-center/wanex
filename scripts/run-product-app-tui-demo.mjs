@@ -8,7 +8,7 @@ import { runProcessStep } from "./process-step.mjs"
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const appDir = join(rootDir, "apps/product-app-tui")
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const demo = await createProductAppTuiDemoRun({
     forwardedArgs: process.argv.slice(2),
     env: process.env,

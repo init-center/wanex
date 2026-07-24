@@ -4,7 +4,7 @@ import { dirname, join } from "node:path"
 import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   parseVerifyArgs(process.argv.slice(2))
   await runVerify()
   console.log("\nwanex verify passed")

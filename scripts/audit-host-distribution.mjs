@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url"
 
 const workspaceRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const options = parseHostDistributionAuditArgs(process.argv.slice(2))
   const outputPath = join(
     workspaceRoot,

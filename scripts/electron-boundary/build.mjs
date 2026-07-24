@@ -26,7 +26,7 @@ const electronVersion = JSON.parse(await readFile(
   "utf8"
 )).version
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const options = parseArgs(process.argv.slice(2))
   const receipt = options.package
     ? await packageElectronBoundary()

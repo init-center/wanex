@@ -5,7 +5,7 @@ import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   await runPackageTest({
     env: process.env,
     vitestArgs: process.argv.slice(2)

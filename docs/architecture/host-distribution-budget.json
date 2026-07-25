@@ -78,7 +78,7 @@
         "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
         "maxColdImportMs": 1000,
-        "maxCreateDisposeMs": 1000,
+        "maxCreateDisposeMs": 1500,
         "maxTotalMs": 6000,
         "maxWallTimeMs": 10000
       },

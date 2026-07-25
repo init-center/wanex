@@ -36,8 +36,13 @@ describe("private Electron production boundary", () => {
     const manifest = JSON.parse(await readFile(join(stagingDir, "package.json"), "utf8"))
     expect(manifest.author).toBe("Wanex Project")
     expect(manifest).not.toHaveProperty("dependencies")
-    expect(await readFile(join(stagingDir, "main.cjs"), "utf8"))
+    const mainBundle = await readFile(join(stagingDir, "main.cjs"), "utf8")
+    expect(mainBundle)
       .not.toMatch(/(?:\bfrom\s*|\bimport\s*\()\s*["']@wanex\//)
+    expect(mainBundle).not.toMatch(
+      /runtimeRequire\s*=\s*[^;\n]*createRequire[^;\n]*import_meta\.url/
+    )
+    expect(mainBundle).toContain('typeof __filename === "string"')
   })
 
   it("freezes the BrowserWindow, IPC, navigation, and preload policy", async () => {

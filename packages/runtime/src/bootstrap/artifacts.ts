@@ -118,8 +118,6 @@ const nativePackageByTarget = new Map([
   ["win32-x64", "@wanex/system-service-win32-x64"]
 ])
 
-const runtimeRequire = createRequire(import.meta.url)
-
 export async function resolveSystemServiceBinary(
   options: ResolveSystemServiceBinaryOptions = {}
 ): Promise<ResolvedSystemServiceBinary> {
@@ -341,6 +339,7 @@ async function resolveInstalledSystemService(request: {
     source: "package" as const,
     path: manifestSpecifier
   }
+  const runtimeRequire = createRuntimePackageRequire()
   let manifestPath: string
   try {
     manifestPath = runtimeRequire.resolve(manifestSpecifier)
@@ -577,4 +576,10 @@ function isModuleNotFound(
   return error instanceof Error &&
     "code" in error &&
     error.code === "MODULE_NOT_FOUND"
+}
+
+function createRuntimePackageRequire(): NodeRequire {
+  return createRequire(
+    typeof __filename === "string" ? __filename : import.meta.url
+  )
 }

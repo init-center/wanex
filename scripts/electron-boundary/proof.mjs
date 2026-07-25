@@ -183,7 +183,9 @@ function run(command, environment, timeoutMs) {
       if (settled) return
       settled = true
       void terminateProcessTree(child).finally(() => {
-        reject(new Error(`packaged Electron exceeded ${timeoutMs}ms`))
+        reject(new Error(
+          `packaged Electron exceeded ${timeoutMs}ms${formatChildOutput(stdout, stderr)}`
+        ))
       })
     }, timeoutMs)
     child.once("error", (error) => {
@@ -262,4 +264,12 @@ function terminateProcessTree(child) {
 
 function appendBounded(current, chunk) {
   return `${current}${chunk}`.slice(-1024 * 1024)
+}
+
+function formatChildOutput(stdout, stderr) {
+  const details = [
+    stdout.trim().length === 0 ? undefined : `stdout:\n${stdout.trim()}`,
+    stderr.trim().length === 0 ? undefined : `stderr:\n${stderr.trim()}`
+  ].filter(Boolean)
+  return details.length === 0 ? "" : `\n${details.join("\n")}`
 }

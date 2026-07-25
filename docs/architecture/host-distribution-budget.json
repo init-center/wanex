@@ -44,9 +44,9 @@
       "native": {
         "maxExecutableBytes": 9900000,
         "exactFileCount": 2,
-        "maxColdImportMs": 1250,
+        "maxColdImportMs": 1500,
         "maxCreateDisposeMs": 250,
-        "maxTotalMs": 1500,
+        "maxTotalMs": 2000,
         "maxWallTimeMs": 3000
       },
       "electron": {

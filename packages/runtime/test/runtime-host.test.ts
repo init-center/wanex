@@ -75,7 +75,7 @@ describe("@wanex/runtime/host", () => {
       content: [{ type: "text", text: "cancel blocked provider" }],
       sessionId: "ses_host_active_cancel"
     })
-    host.start()
+    const run = host.runOnce()
     await provider.started.promise
 
     const receipt = await host.requestSessionTurnCancel({
@@ -88,10 +88,9 @@ describe("@wanex/runtime/host", () => {
 
     expect(receipt.status).toBe("cancel_requested")
     await provider.aborted.promise
-    await eventually(async () => {
-      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
-      expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
-    })
+    await run
+    await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
+    expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
     const turns = await host.storage.listSessionTurns({
       sessionId: submitted.session.id
     })

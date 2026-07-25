@@ -293,9 +293,24 @@ repository license is selected. Connector, MCP, Plugin, Storage Control Plane,
 Team, and Workspace remain source-preview capabilities and are not generated
 or published by this first-RC pipeline.
 
+Generated `@wanex/runtime` declares exact optional dependencies on four
+target-restricted System Service packages. Create one from an already staged
+native artifact:
+
+```bash
+pnpm stage:native -- --target darwin-arm64
+pnpm release:native -- --target darwin-arm64
+```
+
+These are generated artifacts rather than source workspace packages. Each
+contains one verified executable and the existing native manifest, with no JS
+dependency tree, postinstall, downloader, or bundled `node_modules`.
+
 `proof:sdk-consumers` installs four independent projects from a temporary
 loopback npm registry and executes minimal Runtime, trusted App, provider/tool,
-and local Storage journeys. Its machine-readable receipt is written to
+and local Storage journeys. Runtime/App resolve the matching installed native
+package without an explicit path or environment override. Its machine-readable
+receipt is written to
 `target/external-consumers/report.json`.
 
 For focused iteration, prefer package-local checks first, then run

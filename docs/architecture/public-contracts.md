@@ -102,6 +102,12 @@ Workspace source manifests remain private and point at `src` for development;
 generated package manifests under `target/sdk` point only at ESM JavaScript
 and rolled declarations.
 
+Generated Runtime metadata also owns exact optional dependencies on four
+target-restricted System Service artifacts. These native identities are
+generated npm artifacts rather than source packages, so the workspace topology
+remains 18 packages. Runtime/App local bootstrap resolves the matching
+installed package automatically; remote and injected storage require none.
+
 `@wanex/storage/testing` is a source-only test helper. It is not a generated
 export, API report, or tarball file.
 
@@ -116,7 +122,9 @@ proof fails on unapproved API drift, source/internal dependency leakage,
 resolver errors, non-deterministic tarballs, or an external Node/TypeScript/
 bundler consumer failure. Four isolated packed-SDK consumers additionally
 prove minimal Runtime, App, provider/tool, and local Storage execution from
-normal registry dependencies.
+normal registry dependencies. Default Runtime/App consumers use the installed
+native package without a binary path or environment override. Low-level Storage
+and advanced Host consumers retain explicit executable injection.
 
 ## Ownership
 

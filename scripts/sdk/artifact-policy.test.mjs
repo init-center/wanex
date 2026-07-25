@@ -110,4 +110,40 @@ describe("compiled SDK artifact policy", () => {
       "manifest-source-only-export"
     ])
   })
+
+  it("requires the exact generated Runtime native optional dependency set", () => {
+    const packageInfo = {
+      name: "@wanex/runtime",
+      platform: "node",
+      manifest: { version: "1.2.3" },
+      entries: [{ exportPath: ".", artifactPath: "index" }],
+      sourceOnlyExports: [],
+      optionalNativePackages: [{
+        name: "@wanex/system-service-linux-x64"
+      }]
+    }
+    const manifest = {
+      name: "@wanex/runtime",
+      version: "1.2.3",
+      type: "module",
+      license: "UNLICENSED",
+      types: "./dist/index.d.ts",
+      engines: { node: ">=24" },
+      exports: {
+        ".": {
+          types: "./dist/index.d.ts",
+          import: "./dist/index.js",
+          default: "./dist/index.js"
+        }
+      },
+      optionalDependencies: {
+        "@wanex/system-service-linux-x64": "^1.2.3"
+      }
+    }
+
+    expect(findStagingManifestFailures(manifest, packageInfo)
+      .map((failure) => failure.code)).toEqual([
+      "manifest-optional-dependencies"
+    ])
+  })
 })

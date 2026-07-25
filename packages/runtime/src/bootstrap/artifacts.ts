@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto"
 import { constants } from "node:fs"
 import { access, lstat, readFile, realpath } from "node:fs/promises"
+import { createRequire } from "node:module"
 import {
   basename,
+  dirname,
   isAbsolute,
   relative,
   resolve,
@@ -62,7 +64,11 @@ export interface RuntimeArtifactTargetIdentity {
   readonly arch: NodeJS.Architecture
 }
 
-export type RuntimeArtifactSource = "explicit" | "environment" | "manifest"
+export type RuntimeArtifactSource =
+  | "explicit"
+  | "environment"
+  | "manifest"
+  | "package"
 
 export class RuntimeArtifactResolutionError extends Error {
   readonly code: RuntimeArtifactResolutionErrorCode
@@ -105,10 +111,23 @@ const supportedTargets = new Map([
   ["win32-x64", "x86_64-pc-windows-msvc"]
 ])
 
+const nativePackageByTarget = new Map([
+  ["linux-x64", "@wanex/system-service-linux-x64"],
+  ["darwin-arm64", "@wanex/system-service-darwin-arm64"],
+  ["darwin-x64", "@wanex/system-service-darwin-x64"],
+  ["win32-x64", "@wanex/system-service-win32-x64"]
+])
+
+const runtimeRequire = createRequire(import.meta.url)
+
 export async function resolveSystemServiceBinary(
   options: ResolveSystemServiceBinaryOptions = {}
 ): Promise<ResolvedSystemServiceBinary> {
-  const candidates = trustedSystemServiceBinaryCandidates(options)
+  const normalizedOptions = {
+    ...options,
+    env: options.env ?? process.env
+  }
+  const candidates = trustedSystemServiceBinaryCandidates(normalizedOptions)
   const checkExecutable = options.checkExecutable ?? true
 
   for (const candidate of candidates) {
@@ -139,21 +158,17 @@ export async function resolveSystemServiceBinary(
       artifactDir: options.artifactDir,
       platform: options.platform ?? process.platform,
       arch: options.arch ?? process.arch,
-      checkExecutable
+      checkExecutable,
+      source: "manifest"
     })
   }
 
-  throw artifactError(
-    candidates.length === 0
-      ? "runtime_artifact_missing_system_service"
-      : "runtime_artifact_not_executable",
-    candidates.length === 0
-      ? "missing system-service binary artifact"
-      : `system-service binary artifact is not ${
-          checkExecutable ? "executable" : "readable"
-        }`,
-    candidates
-  )
+  return await resolveInstalledSystemService({
+    platform: options.platform ?? process.platform,
+    arch: options.arch ?? process.arch,
+    checkExecutable,
+    priorCandidates: candidates
+  })
 }
 
 export function systemServiceBinaryCandidates(
@@ -223,6 +238,7 @@ async function resolveManifestSystemService(request: {
   readonly platform: NodeJS.Platform
   readonly arch: NodeJS.Architecture
   readonly checkExecutable: boolean
+  readonly source: "manifest" | "package"
 }): Promise<ResolvedSystemServiceBinary> {
   validateManifest(request.manifest)
   const target = request.manifest.targets.find((item) =>
@@ -237,7 +253,7 @@ async function resolveManifestSystemService(request: {
   validateExecutableName(target)
   const root = resolve(request.artifactDir)
   const candidate = resolveContainedArtifactPath(root, target.systemService.path)
-  const candidateInfo = [{ source: "manifest" as const, path: candidate }]
+  const candidateInfo = [{ source: request.source, path: candidate }]
   let rootRealPath: string
   let candidateRealPath: string
   try {
@@ -293,7 +309,7 @@ async function resolveManifestSystemService(request: {
   }
   return {
     path: candidateRealPath,
-    source: "manifest",
+    source: request.source,
     target: {
       id: target.id,
       rustTarget: target.rustTarget,
@@ -303,6 +319,82 @@ async function resolveManifestSystemService(request: {
     bytes: target.systemService.bytes,
     sha256
   }
+}
+
+async function resolveInstalledSystemService(request: {
+  readonly platform: NodeJS.Platform
+  readonly arch: NodeJS.Architecture
+  readonly checkExecutable: boolean
+  readonly priorCandidates: readonly RuntimeArtifactCandidate[]
+}): Promise<ResolvedSystemServiceBinary> {
+  const targetId = `${request.platform}-${request.arch}`
+  const packageName = nativePackageByTarget.get(targetId)
+  if (packageName === undefined) {
+    throw artifactError(
+      "runtime_artifact_target_missing",
+      `Wanex has no native System Service package for ${targetId}`,
+      request.priorCandidates
+    )
+  }
+  const manifestSpecifier = `${packageName}/runtime-artifacts.json`
+  const packageCandidate = {
+    source: "package" as const,
+    path: manifestSpecifier
+  }
+  let manifestPath: string
+  try {
+    manifestPath = runtimeRequire.resolve(manifestSpecifier)
+  } catch (error) {
+    if (isModuleNotFound(error)) {
+      throw artifactError(
+        "runtime_artifact_missing_system_service",
+        `missing optional native package ${packageName} for ${targetId}`,
+        [...request.priorCandidates, packageCandidate]
+      )
+    }
+    throw artifactError(
+      "runtime_artifact_manifest_invalid",
+      `cannot resolve native package manifest ${manifestSpecifier}`,
+      [...request.priorCandidates, packageCandidate]
+    )
+  }
+
+  let manifest: RuntimeArtifactManifest
+  try {
+    manifest = parseRuntimeArtifactManifest(
+      JSON.parse(await readFile(manifestPath, "utf8"))
+    )
+  } catch (error) {
+    if (error instanceof RuntimeArtifactResolutionError) {
+      throw artifactError(
+        error.code,
+        `native package ${packageName} has an invalid artifact manifest: ${error.message}`,
+        [...request.priorCandidates, { source: "package", path: manifestPath }]
+      )
+    }
+    throw artifactError(
+      "runtime_artifact_manifest_invalid",
+      `native package ${packageName} has an unreadable artifact manifest`,
+      [...request.priorCandidates, { source: "package", path: manifestPath }]
+    )
+  }
+  if (manifest.targets.length !== 1 || manifest.targets[0]?.id !== targetId) {
+    throw artifactError(
+      "runtime_artifact_manifest_invalid",
+      `native package ${packageName} must contain exactly target ${targetId}`,
+      [...request.priorCandidates, { source: "package", path: manifestPath }]
+    )
+  }
+  return await resolveManifestSystemService({
+    manifest,
+    artifactDir: dirname(manifestPath),
+    platform: request.platform,
+    arch: request.arch,
+    checkExecutable: request.platform === "win32"
+      ? false
+      : request.checkExecutable,
+    source: "package"
+  })
 }
 
 function validateManifest(manifest: RuntimeArtifactManifest): void {
@@ -477,4 +569,12 @@ function isNodeArchitecture(value: unknown): value is NodeJS.Architecture {
 
 function invalidManifest(message: string): RuntimeArtifactResolutionError {
   return artifactError("runtime_artifact_manifest_invalid", message)
+}
+
+function isModuleNotFound(
+  error: unknown
+): error is NodeJS.ErrnoException & { readonly code: "MODULE_NOT_FOUND" } {
+  return error instanceof Error &&
+    "code" in error &&
+    error.code === "MODULE_NOT_FOUND"
 }

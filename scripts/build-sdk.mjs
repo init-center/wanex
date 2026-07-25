@@ -30,7 +30,7 @@ if (selected.length !== (options.packages.length === 0
 
 const stagingRoot = join(policy.outputDir, "staging")
 if (options.clean) {
-  await rm(policy.outputDir, { recursive: true, force: true })
+  await rm(stagingRoot, { recursive: true, force: true })
 }
 await mkdir(stagingRoot, { recursive: true })
 

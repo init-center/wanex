@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import * as nativePath from "node:path"
 
@@ -46,13 +46,98 @@ export function expectedWanexClosure(topLevelNames, registryPackages) {
       throw new Error(`external fixture dependency is absent from SDK registry: ${name}`)
     }
     closure.set(name, manifest.version)
-    for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+    for (const dependency of [
+      ...Object.keys(manifest.dependencies ?? {}),
+      ...Object.keys(manifest.optionalDependencies ?? {})
+    ]) {
       if (dependency.startsWith("@wanex/")) pending.push(dependency)
     }
   }
   return Object.fromEntries([...closure].sort(([left], [right]) =>
     left.localeCompare(right)
   ))
+}
+
+export function expectedInstalledWanexClosure(
+  topLevelNames,
+  registryPackages,
+  platform = process.platform,
+  arch = process.arch
+) {
+  const manifestByName = new Map(registryPackages.map((item) => [
+    item.manifest.name,
+    item.manifest
+  ]))
+  const pending = [...topLevelNames]
+  const closure = new Map()
+  while (pending.length > 0) {
+    const name = pending.pop()
+    if (closure.has(name)) continue
+    const manifest = manifestByName.get(name)
+    if (manifest === undefined) {
+      throw new Error(`external fixture dependency is absent from SDK registry: ${name}`)
+    }
+    if (!manifestSupportsHost(manifest, platform, arch)) {
+      throw new Error(`required package ${name} does not support ${platform}-${arch}`)
+    }
+    closure.set(name, manifest.version)
+    for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+      if (dependency.startsWith("@wanex/")) pending.push(dependency)
+    }
+    for (const dependency of Object.keys(manifest.optionalDependencies ?? {})) {
+      if (!dependency.startsWith("@wanex/")) continue
+      const optionalManifest = manifestByName.get(dependency)
+      if (optionalManifest === undefined) {
+        throw new Error(
+          `optional fixture dependency is absent from SDK registry: ${dependency}`
+        )
+      }
+      if (manifestSupportsHost(optionalManifest, platform, arch)) {
+        pending.push(dependency)
+      }
+    }
+  }
+  return Object.fromEntries([...closure].sort(([left], [right]) =>
+    left.localeCompare(right)
+  ))
+}
+
+export async function inspectExternalInstalledWanex(options) {
+  const scopeDir = nativePath.join(options.projectDir, "node_modules/@wanex")
+  let entries
+  try {
+    entries = await readdir(scopeDir, { withFileTypes: true })
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      return ["installed @wanex package scope is missing"]
+    }
+    throw error
+  }
+  const installed = new Map()
+  for (const entry of entries) {
+    if (!entry.isDirectory() && !entry.isSymbolicLink()) continue
+    const manifest = JSON.parse(await readFile(
+      nativePath.join(scopeDir, entry.name, "package.json"),
+      "utf8"
+    ))
+    installed.set(`@wanex/${entry.name}`, manifest.version)
+  }
+  const failures = []
+  const expected = new Map(Object.entries(options.expectedWanex))
+  const actualNames = [...installed.keys()].sort()
+  const expectedNames = [...expected.keys()].sort()
+  if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) {
+    failures.push(
+      `installed Wanex directories differ: expected=${expectedNames.join(",")} actual=${actualNames.join(",")}`
+    )
+  }
+  for (const [name, version] of expected) {
+    const actual = installed.get(name)
+    if (actual !== undefined && actual !== version) {
+      failures.push(`installed ${name} version ${actual} differs from ${version}`)
+    }
+  }
+  return failures
 }
 
 export function inspectExternalPackageLock(options) {
@@ -131,6 +216,15 @@ function wanexNameFromLockPath(packagePath) {
   const normalized = packagePath.replaceAll("\\", "/")
   const match = normalized.match(/(?:^|\/)node_modules\/(@wanex\/[^/]+)$/)
   return match?.[1] ?? null
+}
+
+function manifestSupportsHost(manifest, platform, arch) {
+  const platforms = Array.isArray(manifest.os) ? manifest.os : undefined
+  const architectures = Array.isArray(manifest.cpu) ? manifest.cpu : undefined
+  return (
+    (platforms === undefined || platforms.includes(platform)) &&
+    (architectures === undefined || architectures.includes(arch))
+  )
 }
 
 function isRecord(value) {

@@ -3,19 +3,23 @@
   "fixtures": {
     "minimal-agent": {
       "path": "minimal-agent",
-      "dependencies": ["@wanex/runtime"]
+      "dependencies": ["@wanex/runtime"],
+      "systemServiceResolution": "automatic"
     },
     "provider-tool": {
       "path": "provider-tool",
-      "dependencies": ["@wanex/runtime"]
+      "dependencies": ["@wanex/runtime"],
+      "systemServiceResolution": "explicit"
     },
     "storage-local": {
       "path": "storage-local",
-      "dependencies": ["@wanex/storage"]
+      "dependencies": ["@wanex/storage"],
+      "systemServiceResolution": "explicit"
     },
     "trusted-app": {
       "path": "trusted-app",
-      "dependencies": ["@wanex/app"]
+      "dependencies": ["@wanex/app"],
+      "systemServiceResolution": "automatic"
     }
   }
 }

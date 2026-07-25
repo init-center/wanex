@@ -55,6 +55,31 @@ export function findStagingManifestFailures(manifest, packageInfo) {
       ))
     }
   }
+  const expectedOptionalDependencies = Object.fromEntries(
+    (packageInfo.optionalNativePackages ?? []).map((nativePackage) => [
+      nativePackage.name,
+      packageInfo.manifest.version
+    ])
+  )
+  if (
+    JSON.stringify(manifest.optionalDependencies ?? {}) !==
+      JSON.stringify(expectedOptionalDependencies)
+  ) {
+    failures.push(failure(
+      "manifest-optional-dependencies",
+      "compiled optional dependencies differ from native package policy"
+    ))
+  }
+  for (const [name, version] of Object.entries(
+    manifest.optionalDependencies ?? {}
+  )) {
+    if (typeof version !== "string" || version.startsWith("workspace:")) {
+      failures.push(failure(
+        "manifest-optional-workspace-range",
+        `compiled optional dependency ${name} must use an exact installable version`
+      ))
+    }
+  }
   for (const forbidden of ["devDependencies", "scripts", "bin", "main", "module"]) {
     if (manifest[forbidden] !== undefined) {
       failures.push(failure(

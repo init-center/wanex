@@ -11,15 +11,26 @@ export async function loadExternalFixturePolicy(workspaceRoot) {
     throw new Error("external fixture policy schemaVersion must be 1")
   }
   return Object.entries(policy.fixtures)
-    .map(([id, configured]) => ({
-      id,
-      fixtureDir: resolve(
-        workspaceRoot,
-        "scripts/external-consumers/fixtures",
-        configured.path
-      ),
-      dependencies: [...configured.dependencies].sort()
-    }))
+    .map(([id, configured]) => {
+      if (
+        configured.systemServiceResolution !== "automatic" &&
+        configured.systemServiceResolution !== "explicit"
+      ) {
+        throw new Error(
+          `external fixture ${id} has invalid systemServiceResolution`
+        )
+      }
+      return {
+        id,
+        fixtureDir: resolve(
+          workspaceRoot,
+          "scripts/external-consumers/fixtures",
+          configured.path
+        ),
+        dependencies: [...configured.dependencies].sort(),
+        systemServiceResolution: configured.systemServiceResolution
+      }
+    })
     .sort((left, right) => left.id.localeCompare(right.id))
 }
 

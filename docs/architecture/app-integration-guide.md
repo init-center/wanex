@@ -11,7 +11,14 @@ lifecycles from subsystem packages.
 ```ts
 import { createWanexRuntime } from "@wanex/runtime"
 
-const runtime = await createWanexRuntime({ storage, provider })
+const runtime = await createWanexRuntime({
+  storage: {
+    kind: "local-profile",
+    rootDir: "/trusted/product/data",
+    profileId: "default"
+  },
+  provider
+})
 try {
   const reference = await runtime.submit({ text: "Hello" })
   runtime.start()
@@ -20,6 +27,13 @@ try {
   await runtime.dispose()
 }
 ```
+
+The generated Runtime package installs the matching System Service as an exact
+optional dependency and resolves it automatically for local/profile storage.
+An ordinary product does not pass `serviceBin`. Remote and injected storage do
+not require a native dependency. Explicit path, environment, and manifest
+overrides remain available through Runtime artifact options or the advanced
+bootstrap subpath for development and custom packaging.
 
 ## Advanced Runtime Ownership
 

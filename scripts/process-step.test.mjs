@@ -51,6 +51,31 @@ describe("shell-free process steps", () => {
     })
   })
 
+  it("keeps the active workspace pnpm CLI outside the workspace on POSIX", () => {
+    expect(
+      resolveStepCommand(
+        {
+          command: "pnpm",
+          args: ["pack", "--json"]
+        },
+        {
+          env: {
+            npm_execpath: "/workspace/node_modules/pnpm/bin/pnpm.mjs"
+          },
+          nodeExecutable: "/node/bin/node",
+          platform: "darwin"
+        }
+      )
+    ).toEqual({
+      command: "/node/bin/node",
+      args: [
+        "/workspace/node_modules/pnpm/bin/pnpm.mjs",
+        "pack",
+        "--json"
+      ]
+    })
+  })
+
   it("runs the Node-bundled npm CLI on Windows without a command shim", () => {
     expect(
       resolveStepCommand(

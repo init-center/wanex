@@ -29,6 +29,36 @@ describe("SDK distribution policy", () => {
       "@wanex/workspace"
     ])
     expect(policy.internalBundledPackages).toEqual(["@wanex/protocol"])
+    expect(policy.nativePackages).toEqual([
+      {
+        targetId: "darwin-arm64",
+        name: "@wanex/system-service-darwin-arm64",
+        platform: "darwin",
+        arch: "arm64",
+        rustTarget: "aarch64-apple-darwin"
+      },
+      {
+        targetId: "darwin-x64",
+        name: "@wanex/system-service-darwin-x64",
+        platform: "darwin",
+        arch: "x64",
+        rustTarget: "x86_64-apple-darwin"
+      },
+      {
+        targetId: "linux-x64",
+        name: "@wanex/system-service-linux-x64",
+        platform: "linux",
+        arch: "x64",
+        rustTarget: "x86_64-unknown-linux-gnu"
+      },
+      {
+        targetId: "win32-x64",
+        name: "@wanex/system-service-win32-x64",
+        platform: "win32",
+        arch: "x64",
+        rustTarget: "x86_64-pc-windows-msvc"
+      }
+    ])
     const storage = policy.packages.find((item) => item.name === "@wanex/storage")
     expect(storage.sourceOnlyExports).toEqual(["./testing"])
     expect(storage.entries.map((item) => item.exportPath)).not.toContain("./testing")
@@ -62,6 +92,12 @@ describe("SDK distribution policy", () => {
         "@wanex/storage": "0.0.0",
         ajv: "8.20.0",
         yaml: "2.9.0"
+      },
+      optionalDependencies: {
+        "@wanex/system-service-darwin-arm64": "0.0.0",
+        "@wanex/system-service-darwin-x64": "0.0.0",
+        "@wanex/system-service-linux-x64": "0.0.0",
+        "@wanex/system-service-win32-x64": "0.0.0"
       }
     })
     expect(manifest).not.toHaveProperty("private")

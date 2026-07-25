@@ -54,4 +54,29 @@ describe("external consumer scoped registry", () => {
       await registry.close()
     }
   })
+
+  it("serves non-host native metadata without a downloadable tarball", async () => {
+    const registry = await startReadOnlyNpmRegistry({
+      packages: [{
+        manifest: {
+          name: "@wanex/system-service-win32-x64",
+          version: "1.2.3",
+          os: ["win32"],
+          cpu: ["x64"]
+        },
+        filename: "wanex-system-service-win32-x64-1.2.3.tgz"
+      }]
+    })
+    try {
+      const metadata = await fetch(
+        `${registry.endpoint}/@wanex%2Fsystem-service-win32-x64`
+      )
+      expect(metadata.status).toBe(200)
+      const body = await metadata.json()
+      const tarball = await fetch(body.versions["1.2.3"].dist.tarball)
+      expect(tarball.status).toBe(404)
+    } finally {
+      await registry.close()
+    }
+  })
 })

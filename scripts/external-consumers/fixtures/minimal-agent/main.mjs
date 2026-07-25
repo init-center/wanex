@@ -6,8 +6,7 @@ const runtime = await createWanexRuntime({
   storage: {
     kind: "local-system-service",
     mode: "persistent",
-    storeDir: join(required("WANEX_FIXTURE_ROOT"), "store"),
-    serviceBin: required("WANEX_SYSTEM_SERVICE_BIN")
+    storeDir: join(required("WANEX_FIXTURE_ROOT"), "store")
   },
   provider: {
     kind: "fake",

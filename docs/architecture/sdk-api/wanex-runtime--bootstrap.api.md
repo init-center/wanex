@@ -118,7 +118,7 @@ export class RuntimeArtifactResolutionError extends Error {
 export type RuntimeArtifactResolutionErrorCode = "runtime_artifact_missing_system_service" | "runtime_artifact_not_executable" | "runtime_artifact_manifest_invalid" | "runtime_artifact_manifest_root_missing" | "runtime_artifact_target_missing" | "runtime_artifact_path_escape" | "runtime_artifact_not_file" | "runtime_artifact_size_mismatch" | "runtime_artifact_checksum_mismatch";
 
 // @public (undocumented)
-export type RuntimeArtifactSource = "explicit" | "environment" | "manifest";
+export type RuntimeArtifactSource = "explicit" | "environment" | "manifest" | "package";
 
 // @public (undocumented)
 export interface RuntimeArtifactTarget {

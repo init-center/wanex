@@ -4,6 +4,7 @@ import { join, win32 } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   assertPathOutsideWorkspace,
+  expectedInstalledWanexClosure,
   expectedWanexClosure,
   inspectExternalPackageLock,
   isPathInsideOrEqual,
@@ -11,15 +12,53 @@ import {
 } from "./runner.mjs"
 
 const registryPackages = [
-  { manifest: { name: "@wanex/runtime", version: "0.0.0", dependencies: { "@wanex/storage": "0.0.0", ajv: "8.20.0" } } },
-  { manifest: { name: "@wanex/storage", version: "0.0.0" } }
+  {
+    manifest: {
+      name: "@wanex/runtime",
+      version: "0.0.0",
+      dependencies: { "@wanex/storage": "0.0.0", ajv: "8.20.0" },
+      optionalDependencies: {
+        "@wanex/system-service-darwin-arm64": "0.0.0",
+        "@wanex/system-service-win32-x64": "0.0.0"
+      }
+    }
+  },
+  { manifest: { name: "@wanex/storage", version: "0.0.0" } },
+  {
+    manifest: {
+      name: "@wanex/system-service-darwin-arm64",
+      version: "0.0.0",
+      os: ["darwin"],
+      cpu: ["arm64"]
+    }
+  },
+  {
+    manifest: {
+      name: "@wanex/system-service-win32-x64",
+      version: "0.0.0",
+      os: ["win32"],
+      cpu: ["x64"]
+    }
+  }
 ]
 
 describe("external consumer runner policy", () => {
   it("derives the exact transitive Wanex closure", () => {
     expect(expectedWanexClosure(["@wanex/runtime"], registryPackages)).toEqual({
       "@wanex/runtime": "0.0.0",
-      "@wanex/storage": "0.0.0"
+      "@wanex/storage": "0.0.0",
+      "@wanex/system-service-darwin-arm64": "0.0.0",
+      "@wanex/system-service-win32-x64": "0.0.0"
+    })
+    expect(expectedInstalledWanexClosure(
+      ["@wanex/runtime"],
+      registryPackages,
+      "darwin",
+      "arm64"
+    )).toEqual({
+      "@wanex/runtime": "0.0.0",
+      "@wanex/storage": "0.0.0",
+      "@wanex/system-service-darwin-arm64": "0.0.0"
     })
     expect(() => expectedWanexClosure(["@wanex/missing"], registryPackages))
       .toThrow("absent from SDK registry")

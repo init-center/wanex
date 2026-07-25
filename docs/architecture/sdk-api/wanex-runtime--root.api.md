@@ -4,7 +4,6 @@
 
 ```ts
 
-import { CreateStorageConfig } from '@wanex/storage';
 import { LocalSystemServiceStorageMode } from '@wanex/storage';
 import { StorageHandle } from '@wanex/storage';
 
@@ -364,6 +363,15 @@ export type WanexRuntimeOperationState = "queued" | "running" | "cancel_requeste
 // @public (undocumented)
 export interface WanexRuntimeOptions {
     // (undocumented)
+    readonly artifacts?: {
+        readonly explicitPath?: string;
+        readonly env?: {
+            readonly WANEX_SYSTEM_SERVICE_BIN?: string;
+        };
+        readonly manifest?: unknown;
+        readonly artifactDir?: string;
+    };
+    // (undocumented)
     readonly errorIntervalMs?: number;
     // (undocumented)
     readonly heartbeatIntervalMs?: number;
@@ -459,7 +467,23 @@ export interface WanexRuntimeStatus {
 }
 
 // @public (undocumented)
-export type WanexRuntimeStorageConfig = CreateStorageConfig | {
+export type WanexRuntimeStorageConfig = {
+    readonly kind: "local-system-service";
+    readonly mode?: LocalSystemServiceStorageMode;
+    readonly storeDir: string;
+    readonly serviceBin?: string;
+} | {
+    readonly kind: "local-profile";
+    readonly mode?: LocalSystemServiceStorageMode;
+    readonly rootDir: string;
+    readonly profileId?: string;
+    readonly serviceBin?: string;
+} | {
+    readonly kind: "remote-http";
+    readonly endpoint: string;
+    readonly token: string;
+    readonly timeoutMs?: number;
+} | {
     readonly kind: "injected";
     readonly handle: Pick<StorageHandle, "core" | "transport">;
 };

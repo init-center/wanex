@@ -1,5 +1,4 @@
 import type {
-  CreateStorageConfig,
   LocalSystemServiceStorageMode,
   StorageHandle
 } from "@wanex/storage"
@@ -13,7 +12,25 @@ import type {
 export type WanexRuntimeStorageMode = LocalSystemServiceStorageMode
 
 export type WanexRuntimeStorageConfig =
-  | CreateStorageConfig
+  | {
+      readonly kind: "local-system-service"
+      readonly mode?: LocalSystemServiceStorageMode
+      readonly storeDir: string
+      readonly serviceBin?: string
+    }
+  | {
+      readonly kind: "local-profile"
+      readonly mode?: LocalSystemServiceStorageMode
+      readonly rootDir: string
+      readonly profileId?: string
+      readonly serviceBin?: string
+    }
+  | {
+      readonly kind: "remote-http"
+      readonly endpoint: string
+      readonly token: string
+      readonly timeoutMs?: number
+    }
   | {
       readonly kind: "injected"
       readonly handle: Pick<StorageHandle, "core" | "transport">
@@ -47,6 +64,14 @@ export type WanexRuntimeProviderOptions =
 
 export interface WanexRuntimeOptions {
   readonly storage: WanexRuntimeStorageConfig
+  readonly artifacts?: {
+    readonly explicitPath?: string
+    readonly env?: {
+      readonly WANEX_SYSTEM_SERVICE_BIN?: string
+    }
+    readonly manifest?: unknown
+    readonly artifactDir?: string
+  }
   readonly provider?: WanexRuntimeProviderOptions
   readonly secretResolver?: SecretResolverPort
   readonly workerCount?: number

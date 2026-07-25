@@ -19,6 +19,11 @@ export async function loadSdkDistributionPolicy() {
     readJson(packageRolesPath)
   ])
   validateTopLevelPolicy(rawPolicy)
+  const nativePackages = Object.entries(rawPolicy.nativePackages)
+    .map(([targetId, configured]) =>
+      validateNativePackagePolicy(targetId, configured)
+    )
+    .sort((left, right) => left.targetId.localeCompare(right.targetId))
   const packages = []
   for (const [name, configured] of Object.entries(rawPolicy.packages)) {
     const packageDir = resolve(workspaceRoot, configured.path)
@@ -32,7 +37,10 @@ export async function loadSdkDistributionPolicy() {
       platform: configured.platform,
       manifest,
       entries: readExportEntries(manifest, configured.sourceOnlyExports),
-      sourceOnlyExports: [...(configured.sourceOnlyExports ?? [])].sort()
+      sourceOnlyExports: [...(configured.sourceOnlyExports ?? [])].sort(),
+      optionalNativePackages: name === "@wanex/runtime"
+        ? nativePackages
+        : []
     })
   }
   const publishedNames = new Set(packages.map((item) => item.name))
@@ -74,6 +82,7 @@ export async function loadSdkDistributionPolicy() {
     outputDir: resolve(workspaceRoot, rawPolicy.outputDir),
     internalBundledPackages: [...rawPolicy.internalBundledPackages],
     sourcePreviewPackages,
+    nativePackages,
     packages: packages.sort((left, right) => left.name.localeCompare(right.name))
   }
 }
@@ -114,6 +123,12 @@ export function readExportEntries(manifest, sourceOnlyExports = []) {
 
 export function createStagingManifest(packageInfo) {
   const dependencies = projectRuntimeDependencies(packageInfo)
+  const optionalDependencies = Object.fromEntries(
+    (packageInfo.optionalNativePackages ?? []).map((nativePackage) => [
+      nativePackage.name,
+      packageInfo.manifest.version
+    ])
+  )
   const exports = Object.fromEntries(packageInfo.entries.map((entry) => [
     entry.exportPath,
     {
@@ -131,8 +146,36 @@ export function createStagingManifest(packageInfo) {
     exports,
     files: ["dist", "README.md"],
     ...(packageInfo.platform === "node" ? { engines: { node: ">=24" } } : {}),
-    ...(Object.keys(dependencies).length === 0 ? {} : { dependencies })
+    ...(Object.keys(dependencies).length === 0 ? {} : { dependencies }),
+    ...(Object.keys(optionalDependencies).length === 0
+      ? {}
+      : { optionalDependencies })
   }
+}
+
+export function nativePackageForTarget(policy, targetId) {
+  const nativePackage = policy.nativePackages.find(
+    (candidate) => candidate.targetId === targetId
+  )
+  if (nativePackage === undefined) {
+    throw new Error(`unsupported native package target: ${targetId}`)
+  }
+  return nativePackage
+}
+
+export function nativePackageForHost(
+  policy,
+  platform = process.platform,
+  arch = process.arch
+) {
+  const nativePackage = policy.nativePackages.find(
+    (candidate) =>
+      candidate.platform === platform && candidate.arch === arch
+  )
+  if (nativePackage === undefined) {
+    throw new Error(`unsupported native package host: ${platform}-${arch}`)
+  }
+  return nativePackage
 }
 
 export function encodedPackageName(name) {
@@ -191,8 +234,73 @@ function validateTopLevelPolicy(policy) {
   if (new Set(policy.sourcePreviewPackages).size !== policy.sourcePreviewPackages.length) {
     throw new Error("SDK sourcePreviewPackages must be unique")
   }
+  if (!isRecord(policy.nativePackages)) {
+    throw new Error("SDK nativePackages must be an object")
+  }
+  const expectedTargets = [
+    "darwin-arm64",
+    "darwin-x64",
+    "linux-x64",
+    "win32-x64"
+  ]
+  const actualTargets = Object.keys(policy.nativePackages).sort()
+  if (JSON.stringify(actualTargets) !== JSON.stringify(expectedTargets)) {
+    throw new Error(
+      `SDK native package targets differ: ${actualTargets.join(",")}`
+    )
+  }
   if (!isRecord(policy.packages)) {
     throw new Error("SDK packages must be an object")
+  }
+}
+
+function validateNativePackagePolicy(targetId, configured) {
+  if (!isRecord(configured)) {
+    throw new Error(`SDK native package ${targetId} must be an object`)
+  }
+  const expected = {
+    "darwin-arm64": {
+      name: "@wanex/system-service-darwin-arm64",
+      platform: "darwin",
+      arch: "arm64",
+      rustTarget: "aarch64-apple-darwin"
+    },
+    "darwin-x64": {
+      name: "@wanex/system-service-darwin-x64",
+      platform: "darwin",
+      arch: "x64",
+      rustTarget: "x86_64-apple-darwin"
+    },
+    "linux-x64": {
+      name: "@wanex/system-service-linux-x64",
+      platform: "linux",
+      arch: "x64",
+      rustTarget: "x86_64-unknown-linux-gnu"
+    },
+    "win32-x64": {
+      name: "@wanex/system-service-win32-x64",
+      platform: "win32",
+      arch: "x64",
+      rustTarget: "x86_64-pc-windows-msvc"
+    }
+  }[targetId]
+  if (
+    expected === undefined ||
+    Object.keys(configured).sort().join(",") !==
+      ["arch", "name", "platform", "rustTarget"].join(",") ||
+    configured.name !== expected.name ||
+    configured.platform !== expected.platform ||
+    configured.arch !== expected.arch ||
+    configured.rustTarget !== expected.rustTarget
+  ) {
+    throw new Error(`SDK native package ${targetId} is invalid`)
+  }
+  return {
+    targetId,
+    name: configured.name,
+    platform: configured.platform,
+    arch: configured.arch,
+    rustTarget: configured.rustTarget
   }
 }
 

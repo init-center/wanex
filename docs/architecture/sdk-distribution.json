@@ -12,6 +12,32 @@
     "@wanex/team",
     "@wanex/workspace"
   ],
+  "nativePackages": {
+    "darwin-arm64": {
+      "name": "@wanex/system-service-darwin-arm64",
+      "platform": "darwin",
+      "arch": "arm64",
+      "rustTarget": "aarch64-apple-darwin"
+    },
+    "darwin-x64": {
+      "name": "@wanex/system-service-darwin-x64",
+      "platform": "darwin",
+      "arch": "x64",
+      "rustTarget": "x86_64-apple-darwin"
+    },
+    "linux-x64": {
+      "name": "@wanex/system-service-linux-x64",
+      "platform": "linux",
+      "arch": "x64",
+      "rustTarget": "x86_64-unknown-linux-gnu"
+    },
+    "win32-x64": {
+      "name": "@wanex/system-service-win32-x64",
+      "platform": "win32",
+      "arch": "x64",
+      "rustTarget": "x86_64-pc-windows-msvc"
+    }
+  },
   "packages": {
     "@wanex/app": {
       "path": "packages/app",

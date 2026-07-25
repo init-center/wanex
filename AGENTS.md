@@ -181,31 +181,29 @@ Its evidence and corrected release route are:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1038-phase-775-first-public-release-candidate-audit-and-replan.md`
 
-Phase 776 Release Surface And Security Baseline is the current implementation
-route. Its frozen implementation plan is:
+Phase 776 Release Surface And Security Baseline is complete. Its implementation
+and verification record is:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1039-phase-776-release-surface-security-baseline.md`
 
-Before any npm or GitHub release:
+Commit `cf51542` passed GitHub Actions run `30172845259`, including the
+four-platform Verify/distribution matrix, Linux JavaScript and Rust security
+scans, and the Node 24 packed-core proof.
 
-- refresh JavaScript and Rust dependencies and make advisory checks clean
-  without ignores;
-- publish only the justified core closure (`@wanex/runtime`, `@wanex/app`,
-  `@wanex/storage`, and `@wanex/extension`) in the first RC;
-- remove `@wanex/storage/testing` from generated public artifacts;
-- keep Plugin, Connector, MCP, Team, Workspace, and Storage Control Plane as
-  source-preview capabilities until real consumers and clean packed journeys
-  justify publication;
-- support Node 24 LTS in packed consumers while retaining Node 26 for the full
-  development gate;
-- keep the 18 source-package topology and add no compatibility path.
+Phase 777 Native System Service npm Distribution is the current implementation
+route. Its frozen implementation plan is:
 
-Phase 777 then generates four platform-native System Service npm artifacts and
-proves that a packed external Runtime/App consumer runs locally without a
-source checkout, Rust toolchain, explicit `serviceBin`, postinstall download,
-or bundled development `node_modules`. Phase 778 owns license/version/metadata,
-trusted publishing, provenance, SBOM, checksums, and repository security.
-Phase 779 is the first RC acceptance gate.
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1040-phase-777-native-system-service-npm-distribution-plan.md`
+
+Phase 777 generates four platform-native System Service npm artifacts and
+proves that packed external Runtime/App consumers run locally without a source
+checkout, Rust toolchain, explicit `serviceBin`, `WANEX_SYSTEM_SERVICE_BIN`,
+postinstall download, or bundled development `node_modules`. It must keep the
+18 source-package topology, preserve trusted explicit/environment/manifest
+overrides, and retain manifest containment, size, digest, executable, and
+process-cleanup verification. Phase 778 owns license/version/metadata, trusted
+publishing, provenance, SBOM, checksums, and repository security. Phase 779 is
+the first RC acceptance gate.
 
 License selection and `@wanex` npm scope ownership are explicit owner
 prerequisites. Do not silently choose a license or publish the current

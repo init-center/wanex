@@ -13,10 +13,31 @@ stores, caches, or concrete connector SDKs into the default Runtime payload.
 
 ## Artifact Resolution
 
-Trusted hosts resolve the system-service binary through
-`@wanex/runtime/bootstrap` using an explicit path, environment, manifest, or
-packaged artifact directory. Local/profile storage owns the spawned process;
-remote and injected storage do not require a local artifact.
+Generated `@wanex/runtime` declares exact optional dependencies on four
+platform-native System Service packages. A normal local Runtime/App install
+resolves the exact matching package automatically. npm records all four
+optional identities but physically installs only the package matching the host
+`os` and `cpu`. Remote-only consumers may omit optional dependencies.
+
+Trusted hosts resolve the System Service through `@wanex/runtime/bootstrap` in
+this order:
+
+1. explicit path;
+2. `WANEX_SYSTEM_SERVICE_BIN`;
+3. explicit manifest plus artifact directory;
+4. exact installed native package for the current host.
+
+The first three are trusted development or custom-packaging overrides. Package
+resolution is relative to installed `@wanex/runtime`, never the current working
+directory. Every manifest path still passes closed-shape, target, realpath
+containment, regular-file, byte-size, SHA-256, executable/readability, and
+filename validation. There is no cross-architecture fallback or runtime
+download.
+
+Local/profile Runtime and App storage owns the spawned process. Remote and
+injected storage do not resolve or require a local artifact. Low-level
+`@wanex/storage` and advanced Runtime Host construction continue to accept an
+explicit binary because they intentionally expose the process boundary.
 
 The first-release native target matrix is intentionally closed:
 
@@ -28,6 +49,21 @@ The first-release native target matrix is intentionally closed:
 Linux arm64 and Windows arm64 are not inferred or cross-selected. A declared
 target becomes supported only after its own native runner stages and executes
 the release binary.
+
+The generated native npm identities are:
+
+- `@wanex/system-service-linux-x64`;
+- `@wanex/system-service-darwin-arm64`;
+- `@wanex/system-service-darwin-x64`;
+- `@wanex/system-service-win32-x64`.
+
+They are generated release artifacts, not source workspace packages. Each
+contains only `package.json`, the existing `runtime-artifacts.json`, and one
+target executable. It has exact `os`/`cpu`, no JavaScript dependency tree,
+scripts, postinstall, downloader, source, tests, stores, caches, or
+`node_modules`. Native packages use `npm pack` because it preserves the Unix
+executable mode; the JavaScript SDK continues to use the existing pnpm pack
+pipeline.
 
 ## Release Gates
 
@@ -106,8 +142,10 @@ pnpm audit:distribution-footprint -- --enforce
 pnpm audit:facade-footprint
 pnpm audit:package-packlist
 pnpm release:sdk
+pnpm release:native -- --target darwin-arm64
 pnpm proof:sdk-consumers
 pnpm stage:native -- --target darwin-arm64
+pnpm release:native -- --target darwin-arm64
 pnpm proof:native-runtime
 pnpm proof:electron-boundary
 pnpm audit:host-distribution -- --target darwin-arm64

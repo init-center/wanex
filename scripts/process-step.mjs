@@ -25,16 +25,18 @@ export function resolveStepCommand(step, options = {}) {
     }
   }
 
-  if (step.command === "pnpm" && platform === "win32") {
+  if (step.command === "pnpm") {
     const packageManagerCli = options.packageManagerCli ?? env.npm_execpath
-    if (!isPnpmJavaScriptCli(packageManagerCli)) {
+    if (isPnpmJavaScriptCli(packageManagerCli)) {
+      return {
+        command: nodeExecutable,
+        args: [packageManagerCli, ...step.args]
+      }
+    }
+    if (platform === "win32") {
       throw new Error(
         "Windows repository scripts must run through pnpm so npm_execpath identifies its JavaScript CLI"
       )
-    }
-    return {
-      command: nodeExecutable,
-      args: [packageManagerCli, ...step.args]
     }
   }
 

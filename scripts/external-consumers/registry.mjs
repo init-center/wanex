@@ -3,6 +3,7 @@ import { createServer } from "node:http"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { encodedPackageName } from "../sdk/distribution-policy.mjs"
+import { createNativeNpmPackageManifest } from "../sdk/native-package-manifest.mjs"
 
 export async function loadSdkRegistryPackages(policy, report) {
   const packages = []
@@ -27,12 +28,60 @@ export async function loadSdkRegistryPackages(policy, report) {
   return packages
 }
 
+export async function loadNativeRegistryPackages(policy, nativeReport) {
+  const runtime = policy.packages.find((item) => item.name === "@wanex/runtime")
+  if (runtime === undefined) {
+    throw new Error("Runtime package is required for native registry metadata")
+  }
+  const packages = []
+  for (const nativePackage of policy.nativePackages) {
+    const expectedManifest = createNativeNpmPackageManifest(
+      nativePackage,
+      runtime.manifest.version
+    )
+    if (nativePackage.targetId !== nativeReport.targetId) {
+      packages.push({
+        manifest: expectedManifest,
+        filename: nativeTarballFilename(
+          nativePackage.name,
+          runtime.manifest.version
+        )
+      })
+      continue
+    }
+    const manifest = JSON.parse(await readFile(
+      join(nativeReport.stagingDir, "package.json"),
+      "utf8"
+    ))
+    if (JSON.stringify(manifest) !== JSON.stringify(expectedManifest)) {
+      throw new Error(
+        `native registry manifest differs for ${nativePackage.name}`
+      )
+    }
+    const bytes = await readFile(nativeReport.tarballPath)
+    if (
+      bytes.byteLength !== nativeReport.bytes ||
+      createHash("sha256").update(bytes).digest("hex") !== nativeReport.sha256
+    ) {
+      throw new Error(`native registry tarball differs for ${nativePackage.name}`)
+    }
+    packages.push({
+      manifest,
+      filename: nativeReport.filename,
+      bytes
+    })
+  }
+  return packages
+}
+
 export async function startReadOnlyNpmRegistry(options) {
   const packageByName = new Map(
     options.packages.map((item) => [item.manifest.name, packageRecord(item)])
   )
   const tarballByName = new Map(
-    options.packages.map((item) => [item.filename, item.bytes])
+    options.packages
+      .filter((item) => item.bytes !== undefined)
+      .map((item) => [item.filename, item.bytes])
   )
   const requests = []
   let endpoint = ""
@@ -127,12 +176,19 @@ async function handleRequest(context) {
 }
 
 function packageRecord(item) {
+  const digestBytes = item.bytes ?? Buffer.from(
+    `${item.manifest.name}@${item.manifest.version}`
+  )
   return {
     manifest: item.manifest,
     filename: item.filename,
-    sha1: createHash("sha1").update(item.bytes).digest("hex"),
-    integrity: `sha512-${createHash("sha512").update(item.bytes).digest("base64")}`
+    sha1: createHash("sha1").update(digestBytes).digest("hex"),
+    integrity: `sha512-${createHash("sha512").update(digestBytes).digest("base64")}`
   }
+}
+
+function nativeTarballFilename(name, version) {
+  return `${name.replace(/^@/, "").replace("/", "-")}-${version}.tgz`
 }
 
 function json(response, status, body) {

@@ -1,8 +1,4 @@
-import {
-  createStorageHandle,
-  type CoreStore,
-  type StorageHandle
-} from "@wanex/storage"
+import type { CoreStore } from "@wanex/storage"
 import type {
   ProviderCapabilities,
   SchedulerJobRecord,
@@ -15,6 +11,7 @@ import {
   FakeProviderAdapter,
   writeProviderProfile
 } from "./provider/index.js"
+import { bootstrapWanexStorage } from "./bootstrap/index.js"
 import { WanexRuntimeHost } from "./host/host.js"
 import type {
   WanexRuntime,
@@ -39,10 +36,13 @@ export async function createWanexRuntime(
 ): Promise<WanexRuntime> {
   const provider = normalizeProvider(options.provider)
   validateProviderRuntimeOptions(provider, options.secretResolver !== undefined)
-  const storage = openRuntimeStorage(options.storage)
+  const storage = await bootstrapWanexStorage({
+    storage: options.storage,
+    ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts })
+  })
 
   try {
-    await writeProviderProfile(storage.core, {
+    await writeProviderProfile(storage.storage, {
       id: provider.id,
       kind: provider.kind,
       providerId: provider.providerId,
@@ -58,7 +58,7 @@ export async function createWanexRuntime(
     })
 
     const host = new WanexRuntimeHost({
-      storage: storage.core,
+      storage: storage.storage,
       workerCount: options.workerCount ?? 1,
       providerProfileId: provider.id,
       ...(options.secretResolver === undefined
@@ -135,7 +135,7 @@ export async function createWanexRuntime(
       },
       async readOperation(request): Promise<WanexRuntimeReadOperationResult> {
         assertActive()
-        return await readRuntimeOperation(storage.core, request)
+        return await readRuntimeOperation(storage.storage, request)
       },
       async cancelOperation(request): Promise<WanexRuntimeCancelOperationResult> {
         assertActive()
@@ -168,7 +168,7 @@ export async function createWanexRuntime(
           jobId: submitted.receipt.job.id
         }
         const run = await host.runOnce()
-        const read = await readRuntimeOperation(storage.core, reference)
+        const read = await readRuntimeOperation(storage.storage, reference)
         if (read.kind === "missing") {
           throw new Error("wanex runtime submitted operation was not found")
         }
@@ -207,17 +207,6 @@ export async function createWanexRuntime(
   } catch (error) {
     await storage.dispose()
     throw error
-  }
-}
-
-function openRuntimeStorage(
-  config: WanexRuntimeOptions["storage"]
-): Pick<StorageHandle, "core" | "transport" | "dispose"> {
-  if (config.kind !== "injected") return createStorageHandle(config)
-  return {
-    core: config.handle.core,
-    transport: config.handle.transport,
-    async dispose() {}
   }
 }
 

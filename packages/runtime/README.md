@@ -28,6 +28,12 @@ system-service artifact and open local, profile, remote, or injected storage
 without creating an agent Runtime. Handles created by bootstrap are owned;
 injected handles are borrowed and remain open after bootstrap disposal.
 
+Generated Runtime packages declare exact optional dependencies on the four
+supported native targets. Default local/profile Runtime construction resolves
+the matching installed package automatically. Explicit path, environment, and
+manifest overrides remain available for trusted development/custom packaging;
+remote and injected storage require no local artifact.
+
 ## Provider Subpath
 
 Advanced provider integrations import `@wanex/runtime/provider`. The primary
@@ -64,7 +70,13 @@ rejected before provider dispatch rather than silently using a new handler.
 ## Minimal Use
 
 ```ts
-const runtime = await createWanexRuntime({ storage, provider })
+const runtime = await createWanexRuntime({
+  storage: {
+    kind: "local-profile",
+    rootDir: "/trusted/product/data"
+  },
+  provider
+})
 try {
   const result = await runtime.run({ text: "Hello" })
 } finally {

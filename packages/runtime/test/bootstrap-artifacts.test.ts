@@ -240,11 +240,44 @@ describe("@wanex/runtime/bootstrap artifact resolution", () => {
     await expect(resolveSystemServiceBinary({ explicitPath: join(root, "missing") }))
       .rejects.toMatchObject({
         name: "RuntimeArtifactResolutionError",
-        code: "runtime_artifact_not_executable"
+        code: "runtime_artifact_missing_system_service",
+        candidates: [
+          { source: "explicit", path: join(root, "missing") },
+          {
+            source: "package",
+            path: expect.stringContaining("@wanex/system-service-")
+          }
+        ]
       } satisfies Partial<RuntimeArtifactResolutionError>)
     await expect(resolveSystemServiceBinary()).rejects.toMatchObject({
       code: "runtime_artifact_missing_system_service",
-      candidates: []
+      candidates: [{
+        source: "package",
+        path: expect.stringContaining("@wanex/system-service-")
+      }]
+    })
+  })
+
+  it("names the exact missing host package without architecture fallback", async () => {
+    await expect(resolveSystemServiceBinary({
+      platform: "darwin",
+      arch: "x64",
+      env: {}
+    })).rejects.toMatchObject({
+      code: "runtime_artifact_missing_system_service",
+      message: expect.stringContaining("@wanex/system-service-darwin-x64"),
+      candidates: [{
+        source: "package",
+        path: "@wanex/system-service-darwin-x64/runtime-artifacts.json"
+      }]
+    })
+    await expect(resolveSystemServiceBinary({
+      platform: "linux",
+      arch: "arm64",
+      env: {}
+    })).rejects.toMatchObject({
+      code: "runtime_artifact_target_missing",
+      message: expect.stringContaining("linux-arm64")
     })
   })
 })

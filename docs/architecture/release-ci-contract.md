@@ -166,14 +166,36 @@ entries under `target/sdk`, rolls declarations, excludes
 `@wanex/storage/testing`, packs npm tarballs, compares committed API Extractor
 reports, runs `publint` and Are The Types Wrong, installs every tarball in a
 temporary project outside the workspace, imports and typechecks every entry,
-and bundles Runtime/App roots while checking optional closure. The external
-runtime proof then installs four independent projects from a temporary
-loopback npm registry with exact normal dependencies: minimal Runtime, trusted
-App, provider/tool, and local Storage. It audits each package lock against the
-exact compiled Wanex closure and rejects workspace, file, link, source-path, or
-version drift. The determinism audit performs two clean builds and requires
-byte-identical tarball hashes. These gates are part of the release contract,
-not optional examples.
+and bundles Runtime/App roots while checking optional closure. Generated
+Runtime metadata declares exact optional dependencies on the four native
+System Service packages.
+
+The external runtime proof stages and packs the current host native package,
+then installs four independent projects from a temporary loopback npm registry
+with exact normal dependencies: minimal Runtime, trusted App, provider/tool,
+and local Storage. It audits the full lock resolution graph, separately audits
+the physical `node_modules/@wanex` closure so only the matching host package is
+installed, and rejects workspace, file, link, source-path, or version drift.
+The default Runtime and App fixtures receive neither `serviceBin` nor
+`WANEX_SYSTEM_SERVICE_BIN`; they resolve the installed package. A negative
+journey tampers the installed executable and requires checksum rejection.
+The determinism audit performs two clean JavaScript builds and requires
+byte-identical tarball hashes; native package tests repeat native packing and
+require an identical tarball digest. These gates are part of the release
+contract, not optional examples.
+
+Each distribution matrix job additionally runs:
+
+```bash
+pnpm stage:native -- --target <target>
+pnpm release:sdk
+pnpm release:native -- --target <target>
+pnpm proof:sdk-consumers -- --native-target <target> \
+  --native-package-report target/sdk/native/<target>/report.json
+```
+
+The job uploads the target-native npm tarball and portable report beside the
+existing native/Electron receipts.
 
 The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or

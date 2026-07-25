@@ -31,8 +31,10 @@ clients, store paths, binary paths, provider secrets, or Runtime Host handles.
 
 ```ts
 const app = await createWanexApp({
-  storage,
-  artifacts,
+  storage: {
+    kind: "local-profile",
+    rootDir: "/trusted/product/data"
+  },
   providerProfile,
   workerCount: 2
 })
@@ -46,6 +48,12 @@ try {
   await app.dispose()
 }
 ```
+
+Generated App installations receive Runtime's exact optional native
+dependencies transitively. Local/profile App construction resolves the
+matching package automatically. `artifacts` is reserved for trusted explicit,
+environment, or manifest overrides; remote and injected storage do not require
+a local System Service package.
 
 ## Product Boundary
 

@@ -3,14 +3,12 @@ import { join } from "node:path"
 import { createWanexApp } from "@wanex/app"
 
 const fixtureRoot = required("WANEX_FIXTURE_ROOT")
-const serviceBin = required("WANEX_SYSTEM_SERVICE_BIN")
 const app = await createWanexApp({
   storage: {
     kind: "local-system-service",
     mode: "persistent",
     storeDir: join(fixtureRoot, "store")
   },
-  artifacts: { explicitPath: serviceBin },
   providerProfile: {
     id: "external-trusted-app",
     kind: "fake",
@@ -24,7 +22,6 @@ try {
   const status = app.status()
   const serializedStatus = JSON.stringify(status)
   assert.equal(serializedStatus.includes(fixtureRoot), false)
-  assert.equal(serializedStatus.includes(serviceBin), false)
   const receipt = await app.commands.submitConversationOperation({
     content: [{ type: "text", text: "run the external trusted app" }]
   })

@@ -1,49 +1,73 @@
 #!/usr/bin/env node
-import { execFile } from "node:child_process"
 import {
   access,
-  cp,
   mkdir,
   readFile,
-  readdir,
   writeFile
 } from "node:fs/promises"
 import { constants } from "node:fs"
 import { join, resolve } from "node:path"
-import { promisify } from "node:util"
 import {
   loadSdkDistributionPolicy,
+  nativePackageForTarget,
   workspaceRoot
 } from "./sdk/distribution-policy.mjs"
+import { loadExternalFixturePolicy } from "./external-consumers/fixture-policy.mjs"
 import {
-  loadExternalFixturePolicy,
-  parseFixtureReceipt,
-  validateExternalFixtureManifest
-} from "./external-consumers/fixture-policy.mjs"
-import {
+  loadNativeRegistryPackages,
   loadSdkRegistryPackages,
   startReadOnlyNpmRegistry
 } from "./external-consumers/registry.mjs"
 import {
-  expectedWanexClosure,
-  inspectExternalPackageLock,
-  withExternalFixtureRoot
-} from "./external-consumers/runner.mjs"
-import { resolveStepCommand } from "./process-step.mjs"
+  assertOnlyHostNativeTarballRequested,
+  prepareExternalNativePackage,
+  resolvePackagedServiceBinary
+} from "./external-consumers/native-package-proof.mjs"
+import { runExternalFixture } from "./external-consumers/fixture-runner.mjs"
+import { withExternalFixtureRoot } from "./external-consumers/runner.mjs"
 
-const execFileAsync = promisify(execFile)
 const args = parseArgs(process.argv.slice(2))
-const serviceBin = resolve(
-  args.serviceBin ?? join(workspaceRoot, `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`)
-)
-await access(serviceBin, constants.X_OK)
-
 const policy = await loadSdkDistributionPolicy()
+const nativeTarget = args.nativeTarget ?? `${process.platform}-${process.arch}`
+const nativePackage = nativePackageForTarget(policy, nativeTarget)
+if (
+  nativePackage.platform !== process.platform ||
+  nativePackage.arch !== process.arch
+) {
+  throw new Error(
+    `native consumer proof target ${nativeTarget} differs from host ${process.platform}-${process.arch}`
+  )
+}
 const report = JSON.parse(await readFile(
   join(policy.outputDir, "reports/artifacts.json"),
   "utf8"
 ))
-const registryPackages = await loadSdkRegistryPackages(policy, report)
+const sourceServiceBin = args.nativePackageReport === undefined
+  ? resolve(
+      args.serviceBin ??
+        join(
+          workspaceRoot,
+          `target/debug/wanex-system-service${
+            process.platform === "win32" ? ".exe" : ""
+          }`
+        )
+    )
+  : undefined
+if (sourceServiceBin !== undefined) {
+  await access(sourceServiceBin, constants.X_OK)
+}
+const nativeReport = await prepareExternalNativePackage({
+  workspaceRoot,
+  nativePackage,
+  sourceServiceBin,
+  nativeArtifactDir: args.nativeArtifactDir,
+  nativePackageReport: args.nativePackageReport
+})
+const packagedServiceBin = await resolvePackagedServiceBinary(nativeReport)
+const registryPackages = [
+  ...await loadSdkRegistryPackages(policy, report),
+  ...await loadNativeRegistryPackages(policy, nativeReport)
+]
 const fixtures = await loadExternalFixturePolicy(workspaceRoot)
 const registry = await startReadOnlyNpmRegistry({ packages: registryPackages })
 let receipts
@@ -53,12 +77,14 @@ try {
     const completed = []
     for (const fixture of fixtures) {
       process.stdout.write(`\n==> External consumer: ${fixture.id}\n`)
-      completed.push(await runFixture({
+      completed.push(await runExternalFixture({
         fixture,
         externalRoot,
         registry,
         registryPackages,
-        serviceBin
+        serviceBin: packagedServiceBin,
+        nativeReport,
+        workspaceRoot
       }))
     }
     return completed
@@ -67,11 +93,21 @@ try {
   await registry.close()
 }
 
+assertOnlyHostNativeTarballRequested(registry.requests, nativeReport)
+
 const evidence = {
   schemaVersion: 1,
+  nativePackage: {
+    name: nativeReport.name,
+    targetId: nativeReport.targetId,
+    filename: nativeReport.filename,
+    bytes: nativeReport.bytes,
+    sha256: nativeReport.sha256
+  },
   fixtures: receipts.map((item) => ({
     id: item.id,
     topLevelDependencies: item.topLevelDependencies,
+    resolvedWanexClosure: item.resolvedWanexClosure,
     installedWanexClosure: item.installedWanexClosure,
     receipt: item.receipt
   }))
@@ -90,99 +126,36 @@ process.stdout.write(`Registry packages: ${registryPackages.length}\n`)
 process.stdout.write(`Registry requests: ${registry.requests.length}\n`)
 process.stdout.write("Failures: 0\n")
 
-async function runFixture(context) {
-  const projectDir = join(context.externalRoot, context.fixture.id)
-  const npmCache = join(context.externalRoot, "npm-cache", context.fixture.id)
-  const runtimeRoot = join(projectDir, ".runtime")
-  await cp(context.fixture.fixtureDir, projectDir, { recursive: true })
-  await Promise.all([
-    mkdir(npmCache, { recursive: true }),
-    mkdir(runtimeRoot, { recursive: true })
-  ])
-
-  const sourceFiles = (await readdir(projectDir)).sort()
-  if (JSON.stringify(sourceFiles) !== JSON.stringify([".runtime", "main.mjs", "package.json"])) {
-    throw new Error(`${context.fixture.id} contains unexpected source files: ${sourceFiles.join(",")}`)
-  }
-  const manifest = JSON.parse(await readFile(join(projectDir, "package.json"), "utf8"))
-  const manifestFailures = validateExternalFixtureManifest(context.fixture, manifest)
-  if (manifestFailures.length > 0) {
-    throw new Error(`${context.fixture.id} manifest failed:\n${manifestFailures.join("\n")}`)
-  }
-  await writeFile(
-    join(projectDir, ".npmrc"),
-    `@wanex:registry=${context.registry.endpoint}\n`,
-    "utf8"
-  )
-
-  const childEnvironment = {
-    ...process.env,
-    npm_config_cache: npmCache,
-    npm_config_audit: "false",
-    npm_config_fund: "false",
-    npm_config_ignore_scripts: "true",
-    npm_config_update_notifier: "false"
-  }
-  const installCommand = resolveStepCommand({
-    command: "npm",
-    args: [
-      "install",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund"
-    ]
-  }, {
-    env: childEnvironment
-  })
-  await execFileAsync(installCommand.command, installCommand.args, {
-    cwd: projectDir,
-    env: childEnvironment,
-    maxBuffer: 20 * 1024 * 1024
-  })
-
-  const lock = JSON.parse(await readFile(join(projectDir, "package-lock.json"), "utf8"))
-  const expectedClosure = expectedWanexClosure(
-    context.fixture.dependencies,
-    context.registryPackages
-  )
-  const lockFailures = inspectExternalPackageLock({
-    lock,
-    topLevelNames: context.fixture.dependencies,
-    expectedWanex: expectedClosure,
-    forbiddenPaths: [workspaceRoot, context.fixture.fixtureDir]
-  })
-  if (lockFailures.length > 0) {
-    throw new Error(`${context.fixture.id} package lock failed:\n${lockFailures.join("\n")}`)
-  }
-
-  const execution = await execFileAsync(process.execPath, ["main.mjs"], {
-    cwd: projectDir,
-    env: {
-      ...process.env,
-      WANEX_FIXTURE_ROOT: runtimeRoot,
-      WANEX_SYSTEM_SERVICE_BIN: context.serviceBin
-    },
-    maxBuffer: 20 * 1024 * 1024
-  })
-  if (execution.stderr.trim().length > 0) process.stderr.write(execution.stderr)
-  const receipt = parseFixtureReceipt(execution.stdout.trim(), context.fixture.id)
-  process.stdout.write(`passed: ${context.fixture.id} (${Object.keys(expectedClosure).length} Wanex packages)\n`)
-  return {
-    id: context.fixture.id,
-    topLevelDependencies: [...context.fixture.dependencies],
-    installedWanexClosure: expectedClosure,
-    receipt
-  }
-}
-
 function parseArgs(values) {
   const parsed = {}
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index]
+    if (value === "--") continue
     if (value === "--service-bin") {
       const candidate = values[index + 1]
       if (!candidate) throw new Error("--service-bin requires a path")
       parsed.serviceBin = candidate
+      index += 1
+      continue
+    }
+    if (value === "--native-target") {
+      const candidate = values[index + 1]
+      if (!candidate) throw new Error("--native-target requires a value")
+      parsed.nativeTarget = candidate
+      index += 1
+      continue
+    }
+    if (value === "--native-artifact-dir") {
+      const candidate = values[index + 1]
+      if (!candidate) throw new Error("--native-artifact-dir requires a path")
+      parsed.nativeArtifactDir = resolve(candidate)
+      index += 1
+      continue
+    }
+    if (value === "--native-package-report") {
+      const candidate = values[index + 1]
+      if (!candidate) throw new Error("--native-package-report requires a path")
+      parsed.nativePackageReport = resolve(candidate)
       index += 1
       continue
     }

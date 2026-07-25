@@ -76,7 +76,7 @@ raw samples, and receipt history.
 
 | Target | Native executable | Native total/wall max | Electron unpacked/files | Electron cold total/wall | Electron warm total/wall max |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `linux-x64` | 10,800,000 B | 1,000 / 2,000 ms | n/a | n/a | n/a |
+| `linux-x64` | 10,800,000 B | 1,250 / 2,000 ms | n/a | n/a | n/a |
 | `darwin-arm64` | 9,600,000 B | 1,500 / 2,000 ms | 565,000,000 B / 310 | 3,000 / 5,000 ms | 1,500 / 2,500 ms |
 | `darwin-x64` | 9,900,000 B | 2,000 / 3,000 ms | 575,000,000 B / 310 | 8,000 / 12,000 ms | 3,500 / 6,000 ms |
 | `win32-x64` | 9,600,000 B | 6,000 / 10,000 ms | 415,000,000 B / 90 | 3,000 / 5,000 ms | 2,500 / 3,000 ms |

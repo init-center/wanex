@@ -442,6 +442,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/product-app-tui",
+          "field": "devDependencies"
+        },
+        {
           "package": "@wanex/runtime",
           "field": "dependencies"
         },
@@ -490,6 +494,10 @@
         {
           "package": "@wanex/product-app-local",
           "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product-app-tui",
+          "field": "devDependencies"
         },
         {
           "package": "@wanex/runtime",

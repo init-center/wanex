@@ -21,5 +21,8 @@
     "@wanex/extension": "workspace:*",
     "@wanex/product-app": "workspace:*",
     "@wanex/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@wanex/storage": "workspace:*"
   }
 }

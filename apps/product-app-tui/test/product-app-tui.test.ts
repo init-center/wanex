@@ -28,6 +28,10 @@ import {
   type ProductAppTuiCliEnvironment,
   type ProductAppTuiSurface
 } from "../src/index.js"
+import {
+  createProductAppTuiConversationSettlementFixture,
+  type ProductAppTuiConversationSettlementObserver
+} from "./conversation-settlement-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -178,7 +182,8 @@ describe("@wanex/product-app-tui", () => {
   })
 
   it("reads execution activity from the interactive line session", async () => {
-    await withSurface(async ({ app, surface }) => {
+    await withSurface(async ({ app, settlements, surface }) => {
+      const jobSettled = settlements.waitForJob("job_tui_execution_activity")
       await app.dispatchProductCommand({
         command: "submitConversationOperation",
         input: {
@@ -187,7 +192,7 @@ describe("@wanex/product-app-tui", () => {
           jobId: "job_tui_execution_activity"
         }
       })
-      await waitForJob(app, "job_tui_execution_activity")
+      await jobSettled
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
         surface,
@@ -310,7 +315,10 @@ describe("@wanex/product-app-tui", () => {
   })
 
   it("executes TUI commands through the Product App surface client", async () => {
-    await withSurface(async ({ app, surface }) => {
+    await withSurface(async ({ settlements, surface }) => {
+      const conversationSettled = settlements.waitForSession(
+        "ses_product_app_tui"
+      )
       const submitted = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.conversation-submit",
         input: {
@@ -333,7 +341,7 @@ describe("@wanex/product-app-tui", () => {
           }
         }
       })
-      await waitForConversation(app, "ses_product_app_tui")
+      await conversationSettled
 
       const selected = await surface.controller.executePaletteEntry({
         id: "product-app-tui.palette.session-select",
@@ -628,12 +636,15 @@ describe("@wanex/product-app-tui", () => {
   })
 
   it("runs an injected line session through the Product App surface client", async () => {
-    await withSurface(async ({ app, surface }) => {
+    await withSurface(async ({ app, settlements, surface }) => {
+      const conversationSettled = settlements.waitForSession(
+        "ses_product_app_tui_line"
+      )
       await app.submitConversationOperation({
         text: "seed product app tui line session",
         sessionId: "ses_product_app_tui_line"
       })
-      await waitForConversation(app, "ses_product_app_tui_line")
+      await conversationSettled
       await surface.refresh()
       const chunks: string[] = []
       const result = await runProductAppTuiLineSession({
@@ -1015,31 +1026,37 @@ describe("@wanex/product-app-tui", () => {
 
   it("reads execution activity through the one-shot CLI", async () => {
     const env = await cliEnv()
-    const seed = await createProductAppShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir: env.WANEX_STORE_DIR as string
-      },
-      artifacts: {
-        explicitPath: env.WANEX_SYSTEM_SERVICE_BIN as string
-      },
-      providerProfile: {
-        id: env.WANEX_PROVIDER_PROFILE_ID as string,
-        modelId: env.WANEX_PROVIDER_MODEL_ID as string
-      }
-    })
+    const settlementFixture =
+      createProductAppTuiConversationSettlementFixture({
+        storeDir: env.WANEX_STORE_DIR as string,
+        serviceBin: env.WANEX_SYSTEM_SERVICE_BIN as string
+      })
     try {
-      await seed.dispatchProductCommand({
-        command: "submitConversationOperation",
-        input: {
-          text: "seed one-shot execution activity",
-          sessionId: "ses_tui_cli_execution",
-          jobId: "job_tui_cli_execution"
+      const seed = await createProductAppShell({
+        storage: settlementFixture.storage,
+        providerProfile: {
+          id: env.WANEX_PROVIDER_PROFILE_ID as string,
+          modelId: env.WANEX_PROVIDER_MODEL_ID as string
         }
       })
-      await waitForJob(seed, "job_tui_cli_execution")
+      try {
+        const jobSettled = settlementFixture.settlements.waitForJob(
+          "job_tui_cli_execution"
+        )
+        await seed.dispatchProductCommand({
+          command: "submitConversationOperation",
+          input: {
+            text: "seed one-shot execution activity",
+            sessionId: "ses_tui_cli_execution",
+            jobId: "job_tui_cli_execution"
+          }
+        })
+        await jobSettled
+      } finally {
+        await seed.dispose()
+      }
     } finally {
-      await seed.dispose()
+      await settlementFixture.dispose()
     }
 
     const result = await runProductAppTuiCli(
@@ -1057,80 +1074,55 @@ describe("@wanex/product-app-tui", () => {
 async function withSurface(
   test: (request: {
     readonly app: ProductAppShell
+    readonly settlements: ProductAppTuiConversationSettlementObserver
     readonly surface: ProductAppTuiSurface
   }) => Promise<void>,
-  options: Partial<Parameters<typeof createProductAppShell>[0]> = {}
+  options: Omit<
+    Partial<Parameters<typeof createProductAppShell>[0]>,
+    "artifacts" | "storage"
+  > = {}
 ): Promise<void> {
   const storeDir = await createStoreDir()
-  const app = await createProductAppShell({
-    storage: {
-      kind: "local-system-service",
-      storeDir
-    },
-    artifacts: {
-      explicitPath: serviceBin
-    },
-    providerProfile: {
-      id: "product-app-tui-test",
-      modelId: "product-app-tui-test-model"
-    },
-    ...options
-  })
-  const productSurface = createProductAppSurfaceAdapter(app, {
-      now: () => 11_111
-  })
-  try {
-    const client = createProductAppSurfaceClient(
-      createInProcessProductAppSurfaceClientTransport(productSurface)
-    )
-    const surface = await createProductAppTuiSurface({
-      client,
-      now: () => 10_101
+  const settlementFixture =
+    createProductAppTuiConversationSettlementFixture({
+      storeDir,
+      serviceBin
     })
-    await test({ app, surface })
+  try {
+    const app = await createProductAppShell({
+      providerProfile: {
+        id: "product-app-tui-test",
+        modelId: "product-app-tui-test-model"
+      },
+      ...options,
+      storage: settlementFixture.storage
+    })
+    try {
+      const productSurface = createProductAppSurfaceAdapter(app, {
+        now: () => 11_111
+      })
+      try {
+        const client = createProductAppSurfaceClient(
+          createInProcessProductAppSurfaceClientTransport(productSurface)
+        )
+        const surface = await createProductAppTuiSurface({
+          client,
+          now: () => 10_101
+        })
+        await test({
+          app,
+          settlements: settlementFixture.settlements,
+          surface
+        })
+      } finally {
+        await productSurface.dispose()
+      }
+    } finally {
+      await app.dispose()
+    }
   } finally {
-    await productSurface.dispose()
-    await app.dispose()
+    await settlementFixture.dispose()
   }
-}
-
-async function waitForConversation(
-  app: ProductAppShell,
-  sessionId: string
-): Promise<void> {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
-    const result = await app.readTrackedConversationOperation({ sessionId })
-    if (
-      result.kind === "product-app.conversation-operation.found" &&
-      result.operation.capabilities.terminal
-    ) {
-      return
-    }
-    await delay(10)
-  }
-  throw new Error(`conversation operation did not settle: ${sessionId}`)
-}
-
-async function waitForJob(app: ProductAppShell, jobId: string): Promise<void> {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
-    const result = await app.readExecutionReference({ kind: "job", id: jobId })
-    if (
-      result.kind === "found" &&
-      (result.activity.state === "succeeded" ||
-        result.activity.state === "failed" ||
-        result.activity.state === "cancelled")
-    ) {
-      return
-    }
-    await delay(10)
-  }
-  throw new Error(`job did not settle: ${jobId}`)
-}
-
-async function delay(milliseconds: number): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, milliseconds))
 }
 
 async function createStoreDir(): Promise<string> {

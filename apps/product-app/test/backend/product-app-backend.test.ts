@@ -25,6 +25,9 @@ import {
   readProductAppBackendOverview,
   projectProductAppBackendSafeError
 } from "../../src/backend/index.js"
+import {
+  createBackendConversationSettlementFixture
+} from "./conversation-settlement-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -83,14 +86,12 @@ describe("@wanex/product-app backend", () => {
 
   it("dispatches product app backend command port requests through safe envelopes", async () => {
     const storeDir = await createStoreDir()
+    const settlementFixture = createBackendConversationSettlementFixture({
+      storeDir,
+      serviceBin
+    })
     const app = await createProductAppBackendApp({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: serviceBin
-      },
+      storage: settlementFixture.storage,
       providerProfile: {
         id: "product-app.backend-port",
         modelId: "product-app.backend-port-model"
@@ -212,6 +213,10 @@ describe("@wanex/product-app backend", () => {
         }
       })
 
+      const conversationSettled =
+        settlementFixture.settlements.waitForSession(
+          "ses_product_app_backend_command_port"
+        )
       const executedAgent = await port.dispatch({
           command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.executeProductCommand,
           input: {
@@ -234,11 +239,7 @@ describe("@wanex/product-app backend", () => {
           }
         }
       })
-      await waitForBackendSessionMessages(
-        app,
-        "ses_product_app_backend_command_port",
-        2
-      )
+      await conversationSettled
 
       await expect(
         port.dispatch({
@@ -317,6 +318,7 @@ describe("@wanex/product-app backend", () => {
       })
     } finally {
       await app.dispose()
+      await settlementFixture.dispose()
     }
   })
 
@@ -458,14 +460,12 @@ describe("@wanex/product-app backend", () => {
 
   it("maps product app backend command port requests to JSON responses without a transport dependency", async () => {
     const storeDir = await createStoreDir()
+    const settlementFixture = createBackendConversationSettlementFixture({
+      storeDir,
+      serviceBin
+    })
     const app = await createProductAppBackendApp({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: serviceBin
-      }
+      storage: settlementFixture.storage
     })
     const mapper = createProductAppBackendCommandPortJsonMapper(
       createProductAppBackendCommandPort(app)
@@ -560,6 +560,10 @@ describe("@wanex/product-app backend", () => {
         }
       })
 
+      const conversationSettled =
+        settlementFixture.settlements.waitForSession(
+          "ses_product_app_backend_json_workbench"
+        )
       await mapper.dispatchJson(
         JSON.stringify({
           command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
@@ -569,11 +573,7 @@ describe("@wanex/product-app backend", () => {
           }
         })
       )
-      await waitForBackendSessionMessages(
-        app,
-        "ses_product_app_backend_json_workbench",
-        2
-      )
+      await conversationSettled
       const workbench = await mapper.dispatchJson(
         JSON.stringify({
           command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductWorkbench,
@@ -719,6 +719,7 @@ describe("@wanex/product-app backend", () => {
       })
     } finally {
       await app.dispose()
+      await settlementFixture.dispose()
     }
   })
 
@@ -1144,14 +1145,12 @@ describe("@wanex/product-app backend", () => {
 
   it("projects product diagnostics detail through typed, port, JSON, and command paths", async () => {
     const storeDir = await createStoreDir()
+    const settlementFixture = createBackendConversationSettlementFixture({
+      storeDir,
+      serviceBin
+    })
     const shell = await createProductAppBackendShell({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: serviceBin
-      },
+      storage: settlementFixture.storage,
       providerProfile: {
         id: "product-app.backend-diagnostics-detail",
         modelId: "product-app.backend-diagnostics-detail-model"
@@ -1163,7 +1162,7 @@ describe("@wanex/product-app backend", () => {
         content: [{ type: "text", text: "seed diagnostics detail" }],
         sessionId: "ses_product_app_backend_diagnostics_detail"
       })
-      await waitForBackendConversation(shell, receipt)
+      await settlementFixture.settlements.waitForJob(receipt.jobId)
 
       await expect(
         shell.commands.readProductDiagnosticsDetail({
@@ -1290,6 +1289,7 @@ describe("@wanex/product-app backend", () => {
       })
     } finally {
       await shell.dispose()
+      await settlementFixture.dispose()
     }
   })
 
@@ -1560,14 +1560,12 @@ describe("@wanex/product-app backend", () => {
 
   it("exposes built-in product commands as contributions and executes allow-listed handlers", async () => {
     const storeDir = await createStoreDir()
+    const settlementFixture = createBackendConversationSettlementFixture({
+      storeDir,
+      serviceBin
+    })
     const app = await createProductAppBackendApp({
-      storage: {
-        kind: "local-system-service",
-        storeDir
-      },
-      artifacts: {
-        explicitPath: serviceBin
-      },
+      storage: settlementFixture.storage,
       providerProfile: {
         id: "product-app.backend-command-registry",
         modelId: "product-app.backend-command-model"
@@ -1605,6 +1603,10 @@ describe("@wanex/product-app backend", () => {
         ])
       })
 
+      const conversationSettled =
+        settlementFixture.settlements.waitForSession(
+          "ses_product_app_backend_command_registry"
+        )
       await expect(
         app.commands.executeProductCommand({
           commandId: "product.agent.submit",
@@ -1623,11 +1625,7 @@ describe("@wanex/product-app backend", () => {
           state: expect.stringMatching(/queued|running|succeeded/)
         }
       })
-      await waitForBackendSessionMessages(
-        app,
-        "ses_product_app_backend_command_registry",
-        2
-      )
+      await conversationSettled
 
       await expect(
         app.commands.executeProductCommand({
@@ -1747,6 +1745,7 @@ describe("@wanex/product-app backend", () => {
       })
     } finally {
       await app.dispose()
+      await settlementFixture.dispose()
     }
   })
 
@@ -3016,56 +3015,4 @@ async function eventually(assertion: () => void): Promise<void> {
     }
   }
   throw lastError
-}
-
-async function waitForBackendConversation(
-  host: {
-    readonly commands: Awaited<
-      ReturnType<typeof createProductAppBackendApp>
-    >["commands"]
-  },
-  reference: {
-    readonly sessionId: string
-    readonly inputId: string
-    readonly turnId: string
-    readonly jobId: string
-  }
-): Promise<void> {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
-    const result = await host.commands.readConversationOperation(reference)
-    if (
-      result.kind === "found" &&
-      !["queued", "running", "cancel_requested"].includes(
-        result.operation.state
-      )
-    ) {
-      return
-    }
-    await delay(10)
-  }
-  throw new Error(`conversation operation did not settle: ${reference.turnId}`)
-}
-
-async function waitForBackendSessionMessages(
-  host: {
-    readonly commands: Awaited<
-      ReturnType<typeof createProductAppBackendApp>
-    >["commands"]
-  },
-  sessionId: string,
-  minimumMessageCount: number
-): Promise<void> {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
-    const transcript = await host.commands.readSessionTranscript({ sessionId })
-    if (
-      transcript.rows.filter((row) => row.kind === "message").length >=
-      minimumMessageCount
-    ) {
-      return
-    }
-    await delay(10)
-  }
-  throw new Error(`session transcript did not settle: ${sessionId}`)
 }

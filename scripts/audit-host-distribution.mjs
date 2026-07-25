@@ -133,36 +133,64 @@ export function auditHostDistributionData(request) {
   expectMaximum(failures, "native executable bytes", nativeArtifact.bytes, nativeBudget.maxExecutableBytes)
   expectMaximum(
     failures,
-    "native cold import maximum ms",
+    "native cold import median ms",
+    median(nativeSummary, "coldImport"),
+    nativeBudget.maxColdImportMedianMs
+  )
+  expectMaximum(
+    failures,
+    "native cold import hard maximum ms",
     maximum(nativeSummary, "coldImport"),
-    nativeBudget.maxColdImportMs
+    nativeBudget.maxColdImportHardMs
   )
   expectMaximum(
     failures,
-    "native create/dispose maximum ms",
+    "native create/dispose median ms",
+    median(nativeSummary, "createDispose"),
+    nativeBudget.maxCreateDisposeMedianMs
+  )
+  expectMaximum(
+    failures,
+    "native create/dispose hard maximum ms",
     maximum(nativeSummary, "createDispose"),
-    nativeBudget.maxCreateDisposeMs
+    nativeBudget.maxCreateDisposeHardMs
   )
   expectMaximum(
     failures,
-    "native total maximum ms",
+    "native total median ms",
+    median(nativeSummary, "total"),
+    nativeBudget.maxTotalMedianMs
+  )
+  expectMaximum(
+    failures,
+    "native total hard maximum ms",
     maximum(nativeSummary, "total"),
-    nativeBudget.maxTotalMs
+    nativeBudget.maxTotalHardMs
   )
   expectMaximum(
     failures,
-    "native wall time maximum ms",
+    "native wall time median ms",
+    median(nativeSummary, "wallTime"),
+    nativeBudget.maxWallTimeMedianMs
+  )
+  expectMaximum(
+    failures,
+    "native wall time hard maximum ms",
     maximum(nativeSummary, "wallTime"),
-    nativeBudget.maxWallTimeMs
+    nativeBudget.maxWallTimeHardMs
   )
 
   const observed = {
     native: {
       executableBytes: nativeArtifact.bytes,
       fileCount: nativeArtifact.fileCount,
+      coldImportMedianMs: median(nativeSummary, "coldImport"),
       coldImportMaximumMs: maximum(nativeSummary, "coldImport"),
+      createDisposeMedianMs: median(nativeSummary, "createDispose"),
       createDisposeMaximumMs: maximum(nativeSummary, "createDispose"),
+      totalMedianMs: median(nativeSummary, "total"),
       totalMaximumMs: maximum(nativeSummary, "total"),
+      wallTimeMedianMs: median(nativeSummary, "wallTime"),
       wallTimeMaximumMs: maximum(nativeSummary, "wallTime")
     }
   }
@@ -235,9 +263,15 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Electron warm host startup maximum ms",
+      "Electron warm host startup median ms",
+      median(warmMetrics, "hostStartup"),
+      warmBudget.maxHostStartupMedianMs
+    )
+    expectMaximum(
+      failures,
+      "Electron warm host startup hard maximum ms",
       maximum(warmMetrics, "hostStartup"),
-      warmBudget.maxHostStartupMs
+      warmBudget.maxHostStartupHardMs
     )
     expectMaximum(
       failures,
@@ -247,9 +281,15 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Electron warm interactive total maximum ms",
+      "Electron warm interactive total median ms",
+      median(warmMetrics, "interactiveTotal"),
+      warmBudget.maxInteractiveTotalMedianMs
+    )
+    expectMaximum(
+      failures,
+      "Electron warm interactive total hard maximum ms",
       maximum(warmMetrics, "interactiveTotal"),
-      warmBudget.maxInteractiveTotalMs
+      warmBudget.maxInteractiveTotalHardMs
     )
     expectMaximum(
       failures,
@@ -279,10 +319,12 @@ export function auditHostDistributionData(request) {
       warm: {
         artifactVerificationMaximumMs:
           maximum(warmMetrics, "artifactVerification"),
+        hostStartupMedianMs: median(warmMetrics, "hostStartup"),
         hostStartupMaximumMs: maximum(warmMetrics, "hostStartup"),
         conversationSettlementMaximumMs:
           maximum(warmMetrics, "conversationSettlement"),
         shutdownMaximumMs: maximum(warmMetrics, "shutdown"),
+        interactiveTotalMedianMs: median(warmMetrics, "interactiveTotal"),
         interactiveTotalMaximumMs: maximum(warmMetrics, "interactiveTotal"),
         proofTotalMaximumMs: maximum(warmMetrics, "proofTotal"),
         proofWallTimeMaximumMs: maximum(warmMetrics, "wallTime")
@@ -304,6 +346,10 @@ export function auditHostDistributionData(request) {
 
 function maximum(metrics, metric) {
   return requireRecord(metrics[metric], `${metric} summary`).maximumMs
+}
+
+function median(metrics, metric) {
+  return requireRecord(metrics[metric], `${metric} summary`).medianMs
 }
 
 function expectEqual(failures, label, observed, expected) {

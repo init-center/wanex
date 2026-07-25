@@ -37,7 +37,9 @@ describe("host distribution budget", () => {
   it("reports every native and Electron ceiling violation", () => {
     const native = nativeReceipt()
     native.artifact.bytes = 101
-    native.samples[2].timingsMs.total = 101
+    native.samples.forEach((sample) => {
+      sample.timingsMs.total = 101
+    })
     native.summary = summarizeNativeRuntimeSamples(native.samples)
     const electron = electronReceipt()
     electron.packaged.unpackedBytes = 101
@@ -53,16 +55,18 @@ describe("host distribution budget", () => {
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
       expect.stringContaining("native executable bytes"),
-      expect.stringContaining("native total maximum ms"),
+      expect.stringContaining("native total median ms"),
       expect.stringContaining("Electron unpacked bytes"),
       expect.stringContaining("Electron node_modules exclusion"),
       expect.stringContaining("Electron cold interactive total ms")
     ]))
   })
 
-  it("enforces warm ceilings independently from the cold sample", () => {
+  it("enforces warm median ceilings independently from the cold sample", () => {
     const electron = electronReceipt()
-    electron.samples[3].runtime.timingsMs.interactiveTotal = 101
+    electron.samples.slice(1, 4).forEach((sample) => {
+      sample.runtime.timingsMs.interactiveTotal = 101
+    })
     electron.summary = summarizeElectronSamples(electron.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
@@ -71,7 +75,24 @@ describe("host distribution budget", () => {
       electron
     })
     expect(result.failures).toEqual([
-      expect.stringContaining("Electron warm interactive total maximum ms")
+      expect.stringContaining("Electron warm interactive total median ms")
+    ])
+  })
+
+  it("retains a hard warm ceiling for one pathological sample", () => {
+    const electron = electronReceipt()
+    electron.samples[3].runtime.timingsMs.interactiveTotal = 201
+    electron.summary = summarizeElectronSamples(electron.samples)
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
+      electron
+    })
+    expect(result.failures).toEqual([
+      expect.stringContaining(
+        "Electron warm interactive total hard maximum ms"
+      )
     ])
   })
 
@@ -119,6 +140,19 @@ describe("host distribution budget", () => {
     ])
   })
 
+  it("retains a hard native ceiling for one pathological sample", () => {
+    const native = nativeReceipt()
+    native.samples[2].timingsMs.total = 201
+    native.summary = summarizeNativeRuntimeSamples(native.samples)
+    expect(auditHostDistributionData({
+      targetId: "linux-x64",
+      budget: budget(false),
+      native
+    }).failures).toEqual([
+      expect.stringContaining("native total hard maximum ms")
+    ])
+  })
+
   it("rejects a native receipt whose declared or raw sample count is not five", () => {
     const declaredCount = nativeReceipt()
     declaredCount.sampleCount = 4
@@ -160,10 +194,14 @@ function nativeBudget() {
   return {
     maxExecutableBytes: 100,
     exactFileCount: 2,
-    maxColdImportMs: 100,
-    maxCreateDisposeMs: 100,
-    maxTotalMs: 100,
-    maxWallTimeMs: 100
+    maxColdImportMedianMs: 100,
+    maxColdImportHardMs: 200,
+    maxCreateDisposeMedianMs: 100,
+    maxCreateDisposeHardMs: 200,
+    maxTotalMedianMs: 100,
+    maxTotalHardMs: 200,
+    maxWallTimeMedianMs: 100,
+    maxWallTimeHardMs: 200
   }
 }
 
@@ -182,9 +220,11 @@ function electronBudget() {
     },
     warm: {
       maxArtifactVerificationMs: 100,
-      maxHostStartupMs: 100,
+      maxHostStartupMedianMs: 100,
+      maxHostStartupHardMs: 200,
       maxShutdownMs: 100,
-      maxInteractiveTotalMs: 100,
+      maxInteractiveTotalMedianMs: 100,
+      maxInteractiveTotalHardMs: 200,
       maxConversationSettlementMs: 100,
       maxProofWallTimeMs: 100
     }

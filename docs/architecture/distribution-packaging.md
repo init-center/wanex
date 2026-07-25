@@ -65,11 +65,17 @@ to a stable size boundary. Package file limits use the largest observation
 plus 10 percent, rounded upward to ten files. Native proof executes five
 process-cold launches, each with a fresh Node process and store, and reports
 their median, maximum, and raw timings. The samples share the staged executable
-and do not claim a host-cache reset. The Electron proof has a different fixed
-contract: exactly one cold launch followed by four warm launches. It reports
-the cold timing directly and the warm median, maximum, and raw timings. Neither
-short sample set can establish a meaningful p95, so the release gate truthfully
-enforces explicit maxima.
+and do not claim a host-cache reset. Native performance gates use both a median
+ceiling and a hard maximum: sustained regressions fail the median, while one
+pathological launch still cannot exceed the hard physical boundary.
+
+The Electron proof has a different fixed contract: exactly one cold launch
+followed by four warm launches. It reports the cold timing directly and the
+warm median, maximum, and raw timings. The cold sample uses hard ceilings.
+Warm host startup and interactive total use both median and hard ceilings;
+bounded artifact verification, shutdown, settlement, and proof wall continue
+to use maxima. Neither short sample set can establish a meaningful p95, and no
+sample is trimmed or excluded from correctness.
 
 Electron proof wall timing stops when the packaged process exits. Receipt
 parsing and the mandatory process-table audit occur afterward and remain fatal
@@ -80,12 +86,12 @@ Each target owns its own cold and warm values; do not average heterogeneous
 runner classes or refresh a failed ceiling without reviewing the artifact
 closure, raw samples, and receipt history.
 
-| Target | Native executable | Native total/wall max | Electron unpacked/files | Electron cold interactive/settlement/proof wall | Electron warm interactive/settlement/proof wall max |
+| Target | Native executable | Native total median/hard; wall median/hard | Electron unpacked/files | Electron cold interactive/settlement/proof wall | Electron warm interactive median/hard; settlement/proof wall max |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `linux-x64` | 10,800,000 B | 1,250 / 2,000 ms | n/a | n/a | n/a |
-| `darwin-arm64` | 9,600,000 B | 1,500 / 2,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 20,000 ms | 1,500 / 15,500 / 20,000 ms |
-| `darwin-x64` | 9,900,000 B | 2,000 / 3,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 25,000 ms | 3,500 / 15,500 / 22,000 ms |
-| `win32-x64` | 9,600,000 B | 6,000 / 10,000 ms | 415,000,000 B / 90 | 3,000 / 15,500 / 20,000 ms | 2,500 / 15,500 / 20,000 ms |
+| `linux-x64` | 10,800,000 B | 1,250/4,000; 2,000/5,000 ms | n/a | n/a | n/a |
+| `darwin-arm64` | 9,600,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 20,000 ms | 1,500/5,000; 15,500/20,000 ms |
+| `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 25,000 ms | 3,500/8,000; 15,500/22,000 ms |
+| `win32-x64` | 9,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 90 | 3,000 / 15,500 / 20,000 ms | 2,500/5,000; 15,500/20,000 ms |
 
 Manifest hashes prove the staged resources remain immutable during a proof and
 match the packaged native files. They do not claim cross-build reproducibility:

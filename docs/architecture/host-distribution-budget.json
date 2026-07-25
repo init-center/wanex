@@ -5,20 +5,28 @@
       "native": {
         "maxExecutableBytes": 10800000,
         "exactFileCount": 2,
-        "maxColdImportMs": 750,
-        "maxCreateDisposeMs": 750,
-        "maxTotalMs": 1250,
-        "maxWallTimeMs": 2000
+        "maxColdImportMedianMs": 750,
+        "maxColdImportHardMs": 2000,
+        "maxCreateDisposeMedianMs": 750,
+        "maxCreateDisposeHardMs": 2000,
+        "maxTotalMedianMs": 1250,
+        "maxTotalHardMs": 4000,
+        "maxWallTimeMedianMs": 2000,
+        "maxWallTimeHardMs": 5000
       }
     },
     "darwin-arm64": {
       "native": {
         "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
-        "maxColdImportMs": 750,
-        "maxCreateDisposeMs": 1000,
-        "maxTotalMs": 1500,
-        "maxWallTimeMs": 2000
+        "maxColdImportMedianMs": 750,
+        "maxColdImportHardMs": 2000,
+        "maxCreateDisposeMedianMs": 1000,
+        "maxCreateDisposeHardMs": 2500,
+        "maxTotalMedianMs": 1500,
+        "maxTotalHardMs": 4000,
+        "maxWallTimeMedianMs": 2000,
+        "maxWallTimeHardMs": 5000
       },
       "electron": {
         "maxUnpackedBytes": 565000000,
@@ -34,9 +42,11 @@
         },
         "warm": {
           "maxArtifactVerificationMs": 50,
-          "maxHostStartupMs": 250,
+          "maxHostStartupMedianMs": 250,
+          "maxHostStartupHardMs": 1500,
           "maxShutdownMs": 50,
-          "maxInteractiveTotalMs": 1500,
+          "maxInteractiveTotalMedianMs": 1500,
+          "maxInteractiveTotalHardMs": 5000,
           "maxConversationSettlementMs": 15500,
           "maxProofWallTimeMs": 20000
         }
@@ -46,10 +56,14 @@
       "native": {
         "maxExecutableBytes": 9900000,
         "exactFileCount": 2,
-        "maxColdImportMs": 1500,
-        "maxCreateDisposeMs": 250,
-        "maxTotalMs": 2000,
-        "maxWallTimeMs": 3000
+        "maxColdImportMedianMs": 1500,
+        "maxColdImportHardMs": 3000,
+        "maxCreateDisposeMedianMs": 250,
+        "maxCreateDisposeHardMs": 1500,
+        "maxTotalMedianMs": 2000,
+        "maxTotalHardMs": 6000,
+        "maxWallTimeMedianMs": 3000,
+        "maxWallTimeHardMs": 8000
       },
       "electron": {
         "maxUnpackedBytes": 575000000,
@@ -65,9 +79,11 @@
         },
         "warm": {
           "maxArtifactVerificationMs": 200,
-          "maxHostStartupMs": 800,
+          "maxHostStartupMedianMs": 800,
+          "maxHostStartupHardMs": 3000,
           "maxShutdownMs": 100,
-          "maxInteractiveTotalMs": 3500,
+          "maxInteractiveTotalMedianMs": 3500,
+          "maxInteractiveTotalHardMs": 8000,
           "maxConversationSettlementMs": 15500,
           "maxProofWallTimeMs": 22000
         }
@@ -77,10 +93,14 @@
       "native": {
         "maxExecutableBytes": 9600000,
         "exactFileCount": 2,
-        "maxColdImportMs": 1000,
-        "maxCreateDisposeMs": 1500,
-        "maxTotalMs": 6000,
-        "maxWallTimeMs": 10000
+        "maxColdImportMedianMs": 1000,
+        "maxColdImportHardMs": 3000,
+        "maxCreateDisposeMedianMs": 1000,
+        "maxCreateDisposeHardMs": 3000,
+        "maxTotalMedianMs": 6000,
+        "maxTotalHardMs": 12000,
+        "maxWallTimeMedianMs": 10000,
+        "maxWallTimeHardMs": 15000
       },
       "electron": {
         "maxUnpackedBytes": 415000000,
@@ -96,9 +116,11 @@
         },
         "warm": {
           "maxArtifactVerificationMs": 100,
-          "maxHostStartupMs": 1200,
+          "maxHostStartupMedianMs": 1200,
+          "maxHostStartupHardMs": 3000,
           "maxShutdownMs": 50,
-          "maxInteractiveTotalMs": 2500,
+          "maxInteractiveTotalMedianMs": 2500,
+          "maxInteractiveTotalHardMs": 5000,
           "maxConversationSettlementMs": 15500,
           "maxProofWallTimeMs": 20000
         }

@@ -31,19 +31,36 @@ export async function loadSdkDistributionPolicy() {
       relativeDir: repositoryRelativePath(workspaceRoot, packageDir),
       platform: configured.platform,
       manifest,
-      entries: readExportEntries(manifest)
+      entries: readExportEntries(manifest, configured.sourceOnlyExports),
+      sourceOnlyExports: [...(configured.sourceOnlyExports ?? [])].sort()
     })
   }
-  const configuredNames = new Set(packages.map((item) => item.name))
+  const publishedNames = new Set(packages.map((item) => item.name))
+  const sourcePreviewPackages = [...rawPolicy.sourcePreviewPackages].sort()
+  const previewNames = new Set(sourcePreviewPackages)
   const publicNames = Object.entries(roles)
     .filter(([, role]) => role === "public-facade" || role === "public-capability")
     .map(([name]) => name)
     .sort()
-  const missing = publicNames.filter((name) => !configuredNames.has(name))
-  const extra = [...configuredNames].filter((name) => !publicNames.includes(name))
-  if (missing.length > 0 || extra.length > 0) {
+  const overlap = [...publishedNames].filter((name) => previewNames.has(name))
+  const missing = publicNames.filter(
+    (name) => !publishedNames.has(name) && !previewNames.has(name)
+  )
+  const extra = [...publishedNames, ...previewNames]
+    .filter((name) => !publicNames.includes(name))
+  const invalidPreview = sourcePreviewPackages.filter(
+    (name) => roles[name] !== "public-capability"
+  )
+  if (
+    overlap.length > 0 ||
+    missing.length > 0 ||
+    extra.length > 0 ||
+    invalidPreview.length > 0
+  ) {
     throw new Error(
-      `SDK policy/public role mismatch: missing=${missing.join(",")} extra=${extra.join(",")}`
+      "SDK policy/public role mismatch: " +
+      `missing=${missing.join(",")} extra=${extra.join(",")} ` +
+      `overlap=${overlap.join(",")} invalidPreview=${invalidPreview.join(",")}`
     )
   }
   const versionByPackage = Object.fromEntries(
@@ -56,15 +73,26 @@ export async function loadSdkDistributionPolicy() {
     schemaVersion: rawPolicy.schemaVersion,
     outputDir: resolve(workspaceRoot, rawPolicy.outputDir),
     internalBundledPackages: [...rawPolicy.internalBundledPackages],
+    sourcePreviewPackages,
     packages: packages.sort((left, right) => left.name.localeCompare(right.name))
   }
 }
 
-export function readExportEntries(manifest) {
+export function readExportEntries(manifest, sourceOnlyExports = []) {
   if (!isRecord(manifest.exports)) {
     throw new Error(`${manifest.name} exports must be an object`)
   }
+  const sourceOnly = new Set(sourceOnlyExports)
+  if (sourceOnly.size !== sourceOnlyExports.length) {
+    throw new Error(`${manifest.name} sourceOnlyExports must be unique`)
+  }
+  for (const exportPath of sourceOnly) {
+    if (exportPath === "." || manifest.exports[exportPath] === undefined) {
+      throw new Error(`${manifest.name} has invalid source-only export ${exportPath}`)
+    }
+  }
   return Object.entries(manifest.exports)
+    .filter(([exportPath]) => !sourceOnly.has(exportPath))
     .map(([exportPath, sourceTarget]) => {
       if (typeof sourceTarget !== "string") {
         throw new Error(`${manifest.name} ${exportPath} must be a source string`)
@@ -102,7 +130,7 @@ export function createStagingManifest(packageInfo) {
     types: "./dist/index.d.ts",
     exports,
     files: ["dist", "README.md"],
-    ...(packageInfo.platform === "node" ? { engines: { node: ">=26" } } : {}),
+    ...(packageInfo.platform === "node" ? { engines: { node: ">=24" } } : {}),
     ...(Object.keys(dependencies).length === 0 ? {} : { dependencies })
   }
 }
@@ -154,6 +182,15 @@ function validateTopLevelPolicy(policy) {
   if (!Array.isArray(policy.internalBundledPackages)) {
     throw new Error("SDK internalBundledPackages must be an array")
   }
+  if (
+    !Array.isArray(policy.sourcePreviewPackages) ||
+    !policy.sourcePreviewPackages.every((name) => typeof name === "string")
+  ) {
+    throw new Error("SDK sourcePreviewPackages must be a string array")
+  }
+  if (new Set(policy.sourcePreviewPackages).size !== policy.sourcePreviewPackages.length) {
+    throw new Error("SDK sourcePreviewPackages must be unique")
+  }
   if (!isRecord(policy.packages)) {
     throw new Error("SDK packages must be an object")
   }
@@ -175,6 +212,15 @@ function validatePackagePolicy(request) {
   }
   if (!request.packageDir.startsWith(workspaceRoot)) {
     throw new Error(`${request.name} resolves outside the workspace`)
+  }
+  if (
+    request.configured.sourceOnlyExports !== undefined &&
+    (!Array.isArray(request.configured.sourceOnlyExports) ||
+      !request.configured.sourceOnlyExports.every(
+        (exportPath) => typeof exportPath === "string"
+      ))
+  ) {
+    throw new Error(`${request.name} sourceOnlyExports must be a string array`)
   }
 }
 

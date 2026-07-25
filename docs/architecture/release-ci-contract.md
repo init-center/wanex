@@ -10,6 +10,10 @@ repository intentionally does not pin a Node patch version with `.node-version`;
 local development and CI should use a recent Node release on or above that
 floor.
 
+This is the source-development floor, not the generated SDK compatibility
+floor. First-RC Node artifacts target and declare Node `>=24`; packed core
+consumers run on both Node 24 LTS and Node 26 Current.
+
 Wanex uses a two-layer pnpm policy:
 
 - `packageManager` pins the exact pnpm version Corepack should resolve for this
@@ -90,6 +94,13 @@ cargo clippy --all-targets -- -D warnings
 node ./scripts/run-eval-harness.mjs
 ```
 
+The release workflow additionally runs `pnpm security:js` and
+`pnpm security:rust` once in the Linux security lane, not once per native
+target. Existing Node 26 Verify jobs prove packed core consumers on Current;
+one additional Linux job repeats the SDK and packed consumer proof on Node 24
+LTS with source engine strictness disabled only for that compatibility
+harness. Generated package engines remain enforced.
+
 The final eval-harness step runs the built-in product regression suite through
 the CLI. It proves that app-facing runtime composition, plugin execution,
 resource handling, workspace apply/review behavior, provider fidelity, team
@@ -150,18 +161,19 @@ support bundles. It also enforces the current source-first manifest policy:
 until the separate compiled artifact pipeline runs. Source manifests remain
 source-first; they are not packed as the SDK.
 
-The compiled SDK release proof builds 10 public identities and 47 entries under
-`target/sdk`, rolls declarations, packs npm tarballs, compares committed API
-Extractor reports, runs `publint` and Are The Types Wrong, installs every
-tarball in a temporary project outside the workspace, imports and typechecks
-every entry, and bundles Runtime/App roots while checking optional closure. The
-external runtime proof then installs six independent projects from a temporary
+The compiled SDK release proof builds the four-package first-RC closure and 29
+entries under `target/sdk`, rolls declarations, excludes
+`@wanex/storage/testing`, packs npm tarballs, compares committed API Extractor
+reports, runs `publint` and Are The Types Wrong, installs every tarball in a
+temporary project outside the workspace, imports and typechecks every entry,
+and bundles Runtime/App roots while checking optional closure. The external
+runtime proof then installs four independent projects from a temporary
 loopback npm registry with exact normal dependencies: minimal Runtime, trusted
-App, provider/tool, Connector, local Storage, and authenticated remote Storage
-plus Runtime. It audits each package lock against the exact compiled Wanex
-closure and rejects workspace, file, link, source-path, or version drift. The
-determinism audit performs two clean builds and requires byte-identical tarball
-hashes. These gates are part of the release contract, not optional examples.
+App, provider/tool, and local Storage. It audits each package lock against the
+exact compiled Wanex closure and rejects workspace, file, link, source-path, or
+version drift. The determinism audit performs two clean builds and requires
+byte-identical tarball hashes. These gates are part of the release contract,
+not optional examples.
 
 The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or

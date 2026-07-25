@@ -41,12 +41,15 @@ tests, and `tsx` do not require a build. The SDK builder reads those public
 exports and writes generated package manifests, ESM, rolled declarations, and
 tarballs under `target/sdk`.
 
-Generated SDK artifacts exist only for public-facade and public-capability
-roles. Internal Protocol is bundled; apps, tests, and examples are excluded.
-Public Wanex dependencies remain package dependencies when their publication,
-security, dependency, or lifecycle boundary is real. A compiled artifact must
-not contain source TypeScript, workspace paths/ranges, tests, fixtures, maps,
-or internal Protocol module references.
+Generated first-RC SDK artifacts exist for the explicitly selected publication
+set, not automatically for every public-facade or public-capability source
+role. Every such role must be classified as either published or
+source-preview. Internal Protocol is bundled; apps, tests, examples, preview
+capabilities, and source-only test exports are excluded. Public Wanex
+dependencies remain package dependencies when their publication, security,
+dependency, or lifecycle boundary is real. A compiled artifact must not
+contain source TypeScript, workspace paths/ranges, tests, fixtures, maps, or
+internal Protocol module references.
 
 ## Internal Shape
 

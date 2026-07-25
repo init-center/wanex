@@ -12,7 +12,7 @@ const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const requiredPackageManager = {
   name: "pnpm",
   version: ">=11 <12",
-  pinnedVersion: "11.9.0"
+  pinnedVersion: "11.17.0"
 }
 
 export async function buildToolchainDoctorReport(options = {}) {

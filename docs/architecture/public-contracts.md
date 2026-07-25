@@ -48,15 +48,16 @@ These are export entry points, not separate npm package identities.
 
 ## Optional Capabilities
 
-- `@wanex/mcp`: official MCP transport adapters for Runtime tools;
-- `@wanex/workspace`: changesets, review, isolation, Git, durable tasks, and
+- `@wanex/mcp`: source-preview official MCP transport adapters for Runtime tools;
+- `@wanex/workspace`: source-preview changesets, review, isolation, Git, durable tasks, and
   explicitly registered coding tools;
-- `@wanex/team`: bounded team conversation and coding delegation policies;
+- `@wanex/team`: source-preview bounded team conversation and coding delegation policies;
 - `@wanex/extension`: dependency-free contribution contracts and resolution;
-- `@wanex/plugin`: plugin trust, install, sandbox, process, and worker lifecycle;
-- `@wanex/connector`: channel contracts, host lifecycle, packaging, and
+- `@wanex/plugin`: source-preview plugin trust, install, sandbox, process, and worker lifecycle;
+- `@wanex/connector`: source-preview channel contracts, host lifecycle, packaging, and
   credential-reference consumption;
-- `@wanex/storage-control-plane`: authenticated remote-store deployment.
+- `@wanex/storage-control-plane`: source-preview authenticated remote-store
+  deployment.
 
 Provider and Connector hosts consume `@wanex/runtime/secrets`; the Runtime root
 does not eagerly import it. Workspace and Team expose focused subpaths for
@@ -93,10 +94,16 @@ session protocol.
 
 ## Compiled Distribution
 
-The compiled SDK publication set is the two public facades plus the eight
-public capabilities listed above. Workspace source manifests remain private and
-point at `src` for development; generated package manifests under `target/sdk`
-point only at ESM JavaScript and rolled declarations.
+The first-RC compiled SDK publication set is exactly `@wanex/runtime`,
+`@wanex/app`, `@wanex/storage`, and `@wanex/extension`. The other optional
+capabilities remain valid source owners but are not generated or published
+until real consumers and clean packed dependency journeys justify them.
+Workspace source manifests remain private and point at `src` for development;
+generated package manifests under `target/sdk` point only at ESM JavaScript
+and rolled declarations.
+
+`@wanex/storage/testing` is a source-only test helper. It is not a generated
+export, API report, or tarball file.
 
 Internal `@wanex/protocol` implementation and types are bundled into each
 artifact that needs them and never appear as a packed dependency or module
@@ -104,12 +111,12 @@ reference. Dependencies between justified public Wanex identities remain exact
 npm dependencies rather than peers or duplicated mega-bundle code. Apps,
 examples, Eval, CLI, and Product packages are not SDK artifacts.
 
-Every public export has a committed API Extractor report. Normal SDK release
+Every generated public export has a committed API Extractor report. Normal SDK release
 proof fails on unapproved API drift, source/internal dependency leakage,
 resolver errors, non-deterministic tarballs, or an external Node/TypeScript/
-bundler consumer failure. Six isolated packed-SDK consumers additionally prove
-minimal Runtime, App, provider/tool, Connector, local Storage, and authenticated
-remote Storage execution from normal registry dependencies.
+bundler consumer failure. Four isolated packed-SDK consumers additionally
+prove minimal Runtime, App, provider/tool, and local Storage execution from
+normal registry dependencies.
 
 ## Ownership
 

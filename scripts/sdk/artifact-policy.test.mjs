@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   extractModuleSpecifiers,
   findArtifactFileFailures,
-  findCompiledModuleFailures
+  findCompiledModuleFailures,
+  findStagingManifestFailures
 } from "./artifact-policy.mjs"
 
 describe("compiled SDK artifact policy", () => {
@@ -70,6 +71,43 @@ describe("compiled SDK artifact policy", () => {
     })).toEqual([
       expect.objectContaining({ code: "artifact-file-extra", path: "src/index.ts" }),
       expect.objectContaining({ code: "artifact-source-leak", path: "src/index.ts" })
+    ])
+  })
+
+  it("enforces the Node 24 floor and source-only export exclusion", () => {
+    const packageInfo = {
+      name: "@wanex/storage",
+      platform: "node",
+      manifest: { version: "0.0.0" },
+      entries: [{ exportPath: ".", artifactPath: "index" }],
+      sourceOnlyExports: ["./testing"]
+    }
+    const manifest = {
+      name: "@wanex/storage",
+      version: "0.0.0",
+      type: "module",
+      license: "UNLICENSED",
+      types: "./dist/index.d.ts",
+      engines: { node: ">=26" },
+      exports: {
+        ".": {
+          types: "./dist/index.d.ts",
+          import: "./dist/index.js",
+          default: "./dist/index.js"
+        },
+        "./testing": {
+          types: "./dist/testing.d.ts",
+          import: "./dist/testing.js",
+          default: "./dist/testing.js"
+        }
+      }
+    }
+
+    expect(findStagingManifestFailures(manifest, packageInfo)
+      .map((failure) => failure.code)).toEqual([
+      "manifest-node-engine",
+      "manifest-exports",
+      "manifest-source-only-export"
     ])
   })
 })

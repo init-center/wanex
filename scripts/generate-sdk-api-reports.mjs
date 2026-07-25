@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir } from "node:fs/promises"
+import { mkdir, readdir, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { Extractor, ExtractorConfig } from "@microsoft/api-extractor"
 import {
@@ -19,6 +19,29 @@ const selected = options.packages.length === 0
   : policy.packages.filter((item) => options.packages.includes(item.name))
 const failures = []
 let reportCount = 0
+
+if (options.packages.length === 0) {
+  const expectedReports = new Set(policy.packages.flatMap((packageInfo) =>
+    packageInfo.entries.map((entry) =>
+      `${encodedPackageName(packageInfo.name)}--${encodeEntry(entry.exportPath)}.api.md`
+    )
+  ))
+  const staleReports = (await readdir(baselineRoot))
+    .filter((name) => name.endsWith(".api.md") && !expectedReports.has(name))
+    .sort()
+  if (options.update) {
+    await Promise.all(staleReports.map((name) =>
+      rm(join(baselineRoot, name), { force: true })
+    ))
+  } else {
+    failures.push(...staleReports.map((name) => ({
+      entry: name,
+      errors: 1,
+      warnings: 0,
+      messages: ["stale API report is outside the current SDK publication set"]
+    })))
+  }
+}
 
 for (const packageInfo of selected) {
   const stagingDir = join(

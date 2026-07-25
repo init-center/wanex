@@ -213,7 +213,9 @@ Wanex uses a current Node.js baseline. The repository requires `>=26` in
 or above that floor. The workspace pins the exact Corepack package manager via
 `packageManager` and supports native `pnpm` `>=11 <12` through `engines.pnpm`.
 Corepack is not a runtime dependency, but when used it must resolve the
-project-pinned pnpm version.
+project-pinned pnpm version. Generated first-RC packages separately target and
+declare Node `>=24`, with packed consumer evidence on Node 24 LTS and Node 26
+Current.
 
 The required release gate is:
 
@@ -252,7 +254,13 @@ pnpm test
 cargo fmt -- --check
 cargo test
 cargo clippy --all-targets -- -D warnings
+pnpm security:js
+pnpm security:rust
 ```
+
+The two security commands perform complete JavaScript and Rust advisory scans
+without ignore lists. They run once in the Linux release lane rather than once
+per native target.
 
 ## Compiled SDK
 
@@ -260,8 +268,9 @@ Workspace manifests stay private and source-first for local development. SDK
 artifacts are generated separately under `target/sdk`, so workspace checks and
 tests never require a prior emitting build.
 
-Build compiled ESM and rolled declarations for the 10 public Runtime/App and
-capability identities:
+Build compiled ESM and rolled declarations for the four-package first-RC
+closure (`@wanex/runtime`, `@wanex/app`, `@wanex/storage`, and
+`@wanex/extension`):
 
 ```bash
 pnpm build:sdk
@@ -276,15 +285,17 @@ pnpm proof:sdk-consumers
 pnpm audit:sdk-determinism
 ```
 
-The generated packages expose 46 explicit entries, contain no TypeScript
-source, workspace ranges, or internal `@wanex/protocol` dependency, and require
-no `tsx` loader. They are ESM-only, target Node 26 where Node APIs are owned,
-and declare `UNLICENSED` until a repository license is selected.
+The generated packages expose 29 explicit entries, contain no TypeScript
+source, workspace ranges, internal `@wanex/protocol` dependency, or
+`@wanex/storage/testing` export, and require no `tsx` loader. They are ESM-only,
+target Node 24 where Node APIs are owned, and declare `UNLICENSED` until a
+repository license is selected. Connector, MCP, Plugin, Storage Control Plane,
+Team, and Workspace remain source-preview capabilities and are not generated
+or published by this first-RC pipeline.
 
-`proof:sdk-consumers` installs six independent projects from a temporary
+`proof:sdk-consumers` installs four independent projects from a temporary
 loopback npm registry and executes minimal Runtime, trusted App, provider/tool,
-Connector, local Storage, and authenticated remote Storage journeys. Its
-machine-readable receipt is written to
+and local Storage journeys. Its machine-readable receipt is written to
 `target/external-consumers/report.json`.
 
 For focused iteration, prefer package-local checks first, then run

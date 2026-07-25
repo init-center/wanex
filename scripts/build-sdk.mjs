@@ -90,7 +90,7 @@ async function buildJavaScript(request) {
     bundle: true,
     format: "esm",
     platform: request.platform,
-    target: request.platform === "node" ? "node26" : "es2022",
+    target: request.platform === "node" ? "node24" : "es2022",
     packages: "external",
     sourcemap: false,
     minify: false,

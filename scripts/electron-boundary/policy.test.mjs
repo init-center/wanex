@@ -227,6 +227,11 @@ describe("private Electron production boundary", () => {
     expect(workflow).toContain("os: macos-15-intel\n            target: darwin-x64")
     expect(workflow).toContain("os: windows-2025\n            target: win32-x64")
     expect(workflow.match(/run: pnpm verify/g)).toHaveLength(1)
+    expect(workflow).toContain("name: Packed Core Node 24")
+    expect(workflow).toContain("node-version: 24")
+    expect(workflow).toContain("pnpm proof:sdk-consumers")
+    expect(workflow).toContain("run: pnpm security:js")
+    expect(workflow).toContain("run: pnpm security:rust")
     expect(workflow).toContain(
       "pnpm stage:native -- --target ${{ matrix.target }}"
     )
@@ -241,7 +246,7 @@ describe("private Electron production boundary", () => {
     )
     expect(workflow).toContain("if: always()")
     expect(workflow).toContain(
-      "actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+      "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
     )
     expect(workflow).toContain(
       "pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9"

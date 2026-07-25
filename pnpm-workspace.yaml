@@ -1,12 +1,17 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  '@hono/node-server': 2.0.11
+  brace-expansion: 5.0.8
+  fast-uri: 3.1.4
+  postcss: 8.5.23
 allowBuilds:
   electron: true
   esbuild: true
 minimumReleaseAgeExclude:
   - '@microsoft/api-extractor-model@7.33.10'
-  - '@microsoft/api-extractor@7.58.11'
+  - '@microsoft/api-extractor@7.58.12'
   - '@rushstack/node-core-library@5.23.3'
   - '@rushstack/terminal@0.24.2'
   - '@rushstack/ts-command-line@5.3.12'

@@ -36,7 +36,7 @@ try {
       "--no-fund",
       ...tarballs,
       "typescript@6.0.3",
-      "@types/node@26.0.1"
+      "@types/node@24.13.3"
     ]
   })
   await execFileAsync(installCommand.command, installCommand.args, {
@@ -136,7 +136,7 @@ async function bundleConsumer(projectDir, entry) {
     bundle: true,
     format: "esm",
     platform: "node",
-    target: "node26",
+    target: "node24",
     write: false,
     metafile: true,
     logLevel: "silent"

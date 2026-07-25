@@ -22,9 +22,9 @@ afterEach(async () => {
 
 describe("doctor-toolchain", () => {
   it("parses package manager declarations from the rightmost at sign", () => {
-    expect(parsePackageManagerSpecifier("pnpm@11.9.0")).toEqual({
+    expect(parsePackageManagerSpecifier("pnpm@11.17.0")).toEqual({
       name: "pnpm",
-      version: "11.9.0"
+      version: "11.17.0"
     })
     expect(parsePackageManagerSpecifier("@scope/tool@1.2.3")).toEqual({
       name: "@scope/tool",
@@ -59,7 +59,7 @@ describe("doctor-toolchain", () => {
 
   it("builds an ok report when required tools satisfy the manifest", async () => {
     const rootDir = await createFixtureRoot({
-      packageManager: "pnpm@11.9.0",
+      packageManager: "pnpm@11.17.0",
       engines: {
         node: ">=26",
         pnpm: ">=11 <12"
@@ -73,7 +73,7 @@ describe("doctor-toolchain", () => {
         "pnpm --version": "11.7.0\n",
         "npm --version": "11.7.0\n",
         "corepack --version": "0.35.0\n",
-        "corepack pnpm --version": "11.9.0\n",
+        "corepack pnpm --version": "11.17.0\n",
         "cargo --version": "cargo 1.90.0\n",
         "rustc --version": "rustc 1.90.0\n",
         "cargo fmt --version": "rustfmt 1.90.0\n",
@@ -95,8 +95,8 @@ describe("doctor-toolchain", () => {
       report.checks.find((check) => check.id === "package_manager.pin")
     ).toMatchObject({
       status: "pass",
-      expected: "pnpm@11.9.0",
-      actual: "pnpm@11.9.0"
+      expected: "pnpm@11.17.0",
+      actual: "pnpm@11.17.0"
     })
     expect(report.checks.find((check) => check.id === "npm.available"))
       .toMatchObject({
@@ -150,7 +150,7 @@ describe("doctor-toolchain", () => {
     ).toMatchObject({
       status: "fail",
       required: true,
-      expected: "pnpm@11.9.0",
+      expected: "pnpm@11.17.0",
       actual: "pnpm@10.23.0"
     })
     expect(
@@ -171,7 +171,7 @@ describe("doctor-toolchain", () => {
 
   it("does not fail the report when Corepack is unavailable", async () => {
     const rootDir = await createFixtureRoot({
-      packageManager: "pnpm@11.9.0",
+      packageManager: "pnpm@11.17.0",
       engines: {
         node: ">=26",
         pnpm: ">=11 <12"

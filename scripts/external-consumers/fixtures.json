@@ -1,10 +1,6 @@
 {
   "schemaVersion": 1,
   "fixtures": {
-    "connector-contract": {
-      "path": "connector-contract",
-      "dependencies": ["@wanex/connector"]
-    },
     "minimal-agent": {
       "path": "minimal-agent",
       "dependencies": ["@wanex/runtime"]
@@ -16,14 +12,6 @@
     "storage-local": {
       "path": "storage-local",
       "dependencies": ["@wanex/storage"]
-    },
-    "storage-remote-runtime": {
-      "path": "storage-remote-runtime",
-      "dependencies": [
-        "@wanex/runtime",
-        "@wanex/storage",
-        "@wanex/storage-control-plane"
-      ]
     },
     "trusted-app": {
       "path": "trusted-app",

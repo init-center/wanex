@@ -4,26 +4,22 @@
   "internalBundledPackages": [
     "@wanex/protocol"
   ],
+  "sourcePreviewPackages": [
+    "@wanex/connector",
+    "@wanex/mcp",
+    "@wanex/plugin",
+    "@wanex/storage-control-plane",
+    "@wanex/team",
+    "@wanex/workspace"
+  ],
   "packages": {
     "@wanex/app": {
       "path": "packages/app",
       "platform": "node"
     },
-    "@wanex/connector": {
-      "path": "packages/connector",
-      "platform": "node"
-    },
     "@wanex/extension": {
       "path": "packages/extension",
       "platform": "neutral"
-    },
-    "@wanex/mcp": {
-      "path": "packages/mcp",
-      "platform": "node"
-    },
-    "@wanex/plugin": {
-      "path": "packages/plugin",
-      "platform": "node"
     },
     "@wanex/runtime": {
       "path": "packages/runtime",
@@ -31,19 +27,10 @@
     },
     "@wanex/storage": {
       "path": "packages/storage",
-      "platform": "node"
-    },
-    "@wanex/storage-control-plane": {
-      "path": "packages/storage-control-plane",
-      "platform": "node"
-    },
-    "@wanex/team": {
-      "path": "packages/team",
-      "platform": "node"
-    },
-    "@wanex/workspace": {
-      "path": "packages/workspace",
-      "platform": "node"
+      "platform": "node",
+      "sourceOnlyExports": [
+        "./testing"
+      ]
     }
   }
 }

@@ -171,42 +171,45 @@ provider dispatch on executable drift. Its final gate passed 55 Eval scenarios,
 212 Runtime tests, the complete compiled/packed SDK proofs, Rust checks, and
 `pnpm verify`.
 
-Phase 774 Cross-Platform And Distribution Gate is now the current
-implementation route. Its frozen plan and implementation record are:
+Phase 774 Cross-Platform And Distribution Gate is complete. Its frozen plan,
+implementation record, and two unchanged-SHA native matrix reviews are:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1037-phase-774-cross-platform-distribution-gate-plan.md`
 
-Implement only the missing native evidence: Windows-safe atomic replacement,
-real process-tree proof, `linux-x64` artifact support, explicit target staging,
-two-host remote load/cancellation, native CI on Linux x64/macOS arm64/macOS
-x64/Windows x64, and enforced physical receipts for the existing headless and
-Electron boundaries. Do not turn platform evidence into Kernel concepts or
-widen cold Runtime/App dependency closure merely to simplify packaging.
+Phase 775 First Public Release Candidate Audit is complete as a release No-Go.
+Its evidence and corrected release route are:
 
-The local macOS arm64 implementation now includes all of those code and test
-paths without adding a package, Protocol field, Storage RPC command, schema
-version, gateway, or compatibility alias. The former narrow remote Eval,
-Electron-only workflow, and stale Runtime physical baseline were replaced
-directly. Phase 774 remains incomplete until native CI passes complete
-`pnpm verify` on Linux x64, macOS arm64, macOS x64, and Windows x64; executes
-each staged binary; executes the three Electron targets; reviews every receipt;
-freezes final target ceilings; and passes a second enforcing run.
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1038-phase-775-first-public-release-candidate-audit-and-replan.md`
 
-Run 40 exposed and the local implementation corrected a Windows-only SDK
-declaration bundling defect: cross-host module-ID classification now treats
-POSIX, drive-letter, and UNC absolute paths as filesystem paths, never package
-imports. Workspace package tests now run two packages concurrently by default.
-Runtime runs first in an exclusive lane under its own Vitest isolation policy;
-Product App Local follows in an exclusive native integration lane with one
-Vitest worker; and the remaining packages use one worker per package. Complete
-Verify executes Product App Local demo coverage only through the canonical
-workspace package test step; `pnpm test:product-app-web-demo` remains the
-focused developer command and is not duplicated earlier in Verify.
-`WANEX_TEST_CONCURRENCY` can lower or raise only the parallel package-process
-budget. Run 41 rejected the former global one-worker override on Windows
-Runtime, so that override was removed directly. Complete local verification
-and authoritative Windows CI evidence remain required for the corrected
-policy.
+Phase 776 Release Surface And Security Baseline is the current implementation
+route. Its frozen implementation plan is:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1039-phase-776-release-surface-security-baseline.md`
+
+Before any npm or GitHub release:
+
+- refresh JavaScript and Rust dependencies and make advisory checks clean
+  without ignores;
+- publish only the justified core closure (`@wanex/runtime`, `@wanex/app`,
+  `@wanex/storage`, and `@wanex/extension`) in the first RC;
+- remove `@wanex/storage/testing` from generated public artifacts;
+- keep Plugin, Connector, MCP, Team, Workspace, and Storage Control Plane as
+  source-preview capabilities until real consumers and clean packed journeys
+  justify publication;
+- support Node 24 LTS in packed consumers while retaining Node 26 for the full
+  development gate;
+- keep the 18 source-package topology and add no compatibility path.
+
+Phase 777 then generates four platform-native System Service npm artifacts and
+proves that a packed external Runtime/App consumer runs locally without a
+source checkout, Rust toolchain, explicit `serviceBin`, postinstall download,
+or bundled development `node_modules`. Phase 778 owns license/version/metadata,
+trusted publishing, provenance, SBOM, checksums, and repository security.
+Phase 779 is the first RC acceptance gate.
+
+License selection and `@wanex` npm scope ownership are explicit owner
+prerequisites. Do not silently choose a license or publish the current
+`0.0.0`/`UNLICENSED` artifacts.
 
 ## Course-Correction Guardrail
 

@@ -8,14 +8,30 @@ import {
 } from "./distribution-policy.mjs"
 
 describe("SDK distribution policy", () => {
-  it("freezes ten public packages and all current public entries", async () => {
+  it("freezes the four-package first-RC surface and source previews", async () => {
     const policy = await loadSdkDistributionPolicy()
-    expect(policy.packages).toHaveLength(10)
+    expect(policy.packages.map((item) => item.name)).toEqual([
+      "@wanex/app",
+      "@wanex/extension",
+      "@wanex/runtime",
+      "@wanex/storage"
+    ])
     expect(policy.packages.reduce(
       (total, packageInfo) => total + packageInfo.entries.length,
       0
-    )).toBe(47)
+    )).toBe(29)
+    expect(policy.sourcePreviewPackages).toEqual([
+      "@wanex/connector",
+      "@wanex/mcp",
+      "@wanex/plugin",
+      "@wanex/storage-control-plane",
+      "@wanex/team",
+      "@wanex/workspace"
+    ])
     expect(policy.internalBundledPackages).toEqual(["@wanex/protocol"])
+    const storage = policy.packages.find((item) => item.name === "@wanex/storage")
+    expect(storage.sourceOnlyExports).toEqual(["./testing"])
+    expect(storage.entries.map((item) => item.exportPath)).not.toContain("./testing")
   })
 
   it("projects compiled conditional exports and exact dependencies", async () => {
@@ -28,6 +44,7 @@ describe("SDK distribution policy", () => {
       version: "0.0.0",
       type: "module",
       license: "UNLICENSED",
+      engines: { node: ">=24" },
       types: "./dist/index.d.ts",
       exports: {
         ".": {
@@ -77,6 +94,22 @@ describe("SDK distribution policy", () => {
         exportPath: "./delegation/graph",
         sourceTarget: "./src/delegation/graph/index.ts",
         artifactPath: "delegation/graph"
+      }
+    ])
+  })
+
+  it("excludes an explicit source-only export without changing the source manifest", () => {
+    expect(readExportEntries({
+      name: "@wanex/example",
+      exports: {
+        ".": "./src/index.ts",
+        "./testing": "./src/testing.ts"
+      }
+    }, ["./testing"])).toEqual([
+      {
+        exportPath: ".",
+        sourceTarget: "./src/index.ts",
+        artifactPath: "index"
       }
     ])
   })

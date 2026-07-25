@@ -26,6 +26,24 @@ export function findStagingManifestFailures(manifest, packageInfo) {
   if (manifest.types !== "./dist/index.d.ts") {
     failures.push(failure("manifest-types", "compiled SDK root types target is incorrect"))
   }
+  if (
+    packageInfo.platform === "node" &&
+    manifest.engines?.node !== ">=24"
+  ) {
+    failures.push(failure(
+      "manifest-node-engine",
+      "compiled Node SDK package must support Node >=24"
+    ))
+  }
+  if (
+    packageInfo.platform !== "node" &&
+    manifest.engines !== undefined
+  ) {
+    failures.push(failure(
+      "manifest-neutral-engine",
+      "compiled neutral SDK package must not declare Node engines"
+    ))
+  }
   if (manifest.dependencies?.["@wanex/protocol"] !== undefined) {
     failures.push(failure("manifest-protocol", "internal Protocol must not be a dependency"))
   }
@@ -61,6 +79,14 @@ export function findStagingManifestFailures(manifest, packageInfo) {
       failures.push(failure(
         "manifest-export-target",
         `${entry.exportPath} does not target compiled ESM and declarations`
+      ))
+    }
+  }
+  for (const exportPath of packageInfo.sourceOnlyExports ?? []) {
+    if (manifest.exports?.[exportPath] !== undefined) {
+      failures.push(failure(
+        "manifest-source-only-export",
+        `source-only export ${exportPath} leaked into the compiled SDK`
       ))
     }
   }

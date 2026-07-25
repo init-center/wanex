@@ -100,7 +100,7 @@ describe("native npm package generation", () => {
       executablePath,
       "package.json",
       "runtime-artifacts.json"
-    ])
+    ].sort())
     expect(await stat(second.tarballPath)).toMatchObject({ size: second.bytes })
     const report = JSON.parse(
       await readFile(join(second.outputDir, "report.json"), "utf8")

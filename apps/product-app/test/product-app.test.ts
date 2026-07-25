@@ -2046,8 +2046,8 @@ async function waitForProductConversation(
   app: ProductAppShell,
   sessionId: string
 ): Promise<void> {
-  const deadline = Date.now() + 2_000
-  while (Date.now() < deadline) {
+  let pollIntervalMs = 25
+  for (;;) {
     const result = await app.readTrackedConversationOperation({ sessionId })
     if (
       result.kind === "product-app.conversation-operation.found" &&
@@ -2055,9 +2055,15 @@ async function waitForProductConversation(
     ) {
       return
     }
-    await delay(10)
+    const status = app.status()
+    if (status.disposed || !status.product.started) {
+      throw new Error(
+        `conversation operation processor stopped before settlement: ${sessionId}`
+      )
+    }
+    await delay(pollIntervalMs)
+    pollIntervalMs = Math.min(pollIntervalMs * 2, 500)
   }
-  throw new Error(`conversation operation did not settle: ${sessionId}`)
 }
 
 async function createStoreDir(): Promise<string> {

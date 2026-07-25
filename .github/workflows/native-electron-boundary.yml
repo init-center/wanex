@@ -113,9 +113,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm stage:native -- --target ${{ matrix.target }}
-      - run: pnpm release:sdk
-      - run: pnpm release:native -- --target ${{ matrix.target }}
-      - run: pnpm proof:sdk-consumers -- --native-target ${{ matrix.target }} --native-package-report target/sdk/native/${{ matrix.target }}/report.json
       - run: pnpm proof:native-runtime
       - if: matrix.electron
         run: pnpm check:electron-boundary
@@ -124,6 +121,9 @@ jobs:
       - if: matrix.electron
         run: pnpm proof:electron-boundary
       - run: pnpm audit:host-distribution -- --target ${{ matrix.target }}
+      - run: pnpm release:sdk
+      - run: pnpm release:native -- --target ${{ matrix.target }}
+      - run: pnpm proof:sdk-consumers -- --native-target ${{ matrix.target }} --native-package-report target/sdk/native/${{ matrix.target }}/report.json
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()

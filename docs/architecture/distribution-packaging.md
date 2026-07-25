@@ -141,15 +141,19 @@ pnpm audit:distribution-graph -- --enforce
 pnpm audit:distribution-footprint -- --enforce
 pnpm audit:facade-footprint
 pnpm audit:package-packlist
-pnpm release:sdk
-pnpm release:native -- --target darwin-arm64
-pnpm proof:sdk-consumers
 pnpm stage:native -- --target darwin-arm64
-pnpm release:native -- --target darwin-arm64
 pnpm proof:native-runtime
 pnpm proof:electron-boundary
 pnpm audit:host-distribution -- --target darwin-arm64
+pnpm release:sdk
+pnpm release:native -- --target darwin-arm64
+pnpm proof:sdk-consumers -- --native-target darwin-arm64 \
+  --native-package-report target/sdk/native/darwin-arm64/report.json
 ```
+
+Run native and Electron measurements before the external npm consumer proof.
+The latter deliberately starts the packaged service several times and must not
+contaminate cold/warm distribution evidence.
 
 Do not preserve a package merely because an example or Eval Harness imports
 it. Real production consumers, security boundaries, distinct dependency

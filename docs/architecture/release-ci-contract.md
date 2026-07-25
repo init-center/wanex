@@ -188,11 +188,20 @@ Each distribution matrix job additionally runs:
 
 ```bash
 pnpm stage:native -- --target <target>
+pnpm proof:native-runtime
+pnpm proof:electron-boundary # desktop targets only
+pnpm audit:host-distribution -- --target <target>
 pnpm release:sdk
 pnpm release:native -- --target <target>
 pnpm proof:sdk-consumers -- --native-target <target> \
   --native-package-report target/sdk/native/<target>/report.json
 ```
+
+Native and Electron lifecycle/performance proofs run before the npm external
+consumer journey. The external journey starts the System Service repeatedly
+and therefore must not warm host caches or perturb the fixed cold/warm
+measurement cohorts. Package generation and installation then consume the
+already audited immutable native artifact without changing it.
 
 The job uploads the target-native npm tarball and portable report beside the
 existing native/Electron receipts.

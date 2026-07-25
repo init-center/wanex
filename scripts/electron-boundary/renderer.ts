@@ -1,26 +1,22 @@
-import type { WanexDesktopBridge } from "./contract.js"
+import type {
+  WanexDesktopBridge,
+  WanexElectronBoundaryRendererSmokeResult
+} from "./contract.js"
 
 declare global {
   interface Window {
     readonly wanexDesktop: WanexDesktopBridge
-    wanexBoundarySmoke(): Promise<WanexRendererSmokeResult>
+    wanexBoundarySmoke(): Promise<WanexElectronBoundaryRendererSmokeResult>
   }
 }
 
-interface WanexRendererSmokeResult {
-  readonly snapshotOk: boolean
-  readonly profilesOk: boolean
-  readonly hotConfigOk: boolean
-  readonly actionOk: boolean
-  readonly isolatedResponse: boolean
-  readonly privacyOk: boolean
-}
-
 const CONVERSATION_COMPLETION_TIMEOUT_MS = 15_000
-const CONVERSATION_REFRESH_INTERVAL_MS = 50
+const CONVERSATION_REFRESH_INITIAL_INTERVAL_MS = 100
+const CONVERSATION_REFRESH_MAX_INTERVAL_MS = 500
 const CONVERSATION_TEXT = "electron production boundary"
 
 window.wanexBoundarySmoke = async () => {
+  const rendererStartedAt = performance.now()
   const snapshot = await window.wanexDesktop.invoke(desktopRequest(
     "snapshot",
     "electron_snapshot"
@@ -43,10 +39,12 @@ window.wanexBoundarySmoke = async () => {
         action: "submit-conversation",
         fields: { text: CONVERSATION_TEXT }
       },
-      options: { pollAfterAction: { limit: 64 } }
+      options: { pollAfterAction: false }
     }
   })
-  const actionOk = await completedConversationAction(action)
+  const conversationAdmittedAt = performance.now()
+  const conversation = await completedConversationAction(action)
+  const conversationSettledAt = performance.now()
   const privacy = readRecord(readRecord(snapshot).snapshot).privacy
   const privacyOk = privacyFlagsAreSafe(privacy)
   const mutablePrivacy = privacy as Record<string, unknown>
@@ -58,19 +56,34 @@ window.wanexBoundarySmoke = async () => {
   const finalLocal = readRecord(readRecord(finalSnapshot).snapshot).local
   const finalProfiles = readRecord(finalLocal).providerProfiles
   const finalPrivacy = readRecord(readRecord(finalSnapshot).snapshot).privacy
-  const result = {
+  const completedAt = performance.now()
+  const checks = {
     snapshotOk: responseOk(snapshot),
     profilesOk: responseOk(profiles),
     hotConfigOk: responseOk(selected) &&
       readRecord(finalProfiles).activeProfileId === "electron-secondary",
-    actionOk,
+    actionOk: conversation.ok,
     isolatedResponse: privacyFlagsAreSafe(finalPrivacy),
     privacyOk
   }
-  document.body.dataset.smoke = Object.values(result).every(Boolean)
+  document.body.dataset.smoke = Object.values(checks).every(Boolean)
     ? "passed"
     : "failed"
-  return result
+  return {
+    checks,
+    timingsMs: {
+      rendererInteractive: elapsed(rendererStartedAt, conversationAdmittedAt),
+      conversationSettlement: elapsed(
+        conversationAdmittedAt,
+        conversationSettledAt
+      ),
+      rendererPostSettlement: elapsed(conversationSettledAt, completedAt)
+    },
+    conversation: {
+      sessionId: conversation.sessionId,
+      refreshCount: conversation.refreshCount
+    }
+  }
 }
 
 void window.wanexDesktop.invoke(desktopRequest("snapshot", "electron_initial"))
@@ -93,19 +106,29 @@ function responseOk(value: unknown): boolean {
     response.ok === true
 }
 
-async function completedConversationAction(value: unknown): Promise<boolean> {
+async function completedConversationAction(value: unknown): Promise<{
+  readonly ok: boolean
+  readonly sessionId: string
+  readonly refreshCount: number
+}> {
   const sessionId = submittedConversationSession(value)
-  if (sessionId === undefined) return false
+  if (sessionId === undefined) {
+    return { ok: false, sessionId: "", refreshCount: 0 }
+  }
 
   const deadline = Date.now() + CONVERSATION_COMPLETION_TIMEOUT_MS
   let current = value
   let refreshIndex = 0
   while (true) {
     const completion = conversationCompletion(current, sessionId)
-    if (completion === "completed") return true
-    if (completion === "failed" || Date.now() >= deadline) return false
+    if (completion === "completed") {
+      return { ok: true, sessionId, refreshCount: refreshIndex }
+    }
+    if (completion === "failed" || Date.now() >= deadline) {
+      return { ok: false, sessionId, refreshCount: refreshIndex }
+    }
 
-    await wait(CONVERSATION_REFRESH_INTERVAL_MS)
+    await wait(conversationRefreshInterval(refreshIndex))
     refreshIndex += 1
     current = await window.wanexDesktop.invoke({
       ...desktopRequest(
@@ -124,6 +147,13 @@ async function completedConversationAction(value: unknown): Promise<boolean> {
       }
     })
   }
+}
+
+function conversationRefreshInterval(refreshIndex: number): number {
+  return Math.min(
+    CONVERSATION_REFRESH_INITIAL_INTERVAL_MS * 2 ** Math.min(refreshIndex, 3),
+    CONVERSATION_REFRESH_MAX_INTERVAL_MS
+  )
 }
 
 function submittedConversationSession(value: unknown): string | undefined {
@@ -193,6 +223,10 @@ function conversationCompletion(
 
 function wait(durationMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, durationMs))
+}
+
+function elapsed(start: number, end: number): number {
+  return Math.round((end - start) * 100) / 100
 }
 
 function privacyFlagsAreSafe(value: unknown): boolean {

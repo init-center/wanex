@@ -14,7 +14,10 @@ import {
   startProductAppDesktopMainHost,
   type ProductAppDesktopMainHost
 } from "@wanex/product-app-local/desktop-host"
-import { WANEX_DESKTOP_INVOKE_CHANNEL } from "./contract.js"
+import {
+  WANEX_DESKTOP_INVOKE_CHANNEL,
+  type WanexElectronBoundaryRendererSmokeResult
+} from "./contract.js"
 
 const processStartedAt = performance.now()
 const smokeReceiptPath = process.env.WANEX_ELECTRON_SMOKE_RECEIPT
@@ -92,11 +95,11 @@ async function start(): Promise<void> {
     const smoke = await window.webContents.executeJavaScript(
       "window.wanexBoundarySmoke()",
       true
-    ) as Readonly<Record<string, unknown>>
-    const smokeReadyAt = performance.now()
-    if (!Object.values(smoke).every((value) => value === true)) {
+    ) as WanexElectronBoundaryRendererSmokeResult
+    if (!Object.values(smoke.checks).every((value) => value === true)) {
       throw new Error(`renderer smoke failed: ${JSON.stringify(smoke)}`)
     }
+    assertRendererSmokeEvidence(smoke)
     const shutdownStartedAt = performance.now()
     await closeOwnedResources()
     const stoppedAt = performance.now()
@@ -104,7 +107,8 @@ async function start(): Promise<void> {
       kind: "wanex.electron-boundary.runtime-receipt",
       ok: true,
       target: artifact.target,
-      smoke,
+      smoke: smoke.checks,
+      conversation: smoke.conversation,
       privacy: {
         exposesStorePath: false,
         exposesServiceBinaryPath: false,
@@ -116,9 +120,15 @@ async function start(): Promise<void> {
         artifactVerification: elapsed(verifyStartedAt, artifactVerifiedAt),
         hostStartup: elapsed(artifactVerifiedAt, hostReadyAt),
         rendererLoad: elapsed(hostReadyAt, rendererReadyAt),
-        rendererRoundTrip: elapsed(rendererReadyAt, smokeReadyAt),
+        rendererInteractive: smoke.timingsMs.rendererInteractive,
+        conversationSettlement: smoke.timingsMs.conversationSettlement,
+        rendererPostSettlement: smoke.timingsMs.rendererPostSettlement,
         shutdown: elapsed(shutdownStartedAt, stoppedAt),
-        total: elapsed(processStartedAt, stoppedAt)
+        interactiveTotal: round(
+          elapsed(processStartedAt, rendererReadyAt) +
+            smoke.timingsMs.rendererInteractive
+        ),
+        proofTotal: elapsed(processStartedAt, stoppedAt)
       }
     })
     app.exit(0)
@@ -175,7 +185,28 @@ async function writeSmokeReceipt(value: unknown): Promise<void> {
 }
 
 function elapsed(start: number, end: number): number {
-  return Math.round((end - start) * 100) / 100
+  return round(end - start)
+}
+
+function round(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function assertRendererSmokeEvidence(
+  smoke: WanexElectronBoundaryRendererSmokeResult
+): void {
+  for (const [name, value] of Object.entries(smoke.timingsMs)) {
+    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+      throw new Error(`renderer smoke ${name} timing is invalid`)
+    }
+  }
+  if (
+    smoke.conversation.sessionId.trim().length === 0 ||
+    !Number.isSafeInteger(smoke.conversation.refreshCount) ||
+    smoke.conversation.refreshCount < 0
+  ) {
+    throw new Error("renderer smoke conversation evidence is invalid")
+  }
 }
 
 function readErrorCode(error: unknown): string {

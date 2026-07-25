@@ -42,7 +42,7 @@ describe("host distribution budget", () => {
     const electron = electronReceipt()
     electron.packaged.unpackedBytes = 101
     electron.packaged.hasApplicationNodeModules = true
-    electron.samples[0].runtime.timingsMs.total = 101
+    electron.samples[0].runtime.timingsMs.interactiveTotal = 101
     electron.summary = summarizeElectronSamples(electron.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
@@ -56,13 +56,13 @@ describe("host distribution budget", () => {
       expect.stringContaining("native total maximum ms"),
       expect.stringContaining("Electron unpacked bytes"),
       expect.stringContaining("Electron node_modules exclusion"),
-      expect.stringContaining("Electron cold total ms")
+      expect.stringContaining("Electron cold interactive total ms")
     ]))
   })
 
   it("enforces warm ceilings independently from the cold sample", () => {
     const electron = electronReceipt()
-    electron.samples[3].runtime.timingsMs.total = 101
+    electron.samples[3].runtime.timingsMs.interactiveTotal = 101
     electron.summary = summarizeElectronSamples(electron.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
@@ -71,13 +71,30 @@ describe("host distribution budget", () => {
       electron
     })
     expect(result.failures).toEqual([
-      expect.stringContaining("Electron warm total maximum ms")
+      expect.stringContaining("Electron warm interactive total maximum ms")
+    ])
+  })
+
+  it("bounds asynchronous settlement separately from interactive startup", () => {
+    const electron = electronReceipt()
+    electron.samples[2].runtime.timingsMs.conversationSettlement = 101
+    electron.summary = summarizeElectronSamples(electron.samples)
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
+      electron
+    })
+    expect(result.failures).toEqual([
+      expect.stringContaining(
+        "Electron warm conversation settlement maximum ms"
+      )
     ])
   })
 
   it("rejects a declared Electron summary that differs from raw samples", () => {
     const electron = electronReceipt()
-    electron.summary.cold.timingsMs.total = 49
+    electron.summary.cold.timingsMs.interactiveTotal = 49
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -159,15 +176,17 @@ function electronBudget() {
     maxNativeBytes: 100,
     exactNativeFileCount: 2,
     cold: {
-      maxTotalMs: 100,
-      maxWallTimeMs: 100
+      maxInteractiveTotalMs: 100,
+      maxConversationSettlementMs: 100,
+      maxProofWallTimeMs: 100
     },
     warm: {
       maxArtifactVerificationMs: 100,
       maxHostStartupMs: 100,
       maxShutdownMs: 100,
-      maxTotalMs: 100,
-      maxWallTimeMs: 100
+      maxInteractiveTotalMs: 100,
+      maxConversationSettlementMs: 100,
+      maxProofWallTimeMs: 100
     }
   }
 }
@@ -214,9 +233,12 @@ function electronReceipt() {
         "artifactVerification",
         "hostStartup",
         "rendererLoad",
-        "rendererRoundTrip",
+        "rendererInteractive",
+        "conversationSettlement",
+        "rendererPostSettlement",
         "shutdown",
-        "total"
+        "interactiveTotal",
+        "proofTotal"
       ].map((metric) => [metric, 50]))
     }
   }))

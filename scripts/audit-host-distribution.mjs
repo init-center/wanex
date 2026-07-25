@@ -211,15 +211,21 @@ export function auditHostDistributionData(request) {
     expectMaximum(failures, "Electron native bytes", packaged.nativeBytes, electronBudget.maxNativeBytes)
     expectMaximum(
       failures,
-      "Electron cold total ms",
-      coldTimings.total,
-      coldBudget.maxTotalMs
+      "Electron cold interactive total ms",
+      coldTimings.interactiveTotal,
+      coldBudget.maxInteractiveTotalMs
     )
     expectMaximum(
       failures,
-      "Electron cold wall time ms",
+      "Electron cold conversation settlement ms",
+      coldTimings.conversationSettlement,
+      coldBudget.maxConversationSettlementMs
+    )
+    expectMaximum(
+      failures,
+      "Electron cold proof wall time ms",
       coldTimings.wallTime,
-      coldBudget.maxWallTimeMs
+      coldBudget.maxProofWallTimeMs
     )
     expectMaximum(
       failures,
@@ -241,15 +247,21 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Electron warm total maximum ms",
-      maximum(warmMetrics, "total"),
-      warmBudget.maxTotalMs
+      "Electron warm interactive total maximum ms",
+      maximum(warmMetrics, "interactiveTotal"),
+      warmBudget.maxInteractiveTotalMs
     )
     expectMaximum(
       failures,
-      "Electron warm wall time maximum ms",
+      "Electron warm conversation settlement maximum ms",
+      maximum(warmMetrics, "conversationSettlement"),
+      warmBudget.maxConversationSettlementMs
+    )
+    expectMaximum(
+      failures,
+      "Electron warm proof wall time maximum ms",
       maximum(warmMetrics, "wallTime"),
-      warmBudget.maxWallTimeMs
+      warmBudget.maxProofWallTimeMs
     )
     observed.electron = {
       unpackedBytes: packaged.unpackedBytes,
@@ -259,16 +271,21 @@ export function auditHostDistributionData(request) {
       nativeBytes: packaged.nativeBytes,
       nativeFileCount: packaged.nativeFileCount,
       cold: {
-        totalMs: coldTimings.total,
-        wallTimeMs: coldTimings.wallTime
+        interactiveTotalMs: coldTimings.interactiveTotal,
+        conversationSettlementMs: coldTimings.conversationSettlement,
+        proofTotalMs: coldTimings.proofTotal,
+        proofWallTimeMs: coldTimings.wallTime
       },
       warm: {
         artifactVerificationMaximumMs:
           maximum(warmMetrics, "artifactVerification"),
         hostStartupMaximumMs: maximum(warmMetrics, "hostStartup"),
+        conversationSettlementMaximumMs:
+          maximum(warmMetrics, "conversationSettlement"),
         shutdownMaximumMs: maximum(warmMetrics, "shutdown"),
-        totalMaximumMs: maximum(warmMetrics, "total"),
-        wallTimeMaximumMs: maximum(warmMetrics, "wallTime")
+        interactiveTotalMaximumMs: maximum(warmMetrics, "interactiveTotal"),
+        proofTotalMaximumMs: maximum(warmMetrics, "proofTotal"),
+        proofWallTimeMaximumMs: maximum(warmMetrics, "wallTime")
       }
     }
   } else if (request.electron !== undefined) {

@@ -57,6 +57,20 @@ describe("private Electron production boundary", () => {
     expect(preload).not.toMatch(/node:(?:fs|child_process|process|os)/)
   })
 
+  it("separates renderer interactivity from bounded conversation settlement", async () => {
+    const renderer = await readFile(join(boundaryRoot, "renderer.ts"), "utf8")
+    expect(renderer).toContain("options: { pollAfterAction: false }")
+    expect(renderer).toContain(
+      "CONVERSATION_REFRESH_INITIAL_INTERVAL_MS = 100"
+    )
+    expect(renderer).toContain(
+      "CONVERSATION_REFRESH_MAX_INTERVAL_MS = 500"
+    )
+    expect(renderer).toContain("conversationSettlement:")
+    expect(renderer).not.toContain("rendererRoundTrip")
+    expect(renderer).not.toContain("setInterval(")
+  })
+
   it("rejects staging dependencies and unexpected files", async () => {
     await buildElectronBoundary()
     const root = await copyToTemp(stagingDir, "wanex-electron-stage-policy-")
@@ -260,9 +274,12 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
         artifactVerification,
         hostStartup: artifactVerification,
         rendererLoad: artifactVerification,
-        rendererRoundTrip: artifactVerification,
+        rendererInteractive: artifactVerification,
+        conversationSettlement: artifactVerification,
+        rendererPostSettlement: artifactVerification,
         shutdown: artifactVerification,
-        total: artifactVerification
+        interactiveTotal: artifactVerification,
+        proofTotal: artifactVerification
       }
     }
   }

@@ -28,15 +28,17 @@
         "maxNativeBytes": 9600000,
         "exactNativeFileCount": 2,
         "cold": {
-          "maxTotalMs": 3000,
-          "maxWallTimeMs": 5000
+          "maxInteractiveTotalMs": 3000,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 20000
         },
         "warm": {
           "maxArtifactVerificationMs": 50,
           "maxHostStartupMs": 250,
           "maxShutdownMs": 50,
-          "maxTotalMs": 1500,
-          "maxWallTimeMs": 2500
+          "maxInteractiveTotalMs": 1500,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 20000
         }
       }
     },
@@ -57,15 +59,17 @@
         "maxNativeBytes": 9900000,
         "exactNativeFileCount": 2,
         "cold": {
-          "maxTotalMs": 8000,
-          "maxWallTimeMs": 12000
+          "maxInteractiveTotalMs": 8000,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 25000
         },
         "warm": {
           "maxArtifactVerificationMs": 200,
           "maxHostStartupMs": 800,
           "maxShutdownMs": 100,
-          "maxTotalMs": 3500,
-          "maxWallTimeMs": 6000
+          "maxInteractiveTotalMs": 3500,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 22000
         }
       }
     },
@@ -86,15 +90,17 @@
         "maxNativeBytes": 9600000,
         "exactNativeFileCount": 2,
         "cold": {
-          "maxTotalMs": 3000,
-          "maxWallTimeMs": 5000
+          "maxInteractiveTotalMs": 3000,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 20000
         },
         "warm": {
           "maxArtifactVerificationMs": 100,
           "maxHostStartupMs": 1200,
           "maxShutdownMs": 50,
-          "maxTotalMs": 2500,
-          "maxWallTimeMs": 3000
+          "maxInteractiveTotalMs": 2500,
+          "maxConversationSettlementMs": 15500,
+          "maxProofWallTimeMs": 20000
         }
       }
     }

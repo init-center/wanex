@@ -8,9 +8,12 @@ const metricNames = [
   "artifactVerification",
   "hostStartup",
   "rendererLoad",
-  "rendererRoundTrip",
+  "rendererInteractive",
+  "conversationSettlement",
+  "rendererPostSettlement",
   "shutdown",
-  "total",
+  "interactiveTotal",
+  "proofTotal",
   "wallTime"
 ]
 

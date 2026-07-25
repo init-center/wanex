@@ -18,6 +18,7 @@ import {
 import { resolveStepCommand } from "../process-step.mjs"
 import {
   loadSdkDistributionPolicy,
+  nativePackageForHost,
   nativePackageForTarget
 } from "../sdk/distribution-policy.mjs"
 import { createNativeNpmPackageManifest } from "../sdk/native-package-manifest.mjs"
@@ -98,6 +99,13 @@ export async function createNativeNpmPackage(
   const workspaceRoot = resolve(options.workspaceRoot)
   const policy = await loadSdkDistributionPolicy()
   const nativePackage = nativePackageForTarget(policy, options.targetId)
+  const hostPackage = nativePackageForHost(policy)
+  if (hostPackage.targetId !== nativePackage.targetId) {
+    throw new Error(
+      "native npm package must be produced on its target host: " +
+      `selected=${nativePackage.targetId} host=${hostPackage.targetId}`
+    )
+  }
   const artifactDir = resolve(
     options.artifactDir ??
       join(workspaceRoot, "target/distribution/native")

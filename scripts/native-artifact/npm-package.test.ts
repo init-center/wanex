@@ -13,7 +13,14 @@ import {
   createNativeNpmPackage,
   parseNativeNpmPackageArgs
 } from "./npm-package.js"
-import { stageNativeArtifact } from "./staging.js"
+import {
+  nativeTargetId,
+  stageNativeArtifact
+} from "./staging.js"
+import {
+  loadSdkDistributionPolicy,
+  nativePackageForTarget
+} from "../sdk/distribution-policy.mjs"
 
 const tempDirs: string[] = []
 
@@ -44,6 +51,13 @@ describe("native npm package generation", () => {
   })
 
   it("packs one target-restricted dependency-free native artifact", async () => {
+    const targetId = nativeTargetId()
+    const policy = await loadSdkDistributionPolicy()
+    const nativePackage = nativePackageForTarget(policy, targetId)
+    const executableName = nativePackage.platform === "win32"
+      ? "wanex-system-service.exe"
+      : "wanex-system-service"
+    const executablePath = `${targetId}/${executableName}`
     const workspaceRoot = await fixtureWorkspace()
     const artifactDir = join(workspaceRoot, "target/native")
     const sourceBin = join(workspaceRoot, "source-bin")
@@ -51,7 +65,7 @@ describe("native npm package generation", () => {
     await chmod(sourceBin, 0o755)
     await stageNativeArtifact({
       workspaceRoot,
-      targetId: "darwin-arm64",
+      targetId,
       outputDir: artifactDir,
       sourceBin,
       releaseVersion: "1.2.3",
@@ -61,29 +75,29 @@ describe("native npm package generation", () => {
 
     const first = await createNativeNpmPackage({
       workspaceRoot,
-      targetId: "darwin-arm64",
+      targetId,
       artifactDir
     })
     const firstHash = first.sha256
     const second = await createNativeNpmPackage({
       workspaceRoot,
-      targetId: "darwin-arm64",
+      targetId,
       artifactDir
     })
 
     expect(second).toMatchObject({
-      name: "@wanex/system-service-darwin-arm64",
+      name: nativePackage.name,
       version: "1.2.3",
-      targetId: "darwin-arm64",
-      platform: "darwin",
-      arch: "arm64",
-      rustTarget: "aarch64-apple-darwin",
+      targetId,
+      platform: nativePackage.platform,
+      arch: nativePackage.arch,
+      rustTarget: nativePackage.rustTarget,
       executableBytes: Buffer.byteLength("native-package-fixture"),
       executableSha256: expect.stringMatching(/^[a-f0-9]{64}$/)
     })
     expect(second.sha256).toBe(firstHash)
     expect(second.files.map((file) => file.path)).toEqual([
-      "darwin-arm64/wanex-system-service",
+      executablePath,
       "package.json",
       "runtime-artifacts.json"
     ])
@@ -91,25 +105,25 @@ describe("native npm package generation", () => {
     const report = JSON.parse(
       await readFile(join(second.outputDir, "report.json"), "utf8")
     )
-    expect(report.outputDir).toBe("target/sdk/native/darwin-arm64")
+    expect(report.outputDir).toBe(`target/sdk/native/${targetId}`)
     expect(report.stagingDir).toBe(
-      "target/sdk/native/darwin-arm64/staging"
+      `target/sdk/native/${targetId}/staging`
     )
     expect(report.tarballPath).toBe(
-      `target/sdk/native/darwin-arm64/tarballs/${second.filename}`
+      `target/sdk/native/${targetId}/tarballs/${second.filename}`
     )
     const manifest = JSON.parse(
       await readFile(join(second.stagingDir, "package.json"), "utf8")
     )
     expect(manifest).toEqual({
-      name: "@wanex/system-service-darwin-arm64",
+      name: nativePackage.name,
       version: "1.2.3",
       license: "UNLICENSED",
-      os: ["darwin"],
-      cpu: ["arm64"],
+      os: [nativePackage.platform],
+      cpu: [nativePackage.arch],
       files: [
         "runtime-artifacts.json",
-        "darwin-arm64/wanex-system-service"
+        executablePath
       ],
       exports: {
         "./runtime-artifacts.json": "./runtime-artifacts.json"
@@ -122,6 +136,13 @@ describe("native npm package generation", () => {
   })
 
   it("rejects target drift and output outside target", async () => {
+    const targetId = nativeTargetId()
+    const otherTargetId = [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-x64",
+      "win32-x64"
+    ].find((candidate) => candidate !== targetId)!
     const workspaceRoot = await fixtureWorkspace()
     const artifactDir = join(workspaceRoot, "target/native")
     const sourceBin = join(workspaceRoot, "source-bin")
@@ -129,7 +150,7 @@ describe("native npm package generation", () => {
     await chmod(sourceBin, 0o755)
     await stageNativeArtifact({
       workspaceRoot,
-      targetId: "darwin-arm64",
+      targetId: otherTargetId,
       outputDir: artifactDir,
       sourceBin,
       releaseVersion: "1.2.3",
@@ -139,15 +160,43 @@ describe("native npm package generation", () => {
 
     await expect(createNativeNpmPackage({
       workspaceRoot,
-      targetId: "darwin-x64",
+      targetId,
       artifactDir
     })).rejects.toThrow("selected target")
+
+    await stageNativeArtifact({
+      workspaceRoot,
+      targetId,
+      outputDir: artifactDir,
+      sourceBin,
+      releaseVersion: "1.2.3",
+      serviceVersion: "4.5.6",
+      build: false
+    })
     await expect(createNativeNpmPackage({
       workspaceRoot,
-      targetId: "darwin-arm64",
+      targetId,
       artifactDir,
       outputDir: join(workspaceRoot, "outside")
     })).rejects.toThrow("below workspace target")
+  })
+
+  it("rejects package generation on a different host tuple", async () => {
+    const targetId = nativeTargetId()
+    const otherTargetId = [
+      "darwin-arm64",
+      "darwin-x64",
+      "linux-x64",
+      "win32-x64"
+    ].find((candidate) => candidate !== targetId)!
+    const workspaceRoot = await fixtureWorkspace()
+
+    await expect(createNativeNpmPackage({
+      workspaceRoot,
+      targetId: otherTargetId
+    })).rejects.toThrow(
+      `selected=${otherTargetId} host=${targetId}`
+    )
   })
 })
 

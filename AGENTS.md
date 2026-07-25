@@ -190,20 +190,24 @@ Commit `cf51542` passed GitHub Actions run `30172845259`, including the
 four-platform Verify/distribution matrix, Linux JavaScript and Rust security
 scans, and the Node 24 packed-core proof.
 
-Phase 777 Native System Service npm Distribution is the current implementation
-route. Its frozen implementation plan is:
+Phase 777 Native System Service npm Distribution is complete. Its frozen
+implementation and final verification record is:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1040-phase-777-native-system-service-npm-distribution-plan.md`
 
-Phase 777 generates four platform-native System Service npm artifacts and
-proves that packed external Runtime/App consumers run locally without a source
-checkout, Rust toolchain, explicit `serviceBin`, `WANEX_SYSTEM_SERVICE_BIN`,
-postinstall download, or bundled development `node_modules`. It must keep the
-18 source-package topology, preserve trusted explicit/environment/manifest
-overrides, and retain manifest containment, size, digest, executable, and
-process-cleanup verification. Phase 778 owns license/version/metadata, trusted
-publishing, provenance, SBOM, checksums, and repository security. Phase 779 is
-the first RC acceptance gate.
+Commit `1cbd40c1054a4aa6c80eaf11c98e23903f5a7080` passed GitHub Actions
+run `30179550460`, including all four complete Verify jobs, the Node 24
+packed-core proof, all four native npm distribution jobs, and all three desktop
+Electron proofs. Each host passed four isolated external consumers with
+automatic Runtime/App native resolution and no explicit binary path, source
+checkout, Rust toolchain, downloader, postinstall, or bundled development
+`node_modules`. The source topology remains exactly 18 packages.
+
+Phase 778 owns license/version/metadata, trusted publishing, provenance, SBOM,
+checksums, signing policy, and repository security. It is owner-gated: do not
+start publication work, select a license, claim npm scope ownership, or replace
+the current internal `0.0.0`/`UNLICENSED` metadata without explicit owner
+decisions. Phase 779 remains the unchanged-SHA first RC acceptance gate.
 
 License selection and `@wanex` npm scope ownership are explicit owner
 prerequisites. Do not silently choose a license or publish the current

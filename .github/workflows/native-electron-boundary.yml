@@ -24,12 +24,16 @@ jobs:
         include:
           - os: ubuntu-24.04
             target: linux-x64
+            test_concurrency: 2
           - os: macos-15
             target: darwin-arm64
+            test_concurrency: 2
           - os: macos-15-intel
             target: darwin-x64
+            test_concurrency: 2
           - os: windows-2025
             target: win32-x64
+            test_concurrency: 1
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -47,6 +51,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+        env:
+          WANEX_TEST_CONCURRENCY: ${{ matrix.test_concurrency }}
       - if: matrix.target == 'linux-x64'
         run: cargo install cargo-audit --version 0.22.2 --locked
       - if: matrix.target == 'linux-x64'

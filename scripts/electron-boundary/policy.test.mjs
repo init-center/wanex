@@ -231,7 +231,14 @@ describe("private Electron production boundary", () => {
     expect(workflow).toContain("os: macos-15")
     expect(workflow).toContain("os: macos-15-intel\n            target: darwin-x64")
     expect(workflow).toContain("os: windows-2025\n            target: win32-x64")
+    expect(workflow).toContain(
+      "target: win32-x64\n            test_concurrency: 1"
+    )
+    expect(workflow.match(/test_concurrency: 2/g)).toHaveLength(3)
     expect(workflow.match(/run: pnpm verify/g)).toHaveLength(1)
+    expect(workflow).toContain(
+      "WANEX_TEST_CONCURRENCY: ${{ matrix.test_concurrency }}"
+    )
     expect(workflow).toContain("name: Packed Core Node 24")
     expect(workflow).toContain("node-version: 24")
     expect(workflow).toContain("pnpm proof:sdk-consumers")

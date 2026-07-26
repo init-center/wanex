@@ -220,7 +220,7 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
   }
 
   async function pollSurfaceEvents() {
-    if (actionInFlight || pollInFlight || surfaceHasEditableFocus()) {
+    if (actionInFlight || pollInFlight || surfaceInteractionBlocksPolling()) {
       scheduleNextPoll();
       return;
     }
@@ -238,6 +238,9 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
         }
       });
       if (requestSurfaceVersion !== surfaceVersion) {
+        return;
+      }
+      if (surfaceInteractionBlocksPolling()) {
         return;
       }
       const nextSurface = replaceSurface(payload.document.html);
@@ -517,6 +520,62 @@ ${PRODUCT_APP_WEB_COMMAND_INPUT_BROWSER_SCRIPT}
       active instanceof HTMLSelectElement ||
       active.isContentEditable === true
     );
+  }
+
+  function surfaceInteractionBlocksPolling() {
+    return surfaceHasEditableFocus() || surfaceHasUncommittedInput();
+  }
+
+  function surfaceHasUncommittedInput() {
+    const surface = document.querySelector(SURFACE_SELECTOR);
+    if (!surface) {
+      return false;
+    }
+    const fields = surface.querySelectorAll("input, textarea, select");
+    for (const field of fields) {
+      if (field instanceof HTMLInputElement) {
+        if (field.type === "file") {
+          if (field.files && field.files.length > 0) {
+            return true;
+          }
+          continue;
+        }
+        if (field.type === "checkbox" || field.type === "radio") {
+          if (field.checked !== field.defaultChecked) {
+            return true;
+          }
+          continue;
+        }
+        if (field.value !== field.defaultValue) {
+          return true;
+        }
+        continue;
+      }
+      if (field instanceof HTMLTextAreaElement) {
+        if (field.value !== field.defaultValue) {
+          return true;
+        }
+        continue;
+      }
+      if (field instanceof HTMLSelectElement) {
+        if (selectHasUncommittedValue(field)) {
+          return true;
+        }
+        continue;
+      }
+    }
+    return false;
+  }
+
+  function selectHasUncommittedValue(select) {
+    const options = Array.from(select.options);
+    const hasExplicitDefault = options.some((option) => option.defaultSelected);
+    const selected = options.map((option) => option.selected);
+    const defaults = options.map((option, index) =>
+      option.defaultSelected ||
+      (!select.multiple && !hasExplicitDefault && index === 0)
+    );
+    return selected.some((value, index) => value !== defaults[index]);
   }
 
   function restoreFocusAfterAction(surface, actionInput) {

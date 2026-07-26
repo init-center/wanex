@@ -209,6 +209,20 @@ start publication work, select a license, claim npm scope ownership, or replace
 the current internal `0.0.0`/`UNLICENSED` metadata without explicit owner
 decisions. Phase 779 remains the unchanged-SHA first RC acceptance gate.
 
+The owner deferred Phase 778 and Phase 779 on 2026-07-26 to prioritize Product
+functionality. Phase 780 Product Browser Interaction Integrity is complete. It
+fixes the proven in-flight polling race and protects uncommitted form state
+without changing polling transport, Kernel concepts, package topology, or
+public release metadata. Its implementation and verification record is:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1042-phase-780-product-browser-interaction-integrity-plan.md`
+
+Phase 781 Unconfigured Product And Trusted Provider Setup is the next planning
+step. Do not implement renderer credential persistence, expose secret values or
+secret references in Product read models, or preserve the implicit production
+fake-provider path merely for compatibility. Freeze the trusted host boundary
+and executable first-run acceptance journey before changing code.
+
 License selection and `@wanex` npm scope ownership are explicit owner
 prerequisites. Do not silently choose a license or publish the current
 `0.0.0`/`UNLICENSED` artifacts.

@@ -543,6 +543,132 @@ describe("Product App Local Web host browser client", () => {
     }
   })
 
+  it("keeps an in-flight poll from replacing newly edited form state", async () => {
+    const window = createWindow()
+    const fetchCalls: FetchCall[] = []
+    const firstPoll = deferred<void>()
+    installDocument(window, {
+      requestPath: "/wanex/product-app-web/request",
+      pollIntervalMs: 10,
+      surfaceHtml: [
+        `<section data-wanex-product-app-web="surface">`,
+        `<form data-action="submit-conversation">`,
+        `<textarea name="text"></textarea>`,
+        `<button type="submit">Send</button>`,
+        `</form>`,
+        `<p>initial surface</p>`,
+        `</section>`
+      ].join("")
+    })
+    setFetch(window, async (url, init) => {
+      fetchCalls.push({ url, init })
+      if (fetchCalls.length === 1) {
+        await firstPoll.promise
+      }
+      return jsonResponse({
+        kind: "product-app-web.response",
+        ok: true,
+        operation: "pollEvents",
+        requestId: `dom_poll_${fetchCalls.length}`,
+        document: {
+          kind: "product-app-web.document",
+          html: [
+            `<section data-wanex-product-app-web="surface">`,
+            `<form data-action="submit-conversation">`,
+            `<textarea name="text"></textarea>`,
+            `<button type="submit">Send</button>`,
+            `</form>`,
+            `<p>polled surface</p>`,
+            `</section>`
+          ].join("")
+        }
+      })
+    })
+
+    try {
+      installBrowserClient(window)
+      await delay(20)
+      expect(fetchCalls).toHaveLength(1)
+
+      const textarea = window.document.querySelector("textarea")
+      expect(textarea).not.toBeNull()
+      textarea?.focus()
+      if (textarea !== null) {
+        textarea.value = "draft created while poll is in flight"
+      }
+      firstPoll.resolve()
+      await delay(0)
+
+      expect(surfaceText(window)).toContain("initial surface")
+      expect(window.document.querySelector("textarea")).toBe(textarea)
+      expect(textarea?.value).toBe("draft created while poll is in flight")
+      expect(window.document.activeElement).toBe(textarea)
+
+      textarea?.blur()
+      await delay(25)
+      expect(fetchCalls).toHaveLength(1)
+      expect(textarea?.value).toBe("draft created while poll is in flight")
+
+      if (textarea !== null) {
+        textarea.value = ""
+      }
+      await delay(25)
+      expect(fetchCalls.length).toBeGreaterThan(1)
+      expect(surfaceText(window)).toContain("polled surface")
+    } finally {
+      window.close()
+    }
+  })
+
+  it("defers polling for an unfocused changed select value", async () => {
+    const window = createWindow()
+    const fetchCalls: FetchCall[] = []
+    installDocument(window, {
+      requestPath: "/wanex/product-app-web/request",
+      pollIntervalMs: 10,
+      surfaceHtml: [
+        `<section data-wanex-product-app-web="surface">`,
+        `<form data-action="set-layout">`,
+        `<select name="layout">`,
+        `<option value="single">Single</option>`,
+        `<option value="split">Split</option>`,
+        `</select>`,
+        `<button type="submit">Apply</button>`,
+        `</form>`,
+        `</section>`
+      ].join("")
+    })
+    setFetch(window, async (url, init) => {
+      fetchCalls.push({ url, init })
+      return jsonResponse({
+        kind: "product-app-web.response",
+        ok: true,
+        operation: "pollEvents",
+        document: {
+          kind: "product-app-web.document",
+          html: `<section data-wanex-product-app-web="surface"><p>polled</p></section>`
+        }
+      })
+    })
+
+    try {
+      const select = window.document.querySelector("select") as HTMLSelectElement
+      select.value = "split"
+      installBrowserClient(window)
+      await delay(25)
+
+      expect(fetchCalls).toHaveLength(0)
+      expect(select.value).toBe("split")
+
+      select.value = "single"
+      await delay(25)
+      expect(fetchCalls.length).toBeGreaterThan(0)
+      expect(surfaceText(window)).toContain("polled")
+    } finally {
+      window.close()
+    }
+  })
+
   it("activates generated command fields and manages bounded dense array rows", () => {
     const window = createWindow()
     installDocument(window, {

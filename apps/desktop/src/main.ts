@@ -37,6 +37,7 @@ import {
 } from "./window-policy.js";
 import {
   createDesktopExtensionComposition,
+  createDesktopExtensionProofSelectionQueue,
   selectLocalExtensionDirectory,
 } from "./extensions.js";
 
@@ -51,6 +52,8 @@ const proofProfileId = process.env.WANEX_DESKTOP_PROOF_PROFILE_ID;
 const proofProviderBaseUrl = process.env.WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL;
 const proofProviderCredential = process.env.WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL;
 const proofStep = process.env.WANEX_DESKTOP_PROOF_STEP;
+const proofExtensionSelections =
+  process.env.WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS;
 
 if (proofUserDataPath !== undefined) {
   app.setPath("userData", proofUserDataPath);
@@ -115,10 +118,14 @@ async function start(): Promise<void> {
   failurePhase = "credential_store_resolution";
   const artifactVerifiedAt = performance.now();
   const credentialStore = await createDesktopCredentialStore(storage);
+  const proofSelection = createDesktopExtensionProofSelectionQueue({
+    proofEnabled: proofReceiptPath !== undefined,
+    serializedSelections: proofExtensionSelections,
+  });
   const pluginComposition = createDesktopExtensionComposition({
     userDataDir: app.getPath("userData"),
-    selectLocalPackage: async () => await selectLocalExtensionDirectory(
-      async () => {
+    selectLocalPackage: proofSelection ?? (async () =>
+      await selectLocalExtensionDirectory(async () => {
         const options: OpenDialogOptions = {
           title: "Add local extension",
           buttonLabel: "Review extension",
@@ -128,8 +135,7 @@ async function start(): Promise<void> {
         return owner === undefined || owner.isDestroyed()
           ? await dialog.showOpenDialog(options)
           : await dialog.showOpenDialog(owner, options);
-      },
-    ),
+      })),
   });
   failurePhase = "product_host_startup";
   product = await startLocalWebApp({

@@ -22,6 +22,7 @@ describe("Product Desktop direct development start", () => {
       WANEX_DESKTOP_PROOF_STEP: "relaunch-chat",
       WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: "http://127.0.0.1:1/v1",
       WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: "forbidden-credential",
+      WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: '["/forbidden-extension"]',
     };
 
     const plan = createProductDesktopStartPlan({
@@ -86,6 +87,9 @@ describe("Product Desktop direct development start", () => {
     );
     expect(plan.desktop.env).not.toHaveProperty(
       "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
+    );
+    expect(plan.desktop.env).not.toHaveProperty(
+      "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
     );
     expect(JSON.stringify(plan)).not.toContain("desktop-proof-selected");
     expect(inheritedEnvironment.WANEX_DESKTOP_PROOF_RECEIPT).toBe(

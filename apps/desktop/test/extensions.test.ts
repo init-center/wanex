@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  createDesktopExtensionProofSelectionQueue,
   extensionInstallBaseDir,
   selectLocalExtensionDirectory,
 } from "../src/extensions.js";
@@ -40,5 +41,36 @@ describe("Desktop local extension boundary", () => {
       canceled: false,
       filePaths: ["   "],
     }))).rejects.toThrow("returned an empty directory");
+  });
+
+  it("bounds proof-only trusted selections and fails when exhausted", async () => {
+    const first = join("", "proof", "extension-v1");
+    const second = join("", "proof", "extension-v2");
+    const absoluteFirst = join(process.cwd(), first);
+    const absoluteSecond = join(process.cwd(), second);
+    const select = createDesktopExtensionProofSelectionQueue({
+      proofEnabled: true,
+      serializedSelections: JSON.stringify([absoluteFirst, absoluteSecond]),
+    });
+    if (select === undefined) throw new Error("proof selection queue is missing");
+
+    await expect(select()).resolves.toBe(absoluteFirst);
+    await expect(select()).resolves.toBe(absoluteSecond);
+    await expect(select()).rejects.toThrow("queue is exhausted");
+  });
+
+  it("rejects proof selections outside the proof owner", () => {
+    expect(() => createDesktopExtensionProofSelectionQueue({
+      proofEnabled: false,
+      serializedSelections: JSON.stringify([join(process.cwd(), "fixture")]),
+    })).toThrow("require proof mode");
+    expect(() => createDesktopExtensionProofSelectionQueue({
+      proofEnabled: true,
+      serializedSelections: JSON.stringify(["relative/fixture"]),
+    })).toThrow("must be an absolute path");
+    expect(() => createDesktopExtensionProofSelectionQueue({
+      proofEnabled: true,
+      serializedSelections: "[]",
+    })).toThrow("contain 1 to 8 paths");
   });
 });

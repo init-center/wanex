@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import {
   createPluginCommandComposition,
   type PluginCommandCompositionPort,
@@ -12,6 +12,52 @@ export interface NativeDirectorySelectionResult {
 export interface DesktopExtensionCompositionOptions {
   readonly userDataDir: string;
   readonly selectLocalPackage: () => Promise<string | undefined>;
+}
+
+export function createDesktopExtensionProofSelectionQueue(options: {
+  readonly proofEnabled: boolean;
+  readonly serializedSelections: string | undefined;
+}): (() => Promise<string | undefined>) | undefined {
+  const { serializedSelections } = options;
+  if (!options.proofEnabled) {
+    if (serializedSelections !== undefined) {
+      throw new Error("Desktop extension proof selections require proof mode");
+    }
+    return undefined;
+  }
+  if (serializedSelections === undefined) return undefined;
+  if (Buffer.byteLength(serializedSelections, "utf8") > 16_384) {
+    throw new Error("Desktop extension proof selections exceed 16384 bytes");
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serializedSelections);
+  } catch {
+    throw new Error("Desktop extension proof selections must be valid JSON");
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0 || parsed.length > 8) {
+    throw new Error("Desktop extension proof selections must contain 1 to 8 paths");
+  }
+  const selections = parsed.map((value) => {
+    if (typeof value !== "string") {
+      throw new Error("Desktop extension proof selection must be a string");
+    }
+    const path = value.trim();
+    if (path.length === 0 || path.includes("\0") || !isAbsolute(path)) {
+      throw new Error("Desktop extension proof selection must be an absolute path");
+    }
+    return path;
+  });
+  let index = 0;
+  return async () => {
+    const selected = selections[index];
+    if (selected === undefined) {
+      throw new Error("Desktop extension proof selection queue is exhausted");
+    }
+    index += 1;
+    return selected;
+  };
 }
 
 export function createDesktopExtensionComposition(

@@ -218,6 +218,7 @@ describe("Local Schedule durable delivery", () => {
       modelEndpoint: fakeEndpoint("schedule-recovery", "schedule-recovery-model"),
     })
     hosts.push(host)
+    await host.scheduleController.stop()
     const created = await host.scheduleAdapter.port.createDefinition({
       definition: scheduleSpec("Recover committed App admission"),
       idempotencyKey: "recover-app-admission",

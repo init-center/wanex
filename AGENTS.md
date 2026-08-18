@@ -3192,15 +3192,26 @@ Storage, Runtime nor Product knows Cron evaluation, timezone/DST, timer,
 occurrence execution, or scheduler worker identity. SCHEDULE-1A/1B/1C and the
 complete SCHEDULE-1 foundation are finished.
 
-SCHEDULE-2 is next. Add one trusted Local Host scheduler that parses recurrence,
-handles IANA timezone/DST and bounded misfire policy, maintains one
-earliest-deadline timer, and recomputes immediately from durable schedule
-invalidation. On a due occurrence it must use the existing atomic claim and
-only a successful claim may call App's existing one-shot
-`submitScheduledTick()`. Startup/reconnect must recover from durable truth and
-process only the bounded policy-selected occurrence; it must not replay an
-unbounded backlog. Do not add a package, domain table, second Store,
-Surface/Web/TUI, per-schedule timer, fixed-interval definition polling, time
-wheel without measured scale evidence, catch-up storm, Gateway, lock file,
-read-then-write admission, scheduler-job pseudo-claim, compatibility alias, or
-Runtime schedule semantics.
+SCHEDULE-2 Trusted Local Host Scheduler is complete. Its frozen plan,
+implementation evidence, and final best-practice review are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1387-phase-schedule-2-trusted-local-host-scheduler-plan.md`
+
+Local Host now owns strict recurrence validation, one earliest-deadline timer,
+value-free invalidation hot recomputation, durable pending recovery, bounded
+misfire, retry, deterministic App admission, exact occurrence settlement, and
+host lifecycle ordering. A per-schedule durable pending index prevents backlog
+growth and makes startup recovery proportional to unfinished work. Definition,
+occurrence, and composition responsibilities are separate files in the same
+Schedule owner; no package, Store, Gateway, daemon, polling loop, per-schedule
+timer, time wheel, compatibility path, or Runtime Cron semantics were added.
+
+SCHEDULE-3 is next and is limited to user-facing Schedule management and safe
+status projection through the existing Product/App/Surface path: create/edit,
+enable/disable/remove, next run, last outcome, and actionable attention/retry.
+It must not expose prompt text in list summaries, raw occurrence records,
+internal retry/errors, job/attempt/runtime identities, Storage keys, or trusted
+Host methods. It must not create a second scheduler owner, renderer timer,
+polling loop, package, Store, Shell, Surface, command protocol, Gateway,
+compatibility alias, or Runtime Schedule semantics. Freeze a dedicated
+SCHEDULE-3 plan and its renderer-safe read/action contract before editing code.

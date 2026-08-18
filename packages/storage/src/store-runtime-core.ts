@@ -23,6 +23,8 @@ import type {
 import {
   assertArray,
   expectBoolean,
+  fromRpcConfigCompareAndApplyResult,
+  fromRpcConfigEntry,
   fromRpcDoctorReport,
   fromRpcEvent,
   fromRpcFileRecord,
@@ -42,6 +44,12 @@ import {
 } from "./codec.js"
 import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { RuntimeStorageRpcCommand } from "./generated/storage-rpc.js"
+import type {
+  ConditionalConfigMutationRequest,
+  ConfigCompareAndApplyResult,
+  ConfigEntryRecord,
+  ListConfigEntriesRequest
+} from "./types-runtime-core.js"
 
 export class RuntimeStoreMethods extends RpcStoreFacetBase {
   async appendEvent(event: RuntimeEvent): Promise<void> {
@@ -82,6 +90,31 @@ export class RuntimeStoreMethods extends RpcStoreFacetBase {
     })
   }
 
+  async compareAndApplyConfigMutations(
+    request: ConditionalConfigMutationRequest
+  ): Promise<ConfigCompareAndApplyResult> {
+    if (request.conditions.length === 0) {
+      throw new Error("config compare-and-apply requires at least one condition")
+    }
+    const conditions = request.conditions.map((condition) => ({
+      key: condition.key,
+      expected_revision: condition.expectedRevision
+    }))
+    const value = await this.callRuntime({
+      command: "compare-and-apply-config-mutations",
+      conditions: conditions as [
+        typeof conditions[number],
+        ...typeof conditions[number][]
+      ],
+      puts: request.puts.map((entry) => ({
+        key: entry.key,
+        value: toRpcJsonValue(entry.value)
+      })),
+      deletes: [...request.deletes]
+    })
+    return fromRpcConfigCompareAndApplyResult(value)
+  }
+
   async hasLiveSecretReference(secretRef: string): Promise<boolean> {
     return expectBoolean(await this.callRuntime({
       command: "has-live-secret-reference",
@@ -94,6 +127,27 @@ export class RuntimeStoreMethods extends RpcStoreFacetBase {
       command: "get-config",
       key
     })
+  }
+
+  async getConfigEntry(key: string): Promise<ConfigEntryRecord | null> {
+    const value = await this.callRuntime({
+      command: "get-config-entry",
+      key
+    })
+    return value === null ? null : fromRpcConfigEntry(value)
+  }
+
+  async listConfigEntries(
+    request: ListConfigEntriesRequest
+  ): Promise<ConfigEntryRecord[]> {
+    const value = await this.callRuntime({
+      command: "list-config-entries",
+      prefix: request.prefix,
+      after_key: request.afterKey ?? null,
+      limit: request.limit ?? null
+    })
+    assertArray(value, "config entries")
+    return value.map(fromRpcConfigEntry)
   }
 
   async writeAtomicFile(request: AtomicWriteRequest): Promise<FileRecord> {

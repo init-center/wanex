@@ -15,8 +15,14 @@ export interface CoreStore
 
 export type { ContextStore } from "./types-context.js"
 export type {
+  ConditionalConfigMutationRequest,
+  ConfigCompareAndApplyResult,
+  ConfigConditionConflict,
+  ConfigEntryRecord,
   ConfigMutationRequest,
+  ConfigMutationCondition,
   ConfigPut,
+  ListConfigEntriesRequest,
   RuntimeStore
 } from "./types-runtime-core.js"
 export type { MediaGenerationStore } from "./types-media-generation.js"

@@ -38,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_event_log_objective
 CREATE TABLE IF NOT EXISTS config_entry (
   key TEXT PRIMARY KEY,
   value_json TEXT NOT NULL,
+  revision INTEGER NOT NULL DEFAULT 1,
   updated_at INTEGER NOT NULL
 );
 
@@ -1200,4 +1201,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (14, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (15, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

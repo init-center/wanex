@@ -36,7 +36,7 @@ pub use error::{Result, SystemServiceError};
 pub use models::*;
 
 pub const SERVICE_NAME: &str = "wanex-system-service";
-pub const CURRENT_SCHEMA_VERSION: i64 = 14;
+pub const CURRENT_SCHEMA_VERSION: i64 = 15;
 const BASELINE_SCHEMA: &str = include_str!("../schema.sql");
 
 #[derive(Debug)]

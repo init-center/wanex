@@ -20,11 +20,11 @@ use wanex_system_service::{
     BeginMediaGenerationOperation, BeginProviderInvocation, BeginToolExecution, CancelJob,
     ChangeObjectiveState, ClaimJob, CleanupExpiredResourceTickets, CommitBudget,
     CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
-    ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal, DeferToolExecution,
-    EnqueueJob, ExecuteApprovedPlan, FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization,
-    FinishConnectorSession, FinishContextEpochGeneration, FinishProviderInvocation,
-    FinishToolExecution, GetActiveContextEpoch, GetDelegationGraphNode, GetJob,
-    GetMediaGenerationOperation, GetPluginActionExecutionAdmission, GetPluginInstall,
+    ConfigMutationCondition, ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal,
+    DeferToolExecution, EnqueueJob, ExecuteApprovedPlan, FailChannelDelivery, FailJob,
+    FailTeamDeliveryMaterialization, FinishConnectorSession, FinishContextEpochGeneration,
+    FinishProviderInvocation, FinishToolExecution, GetActiveContextEpoch, GetDelegationGraphNode,
+    GetJob, GetMediaGenerationOperation, GetPluginActionExecutionAdmission, GetPluginInstall,
     GetPluginManifest, GetToolExecutionByCall, HeartbeatConnectorSession, HeartbeatJob,
     IngestChannelInboundEvent, IngestResource, InterruptSessionTurn, ListChannelBindings,
     ListChannelInboundEvents, ListChannelProjections, ListConnectorCredentials,
@@ -483,11 +483,74 @@ fn handle_runtime_request(
             service.apply_config_mutations(&puts, &deletes)?;
             Ok(Value::Null)
         }
+        RuntimeStorageRpcCommand::CompareAndApplyConfigMutationsCommand(command) => {
+            let conditions = command
+                .conditions
+                .into_iter()
+                .map(|condition| {
+                    let expected_revision = condition
+                        .expected_revision
+                        .0
+                        .map(|revision| {
+                            i64::try_from(revision.get()).map_err(|_| {
+                                SystemServiceError::InvalidInput(
+                                    "config expected revision exceeds i64".to_string(),
+                                )
+                            })
+                        })
+                        .transpose()?;
+                    Ok(ConfigMutationCondition {
+                        key: String::from(condition.key),
+                        expected_revision,
+                    })
+                })
+                .collect::<Result<Vec<_>, SystemServiceError>>()?;
+            let puts = command
+                .puts
+                .into_iter()
+                .map(|entry| {
+                    let value: Value = project_wire(entry.value)?;
+                    Ok((String::from(entry.key), value))
+                })
+                .collect::<Result<Vec<_>, SystemServiceError>>()?;
+            let deletes = command
+                .deletes
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>();
+            serde_json::to_value(service.compare_and_apply_config_mutations(
+                &conditions,
+                &puts,
+                &deletes,
+            )?)
+            .map_err(Into::into)
+        }
         RuntimeStorageRpcCommand::HasLiveSecretReferenceCommand(command) => Ok(Value::Bool(
             service.has_live_secret_reference(&String::from(command.secret_ref))?,
         )),
         RuntimeStorageRpcCommand::GetConfigCommand(command) => {
             serde_json::to_value(service.get_config(&command.key)?).map_err(Into::into)
+        }
+        RuntimeStorageRpcCommand::GetConfigEntryCommand(command) => {
+            serde_json::to_value(service.get_config_entry(&command.key)?).map_err(Into::into)
+        }
+        RuntimeStorageRpcCommand::ListConfigEntriesCommand(command) => {
+            let limit = command
+                .limit
+                .map(|limit| {
+                    u32::try_from(limit.get()).map_err(|_| {
+                        SystemServiceError::InvalidInput(
+                            "config list limit exceeds u32".to_string(),
+                        )
+                    })
+                })
+                .transpose()?;
+            serde_json::to_value(service.list_config_entries(
+                &command.prefix,
+                command.after_key.0.as_deref(),
+                limit,
+            )?)
+            .map_err(Into::into)
         }
         RuntimeStorageRpcCommand::WriteAtomicFileCommand(command) => {
             let content = decode_base64(&command.content_base64)?;

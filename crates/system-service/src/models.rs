@@ -23,6 +23,34 @@ pub struct RuntimeEvent {
     pub occurred_at: i64,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConfigEntryRecord {
+    pub key: String,
+    pub value: Value,
+    pub revision: i64,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConfigMutationCondition {
+    pub key: String,
+    pub expected_revision: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConfigConditionConflict {
+    pub key: String,
+    pub expected_revision: Option<i64>,
+    pub current: Option<ConfigEntryRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConfigCompareAndApplyResult {
+    pub applied: bool,
+    pub entries: Vec<ConfigEntryRecord>,
+    pub conflicts: Vec<ConfigConditionConflict>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionRecord {
     pub id: String,

@@ -1,4 +1,5 @@
 export * from "./codec-scheduler.js"
+export * from "./codec-config.js"
 
 export {
   assertArray,

@@ -27,8 +27,11 @@ export type RuntimeStorageRpcCommand =
   | QueryEventsCommand
   | PutConfigCommand
   | ApplyConfigMutationsCommand
+  | CompareAndApplyConfigMutationsCommand
   | HasLiveSecretReferenceCommand
   | GetConfigCommand
+  | GetConfigEntryCommand
+  | ListConfigEntriesCommand
   | WriteAtomicFileCommand
   | IngestResourceCommand
   | GetResourceCommand
@@ -52,6 +55,7 @@ export type JsonValue =
 export type NullableInteger = number | null;
 export type NullableUnsigned32 = Unsigned32 | null;
 export type Unsigned32 = number;
+export type ConfigExpectedRevisionWire = number | null;
 export type NullableResourceKindWire = ResourceKindWire | null;
 export type ResourceKindWire = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 export type NullableResourceOriginWire = ResourceOriginWire | null;
@@ -529,6 +533,26 @@ export interface ConfigPutWire {
   key: string;
   value: JsonValue;
 }
+export interface CompareAndApplyConfigMutationsCommand {
+  command: "compare-and-apply-config-mutations";
+  /**
+   * @minItems 1
+   * @maxItems 64
+   */
+  conditions: [ConfigMutationConditionWire, ...ConfigMutationConditionWire[]];
+  /**
+   * @maxItems 64
+   */
+  puts: ConfigPutWire[];
+  /**
+   * @maxItems 64
+   */
+  deletes: string[];
+}
+export interface ConfigMutationConditionWire {
+  key: string;
+  expected_revision: ConfigExpectedRevisionWire;
+}
 export interface HasLiveSecretReferenceCommand {
   command: "has-live-secret-reference";
   secret_ref: string;
@@ -536,6 +560,16 @@ export interface HasLiveSecretReferenceCommand {
 export interface GetConfigCommand {
   command: "get-config";
   key: string;
+}
+export interface GetConfigEntryCommand {
+  command: "get-config-entry";
+  key: string;
+}
+export interface ListConfigEntriesCommand {
+  command: "list-config-entries";
+  prefix: string;
+  after_key: NullableString;
+  limit: number | null;
 }
 export interface WriteAtomicFileCommand {
   command: "write-atomic-file";
@@ -2748,4 +2782,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "09088670e08b3a2f17b2b7981306157f308d1655e6041fd743ca4df7c173dd48" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "d735e9c1c9c0f9f37517f8d1085058835dcc9079de0278d6bb6c0dbab2d495a6" as const

@@ -82,6 +82,11 @@ the public Runtime bootstrap, executes a real turn, verifies immutable hashes,
 disposes twice, and checks process cleanup. It must never copy workspace
 `node_modules` beside the native artifact.
 
+Distributed Rust executables use Cargo's release-profile symbol stripping.
+Development builds retain their normal diagnostics; release staging must not
+ship a static symbol table inside the runtime executable merely to satisfy a
+later packaging step.
+
 Product Desktop packaging contains one dependency-free application ASAR with
 only `main.cjs` and `package.json`. External `native` and `credentials`
 directories contain byte-identical manifested System Service and current-target

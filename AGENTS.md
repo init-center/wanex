@@ -3111,22 +3111,28 @@ Web, TUI, and Local Host closures remain Plugin-free. Do not restore Host-local
 duplicate models, renderer paths, Plugin imports in renderer packages, polling,
 a second event bus/cache, compatibility aliases, or a second Shell.
 
-PLUGIN-4C is next, but its exact UX and trusted native-selection bridge must be
-frozen before implementation. Add one real Web/Desktop Settings journey with
-progressive disclosure, review confirmation, canonical reread, accessibility,
-focus, narrow-layout, privacy, and failure-recovery proof. Do not add a TUI
-install form, generic filesystem bridge, renderer path input, Plugin-owned Web
-state, package layers, Gateway, polling, or compatibility APIs.
-
-PLUGIN-4C implementation is frozen in:
+PLUGIN-4C is complete. Its frozen plan and completion evidence are:
 
 - `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1381-phase-plugin-4c-real-web-desktop-settings-ux-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1382-phase-plugin-4c-real-web-desktop-settings-ux-completion.md`
 
-Implement one canonical Web management projection and keep local reviews only
-in the typed one-shot ActionResult/component state. The Desktop product leaf
-may connect the existing Local Host Plugin composition port to
-`@wanex/plugin-command-host`; Local Host and Web must remain independent of the
+Web now owns one canonical management projection and keeps local reviews only
+in the typed one-shot ActionResult/component state. Desktop is the sole trusted
+product leaf connecting the existing Local Host Plugin composition port to
+`@wanex/plugin-command-host`; Local Host and Web remain independent of the
 Plugin implementation. Native selection stays inside Electron main and passes
-the path directly to the trusted Host callback. Do not add a preload or generic
-filesystem IPC, a Plugin HTTP endpoint, renderer path input, a second install
-cache, management polling, TUI forms, compatibility shapes, or PLUGIN-5 claims.
+the path directly to the trusted Host callback. The packaged product still has
+no application `node_modules`, preload, renderer path input, Plugin HTTP
+endpoint, second install cache, management polling, or TUI management form.
+
+PLUGIN-4D integrated Product acceptance is next and frozen in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1383-post-plugin-4c-review-and-phase-plugin-4d-integrated-product-acceptance-plan.md`
+
+Use a minimal real local Plugin fixture through visible Web controls, the real
+Product Surface, Plugin Command Host, immutable install base, dynamic command
+catalog, execution activity, exact state transitions, retry, and relaunch. A
+proof-only trusted selection queue may replace the native picker only inside
+the proof owner; it must never reach renderer contracts. Do not use mock-only
+UI tests to claim integrated acceptance, add a production bypass action, create
+a package or test app, or start marketplace/download/update/signature work.

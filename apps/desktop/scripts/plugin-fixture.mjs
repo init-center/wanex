@@ -66,7 +66,7 @@ export async function createProductDesktopPluginProofFixtures(options) {
           id: commandId,
           name: "proof-extension-echo",
           title: "Proof extension echo",
-          category: "Extensions",
+          category: "extensions",
           paletteVisibility: "visible",
           actionId: "echo"
         }]

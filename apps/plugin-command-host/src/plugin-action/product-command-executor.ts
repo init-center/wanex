@@ -22,7 +22,8 @@ export function createPluginActionProductCommandExecutor(
       return parsePluginActionHandlerRef(handlerRef) !== undefined
     },
     preview(request) {
-      return isJsonValue(request.input)
+      const payload = request.input === undefined ? null : request.input
+      return isJsonValue(payload)
         ? { ok: true }
         : {
             ok: false,
@@ -30,13 +31,14 @@ export function createPluginActionProductCommandExecutor(
           }
     },
     async execute(request) {
-      if (!isJsonValue(request.input)) {
+      const payload = request.input === undefined ? null : request.input
+      if (!isJsonValue(payload)) {
         throw new Error("plugin action command input must be a JSON value")
       }
       const submission = await invokePluginActionHandler(options.port, {
         handlerRef: request.handlerRef,
         principalId: options.principalId,
-        payload: request.input,
+        payload,
         ...(options.submission?.maxAttempts === undefined
           ? {}
           : { maxAttempts: options.submission.maxAttempts }),

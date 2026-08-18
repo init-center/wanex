@@ -500,6 +500,18 @@ function classifyRendererProofFailure(error: unknown): string {
     }
   }
   const message = error instanceof Error ? error.message : String(error)
+  const pluginTimeout = message.match(
+    /Plugin(?: restore)? proof timed out during ([a-z0-9_]+)/
+  )
+  if (pluginTimeout !== null) {
+    return `plugin_${pluginTimeout[1] ?? "renderer"}_timeout`.slice(0, 256)
+  }
+  const pluginRejected = message.match(
+    /Plugin proof ([a-z0-9_]+) rejected:/
+  )
+  if (pluginRejected !== null) {
+    return `plugin_${pluginRejected[1] ?? "review"}_rejected`.slice(0, 256)
+  }
   for (const stage of [
     "guided_follow_up_ready",
     "guided_parent_draft",

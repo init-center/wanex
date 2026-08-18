@@ -252,6 +252,72 @@ export type WanexDesktopProviderRelaunchProofStep =
 
 export type WanexDesktopTeamProofStep = "relaunch-team"
 
+export type WanexDesktopPluginProofStep =
+  | "relaunch-plugin-install"
+  | "relaunch-plugin-restore"
+
+export interface WanexDesktopPluginProofExpected {
+  readonly pluginId: string
+  readonly commandId: string
+  readonly v1Version: string
+  readonly v2Version: string
+}
+
+interface WanexDesktopPluginProofResultBase
+  extends WanexDesktopPluginProofExpected {
+  readonly ok: boolean
+  readonly step: WanexDesktopPluginProofStep
+  readonly providerEvidenceRedacted: boolean
+  readonly pathEvidenceHidden: boolean
+  readonly internalIdentityEvidenceHidden: boolean
+  readonly timingsMs: {
+    readonly rendererInteractive: number
+    readonly conversationSettlement: number
+    readonly rendererPostSettlement: number
+  }
+}
+
+export interface WanexDesktopPluginInstallProofResult
+  extends WanexDesktopPluginProofResultBase {
+  readonly step: "relaunch-plugin-install"
+  readonly initialEmptyStateVisible: boolean
+  readonly cancelReviewEvidenceVisible: boolean
+  readonly reviewCancelled: boolean
+  readonly cancelledReviewNotInstalled: boolean
+  readonly v1Installed: boolean
+  readonly v1CommandAvailable: boolean
+  readonly v1CommandExecuted: boolean
+  readonly v1Disabled: boolean
+  readonly commandAbsentWhileDisabled: boolean
+  readonly v1Enabled: boolean
+  readonly commandReturnedAfterEnable: boolean
+  readonly v2ReviewEvidenceVisible: boolean
+  readonly v2Installed: boolean
+  readonly v1DisabledAfterReplacement: boolean
+  readonly singleActiveVersion: boolean
+  readonly v2CommandExecuted: boolean
+}
+
+export interface WanexDesktopPluginRestoreProofResult
+  extends WanexDesktopPluginProofResultBase {
+  readonly step: "relaunch-plugin-restore"
+  readonly reviewTransientAbsent: boolean
+  readonly busyTransientAbsent: boolean
+  readonly v1DisabledRestored: boolean
+  readonly v2InstalledRestored: boolean
+  readonly singleActiveVersionRestored: boolean
+  readonly commandRestored: boolean
+  readonly restoredCommandExecuted: boolean
+  readonly v2Removed: boolean
+  readonly v1Removed: boolean
+  readonly canonicalRemovedStateVisible: boolean
+  readonly commandAbsentAfterRemoval: boolean
+}
+
+export type WanexDesktopPluginProofResult =
+  | WanexDesktopPluginInstallProofResult
+  | WanexDesktopPluginRestoreProofResult
+
 export interface WanexDesktopTeamProofResult {
   readonly ok: boolean
   readonly step: WanexDesktopTeamProofStep

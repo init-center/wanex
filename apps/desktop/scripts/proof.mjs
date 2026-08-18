@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -15,6 +15,7 @@ import {
   summarizeProductDesktopSamples
 } from "./metrics.mjs"
 import { listenProductDesktopProofProvider } from "./provider-fixture.mjs"
+import { createProductDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
 import {
   WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
   WANEX_DESKTOP_PROOF_CANCEL_PARTIAL_RESPONSE,
@@ -59,7 +60,8 @@ const PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_PROFILE_ID",
   "WANEX_DESKTOP_PROOF_STEP",
   "WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL",
-  "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL"
+  "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
+  "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS"
 ]
 
 if (import.meta.main) {
@@ -89,6 +91,9 @@ export async function proveProductDesktop() {
     const immutableBefore = await hashImmutableResources(
       buildReceipt.packaged.packageDir
     )
+    const pluginFixtures = await createProductDesktopPluginProofFixtures({
+      root: join(proofRoot, "plugin-fixtures")
+    })
     const samples = []
     let retainedScreenshot
     for (let index = 0; index < PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT; index += 1) {
@@ -144,7 +149,8 @@ export async function proveProductDesktop() {
       proofRoot,
       userDataDir,
       provider,
-      credential: proofCredential
+      credential: proofCredential,
+      plugins: pluginFixtures
     })
     const immutableAfter = await hashImmutableResources(
       buildReceipt.packaged.packageDir
@@ -220,9 +226,34 @@ export async function proveProductDesktop() {
   } finally {
     await Promise.all([
       provider.close(),
-      rm(proofRoot, { recursive: true, force: true })
+      removeProductDesktopProofRoot(proofRoot)
     ])
   }
+}
+
+export async function removeProductDesktopProofRoot(root) {
+  if (process.platform !== "win32") {
+    await makeProofTreeOwnerWritable(root)
+  }
+  await rm(root, { recursive: true, force: true })
+}
+
+async function makeProofTreeOwnerWritable(path) {
+  try {
+    await chmod(path, 0o700)
+  } catch (error) {
+    if (error?.code === "ENOENT") return
+    throw error
+  }
+  const entries = await readdir(path, { withFileTypes: true })
+  await Promise.all(entries.map(async (entry) => {
+    const child = join(path, entry.name)
+    if (entry.isDirectory()) {
+      await makeProofTreeOwnerWritable(child)
+    } else if (entry.isFile()) {
+      await chmod(child, 0o600)
+    }
+  }))
 }
 
 export async function proveProductDesktopProviderRelaunch(options) {
@@ -244,6 +275,14 @@ export async function proveProductDesktopProviderRelaunch(options) {
     await runRelaunchStep("relaunch-plan")
     await runRelaunchStep("relaunch-goal")
     await runRelaunchStep("relaunch-team")
+    await runRelaunchStep("relaunch-plugin-install", {
+      WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: JSON.stringify([
+        options.plugins.v1.root,
+        options.plugins.v1.root,
+        options.plugins.v2.root
+      ])
+    })
+    await runRelaunchStep("relaunch-plugin-restore")
     await runRelaunchStep("relaunch-cleanup")
     cleanupRequired = false
     await runRelaunchStep("relaunch-unconfigured")
@@ -284,6 +323,8 @@ export async function proveProductDesktopProviderRelaunch(options) {
     planRelaunchReceivedCredential: false,
     goalRelaunchReceivedCredential: false,
     teamRelaunchReceivedCredential: false,
+    pluginInstallRelaunchReceivedCredential: false,
+    pluginRestoreRelaunchReceivedCredential: false,
     cleanupRelaunchReceivedCredential: false,
     finalRelaunchReceivedCredential: false,
     steps
@@ -1129,6 +1170,96 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       renderer.internalIdentityEvidenceHidden !== true ||
       renderer.hostPathEvidenceHidden !== true ||
       renderer.originalSessionRestored !== true
+  } else if (step === "relaunch-plugin-install") {
+    const expectedKeys = [
+      "cancelReviewEvidenceVisible",
+      "cancelledReviewNotInstalled",
+      "commandAbsentWhileDisabled",
+      "commandId",
+      "commandReturnedAfterEnable",
+      "initialEmptyStateVisible",
+      "internalIdentityEvidenceHidden",
+      "ok",
+      "pathEvidenceHidden",
+      "pluginId",
+      "providerEvidenceRedacted",
+      "reviewCancelled",
+      "singleActiveVersion",
+      "step",
+      "timingsMs",
+      "v1CommandAvailable",
+      "v1CommandExecuted",
+      "v1Disabled",
+      "v1DisabledAfterReplacement",
+      "v1Enabled",
+      "v1Installed",
+      "v1Version",
+      "v2CommandExecuted",
+      "v2Installed",
+      "v2ReviewEvidenceVisible",
+      "v2Version"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      !validPluginIdentity(renderer) ||
+      renderer.initialEmptyStateVisible !== true ||
+      renderer.cancelReviewEvidenceVisible !== true ||
+      renderer.reviewCancelled !== true ||
+      renderer.cancelledReviewNotInstalled !== true ||
+      renderer.v1Installed !== true ||
+      renderer.v1CommandAvailable !== true ||
+      renderer.v1CommandExecuted !== true ||
+      renderer.v1Disabled !== true ||
+      renderer.commandAbsentWhileDisabled !== true ||
+      renderer.v1Enabled !== true ||
+      renderer.commandReturnedAfterEnable !== true ||
+      renderer.v2ReviewEvidenceVisible !== true ||
+      renderer.v2Installed !== true ||
+      renderer.v1DisabledAfterReplacement !== true ||
+      renderer.singleActiveVersion !== true ||
+      renderer.v2CommandExecuted !== true ||
+      renderer.pathEvidenceHidden !== true ||
+      renderer.internalIdentityEvidenceHidden !== true
+  } else if (step === "relaunch-plugin-restore") {
+    const expectedKeys = [
+      "busyTransientAbsent",
+      "canonicalRemovedStateVisible",
+      "commandAbsentAfterRemoval",
+      "commandId",
+      "commandRestored",
+      "internalIdentityEvidenceHidden",
+      "ok",
+      "pathEvidenceHidden",
+      "pluginId",
+      "providerEvidenceRedacted",
+      "restoredCommandExecuted",
+      "reviewTransientAbsent",
+      "singleActiveVersionRestored",
+      "step",
+      "timingsMs",
+      "v1DisabledRestored",
+      "v1Removed",
+      "v1Version",
+      "v2InstalledRestored",
+      "v2Removed",
+      "v2Version"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      !validPluginIdentity(renderer) ||
+      renderer.reviewTransientAbsent !== true ||
+      renderer.busyTransientAbsent !== true ||
+      renderer.v1DisabledRestored !== true ||
+      renderer.v2InstalledRestored !== true ||
+      renderer.singleActiveVersionRestored !== true ||
+      renderer.commandRestored !== true ||
+      renderer.restoredCommandExecuted !== true ||
+      renderer.v2Removed !== true ||
+      renderer.v1Removed !== true ||
+      renderer.canonicalRemovedStateVisible !== true ||
+      renderer.commandAbsentAfterRemoval !== true ||
+      renderer.pathEvidenceHidden !== true ||
+      renderer.internalIdentityEvidenceHidden !== true
   } else if (step === "relaunch-cleanup") {
     stepInvalid =
       (options.allowAlreadyClean === true
@@ -1151,6 +1282,28 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       `Product Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
+}
+
+function exactRendererShape(renderer, expectedKeys) {
+  const timingKeys = [
+    "conversationSettlement",
+    "rendererInteractive",
+    "rendererPostSettlement"
+  ]
+  return JSON.stringify(Object.keys(renderer).sort()) ===
+      JSON.stringify(expectedKeys) &&
+    JSON.stringify(Object.keys(renderer.timingsMs ?? {}).sort()) ===
+      JSON.stringify(timingKeys) &&
+    Object.values(renderer.timingsMs ?? {}).every((value) =>
+      Number.isFinite(value) && value >= 0
+    )
+}
+
+function validPluginIdentity(renderer) {
+  return renderer.pluginId === "wanex.proof.extension" &&
+    renderer.commandId === "wanex.proof.extension.echo" &&
+    renderer.v1Version === "1.0.0" &&
+    renderer.v2Version === "2.0.0"
 }
 
 async function hashImmutableResources(packageDir) {

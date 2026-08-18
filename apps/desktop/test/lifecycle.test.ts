@@ -16,6 +16,10 @@ import {
 } from "../src/packaged-renderer-proof.js"
 import { wanexDesktopTeamProofScript } from "../src/team-proof.js"
 import {
+  wanexDesktopPluginInstallProofScript,
+  wanexDesktopPluginRestoreProofScript,
+} from "../src/plugin-management-proof.js"
+import {
   isWanexDesktopOwnedNavigation,
   resolveWanexDesktopWindowChrome,
 } from "../src/window-policy.js"
@@ -188,6 +192,14 @@ describe("Product Desktop lifecycle and navigation", () => {
       step: "relaunch-unconfigured"
     })
     const team = wanexDesktopTeamProofScript()
+    const pluginExpected = {
+      pluginId: "wanex.proof.extension",
+      commandId: "wanex.proof.extension.echo",
+      v1Version: "1.0.0",
+      v2Version: "2.0.0",
+    }
+    const pluginInstall = wanexDesktopPluginInstallProofScript(pluginExpected)
+    const pluginRestore = wanexDesktopPluginRestoreProofScript(pluginExpected)
 
     expect(configure).toContain(credential)
     expect(configure).toContain("desktop-proof-relaunch-model")
@@ -281,13 +293,30 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(plan).not.toContain(credential)
     expect(goal).not.toContain(credential)
     expect(team).not.toContain(credential)
+    expect(pluginInstall).toContain('data-ui-extension-add')
+    expect(pluginInstall).toContain('data-ui-extension-approve')
+    expect(pluginInstall).toContain('data-ui-command-preview=\\"runnable\\"')
+    expect(pluginInstall).toContain("v1DisabledAfterReplacement")
+    expect(pluginInstall).toContain("MutationObserver")
+    expect(pluginInstall).not.toContain("setInterval")
+    expect(pluginInstall).not.toContain(credential)
+    expect(pluginRestore).toContain("reviewTransientAbsent")
+    expect(pluginRestore).toContain("data-ui-extension-remove-confirm")
+    expect(pluginRestore).toContain("commandAbsentAfterRemoval")
+    expect(pluginRestore).toContain("MutationObserver")
+    expect(pluginRestore).not.toContain("setInterval")
+    expect(pluginRestore).not.toContain(credential)
     expect(cleanup).not.toContain(credential)
     expect(unconfigured).not.toContain(credential)
   })
 
-  it("recognizes the dedicated packaged Team proof step", () => {
+  it("recognizes the dedicated packaged Team and Plugin proof steps", () => {
     expect(requiredWanexDesktopPackagedProofStep("relaunch-team"))
       .toBe("relaunch-team")
+    expect(requiredWanexDesktopPackagedProofStep("relaunch-plugin-install"))
+      .toBe("relaunch-plugin-install")
+    expect(requiredWanexDesktopPackagedProofStep("relaunch-plugin-restore"))
+      .toBe("relaunch-plugin-restore")
     expect(() => requiredWanexDesktopPackagedProofStep("team"))
       .toThrow("must be recognized")
   })

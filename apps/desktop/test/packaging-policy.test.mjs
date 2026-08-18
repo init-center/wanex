@@ -1,5 +1,5 @@
 import { createPackage } from "@electron/asar";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -24,6 +24,7 @@ import {
   assertCanonicalProofArgs,
   createProductDesktopProofProcessEnvironment,
   measureProductDesktopSample,
+  removeProductDesktopProofRoot,
 } from "../scripts/proof.mjs";
 
 const tempDirs = [];
@@ -246,6 +247,7 @@ describe("Product Desktop packaging policy", () => {
         KEEP_ME: "retained",
         WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: "inherited-secret",
         WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: "http://127.0.0.1:1/v1",
+        WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: '["/inherited"]',
         WANEX_DESKTOP_PROOF_STEP: "relaunch-configure",
       },
       {
@@ -259,6 +261,22 @@ describe("Product Desktop packaging policy", () => {
       WANEX_DESKTOP_PROOF_RECEIPT: "relaunch-chat.json",
       WANEX_DESKTOP_PROOF_STEP: "relaunch-chat",
     });
+  });
+
+  it("cleans only its owned proof root after immutable extension materialization", async () => {
+    const root = await temporaryDirectory("wanex-product-desktop-cleanup-");
+    const sealed = join(root, "extensions", "plugin", "1.0.0", "digest", "bin");
+    const executable = join(sealed, "plugin-host");
+    await mkdir(sealed, { recursive: true });
+    await writeFile(executable, "fixture", "utf8");
+    if (process.platform !== "win32") {
+      await chmod(executable, 0o555);
+      await chmod(sealed, 0o555);
+    }
+
+    await removeProductDesktopProofRoot(root);
+    tempDirs.splice(tempDirs.indexOf(root), 1);
+    await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("accepts one exact post-relaunch Provider request only", () => {
@@ -560,6 +578,33 @@ describe("Product Desktop packaging policy", () => {
     )).toThrow("runtime proof failed");
   });
 
+  it("accepts only exact Plugin install and restore runtime receipts", () => {
+    const install = pluginRuntimeReceipt("relaunch-plugin-install");
+    const restore = pluginRuntimeReceipt("relaunch-plugin-restore");
+    expect(() => assertProviderRelaunchRuntimeReceipt(
+      install,
+      "relaunch-plugin-install",
+    )).not.toThrow();
+    expect(() => assertProviderRelaunchRuntimeReceipt(
+      restore,
+      "relaunch-plugin-restore",
+    )).not.toThrow();
+    expect(() => assertProviderRelaunchRuntimeReceipt(
+      {
+        ...install,
+        renderer: { ...install.renderer, sourceDir: "/private/source" },
+      },
+      "relaunch-plugin-install",
+    )).toThrow("runtime proof failed");
+    expect(() => assertProviderRelaunchRuntimeReceipt(
+      {
+        ...restore,
+        renderer: { ...restore.renderer, v2InstalledRestored: false },
+      },
+      "relaunch-plugin-restore",
+    )).toThrow("runtime proof failed");
+  });
+
   it("freezes the native and Product Desktop release matrix", async () => {
     const workflow = await readFile(
       join(workspaceRoot, ".github/workflows/desktop.yml"),
@@ -668,6 +713,72 @@ function teamRuntimeReceipt() {
         rendererPostSettlement: 3,
       },
     },
+    privacy: {
+      exposesStorePath: false,
+      exposesServiceBinaryPath: false,
+      exposesSecrets: false,
+      exposesRawStorageClient: false,
+      exposesElectronApi: false,
+    },
+  };
+}
+
+function pluginRuntimeReceipt(step) {
+  const common = {
+    ok: true,
+    step,
+    pluginId: "wanex.proof.extension",
+    commandId: "wanex.proof.extension.echo",
+    v1Version: "1.0.0",
+    v2Version: "2.0.0",
+    providerEvidenceRedacted: true,
+    pathEvidenceHidden: true,
+    internalIdentityEvidenceHidden: true,
+    timingsMs: {
+      rendererInteractive: 1,
+      conversationSettlement: 2,
+      rendererPostSettlement: 3,
+    },
+  };
+  const renderer = step === "relaunch-plugin-install"
+    ? {
+        ...common,
+        initialEmptyStateVisible: true,
+        cancelReviewEvidenceVisible: true,
+        reviewCancelled: true,
+        cancelledReviewNotInstalled: true,
+        v1Installed: true,
+        v1CommandAvailable: true,
+        v1CommandExecuted: true,
+        v1Disabled: true,
+        commandAbsentWhileDisabled: true,
+        v1Enabled: true,
+        commandReturnedAfterEnable: true,
+        v2ReviewEvidenceVisible: true,
+        v2Installed: true,
+        v1DisabledAfterReplacement: true,
+        singleActiveVersion: true,
+        v2CommandExecuted: true,
+      }
+    : {
+        ...common,
+        reviewTransientAbsent: true,
+        busyTransientAbsent: true,
+        v1DisabledRestored: true,
+        v2InstalledRestored: true,
+        singleActiveVersionRestored: true,
+        commandRestored: true,
+        restoredCommandExecuted: true,
+        v2Removed: true,
+        v1Removed: true,
+        canonicalRemovedStateVisible: true,
+        commandAbsentAfterRemoval: true,
+      };
+  return {
+    kind: "wanex.product-desktop.runtime-receipt",
+    ok: true,
+    proofStep: step,
+    renderer,
     privacy: {
       exposesStorePath: false,
       exposesServiceBinaryPath: false,

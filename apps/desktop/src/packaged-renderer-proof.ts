@@ -15,6 +15,7 @@ import type {
   WanexDesktopProviderRelaunchProofStep,
   WanexDesktopNarrowVisualAccessibilityProofResult,
   WanexDesktopNormalVisualAccessibilityProofResult,
+  WanexDesktopPluginProofResult,
   WanexDesktopTeamProofResult,
   WanexDesktopVisualAccessibilityProofResult,
 } from "./proof-contract.js";
@@ -33,10 +34,23 @@ import {
   wanexDesktopNormalVisualAccessibilityProofScript,
 } from "./visual-accessibility-proof.js";
 import { wanexDesktopTeamProofScript } from "./team-proof.js";
+import {
+  wanexDesktopPluginInstallProofScript,
+  wanexDesktopPluginRestoreProofScript,
+} from "./plugin-management-proof.js";
+
+const desktopPluginProofExpected = {
+  pluginId: "wanex.proof.extension",
+  commandId: "wanex.proof.extension.echo",
+  v1Version: "1.0.0",
+  v2Version: "2.0.0",
+} as const;
 
 export type WanexDesktopPackagedProofStep =
   | "lifecycle"
   | "relaunch-team"
+  | "relaunch-plugin-install"
+  | "relaunch-plugin-restore"
   | WanexDesktopProviderRelaunchProofStep;
 
 export class DesktopRendererProofError extends Error {
@@ -46,6 +60,7 @@ export class DesktopRendererProofError extends Error {
     readonly renderer:
       | WanexDesktopRendererProofResult
       | WanexDesktopProviderRelaunchProofResult
+      | WanexDesktopPluginProofResult
       | WanexDesktopTeamProofResult,
   ) {
     super("desktop Product renderer proof failed");
@@ -81,6 +96,8 @@ export function requiredWanexDesktopPackagedProofStep(
     value === "relaunch-plan" ||
     value === "relaunch-goal" ||
     value === "relaunch-team" ||
+    value === "relaunch-plugin-install" ||
+    value === "relaunch-plugin-restore" ||
     value === "relaunch-cleanup" ||
     value === "relaunch-unconfigured"
   ) {
@@ -97,6 +114,7 @@ export async function runWanexDesktopPackagedRendererProof(input: {
 }): Promise<
   | WanexDesktopRendererProofResult
   | WanexDesktopProviderRelaunchProofResult
+  | WanexDesktopPluginProofResult
   | WanexDesktopTeamProofResult
 > {
   if (input.step === "lifecycle") {
@@ -143,6 +161,18 @@ export async function runWanexDesktopPackagedRendererProof(input: {
       wanexDesktopTeamProofScript(),
       true,
     )) as WanexDesktopTeamProofResult;
+  }
+  if (input.step === "relaunch-plugin-install") {
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopPluginInstallProofScript(desktopPluginProofExpected),
+      true,
+    )) as WanexDesktopPluginProofResult;
+  }
+  if (input.step === "relaunch-plugin-restore") {
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopPluginRestoreProofScript(desktopPluginProofExpected),
+      true,
+    )) as WanexDesktopPluginProofResult;
   }
   const script = input.step === "relaunch-configure"
     ? wanexDesktopProviderRelaunchProofScript({

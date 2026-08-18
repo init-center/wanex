@@ -172,13 +172,23 @@ describe("@wanex/plugin-command-host", () => {
         handlerRef,
         input: undefined
       })
-    ).toMatchObject({ ok: false })
+    ).toEqual({ ok: true })
 
     await expect(
       executor.execute({
         commandId: "plugin.echo",
         handlerRef,
         input: { text: "hello" }
+      })
+    ).resolves.toEqual({
+      kind: "plugin-action.submitted",
+      jobId: "job_generated"
+    })
+    await expect(
+      executor.execute({
+        commandId: "plugin.echo",
+        handlerRef,
+        input: undefined
       })
     ).resolves.toEqual({
       kind: "plugin-action.submitted",
@@ -191,6 +201,13 @@ describe("@wanex/plugin-command-host", () => {
         actionId: "echo",
         principalId: "principal_product_command",
         payload: { text: "hello" }
+      }),
+      expect.objectContaining({
+        pluginId: "plugin.demo",
+        version: "1.0.0",
+        actionId: "echo",
+        principalId: "principal_product_command",
+        payload: null
       })
     ])
   })

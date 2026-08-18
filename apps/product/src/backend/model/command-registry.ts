@@ -153,10 +153,18 @@ export interface BackendExecuteCommandRequest {
 
 export type BackendExecuteCommandResult =
   | BackendExecuteCommandCompletedResult
+  | BackendExecuteCommandSubmittedResult
   | BackendExecuteCommandRejectedResult
 
 export interface BackendExecuteCommandCompletedResult {
   readonly kind: "completed"
+  readonly commandId: string
+  readonly handlerRef: string
+  readonly value: unknown
+}
+
+export interface BackendExecuteCommandSubmittedResult {
+  readonly kind: "submitted"
   readonly commandId: string
   readonly handlerRef: string
   readonly value: unknown

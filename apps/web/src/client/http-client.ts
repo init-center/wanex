@@ -558,6 +558,7 @@ function validCursor(
 function surfaceEventInvalidatesSnapshot(type: string | undefined): boolean {
   return type === "product.surface.state_changed" ||
     type === "product.surface.command-catalog.invalidated" ||
+    type === "product.surface.command-execution.invalidated" ||
     type === "product.surface.conversation.operation-invalidated" ||
     type === "product.surface.side-query.invalidated" ||
     type === "product.surface.plan.invalidated" ||

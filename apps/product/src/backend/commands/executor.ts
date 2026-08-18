@@ -78,11 +78,11 @@ export async function executeBackendCommand(
         })
       }
       try {
-        return completeCommand(
-          request,
-          handlerRef,
+        const execution =
           await options.extensionCommandExecutor.execute(extensionRequest)
-        )
+        return execution.kind === "submitted"
+          ? submitCommand(request, handlerRef, execution.value)
+          : completeCommand(request, handlerRef, execution.value)
       } catch (error) {
         return rejectCommand({
           request,
@@ -104,7 +104,7 @@ export async function executeBackendCommand(
     validateBackendCommandInput(request, handlerRef)
     switch (handlerRef) {
       case BACKEND_HANDLER_REFS.submitConversationOperation:
-        return completeCommand(
+        return submitCommand(
           request,
           handlerRef,
           await options.commands.submitConversationOperation(
@@ -221,6 +221,19 @@ function completeCommand(
 ): BackendExecuteCommandResult {
   return {
     kind: "completed",
+    commandId: request.commandId,
+    handlerRef,
+    value
+  }
+}
+
+function submitCommand(
+  request: BackendExecuteCommandRequest,
+  handlerRef: string,
+  value: unknown
+): BackendExecuteCommandResult {
+  return {
+    kind: "submitted",
     commandId: request.commandId,
     handlerRef,
     value

@@ -70,6 +70,7 @@ describe("Product Desktop packaging policy", () => {
     expect(manifest.dependencies).toEqual({
       "@wanex/local-credential-store": "workspace:*",
       "@wanex/local-host": "workspace:*",
+      "@wanex/plugin": "workspace:*",
       "@wanex/plugin-command-host": "workspace:*",
     });
     expect(main).toContain("contextIsolation: true");
@@ -755,6 +756,10 @@ function pluginRuntimeReceipt(step) {
         v1Enabled: true,
         commandReturnedAfterEnable: true,
         v2ReviewEvidenceVisible: true,
+        attentionVisible: true,
+        attentionDiagnosticVisible: true,
+        retryAvailable: true,
+        retryRecovered: true,
         v2Installed: true,
         v1DisabledAfterReplacement: true,
         singleActiveVersion: true,

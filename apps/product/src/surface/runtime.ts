@@ -47,6 +47,16 @@ export function createSurfaceAdapter(
         commandCatalog
       })
     })
+  const unsubscribeCommandExecution =
+    app.commandExecutionEvents.subscribeCommandExecutionEvents(
+      (commandExecution) => {
+        events.record({
+          type: "product.surface.command-execution.invalidated",
+          command: SURFACE_COMMANDS.readExecutionReference,
+          commandExecution
+        })
+      }
+    )
   const unsubscribe = app.events.subscribeConversationEvents((conversation) => {
     events.record({
       type:
@@ -118,6 +128,7 @@ export function createSurfaceAdapter(
       }
       disposed = true
       unsubscribeCommandCatalog()
+      unsubscribeCommandExecution()
       unsubscribe()
       unsubscribeSideQueries()
       unsubscribePlans()

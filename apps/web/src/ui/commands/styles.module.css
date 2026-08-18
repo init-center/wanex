@@ -46,6 +46,7 @@
 .command-verdict small { color: var(--color-text-secondary); font-size: 11px; line-height: 1.5; }
 .command-verdict.is-ready > svg { color: var(--color-success); }
 .command-verdict.is-rejected > svg { color: var(--color-danger); }
+.command-verdict.is-pending > .spinner { flex: 0 0 auto; margin-top: 1px; border-color: var(--color-line-accent); border-top-color: var(--color-accent); }
 .command-review > ul { margin: 8px 0 0; padding-left: 18px; color: var(--color-danger); font-size: 10px; line-height: 1.6; }
 @media (max-width: 620px) {
   .command-palette { position: fixed; right: 12px; bottom: 12px; left: 12px; width: auto; max-height: min(70vh, 560px); }

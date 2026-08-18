@@ -195,11 +195,16 @@ async function readEventSnapshot(request: {
     commandCatalog,
     pluginManagement
   ] = await Promise.all([
-    refreshExecutionActivity({
-      client: request.options.client,
-      previous: request.snapshot.executionActivity,
-      now: request.now
-    }),
+    shouldRefreshExecutionActivity(
+      events,
+      request.snapshot.executionActivity
+    )
+      ? refreshExecutionActivity({
+          client: request.options.client,
+          previous: request.snapshot.executionActivity,
+          now: request.now
+        })
+      : request.snapshot.executionActivity,
     request.options.client.readTrackedConversationOperation(
       selectedSessionId === undefined
         ? undefined
@@ -336,6 +341,21 @@ function shouldRefreshPluginManagement(
   )
 }
 
+function shouldRefreshExecutionActivity(
+  events: SurfaceClientEventsResult,
+  activity: ExecutionActivityViewModel
+): boolean {
+  const reference = activity.reference
+  if (reference === undefined) return false
+  return !events.ok ||
+    events.gap ||
+    events.events.some((event) =>
+      event.type === "product.surface.command-execution.invalidated" &&
+      event.commandExecution?.reference.kind === reference.kind &&
+      event.commandExecution.reference.id === reference.id
+    )
+}
+
 async function readSnapshot(request: {
   readonly options: CreateSurfaceOptions
   readonly now: () => number
@@ -390,6 +410,16 @@ async function readSnapshot(request: {
       : { streamId: request.eventStreamId }),
     limit: request.eventLimit
   })
+  const executionActivity = shouldRefreshExecutionActivity(
+    events,
+    request.executionActivity
+  )
+    ? await refreshExecutionActivity({
+        client: request.options.client,
+        previous: request.executionActivity,
+        now: request.now
+      })
+    : request.executionActivity
   const eventPosition = nextEventPosition({
     streamId: request.eventStreamId,
     cursor: request.eventCursor,
@@ -490,7 +520,7 @@ async function readSnapshot(request: {
     operationStatus: request.operationStatus,
     commandPreview: request.commandPreview,
     commandExecution: request.commandExecution,
-    executionActivity: request.executionActivity,
+    executionActivity,
     conversation,
     sideQuery,
     plan,

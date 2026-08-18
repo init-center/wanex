@@ -238,7 +238,7 @@ describe("@wanex/product backend", () => {
         ok: true,
         command: "executeProductCommand",
         value: {
-          kind: "completed",
+          kind: "submitted",
           commandId: "product.agent.submit",
           value: {
             sessionId: "ses_product_app_backend_command_port",
@@ -1508,7 +1508,13 @@ describe("@wanex/product backend", () => {
             if (handlerRefs.length === 1) {
               await firstExecution
             }
-            return { kind: "plugin-action.submitted", jobId: "job_dynamic" }
+            return {
+              kind: "submitted",
+              value: {
+                kind: "plugin-action.submitted",
+                jobId: "job_dynamic"
+              }
+            }
           }
         }
       }
@@ -1550,12 +1556,12 @@ describe("@wanex/product backend", () => {
         productCommandGeneration("product-command-generation-c", "3.0.0")
       )
       releaseFirstExecution()
-      await expect(running).resolves.toMatchObject({ kind: "completed" })
+      await expect(running).resolves.toMatchObject({ kind: "submitted" })
       expect(handlerRefs[0]).toContain("version=2.0.0")
 
       await expect(
         app.commands.executeProductCommand({ commandId: "plugin.dynamic" })
-      ).resolves.toMatchObject({ kind: "completed" })
+      ).resolves.toMatchObject({ kind: "submitted" })
       expect(handlerRefs[1]).toContain("version=3.0.0")
     } finally {
       releaseFirstExecution()
@@ -1769,7 +1775,7 @@ describe("@wanex/product backend", () => {
           }
         })
       ).resolves.toMatchObject({
-        kind: "completed",
+        kind: "submitted",
         commandId: "product.agent.submit",
         handlerRef: BACKEND_HANDLER_REFS.submitConversationOperation,
         value: {
@@ -2167,8 +2173,11 @@ describe("@wanex/product backend", () => {
           async execute(request) {
             calls.push(request)
             return {
-              kind: "plugin-action.submitted",
-              jobId: "job_plugin_echo"
+              kind: "submitted",
+              value: {
+                kind: "plugin-action.submitted",
+                jobId: "job_plugin_echo"
+              }
             }
           }
         }
@@ -2289,7 +2298,7 @@ describe("@wanex/product backend", () => {
           input: { text: "hello", count: 2 }
         })
       ).resolves.toMatchObject({
-        kind: "completed",
+        kind: "submitted",
         commandId: "plugin.echo",
         value: {
           kind: "plugin-action.submitted",

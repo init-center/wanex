@@ -21,6 +21,7 @@ import type {
 } from "./proof-contract.js";
 import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
+  WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER,
 } from "./proof-contract.js";
 import type {
@@ -38,13 +39,6 @@ import {
   wanexDesktopPluginInstallProofScript,
   wanexDesktopPluginRestoreProofScript,
 } from "./plugin-management-proof.js";
-
-const desktopPluginProofExpected = {
-  pluginId: "wanex.proof.extension",
-  commandId: "wanex.proof.extension.echo",
-  v1Version: "1.0.0",
-  v2Version: "2.0.0",
-} as const;
 
 export type WanexDesktopPackagedProofStep =
   | "lifecycle"
@@ -164,13 +158,13 @@ export async function runWanexDesktopPackagedRendererProof(input: {
   }
   if (input.step === "relaunch-plugin-install") {
     return (await input.window.webContents.executeJavaScript(
-      wanexDesktopPluginInstallProofScript(desktopPluginProofExpected),
+      wanexDesktopPluginInstallProofScript(WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED),
       true,
     )) as WanexDesktopPluginProofResult;
   }
   if (input.step === "relaunch-plugin-restore") {
     return (await input.window.webContents.executeJavaScript(
-      wanexDesktopPluginRestoreProofScript(desktopPluginProofExpected),
+      wanexDesktopPluginRestoreProofScript(WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED),
       true,
     )) as WanexDesktopPluginProofResult;
   }

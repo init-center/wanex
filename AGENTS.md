@@ -3136,3 +3136,42 @@ proof-only trusted selection queue may replace the native picker only inside
 the proof owner; it must never reach renderer contracts. Do not use mock-only
 UI tests to claim integrated acceptance, add a production bypass action, create
 a package or test app, or start marketplace/download/update/signature work.
+
+PLUGIN-4D and the complete local Plugin Productization route are finished. The
+completion evidence and post-route global review are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1384-phase-plugin-4d-integrated-product-acceptance-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1385-post-plugin-4d-global-review-and-schedule-productization-route-plan.md`
+
+Async Product commands now distinguish synchronous `completed`, durable
+`submitted`, and `rejected`. Plugin worker settlement publishes only a job
+reference invalidation through Product and the existing bounded Surface log;
+Web rereads canonical execution state for the matching job. Local durable
+submission wakes the existing worker loop immediately, while the durable scan
+remains cross-process recovery truth. Do not restore eager completion,
+status-bearing event deltas, polling, a second event bus, or blind resubmission.
+Extension executors must return an explicit `completed | submitted` envelope;
+Product must never infer execution disposition from payload fields or the
+presence of a historical job reference.
+
+Packaged Desktop proves a workspace-external real Rust Plugin through visible
+review/cancel/install/execute/disable/enable/exact replacement, real
+attention/retry, relaunch, remove, privacy and process cleanup. This stronger
+4D journey absorbs the previously proposed PLUGIN-5 external-artifact proof;
+do not create a duplicate phase or test app. Marketplace, download,
+auto-update, remote signatures and a TUI installation form remain
+value-gated. Desktop identifier minification is required to keep the two-entry
+ASAR below its existing budget; do not restore `keepNames`, which breaks the
+serialized renderer proof boundary, or raise the distribution budget.
+
+The next route is Schedule Productization. SCHEDULE-1 must first freeze a
+Product-safe definition port and atomic durable occurrence claim with exact
+revision CAS. Product owns safe schedule actions/read models; the trusted Host
+owns recurrence parsing, timezone/DST, misfire, one earliest-deadline timer and
+hot recomputation; App continues to own one-shot `submitScheduledTick`;
+Runtime does not learn Cron. Before adding schema or a package, audit whether
+an existing generic exact-CAS persistence contract can implement the adapter.
+Do not add a Kernel cron parser, renderer timer, per-schedule interval,
+definition polling, time wheel without scale evidence, catch-up storm,
+Gateway, second Store/Shell/Surface/event bus, or SQLite/vendor identity to the
+Product contract.

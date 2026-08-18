@@ -14,10 +14,10 @@ export function projectCommandExecutionFromResult(
   result: ExecuteCommandResult,
   updatedAt: number
 ): CommandExecutionViewModel {
-  if (result.kind === "completed") {
+  if (result.kind !== "rejected") {
     return {
       kind: "web.command-execution",
-      state: "completed",
+      state: result.kind,
       commandId: result.commandId,
       handlerRef: result.handlerRef,
       message: result.summary.message,

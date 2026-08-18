@@ -200,7 +200,7 @@ export interface TuiRenderedCommandCatalog {
 
 export interface TuiRenderedCommandExecution {
   readonly kind: "tui.command-execution"
-  readonly state: "completed" | "rejected"
+  readonly state: "completed" | "submitted" | "rejected"
   readonly commandId: string
   readonly referenceCount: number
   readonly lines: readonly string[]

@@ -41,7 +41,10 @@ import type {
 } from "./model.js";
 import { createNoopStateStore } from "./state/store.js";
 import { createConversationEventHub } from "./conversation/events.js";
-import { createCommandCatalogEventHub } from "./commands/events.js";
+import {
+  createCommandCatalogEventHub,
+  createCommandExecutionEventHub,
+} from "./commands/events.js";
 import {
   cancelTrackedConversationOperation,
   continueCapabilityRequest,
@@ -118,6 +121,11 @@ export async function createShell(
       ? {}
       : { source: options.extensions.source }),
   });
+  const commandExecutionEvents = createCommandExecutionEventHub({
+    ...(options.productCommands?.executionInvalidations === undefined
+      ? {}
+      : { source: options.productCommands.executionInvalidations }),
+  });
   const sideQueries = createSideQueryCoordinator({
     backend,
     state,
@@ -141,6 +149,7 @@ export async function createShell(
 
   return {
     commandCatalogEvents,
+    commandExecutionEvents,
     events: conversationEvents,
     sideQueryEvents: sideQueries.events,
     planEvents: plans.events,
@@ -425,6 +434,7 @@ export async function createShell(
     },
     async dispose() {
       commandCatalogEvents.dispose();
+      commandExecutionEvents.dispose();
       await conversationEvents.dispose();
       await sideQueries.dispose();
       await plans.dispose();

@@ -9,7 +9,7 @@ export function renderTuiCommandExecution(
     `status:${result.kind}`,
     `command:${result.commandId}`
   ]
-  if (result.kind === "completed") {
+  if (result.kind !== "rejected") {
     lines.push(`handler:${result.handlerRef}`)
     lines.push(`valueKind:${result.summary.valueKind}`)
     lines.push(`message:${result.summary.message}`)
@@ -20,7 +20,7 @@ export function renderTuiCommandExecution(
     )
     return {
       kind: "tui.command-execution",
-      state: "completed",
+      state: result.kind,
       commandId: result.commandId,
       referenceCount: result.summary.references.length,
       lines,

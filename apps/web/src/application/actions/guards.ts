@@ -124,7 +124,9 @@ export function isSuccessfulCommandExecutionEnvelope(
     return false
   }
   return (
-    (value.value.kind === "completed" || value.value.kind === "rejected") &&
+    (value.value.kind === "completed" ||
+      value.value.kind === "submitted" ||
+      value.value.kind === "rejected") &&
     typeof value.value.commandId === "string"
   )
 }

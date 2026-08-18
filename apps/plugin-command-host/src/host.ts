@@ -5,6 +5,7 @@ import {
   PluginRuntime,
 } from "@wanex/plugin"
 import type { WorkerLoop, WorkerRunOnceResult } from "@wanex/runtime/jobs"
+import type { CommandExecutionInvalidationListener } from "@wanex/product"
 import { createPluginStore } from "@wanex/storage/plugin"
 import {
   buildPluginCatalog,
@@ -39,6 +40,10 @@ export async function createPluginCommandHost(
   const registry = new PluginExecutionHostRegistry(
     options.createActionHost ?? defaultPluginActionHostFactory,
   )
+  const executionInvalidationListeners = new Set<
+    CommandExecutionInvalidationListener
+  >()
+  let loop: WorkerLoop | undefined
   const worker = createPluginActionWorker({
     storage,
     workerId,
@@ -61,15 +66,33 @@ export async function createPluginCommandHost(
     extensions: { source: catalog.source },
     productCommands: {
       extensionExecutor: createPluginActionProductCommandExecutor({
-        port: plugin,
+        port: {
+          async submitAction(request) {
+            const submission = await plugin.submitAction(request)
+            loop?.wake()
+            return submission
+          },
+        },
         principalId,
         ...(options.submission === undefined
           ? {}
           : { submission: options.submission }),
       }),
+      executionInvalidations: {
+        subscribeCommandExecutionInvalidations(
+          listener: CommandExecutionInvalidationListener,
+        ) {
+          executionInvalidationListeners.add(listener)
+          let subscribed = true
+          return () => {
+            if (!subscribed) return
+            subscribed = false
+            executionInvalidationListeners.delete(listener)
+          }
+        },
+      },
     },
   }
-  let loop: WorkerLoop | undefined
   let disposed = false
   let completedCount = 0
   let failedCount = 0
@@ -102,6 +125,15 @@ export async function createPluginCommandHost(
       completedCount += 1
     } else if (result.status === "failed") {
       failedCount += 1
+    }
+    if (result.status !== "idle" && result.job !== null) {
+      for (const listener of executionInvalidationListeners) {
+        try {
+          listener({ kind: "job", id: result.job.id })
+        } catch {
+          // Product listeners cannot affect worker settlement.
+        }
+      }
     }
   }
 
@@ -226,6 +258,7 @@ export async function createPluginCommandHost(
           loop = undefined
         }
         await management?.dispose()
+        executionInvalidationListeners.clear()
         disposed = true
       }
       return status()

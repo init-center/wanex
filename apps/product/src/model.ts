@@ -150,6 +150,9 @@ export interface ShellOptions extends BackendAppOptions {
   readonly stateStore?: StateStore;
   readonly teamConversations?: TeamConversationPort;
   readonly pluginManagement?: PluginManagementPort;
+  readonly productCommands?: NonNullable<BackendAppOptions["productCommands"]> & {
+    readonly executionInvalidations?: import("./commands/model.js").CommandExecutionInvalidationSource;
+  };
 }
 
 export interface InitialState {
@@ -311,6 +314,7 @@ export interface CommandPortSummary {
 
 export interface Shell {
   readonly commandCatalogEvents: import("./commands/model.js").CommandCatalogEvents;
+  readonly commandExecutionEvents: import("./commands/model.js").CommandExecutionEvents;
   readonly events: ConversationEvents;
   readonly sideQueryEvents: SideQueryEvents;
   readonly planEvents: PlanEvents;
@@ -528,18 +532,30 @@ export type ExecutionReferenceReadResult =
 
 export type ExecuteCommandResult =
   | ExecuteCommandCompletedResult
+  | ExecuteCommandSubmittedResult
   | ExecuteCommandRejectedResult;
 
 export interface ExecuteCommandCompletedResult {
   readonly kind: "completed";
   readonly commandId: string;
   readonly handlerRef: string;
-  readonly summary: CommandExecutionSummary;
+  readonly summary: CommandExecutionSummary & {
+    readonly message: "Command completed";
+  };
+}
+
+export interface ExecuteCommandSubmittedResult {
+  readonly kind: "submitted";
+  readonly commandId: string;
+  readonly handlerRef: string;
+  readonly summary: CommandExecutionSummary & {
+    readonly message: "Command submitted";
+  };
 }
 
 export interface CommandExecutionSummary {
   readonly valueKind: string;
-  readonly message: "Command completed";
+  readonly message: "Command completed" | "Command submitted";
   readonly references: readonly CommandExecutionReference[];
 }
 

@@ -74,6 +74,9 @@ importers:
       '@wanex/local-host':
         specifier: workspace:*
         version: link:../local-host
+      '@wanex/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
       '@wanex/plugin-command-host':
         specifier: workspace:*
         version: link:../plugin-command-host

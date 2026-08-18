@@ -61,7 +61,7 @@ export async function nextExecutionActivityAfterAction(request: {
   if (
     request.action.type !== "execute-command" ||
     !isSuccessfulCommandExecutionEnvelope(request.actionResult) ||
-    request.actionResult.value.kind !== "completed"
+    request.actionResult.value.kind === "rejected"
   ) {
     return request.previous
   }

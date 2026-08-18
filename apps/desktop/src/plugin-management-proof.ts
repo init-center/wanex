@@ -153,13 +153,48 @@ export async function runWanexDesktopPluginInstallProof(
     expected.v2Version,
   );
   approveReview(v2Review.review);
-  const v2Row = await waitForExtensionState(
-    replaceSettings,
-    expected.pluginId,
-    expected.v2Version,
-    "installed",
-    "v2_install",
-  );
+  const attention = await waitForDom(() => {
+    const row = replaceSettings.querySelector(
+      `[data-ui-extension="${expected.pluginId}@${expected.v2Version}"]`,
+    );
+    const retry = row?.querySelector("[data-ui-extension-retry]");
+    const diagnostic = row?.querySelector("[role=status]")?.textContent ?? "";
+    const error = replaceSettings.querySelector("[data-ui-extension-error]")
+      ?.textContent ?? "";
+    const status = replaceSettings.querySelector("[data-ui-extension-status]")
+      ?.textContent ?? "";
+    return row instanceof HTMLElement &&
+        row.querySelector('em[data-state="attention_required"]') !== null &&
+        retry instanceof HTMLButtonElement &&
+        !retry.disabled &&
+        diagnostic.includes("Plugin command catalog refresh failed") &&
+        error.includes("Plugin command catalog refresh failed") &&
+        status.includes("loading needs attention")
+      ? { row, retry }
+      : undefined;
+  }, 15_000, "v2_attention");
+  const attentionVisible = attention.row.querySelector(
+    'em[data-state="attention_required"]',
+  ) !== null;
+  const attentionDiagnosticVisible = attention.row.textContent?.includes(
+    "Plugin command catalog refresh failed",
+  ) === true;
+  const retryAvailable = !attention.retry.disabled;
+  attention.retry.click();
+  const v2Row = await waitForDom(() => {
+    const row = replaceSettings.querySelector(
+      `[data-ui-extension="${expected.pluginId}@${expected.v2Version}"]`,
+    );
+    const status = replaceSettings.querySelector("[data-ui-extension-status]")
+      ?.textContent ?? "";
+    return row instanceof HTMLElement &&
+        row.querySelector('em[data-state="loaded"]') !== null &&
+        row.querySelector("[data-ui-extension-retry]") === null &&
+        status.includes("catalog refreshed")
+      ? row
+      : undefined;
+  }, 15_000, "v2_retry");
+  const retryRecovered = v2Row.querySelector('em[data-state="loaded"]') !== null;
   const replacedV1 = await waitForExtensionState(
     replaceSettings,
     expected.pluginId,
@@ -196,6 +231,10 @@ export async function runWanexDesktopPluginInstallProof(
       v1Enabled &&
       commandReturnedAfterEnable &&
       v2ReviewEvidenceVisible &&
+      attentionVisible &&
+      attentionDiagnosticVisible &&
+      retryAvailable &&
+      retryRecovered &&
       v2Installed &&
       v1DisabledAfterReplacement &&
       singleActiveVersion &&
@@ -220,6 +259,10 @@ export async function runWanexDesktopPluginInstallProof(
     v1Enabled,
     commandReturnedAfterEnable,
     v2ReviewEvidenceVisible,
+    attentionVisible,
+    attentionDiagnosticVisible,
+    retryAvailable,
+    retryRecovered,
     v2Installed,
     v1DisabledAfterReplacement,
     singleActiveVersion,
@@ -396,7 +439,7 @@ export async function runWanexDesktopPluginInstallProof(
     execute.click();
     const done = await waitForDom(() => {
       const execution = surface.querySelector(
-        '[data-ui-command-execution="completed"]',
+        '[data-ui-command-execution="succeeded"]',
       );
       const button = execution === null
         ? undefined
@@ -404,7 +447,7 @@ export async function runWanexDesktopPluginInstallProof(
             candidate.textContent?.trim() === "Done"
           );
       return execution instanceof HTMLElement &&
-          execution.textContent?.includes("Command completed") === true &&
+          execution.textContent?.includes("Execution succeeded") === true &&
           button instanceof HTMLButtonElement
         ? button
         : undefined;
@@ -701,7 +744,7 @@ export async function runWanexDesktopPluginRestoreProof(
     execute.click();
     const done = await waitForDom(() => {
       const execution = surface.candidate.querySelector(
-        '[data-ui-command-execution="completed"]',
+        '[data-ui-command-execution="succeeded"]',
       );
       const button = execution === null
         ? undefined
@@ -709,7 +752,7 @@ export async function runWanexDesktopPluginRestoreProof(
             candidate.textContent?.trim() === "Done"
           );
       return button instanceof HTMLButtonElement &&
-          execution?.textContent?.includes("Command completed") === true
+          execution?.textContent?.includes("Execution succeeded") === true
         ? button
         : undefined;
     }, 15_000, `${stage}_execution`);

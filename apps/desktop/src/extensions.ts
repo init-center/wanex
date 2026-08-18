@@ -1,7 +1,9 @@
 import { isAbsolute, join } from "node:path";
+import { createTrustedSubprocessPluginActionHostFromInstall } from "@wanex/plugin";
 import {
   createPluginCommandComposition,
   type PluginCommandCompositionPort,
+  type PluginExecutionHostFactory,
 } from "@wanex/plugin-command-host";
 
 export interface NativeDirectorySelectionResult {
@@ -63,8 +65,43 @@ export function createDesktopExtensionProofSelectionQueue(options: {
 export function createDesktopExtensionComposition(
   options: DesktopExtensionCompositionOptions,
 ): PluginCommandCompositionPort {
+  return createExtensionComposition(options);
+}
+
+export function createDesktopExtensionProofComposition(options: {
+  readonly proofEnabled: boolean;
+  readonly userDataDir: string;
+  readonly selectLocalPackage: () => Promise<string | undefined>;
+  readonly failHostCreationOnce: {
+    readonly pluginId: string;
+    readonly version: string;
+  };
+}): PluginCommandCompositionPort {
+  if (!options.proofEnabled) {
+    throw new Error("Desktop extension host failure requires proof mode");
+  }
+  let failurePending = true;
+  const createActionHost: PluginExecutionHostFactory = async (request) => {
+    if (
+      failurePending &&
+      request.install.pluginId === options.failHostCreationOnce.pluginId &&
+      request.install.version === options.failHostCreationOnce.version
+    ) {
+      failurePending = false;
+      throw new Error("proof-injected Plugin execution host load failure");
+    }
+    return createTrustedSubprocessPluginActionHostFromInstall(request);
+  };
+  return createExtensionComposition(options, createActionHost);
+}
+
+function createExtensionComposition(
+  options: DesktopExtensionCompositionOptions,
+  createActionHost?: PluginExecutionHostFactory,
+): PluginCommandCompositionPort {
   return createPluginCommandComposition({
     principalId: "desktop-plugin-actions",
+    ...(createActionHost === undefined ? {} : { createActionHost }),
     worker: {
       workerId: "desktop-plugin-worker",
       leaseMs: 30_000,

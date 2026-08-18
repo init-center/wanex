@@ -56,6 +56,7 @@ export function isSurfaceEvent(value: unknown): value is SurfaceEvent {
     optionalString(value.requestId) &&
     optionalRecord(value.state) &&
     matchesCommandCatalogEvent(value.type, value.commandCatalog) &&
+    matchesCommandExecutionEvent(value.type, value.commandExecution) &&
     optionalConversationEvent(value.conversation) &&
     matchesSideQueryEvent(value.type, value.sideQuery) &&
     matchesPlanEvent(value.type, value.plan) &&
@@ -102,6 +103,7 @@ function isSurfaceEventType(value: unknown): boolean {
     value === "product.surface.command_rejected" ||
     value === "product.surface.state_changed" ||
     value === "product.surface.command-catalog.invalidated" ||
+    value === "product.surface.command-execution.invalidated" ||
     value === "product.surface.conversation.assistant-text-delta" ||
     value === "product.surface.conversation.operation-invalidated" ||
     value === "product.surface.side-query.invalidated" ||
@@ -110,6 +112,22 @@ function isSurfaceEventType(value: unknown): boolean {
     || value === "product.surface.team.invalidated"
     || value === "product.surface.plugin-management.invalidated"
   );
+}
+
+function matchesCommandExecutionEvent(type: unknown, value: unknown): boolean {
+  if (type !== "product.surface.command-execution.invalidated") {
+    return value === undefined;
+  }
+  if (!isRecord(value) || !isRecord(value.reference)) return false;
+  return value.kind === "product.command-execution.invalidated" &&
+    isPositiveSafeInteger(value.sequence) &&
+    typeof value.at === "number" &&
+    value.reference.kind === "job" &&
+    typeof value.reference.id === "string" &&
+    value.reference.id.length > 0 &&
+    value.reference.id.length <= 512 &&
+    value.reference.id === value.reference.id.trim() &&
+    !/[\u0000-\u001f\u007f]/u.test(value.reference.id)
 }
 
 function matchesCommandCatalogEvent(type: unknown, value: unknown): boolean {

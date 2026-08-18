@@ -213,6 +213,7 @@ export function CommandPalette({
         <CommandResult
           command={selected}
           execution={currentExecution}
+          activity={snapshot.view.executionActivity}
           busy={busy}
           retry={() => void executeCommand()}
           close={onClose}
@@ -379,27 +380,54 @@ function CommandReview({
 function CommandResult({
   command,
   execution,
+  activity,
   busy,
   retry,
   close,
 }: {
   readonly command: CommandPaletteItem;
   readonly execution: Snapshot["view"]["commandExecution"] | undefined;
+  readonly activity: Snapshot["view"]["executionActivity"];
   readonly busy: boolean;
   readonly retry: () => void;
   readonly close: () => void;
 }): ReactNode {
   if (execution === undefined) return <CommandPending label="Running command" />;
-  const completed = execution.state === "completed";
+  const trackedActivity = execution.state === "submitted" &&
+      execution.references.some((reference) =>
+        reference.kind === "job" &&
+        activity.reference?.kind === "job" &&
+        reference.id === activity.reference.id
+      )
+    ? activity
+    : undefined;
+  const state = trackedActivity?.state ?? execution.state;
+  const pending = state === "submitted" ||
+    state === "running" ||
+    state === "waiting" ||
+    state === "retrying";
+  const completed = state === "completed" || state === "succeeded";
+  const retryable = state === "rejected" || state === "failed" || state === "cancelled";
+  const message = trackedActivity?.message ?? execution.message;
   return (
-    <div className={classes("command-review")} data-ui-command-execution={execution.state}>
-      <div className={classes(completed ? "command-verdict is-ready" : "command-verdict is-rejected")}>
-        {completed ? <Check size={16} /> : <X size={16} />}
-        <span><strong>{command.title}</strong><small>{execution.message}</small></span>
+    <div className={classes("command-review")} data-ui-command-execution={state}>
+      <div className={classes(
+        completed
+          ? "command-verdict is-ready"
+          : pending
+            ? "command-verdict is-pending"
+            : "command-verdict is-rejected",
+      )}>
+        {completed
+          ? <Check size={16} />
+          : pending
+            ? <span className={classes("spinner")} />
+            : <X size={16} />}
+        <span><strong>{command.title}</strong><small>{message}</small></span>
       </div>
       <footer>
-        <button type="button" disabled={busy} onClick={completed ? close : retry}>
-          {completed ? "Done" : "Try again"}
+        <button type="button" disabled={busy} onClick={retryable ? retry : close}>
+          {retryable ? "Try again" : completed ? "Done" : "Close"}
         </button>
       </footer>
     </div>

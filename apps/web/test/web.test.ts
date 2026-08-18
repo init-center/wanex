@@ -222,6 +222,7 @@ describe("@wanex/web", () => {
   });
 
   it("tracks command job references and refreshes them during reconciliation", async () => {
+    const executionEvents = createWebExecutionInvalidations()
     await withWebSurface(async ({ app, client }) => {
       await app.dispatchProductCommand({
         command: "submitConversationOperation",
@@ -231,6 +232,8 @@ describe("@wanex/web", () => {
           jobId: "job_web_execution_activity",
         },
       });
+      let activityState: "ready" | "succeeded" = "ready"
+      let activityReadCount = 0
       const trackedClient = {
         ...client,
         async executeProductCommand() {
@@ -244,14 +247,36 @@ describe("@wanex/web", () => {
             ...original,
             value: {
               ...original.value,
+              kind: "submitted" as const,
               summary: {
                 ...original.value.summary,
+                message: "Command submitted" as const,
                 references: [
                   { kind: "job" as const, id: "job_web_execution_activity" },
                 ],
               },
             },
           };
+        },
+        async readExecutionReference(
+          reference: Parameters<typeof client.readExecutionReference>[0],
+        ) {
+          activityReadCount += 1
+          const original = await client.readExecutionReference(reference)
+          if (!original.ok || original.value.kind !== "found") return original
+          return {
+            ...original,
+            value: {
+              ...original.value,
+              activity: {
+                ...original.value.activity,
+                state: activityState,
+                ...(activityState === "succeeded"
+                  ? { finishedAt: original.value.activity.finishedAt ?? 12_346 }
+                  : {}),
+              },
+            },
+          }
         },
       };
       const tracked = await createSurface({
@@ -265,17 +290,39 @@ describe("@wanex/web", () => {
       });
       expect(executed.snapshot.executionActivity).toMatchObject({
         reference: { kind: "job", id: "job_web_execution_activity" },
-        state: expect.stringMatching(/^(submitted|running|succeeded)$/),
+        state: "submitted",
       });
+      expect(executed.snapshot.commandExecution).toMatchObject({
+        state: "submitted",
+        message: "Command submitted",
+      })
+      expect(activityReadCount).toBe(1)
 
-      const refreshed = await waitForExecutionActivity(
-        tracked,
-        "job_web_execution_activity",
-      );
-      expect(refreshed.snapshot.executionActivity.state).toBe("succeeded");
+      executionEvents.publish({ kind: "job", id: "job_other" })
+      const unrelated = await tracked.reconcileEvents()
+      expect(unrelated.executionActivity.state).toBe("submitted")
+      expect(activityReadCount).toBe(1)
 
-      const reconciled = await tracked.reconcileEvents();
-      expect(reconciled.executionActivity.state).toBe("succeeded");
+      activityState = "succeeded"
+      executionEvents.publish({
+        kind: "job",
+        id: "job_web_execution_activity",
+      })
+      const reconciled = await tracked.reconcileEvents()
+      expect(reconciled.executionActivity.state).toBe("succeeded")
+      expect(activityReadCount).toBe(2)
+
+      executionEvents.publish({
+        kind: "job",
+        id: "job_web_execution_activity",
+      })
+      const terminal = await tracked.reconcileEvents()
+      expect(terminal.executionActivity.state).toBe("succeeded")
+      expect(activityReadCount).toBe(2)
+    }, {
+      productCommands: {
+        executionInvalidations: executionEvents.source,
+      },
     });
   });
 
@@ -1902,6 +1949,33 @@ async function withWebSurface(
 
 type WebCatalogSource = NonNullable<ShellOptions["extensions"]>["source"];
 type WebCatalogGeneration = ReturnType<WebCatalogSource["current"]>;
+type WebExecutionInvalidationSource = NonNullable<
+  NonNullable<ShellOptions["productCommands"]>["executionInvalidations"]
+>;
+
+function createWebExecutionInvalidations(): {
+  readonly source: WebExecutionInvalidationSource;
+  publish(reference: Parameters<
+    Parameters<
+      WebExecutionInvalidationSource["subscribeCommandExecutionInvalidations"]
+    >[0]
+  >[0]): void;
+} {
+  const listeners = new Set<Parameters<
+    WebExecutionInvalidationSource["subscribeCommandExecutionInvalidations"]
+  >[0]>();
+  return {
+    source: {
+      subscribeCommandExecutionInvalidations(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    },
+    publish(reference) {
+      for (const listener of listeners) listener(reference);
+    },
+  };
+}
 
 function createWebCatalog(initialRevision: string): {
   readonly source: WebCatalogSource;
@@ -2037,29 +2111,6 @@ async function waitForSideQueryTerminal(
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("side query did not become terminal");
-}
-
-async function waitForExecutionActivity(
-  surface: Awaited<ReturnType<typeof createSurface>>,
-  jobId: string,
-): Promise<{
-  readonly snapshot: Snapshot;
-}> {
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    const result = await surface.dispatchAction({
-      type: "refresh-execution",
-      input: { kind: "job", id: jobId },
-    });
-    if (
-      result.snapshot.executionActivity.state === "succeeded" ||
-      result.snapshot.executionActivity.state === "failed" ||
-      result.snapshot.executionActivity.state === "cancelled"
-    ) {
-      return result;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  throw new Error(`execution activity did not become terminal: ${jobId}`);
 }
 
 function countOccurrences(value: string, pattern: string): number {

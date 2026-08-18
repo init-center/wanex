@@ -173,6 +173,10 @@
     "@wanex/plugin": {
       "consumers": [
         {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/eval-harness",
           "field": "dependencies"
         },
@@ -182,6 +186,10 @@
         }
       ],
       "realConsumers": [
+        {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
         {
           "package": "@wanex/plugin-command-host",
           "field": "dependencies"

@@ -1476,6 +1476,62 @@ describe("Web client", () => {
     expect(document.querySelector("[data-ui-command-palette]")).toBeNull();
   });
 
+  it("keeps durable commands submitted until a terminal execution state is visible", async () => {
+    const initial = commandPaletteSnapshot();
+    let executionAttempt = 0;
+    await mount(createClient(initial, async (action) => {
+      if (action.type === "preview-command") {
+        return {
+          ok: true,
+          action: action.type,
+          snapshot: commandPreviewSnapshot(initial, "runnable", 10),
+        };
+      }
+      if (action.type === "execute-command") {
+        executionAttempt += 1;
+        return {
+          ok: true,
+          action: action.type,
+          snapshot: submittedCommandExecutionSnapshot(
+            commandPreviewSnapshot(initial, "runnable", 10),
+            executionAttempt === 1 ? "failed" : "succeeded",
+            10 + executionAttempt,
+          ),
+        };
+      }
+      return { ok: true, action: action.type, snapshot: initial };
+    }), initial);
+
+    await act(async () => requiredButton("Commands").click());
+    await act(async () => requiredElement<HTMLButtonElement>(
+      '[data-ui-command="product.memory.inspect"]',
+    ).click());
+    await setInput(
+      requiredElement<HTMLInputElement>('[data-ui-command-field="/query"] input'),
+      "durable execution",
+    );
+    await act(async () => requiredButton("Review").click());
+    await waitFor(() => document.querySelector(
+      '[data-ui-command-preview="runnable"]',
+    ) !== null);
+
+    await act(async () => requiredButton("Execute").click());
+    await waitFor(() => document.querySelector(
+      '[data-ui-command-execution="failed"]',
+    ) !== null);
+    expect(document.body.textContent).toContain("Execution failed");
+    expect(document.body.textContent).not.toContain("Command completed");
+
+    await act(async () => requiredButton("Try again").click());
+    await waitFor(() => document.querySelector(
+      '[data-ui-command-execution="succeeded"]',
+    ) !== null);
+    expect(document.body.textContent).toContain("Execution succeeded");
+    expect(executionAttempt).toBe(2);
+    await act(async () => requiredButton("Done").click());
+    expect(document.querySelector("[data-ui-command-palette]")).toBeNull();
+  });
+
   it("fails closed for unsupported inputs and retries a rejected preview with the same input", async () => {
     const initial = commandPaletteSnapshot();
     const previews: Action[] = [];
@@ -4206,6 +4262,52 @@ function commandExecutionSnapshot(
     ...snapshot,
     commandExecution,
     view: { ...snapshot.view, commandExecution },
+  };
+}
+
+function submittedCommandExecutionSnapshot(
+  snapshot: Snapshot,
+  activityState: "succeeded" | "failed",
+  updatedAt: number,
+): Snapshot {
+  const reference = { kind: "job" as const, id: "job_renderer_command" };
+  const commandExecution: Snapshot["view"]["commandExecution"] = {
+    kind: "web.command-execution",
+    state: "submitted",
+    message: "Command submitted",
+    commandId: "product.memory.inspect",
+    handlerRef: "wanex.product.backend.memory.inspect",
+    valueKind: "plugin-action.submitted",
+    references: [reference],
+    updatedAt,
+  };
+  const executionActivity: Snapshot["view"]["executionActivity"] = {
+    kind: "web.execution-activity",
+    state: activityState,
+    message: `Execution ${activityState}`,
+    reference,
+    jobKind: "plugin.action",
+    schedulerState: activityState,
+    attempt: 1,
+    maxAttempts: 1,
+    scheduledAt: 1,
+    createdAt: 1,
+    updatedAt,
+    finishedAt: updatedAt,
+    ...(activityState === "failed"
+      ? { failureCategory: "terminal_failure" }
+      : {}),
+    refreshedAt: updatedAt,
+  };
+  return {
+    ...snapshot,
+    commandExecution,
+    executionActivity,
+    view: {
+      ...snapshot.view,
+      commandExecution,
+      executionActivity,
+    },
   };
 }
 

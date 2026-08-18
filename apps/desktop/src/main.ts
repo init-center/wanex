@@ -37,9 +37,11 @@ import {
 } from "./window-policy.js";
 import {
   createDesktopExtensionComposition,
+  createDesktopExtensionProofComposition,
   createDesktopExtensionProofSelectionQueue,
   selectLocalExtensionDirectory,
 } from "./extensions.js";
+import { WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED } from "./proof-contract.js";
 
 const processStartedAt = performance.now();
 const proofReceiptPath = process.env.WANEX_DESKTOP_PROOF_RECEIPT;
@@ -122,7 +124,7 @@ async function start(): Promise<void> {
     proofEnabled: proofReceiptPath !== undefined,
     serializedSelections: proofExtensionSelections,
   });
-  const pluginComposition = createDesktopExtensionComposition({
+  const pluginCompositionOptions = {
     userDataDir: app.getPath("userData"),
     selectLocalPackage: proofSelection ?? (async () =>
       await selectLocalExtensionDirectory(async () => {
@@ -136,7 +138,17 @@ async function start(): Promise<void> {
           ? await dialog.showOpenDialog(options)
           : await dialog.showOpenDialog(owner, options);
       })),
-  });
+  };
+  const pluginComposition = proofStep === "relaunch-plugin-install"
+    ? createDesktopExtensionProofComposition({
+        ...pluginCompositionOptions,
+        proofEnabled: proofReceiptPath !== undefined,
+        failHostCreationOnce: {
+          pluginId: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.pluginId,
+          version: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.v2Version,
+        },
+      })
+    : createDesktopExtensionComposition(pluginCompositionOptions);
   failurePhase = "product_host_startup";
   product = await startLocalWebApp({
     storage,

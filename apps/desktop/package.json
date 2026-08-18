@@ -20,6 +20,7 @@
   "dependencies": {
     "@wanex/local-credential-store": "workspace:*",
     "@wanex/local-host": "workspace:*",
+    "@wanex/plugin": "workspace:*",
     "@wanex/plugin-command-host": "workspace:*"
   },
   "devDependencies": {

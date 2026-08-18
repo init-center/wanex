@@ -181,8 +181,11 @@ describe("@wanex/plugin-command-host", () => {
         input: { text: "hello" }
       })
     ).resolves.toEqual({
-      kind: "plugin-action.submitted",
-      jobId: "job_generated"
+      kind: "submitted",
+      value: {
+        kind: "plugin-action.submitted",
+        jobId: "job_generated"
+      }
     })
     await expect(
       executor.execute({
@@ -191,8 +194,11 @@ describe("@wanex/plugin-command-host", () => {
         input: undefined
       })
     ).resolves.toEqual({
-      kind: "plugin-action.submitted",
-      jobId: "job_generated"
+      kind: "submitted",
+      value: {
+        kind: "plugin-action.submitted",
+        jobId: "job_generated"
+      }
     })
     expect(port.requests).toEqual([
       expect.objectContaining({

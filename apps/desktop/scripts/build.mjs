@@ -301,7 +301,7 @@ async function bundleDesktopMain() {
     sourcemap: false,
     minifySyntax: true,
     minifyWhitespace: true,
-    minifyIdentifiers: false,
+    minifyIdentifiers: true,
     legalComments: "none",
     logLevel: "silent"
   })

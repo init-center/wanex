@@ -51,11 +51,20 @@ export async function executeCommandWithPolicy(request: {
   if (result.kind === "rejected") {
     return result
   }
+  const summary = summarizeCommandValue(result.value)
+  if (result.kind === "submitted") {
+    return {
+      kind: "submitted",
+      commandId: result.commandId,
+      handlerRef: result.handlerRef,
+      summary: { ...summary, message: "Command submitted" }
+    }
+  }
   return {
     kind: "completed",
     commandId: result.commandId,
     handlerRef: result.handlerRef,
-    summary: summarizeCommandValue(result.value)
+    summary: { ...summary, message: "Command completed" }
   }
 }
 

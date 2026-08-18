@@ -30,6 +30,11 @@ import {
   ToolRegistry,
   type ToolDefinition
 } from "@wanex/runtime/tools"
+import {
+  createStaticAppExtensionCatalogSource,
+  resolveAppExtensionContributions,
+  type AppCommandContribution
+} from "@wanex/extension"
 import { productTestModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
@@ -655,11 +660,11 @@ describe("@wanex/product", () => {
         message: "product command not found: product.missing"
       })
       expect(agentExecution).toMatchObject({
-        kind: "completed",
+        kind: "submitted",
         commandId: "product.agent.submit",
         summary: {
           valueKind: "object",
-          message: "Command completed",
+          message: "Command submitted",
           references: expect.arrayContaining([
             { kind: "session", id: "ses_typed_execution_summary" }
           ])
@@ -671,6 +676,69 @@ describe("@wanex/product", () => {
       expect(JSON.stringify(commandCatalog)).not.toContain(storeDir)
       expect(JSON.stringify(settings)).not.toContain(serviceBin)
       expect(JSON.stringify(settings)).not.toContain("apiKey")
+    } finally {
+      await app.dispose()
+    }
+  })
+
+  it("uses explicit command completion instead of inferring it from references", async () => {
+    const storeDir = await createStoreDir()
+    const contribution = {
+      id: "extension.history",
+      domain: "command",
+      value: {
+        name: "extension.history",
+        title: "Extension history",
+        paletteVisibility: "visible",
+        handlerRef: "wanex.extension:history"
+      },
+      provenance: {
+        source: {
+          kind: "plugin",
+          scope: "user",
+          id: "extension.history"
+        },
+        trust: "user_enabled"
+      },
+      privileged: true
+    } satisfies AppCommandContribution
+    const app = await createTestApp(storeDir, {
+      extensions: {
+        source: createStaticAppExtensionCatalogSource({
+          revision: "extension-history-v1",
+          snapshot: resolveAppExtensionContributions([contribution])
+        })
+      },
+      productCommands: {
+        extensionExecutor: {
+          supports: (handlerRef) => handlerRef === contribution.value.handlerRef,
+          preview: () => ({ ok: true }),
+          async execute() {
+            return {
+              kind: "completed",
+              value: {
+                kind: "history.lookup",
+                jobId: "job_historical"
+              }
+            }
+          }
+        }
+      }
+    })
+
+    try {
+      await expect(
+        app.executeProductCommand({ commandId: contribution.id })
+      ).resolves.toEqual({
+        kind: "completed",
+        commandId: contribution.id,
+        handlerRef: contribution.value.handlerRef,
+        summary: {
+          valueKind: "history.lookup",
+          message: "Command completed",
+          references: [{ kind: "job", id: "job_historical" }]
+        }
+      })
     } finally {
       await app.dispose()
     }

@@ -1,5 +1,8 @@
 import type { BackendIntegrationContract } from "@wanex/product/backend"
-import type { CommandCatalogInvalidatedEvent } from "../commands/model.js"
+import type {
+  CommandCatalogInvalidatedEvent,
+  CommandExecutionInvalidatedEvent,
+} from "../commands/model.js"
 import type {
   CancelTrackedConversationOperationResult,
   ConversationAttachmentsReadModel,
@@ -334,6 +337,7 @@ export interface SurfaceEvent {
   readonly requestId?: string
   readonly state?: StateSnapshot
   readonly commandCatalog?: CommandCatalogInvalidatedEvent
+  readonly commandExecution?: CommandExecutionInvalidatedEvent
   readonly conversation?: ConversationEvent
   readonly sideQuery?: SideQueryInvalidatedEvent
   readonly plan?: PlanInvalidatedEvent
@@ -348,6 +352,7 @@ export type SurfaceEventType =
   | "product.surface.command_rejected"
   | "product.surface.state_changed"
   | "product.surface.command-catalog.invalidated"
+  | "product.surface.command-execution.invalidated"
   | "product.surface.conversation.assistant-text-delta"
   | "product.surface.conversation.operation-invalidated"
   | "product.surface.side-query.invalidated"

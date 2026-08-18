@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  createDesktopExtensionProofComposition,
   createDesktopExtensionProofSelectionQueue,
   extensionInstallBaseDir,
   selectLocalExtensionDirectory,
@@ -72,5 +73,17 @@ describe("Desktop local extension boundary", () => {
       proofEnabled: true,
       serializedSelections: "[]",
     })).toThrow("contain 1 to 8 paths");
+  });
+
+  it("rejects proof-only host failure composition outside proof mode", () => {
+    expect(() => createDesktopExtensionProofComposition({
+      proofEnabled: false,
+      userDataDir: "/product/user-data",
+      selectLocalPackage: async () => undefined,
+      failHostCreationOnce: {
+        pluginId: "proof.extension",
+        version: "2.0.0",
+      },
+    })).toThrow("requires proof mode");
   });
 });

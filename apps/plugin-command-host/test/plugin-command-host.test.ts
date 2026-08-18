@@ -127,6 +127,12 @@ describe("@wanex/plugin-command-host", () => {
       ]
     })
     const { host, client, storage } = fixture
+    const executionInvalidations: unknown[] = []
+    const unsubscribeExecutionInvalidations = client.subscribeSurfaceEvents((event) => {
+      if (event.type === "product.surface.command-execution.invalidated") {
+        executionInvalidations.push(event)
+      }
+    })
 
     try {
       expect(host.status()).toEqual({
@@ -212,15 +218,15 @@ describe("@wanex/plugin-command-host", () => {
       expect(execution).toMatchObject({
         ok: true,
         value: {
-          kind: "completed",
+          kind: "submitted",
           summary: {
             valueKind: "plugin-action.submitted",
             references: [expect.objectContaining({ kind: "job" })]
           }
         }
       })
-      if (!execution.ok || execution.value.kind !== "completed") {
-        throw new Error("expected completed command submission")
+      if (!execution.ok || execution.value.kind !== "submitted") {
+        throw new Error("expected durable command submission")
       }
       const job = execution.value.summary.references.find(
         (reference) => reference.kind === "job"
@@ -239,6 +245,20 @@ describe("@wanex/plugin-command-host", () => {
         status: "completed",
         jobId: job.id
       })
+      expect(executionInvalidations).toEqual([
+        expect.objectContaining({
+          type: "product.surface.command-execution.invalidated",
+          commandExecution: {
+            kind: "product.command-execution.invalidated",
+            sequence: 1,
+            at: expect.any(Number),
+            reference: { kind: "job", id: job.id },
+          },
+        }),
+      ])
+      expect(JSON.stringify(executionInvalidations)).not.toMatch(
+        /pluginId|version|payload|worker|result|error|path|secret/u,
+      )
       const activity = await client.readExecutionReference(job)
       expect(activity).toMatchObject({
         ok: true,
@@ -266,6 +286,68 @@ describe("@wanex/plugin-command-host", () => {
       })
       await expect(host.runOnce()).rejects.toThrow("disposed")
     } finally {
+      unsubscribeExecutionInvalidations()
+      await fixture.dispose()
+    }
+  })
+
+  it("wakes a long-idle worker after local Product command submission", async () => {
+    const fixture = await createFixture({
+      grants: [{
+        pluginId: "plugin.command-host",
+        version: "1.0.0",
+        decision: "allow",
+        capabilities: ["config.read"],
+      }],
+      loop: { idleIntervalMs: 10_000, errorIntervalMs: 10_000 },
+    })
+    const { host, client } = fixture
+    let resolveSettlement: ((event: SurfaceEvent) => void) | undefined
+    const settlement = new Promise<SurfaceEvent>((resolve) => {
+      resolveSettlement = resolve
+    })
+    const unsubscribe = client.subscribeSurfaceEvents((event) => {
+      if (event.type === "product.surface.command-execution.invalidated") {
+        resolveSettlement?.(event)
+      }
+    })
+
+    try {
+      host.start()
+      await waitForHostStatus(
+        () => host.status().lastWorkerStatus === "idle",
+        "Plugin worker did not enter its idle interval",
+      )
+      const startedAt = Date.now()
+      const execution = await client.executeProductCommand({
+        commandId: "plugin.command-host.echo",
+        input: { text: "wake immediately" },
+      })
+      if (!execution.ok || execution.value.kind !== "submitted") {
+        throw new Error("expected durable Plugin command submission")
+      }
+      const job = execution.value.summary.references.find(
+        (reference) => reference.kind === "job",
+      )
+      if (job === undefined) {
+        throw new Error("expected submitted Plugin action job")
+      }
+      const event = await settleWithin(
+        settlement,
+        2_000,
+        "local Plugin submission was not woken",
+      )
+
+      expect(Date.now() - startedAt).toBeLessThan(2_000)
+      expect(event).toMatchObject({
+        commandExecution: { reference: { kind: "job", id: job.id } },
+      })
+      await expect(client.readExecutionReference(job)).resolves.toMatchObject({
+        ok: true,
+        value: { kind: "found", activity: { state: "succeeded" } },
+      })
+    } finally {
+      unsubscribe()
       await fixture.dispose()
     }
   })
@@ -289,7 +371,7 @@ describe("@wanex/plugin-command-host", () => {
         commandId: "plugin.command-host.echo",
         input: { text: "denied then retry" }
       })
-      if (!execution.ok || execution.value.kind !== "completed") {
+      if (!execution.ok || execution.value.kind !== "submitted") {
         throw new Error("expected durable denied command submission")
       }
       const job = execution.value.summary.references.find(
@@ -341,7 +423,7 @@ describe("@wanex/plugin-command-host", () => {
         commandId: "plugin.command-host.echo",
         input: { text: "queued on version one" },
       })
-      if (!oldExecution.ok || oldExecution.value.kind !== "completed") {
+      if (!oldExecution.ok || oldExecution.value.kind !== "submitted") {
         throw new Error("expected old Plugin command submission")
       }
       const oldJob = oldExecution.value.summary.references.find(
@@ -383,7 +465,7 @@ describe("@wanex/plugin-command-host", () => {
         commandId: "plugin.command-host.echo",
         input: { text: "executed on version two" },
       })
-      if (!newExecution.ok || newExecution.value.kind !== "completed") {
+      if (!newExecution.ok || newExecution.value.kind !== "submitted") {
         throw new Error("expected new Plugin command submission")
       }
       const newJob = newExecution.value.summary.references.find(
@@ -571,6 +653,9 @@ async function createFixture(request: {
   readonly createActionHost?: NonNullable<
     Parameters<typeof createPluginCommandHost>[0]["createActionHost"]
   >
+  readonly loop?: Parameters<
+    typeof createPluginCommandHost
+  >[0]["worker"]["loop"]
 }) {
   const handle = await createHandle("wanex-plugin-command-host-")
   const storage = Object.assign(
@@ -593,7 +678,7 @@ async function createFixture(request: {
       workerId: "worker_product_command_host",
       leaseMs: 60_000,
       grants: request.grants,
-      loop: { idleIntervalMs: 5, errorIntervalMs: 5 }
+      loop: request.loop ?? { idleIntervalMs: 5, errorIntervalMs: 5 }
     },
     submission: {
       maxAttempts: request.maxAttempts ?? 2,
@@ -646,6 +731,35 @@ async function createFixture(request: {
       })()
       return disposePromise
     }
+  }
+}
+
+async function waitForHostStatus(
+  predicate: () => boolean,
+  message: string,
+): Promise<void> {
+  const deadline = Date.now() + 2_000
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error(message)
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
+}
+
+async function settleWithin<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  message: string,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(() => reject(new Error(message)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout)
   }
 }
 

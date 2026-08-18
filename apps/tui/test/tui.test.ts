@@ -28,6 +28,7 @@ import {
   resolveTuiCliModelEndpoint,
   parseTuiLineCommand,
   renderTuiCommandCatalog,
+  renderTuiCommandExecution,
   renderTuiConversationOperation,
   renderTuiExecutionActivity,
   renderTuiFrame,
@@ -520,8 +521,11 @@ describe("@wanex/tui", () => {
             },
             async execute() {
               return {
-                kind: "plugin-action.submitted",
-                jobId: "job_tui_guided"
+                kind: "submitted",
+                value: {
+                  kind: "plugin-action.submitted",
+                  jobId: "job_tui_guided"
+                }
               }
             }
           }
@@ -581,6 +585,29 @@ describe("@wanex/tui", () => {
     ).toBe("missing")
   })
 
+  it("renders durable command submission separately from completion", () => {
+    expect(
+      renderTuiCommandExecution({
+        kind: "submitted",
+        commandId: "plugin.tui-guided",
+        handlerRef: "wanex.plugin-action:plugin.tui-guided/run?version=1.0.0",
+        summary: {
+          valueKind: "plugin-action.submitted",
+          message: "Command submitted",
+          references: [{ kind: "job", id: "job_tui_guided" }]
+        }
+      })
+    ).toMatchObject({
+      state: "submitted",
+      referenceCount: 1,
+      lines: expect.arrayContaining([
+        "status:submitted",
+        "message:Command submitted",
+        "reference:job:job_tui_guided"
+      ])
+    })
+  })
+
   it("reads execution activity from the interactive line session", async () => {
     await withSurface(async ({ app, settlements, surface }) => {
       const jobSettled = settlements.waitForJob("job_tui_execution_activity")
@@ -624,7 +651,7 @@ describe("@wanex/tui", () => {
           ok: true,
           value: {
             kind: "product.surface-descriptor",
-            commandCount: 61
+            commandCount: 67
           }
         },
         status: {
@@ -676,7 +703,7 @@ describe("@wanex/tui", () => {
         ready: true,
         mode: "chat",
         layout: "single",
-        commandCount: 61,
+        commandCount: 67,
         productCommandCount: 14,
         statusCount: 8
       })
@@ -891,7 +918,7 @@ describe("@wanex/tui", () => {
         ok: true,
         value: {
           kind: "product.surface-descriptor",
-          commandCount: 61
+          commandCount: 67
         }
       })
       expect(status).toMatchObject({

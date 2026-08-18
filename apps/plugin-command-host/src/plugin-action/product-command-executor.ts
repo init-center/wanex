@@ -50,8 +50,11 @@ export function createPluginActionProductCommandExecutor(
           : { priority: options.submission.priority })
       })
       return {
-        kind: "plugin-action.submitted",
-        jobId: submission.job.id
+        kind: "submitted",
+        value: {
+          kind: "plugin-action.submitted",
+          jobId: submission.job.id
+        }
       }
     }
   }

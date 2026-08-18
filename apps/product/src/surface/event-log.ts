@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto"
-import type { CommandCatalogInvalidatedEvent } from "../commands/model.js"
+import type {
+  CommandCatalogInvalidatedEvent,
+  CommandExecutionInvalidatedEvent,
+} from "../commands/model.js"
 import type {
   ConversationEvent,
   SideQueryInvalidatedEvent,
@@ -37,6 +40,7 @@ export interface SurfaceEventRecordRequest {
   readonly requestId?: string
   readonly state?: StateSnapshot
   readonly commandCatalog?: CommandCatalogInvalidatedEvent
+  readonly commandExecution?: CommandExecutionInvalidatedEvent
   readonly conversation?: ConversationEvent
   readonly sideQuery?: SideQueryInvalidatedEvent
   readonly plan?: PlanInvalidatedEvent
@@ -83,6 +87,9 @@ export function createSurfaceEventRecorder(
         ...(request.commandCatalog === undefined
           ? {}
           : { commandCatalog: request.commandCatalog }),
+        ...(request.commandExecution === undefined
+          ? {}
+          : { commandExecution: request.commandExecution }),
         ...(request.conversation === undefined
           ? {}
           : { conversation: request.conversation }),

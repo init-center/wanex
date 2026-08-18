@@ -1172,6 +1172,8 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       renderer.originalSessionRestored !== true
   } else if (step === "relaunch-plugin-install") {
     const expectedKeys = [
+      "attentionDiagnosticVisible",
+      "attentionVisible",
       "cancelReviewEvidenceVisible",
       "cancelledReviewNotInstalled",
       "commandAbsentWhileDisabled",
@@ -1183,6 +1185,8 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       "pathEvidenceHidden",
       "pluginId",
       "providerEvidenceRedacted",
+      "retryAvailable",
+      "retryRecovered",
       "reviewCancelled",
       "singleActiveVersion",
       "step",
@@ -1214,6 +1218,10 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       renderer.v1Enabled !== true ||
       renderer.commandReturnedAfterEnable !== true ||
       renderer.v2ReviewEvidenceVisible !== true ||
+      renderer.attentionVisible !== true ||
+      renderer.attentionDiagnosticVisible !== true ||
+      renderer.retryAvailable !== true ||
+      renderer.retryRecovered !== true ||
       renderer.v2Installed !== true ||
       renderer.v1DisabledAfterReplacement !== true ||
       renderer.singleActiveVersion !== true ||

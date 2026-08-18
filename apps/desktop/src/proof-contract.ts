@@ -61,6 +61,12 @@ export const WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_RESPONSE =
   `${WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_PARTIAL_RESPONSE}${WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_FINAL_DELTA}`
 export const WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER =
   "WANEX_DESKTOP_SIDE_QUERY_DISMISSED_V1"
+export const WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED = {
+  pluginId: "wanex.proof.extension",
+  commandId: "wanex.proof.extension.echo",
+  v1Version: "1.0.0",
+  v2Version: "2.0.0",
+} as const
 export const WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT =
   "Describe the attached Wanex proof image"
 export const WANEX_DESKTOP_PROOF_MULTIMODAL_IMAGE_LABEL =
@@ -292,6 +298,10 @@ export interface WanexDesktopPluginInstallProofResult
   readonly v1Enabled: boolean
   readonly commandReturnedAfterEnable: boolean
   readonly v2ReviewEvidenceVisible: boolean
+  readonly attentionVisible: boolean
+  readonly attentionDiagnosticVisible: boolean
+  readonly retryAvailable: boolean
+  readonly retryRecovered: boolean
   readonly v2Installed: boolean
   readonly v1DisabledAfterReplacement: boolean
   readonly singleActiveVersion: boolean

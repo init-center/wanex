@@ -4,7 +4,9 @@ import type {
   MediaGenerationOperationRecord,
   MediaGenerationOutputModality,
   MediaGenerationProviderOutputReference,
-  MediaGenerationProviderProfile,
+  MediaGenerationOperation,
+  ModelEndpoint,
+  ModelEndpointExecutionBinding,
   ResourceKind
 } from "@wanex/protocol"
 
@@ -63,6 +65,7 @@ export type MediaGenerationSubmitResult =
       readonly status: "accepted"
       readonly externalOperationId: string
       readonly providerCheckpoint?: JsonValue
+      readonly pollAfterMs?: number
     }
   | {
       readonly status: "completed"
@@ -74,6 +77,7 @@ export type MediaGenerationPollResult =
       readonly status: "pending"
       readonly providerCheckpoint?: JsonValue
       readonly progress?: JsonValue
+      readonly pollAfterMs?: number
     }
   | {
       readonly status: "completed"
@@ -93,7 +97,8 @@ export interface MediaGenerationMaterializedOutput {
 }
 
 export interface MediaGenerationAdapter {
-  readonly profile: MediaGenerationProviderProfile
+  readonly protocolId: string
+  canExecute(modelEndpoint: ModelEndpoint): boolean
   submit(request: MediaGenerationAdapterRequest): Promise<MediaGenerationSubmitResult>
   poll(
     request: MediaGenerationAdapterRequest & {
@@ -113,7 +118,8 @@ export interface MediaGenerationAdapter {
 }
 
 export interface SubmitMediaGenerationRequest {
-  readonly providerProfileId: string
+  readonly operation: MediaGenerationOperation
+  readonly modelEndpoint: ModelEndpointExecutionBinding
   readonly principalId?: string
   readonly idempotencyKey?: string
   readonly prompt: string
@@ -132,10 +138,13 @@ export interface MediaGenerationRuntimeOptions {
   readonly timeoutMs?: number
   readonly activeAbortRegistry?: import("../jobs/active-abort.js").ActiveExecutionAbortRegistry
   readonly maxOutputBytes?: number
+  readonly pollInitialDelayMs?: number
+  readonly pollMaxDelayMs?: number
+  readonly maxConsecutivePollFailures?: number
 }
 
 export interface MediaGenerationRunResult {
-  readonly status: "idle" | "completed" | "failed"
+  readonly status: "idle" | "suspended" | "completed" | "failed"
   readonly operation?: MediaGenerationOperationRecord
   readonly error?: Error
 }

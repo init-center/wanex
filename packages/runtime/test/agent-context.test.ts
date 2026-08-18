@@ -10,6 +10,7 @@ import {
   assertAgentContextProfile,
   prepareAgentContext
 } from "../src/context/agent/index.js"
+import { unavailableToolResources } from "./tool-invocation-fixture.js"
 
 const tempDirs: string[] = []
 
@@ -100,11 +101,14 @@ describe("@wanex/runtime/context agent", () => {
       ...toolIdentity("call_skill")
     })
     expect(toolResult).toMatchObject({
-      isError: false,
-      result: {
-        name: "write-tests",
-        output: expect.stringContaining("Full skill body")
-      }
+      outcome: "succeeded",
+      content: [{
+        type: "json",
+        value: {
+          name: "write-tests",
+          output: expect.stringContaining("Full skill body")
+        }
+      }]
     })
   })
 
@@ -142,8 +146,8 @@ describe("@wanex/runtime/context agent", () => {
         ...toolIdentity("call_skill")
       })
     ).resolves.toMatchObject({
-      isError: true,
-      result: { error: "skill_not_found" }
+      outcome: "failed",
+      content: [{ value: { error: "skill_not_found" } }]
     })
   })
 
@@ -171,7 +175,6 @@ describe("@wanex/runtime/context agent", () => {
         messages: []
       })
     ).resolves.toMatchObject({
-      policy: { version: "agent-context-runtime-empty" },
       messages: [
         {
           role: "user",
@@ -340,7 +343,8 @@ function toolIdentity(toolCallId: string) {
     inputId: "input",
     turnId: "turn",
     attemptId: "attempt",
-    idempotencyKey: `tool:turn:${toolCallId}`
+    idempotencyKey: `tool:turn:${toolCallId}`,
+    resources: unavailableToolResources
   }
 }
 

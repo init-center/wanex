@@ -6,6 +6,7 @@ import type {
 
 export interface CompositePluginActionHostEntry {
   readonly pluginId: string
+  readonly version: string
   readonly host: PluginActionHost
 }
 
@@ -15,27 +16,34 @@ export function createCompositePluginActionHost(
   if (entries.length === 0) {
     throw new Error("composite plugin action host requires at least one entry")
   }
-  const byPluginId = new Map<string, PluginActionHost>()
+  const byPluginVersion = new Map<string, PluginActionHost>()
   for (const entry of entries) {
     const pluginId = entry.pluginId.trim()
+    const version = entry.version.trim()
     if (pluginId.length === 0) {
       throw new Error("composite plugin action host pluginId must not be empty")
     }
-    if (byPluginId.has(pluginId)) {
-      throw new Error(`duplicate composite plugin action host: ${pluginId}`)
+    if (version.length === 0) {
+      throw new Error("composite plugin action host version must not be empty")
     }
-    byPluginId.set(pluginId, entry.host)
+    const key = pluginVersionKey(pluginId, version)
+    if (byPluginVersion.has(key)) {
+      throw new Error(`duplicate composite plugin action host: ${pluginId}@${version}`)
+    }
+    byPluginVersion.set(key, entry.host)
   }
 
   return {
     resolve(request) {
-      return hostForResolve(byPluginId, request)?.resolve(request)
+      return hostForResolve(byPluginVersion, request)?.resolve(request)
     },
     execute(request) {
-      const host = byPluginId.get(request.manifest.pluginId)
+      const host = byPluginVersion.get(
+        pluginVersionKey(request.manifest.pluginId, request.manifest.version)
+      )
       if (host === undefined) {
         throw new Error(
-          `plugin action host not registered: ${request.manifest.pluginId}`
+          `plugin action host not registered: ${request.manifest.pluginId}@${request.manifest.version}`
         )
       }
       return host.execute(request)
@@ -44,10 +52,14 @@ export function createCompositePluginActionHost(
 }
 
 function hostForResolve(
-  byPluginId: ReadonlyMap<string, PluginActionHost>,
+  byPluginVersion: ReadonlyMap<string, PluginActionHost>,
   request: ResolvePluginActionRequest
 ): PluginActionHost | undefined {
-  return byPluginId.get(request.pluginId)
+  return byPluginVersion.get(pluginVersionKey(request.pluginId, request.version))
+}
+
+function pluginVersionKey(pluginId: string, version: string): string {
+  return `${pluginId}\u0000${version}`
 }
 
 export type CompositePluginActionExecuteRequest = ExecutePluginActionRequest

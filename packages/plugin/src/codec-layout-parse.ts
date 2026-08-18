@@ -4,6 +4,7 @@ import {
   expectPluginPackageFiles,
   expectPluginPackageRuntimeDependencies
 } from "./codec-layout-parts.js"
+import { expectPluginPackageContributions } from "./codec-layout-contributions.js"
 import { validatePluginPackageLayout } from "./codec-layout-validation.js"
 import {
   expectJsonValue,
@@ -42,6 +43,11 @@ export function pluginPackageLayoutFromJson(value: JsonValue): PluginPackageLayo
       record.capabilities,
       "plugin package layout capabilities"
     ),
+    ...(record.contributes === undefined
+      ? {}
+      : {
+          contributes: expectPluginPackageContributions(record.contributes)
+        }),
     ...(record.runtimeDependencies === undefined
       ? {}
       : {

@@ -63,26 +63,32 @@ function dependencyEntries(manifest) {
 
 function isManifestLeafRecipeDependencyAllowed(packageName, dependencyName) {
   return (
-    (dependencyName === "@wanex/product-app" &&
+    (dependencyName === "@wanex/product" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product-app-local" &&
+    (dependencyName === "@wanex/local-host" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product-app-web" &&
+    (dependencyName === "@wanex/web" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product-app-tui" &&
+    (dependencyName === "@wanex/tui" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product-app" &&
-      packageName === "@wanex/product-app-web") ||
-    (dependencyName === "@wanex/product-app" &&
-      packageName === "@wanex/product-app-command-host") ||
-    (dependencyName === "@wanex/product-app-command-host" &&
+    (dependencyName === "@wanex/product" &&
+      packageName === "@wanex/web") ||
+    (dependencyName === "@wanex/product" &&
+      packageName === "@wanex/plugin-command-host") ||
+    (dependencyName === "@wanex/plugin-command-host" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product-app" &&
-      packageName === "@wanex/product-app-local") ||
-    (dependencyName === "@wanex/product-app-web" &&
-      packageName === "@wanex/product-app-local") ||
-    (dependencyName === "@wanex/product-app" &&
-      packageName === "@wanex/product-app-tui") ||
+    (dependencyName === "@wanex/local-host" &&
+      packageName === "@wanex/desktop") ||
+    (dependencyName === "@wanex/plugin-command-host" &&
+      packageName === "@wanex/desktop") ||
+    (dependencyName === "@wanex/local-host" &&
+      packageName === "@wanex/tui") ||
+    (dependencyName === "@wanex/product" &&
+      packageName === "@wanex/local-host") ||
+    (dependencyName === "@wanex/web" &&
+      packageName === "@wanex/local-host") ||
+    (dependencyName === "@wanex/product" &&
+      packageName === "@wanex/tui") ||
     (dependencyName === "@wanex/app" &&
       packageName === "@wanex/eval-harness") ||
     false

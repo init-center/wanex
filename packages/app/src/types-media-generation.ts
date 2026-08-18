@@ -16,7 +16,10 @@ export interface WanexAppMediaGenerationCommands {
   ): Promise<WanexAppCancelMediaGenerationReceipt>
 }
 
-export type WanexAppSubmitMediaGenerationRequest = SubmitMediaGenerationRequest
+export type WanexAppSubmitMediaGenerationRequest = Omit<
+  SubmitMediaGenerationRequest,
+  "modelEndpoint"
+>
 
 export interface WanexAppMediaGenerationReceipt {
   readonly operationId: string

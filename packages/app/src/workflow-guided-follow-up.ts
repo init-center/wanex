@@ -15,7 +15,7 @@ export async function queueWanexAppGuidedFollowUp(
   conversationOperations: WanexAppConversationOperationController,
   options: {
     readonly request: WanexAppQueueGuidedFollowUpRequest
-    readonly providerProfileId: string
+    readonly modelEndpointId: string
   }
 ): Promise<WanexAppQueueGuidedFollowUpResult> {
   const text = options.request.text.trim()
@@ -39,6 +39,9 @@ export async function queueWanexAppGuidedFollowUp(
       sessionId: options.request.sessionId,
       principalId: options.request.principalId ?? defaultPrincipalId,
       inputId,
+      ...(options.request.turnId === undefined
+        ? {}
+        : { turnId: options.request.turnId }),
       idempotencyKey:
         options.request.idempotencyKey ??
         `wanex-app-guided:${options.request.sessionId}:${inputId}`,
@@ -49,14 +52,13 @@ export async function queueWanexAppGuidedFollowUp(
       origin: {
         kind: "interactive",
         sourceRef,
-        parentRef: activeTurnId,
-        metadata: { productPolicy: "queue_after_current" }
+        parentRef: activeTurnId
       },
       intent: "follow_up",
       runControlPolicy: "queue_after_current",
       expectedTurnId: activeTurnId
     },
-    providerProfileId: options.providerProfileId
+    modelEndpointId: options.modelEndpointId
   })
   const [inputs, turns, job] = await Promise.all([
     runtime.storage.listSessionInputs({ sessionId: options.request.sessionId }),
@@ -71,13 +73,13 @@ export async function queueWanexAppGuidedFollowUp(
   return {
     sessionId: options.request.sessionId,
     activeTurnId,
-    providerProfileId: turn.executionBinding.provider.profileId,
+    modelEndpointId: turn.executionBinding.modelEndpoint.endpointId,
     input: projectQueuedInput(input),
     job: {
       jobId: job.id,
       kind: "session.turn",
       state: job.state,
-      providerProfileId: turn.executionBinding.provider.profileId
+      modelEndpointId: turn.executionBinding.modelEndpoint.endpointId
     },
     receipt
   }

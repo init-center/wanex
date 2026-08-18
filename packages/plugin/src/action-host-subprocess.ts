@@ -31,12 +31,15 @@ export function createSubprocessPluginActionHost(
   validateSubprocessPluginActionHostOptions(options)
   const descriptors = new Map<string, SubprocessPluginActionDescriptor>()
   for (const descriptor of options.descriptors) {
-    descriptors.set(pluginActionKey(descriptor.pluginId, descriptor.actionId), descriptor)
+    descriptors.set(
+      pluginActionKey(descriptor.pluginId, descriptor.version, descriptor.actionId),
+      descriptor
+    )
   }
   return {
     resolve(request) {
       const descriptor = descriptors.get(
-        pluginActionKey(request.pluginId, request.actionId)
+        pluginActionKey(request.pluginId, request.version, request.actionId)
       )
       if (descriptor === undefined) {
         return undefined
@@ -81,7 +84,7 @@ export function createSubprocessPluginActionHostFromManifest(
       pluginId: manifest.pluginId,
       actionId: action.actionId,
       capability: action.capability,
-      version: action.version ?? manifest.version,
+      version: manifest.version,
       ...(action.sandbox === undefined ? {} : { sandbox: action.sandbox })
     })),
     command: entry.command,
@@ -110,10 +113,11 @@ export function createTrustedSubprocessPluginActionHostFromManifest(options: {
       pluginId: options.manifest.pluginId,
       actionId: action.actionId,
       capability: action.capability,
-      version: action.version ?? options.manifest.version,
+      version: options.manifest.version,
       ...(action.sandbox === undefined ? {} : { sandbox: action.sandbox })
     })),
     command: resolveTrustedPluginCommand(trust.install.rootDir, entry.command),
+    cwd: trust.install.rootDir,
     ...(entry.args === undefined ? {} : { args: entry.args }),
     ...(entry.timeoutMs === undefined ? {} : { timeoutMs: entry.timeoutMs }),
     ...(entry.stderrLimitBytes === undefined
@@ -139,6 +143,6 @@ export function createTrustedSubprocessPluginActionHostFromInstall(options: {
   })
 }
 
-function pluginActionKey(pluginId: string, actionId: string): string {
-  return `${pluginId}\u0000${actionId}`
+function pluginActionKey(pluginId: string, version: string, actionId: string): string {
+  return `${pluginId}\u0000${version}\u0000${actionId}`
 }

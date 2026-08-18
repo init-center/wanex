@@ -9,6 +9,10 @@ import {
   EnvSecretProvider,
   SecretResolver
 } from "../src/secrets/index.js"
+import {
+  fakeModelEndpoint,
+  testModelEndpoint
+} from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -32,7 +36,9 @@ describe("@wanex/runtime", () => {
         disposed: false,
         started: false,
         workerCount: 1,
-        providerKind: "fake",
+        modelEndpointId: "endpoint_public-runtime",
+        protocolId: "fake",
+        providerId: "fake",
         modelId: "public-runtime-model"
       })
 
@@ -104,17 +110,13 @@ describe("@wanex/runtime", () => {
         kind: "injected",
         handle: storage
       },
-      provider: {
-        kind: "fake",
-        capabilities: { input: ["text"], output: ["text"] },
-        modelId: "borrowed-storage-model"
-      }
+      modelEndpoint: fakeModelEndpoint("borrowed-storage")
     })
 
     try {
       await runtime.dispose()
       await expect(storage.core.doctor()).resolves.toMatchObject({
-        schemaVersion: 1
+        schemaVersion: 14
       })
     } finally {
       await runtime.dispose()
@@ -152,15 +154,14 @@ describe("@wanex/runtime", () => {
         storeDir,
         serviceBin
       },
-      provider: {
-        kind: "openai-compatible",
-        capabilities: { input: ["text"], output: ["text"] },
-        id: "runtime-secret-ref",
+      modelEndpoint: testModelEndpoint({
+        endpointId: "runtime-secret-ref",
+        protocolId: "openai-chat-completions",
         providerId: "openai-compatible",
         modelId: "runtime-secret-ref-model",
         baseUrl: "https://provider.example.test/v1",
         secretRef: "env://WANEX_RUNTIME_PROVIDER_KEY"
-      },
+      }),
       secretResolver: new SecretResolver([
         new EnvSecretProvider({
           WANEX_RUNTIME_PROVIDER_KEY: secretValue
@@ -192,14 +193,15 @@ describe("@wanex/runtime", () => {
         storeDir,
         serviceBin
       },
-      provider: {
-        kind: "openai-compatible",
-        capabilities: { input: ["text"], output: ["text"] },
+      modelEndpoint: testModelEndpoint({
+        endpointId: "runtime-no-resolver",
+        protocolId: "openai-chat-completions",
+        providerId: "openai",
         modelId: "runtime-no-resolver-model",
         baseUrl: "https://provider.example.test/v1",
         secretRef: "env://WANEX_RUNTIME_PROVIDER_KEY"
-      }
-    })).rejects.toThrow("provider requires secret resolver")
+      })
+    })).rejects.toThrow("model endpoint requires secret resolver")
     await expect(access(join(storeDir, "state.db"))).rejects.toMatchObject({
       code: "ENOENT"
     })
@@ -218,33 +220,36 @@ describe("@wanex/runtime", () => {
 
     await expect(createWanexRuntime({
       storage,
-      provider: {
-        kind: "openai-compatible",
-        capabilities: { input: ["text"], output: ["text"] },
+      modelEndpoint: testModelEndpoint({
+        endpointId: "runtime-missing-base-url",
+        protocolId: "openai-chat-completions",
+        providerId: "openai",
         modelId: "runtime-missing-base-url",
         secretRef: "env://WANEX_RUNTIME_PROVIDER_KEY"
-      },
+      }),
       secretResolver
-    })).rejects.toThrow("provider requires baseUrl")
+    })).rejects.toThrow("model endpoint requires baseUrl")
     await expect(createWanexRuntime({
       storage,
-      provider: {
-        kind: "openai-compatible",
-        capabilities: { input: ["text"], output: ["text"] },
+      modelEndpoint: testModelEndpoint({
+        endpointId: "runtime-missing-secret-ref",
+        protocolId: "openai-chat-completions",
+        providerId: "openai",
         modelId: "runtime-missing-secret-ref",
         baseUrl: "https://provider.example.test/v1"
-      },
+      }),
       secretResolver
-    })).rejects.toThrow("provider requires secretRef")
+    })).rejects.toThrow("model endpoint requires secretRef")
     await expect(createWanexRuntime({
       storage,
-      provider: {
-        kind: "openai-compatible",
-        capabilities: { input: ["text"], output: ["text"] },
+      modelEndpoint: testModelEndpoint({
+        endpointId: "runtime-invalid-secret-ref",
+        protocolId: "openai-chat-completions",
+        providerId: "openai",
         modelId: "runtime-invalid-secret-ref",
         baseUrl: "https://provider.example.test/v1",
         secretRef: "missing-scheme"
-      },
+      }),
       secretResolver
     })).rejects.toThrow("secretRef must include a URI scheme")
     await expect(access(join(storeDir, "state.db"))).rejects.toMatchObject({
@@ -314,13 +319,14 @@ async function createRuntime(responseText: string) {
       storeDir,
       serviceBin
     },
-    provider: {
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
-      id: "public-runtime-test",
-      modelId: "public-runtime-model",
-      responseText
+    modelEndpoint: {
+      ...fakeModelEndpoint("public-runtime"),
+      model: {
+        ...fakeModelEndpoint("public-runtime").model,
+        id: "public-runtime-model"
+      }
     },
+    fakeResponseText: responseText,
     idleIntervalMs: 5
   })
 }

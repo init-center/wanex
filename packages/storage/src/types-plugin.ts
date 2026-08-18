@@ -1,9 +1,13 @@
 import type {
+  ActivatePluginInstallRequest,
+  GetPluginActionExecutionAdmissionRequest,
   GetPluginInstallRequest,
   GetPluginManifestRequest,
   ListPluginInstallsRequest,
   ListPluginManifestsRequest,
   PluginActionSubmission,
+  PluginActionExecutionAdmission,
+  PluginInstallActivation,
   PluginInstallRecord,
   PluginManifestRecord,
   PutPluginInstallRequest,
@@ -26,6 +30,9 @@ export interface PluginStore {
   putPluginInstall(
     request: PutPluginInstallRequest
   ): Promise<PluginInstallRecord>
+  activatePluginInstall(
+    request: ActivatePluginInstallRequest
+  ): Promise<PluginInstallActivation>
   getPluginInstall(
     request: GetPluginInstallRequest
   ): Promise<PluginInstallRecord | null>
@@ -38,6 +45,9 @@ export interface PluginStore {
   updatePluginManifestState(
     request: UpdatePluginManifestStateRequest
   ): Promise<PluginManifestRecord>
+  getPluginActionExecutionAdmission(
+    request: GetPluginActionExecutionAdmissionRequest
+  ): Promise<PluginActionExecutionAdmission>
   submitPluginAction(
     request: SubmitPluginActionRequest
   ): Promise<PluginActionSubmission>

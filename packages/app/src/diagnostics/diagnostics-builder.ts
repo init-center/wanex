@@ -8,7 +8,6 @@ import {
   sortActivityEntries,
   sortDiagnosticEntries
 } from "./diagnostics-sort.js"
-import { teamRoundDiagnostic } from "./diagnostics-team.js"
 import type {
   AppActivityEntry,
   AppDiagnosticEntry,
@@ -51,10 +50,6 @@ export function buildAppDiagnosticsSnapshot(
   diagnostics.push(
     ...workspaceApplyPlanDiagnostics(input.workspaceApplyPlan, generatedAt)
   )
-
-  if (input.teamRound !== undefined) {
-    diagnostics.push(teamRoundDiagnostic(input.teamRound, generatedAt))
-  }
 
   if (input.runtimeHost !== undefined) {
     const projected = runtimeHostProjection(input.runtimeHost)

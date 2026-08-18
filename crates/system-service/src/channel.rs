@@ -925,7 +925,7 @@ fn validate_project_channel_inbound_event(request: &ProjectChannelInboundEvent) 
 fn validate_projection_target_kind(kind: &str) -> Result<()> {
     if !matches!(
         kind,
-        "session.turn" | "team.turn" | "workspace.task" | "ignored"
+        "session.turn" | "team.message" | "workspace.task" | "ignored"
     ) {
         return Err(SystemServiceError::Invariant(format!(
             "invalid channel projection target kind: {kind}"
@@ -1180,10 +1180,10 @@ fn apply_projection_target_tx(
                 job: Some(receipt.job),
             })
         }
-        ProjectionTarget::TeamTurn(target) => {
-            let turn_id = append_team_turn_projection_tx(tx, projection_id, target, now)?;
+        ProjectionTarget::TeamMessage(target) => {
+            let message_id = admit_team_message_projection_tx(tx, projection_id, target, now)?;
             Ok(ProjectionOutcome {
-                target_id: Some(turn_id),
+                target_id: Some(message_id),
                 job: None,
             })
         }
@@ -1244,7 +1244,6 @@ fn submit_session_turn_projection_tx(
             )),
             execution_binding: target.execution_binding.clone(),
             max_steps: target.max_steps,
-            parent_turn_id: target.parent_turn_id.clone(),
             regenerates_turn_id: target.regenerates_turn_id.clone(),
             scheduled_at: target.scheduled_at,
             not_before: target.not_before,
@@ -1255,29 +1254,31 @@ fn submit_session_turn_projection_tx(
     )
 }
 
-fn append_team_turn_projection_tx(
+fn admit_team_message_projection_tx(
     tx: &rusqlite::Transaction<'_>,
     projection_id: &str,
-    target: &TeamTurnProjectionTarget,
+    target: &TeamMessageProjectionTarget,
     now: i64,
 ) -> Result<String> {
-    crate::team::append_team_turn_tx(
+    crate::team::admit_team_message_tx(
         tx,
-        &crate::AppendTeamTurn {
+        &crate::AdmitTeamMessage {
             id: target
-                .turn_id
+                .message_id
                 .clone()
-                .or_else(|| Some(format!("tturn_{projection_id}"))),
+                .or_else(|| Some(format!("tmsg_{projection_id}"))),
             conversation_id: target.conversation_id.clone(),
-            speaker_participant_id: target.speaker_participant_id.clone(),
-            audience_participant_ids: target.audience_participant_ids.clone(),
-            kind: target.turn_kind.clone(),
+            author_participant_id: target.author_participant_id.clone(),
+            parent_message_id: target.parent_message_id.clone(),
+            kind: target.message_kind.clone(),
+            targets: target.targets.clone(),
             content: target.content.clone(),
             metadata: target.metadata.clone(),
+            idempotency_key: format!("channel.projection:{projection_id}:team.message"),
         },
         now,
     )
-    .map(|turn| turn.id)
+    .map(|message| message.id)
 }
 
 fn enqueue_workspace_task_projection_tx(
@@ -1349,7 +1350,7 @@ struct ProjectionOutcome {
 #[derive(Debug)]
 enum ProjectionTarget {
     SessionTurn(SessionTurnProjectionTarget),
-    TeamTurn(TeamTurnProjectionTarget),
+    TeamMessage(TeamMessageProjectionTarget),
     WorkspaceTask(WorkspaceTaskProjectionTarget),
     Ignored(()),
 }
@@ -1362,7 +1363,9 @@ impl ProjectionTarget {
             "session.turn" => Ok(Self::SessionTurn(SessionTurnProjectionTarget::parse(
                 value,
             )?)),
-            "team.turn" => Ok(Self::TeamTurn(TeamTurnProjectionTarget::parse(value)?)),
+            "team.message" => Ok(Self::TeamMessage(TeamMessageProjectionTarget::parse(
+                value,
+            )?)),
             "workspace.task" => Ok(Self::WorkspaceTask(WorkspaceTaskProjectionTarget::parse(
                 value,
             )?)),
@@ -1382,7 +1385,7 @@ impl ProjectionTarget {
     fn kind(&self) -> &'static str {
         match self {
             Self::SessionTurn(_) => "session.turn",
-            Self::TeamTurn(_) => "team.turn",
+            Self::TeamMessage(_) => "team.message",
             Self::WorkspaceTask(_) => "workspace.task",
             Self::Ignored(_) => "ignored",
         }
@@ -1399,7 +1402,6 @@ struct SessionTurnProjectionTarget {
     input_type: Option<String>,
     execution_binding: serde_json::Value,
     max_steps: Option<i64>,
-    parent_turn_id: Option<String>,
     regenerates_turn_id: Option<String>,
     job_id: Option<String>,
     scheduled_at: Option<i64>,
@@ -1419,7 +1421,6 @@ impl SessionTurnProjectionTarget {
             input_type: optional_string_json(value, "inputType")?,
             execution_binding: required_json(value, "executionBinding")?.clone(),
             max_steps: optional_i64_json(value, "maxSteps")?,
-            parent_turn_id: optional_string_json(value, "parentTurnId")?,
             regenerates_turn_id: optional_string_json(value, "regeneratesTurnId")?,
             job_id: optional_string_json(value, "jobId")?,
             scheduled_at: optional_i64_json(value, "scheduledAt")?,
@@ -1431,25 +1432,27 @@ impl SessionTurnProjectionTarget {
 }
 
 #[derive(Debug)]
-struct TeamTurnProjectionTarget {
+struct TeamMessageProjectionTarget {
     conversation_id: String,
-    speaker_participant_id: String,
+    author_participant_id: String,
     content: serde_json::Value,
-    turn_id: Option<String>,
-    audience_participant_ids: Option<Vec<String>>,
-    turn_kind: Option<String>,
+    message_id: Option<String>,
+    parent_message_id: Option<String>,
+    message_kind: Option<String>,
+    targets: Vec<crate::TeamTarget>,
     metadata: Option<serde_json::Value>,
 }
 
-impl TeamTurnProjectionTarget {
+impl TeamMessageProjectionTarget {
     fn parse(value: &serde_json::Value) -> Result<Self> {
         Ok(Self {
             conversation_id: required_string(value, "conversationId")?,
-            speaker_participant_id: required_string(value, "speakerParticipantId")?,
+            author_participant_id: required_string(value, "authorParticipantId")?,
             content: required_json(value, "content")?.clone(),
-            turn_id: optional_string_json(value, "turnId")?,
-            audience_participant_ids: optional_string_array_json(value, "audienceParticipantIds")?,
-            turn_kind: optional_string_json(value, "turnKind")?,
+            message_id: optional_string_json(value, "messageId")?,
+            parent_message_id: optional_string_json(value, "parentMessageId")?,
+            message_kind: optional_string_json(value, "messageKind")?,
+            targets: optional_team_targets_json(value, "targets")?.unwrap_or_default(),
             metadata: optional_json(value, "metadata").cloned(),
         })
     }
@@ -1569,28 +1572,12 @@ fn optional_bool_json(value: &serde_json::Value, field: &str) -> Result<Option<b
         .transpose()
 }
 
-fn optional_string_array_json(
+fn optional_team_targets_json(
     value: &serde_json::Value,
     field: &str,
-) -> Result<Option<Vec<String>>> {
+) -> Result<Option<Vec<crate::TeamTarget>>> {
     optional_json(value, field)
-        .map(|raw| {
-            let items = raw.as_array().ok_or_else(|| {
-                SystemServiceError::Invariant(format!(
-                    "channel projection {field} must be an array"
-                ))
-            })?;
-            items
-                .iter()
-                .map(|item| {
-                    item.as_str().map(ToOwned::to_owned).ok_or_else(|| {
-                        SystemServiceError::Invariant(format!(
-                            "channel projection {field} entries must be strings"
-                        ))
-                    })
-                })
-                .collect()
-        })
+        .map(|raw| serde_json::from_value(raw.clone()).map_err(Into::into))
         .transpose()
 }
 

@@ -2,6 +2,8 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
+import type { JsonValue, ToolResultContentPart } from "@wanex/protocol"
 import {
   createToolRuntimeBinding,
   ToolRegistry,
@@ -108,6 +110,8 @@ export class WanexMcpRuntimeClient {
       inputSchema: jsonClone(remote.inputSchema) as ToolInputSchema,
       risk: toolRisk(annotations),
       idempotent: annotations?.idempotentHint === true,
+      concurrency: "exclusive",
+      resultMode: "immediate",
       annotations: {
         ...(title === undefined ? {} : { title }),
         ...(annotations?.readOnlyHint === undefined
@@ -137,27 +141,34 @@ export class WanexMcpRuntimeClient {
     invocation: ToolInvocation
   ): Promise<ToolExecutionResult> {
     const client = this.requireClient()
+    const args = asArguments(invocation.input)
     const signal = bridgeAbortSignal(invocation.signal)
     try {
-      const result = await client.callTool(
-        {
-          name: remoteName,
-          arguments: asArguments(invocation.input)
-        },
-        undefined,
-        this.requestOptions(signal.signal)
-      )
+      let result: Awaited<ReturnType<Client["callTool"]>>
+      try {
+        result = await client.callTool(
+          { name: remoteName, arguments: args },
+          undefined,
+          this.requestOptions(signal.signal)
+        )
+      } catch (error) {
+        return {
+          outcome: "ambiguous",
+          toolCallId: invocation.toolCallId,
+          message: `MCP tool response was not observed: ${errorMessage(error)}`,
+          metadata: {
+            protocol: "mcp",
+            clientId: this.options.id,
+            remoteToolName: remoteName
+          }
+        }
+      }
       return {
+        outcome: "isError" in result && result.isError === true
+          ? "failed"
+          : "succeeded",
         toolCallId: invocation.toolCallId,
-        result: jsonValue({
-          protocol: "mcp",
-          content: "content" in result ? result.content : [],
-          ...(result.structuredContent === undefined
-            ? {}
-            : { structuredContent: result.structuredContent }),
-          ...(result._meta === undefined ? {} : { meta: result._meta })
-        }),
-        isError: "isError" in result && result.isError === true
+        content: await mcpToolResultContent(result, invocation)
       }
     } finally {
       signal.dispose()
@@ -179,6 +190,89 @@ export class WanexMcpRuntimeClient {
     }
     return this.client
   }
+}
+
+async function mcpToolResultContent(
+  result: Awaited<ReturnType<Client["callTool"]>>,
+  invocation: ToolInvocation
+): Promise<readonly ToolResultContentPart[]> {
+  const content: ToolResultContentPart[] = []
+  const blocks: CallToolResult["content"] =
+    "content" in result && Array.isArray(result.content)
+      ? result.content as CallToolResult["content"]
+      : []
+  for (const block of blocks) {
+    if (block.type === "text") {
+      if (block.text.length > 0) content.push({ type: "text", text: block.text })
+      continue
+    }
+    if (block.type === "image" || block.type === "audio") {
+      content.push(await invocation.resources.publish({
+        content: decodeBase64(block.data, `MCP ${block.type} content`),
+        kind: block.type,
+        mediaType: block.mimeType
+      }))
+      continue
+    }
+    if (block.type === "resource") {
+      if ("blob" in block.resource) {
+        content.push(await invocation.resources.publish({
+          content: decodeBase64(block.resource.blob, "MCP embedded resource"),
+          ...(block.resource.mimeType === undefined
+            ? {}
+            : { mediaType: block.resource.mimeType }),
+          metadata: { protocol: "mcp", sourceUri: block.resource.uri }
+        }))
+      } else {
+        content.push({
+          type: "json",
+          value: {
+            type: "mcp_embedded_text_resource",
+            uri: block.resource.uri,
+            mimeType: block.resource.mimeType ?? null,
+            text: block.resource.text
+          }
+        })
+      }
+      continue
+    }
+    content.push({
+      type: "json",
+      value: jsonValue({
+        type: "mcp_resource_link",
+        name: block.name,
+        uri: block.uri,
+        ...(block.title === undefined ? {} : { title: block.title }),
+        ...(block.description === undefined
+          ? {}
+          : { description: block.description }),
+        ...(block.mimeType === undefined ? {} : { mimeType: block.mimeType }),
+        ...(block.size === undefined ? {} : { sizeBytes: block.size })
+      })
+    })
+  }
+  if (result.structuredContent !== undefined) {
+    content.push({ type: "json", value: jsonValue(result.structuredContent) })
+  }
+  if (content.length === 0) {
+    content.push({ type: "json", value: { protocol: "mcp", content: [] } })
+  }
+  return content
+}
+
+function decodeBase64(value: string, label: string): Uint8Array {
+  if (
+    value.length === 0 ||
+    value.length % 4 !== 0 ||
+    !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)
+  ) {
+    throw new Error(`${label} is not canonical base64`)
+  }
+  const bytes = Buffer.from(value, "base64")
+  if (bytes.toString("base64") !== value) {
+    throw new Error(`${label} is not canonical base64`)
+  }
+  return bytes
 }
 
 function mcpToolConfiguration(
@@ -242,8 +336,12 @@ function jsonClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function jsonValue(value: unknown): ToolExecutionResult["result"] {
-  return JSON.parse(JSON.stringify(value)) as ToolExecutionResult["result"]
+function jsonValue(value: unknown): JsonValue {
+  return JSON.parse(JSON.stringify(value)) as JsonValue
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function bridgeAbortSignal(signal: ToolInvocation["signal"]): {

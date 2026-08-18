@@ -8,6 +8,9 @@ import {
   WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
 } from "../src/internal-index.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
+
+const fakeModelEndpoint = appTestModelEndpoint()
 
 describe("@wanex/app agent context commands", () => {
   it("runs agent turns with an app-owned context profile", async () => {
@@ -31,6 +34,7 @@ describe("@wanex/app agent context commands", () => {
       artifacts: {
         explicitPath: serviceBin
       },
+      modelEndpoint: fakeModelEndpoint,
       agentContextProfile: {
         instructions: {
           cwd,
@@ -107,6 +111,7 @@ describe("@wanex/app agent context commands", () => {
       artifacts: {
         explicitPath: serviceBin
       },
+      modelEndpoint: fakeModelEndpoint,
       agentContextProfile: {
         instructions: {
           cwd: firstCwd,
@@ -202,6 +207,7 @@ describe("@wanex/app agent context commands", () => {
       artifacts: {
         explicitPath: serviceBin
       },
+      modelEndpoint: fakeModelEndpoint,
       agentContextProfile: {
         skills: {
           cwd: workspaceRoot,
@@ -255,6 +261,101 @@ describe("@wanex/app agent context commands", () => {
       })
     } finally {
       await storage.dispose()
+      await app.dispose()
+    }
+  })
+
+  it("retains the last complete skill generation across incomplete discovery", async () => {
+    const storeDir = await createStoreDir()
+    const workspaceRoot = await createStoreDir()
+    await writeFileRecursive(
+      join(workspaceRoot, ".agents/skills/safe-skill/SKILL.md"),
+      skillMd({
+        name: "safe-skill",
+        description: "Safe skill.",
+        body: "SAFE SKILL BODY"
+      })
+    )
+    await writeFileRecursive(
+      join(workspaceRoot, "custom-skills/next-skill/SKILL.md"),
+      skillMd({
+        name: "next-skill",
+        description: "Next skill.",
+        body: "NEXT SKILL BODY"
+      })
+    )
+    const app = await createWanexApp({
+      storage: {
+        kind: "local-system-service",
+        storeDir
+      },
+      artifacts: {
+        explicitPath: serviceBin
+      },
+      agentContextProfile: {
+        skills: {
+          cwd: workspaceRoot,
+          projectRoot: workspaceRoot,
+          trustProject: true,
+          registerActivationTool: true
+        }
+      }
+    })
+
+    try {
+      await expect(
+        app.commands.setAgentContextProfile({
+          skills: {
+            cwd: workspaceRoot,
+            projectRoot: workspaceRoot,
+            projectSkillDirs: ["../unsafe"],
+            trustProject: true,
+            registerActivationTool: true
+          }
+        })
+      ).resolves.toMatchObject({
+        reloaded: false,
+        reason: "skill_observation_incomplete",
+        detail: {
+          revision: 1,
+          retained: true,
+          skillNames: ["safe-skill"],
+          candidateDiagnostics: ["skill.invalid_options"]
+        }
+      })
+      expect(app.status().agentContext).toMatchObject({
+        revision: 1,
+        context: {
+          skillNames: ["safe-skill"],
+          activationToolRegistered: true
+        }
+      })
+
+      await expect(
+        app.commands.setAgentContextProfile({
+          skills: {
+            cwd: workspaceRoot,
+            projectRoot: workspaceRoot,
+            projectSkillDirs: ["custom-skills"],
+            trustProject: true,
+            registerActivationTool: true
+          }
+        })
+      ).resolves.toMatchObject({
+        reloaded: true,
+        detail: {
+          revision: 2,
+          skillNames: ["next-skill"]
+        }
+      })
+      expect(app.status().agentContext).toMatchObject({
+        revision: 2,
+        context: {
+          skillNames: ["next-skill"],
+          activationToolRegistered: true
+        }
+      })
+    } finally {
       await app.dispose()
     }
   })

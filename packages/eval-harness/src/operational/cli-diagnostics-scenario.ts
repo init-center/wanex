@@ -8,41 +8,70 @@ import {
   payloadSessionId
 } from "./helpers.js"
 
+const FAKE_MODEL_ID = "eval-cli-diagnostics-model"
+const LONG_TURN_PROMPT = "cli diagnostics ".repeat(900)
+
 export const cliDiagnosticsOperationalScenario = createEvalScenario({
   id: "cli.diagnostics-operational",
   title: "CLI diagnostics projects queued memory maintenance without execution",
   tags: ["cli", "diagnostics", "memory", "product-path"],
   async run(context) {
     await runCli(context, [
-      "run",
-      "cli diagnostics ".repeat(900),
-      "--session",
-      "ses_eval_cli_diagnostics"
+      "model-endpoint",
+      "set",
+      "eval-cli-diagnostics",
+      "--protocol",
+      "fake",
+      "--provider-id",
+      "fake",
+      "--model",
+      FAKE_MODEL_ID,
+      "--model-context-window-tokens",
+      "9000",
+      "--model-max-input-tokens",
+      "9000",
+      "--model-max-output-tokens",
+      "500"
     ])
     await runCli(context, [
       "run",
-      "second turn",
+      LONG_TURN_PROMPT,
       "--session",
-      "ses_eval_cli_diagnostics"
+      "ses_eval_cli_diagnostics",
+      "--model-endpoint",
+      "eval-cli-diagnostics"
+    ])
+    await runCli(context, [
+      "run",
+      LONG_TURN_PROMPT,
+      "--session",
+      "ses_eval_cli_diagnostics",
+      "--model-endpoint",
+      "eval-cli-diagnostics"
     ])
     await runCli(context, [
       "run",
       "third turn",
       "--session",
-      "ses_eval_cli_diagnostics"
+      "ses_eval_cli_diagnostics",
+      "--model-endpoint",
+      "eval-cli-diagnostics"
     ])
-    await runCli(context, [
+    const sweep = await runCli(context, [
       "memory",
       "sweep",
-      "--waterline-tokens",
-      "1",
       "--minimum-token-savings",
       "1",
-      "--policy-version",
-      "eval-cli-diagnostics-v1",
       "--idempotency-prefix",
       "eval-cli-diagnostics"
     ])
+    const sweepJobs = expectArray(expectRecord(sweep.value).submittedJobs)
+      .map(expectRecord)
+      .filter((job) => job.sessionId === "ses_eval_cli_diagnostics")
+    assert(
+      sweepJobs.length === 1,
+      "CLI diagnostics scenario requires one queued memory job"
+    )
     const jobsBefore = await context.storage.listJobs({
       kind: "memory.compaction",
       limit: 50
@@ -51,8 +80,6 @@ export const cliDiagnosticsOperationalScenario = createEvalScenario({
     const diagnostics = await runCli(context, [
       "diagnostics",
       "--memory-maintenance",
-      "--policy-version",
-      "eval-cli-diagnostics-v1",
       "--limit",
       "100"
     ])

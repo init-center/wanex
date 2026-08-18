@@ -4,32 +4,50 @@ import {
   matchesWanexAppConversationJob,
   normalizeWanexAppConversationOperationState,
   projectWanexAppConversationOperation,
-  projectWanexAppConversationOperationProgress
+  projectWanexAppConversationOperationApprovals,
+  projectWanexAppConversationOperationProgress,
+  projectWanexAppConversationOperationRecovery,
+  projectWanexAppConversationOperationSteering
 } from "./conversation-operation-read-model.js"
 import type { AppStore } from "./storage.js"
 import type {
   WanexAppCancelConversationOperationReceipt,
   WanexAppCancelConversationOperationRequest,
   WanexAppConversationOperationFoundResult,
+  WanexAppConversationOperationApprovalListResult,
+  WanexAppConversationOperationApprovalReadResult,
   WanexAppConversationOperationReadResult,
   WanexAppConversationOperationReceipt,
   WanexAppConversationOperationReference,
   WanexAppConversationOperationState,
   WanexAppInterruptConversationOperationReceipt,
   WanexAppInterruptConversationOperationRequest,
+  WanexAppListConversationOperationApprovalsRequest,
+  WanexAppReadConversationOperationApprovalRequest,
   WanexAppReadConversationOperationRequest,
+  WanexAppResolveConversationOperationRecoveryReceipt,
+  WanexAppResolveConversationOperationRecoveryRequest,
+  WanexAppResolveConversationOperationApprovalReceipt,
+  WanexAppResolveConversationOperationApprovalRequest,
   WanexAppSteerConversationOperationReceipt,
   WanexAppSteerConversationOperationRequest,
   WanexAppSubmitConversationOperationRequest
 } from "./types-conversation-operation.js"
+import {
+  normalizeToolResultContent,
+  toolResultContentDigest
+} from "@wanex/runtime/tools"
 
 const DEFAULT_WAIT_POLL_INTERVAL_MS = 50
+const MAX_RECOVERY_JSON_BYTES = 32_768
+const MAX_RECOVERY_REASON_BYTES = 4_096
+const MAX_APPROVAL_REASON_BYTES = 1_024
 
 export interface SubmitWanexAppConversationOperationOptions {
   readonly request: WanexAppSubmitConversationOperationRequest & {
     readonly jobIdempotencyKey?: string
   }
-  readonly providerProfileId: string
+  readonly modelEndpointId: string
 }
 
 export class WanexAppConversationOperationController {
@@ -86,10 +104,13 @@ export class WanexAppConversationOperationController {
         ? {}
         : { sessionId: options.request.sessionId }),
       principalId: options.request.principalId ?? "wanex-app-user",
+      ...(options.request.turnId === undefined
+        ? {}
+        : { turnId: options.request.turnId }),
       idempotencyKey:
         options.request.idempotencyKey ??
         `wanex-app:${options.request.sessionId ?? "new"}:${inputId}`,
-      providerProfileId: options.providerProfileId,
+      modelEndpointId: options.modelEndpointId,
       ...(options.request.origin === undefined
         ? {}
         : { origin: options.request.origin }),
@@ -251,16 +272,50 @@ export class WanexAppConversationOperationController {
       turn.state
     )
     if (!isTerminalOperationState(state)) {
+      const [approvalExecutions, pendingSteeringControls] = await Promise.all([
+        state === "waiting"
+          ? this.#storage.listToolExecutions({
+              turnId: reference.turnId,
+              state: "approval_required",
+              limit: 17
+            })
+          : Promise.resolve([]),
+        state === "running" && turn.currentAttemptId !== undefined
+          ? this.#storage.listSessionTurnControls({
+              sessionId: reference.sessionId,
+              turnId: reference.turnId,
+              attemptId: turn.currentAttemptId,
+              kind: "steer",
+              status: "pending",
+              limit: 17
+            })
+          : Promise.resolve([])
+      ])
+      const approvals = approvalExecutions.length === 0
+        ? undefined
+        : projectWanexAppConversationOperationApprovals(approvalExecutions)
+      const steering = pendingSteeringControls.length === 0
+        ? undefined
+        : projectWanexAppConversationOperationSteering(pendingSteeringControls)
       return projectWanexAppConversationOperationProgress({
         job,
         turn,
-        reference
+        reference,
+        ...(approvals === undefined ? {} : { approvals }),
+        ...(steering === undefined ? {} : { steering })
       })
     }
-    const [session, inputs, messages] = await Promise.all([
+    const [session, inputs, messages, recoveryExecutions] = await Promise.all([
       this.#storage.getSession(reference.sessionId),
       this.#storage.listSessionInputs({ sessionId: reference.sessionId }),
-      this.#storage.listSessionMessages({ sessionId: reference.sessionId })
+      this.#storage.listSessionMessages({ sessionId: reference.sessionId }),
+      state === "recovery_required"
+        ? this.#storage.listToolExecutions({
+            turnId: reference.turnId,
+            state: "recovery_required",
+            limit: 65
+          })
+        : Promise.resolve([])
     ])
     const input = inputs.find((candidate) => candidate.id === reference.inputId)
     if (session === null || input === undefined) {
@@ -269,16 +324,182 @@ export class WanexAppConversationOperationController {
     const relatedMessages = messages.filter(
       (message) => message.turnId === reference.turnId
     )
+    const recovery =
+      state === "recovery_required"
+        ? projectWanexAppConversationOperationRecovery({
+            turn,
+            executions: await Promise.all(
+              recoveryExecutions.map(async (execution) => ({
+                execution,
+                attempts: await this.#storage.listToolExecutionAttempts({
+                  executionId: execution.id
+                })
+              }))
+            )
+          })
+        : undefined
     return projectWanexAppConversationOperation({
       job,
       turn,
       reference,
       input,
       messages: relatedMessages,
+      ...(recovery === undefined ? {} : { recovery }),
       ...(request.transcriptLimit === undefined
         ? {}
         : { transcriptLimit: request.transcriptLimit })
     })
+  }
+
+  async resolveRecovery(
+    request: WanexAppResolveConversationOperationRecoveryRequest
+  ): Promise<WanexAppResolveConversationOperationRecoveryReceipt> {
+    this.#assertActive()
+    const reference = normalizeReference(request)
+    const executionId = normalizeRequiredString(
+      request.executionId,
+      "conversation recovery executionId"
+    )
+    const reason = normalizeRequiredString(
+      request.reason,
+      "conversation recovery reason"
+    )
+    if (Buffer.byteLength(reason, "utf8") > MAX_RECOVERY_REASON_BYTES) {
+      throw new Error("conversation recovery reason exceeds 4096 bytes")
+    }
+    if (
+      !Number.isSafeInteger(request.expectedRecoveryRevision) ||
+      request.expectedRecoveryRevision <= 0
+    ) {
+      throw new Error("conversation recovery revision must be a positive integer")
+    }
+    const recoveryContent = validateRecoveryPayload(request)
+    const current = await this.read(reference)
+    if (current.kind === "missing") {
+      throw new Error("conversation recovery operation was not found")
+    }
+    const recovery = current.operation.recovery?.items.find(
+      (item) => item.executionId === executionId
+    )
+    if (recovery === undefined) {
+      throw new Error("conversation recovery execution is not current for this operation")
+    }
+    if (!recovery.availableDecisions.includes(request.decision)) {
+      throw new Error("conversation recovery decision is not available")
+    }
+    const receipt = await this.#storage.resolveToolExecutionRecovery({
+      executionId,
+      expectedRecoveryRevision: request.expectedRecoveryRevision,
+      decision: request.decision,
+      principalId: "wanex-app-user",
+      reason,
+      idempotencyKey:
+        request.idempotencyKey ?? `wanex-app:recovery:${randomUUID()}`,
+      ...(recoveryContent === undefined
+        ? {}
+        : {
+            content: recoveryContent,
+            contentDigest: toolResultContentDigest(recoveryContent)
+          }),
+      ...(request.error === undefined ? {} : { error: request.error })
+    })
+    this.#host.wake()
+    return {
+      ...reference,
+      decision: receipt.recoveryDecision.decision,
+      action: receipt.recoveryDecision.action,
+      recoveryRevision: receipt.recoveryDecision.recoveryRevision,
+      createdAt: receipt.recoveryDecision.createdAt
+    }
+  }
+
+  async listApprovals(
+    request: WanexAppListConversationOperationApprovalsRequest
+  ): Promise<WanexAppConversationOperationApprovalListResult> {
+    this.#assertActive()
+    const reference = normalizeReference(request)
+    const current = await this.read(reference)
+    if (current.kind === "missing") return current
+    return {
+      kind: "found",
+      reference,
+      approvals: current.operation.approvals ?? { items: [], truncated: false }
+    }
+  }
+
+  async readApproval(
+    request: WanexAppReadConversationOperationApprovalRequest
+  ): Promise<WanexAppConversationOperationApprovalReadResult> {
+    this.#assertActive()
+    const reference = normalizeReference(request)
+    const executionId = normalizeRequiredString(
+      request.executionId,
+      "conversation approval executionId"
+    )
+    const listed = await this.listApprovals(reference)
+    if (listed.kind === "missing") {
+      return { kind: "missing", reference, executionId }
+    }
+    const approval = listed.approvals.items.find(
+      (candidate) => candidate.executionId === executionId
+    )
+    return approval === undefined
+      ? { kind: "missing", reference, executionId }
+      : { kind: "found", reference, approval }
+  }
+
+  async resolveApproval(
+    request: WanexAppResolveConversationOperationApprovalRequest
+  ): Promise<WanexAppResolveConversationOperationApprovalReceipt> {
+    this.#assertActive()
+    const reference = normalizeReference(request)
+    const executionId = normalizeRequiredString(
+      request.executionId,
+      "conversation approval executionId"
+    )
+    const reason = normalizeRequiredString(
+      request.reason,
+      "conversation approval reason"
+    )
+    if (Buffer.byteLength(reason, "utf8") > MAX_APPROVAL_REASON_BYTES) {
+      throw new Error("conversation approval reason exceeds 1024 bytes")
+    }
+    if (
+      !Number.isSafeInteger(request.expectedApprovalRevision) ||
+      request.expectedApprovalRevision < 0
+    ) {
+      throw new Error("conversation approval revision must be a non-negative integer")
+    }
+    if (request.decision !== "approve_once" && request.decision !== "deny") {
+      throw new Error("conversation approval decision is invalid")
+    }
+    const execution = await this.#storage.getToolExecution(executionId)
+    if (
+      execution === null ||
+      execution.sessionId !== reference.sessionId ||
+      execution.turnId !== reference.turnId ||
+      execution.inputId !== reference.inputId
+    ) {
+      throw new Error("conversation approval execution was not found")
+    }
+    const receipt = await this.#storage.resolveToolExecutionApproval({
+      executionId,
+      expectedApprovalRevision: request.expectedApprovalRevision,
+      decision: request.decision,
+      principalId: execution.principalId,
+      reason,
+      idempotencyKey:
+        request.idempotencyKey ?? `wanex-app:approval:${randomUUID()}`
+    })
+    this.#host.wake()
+    return {
+      ...reference,
+      executionId,
+      decision: receipt.approvalDecision.decision,
+      action: receipt.approvalDecision.action,
+      approvalRevision: receipt.approvalDecision.approvalRevision,
+      createdAt: receipt.approvalDecision.createdAt
+    }
   }
 
   async waitForTerminal(
@@ -327,6 +548,35 @@ export class WanexAppConversationOperationController {
       throw new Error("conversation operation processor is disposed")
     }
   }
+}
+
+function validateRecoveryPayload(
+  request: WanexAppResolveConversationOperationRecoveryRequest
+): readonly import("@wanex/protocol").ToolResultContentPart[] | undefined {
+  const confirms =
+    request.decision === "confirm_succeeded" ||
+    request.decision === "confirm_failed"
+  if (confirms && request.content === undefined) {
+    throw new Error("confirmed conversation recovery requires canonical content")
+  }
+  if (!confirms && (request.content !== undefined || request.error !== undefined)) {
+    throw new Error("retry and abandon recovery decisions cannot include content data")
+  }
+  const content = request.content === undefined
+    ? undefined
+    : normalizeToolResultContent(request.content)
+  for (const [label, value] of [
+    ["content", content],
+    ["error", request.error]
+  ] as const) {
+    if (
+      value !== undefined &&
+      Buffer.byteLength(JSON.stringify(value), "utf8") > MAX_RECOVERY_JSON_BYTES
+    ) {
+      throw new Error(`conversation recovery ${label} exceeds ${MAX_RECOVERY_JSON_BYTES} bytes`)
+    }
+  }
+  return content
 }
 
 function validateConversationContent(

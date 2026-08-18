@@ -166,7 +166,10 @@ describe("@wanex/workspace/tools", () => {
       permissionPolicy: new AllowAllToolsPolicy()
     }))).resolves.toMatchObject({
       invoked: true,
-      result: { isError: true, result: { error: "program_not_allowed" } }
+      result: {
+        isError: true,
+        content: [{ value: { error: "program_not_allowed" } }]
+      }
     })
     await expect(registry.execute(executionRequest({
       storage: environment.client,
@@ -177,9 +180,29 @@ describe("@wanex/workspace/tools", () => {
       permissionPolicy: new AllowAllToolsPolicy()
     }))).resolves.toMatchObject({
       invoked: true,
-      result: { isError: true, result: { error: "tool_exception" } }
+      result: {
+        isError: true,
+        content: [{ value: { error: "tool_exception" } }]
+      }
     })
     expect(host.calls).toBe(0)
+    const escaped = (await environment.client.listToolExecutions({})).find(
+      (execution) => execution.toolCallId === "call_exec_cwd_escape"
+    )
+    expect(escaped).toMatchObject({
+      state: "failed",
+      activity: {
+        call: { summary: "Run node" },
+        result: {
+          summary: "node failed",
+          details: [
+            { label: "Program", value: "node" },
+            { label: "Directory", value: "../outside" }
+          ]
+        }
+      }
+    })
+    expect(JSON.stringify(escaped?.activity)).not.toContain("escapes workspace")
   })
 
   it("reads bounded text and records the durable tool result", async () => {
@@ -205,18 +228,18 @@ describe("@wanex/workspace/tools", () => {
       invoked: true,
       result: {
         isError: false,
-        result: {
+        content: [{ value: {
           path: "notes.txt",
           text: "abcdef",
           totalBytes: 10,
           retainedBytes: 6,
           truncated: true,
           sha256: expect.stringMatching(/^[a-f0-9]{64}$/)
-        }
+        } }]
       }
     })
     await expect(environment.client.listToolExecutions({})).resolves.toMatchObject([
-      { state: "succeeded", result: { path: "notes.txt", truncated: true } }
+      { state: "succeeded", content: [{ value: { path: "notes.txt", truncated: true } }] }
     ])
   })
 
@@ -248,7 +271,7 @@ describe("@wanex/workspace/tools", () => {
     }))
 
     expect(outcome).toMatchObject({
-      result: { isError: false, result: { status: "applied" } }
+      result: { isError: false, content: [{ value: { status: "applied" } }] }
     })
     expect(await readFile(join(environment.rootDir, "app.ts"), "utf8")).toBe(
       "after\n"
@@ -285,13 +308,13 @@ describe("@wanex/workspace/tools", () => {
       invoked: true,
       result: {
         isError: false,
-        result: {
+        content: [{ value: {
           program: "node",
           cwd: ".",
           exitCode: 0,
           termination: "exited",
           stdout: { text: "controlled", truncated: false }
-        }
+        } }]
       }
     })
   })

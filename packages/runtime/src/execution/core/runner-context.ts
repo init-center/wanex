@@ -22,6 +22,11 @@ import { drainTurnControls } from "./run-control.js"
 import { buildSessionReplayMessages } from "./session-replay.js"
 import { runToolBatch } from "./tool-execution.js"
 import { prepareProviderReplayResources } from "../../resources/index.js"
+import {
+  ContextCapacityError,
+  estimateContextCapacity,
+  type ContextCapacityCompactor
+} from "../../context/capacity/index.js"
 import type { ActiveTurnAttempt, WanexAgentRunnerOptions } from "./types.js"
 
 export type RunnerReplayMessages = readonly PreparedProviderReplayMessage[]
@@ -42,12 +47,14 @@ export class AgentRunnerExecutionContext {
   readonly toolMaxConcurrency: number
   private readonly observeProviderEvent: WanexAgentRunnerOptions["observeProviderEvent"]
   private readonly contextCompiler: WanexAgentRunnerOptions["contextCompiler"]
+  private readonly compactContext: ContextCapacityCompactor | undefined
 
   constructor(options: WanexAgentRunnerOptions) {
     this.session = options.session
     this.provider = options.provider
     this.tools = options.tools
     this.contextCompiler = options.contextCompiler
+    this.compactContext = options.compactContext
     this.timeoutMs = options.timeoutMs
     this.toolPermissionPolicy = options.toolPermissionPolicy
     this.toolMaxConcurrency = options.toolMaxConcurrency ?? 4
@@ -64,7 +71,10 @@ export class AgentRunnerExecutionContext {
     })
     return await prepareProviderReplayResources(
       this.session,
-      this.provider.capabilities,
+      {
+        protocol: this.provider.protocol,
+        inputModalities: this.provider.model.inputModalities
+      },
       messages
     )
   }
@@ -80,21 +90,34 @@ export class AgentRunnerExecutionContext {
   }
 
   async runProviderCompletion(
-    messages: RunnerReplayMessages,
+    initialMessages: RunnerReplayMessages,
     signal: RuntimeAbortSignal | undefined,
     execution: ActiveTurnAttempt,
-    step: number
+    step: number,
+    heartbeat: () => Promise<void>
   ) {
+    const providerTools = this.providerTools()
+    const messages = await this.ensureProviderCapacity(
+      initialMessages,
+      providerTools,
+      signal,
+      execution,
+      heartbeat
+    )
+    const toolsSupported = this.provider.model.features.includes("tool_calling")
     const providerRequest = {
       messages,
       signal,
       timeoutMs: this.timeoutMs,
-      ...(this.tools === undefined || this.tools.list().length === 0
+      maxOutputTokens: execution.maxOutputTokens,
+      ...(providerTools.length === 0 || !toolsSupported
         ? {}
         : {
-            tools: providerToolDefinitions(this.tools),
+            tools: providerTools,
             toolChoice: "auto" as const,
-            parallelToolCalls: this.toolMaxConcurrency > 1
+            parallelToolCalls:
+              this.toolMaxConcurrency > 1 &&
+              this.provider.model.features.includes("parallel_tool_calls")
           }),
       ...(this.observeProviderEvent === undefined
         ? {}
@@ -106,7 +129,7 @@ export class AgentRunnerExecutionContext {
               jobId: execution.jobId,
               attemptId: execution.attemptId,
               providerId: this.provider.providerId,
-              modelId: this.provider.modelId,
+              modelId: this.provider.model.id,
               event
             })
           })
@@ -177,6 +200,61 @@ export class AgentRunnerExecutionContext {
       }
     }
     throw new RecoveryEvidenceError("provider recovery attempt bound is exhausted")
+  }
+
+  private providerTools() {
+    return this.tools === undefined ||
+      this.tools.list().length === 0 ||
+      !this.provider.model.features.includes("tool_calling")
+      ? []
+      : providerToolDefinitions(this.tools)
+  }
+
+  private async ensureProviderCapacity(
+    initialMessages: RunnerReplayMessages,
+    tools: ReturnType<typeof providerToolDefinitions>,
+    signal: RuntimeAbortSignal | undefined,
+    execution: ActiveTurnAttempt,
+    heartbeat: () => Promise<void>
+  ): Promise<RunnerReplayMessages> {
+    const initial = estimateContextCapacity({
+      messages: initialMessages,
+      tools,
+      model: this.provider.model,
+      maxOutputTokens: execution.maxOutputTokens
+    })
+    if (initial.decision === "dispatch") return initialMessages
+    const compaction =
+      this.compactContext === undefined
+        ? { status: "skipped" as const, reason: "inline compactor unavailable" }
+        : await this.compactContext({
+            sessionId: execution.sessionId,
+            estimate: initial,
+            signal,
+            heartbeat
+          })
+    if (compaction.status === "compacted") {
+      const rebuilt = await this.buildReplayMessages(execution.sessionId)
+      const rechecked = estimateContextCapacity({
+        messages: rebuilt,
+        tools,
+        model: this.provider.model,
+        maxOutputTokens: execution.maxOutputTokens
+      })
+      if (rechecked.decision === "dispatch") return rebuilt
+      throw new ContextCapacityError({
+        estimate: rechecked,
+        compactionAttempted: true,
+        compactionReason: "request still exceeds capacity after compaction"
+      })
+    }
+    throw new ContextCapacityError({
+      estimate: initial,
+      compactionAttempted: this.compactContext !== undefined,
+      ...(compaction.reason === undefined
+        ? {}
+        : { compactionReason: compaction.reason })
+    })
   }
 
   private async recordProviderUsage(

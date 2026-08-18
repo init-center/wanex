@@ -16,7 +16,10 @@ export async function runWanexAppSmoke(
     const diagnostics = await app.commands.readDiagnostics({
       now: 3_456
     })
-    const provider = await app.commands.readActiveProviderProfile()
+    const provider = await app.commands.readActiveModelEndpoint()
+    if (provider === null) {
+      throw new Error("Wanex App smoke requires an active model endpoint")
+    }
     const provenance = await app.commands.readSessionInputProvenance({
       sessionId: run.sessionId
     })

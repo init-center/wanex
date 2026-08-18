@@ -57,8 +57,28 @@ export interface ToolCallMessagePart extends MessagePartBase {
 export interface ToolResultMessagePart extends MessagePartBase {
   readonly type: "tool_result"
   readonly toolCallId: string
-  readonly result: JsonValue
+  readonly content: readonly ToolResultContentPart[]
+  readonly contentDigest: string
   readonly isError: boolean
+}
+
+export type ToolResultContentPart =
+  | ToolResultTextContentPart
+  | ToolResultJsonContentPart
+  | ToolResultResourceContentPart
+
+export interface ToolResultTextContentPart {
+  readonly type: "text"
+  readonly text: string
+}
+
+export interface ToolResultJsonContentPart {
+  readonly type: "json"
+  readonly value: JsonValue
+}
+
+export interface ToolResultResourceContentPart extends ResourceInputEvidence {
+  readonly type: "resource"
 }
 
 export interface ResourceMessagePart

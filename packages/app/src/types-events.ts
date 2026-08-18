@@ -4,6 +4,9 @@ export interface WanexAppEvents {
   subscribeConversationEvents(
     listener: WanexAppConversationEventListener
   ): WanexAppConversationEventUnsubscribe
+  subscribeGoalEvents(
+    listener: WanexAppGoalEventListener
+  ): WanexAppGoalEventUnsubscribe
 }
 
 export type WanexAppConversationEventListener = (
@@ -11,6 +14,30 @@ export type WanexAppConversationEventListener = (
 ) => void
 
 export type WanexAppConversationEventUnsubscribe = () => void
+
+export type WanexAppGoalEventListener = (event: WanexAppGoalEvent) => void
+
+export type WanexAppGoalEventUnsubscribe = () => void
+
+export type WanexAppGoalEventCause =
+  | "created"
+  | "paused"
+  | "resumed"
+  | "attempt_admitted"
+  | "attempt_reviewed"
+  | "cancel_requested"
+  | "cancelled"
+  | "recovery_parked"
+  | "limit_reached"
+
+export interface WanexAppGoalEvent {
+  readonly kind: "wanex-app.goal.invalidated"
+  readonly sequence: number
+  readonly at: number
+  readonly objectiveId: string
+  readonly sessionId: string
+  readonly cause: WanexAppGoalEventCause
+}
 
 export interface WanexAppConversationAssistantTextDeltaEvent {
   readonly kind: "wanex-app.conversation.assistant-text-delta"
@@ -23,5 +50,17 @@ export interface WanexAppConversationAssistantTextDeltaEvent {
   readonly truncated: boolean
 }
 
+export interface WanexAppConversationOperationInvalidatedEvent {
+  readonly kind: "wanex-app.conversation.operation-invalidated"
+  readonly sequence: number
+  readonly at: number
+  readonly reference: WanexAppConversationOperationReference
+  readonly cause:
+    | "execution_completed"
+    | "execution_failed"
+    | "execution_suspended"
+}
+
 export type WanexAppConversationEvent =
-  WanexAppConversationAssistantTextDeltaEvent
+  | WanexAppConversationAssistantTextDeltaEvent
+  | WanexAppConversationOperationInvalidatedEvent

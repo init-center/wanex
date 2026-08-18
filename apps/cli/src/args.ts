@@ -6,8 +6,8 @@ import { parseCommandOptions } from "./command-options.js"
 import { ensureNoPositionals } from "./parse-helpers.js"
 import {
   parseMemoryCommand,
-  parseProviderCommand
-} from "./provider-command-args.js"
+  parseModelEndpointCommand
+} from "./model-endpoint-command-args.js"
 import type {
   CliAgentContextOptions,
   CliEnvironment,
@@ -57,6 +57,9 @@ export function parseCommand(
     if (globals.positionals.length === 0) {
       throw new Error("run requires text")
     }
+    if (globals.modelEndpointId === undefined) {
+      throw new Error("run requires --model-endpoint")
+    }
     return withOptionalRunOptions(
       {
         name: "run",
@@ -64,7 +67,7 @@ export function parseCommand(
         text: globals.positionals.join(" ")
       },
       globals.sessionId,
-      globals.providerId,
+      globals.modelEndpointId,
       globals.timeoutMs,
       globals.maxSteps,
       globals.context
@@ -74,6 +77,9 @@ export function parseCommand(
     if (globals.positionals.length === 0) {
       throw new Error("side-query requires text")
     }
+    if (globals.modelEndpointId === undefined) {
+      throw new Error("side-query requires --model-endpoint")
+    }
     return withOptionalSideQueryOptions(
       {
         name: "side-query",
@@ -81,13 +87,13 @@ export function parseCommand(
         text: globals.positionals.join(" ")
       },
       globals.sessionId,
-      globals.providerId,
+      globals.modelEndpointId,
       globals.timeoutMs,
       globals.maxOutputTokens
     )
   }
-  if (command === "provider") {
-    return parseProviderCommand(globals)
+  if (command === "model-endpoint") {
+    return parseModelEndpointCommand(globals)
   }
   if (command === "memory") {
     return parseMemoryCommand(globals)
@@ -99,10 +105,10 @@ export function parseCommand(
 function withOptionalRunOptions(
   command: Omit<
     Extract<ParsedCommand, { readonly name: "run" }>,
-    "sessionId" | "providerId" | "timeoutMs" | "maxSteps" | "context"
+    "sessionId" | "modelEndpointId" | "timeoutMs" | "maxSteps" | "context"
   >,
   sessionId: string | undefined,
-  providerId: string | undefined,
+  modelEndpointId: string,
   timeoutMs: number | undefined,
   maxSteps: number | undefined,
   context: CliAgentContextOptions | undefined
@@ -110,7 +116,7 @@ function withOptionalRunOptions(
   return {
     ...command,
     ...(sessionId === undefined ? {} : { sessionId }),
-    ...(providerId === undefined ? {} : { providerId }),
+    modelEndpointId,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(maxSteps === undefined ? {} : { maxSteps }),
     ...(context === undefined ? {} : { context })
@@ -120,17 +126,17 @@ function withOptionalRunOptions(
 function withOptionalSideQueryOptions(
   command: Omit<
     Extract<ParsedCommand, { readonly name: "side-query" }>,
-    "sessionId"
+    "sessionId" | "modelEndpointId"
   >,
   sessionId: string | undefined,
-  providerId: string | undefined,
+  modelEndpointId: string,
   timeoutMs: number | undefined,
   maxOutputTokens: number | undefined
 ): Extract<ParsedCommand, { readonly name: "side-query" }> {
   return {
     ...command,
     ...(sessionId === undefined ? {} : { sessionId }),
-    ...(providerId === undefined ? {} : { providerId }),
+    modelEndpointId,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(maxOutputTokens === undefined ? {} : { maxOutputTokens })
   }

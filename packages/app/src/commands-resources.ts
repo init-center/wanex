@@ -12,6 +12,10 @@ export function createWanexAppResourceCommands(
     async readResource(request) {
       context.assertActive()
       return await context.runtime.storage.getResource(request)
+    },
+    async readResourceContent(request) {
+      context.assertActive()
+      return await context.runtime.storage.readResourceContent(request)
     }
   }
 }

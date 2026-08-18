@@ -67,13 +67,15 @@ const contextEventTypes: Readonly<Record<ContextEventType, true>> = {
 
 const planEventTypes: Readonly<Record<PlanEventType, true>> = {
   "plan.proposal.created": true,
-  "plan.proposal.operation_recorded": true
+  "plan.proposal.operation_recorded": true,
+  "plan.proposal.execution_bound": true
 }
 
 const objectiveEventTypes: Readonly<Record<ObjectiveEventType, true>> = {
-  "objective.run.created": true,
-  "objective.run.operation_recorded": true,
-  "objective.attempt.recorded": true,
+  "objective.created": true,
+  "objective.state_changed": true,
+  "objective.attempt.admitted": true,
+  "objective.attempt.reviewed": true,
   "objective.verification.recorded": true
 }
 

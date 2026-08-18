@@ -1,25 +1,43 @@
+import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import type {
   BeginToolExecutionRequest,
   FinishToolExecutionRequest,
   JsonValue,
+  ResourceProvenanceRecord,
+  ResourceRecord,
+  RequireToolExecutionRecoveryReceipt,
+  RequireToolExecutionRecoveryRequest,
+  ResolveToolExecutionApprovalReceipt,
+  ResolveToolExecutionApprovalRequest,
+  ResolveToolExecutionRecoveryReceipt,
+  ResolveToolExecutionRecoveryRequest,
   ToolExecutionAttemptRecord,
+  ToolExecutionApprovalSuspensionReceipt,
   ToolExecutionRecord
 } from "@wanex/protocol"
-import type { ToolExecutionStore } from "@wanex/storage"
 import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
   EchoTool,
+  jsonToolResultContent,
   ToolRegistry,
+  toolResultPart,
   type ToolDefinition,
-  type ToolInvocation
+  type ToolExecutionRequest,
+  type ToolInvocation,
+  type ToolPermissionPolicy
 } from "@wanex/runtime/tools"
 import {
   WanexMcpRuntimeClient,
   WanexMcpHttpServerHost
 } from "../src/index.js"
+
+type TestToolExecutionStore = ToolExecutionRequest["storage"]
 
 describe("@wanex/mcp", () => {
   it("adapts official stdio discovery, structured results, errors, cancellation, and restart", async () => {
@@ -48,7 +66,8 @@ describe("@wanex/mcp", () => {
     }))).toEqual([
       { name: "fixture__echo", risk: "read_only", idempotent: true },
       { name: "fixture__fail", risk: "read_only", idempotent: true },
-      { name: "fixture__hang", risk: "read_only", idempotent: true }
+      { name: "fixture__hang", risk: "read_only", idempotent: true },
+      { name: "fixture__media", risk: "read_only", idempotent: true }
     ])
 
     const storage = new MemoryToolExecutionStore()
@@ -61,10 +80,10 @@ describe("@wanex/mcp", () => {
       invoked: true,
       result: {
         isError: false,
-        result: {
-          protocol: "mcp",
-          structuredContent: { echo: { message: "hello" } }
-        }
+        content: [
+          { type: "text", text: '{"echo":{"message":"hello"}}' },
+          { type: "json", value: { echo: { message: "hello" } } }
+        ]
       }
     })
     await expect(registry.execute(executionRequest(
@@ -73,6 +92,36 @@ describe("@wanex/mcp", () => {
       "fixture__fail",
       {}
     ))).resolves.toMatchObject({ result: { isError: true } })
+    await expect(registry.execute(executionRequest(
+      storage,
+      "call_stdio_media",
+      "fixture__media",
+      {}
+    ))).resolves.toMatchObject({
+      result: {
+        isError: false,
+        content: [
+          { type: "resource", kind: "image", mediaType: "image/png" },
+          { type: "resource", kind: "artifact", mediaType: "application/octet-stream" }
+        ]
+      }
+    })
+    await expect(storage.listResourceProvenance({
+      causeKind: "tool_execution",
+      causeId: "toolx_2_call_stdio_media"
+    })).resolves.toEqual([
+      expect.objectContaining({
+        cause: expect.objectContaining({ toolCallId: "call_stdio_media" }),
+        resource: expect.objectContaining({ kind: "image", mediaType: "image/png" })
+      }),
+      expect.objectContaining({
+        cause: expect.objectContaining({ toolCallId: "call_stdio_media" }),
+        resource: expect.objectContaining({
+          kind: "artifact",
+          mediaType: "application/octet-stream"
+        })
+      })
+    ])
 
     const controller = new AbortController()
     const cancelled = registry.execute({
@@ -81,18 +130,14 @@ describe("@wanex/mcp", () => {
     })
     setTimeout(() => controller.abort(), 10)
     await expect(cancelled).resolves.toMatchObject({
+      state: "recovery_required",
       invoked: true,
-      result: {
-        isError: true,
-        result: {
-          error: "tool_cancelled"
-        }
-      }
+      recovery: { execution: { state: "recovery_required" } }
     })
     await expect(storage.listToolExecutions({})).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({
         toolCallId: "call_stdio_cancel",
-        state: "cancelled"
+        state: "recovery_required"
       })])
     )
 
@@ -129,23 +174,34 @@ describe("@wanex/mcp", () => {
     serverRegistry.register(new EchoTool())
     serverRegistry.register(new FailingTool())
     serverRegistry.register(new HangingTool())
+    const approvalTool = new ApprovalProbeTool()
+    serverRegistry.register(approvalTool)
+    const deferredTool = new DeferredProbeTool()
+    serverRegistry.register(deferredTool)
     const serverStorage = new MemoryToolExecutionStore()
+    let nextServerExecution = 0
     const host = new WanexMcpHttpServerHost({
       registry: serverRegistry,
-      resolveExecutionContext: async (request) => ({
-        principalId: "http-principal",
-        sessionId: "http-session",
-        inputId: `http-input-${String(request.requestId)}`,
-        turnId: `http-turn-${String(request.requestId)}`,
-        attemptId: `http-attempt-${String(request.requestId)}`,
-        sourceMessageId: `http-message-${String(request.requestId)}`,
-        jobId: `http-job-${String(request.requestId)}`,
-        workerId: "http-worker",
-        leaseToken: `http-lease-${String(request.requestId)}`,
-        idempotencyKey: `http:${String(request.requestId)}`,
-        permissionPolicy: new AllowAllToolsPolicy(),
-        storage: serverStorage
-      })
+      resolveExecutionContext: async (request) => {
+        const executionNumber = nextServerExecution
+        nextServerExecution += 1
+        return {
+          principalId: "http-principal",
+          sessionId: "http-session",
+          inputId: `http-input-${executionNumber}`,
+          turnId: `http-turn-${executionNumber}`,
+          attemptId: `http-attempt-${executionNumber}`,
+          sourceMessageId: `http-message-${executionNumber}`,
+          jobId: `http-job-${executionNumber}`,
+          workerId: "http-worker",
+          leaseToken: `http-lease-${executionNumber}`,
+          idempotencyKey: `http:${executionNumber}`,
+          permissionPolicy: request.toolName === approvalTool.name
+            ? new ApprovalRequiredToolsPolicy()
+            : new AllowAllToolsPolicy(),
+          storage: serverStorage
+        }
+      }
     })
     await host.start()
     await host.start()
@@ -158,10 +214,38 @@ describe("@wanex/mcp", () => {
     await client.start()
     const registry = await client.createRegistry()
     expect(registry.list().map((tool) => tool.name)).toEqual([
+      "approval_probe",
       "echo",
       "fail",
       "hang"
     ])
+
+    const rawClient = new Client(
+      { name: "wanex-deferred-probe", version: "0.0.0" },
+      { capabilities: {} }
+    )
+    await rawClient.connect(
+      new StreamableHTTPClientTransport(new URL(host.url())) as Transport
+    )
+    await expect(rawClient.callTool({
+      name: "deferred_probe",
+      arguments: { prompt: "must not execute" }
+    })).rejects.toThrow(/deferred tool cannot be exposed/)
+    expect(deferredTool.invocationCount).toBe(0)
+    await expect(rawClient.callTool({
+      name: "approval_probe",
+      arguments: { prompt: "must wait" }
+    })).rejects.toThrow(/tool execution requires approval/)
+    expect(approvalTool.invocationCount).toBe(0)
+    await expect(serverStorage.listToolExecutions({})).resolves.toEqual(
+      expect.arrayContaining([expect.objectContaining({
+        toolName: "approval_probe",
+        state: "approval_required",
+        approvalRevision: 0,
+        attemptCount: 0
+      })])
+    )
+    await rawClient.close()
 
     const localStorage = new MemoryToolExecutionStore()
     await expect(registry.execute(executionRequest(
@@ -172,10 +256,10 @@ describe("@wanex/mcp", () => {
     ))).resolves.toMatchObject({
       result: {
         isError: false,
-        result: {
-          protocol: "mcp",
-          structuredContent: { echo: { source: "http" } }
-        }
+        content: [
+          { type: "text", text: '{"echo":{"source":"http"}}' },
+          { type: "json", value: { echo: { source: "http" } } }
+        ]
       }
     })
     await expect(registry.execute(executionRequest(
@@ -191,18 +275,14 @@ describe("@wanex/mcp", () => {
     })
     setTimeout(() => controller.abort(), 10)
     await expect(cancelled).resolves.toMatchObject({
+      state: "recovery_required",
       invoked: true,
-      result: {
-        isError: true,
-        result: {
-          error: "tool_cancelled"
-        }
-      }
+      recovery: { execution: { state: "recovery_required" } }
     })
     await expect(localStorage.listToolExecutions({})).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({
         toolCallId: "call_http_cancel",
-        state: "cancelled"
+        state: "recovery_required"
       })])
     )
     await waitFor(async () => (await serverStorage.listToolExecutions({}))
@@ -234,7 +314,7 @@ async function waitFor(check: () => Promise<boolean>): Promise<void> {
 }
 
 function executionRequest(
-  storage: ToolExecutionStore,
+  storage: TestToolExecutionStore,
   toolCallId: string,
   toolName: string,
   input: JsonValue
@@ -268,6 +348,8 @@ class FailingTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly concurrency = "parallel_safe" as const
+  readonly resultMode = "immediate" as const
   readonly runtimeBinding = createToolRuntimeBinding({
     implementationId: "wanex.test.mcp.failing",
     implementationRevision: "1"
@@ -284,6 +366,8 @@ class HangingTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly concurrency = "parallel_safe" as const
+  readonly resultMode = "immediate" as const
   readonly runtimeBinding = createToolRuntimeBinding({
     implementationId: "wanex.test.mcp.hanging",
     implementationRevision: "1"
@@ -301,9 +385,90 @@ class HangingTool implements ToolDefinition {
   }
 }
 
-class MemoryToolExecutionStore implements ToolExecutionStore {
+class DeferredProbeTool implements ToolDefinition {
+  readonly name = "deferred_probe"
+  readonly description = "Must not cross the request-response MCP boundary."
+  readonly inputSchema = { type: "object", additionalProperties: true } as const
+  readonly risk = "external" as const
+  readonly idempotent = true
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "deferred" as const
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.mcp.deferred-probe",
+    implementationRevision: "1"
+  })
+  invocationCount = 0
+
+  async invoke(): Promise<never> {
+    this.invocationCount += 1
+    throw new Error("deferred MCP probe must be rejected before invocation")
+  }
+}
+
+class ApprovalProbeTool implements ToolDefinition {
+  readonly name = "approval_probe"
+  readonly description = "Prove request-response MCP approval suspension."
+  readonly inputSchema = { type: "object", additionalProperties: true } as const
+  readonly risk = "external" as const
+  readonly idempotent = false
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "immediate" as const
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.mcp.approval-probe",
+    implementationRevision: "1"
+  })
+  invocationCount = 0
+
+  async invoke() {
+    this.invocationCount += 1
+    return {
+      outcome: "succeeded" as const,
+      toolCallId: "unexpected",
+      content: jsonToolResultContent({ unexpected: true })
+    }
+  }
+}
+
+class ApprovalRequiredToolsPolicy implements ToolPermissionPolicy {
+  snapshot() {
+    return createToolRuntimeBinding({
+      implementationId: "wanex.test.mcp.approval-policy",
+      implementationRevision: "1"
+    })
+  }
+
+  async authorize() {
+    return {
+      status: "approval_required" as const,
+      reason: "MCP approval probe requires a reviewer",
+      presentation: {
+        summary: "Allow the MCP approval probe?",
+        details: [{ label: "Boundary", value: "request-response MCP" }]
+      }
+    }
+  }
+}
+
+class MemoryToolExecutionStore implements TestToolExecutionStore {
   private readonly records = new Map<string, ToolExecutionRecord>()
   private readonly attempts = new Map<string, ToolExecutionAttemptRecord>()
+  private readonly approvalSuspensions = new Map<
+    string,
+    ToolExecutionApprovalSuspensionReceipt
+  >()
+  private readonly approvalDecisions = new Map<
+    string,
+    {
+      readonly request: ResolveToolExecutionApprovalRequest
+      readonly receipt: ResolveToolExecutionApprovalReceipt
+    }
+  >()
+  private readonly resources = new Map<string, ResourceRecord>()
+  private readonly provenance = new Map<string, ResourceProvenanceRecord>()
+
+  async deferToolExecution(): Promise<never> {
+    throw new Error("MCP test store must not receive deferred Tool handoff")
+  }
 
   async beginToolExecution(request: BeginToolExecutionRequest) {
     const existing = [...this.records.values()].find(
@@ -321,7 +486,6 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
         created: false
       }
     }
-    const status = (request.permission as { readonly status?: string }).status
     const now = Date.now()
     const execution: ToolExecutionRecord = {
       id: `toolx_${this.records.size}_${request.toolCallId}`,
@@ -335,26 +499,31 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
       input: request.input,
       descriptor: request.descriptor,
       permission: request.permission,
-      state: status === "allow"
-        ? "running"
-        : status === "approval_required"
-          ? "approval_required"
-          : "denied",
-      attemptCount: status === "allow" ? 1 : 0,
+      state: request.state,
+      attemptCount: request.state === "running" ? 1 : 0,
       idempotencyKey: request.idempotencyKey,
+      approvalRevision: 0,
+      recoveryRevision: 0,
       createdAt: now,
       updatedAt: now
     }
-    const invocationAttempt = status === "allow"
+    const invocationAttempt = request.state === "running"
       ? this.createAttempt(execution.id, request)
       : undefined
     const stored = invocationAttempt === undefined
       ? execution
       : { ...execution, currentInvocationAttemptId: invocationAttempt.id }
     this.records.set(stored.id, stored)
+    const approvalSuspension = request.state === "approval_required"
+      ? approvalSuspensionReceipt(request, stored)
+      : undefined
+    if (approvalSuspension !== undefined) {
+      this.approvalSuspensions.set(stored.id, approvalSuspension)
+    }
     return {
       execution: stored,
       ...(invocationAttempt === undefined ? {} : { invocationAttempt }),
+      ...(approvalSuspension === undefined ? {} : { approvalSuspension }),
       created: true
     }
   }
@@ -381,7 +550,10 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
     const next: ToolExecutionRecord = {
       ...existing,
       state: request.state,
-      ...(request.result === undefined ? {} : { result: request.result }),
+      ...(request.content === undefined ? {} : { content: request.content }),
+      ...(request.contentDigest === undefined
+        ? {}
+        : { contentDigest: request.contentDigest }),
       ...(request.isError === undefined ? {} : { isError: request.isError }),
       ...(request.error === undefined ? {} : { error: request.error }),
       finishedAt: Date.now(),
@@ -391,8 +563,201 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
     return next
   }
 
+  async requireToolExecutionRecovery(
+    request: RequireToolExecutionRecoveryRequest
+  ): Promise<RequireToolExecutionRecoveryReceipt | null> {
+    const existing = this.records.get(request.executionId)
+    const toolAttempt = this.attempts.get(request.invocationAttemptId)
+    if (
+      existing === undefined ||
+      toolAttempt === undefined ||
+      existing.currentInvocationAttemptId !== toolAttempt.id ||
+      existing.state !== "running" ||
+      toolAttempt.state !== "running"
+    ) {
+      return null
+    }
+    const now = Date.now()
+    const recoveryError = JSON.parse(
+      JSON.stringify(request.evidence)
+    ) as JsonValue
+    const execution: ToolExecutionRecord = {
+      ...existing,
+      state: "recovery_required",
+      recoveryRevision: existing.recoveryRevision + 1,
+      recovery: request.evidence,
+      error: recoveryError,
+      updatedAt: now,
+      finishedAt: now
+    }
+    const toolExecutionAttempt: ToolExecutionAttemptRecord = {
+      ...toolAttempt,
+      state: "recovery_required",
+      error: recoveryError,
+      updatedAt: now,
+      finishedAt: now
+    }
+    this.records.set(execution.id, execution)
+    this.attempts.set(toolExecutionAttempt.id, toolExecutionAttempt)
+    return recoveryReceipt(request, execution, now)
+  }
+
+  async resolveToolExecutionRecovery(
+    _request: ResolveToolExecutionRecoveryRequest
+  ): Promise<ResolveToolExecutionRecoveryReceipt> {
+    throw new Error("test store recovery decisions are not implemented")
+  }
+
+  async resolveToolExecutionApproval(
+    request: ResolveToolExecutionApprovalRequest
+  ): Promise<ResolveToolExecutionApprovalReceipt> {
+    const prior = this.approvalDecisions.get(request.idempotencyKey)
+    if (prior !== undefined) {
+      if (JSON.stringify(prior.request) !== JSON.stringify(request)) {
+        throw new Error("conflicting repeated tool approval decision")
+      }
+      return prior.receipt
+    }
+    const existing = this.records.get(request.executionId)
+    const suspension = this.approvalSuspensions.get(request.executionId)
+    if (
+      existing === undefined ||
+      suspension === undefined ||
+      existing.state !== "approval_required" ||
+      existing.principalId !== request.principalId ||
+      existing.approvalRevision !== request.expectedApprovalRevision
+    ) {
+      throw new Error("tool approval decision is stale or unauthorized")
+    }
+    const now = Date.now()
+    const approvalRevision = existing.approvalRevision + 1
+    const deniedResult = request.decision === "deny"
+      ? toolResultPart(
+          existing.toolCallId,
+          jsonToolResultContent({
+            error: "approval_denied",
+            message: request.reason
+          }),
+          true
+        )
+      : undefined
+    const execution: ToolExecutionRecord = {
+      ...existing,
+      state: request.decision === "approve_once" ? "approved" : "denied",
+      approvalRevision,
+      ...(deniedResult === undefined
+        ? {}
+        : {
+            content: deniedResult.content,
+            contentDigest: deniedResult.contentDigest,
+            isError: true,
+            error: { reason: "approval_denied" },
+            finishedAt: now
+          }),
+      updatedAt: now
+    }
+    this.records.set(execution.id, execution)
+    const receipt: ResolveToolExecutionApprovalReceipt = {
+      execution,
+      approvalDecision: {
+        id: `toolapproval_${execution.id}_${approvalRevision}`,
+        executionId: execution.id,
+        approvalRevision,
+        decision: request.decision,
+        principalId: request.principalId,
+        reason: request.reason,
+        idempotencyKey: request.idempotencyKey,
+        action: "turn_requeued",
+        createdAt: now
+      },
+      turn: { ...suspension.turn, state: "queued", updatedAt: now },
+      job: { ...suspension.job, state: "ready", updatedAt: now }
+    }
+    this.approvalDecisions.set(request.idempotencyKey, { request, receipt })
+    return receipt
+  }
+
+  async getResource(request: { readonly resourceId: string }) {
+    return this.resources.get(request.resourceId) ?? null
+  }
+
+  async ingestResource(
+    request: Parameters<TestToolExecutionStore["ingestResource"]>[0]
+  ): Promise<ResourceRecord> {
+    const sha256 = createHash("sha256").update(request.content).digest("hex")
+    if (request.expectedSha256 !== undefined && request.expectedSha256 !== sha256) {
+      throw new Error("test resource sha256 mismatch")
+    }
+    const existing = [...this.resources.values()].find(
+      (resource) => resource.sha256 === sha256
+    )
+    if (existing !== undefined) return existing
+    const now = Date.now()
+    const record: ResourceRecord = {
+      id: request.id ?? `resource_${sha256}`,
+      logicalPath: request.logicalPath ?? `resources/${sha256}`,
+      kind: request.kind ?? "artifact",
+      origin: request.origin ?? "system",
+      state: "available",
+      ...(request.mediaType === undefined ? {} : { mediaType: request.mediaType }),
+      ...(request.label === undefined ? {} : { label: request.label }),
+      ...(request.metadata === undefined ? {} : { metadata: request.metadata }),
+      sizeBytes: request.content.byteLength,
+      sha256,
+      createdAt: now,
+      updatedAt: now
+    }
+    this.resources.set(record.id, record)
+    return record
+  }
+
+  async recordResourceProvenance(
+    request: Parameters<TestToolExecutionStore["recordResourceProvenance"]>[0]
+  ): Promise<ResourceProvenanceRecord> {
+    const digest = createHash("sha256")
+      .update(JSON.stringify(request))
+      .digest("hex")
+    const existing = this.provenance.get(digest)
+    if (existing !== undefined) return existing
+    const record: ResourceProvenanceRecord = {
+      id: `provenance_${digest}`,
+      ...request,
+      digest,
+      createdAt: Date.now()
+    }
+    this.provenance.set(digest, record)
+    return record
+  }
+
+  async listResourceProvenance(request: {
+    readonly causeKind?: "tool_execution" | "media_generation"
+    readonly causeId?: string
+  }): Promise<ResourceProvenanceRecord[]> {
+    return [...this.provenance.values()].filter((record) => {
+      if (request.causeKind !== undefined && record.cause.kind !== request.causeKind) {
+        return false
+      }
+      if (request.causeId === undefined) return true
+      return record.cause.kind === "tool_execution"
+        ? record.cause.executionId === request.causeId
+        : record.cause.operationId === request.causeId
+    })
+  }
+
   async getToolExecution(executionId: string) {
     return this.records.get(executionId) ?? null
+  }
+
+  async getToolExecutionByCall(request: {
+    readonly turnId: string
+    readonly sourceMessageId: string
+    readonly toolCallId: string
+  }) {
+    return [...this.records.values()].find((record) =>
+      record.turnId === request.turnId &&
+      record.sourceMessageId === request.sourceMessageId &&
+      record.toolCallId === request.toolCallId
+    ) ?? null
   }
 
   async listToolExecutions(_request: unknown = {}) {
@@ -423,5 +788,162 @@ class MemoryToolExecutionStore implements ToolExecutionStore {
     }
     this.attempts.set(attempt.id, attempt)
     return attempt
+  }
+}
+
+function approvalSuspensionReceipt(
+  request: BeginToolExecutionRequest,
+  execution: ToolExecutionRecord
+): ToolExecutionApprovalSuspensionReceipt {
+  const now = Date.now()
+  return {
+    execution,
+    turn: {
+      id: request.turnId,
+      sessionId: request.sessionId,
+      primaryInputId: request.inputId,
+      jobId: request.jobId,
+      state: "waiting",
+      executionBinding: {
+        digest: "test-binding",
+        createdAt: now,
+        modelEndpoint: {
+          endpointId: "test-endpoint",
+          endpointDigest: "test-endpoint-digest",
+          connection: { id: "test-connection", providerId: "test-provider" },
+          protocol: { id: "fake" },
+          model: {
+            id: "test-model",
+            operations: ["conversation"],
+            inputModalities: ["text"],
+            outputModalities: ["text"],
+            features: [],
+            catalog: { source: "custom", catalogId: "mcp.test", revision: "1" }
+          }
+        },
+        completion: { maxOutputTokens: 4_096 },
+        capabilityRoutes: [],
+        resources: [],
+        recovery: { providerMaxAttempts: 1, idempotentToolMaxAttempts: 2 }
+      },
+      maxSteps: 1,
+      currentAttemptId: request.attemptId,
+      createdAt: now,
+      updatedAt: now
+    },
+    attempt: {
+      id: request.attemptId,
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      inputId: request.inputId,
+      jobId: request.jobId,
+      attemptNumber: 1,
+      workerId: request.workerId,
+      leaseToken: request.leaseToken,
+      state: "suspended",
+      startedAt: now,
+      updatedAt: now,
+      finishedAt: now
+    },
+    job: {
+      id: request.jobId,
+      kind: "session.turn",
+      state: "waiting",
+      principalId: request.principalId,
+      payload: {},
+      scheduledAt: now,
+      priority: 0,
+      attempt: 1,
+      maxAttempts: 1,
+      retryPolicy: { strategy: "none" },
+      createdAt: now,
+      updatedAt: now
+    }
+  }
+}
+
+function recoveryReceipt(
+  request: RequireToolExecutionRecoveryRequest,
+  execution: ToolExecutionRecord,
+  now: number
+): RequireToolExecutionRecoveryReceipt {
+  const recoveryError = JSON.parse(
+    JSON.stringify(request.evidence)
+  ) as JsonValue
+  return {
+    execution,
+    turn: {
+      id: request.turnId,
+      sessionId: request.sessionId,
+      primaryInputId: request.inputId,
+      jobId: request.jobId,
+      state: "recovery_required",
+      executionBinding: {
+        digest: "test-binding",
+        createdAt: now,
+        modelEndpoint: {
+          endpointId: "test-endpoint",
+          endpointDigest: "test-endpoint-digest",
+          connection: {
+            id: "test-connection",
+            providerId: "test-provider"
+          },
+          protocol: { id: "fake" },
+          model: {
+            id: "test-model",
+            operations: ["conversation"],
+            inputModalities: ["text"],
+            outputModalities: ["text"],
+            features: [],
+            catalog: {
+              source: "builtin",
+              catalogId: "mcp.test",
+              revision: "1"
+            }
+          }
+        },
+        completion: { maxOutputTokens: 4_096 },
+        capabilityRoutes: [],
+        resources: [],
+        recovery: {
+          providerMaxAttempts: 1,
+          idempotentToolMaxAttempts: 2
+        }
+      },
+      maxSteps: 1,
+      currentAttemptId: request.sessionAttemptId,
+      createdAt: now,
+      updatedAt: now
+    },
+    attempt: {
+      id: request.sessionAttemptId,
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      inputId: request.inputId,
+      jobId: request.jobId,
+      attemptNumber: 1,
+      workerId: request.workerId,
+      leaseToken: request.leaseToken,
+      state: "recovery_required",
+      error: recoveryError,
+      startedAt: now,
+      updatedAt: now,
+      finishedAt: now
+    },
+    job: {
+      id: request.jobId,
+      kind: "session.turn",
+      state: "failed",
+      principalId: execution.principalId,
+      payload: {},
+      scheduledAt: now,
+      priority: 0,
+      attempt: 1,
+      maxAttempts: 1,
+      retryPolicy: { strategy: "none" },
+      createdAt: now,
+      updatedAt: now,
+      finishedAt: now
+    }
   }
 }

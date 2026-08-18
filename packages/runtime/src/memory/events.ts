@@ -11,6 +11,7 @@ export type MemoryCompactionEventType =
   | "context.compaction.planned"
   | "context.compaction.applied"
   | "context.compaction.skipped"
+  | "context.compaction.failed"
   | "context.epoch.created"
   | "context.epoch.activated"
   | "context.epoch.superseded"
@@ -20,7 +21,6 @@ export interface AppendMemoryCompactionEventOptions {
   readonly type: MemoryCompactionEventType
   readonly job: SchedulerJobRecord
   readonly sessionId: SessionId
-  readonly policyVersion: string
   readonly payload?: JsonValue
   readonly now?: () => number
 }
@@ -38,7 +38,6 @@ export async function appendMemoryCompactionEvent(
       payload: {
         jobId: options.job.id,
         attempt: options.job.attempt,
-        policyVersion: options.policyVersion,
         ...(options.payload === undefined ? {} : { detail: options.payload })
       },
       occurredAt: (options.now ?? Date.now)()

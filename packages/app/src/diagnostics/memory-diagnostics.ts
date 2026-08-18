@@ -17,7 +17,6 @@ export interface MemoryMaintenanceDiagnosticsOptions {
   readonly sessionLimit?: number
   readonly jobLimit?: number
   readonly staleAfterMs?: number
-  readonly policyVersion?: string
   readonly now?: number
 }
 
@@ -56,10 +55,7 @@ export async function getMemoryMaintenanceDiagnosticsSnapshot(
       session,
       activeEpochs: await options.storage.listContextEpochs({
         sessionId: session.id,
-        state: "active",
-        ...(options.policyVersion === undefined
-          ? {}
-          : { policyVersion: options.policyVersion })
+        state: "active"
       })
     }))
   )

@@ -15,30 +15,42 @@ export type ConfigReloadMatcher =
       readonly prefix: string
     }
 
-export interface ConfigReloadHandlerContext {
+export interface ConfigReloadPrepareContext {
   readonly key: string
   readonly config: WanexConfigCore
   readonly event?: RuntimeEvent
 }
 
-export interface ConfigReloadHandlerResult {
-  readonly key: string
+export interface ConfigReloadCandidateResult {
   readonly reloaded: boolean
   readonly reason?: string
   readonly detail?: JsonValue
 }
 
-export type ConfigReloadHandler = (
-  context: ConfigReloadHandlerContext
-) =>
-  | Promise<ConfigReloadHandlerResult | void>
-  | ConfigReloadHandlerResult
-  | void
+export interface ConfigReloadReadyCandidate {
+  readonly kind: "ready"
+  readonly result: ConfigReloadCandidateResult
+  commit(): Promise<void> | void
+  rollback(): Promise<void> | void
+}
+
+export interface ConfigReloadRejectedCandidate {
+  readonly kind: "rejected"
+  readonly result: ConfigReloadCandidateResult
+}
+
+export type ConfigReloadCandidate =
+  | ConfigReloadReadyCandidate
+  | ConfigReloadRejectedCandidate
+
+export type ConfigReloadPrepare = (
+  context: ConfigReloadPrepareContext
+) => Promise<ConfigReloadCandidate> | ConfigReloadCandidate
 
 export interface ConfigReloadSubscription {
   readonly id: string
   readonly matcher: ConfigReloadMatcher
-  readonly reload: ConfigReloadHandler
+  readonly prepare: ConfigReloadPrepare
 }
 
 export interface ConfigHotReloadControllerOptions {
@@ -54,6 +66,8 @@ export interface ConfigReloadResult {
   readonly key: string
   readonly subscriptionId: string
   readonly reloaded: boolean
+  readonly generation: number
+  readonly committed: boolean
   readonly at: number
   readonly eventId?: string
   readonly reason?: string
@@ -63,6 +77,7 @@ export interface ConfigReloadResult {
 export interface ConfigReloadError {
   readonly key: string
   readonly subscriptionId: string
+  readonly stage: "prepare" | "commit" | "rollback" | "watch"
   readonly error: {
     readonly name: string
     readonly message: string
@@ -71,7 +86,16 @@ export interface ConfigReloadError {
   readonly eventId?: string
 }
 
+export interface ConfigRefreshResult {
+  readonly generation: number
+  readonly committed: boolean
+  readonly reloads: readonly ConfigReloadResult[]
+  readonly errors: readonly ConfigReloadError[]
+}
+
 export interface ConfigPollResult {
+  readonly generation: number
+  readonly committed: boolean
   readonly invalidatedKeys: readonly string[]
   readonly reloads: readonly ConfigReloadResult[]
   readonly errors: readonly ConfigReloadError[]

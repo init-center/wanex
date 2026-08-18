@@ -1,21 +1,20 @@
-import type { AgentRunOnceResult } from "../execution/agent-runtime/index.js"
+import type {
+  AgentRunOnceResult,
+  PrepareSessionTurnExecutionBindingRequest,
+  PreparedSessionTurnExecutionBinding
+} from "../execution/agent-runtime/index.js"
 import type { PreparedAgentContext } from "../context/agent/index.js"
 import type { ContextCompiler } from "../context/memory/index.js"
 import type {
   ProviderAdapter,
   ProviderEventObserver
 } from "../provider/index.js"
-import type {
-  CreateStorageConfig,
-  CoreStore
-} from "@wanex/storage"
-import type {
-  ToolPermissionPolicy,
-  ToolRegistry
-} from "../tools/index.js"
+import type { CreateStorageConfig, CoreStore } from "@wanex/storage"
+import type { ToolPermissionPolicy, ToolRegistry } from "../tools/index.js"
 import type {
   EphemeralQueryRequest,
   EphemeralQueryResult,
+  RuntimeAbortSignal,
   SessionTurnRecoveryBinding
 } from "@wanex/protocol"
 import type {
@@ -50,7 +49,7 @@ export type WanexRuntimeHostStorageOptions =
 export interface WanexRuntimeHostBehaviorOptions {
   readonly workerCount?: number
   readonly memoryCompaction?: RuntimeHostMemoryCompactionOptions
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly secretResolver?: SecretResolverPort
   readonly provider?: ProviderAdapter
   readonly tools?: ToolRegistry
@@ -66,10 +65,31 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly idleIntervalMs?: number
   readonly errorIntervalMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
+  readonly observeSessionTurnResult?: RuntimeHostSessionTurnResultObserver
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
   readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
   readonly mediaGenerationWorkerCount?: number
   readonly mediaGenerationMaxOutputBytes?: number
+  readonly mediaGenerationPollInitialDelayMs?: number
+  readonly mediaGenerationPollMaxDelayMs?: number
+  readonly mediaGenerationMaxConsecutivePollFailures?: number
+}
+
+export type RuntimeHostSessionTurnResultObserver = (
+  signal: RuntimeHostSessionTurnResultSignal
+) => void
+
+export interface RuntimeHostSessionTurnResultSignal {
+  readonly kind: "wanex-runtime.session-turn-result"
+  readonly outcome: "completed" | "failed" | "suspended"
+  readonly reference: RuntimeHostSessionTurnReference
+}
+
+export interface RuntimeHostSessionTurnReference {
+  readonly sessionId: string
+  readonly inputId: string
+  readonly turnId: string
+  readonly jobId: string
 }
 
 export interface RuntimeHostStatus {
@@ -126,8 +146,14 @@ export type RuntimeHostSubmitMediaGenerationResult =
   MediaGenerationOperationSubmission
 export type RuntimeHostMediaGenerationRequest = SubmitMediaGenerationRequest
 export type RuntimeHostMediaGenerationRecord = MediaGenerationOperationRecord
+export type RuntimeHostPrepareExecutionBindingRequest =
+  PrepareSessionTurnExecutionBindingRequest
+export type RuntimeHostPreparedExecutionBinding =
+  PreparedSessionTurnExecutionBinding
 
-export type RuntimeHostEphemeralQueryRequest = EphemeralQueryRequest
+export interface RuntimeHostEphemeralQueryRequest extends EphemeralQueryRequest {
+  readonly signal?: RuntimeAbortSignal
+}
 export type RuntimeHostEphemeralQueryResult = EphemeralQueryResult
 
 export interface RuntimeHostJobSummaryRequest {

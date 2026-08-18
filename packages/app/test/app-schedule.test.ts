@@ -3,6 +3,9 @@ import { createStorageTestStore } from "@wanex/storage/testing"
 import { createWanexApp } from "../src/internal-index.js"
 import { submitTestTurn } from "./durable-turn-test-fixture.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
+
+const fakeModelEndpoint = appTestModelEndpoint()
 
 describe("@wanex/app schedule commands", () => {
   it("submits scheduled ticks as normal session turns with scheduler provenance", async () => {
@@ -15,10 +18,17 @@ describe("@wanex/app schedule commands", () => {
       artifacts: {
         explicitPath: serviceBin
       },
-      providerProfile: {
-        id: "schedule-profile",
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "schedule-endpoint",
         modelId: "schedule-model"
-      }
+      })
+    })
+    await app.stop()
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
     })
 
     try {
@@ -43,12 +53,31 @@ describe("@wanex/app schedule commands", () => {
         status: "submitted",
         scheduleId: "schedule_wanex_app_minutely",
         tickId: "tick_0001",
-        sessionId: "ses_wanex_app_schedule",
-        inputId: "inp_wanex_app_schedule_tick_1",
-        jobId: "job_wanex_app_schedule_tick_1",
-        providerProfileId: "schedule-profile",
-        assistantText: "Fake response from schedule-model",
-        jobStatuses: ["succeeded"]
+        modelEndpointId: "schedule-endpoint",
+        receipt: {
+          sessionId: "ses_wanex_app_schedule",
+          inputId: "inp_wanex_app_schedule_tick_1",
+          jobId: "job_wanex_app_schedule_tick_1",
+          state: "queued"
+        }
+      })
+      expect(result).not.toHaveProperty("assistantText")
+      if (result.status !== "submitted") {
+        throw new Error("expected scheduled tick admission")
+      }
+      await expect(
+        app.commands.readConversationOperation(result.receipt)
+      ).resolves.toMatchObject({
+        kind: "found",
+        operation: {
+          state: "queued"
+        }
+      })
+      await expect(
+        storage.getJob({ jobId: result.receipt.jobId })
+      ).resolves.toMatchObject({
+        id: "job_wanex_app_schedule_tick_1",
+        state: "ready"
       })
       await expect(
         app.commands.readSessionInputProvenance({
@@ -76,6 +105,7 @@ describe("@wanex/app schedule commands", () => {
         ]
       })
     } finally {
+      await storage.dispose()
       await app.dispose()
     }
   })
@@ -89,7 +119,8 @@ describe("@wanex/app schedule commands", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     await app.stop()
     const storage = createStorageTestStore({
@@ -154,7 +185,10 @@ describe("@wanex/app schedule commands", () => {
         }
       })
 
-      await storage.cancelJob({
+      await storage.requestSessionTurnCancel({
+        sessionId: "ses_wanex_app_schedule_previous",
+        turnId: "turn_wanex_app_schedule_previous",
+        inputId: "inp_wanex_app_schedule_previous",
         jobId: "job_wanex_app_schedule_previous",
         reason: "wanex-app schedule test cleanup"
       })
@@ -173,7 +207,8 @@ describe("@wanex/app schedule commands", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     await app.stop()
     const storage = createStorageTestStore({
@@ -238,7 +273,10 @@ describe("@wanex/app schedule commands", () => {
         }
       })
 
-      await storage.cancelJob({
+      await storage.requestSessionTurnCancel({
+        sessionId: "ses_wanex_app_schedule_scan",
+        turnId: "turn_wanex_app_schedule_scan_previous",
+        inputId: "inp_wanex_app_schedule_scan_previous",
         jobId: "job_wanex_app_schedule_scan_previous",
         reason: "wanex-app schedule scan test cleanup"
       })
@@ -257,7 +295,8 @@ describe("@wanex/app schedule commands", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
 
     try {

@@ -1,33 +1,69 @@
 import type {
+  AdmitTeamMessageRequest,
+  FailTeamDeliveryMaterializationReceipt,
+  FailTeamDeliveryMaterializationRequest,
+  ListTeamDeliveriesRequest,
+  ListTeamDiscussionRoundsRequest,
+  ListTeamMessagesRequest,
+  ListTeamRoutingDecisionsRequest,
+  MaterializeTeamDeliveryReceipt,
+  MaterializeTeamDeliveryRequest,
+  ProjectTeamDeliveryOutcomeReceipt,
+  ProjectTeamDeliveryOutcomeRequest,
+  ReadTeamConversationPageRequest,
   PrincipalId,
+  RouteTeamMessageReceipt,
+  RouteTeamMessageRequest,
+  SetTeamConversationLeadRequest,
   TeamConversationRecord,
+  TeamConversationPage,
   TeamConversationState,
+  TeamDeliveryRecord,
+  TeamDeliveryMaterializationContext,
+  TeamDiscussionRoundRecord,
+  TeamMessageRecord,
   TeamParticipantRecord,
   TeamParticipantState,
-  TeamTurnRecord
+  TeamRoutingDecisionRecord
 } from "@wanex/protocol"
 import {
   createConversation,
   getConversation,
   listConversations,
+  setConversationLead,
   updateConversationState
 } from "./conversation.js"
+import {
+  readConversationPage,
+  submitOrchestratedMessage,
+  submitRoutedMessage
+} from "./application.js"
 import {
   addParticipant,
   listParticipants,
   updateParticipantState
 } from "./participant.js"
-import { orchestrateRound } from "./orchestrator.js"
+import { getDiscussionRound, listDiscussionRounds } from "./round.js"
+import {
+  admitMessage,
+  failDeliveryMaterialization,
+  getDeliveryMaterializationContext,
+  getMessage,
+  getRoutingDecisionByMessage,
+  listDeliveries,
+  listMessages,
+  listRoutingDecisions,
+  materializeDelivery,
+  projectDeliveryOutcome,
+  routeMessage
+} from "./message.js"
 import type { TeamConversationRuntimeStorage } from "./storage.js"
-import { appendTurn, listTurns } from "./turn.js"
 import type {
   AddTeamParticipantRequest,
-  AppendTeamMessageRequest,
   CreateTeamConversationRequest,
   ListTeamConversationsRequest,
-  ListTeamTurnsRequest,
-  OrchestrateTeamRoundRequest,
-  TeamRoundResult,
+  SubmitOrchestratedTeamMessageRequest,
+  SubmitRoutedTeamMessageRequest,
   TeamConversationRuntimeOptions
 } from "./types.js"
 
@@ -39,10 +75,12 @@ const DEFAULT_PRINCIPAL_ID = "team-conversation"
 export class TeamConversationRuntime {
   private readonly storage: TeamConversationRuntimeStorage
   private readonly principalId: PrincipalId
+  private readonly notifyWorkAvailable: (() => void) | undefined
 
   constructor(options: TeamConversationRuntimeOptions) {
     this.storage = options.storage
     this.principalId = options.principalId ?? DEFAULT_PRINCIPAL_ID
+    this.notifyWorkAvailable = options.notifyWorkAvailable
   }
 
   async createConversation(
@@ -67,11 +105,39 @@ export class TeamConversationRuntime {
     return await listConversations(this.storage, request)
   }
 
+  async submitRoutedMessage(
+    request: SubmitRoutedTeamMessageRequest
+  ): Promise<RouteTeamMessageReceipt> {
+    const receipt = await submitRoutedMessage(this.storage, request)
+    this.notifyAfterDurableRoute(receipt)
+    return receipt
+  }
+
+  async submitOrchestratedMessage(
+    request: SubmitOrchestratedTeamMessageRequest
+  ): Promise<RouteTeamMessageReceipt> {
+    const receipt = await submitOrchestratedMessage(this.storage, request)
+    this.notifyAfterDurableRoute(receipt)
+    return receipt
+  }
+
+  async readConversationPage(
+    request: ReadTeamConversationPageRequest
+  ): Promise<TeamConversationPage | null> {
+    return await readConversationPage(this.storage, request)
+  }
+
   async updateConversationState(
     conversationId: string,
     state: TeamConversationState
   ): Promise<TeamConversationRecord> {
     return await updateConversationState(this.storage, conversationId, state)
+  }
+
+  async setConversationLead(
+    request: SetTeamConversationLeadRequest
+  ): Promise<TeamConversationRecord> {
+    return await setConversationLead(this.storage, request)
   }
 
   async addParticipant(
@@ -94,20 +160,86 @@ export class TeamConversationRuntime {
     return await updateParticipantState(this.storage, participantId, state)
   }
 
-  async appendTurn(request: AppendTeamMessageRequest): Promise<TeamTurnRecord> {
-    return await appendTurn(this.storage, request)
+  async admitMessage(request: AdmitTeamMessageRequest): Promise<TeamMessageRecord> {
+    return await admitMessage(this.storage, request)
   }
 
-  async listTurns(
-    conversationId: string,
-    request: ListTeamTurnsRequest = {}
-  ): Promise<TeamTurnRecord[]> {
-    return await listTurns(this.storage, conversationId, request)
+  async getMessage(messageId: string): Promise<TeamMessageRecord | null> {
+    return await getMessage(this.storage, messageId)
   }
 
-  async orchestrateRound(
-    request: OrchestrateTeamRoundRequest
-  ): Promise<TeamRoundResult> {
-    return await orchestrateRound(this.storage, request)
+  async listMessages(request: ListTeamMessagesRequest): Promise<TeamMessageRecord[]> {
+    return await listMessages(this.storage, request)
+  }
+
+  async routeMessage(
+    request: RouteTeamMessageRequest
+  ): Promise<RouteTeamMessageReceipt> {
+    const receipt = await routeMessage(this.storage, request)
+    this.notifyAfterDurableRoute(receipt)
+    return receipt
+  }
+
+  async getRoutingDecisionByMessage(
+    messageId: string
+  ): Promise<TeamRoutingDecisionRecord | null> {
+    return await getRoutingDecisionByMessage(this.storage, messageId)
+  }
+
+  async listRoutingDecisions(
+    request: ListTeamRoutingDecisionsRequest
+  ): Promise<TeamRoutingDecisionRecord[]> {
+    return await listRoutingDecisions(this.storage, request)
+  }
+
+  async listDeliveries(
+    request: ListTeamDeliveriesRequest
+  ): Promise<TeamDeliveryRecord[]> {
+    return await listDeliveries(this.storage, request)
+  }
+
+  async getDiscussionRound(
+    roundId: string
+  ): Promise<TeamDiscussionRoundRecord | null> {
+    return await getDiscussionRound(this.storage, roundId)
+  }
+
+  async listDiscussionRounds(
+    request: ListTeamDiscussionRoundsRequest
+  ): Promise<TeamDiscussionRoundRecord[]> {
+    return await listDiscussionRounds(this.storage, request)
+  }
+
+  async getDeliveryMaterializationContext(
+    deliveryId: string
+  ): Promise<TeamDeliveryMaterializationContext | null> {
+    return await getDeliveryMaterializationContext(this.storage, deliveryId)
+  }
+
+  async materializeDelivery(
+    request: MaterializeTeamDeliveryRequest
+  ): Promise<MaterializeTeamDeliveryReceipt> {
+    return await materializeDelivery(this.storage, request)
+  }
+
+  async failDeliveryMaterialization(
+    request: FailTeamDeliveryMaterializationRequest
+  ): Promise<FailTeamDeliveryMaterializationReceipt> {
+    return await failDeliveryMaterialization(this.storage, request)
+  }
+
+  async projectDeliveryOutcome(
+    request: ProjectTeamDeliveryOutcomeRequest
+  ): Promise<ProjectTeamDeliveryOutcomeReceipt> {
+    return await projectDeliveryOutcome(this.storage, request)
+  }
+
+  private notifyAfterDurableRoute(receipt: RouteTeamMessageReceipt): void {
+    if (receipt.dispatchJobs.length === 0) return
+    try {
+      this.notifyWorkAvailable?.()
+    } catch {
+      // Notification is an optimization; durable scheduler recovery is authoritative.
+    }
   }
 }

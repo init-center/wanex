@@ -96,7 +96,18 @@ async function proveMultimodalInput({ fixtureRoot, serviceBin }) {
   const requestBodies = []
   const provider = new OpenAICompatibleAdapter({
     providerId: "external-openai",
-    modelId: "external-vision",
+    model: {
+      id: "external-vision",
+      operations: ["conversation"],
+      inputModalities: ["text", "image"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "custom",
+        catalogId: "external-consumer.vision",
+        revision: "1"
+      }
+    },
     baseUrl: "https://provider.example.invalid/v1",
     apiKey: "external-secret",
     async fetch(_url, init) {

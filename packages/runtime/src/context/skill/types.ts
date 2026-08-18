@@ -6,8 +6,6 @@ import type {
 
 export type SkillScope = "global" | "project"
 
-export type SkillSnapshotStatus = "available" | "unavailable"
-
 export type ProjectSkillTrust = "trusted" | "untrusted"
 
 export interface SkillTrustPolicy {
@@ -101,7 +99,7 @@ export interface SkillDiagnostic {
 }
 
 export interface SkillSnapshot {
-  readonly status: SkillSnapshotStatus
+  readonly complete: boolean
   readonly sources: readonly SkillSource[]
   readonly diagnostics: readonly SkillDiagnostic[]
 }

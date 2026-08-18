@@ -1,38 +1,37 @@
-import {
-  type GetPlanProposalRequest,
-  type JsonValue,
-  type ListPlanProposalOperationsRequest,
-  type ListPlanProposalsRequest,
-  type PutPlanProposalRequest,
-  type RecordPlanProposalOperationRequest
+import type {
+  CreatePlanProposalRequest,
+  ExecuteApprovedPlanRequest,
+  GetPlanProposalRequest,
+  JsonValue,
+  ListPlanProposalOperationsRequest,
+  ListPlanProposalsRequest,
+  RecordPlanProposalOperationRequest
 } from "@wanex/protocol"
 
 import {
-  planReferenceToJson,
-  planStepToJson
+  planContentToWire,
+  planGenerationToWire,
+  planSourceToWire
 } from "./codec-plan-values.js"
-import { toRpcJsonValue } from "./codec-common.js"
+import { toRpcSubmitSessionTurnRequest } from "./codec-session-requests.js"
 import type {
+  CreatePlanProposalWire,
+  ExecuteApprovedPlanWire,
   ListPlanProposalOperationsWire,
   ListPlanProposalsWire,
-  PutPlanProposalWire,
   RecordPlanProposalOperationWire
 } from "./generated/storage-rpc.js"
 
-export function toRpcPutPlanProposalRequest(
-  request: PutPlanProposalRequest
-): PutPlanProposalWire {
+export function toRpcCreatePlanProposalRequest(
+  request: CreatePlanProposalRequest
+): CreatePlanProposalWire {
   return {
     id: request.id ?? null,
     principal_id: request.principalId,
-    title: request.title ?? null,
-    summary: request.summary ?? null,
-    steps: toRpcJsonValue(request.steps.map(planStepToJson)),
-    references: toRpcJsonValue(
-      request.references?.map(planReferenceToJson) ?? null
-    ),
-    metadata: toRpcJsonValue(request.metadata ?? null),
-    idempotency_key: request.idempotencyKey ?? null
+    source: planSourceToWire(request.source),
+    generation: planGenerationToWire(request.generation),
+    content: planContentToWire(request),
+    idempotency_key: request.idempotencyKey
   }
 }
 
@@ -49,6 +48,7 @@ export function toRpcListPlanProposalsRequest(
 ): ListPlanProposalsWire {
   return {
     principal_id: request.principalId ?? null,
+    source_session_id: request.sourceSessionId ?? null,
     state: request.state ?? null,
     reference_kind: request.referenceKind ?? null,
     reference_id: request.referenceId ?? null,
@@ -63,9 +63,24 @@ export function toRpcRecordPlanProposalOperationRequest(
     id: request.id ?? null,
     proposal_id: request.proposalId,
     operation: request.operation,
-    actor_id: request.actorId,
+    expected_revision: request.expectedRevision,
+    actor_kind: request.actor.kind,
+    actor_id: request.actor.id,
+    content:
+      request.content === undefined ? null : planContentToWire(request.content),
     reason: request.reason ?? null,
-    metadata: toRpcJsonValue(request.metadata ?? null)
+    idempotency_key: request.idempotencyKey
+  }
+}
+
+export function toRpcExecuteApprovedPlanRequest(
+  request: ExecuteApprovedPlanRequest
+): ExecuteApprovedPlanWire {
+  return {
+    proposal_id: request.proposalId,
+    expected_revision: request.expectedRevision,
+    idempotency_key: request.idempotencyKey,
+    turn: toRpcSubmitSessionTurnRequest(request.turn)
   }
 }
 

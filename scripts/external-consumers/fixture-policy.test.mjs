@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises"
 import { describe, expect, it } from "vitest"
 import {
   parseFixtureReceipt,
@@ -41,5 +42,17 @@ describe("external consumer fixture policy", () => {
     expect(() => parseFixtureReceipt("not-json", "minimal-agent")).toThrow(
       "did not emit one JSON receipt"
     )
+  })
+
+  it("keeps App media admission semantic and endpoint-neutral", async () => {
+    const source = await readFile(
+      new URL("./fixtures/trusted-app/main.mjs", import.meta.url),
+      "utf8"
+    )
+    expect(source).toContain('operation: "image.generate"')
+    expect(source).toContain("app.commands.upsertModelEndpoint")
+    expect(source).toContain("protocolId: imageEndpoint.protocol.id")
+    expect(source).toContain("canExecute(modelEndpoint)")
+    expect(source).not.toContain("modelEndpointId")
   })
 })

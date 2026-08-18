@@ -9,6 +9,7 @@ import {
   OpenAICompatibleAdapter
 } from "../src/provider/index.js"
 import { WanexAgentRuntime } from "../src/execution/agent-runtime/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -60,10 +61,11 @@ describe("resource-bearing provider input", () => {
         throw result.run.worker.error
       }
       expect(result.run.worker).toMatchObject({ status: "completed" })
-      expect(result.receipt.turn.executionBinding.provider.capabilities).toEqual({
-        input: ["text", "image"],
-        output: ["text"]
-      })
+      expect(result.receipt.turn.executionBinding.modelEndpoint.model)
+        .toMatchObject({
+          inputModalities: ["text", "image"],
+          outputModalities: ["text"]
+        })
       expect(result.receipt.turn.executionBinding.resources).toEqual([
         {
           resourceId: resource.id,
@@ -96,7 +98,9 @@ describe("resource-bearing provider input", () => {
   it("lowers image bytes into OpenAI-compatible data URLs", () => {
     const adapter = new OpenAICompatibleAdapter({
       providerId: "openai",
-      modelId: "vision-model",
+      model: testConversationModel("vision-model", {
+        inputModalities: ["text", "image"]
+      }),
       baseUrl: "https://api.example/v1",
       apiKey: "secret"
     })
@@ -133,7 +137,10 @@ describe("resource-bearing provider input", () => {
     const runtime = new WanexAgentRuntime({
       storage,
       provider: new AnthropicAdapter({
-        modelId: "claude-document",
+        providerId: "anthropic",
+        model: testConversationModel("claude-document", {
+          inputModalities: ["text", "image", "document"]
+        }),
         baseUrl: "https://api.anthropic.example/v1",
         apiKey: "secret"
       })
@@ -145,11 +152,13 @@ describe("resource-bearing provider input", () => {
         content: [{ type: "resource", resourceId: document.id }]
       })
 
-      expect(submitted.receipt.turn.executionBinding.provider).toMatchObject({
-        adapterId: "anthropic",
-        capabilities: {
-          input: ["text", "image", "document"],
-          output: ["text"]
+      expect(submitted.session.title).toBe("Resource conversation")
+      expect(submitted.receipt.turn.executionBinding.modelEndpoint).toMatchObject({
+        protocol: { id: "anthropic-messages" },
+        connection: { providerId: "anthropic" },
+        model: {
+          inputModalities: ["text", "image", "document"],
+          outputModalities: ["text"]
         }
       })
       expect(submitted.receipt.turn.executionBinding.resources).toEqual([
@@ -252,7 +261,10 @@ describe("resource-bearing provider input", () => {
 
   it("lowers Anthropic image and PDF blocks without changing message order", () => {
     const adapter = new AnthropicAdapter({
-      modelId: "claude-vision",
+      providerId: "anthropic",
+      model: testConversationModel("claude-vision", {
+        inputModalities: ["text", "image", "document"]
+      }),
       baseUrl: "https://api.anthropic.example/v1",
       apiKey: "secret"
     })
@@ -295,7 +307,9 @@ describe("resource-bearing provider input", () => {
     let called = false
     const adapter = new OpenAICompatibleAdapter({
       providerId: "openai",
-      modelId: "vision-model",
+      model: testConversationModel("vision-model", {
+        inputModalities: ["text", "image"]
+      }),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: async () => {
@@ -320,13 +334,11 @@ describe("resource-bearing provider input", () => {
 })
 
 class ResourceRecordingProvider implements ProviderAdapter {
-  readonly kind = "openai-compatible" as const
+  readonly protocol = { id: "openai-chat-completions" } as const
   readonly providerId = "recording-openai"
-  readonly modelId = "recording-vision"
-  readonly capabilities = {
-    input: ["text", "image"],
-    output: ["text"]
-  } as const
+  readonly model = testConversationModel("recording-vision", {
+    inputModalities: ["text", "image"]
+  })
   resourceBytes: Uint8Array | undefined
 
   async *stream(request: ProviderRequest) {

@@ -40,11 +40,11 @@ export function createWorkspaceTestSteps(options = {}) {
       }
     },
     {
-      name: "Product App Local package tests",
+      name: "Local Host package tests",
       command: "pnpm",
       args: [
         "--filter",
-        "@wanex/product-app-local",
+        "@wanex/local-host",
         "test",
         ...parallelVitestArgs
       ],
@@ -60,7 +60,7 @@ export function createWorkspaceTestSteps(options = {}) {
         "--filter",
         "!@wanex/runtime",
         "--filter",
-        "!@wanex/product-app-local",
+        "!@wanex/local-host",
         "--if-present",
         `--workspace-concurrency=${workspaceConcurrency}`,
         "test",

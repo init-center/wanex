@@ -50,7 +50,6 @@ export interface BuildAppDiagnosticsSnapshotInput {
     readonly activity?: readonly AppActivityEntry[]
   }
   readonly workspaceApplyPlan?: BaseWorkspaceApplyPlan
-  readonly teamRound?: BaseTeamRoundResult
   readonly runtimeHost?: BaseRuntimeHostJobSummary
   readonly runtimeHostHealth?: BaseRuntimeHostHealthSnapshot
   readonly plugin?: {
@@ -109,14 +108,6 @@ export interface BaseWorkspaceApplyConflict {
   readonly reason: string
   readonly conflictingProposalId?: string
   readonly conflictingChangeSetId?: string
-}
-
-export interface BaseTeamRoundResult {
-  readonly conversation: {
-    readonly id: string
-  }
-  readonly stopReason: string
-  readonly turns: readonly unknown[]
 }
 
 export interface BaseRuntimeHostJobSummary {

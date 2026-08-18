@@ -17,7 +17,7 @@ export const productSmokeMatrixScenario = createEvalScenario({
     assert(cold.supportBundleOk, "cold support bundle should be readable")
     assert(
       singleAgent.assistantText === "Fake response from product-matrix-model",
-      "single-agent entry should run through provider profile"
+      "single-agent entry should run through a model endpoint"
     )
     assert(
       agentContext.instructionSources === 1 &&

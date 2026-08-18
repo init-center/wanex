@@ -23,6 +23,13 @@ turn, so it is not part of the submission reference. The App-owned configurable
 worker pool is restartable with `start()/stop()` and closes only owned
 resources on `dispose()`. There is no parallel App backend public subpath.
 
+Trusted hosts that provide long-lived Provider management use the explicit
+`@wanex/app/provider-mutation` capability subpath. It owns one storage-backed
+atomic endpoint/credential transaction but does not enter the App root,
+Product Surface, renderer, or Runtime. Ordinary App construction can instead
+accept a one-shot trusted onboarding callback without exposing that mutator to
+the resulting App handle.
+
 Runtime exposes explicit advanced subpaths:
 
 - `@wanex/runtime/bootstrap`: system-service artifact and storage ownership;
@@ -51,7 +58,7 @@ These are export entry points, not separate npm package identities.
 - `@wanex/mcp`: source-preview official MCP transport adapters for Runtime tools;
 - `@wanex/workspace`: source-preview changesets, review, isolation, Git, durable tasks, and
   explicitly registered coding tools;
-- `@wanex/team`: source-preview bounded team conversation and coding delegation policies;
+- `@wanex/team`: source-preview durable team conversation ledger and coding delegation policies;
 - `@wanex/extension`: dependency-free contribution contracts and resolution;
 - `@wanex/plugin`: source-preview plugin trust, install, sandbox, process, and worker lifecycle;
 - `@wanex/connector`: source-preview channel contracts, host lifecycle, packaging, and
@@ -84,11 +91,22 @@ session protocol.
 ## Applications
 
 - `@wanex/cli`: executable headless CLI;
-- `@wanex/product-app`: validation product backend;
-- `@wanex/product-app-command-host`: optional Product plugin execution host;
-- `@wanex/product-app-local`: local executable lifecycle owner;
-- `@wanex/product-app-web`: browser-safe Product surface;
-- `@wanex/product-app-tui`: terminal Product surface and executable host;
+- `@wanex/product`: validation product backend;
+- `@wanex/plugin-command-host`: optional composable Product plugin execution host;
+- `@wanex/desktop`: private packaged Electron Product and process owner;
+- `@wanex/local-host`: presentation-neutral local Product lifecycle plus
+  explicit Web and desktop host wrappers;
+- `@wanex/web`: browser-safe Product surface;
+- `@wanex/tui`: terminal Product surface and executable host; its trusted host
+  consumes `@wanex/local-host/application`, while renderer modules consume only
+  Product Surface contracts;
+
+`@wanex/local-credential-store` is an internal trusted-local-host platform
+adapter. Its root owns only opaque credential references and profile namespace
+derivation; explicit subpaths own injected and native keychain bindings. It is
+not an ordinary Product/SDK entry, Provider setup service, generic secret
+manager, or renderer dependency.
+
 `@wanex/protocol` remains internal cross-language contract source.
 `@wanex/eval-harness` remains test-only.
 
@@ -104,8 +122,8 @@ and rolled declarations.
 
 Generated Runtime metadata also owns exact optional dependencies on four
 target-restricted System Service artifacts. These native identities are
-generated npm artifacts rather than source packages, so the workspace topology
-remains 18 packages. Runtime/App local bootstrap resolves the matching
+generated npm artifacts rather than source packages, so they do not add to the
+20 source workspace packages. Runtime/App local bootstrap resolves the matching
 installed package automatically; remote and injected storage require none.
 
 `@wanex/storage/testing` is a source-only test helper. It is not a generated

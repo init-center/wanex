@@ -1,35 +1,35 @@
 import type {
-  ContextMemoryPolicy,
+  ContextCompactionEvidence,
+  ContextCompactionPlanReason,
+  ContextCompactionPolicyOverrides,
   ContextTokenEstimator
 } from "../context/memory/index.js"
 import type {
   ContextEpochPruneReceipt,
-  EnqueueJobRequest,
   JsonValue,
   ListSessionsRequest,
+  ModelEndpointExecutionBinding,
   SchedulerJobRecord,
   SessionId
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type { WanexWorkerOptions } from "../jobs/index.js"
+import type { ProviderAdapter } from "../provider/index.js"
+import type { SecretResolverPort } from "../secrets/index.js"
 
 export interface MemoryCompactionJobPayload {
-  readonly sessionId: SessionId
-  readonly policy?: Partial<ContextMemoryPolicy>
+  readonly evidence: ContextCompactionEvidence
   readonly metadata?: JsonValue
 }
 
 export interface SubmitMemoryCompactionJobRequest {
   readonly id?: string
   readonly principalId: string
-  readonly sessionId: SessionId
-  readonly policy?: Partial<ContextMemoryPolicy>
+  readonly evidence: ContextCompactionEvidence
   readonly metadata?: JsonValue
   readonly scheduledAt?: number
   readonly notBefore?: number
   readonly priority?: number
-  readonly maxAttempts?: number
-  readonly retryPolicy?: EnqueueJobRequest["retryPolicy"]
   readonly idempotencyKey?: string
   readonly budgetGrantId?: string
 }
@@ -37,48 +37,36 @@ export interface SubmitMemoryCompactionJobRequest {
 export interface MemoryCompactionJobResult {
   readonly sessionId: SessionId
   readonly epochId: string
-  readonly policyVersion: string
+  readonly cutSequence: number
+  readonly summaryDigest: string
   readonly tokenEstimateBefore: number
   readonly tokenEstimateAfter: number
-  readonly replacementCount: number
-  readonly replacementIds: readonly string[]
   readonly metadata?: JsonValue
   readonly prune?: ContextEpochPruneReceipt
 }
 
-export type MemoryCompactionPlanDecision = "submit" | "skip"
-
-export type MemoryCompactionPlanReason =
-  | "above_waterline"
-  | "below_waterline"
-  | "no_replacements"
-  | "insufficient_savings"
-
 export interface PlanMemoryCompactionRequest {
   readonly storage: CoreStore
   readonly sessionId: SessionId
-  readonly policy?: Partial<ContextMemoryPolicy>
-  readonly waterlineTokens?: number
-  readonly minimumTokenSavings?: number
+  readonly modelEndpoint: ModelEndpointExecutionBinding
+  readonly policy?: ContextCompactionPolicyOverrides
   readonly tokenEstimator?: ContextTokenEstimator
 }
 
 export interface MemoryCompactionPlan {
   readonly sessionId: SessionId
-  readonly policyVersion: string
-  readonly decision: MemoryCompactionPlanDecision
-  readonly reason: MemoryCompactionPlanReason
-  readonly waterlineTokens: number
-  readonly minimumTokenSavings: number
+  readonly decision: "submit" | "skip"
+  readonly reason: ContextCompactionPlanReason
   readonly tokenEstimateBefore: number
-  readonly tokenEstimateAfter: number
+  readonly projectedTokenEstimateAfter: number
   readonly tokenSavings: number
-  readonly replacementCount: number
+  readonly evidence?: ContextCompactionEvidence
 }
 
 export interface MemoryCompactionHandlerOptions {
   readonly storage: CoreStore
-  readonly policy?: Partial<ContextMemoryPolicy>
+  readonly directProvider?: ProviderAdapter
+  readonly secretResolver?: SecretResolverPort
   readonly tokenEstimator?: ContextTokenEstimator
   readonly retention?: MemoryCompactionRetentionPolicy
   readonly now?: () => number
@@ -91,7 +79,8 @@ export interface CreateMemoryCompactionWorkerOptions
   > {
   readonly leaseMs?: number
   readonly storage: CoreStore
-  readonly policy?: Partial<ContextMemoryPolicy>
+  readonly directProvider?: ProviderAdapter
+  readonly secretResolver?: SecretResolverPort
   readonly tokenEstimator?: ContextTokenEstimator
   readonly retention?: MemoryCompactionRetentionPolicy
   readonly now?: () => number
@@ -107,14 +96,13 @@ export interface SweepMemoryCompactionRequest {
   readonly storage: CoreStore
   readonly principalId: string
   readonly sessions?: ListSessionsRequest
-  readonly policy?: Partial<ContextMemoryPolicy>
-  readonly waterlineTokens?: number
-  readonly minimumTokenSavings?: number
+  readonly resolveModelEndpoint: (
+    sessionId: SessionId
+  ) => Promise<ModelEndpointExecutionBinding | null>
+  readonly policy?: ContextCompactionPolicyOverrides
   readonly tokenEstimator?: ContextTokenEstimator
   readonly metadata?: JsonValue
   readonly priority?: number
-  readonly maxAttempts?: number
-  readonly retryPolicy?: EnqueueJobRequest["retryPolicy"]
   readonly budgetGrantId?: string
   readonly idempotencyKeyPrefix?: string
 }

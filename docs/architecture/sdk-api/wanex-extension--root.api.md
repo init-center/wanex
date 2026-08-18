@@ -23,11 +23,11 @@ export interface AppAgentContributionValue {
     // (undocumented)
     readonly instructionRefs?: readonly string[];
     // (undocumented)
+    readonly modelEndpointId?: string;
+    // (undocumented)
     readonly modelId?: string;
     // (undocumented)
     readonly name: string;
-    // (undocumented)
-    readonly providerProfileId?: string;
     // (undocumented)
     readonly skillRefs?: readonly string[];
     // (undocumented)
@@ -53,6 +53,8 @@ export interface AppCommandContributionValue {
     readonly inputSchema?: AppCommandInputSchema;
     // (undocumented)
     readonly name: string;
+    // (undocumented)
+    readonly paletteVisibility: AppCommandPaletteVisibility;
     // (undocumented)
     readonly title: string;
 }
@@ -219,6 +221,44 @@ export interface AppCommandInputStringSchema extends AppCommandInputSchemaAnnota
 export type AppCommandInputValueSchema = AppCommandInputObjectSchema | AppCommandInputStringSchema | AppCommandInputNumberSchema | AppCommandInputIntegerSchema | AppCommandInputBooleanSchema | AppCommandInputArraySchema;
 
 // @public (undocumented)
+export type AppCommandPaletteVisibility = "visible" | "hidden";
+
+// @public (undocumented)
+export interface AppExtensionCatalogController {
+    // (undocumented)
+    publish(generation: AppExtensionCatalogGeneration): AppExtensionCatalogPublication;
+    // (undocumented)
+    readonly source: AppExtensionCatalogSource;
+}
+
+// @public (undocumented)
+export interface AppExtensionCatalogGeneration {
+    // (undocumented)
+    readonly revision: string;
+    // (undocumented)
+    readonly snapshot: AppExtensionResolvedSnapshot;
+}
+
+// @public (undocumented)
+export type AppExtensionCatalogListener = (generation: AppExtensionCatalogGeneration) => void;
+
+// @public (undocumented)
+export interface AppExtensionCatalogPublication {
+    // (undocumented)
+    readonly changed: boolean;
+    // (undocumented)
+    readonly listenerErrors: readonly unknown[];
+}
+
+// @public (undocumented)
+export interface AppExtensionCatalogSource {
+    // (undocumented)
+    current(): AppExtensionCatalogGeneration;
+    // (undocumented)
+    subscribe(listener: AppExtensionCatalogListener): () => void;
+}
+
+// @public (undocumented)
 export interface AppExtensionCommandExecutionRequest {
     // (undocumented)
     readonly commandId: string;
@@ -300,7 +340,7 @@ export interface AppExtensionDiagnostic {
 }
 
 // @public (undocumented)
-export type AppExtensionDiagnosticCode = "extension.invalid_id" | "extension.invalid_domain" | "extension.blocked_source" | "extension.privileged_untrusted" | "extension.command_input_schema_invalid" | "extension.command_input_schema_unsupported" | "extension.command_input_schema_limit_exceeded" | "extension.duplicate_replaced" | "extension.duplicate_error" | "extension.appended" | "extension.merged";
+export type AppExtensionDiagnosticCode = "extension.invalid_id" | "extension.invalid_domain" | "extension.blocked_source" | "extension.privileged_untrusted" | "extension.command_palette_visibility_invalid" | "extension.command_input_schema_invalid" | "extension.command_input_schema_unsupported" | "extension.command_input_schema_limit_exceeded" | "extension.duplicate_replaced" | "extension.duplicate_error" | "extension.appended" | "extension.merged";
 
 // @public (undocumented)
 export type AppExtensionDiagnosticSeverity = "info" | "warning" | "error";
@@ -477,6 +517,12 @@ export interface AppToolContributionValue {
     // (undocumented)
     readonly permission?: "read" | "write" | "network" | "external";
 }
+
+// @public (undocumented)
+export function createAppExtensionCatalog(initial: AppExtensionCatalogGeneration): AppExtensionCatalogController;
+
+// @public (undocumented)
+export function createStaticAppExtensionCatalogSource(generation: AppExtensionCatalogGeneration): AppExtensionCatalogSource;
 
 // @public (undocumented)
 export const DEFAULT_APP_COMMAND_INPUT_SCHEMA_LIMITS: AppCommandInputSchemaLimits;

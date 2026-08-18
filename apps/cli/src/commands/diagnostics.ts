@@ -10,7 +10,6 @@ export async function diagnosticsValue(
     readonly includeConfigReloads?: boolean
     readonly memoryMaintenance?: boolean
     readonly staleAfterMs?: number
-    readonly policyVersion?: string
     readonly sessionLimit?: number
     readonly jobLimit?: number
     readonly pluginLimit?: number
@@ -29,9 +28,6 @@ export async function diagnosticsValue(
           ...(request.staleAfterMs === undefined
             ? {}
             : { staleAfterMs: request.staleAfterMs }),
-          ...(request.policyVersion === undefined
-            ? {}
-            : { policyVersion: request.policyVersion }),
           ...(request.sessionLimit === undefined
             ? {}
             : { sessionLimit: request.sessionLimit }),

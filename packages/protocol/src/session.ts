@@ -1,8 +1,10 @@
 import type { JsonValue } from "./json.js"
 import type { MessagePart } from "./message.js"
 import type {
-  ProviderCapabilities,
-  ProviderProfileKind,
+  ModelCapabilityRequirement,
+  ModelDescriptor,
+  ProviderConnection,
+  ProviderProtocolDescriptor,
   ProviderState
 } from "./provider.js"
 import type { ResourceInputEvidence } from "./resource.js"
@@ -34,6 +36,7 @@ export type SessionInputState =
 export type SessionTurnState =
   | "queued"
   | "running"
+  | "waiting"
   | "cancel_requested"
   | "succeeded"
   | "failed"
@@ -43,29 +46,39 @@ export type SessionTurnState =
 
 export type SessionAttemptState =
   | "running"
+  | "suspended"
   | "succeeded"
   | "failed"
   | "cancelled"
   | "interrupted"
   | "recovery_required"
 
-export interface ProviderExecutionBinding {
-  readonly profileId: string
-  readonly profileDigest: string
-  readonly adapterId: ProviderProfileKind
-  readonly providerId: string
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
-  readonly baseUrl?: string
-  readonly secretRef?: string
-  readonly anthropicVersion?: string
-  readonly requestConfig?: Readonly<Record<string, JsonValue>>
+export interface ModelEndpointExecutionBinding {
+  readonly endpointId: string
+  readonly endpointDigest: string
+  readonly connection: ProviderConnection
+  readonly protocol: ProviderProtocolDescriptor
+  readonly model: ModelDescriptor
+}
+
+export type CapabilityRouteSource = "configured" | "single_candidate"
+
+export interface ModelCapabilityRouteExecutionBinding {
+  readonly requirement: ModelCapabilityRequirement
+  readonly source: CapabilityRouteSource
+  readonly modelEndpoint: ModelEndpointExecutionBinding
+}
+
+export interface SessionTurnCompletionBinding {
+  readonly maxOutputTokens: number
 }
 
 export interface SessionTurnExecutionBinding {
   readonly digest: string
   readonly createdAt: number
-  readonly provider: ProviderExecutionBinding
+  readonly modelEndpoint: ModelEndpointExecutionBinding
+  readonly completion: SessionTurnCompletionBinding
+  readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[]
   readonly resources: readonly ResourceInputEvidence[]
   readonly recovery: SessionTurnRecoveryBinding
   readonly contextSnapshot?: JsonValue
@@ -100,7 +113,6 @@ export interface SessionTurnRecord {
   readonly executionBinding: SessionTurnExecutionBinding
   readonly maxSteps: number
   readonly currentAttemptId?: SessionAttemptId
-  readonly parentTurnId?: SessionTurnId
   readonly regeneratesTurnId?: SessionTurnId
   readonly cancelRequestedAt?: number
   readonly cancelReason?: string
@@ -135,6 +147,7 @@ export interface SessionRecord {
   readonly title?: string
   readonly kind: SessionKind
   readonly status: SessionStatus
+  readonly revision: number
   readonly createdAt: number
   readonly updatedAt: number
   readonly archivedAt?: number
@@ -152,6 +165,22 @@ export interface ListSessionsRequest {
   readonly updatedBefore?: number
   readonly updatedAfter?: number
   readonly limit?: number
+}
+
+export interface RenameSessionRequest {
+  readonly sessionId: SessionId
+  readonly title: string
+  readonly expectedRevision: number
+}
+
+export interface ArchiveSessionRequest {
+  readonly sessionId: SessionId
+  readonly expectedRevision: number
+}
+
+export interface RestoreSessionRequest {
+  readonly sessionId: SessionId
+  readonly expectedRevision: number
 }
 
 export interface AdmitSessionInputRequest {
@@ -188,7 +217,6 @@ export interface SubmitSessionTurnRequest {
   readonly jobIdempotencyKey?: string
   readonly executionBinding: SessionTurnExecutionBinding
   readonly maxSteps?: number
-  readonly parentTurnId?: SessionTurnId
   readonly regeneratesTurnId?: SessionTurnId
   readonly scheduledAt?: number
   readonly notBefore?: number
@@ -343,6 +371,7 @@ export interface RequestSessionTurnCancelReceipt {
     | "missing"
   readonly turn?: SessionTurnRecord
   readonly job?: SchedulerJobRecord
+  readonly cascadeJobIds: readonly string[]
 }
 
 export interface SessionInputRecord {
@@ -393,15 +422,21 @@ export interface AppendSessionMessageRequest {
 
 export interface ListSessionInputsRequest {
   readonly sessionId: SessionId
+  readonly status?: SessionInputState
+  readonly limit?: number
 }
 
 export interface ListSessionMessagesRequest {
   readonly sessionId: SessionId
+  readonly beforeSequence?: number
+  readonly limit?: number
+  readonly turnIds?: readonly SessionTurnId[]
 }
 
 export interface ListSessionTurnsRequest {
   readonly sessionId: SessionId
   readonly state?: SessionTurnState
+  readonly turnIds?: readonly SessionTurnId[]
 }
 
 export interface ListSessionAttemptsRequest {

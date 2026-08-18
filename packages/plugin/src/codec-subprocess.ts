@@ -63,6 +63,11 @@ function expectSubprocessEntryActions(
       entry,
       `plugin subprocess entry actions[${index}]`
     )
+    if (record.version !== undefined) {
+      throw new Error(
+        `plugin subprocess entry actions[${index}].version must not be declared; package version is authoritative`
+      )
+    }
     const action: PluginSubprocessManifestEntryAction = {
       actionId: expectString(
         record.actionId,
@@ -72,14 +77,6 @@ function expectSubprocessEntryActions(
         record.capability,
         `plugin subprocess entry actions[${index}].capability`
       ),
-      ...(record.version === undefined
-        ? {}
-        : {
-            version: expectString(
-              record.version,
-              `plugin subprocess entry actions[${index}].version`
-            )
-          }),
       ...(record.sandbox === undefined
         ? {}
         : {

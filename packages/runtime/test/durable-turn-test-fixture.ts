@@ -1,7 +1,9 @@
 import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
 import { WanexSessionCore } from "../src/sessions/index.js"
-import type { MessagePart, ProviderProfile } from "@wanex/protocol"
+import type { MessagePart, ModelEndpoint } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
+import type { PreparedAgentContext } from "../src/context/index.js"
+import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 export interface StartedTurnFixture {
   readonly session: WanexSessionCore
@@ -18,6 +20,7 @@ export interface StartedTurnFixture {
     readonly leaseToken: string
     readonly principalId: string
     readonly maxSteps: number
+    readonly maxOutputTokens: number
     readonly recovery: import("@wanex/protocol").SessionTurnRecoveryBinding
   }
 }
@@ -27,10 +30,11 @@ export async function createStartedTurn(
   options: {
     readonly suffix: string
     readonly content?: readonly MessagePart[]
-    readonly profile?: ProviderProfile
+    readonly modelEndpoint?: ModelEndpoint
     readonly maxSteps?: number
     readonly sessionId?: string
     readonly leaseMs?: number
+    readonly agentContext?: PreparedAgentContext
   }
 ): Promise<StartedTurnFixture> {
   const suffix = options.suffix
@@ -58,7 +62,10 @@ export async function createStartedTurn(
       }],
     jobId,
     executionBinding: createTurnExecutionBinding({
-      profile: options.profile ?? fakeProfile(suffix),
+      modelEndpoint: options.modelEndpoint ?? fakeModelEndpoint(suffix),
+      ...(options.agentContext === undefined
+        ? {}
+        : { agentContext: options.agentContext }),
       createdAt: 1
     }),
     maxSteps: options.maxSteps ?? 4
@@ -94,17 +101,8 @@ export async function createStartedTurn(
       leaseToken: job.leaseToken,
       principalId,
       maxSteps: options.maxSteps ?? 4,
+      maxOutputTokens: started.turn.executionBinding.completion.maxOutputTokens,
       recovery: started.turn.executionBinding.recovery
     }
-  }
-}
-
-export function fakeProfile(suffix: string): ProviderProfile {
-  return {
-    id: "profile_" + suffix,
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    providerId: "fake",
-    modelId: "model_" + suffix
   }
 }

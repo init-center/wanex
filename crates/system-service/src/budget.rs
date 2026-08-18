@@ -255,6 +255,101 @@ impl SystemService {
     }
 }
 
+pub(crate) fn reserve_remaining_objective_budget_tx(
+    tx: &rusqlite::Transaction<'_>,
+    objective_id: &str,
+    principal_id: &str,
+    limit: &BudgetAmount,
+    idempotency_key: &str,
+    expires_at: Option<i64>,
+    now: i64,
+) -> Result<Option<BudgetGrantRecord>> {
+    validate_budget_amount(limit)?;
+    let scope_id = budget_scope_id("objective", objective_id, "run");
+    let limit_json = serde_json::to_string(limit)?;
+    tx.execute(
+        "INSERT INTO budget_scope (
+            id, kind, owner_id, limit_json, usage_json,
+            window_kind, state, created_at, updated_at
+         ) VALUES (?, 'objective', ?, ?, ?, 'run', 'active', ?, ?)
+         ON CONFLICT(kind, owner_id, window_kind) DO NOTHING",
+        params![
+            scope_id,
+            objective_id,
+            limit_json,
+            serde_json::to_string(&BudgetAmount::default())?,
+            now,
+            now
+        ],
+    )?;
+    let scope = get_budget_scope_tx(tx, &scope_id)?;
+    if scope.limit != *limit {
+        return Err(SystemServiceError::Invariant(
+            "objective budget scope limit does not match frozen stop policy".to_string(),
+        ));
+    }
+    if let Some(existing) = find_budget_grant_tx(tx, &scope_id, idempotency_key)? {
+        return Ok(Some(existing));
+    }
+    let consumed = add_amounts(&scope.usage, &reserved_budget_tx(tx, &scope_id)?);
+    let Some(requested) = remaining_budget(limit, &consumed) else {
+        return Ok(None);
+    };
+    let grant_id = format!("bgt_{}", Uuid::now_v7());
+    tx.execute(
+        "INSERT INTO budget_grant (
+            id, scope_id, principal_id, reason, requested_json,
+            committed_json, state, idempotency_key, expires_at, created_at, updated_at
+         ) VALUES (?, ?, ?, 'objective attempt', ?, NULL, 'reserved', ?, ?, ?, ?)",
+        params![
+            grant_id,
+            scope_id,
+            principal_id,
+            serde_json::to_string(&requested)?,
+            idempotency_key,
+            expires_at,
+            now,
+            now
+        ],
+    )?;
+    append_event_tx(
+        tx,
+        &format!("evt_{}", Uuid::now_v7()),
+        "budget.grant.reserved",
+        &EventScope {
+            objective_id: Some(objective_id.to_string()),
+            ..EventScope::default()
+        },
+        &serde_json::json!({
+            "scopeId": scope_id,
+            "grantId": grant_id,
+            "requested": requested,
+            "reason": "objective attempt"
+        }),
+        now,
+    )?;
+    Ok(Some(get_budget_grant_tx(tx, &grant_id)?))
+}
+
+pub(crate) fn objective_budget_has_remaining_tx(
+    tx: &rusqlite::Transaction<'_>,
+    objective_id: &str,
+    limit: &BudgetAmount,
+) -> Result<bool> {
+    validate_budget_amount(limit)?;
+    let scope_id = budget_scope_id("objective", objective_id, "run");
+    let Some(scope) = get_optional_budget_scope_tx(tx, &scope_id)? else {
+        return Ok(remaining_budget(limit, &BudgetAmount::default()).is_some());
+    };
+    if scope.limit != *limit {
+        return Err(SystemServiceError::Invariant(
+            "objective budget scope limit does not match frozen stop policy".to_string(),
+        ));
+    }
+    let consumed = add_amounts(&scope.usage, &reserved_budget_tx(tx, &scope_id)?);
+    Ok(remaining_budget(limit, &consumed).is_some())
+}
+
 pub(crate) fn commit_budget_grant_tx(
     tx: &rusqlite::Transaction<'_>,
     grant_id: &str,
@@ -440,6 +535,50 @@ fn get_budget_scope_tx(
         row_to_budget_scope,
     )
     .map_err(Into::into)
+}
+
+fn get_optional_budget_scope_tx(
+    tx: &rusqlite::Transaction<'_>,
+    scope_id: &str,
+) -> Result<Option<BudgetScopeRecord>> {
+    tx.query_row(
+        "SELECT id, kind, owner_id, limit_json, usage_json,
+                window_kind, state, created_at, updated_at
+         FROM budget_scope WHERE id = ?",
+        params![scope_id],
+        row_to_budget_scope,
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
+fn remaining_budget(limit: &BudgetAmount, consumed: &BudgetAmount) -> Option<BudgetAmount> {
+    let tokens = remaining_dimension(limit.tokens, consumed.tokens)?;
+    let cost_micros = remaining_dimension(limit.cost_micros, consumed.cost_micros)?;
+    let wall_time_ms = remaining_dimension(limit.wall_time_ms, consumed.wall_time_ms)?;
+    let tool_calls = remaining_dimension(limit.tool_calls, consumed.tool_calls)?;
+    if [tokens, cost_micros, wall_time_ms, tool_calls]
+        .into_iter()
+        .all(|value| value.is_none())
+    {
+        return None;
+    }
+    Some(BudgetAmount {
+        tokens,
+        cost_micros,
+        wall_time_ms,
+        tool_calls,
+    })
+}
+
+fn remaining_dimension(limit: Option<i64>, consumed: Option<i64>) -> Option<Option<i64>> {
+    match limit {
+        None => Some(None),
+        Some(limit) => {
+            let remaining = limit - consumed.unwrap_or(0);
+            (remaining > 0).then_some(Some(remaining))
+        }
+    }
 }
 
 fn find_budget_grant_tx(

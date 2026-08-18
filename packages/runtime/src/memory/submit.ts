@@ -11,8 +11,7 @@ export async function submitMemoryCompactionJob(
   request: SubmitMemoryCompactionJobRequest
 ): Promise<SchedulerJobRecord> {
   const payload: MemoryCompactionJobPayload = {
-    sessionId: request.sessionId,
-    ...(request.policy === undefined ? {} : { policy: request.policy }),
+    evidence: request.evidence,
     ...(request.metadata === undefined ? {} : { metadata: request.metadata })
   }
   return await storage.enqueueJob({
@@ -20,17 +19,13 @@ export async function submitMemoryCompactionJob(
     kind: "memory.compaction",
     principalId: request.principalId,
     payload: memoryCompactionPayloadToJson(payload),
+    concurrencyKey: `memory.compaction:${request.evidence.sessionId}`,
     ...(request.scheduledAt === undefined
       ? {}
       : { scheduledAt: request.scheduledAt }),
     ...(request.notBefore === undefined ? {} : { notBefore: request.notBefore }),
     ...(request.priority === undefined ? {} : { priority: request.priority }),
-    ...(request.maxAttempts === undefined
-      ? {}
-      : { maxAttempts: request.maxAttempts }),
-    ...(request.retryPolicy === undefined
-      ? {}
-      : { retryPolicy: request.retryPolicy }),
+    maxAttempts: 1,
     ...(request.idempotencyKey === undefined
       ? {}
       : { idempotencyKey: request.idempotencyKey }),

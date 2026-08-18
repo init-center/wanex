@@ -7,51 +7,69 @@ import {
   expectStringArray
 } from "./helpers.js"
 
+const FAKE_MODEL_ID = "eval-cli-memory-model"
+const LONG_TURN_PROMPT = "cli memory ".repeat(900)
+
 export const cliMemorySweepOperationalScenario = createEvalScenario({
   id: "cli.memory-sweep-operational",
   title: "CLI memory sweep submits maintenance jobs idempotently",
   tags: ["cli", "memory", "maintenance", "product-path"],
   async run(context) {
     await runCli(context, [
-      "run",
-      "cli memory ".repeat(900),
-      "--session",
-      "ses_eval_cli_memory"
+      "model-endpoint",
+      "set",
+      "eval-cli-memory",
+      "--protocol",
+      "fake",
+      "--provider-id",
+      "fake",
+      "--model",
+      FAKE_MODEL_ID,
+      "--model-context-window-tokens",
+      "7000",
+      "--model-max-input-tokens",
+      "7000",
+      "--model-max-output-tokens",
+      "500"
     ])
     await runCli(context, [
       "run",
-      "second turn",
+      LONG_TURN_PROMPT,
       "--session",
-      "ses_eval_cli_memory"
+      "ses_eval_cli_memory",
+      "--model-endpoint",
+      "eval-cli-memory"
+    ])
+    await runCli(context, [
+      "run",
+      LONG_TURN_PROMPT,
+      "--session",
+      "ses_eval_cli_memory",
+      "--model-endpoint",
+      "eval-cli-memory"
     ])
     await runCli(context, [
       "run",
       "third turn",
       "--session",
-      "ses_eval_cli_memory"
+      "ses_eval_cli_memory",
+      "--model-endpoint",
+      "eval-cli-memory"
     ])
 
     const first = await runCli(context, [
       "memory",
       "sweep",
-      "--waterline-tokens",
-      "1",
       "--minimum-token-savings",
       "1",
-      "--policy-version",
-      "eval-cli-memory-v1",
       "--idempotency-prefix",
       "eval-cli-memory"
     ])
     const second = await runCli(context, [
       "memory",
       "sweep",
-      "--waterline-tokens",
-      "1",
       "--minimum-token-savings",
       "1",
-      "--policy-version",
-      "eval-cli-memory-v1",
       "--idempotency-prefix",
       "eval-cli-memory"
     ])

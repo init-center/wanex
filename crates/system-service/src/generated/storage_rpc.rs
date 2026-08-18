@@ -232,10 +232,26 @@ impl ::std::convert::TryFrom<::std::string::String> for ActivateContextEpochComm
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
-#[doc = "    \"epoch_id\""]
+#[doc = "    \"epoch_id\","]
+#[doc = "    \"expected_previous_epoch_id\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"worker_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"epoch_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"expected_previous_epoch_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    }"]
 #[doc = "  },"]
@@ -247,6 +263,281 @@ impl ::std::convert::TryFrom<::std::string::String> for ActivateContextEpochComm
 #[serde(deny_unknown_fields)]
 pub struct ActivateContextEpochWire {
     pub epoch_id: ::std::string::String,
+    pub expected_previous_epoch_id: NullableString,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub worker_id: ::std::string::String,
+}
+#[doc = "`ActivatePluginInstallCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"activate-plugin-install\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ActivatePluginInstallWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ActivatePluginInstallCommand {
+    pub command: ActivatePluginInstallCommandCommand,
+    pub request: ActivatePluginInstallWire,
+}
+#[doc = "`ActivatePluginInstallCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"activate-plugin-install\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ActivatePluginInstallCommandCommand {
+    #[serde(rename = "activate-plugin-install")]
+    ActivatePluginInstall,
+}
+impl ::std::fmt::Display for ActivatePluginInstallCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ActivatePluginInstall => f.write_str("activate-plugin-install"),
+        }
+    }
+}
+impl ::std::str::FromStr for ActivatePluginInstallCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "activate-plugin-install" => Ok(Self::ActivatePluginInstall),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ActivatePluginInstallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ActivatePluginInstallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ActivatePluginInstallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ActivatePluginInstallWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"install\","]
+#[doc = "    \"manifest\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"install\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PutPluginInstallWire\""]
+#[doc = "    },"]
+#[doc = "    \"manifest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PutPluginManifestWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ActivatePluginInstallWire {
+    pub install: PutPluginInstallWire,
+    pub manifest: PutPluginManifestWire,
+}
+#[doc = "`AdmitObjectiveAttemptCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"admit-objective-attempt\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/AdmitObjectiveAttemptWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AdmitObjectiveAttemptCommand {
+    pub command: AdmitObjectiveAttemptCommandCommand,
+    pub request: AdmitObjectiveAttemptWire,
+}
+#[doc = "`AdmitObjectiveAttemptCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"admit-objective-attempt\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum AdmitObjectiveAttemptCommandCommand {
+    #[serde(rename = "admit-objective-attempt")]
+    AdmitObjectiveAttempt,
+}
+impl ::std::fmt::Display for AdmitObjectiveAttemptCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::AdmitObjectiveAttempt => f.write_str("admit-objective-attempt"),
+        }
+    }
+}
+impl ::std::str::FromStr for AdmitObjectiveAttemptCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "admit-objective-attempt" => Ok(Self::AdmitObjectiveAttempt),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for AdmitObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for AdmitObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AdmitObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`AdmitObjectiveAttemptWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective_id\","]
+#[doc = "    \"trigger\","]
+#[doc = "    \"turn\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"trigger\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ObjectiveAttemptTriggerWire\""]
+#[doc = "    },"]
+#[doc = "    \"turn\": {"]
+#[doc = "      \"$ref\": \"#/$defs/SubmitSessionTurnWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AdmitObjectiveAttemptWire {
+    pub expected_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub objective_id: ::std::string::String,
+    pub trigger: ObjectiveAttemptTriggerWire,
+    pub turn: SubmitSessionTurnWire,
 }
 #[doc = "`AdmitSessionInputCommand`"]
 #[doc = r""]
@@ -457,6 +748,169 @@ impl ::std::convert::TryFrom<::std::string::String> for AdmitSessionInputCommand
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "`AdmitTeamMessageCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"admit-team-message\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/AdmitTeamMessageWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AdmitTeamMessageCommand {
+    pub command: AdmitTeamMessageCommandCommand,
+    pub request: AdmitTeamMessageWire,
+}
+#[doc = "`AdmitTeamMessageCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"admit-team-message\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum AdmitTeamMessageCommandCommand {
+    #[serde(rename = "admit-team-message")]
+    AdmitTeamMessage,
+}
+impl ::std::fmt::Display for AdmitTeamMessageCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::AdmitTeamMessage => f.write_str("admit-team-message"),
+        }
+    }
+}
+impl ::std::str::FromStr for AdmitTeamMessageCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "admit-team-message" => Ok(Self::AdmitTeamMessage),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for AdmitTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for AdmitTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for AdmitTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`AdmitTeamMessageWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"author_participant_id\","]
+#[doc = "    \"content\","]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"id\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"metadata\","]
+#[doc = "    \"parent_message_id\","]
+#[doc = "    \"targets\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"author_participant_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MessagePartsWire\""]
+#[doc = "    },"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableTeamMessageKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"metadata\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"parent_message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"targets\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamTargetsWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct AdmitTeamMessageWire {
+    pub author_participant_id: ::std::string::String,
+    pub content: MessagePartsWire,
+    pub conversation_id: ::std::string::String,
+    pub id: NullableString,
+    pub idempotency_key: ::std::string::String,
+    pub kind: NullableTeamMessageKindWire,
+    pub metadata: ::serde_json::Value,
+    pub parent_message_id: NullableString,
+    pub targets: TeamTargetsWire,
 }
 #[doc = "`AppendEventCommand`"]
 #[doc = r""]
@@ -788,7 +1242,7 @@ impl ::std::convert::TryFrom<::std::string::String> for AppendSessionMessageComm
         value.parse()
     }
 }
-#[doc = "`AppendTeamTurnCommand`"]
+#[doc = "`ApplyConfigMutationsCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -797,17 +1251,31 @@ impl ::std::convert::TryFrom<::std::string::String> for AppendSessionMessageComm
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
 #[doc = "    \"command\","]
-#[doc = "    \"request\""]
+#[doc = "    \"deletes\","]
+#[doc = "    \"puts\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"command\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"enum\": ["]
-#[doc = "        \"append-team-turn\""]
+#[doc = "        \"apply-config-mutations\""]
 #[doc = "      ]"]
 #[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/AppendTeamTurnWire\""]
+#[doc = "    \"deletes\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"type\": \"string\","]
+#[doc = "        \"maxLength\": 512,"]
+#[doc = "        \"minLength\": 1"]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 64"]
+#[doc = "    },"]
+#[doc = "    \"puts\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/ConfigPutWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 64"]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -816,11 +1284,12 @@ impl ::std::convert::TryFrom<::std::string::String> for AppendSessionMessageComm
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct AppendTeamTurnCommand {
-    pub command: AppendTeamTurnCommandCommand,
-    pub request: AppendTeamTurnWire,
+pub struct ApplyConfigMutationsCommand {
+    pub command: ApplyConfigMutationsCommandCommand,
+    pub deletes: ::std::vec::Vec<ApplyConfigMutationsCommandDeletesItem>,
+    pub puts: ::std::vec::Vec<ConfigPutWire>,
 }
-#[doc = "`AppendTeamTurnCommandCommand`"]
+#[doc = "`ApplyConfigMutationsCommandCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -828,7 +1297,7 @@ pub struct AppendTeamTurnCommand {
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"append-team-turn\""]
+#[doc = "    \"apply-config-mutations\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -845,33 +1314,33 @@ pub struct AppendTeamTurnCommand {
     PartialEq,
     PartialOrd,
 )]
-pub enum AppendTeamTurnCommandCommand {
-    #[serde(rename = "append-team-turn")]
-    AppendTeamTurn,
+pub enum ApplyConfigMutationsCommandCommand {
+    #[serde(rename = "apply-config-mutations")]
+    ApplyConfigMutations,
 }
-impl ::std::fmt::Display for AppendTeamTurnCommandCommand {
+impl ::std::fmt::Display for ApplyConfigMutationsCommandCommand {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::AppendTeamTurn => f.write_str("append-team-turn"),
+            Self::ApplyConfigMutations => f.write_str("apply-config-mutations"),
         }
     }
 }
-impl ::std::str::FromStr for AppendTeamTurnCommandCommand {
+impl ::std::str::FromStr for ApplyConfigMutationsCommandCommand {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "append-team-turn" => Ok(Self::AppendTeamTurn),
+            "apply-config-mutations" => Ok(Self::ApplyConfigMutations),
             _ => Err("invalid value".into()),
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for AppendTeamTurnCommandCommand {
+impl ::std::convert::TryFrom<&str> for ApplyConfigMutationsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for AppendTeamTurnCommandCommand {
+impl ::std::convert::TryFrom<&::std::string::String> for ApplyConfigMutationsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -879,7 +1348,7 @@ impl ::std::convert::TryFrom<&::std::string::String> for AppendTeamTurnCommandCo
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for AppendTeamTurnCommandCommand {
+impl ::std::convert::TryFrom<::std::string::String> for ApplyConfigMutationsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -887,59 +1356,77 @@ impl ::std::convert::TryFrom<::std::string::String> for AppendTeamTurnCommandCom
         value.parse()
     }
 }
-#[doc = "`AppendTeamTurnWire`"]
+#[doc = "`ApplyConfigMutationsCommandDeletesItem`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
 #[doc = r" ```json"]
 #[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"audience_participant_ids\","]
-#[doc = "    \"content\","]
-#[doc = "    \"conversation_id\","]
-#[doc = "    \"id\","]
-#[doc = "    \"kind\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"speaker_participant_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"audience_participant_ids\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableTeamAudienceParticipantIdsWire\""]
-#[doc = "    },"]
-#[doc = "    \"content\": {"]
-#[doc = "      \"$ref\": \"#/$defs/MessagePartsWire\""]
-#[doc = "    },"]
-#[doc = "    \"conversation_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"kind\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableTeamTurnKindWire\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"speaker_participant_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
 #[doc = "}"]
 #[doc = r" ```"]
 #[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct AppendTeamTurnWire {
-    pub audience_participant_ids: NullableTeamAudienceParticipantIdsWire,
-    pub content: MessagePartsWire,
-    pub conversation_id: ::std::string::String,
-    pub id: NullableString,
-    pub kind: NullableTeamTurnKindWire,
-    pub metadata: ::serde_json::Value,
-    pub speaker_participant_id: ::std::string::String,
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ApplyConfigMutationsCommandDeletesItem(::std::string::String);
+impl ::std::ops::Deref for ApplyConfigMutationsCommandDeletesItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ApplyConfigMutationsCommandDeletesItem> for ::std::string::String {
+    fn from(value: ApplyConfigMutationsCommandDeletesItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ApplyConfigMutationsCommandDeletesItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ApplyConfigMutationsCommandDeletesItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ApplyConfigMutationsCommandDeletesItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ApplyConfigMutationsCommandDeletesItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ApplyConfigMutationsCommandDeletesItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`ApplySessionTurnControlCommand`"]
 #[doc = r""]
@@ -1094,6 +1581,105 @@ pub struct ApplySessionTurnControlWire {
     pub turn_id: ::std::string::String,
     pub worker_id: ::std::string::String,
 }
+#[doc = "`ArchiveSessionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"archive-session\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/SessionStateTransitionWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveSessionCommand {
+    pub command: ArchiveSessionCommandCommand,
+    pub request: SessionStateTransitionWire,
+}
+#[doc = "`ArchiveSessionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"archive-session\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ArchiveSessionCommandCommand {
+    #[serde(rename = "archive-session")]
+    ArchiveSession,
+}
+impl ::std::fmt::Display for ArchiveSessionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ArchiveSession => f.write_str("archive-session"),
+        }
+    }
+}
+impl ::std::str::FromStr for ArchiveSessionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "archive-session" => Ok(Self::ArchiveSession),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ArchiveSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ArchiveSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ArchiveSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`AttachDelegationGraphNodeJobCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -1223,6 +1809,224 @@ impl ::std::convert::TryFrom<::std::string::String> for AttachDelegationGraphNod
 pub struct AttachDelegationGraphNodeJobWire {
     pub node_id: ::std::string::String,
     pub scheduler_job_id: ::std::string::String,
+}
+#[doc = "`BeginContextEpochCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"begin-context-epoch\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/BeginContextEpochWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct BeginContextEpochCommand {
+    pub command: BeginContextEpochCommandCommand,
+    pub request: BeginContextEpochWire,
+}
+#[doc = "`BeginContextEpochCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"begin-context-epoch\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum BeginContextEpochCommandCommand {
+    #[serde(rename = "begin-context-epoch")]
+    BeginContextEpoch,
+}
+impl ::std::fmt::Display for BeginContextEpochCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::BeginContextEpoch => f.write_str("begin-context-epoch"),
+        }
+    }
+}
+impl ::std::str::FromStr for BeginContextEpochCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "begin-context-epoch" => Ok(Self::BeginContextEpoch),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for BeginContextEpochCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for BeginContextEpochCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for BeginContextEpochCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`BeginContextEpochWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"cut_message_id\","]
+#[doc = "    \"cut_sequence\","]
+#[doc = "    \"id\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"max_provider_attempts\","]
+#[doc = "    \"model_endpoint\","]
+#[doc = "    \"policy\","]
+#[doc = "    \"policy_digest\","]
+#[doc = "    \"previous_epoch_id\","]
+#[doc = "    \"previous_summary_digest\","]
+#[doc = "    \"request_digest\","]
+#[doc = "    \"retained_from_message_id\","]
+#[doc = "    \"retained_from_sequence\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"source_digest\","]
+#[doc = "    \"source_head_message_id\","]
+#[doc = "    \"source_head_sequence\","]
+#[doc = "    \"token_estimate_before\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"cut_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"cut_sequence\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"max_provider_attempts\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"model_endpoint\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"policy\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"policy_digest\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"previous_epoch_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"previous_summary_digest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"request_digest\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"retained_from_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"retained_from_sequence\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_digest\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_head_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_head_sequence\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"token_estimate_before\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct BeginContextEpochWire {
+    pub cut_message_id: ::std::string::String,
+    pub cut_sequence: i64,
+    pub id: ::std::string::String,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub max_provider_attempts: i64,
+    pub model_endpoint: ::serde_json::Value,
+    pub policy: ::serde_json::Value,
+    pub policy_digest: ::std::string::String,
+    pub previous_epoch_id: NullableString,
+    pub previous_summary_digest: NullableString,
+    pub request_digest: ::std::string::String,
+    pub retained_from_message_id: ::std::string::String,
+    pub retained_from_sequence: i64,
+    pub session_id: ::std::string::String,
+    pub source_digest: ::std::string::String,
+    pub source_head_message_id: ::std::string::String,
+    pub source_head_sequence: i64,
+    pub token_estimate_before: i64,
+    pub worker_id: ::std::string::String,
 }
 #[doc = "`BeginMediaGenerationCommand`"]
 #[doc = r""]
@@ -1603,6 +2407,7 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginToolExecutionComman
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"activity\","]
 #[doc = "    \"attempt_id\","]
 #[doc = "    \"descriptor\","]
 #[doc = "    \"idempotency_key\","]
@@ -1621,6 +2426,9 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginToolExecutionComman
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"activity\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolActivityEvidenceWire\""]
+#[doc = "    },"]
 #[doc = "    \"attempt_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
@@ -1682,6 +2490,7 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginToolExecutionComman
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct BeginToolExecutionWire {
+    pub activity: NullableToolActivityEvidenceWire,
     pub attempt_id: ::std::string::String,
     pub descriptor: ::serde_json::Value,
     pub idempotency_key: ::std::string::String,
@@ -1825,6 +2634,7 @@ pub struct BudgetAmountWire {
 #[doc = "  \"enum\": ["]
 #[doc = "    \"session\","]
 #[doc = "    \"turn\","]
+#[doc = "    \"objective\","]
 #[doc = "    \"team_round\","]
 #[doc = "    \"plugin\","]
 #[doc = "    \"principal\","]
@@ -1850,6 +2660,8 @@ pub enum BudgetScopeKindWire {
     Session,
     #[serde(rename = "turn")]
     Turn,
+    #[serde(rename = "objective")]
+    Objective,
     #[serde(rename = "team_round")]
     TeamRound,
     #[serde(rename = "plugin")]
@@ -1864,6 +2676,7 @@ impl ::std::fmt::Display for BudgetScopeKindWire {
         match *self {
             Self::Session => f.write_str("session"),
             Self::Turn => f.write_str("turn"),
+            Self::Objective => f.write_str("objective"),
             Self::TeamRound => f.write_str("team_round"),
             Self::Plugin => f.write_str("plugin"),
             Self::Principal => f.write_str("principal"),
@@ -1877,6 +2690,7 @@ impl ::std::str::FromStr for BudgetScopeKindWire {
         match value {
             "session" => Ok(Self::Session),
             "turn" => Ok(Self::Turn),
+            "objective" => Ok(Self::Objective),
             "team_round" => Ok(Self::TeamRound),
             "plugin" => Ok(Self::Plugin),
             "principal" => Ok(Self::Principal),
@@ -2151,6 +2965,45 @@ pub struct CancelJobWire {
     pub job_id: ::std::string::String,
     pub reason: ::std::string::String,
 }
+#[doc = "`ChangeObjectiveStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective_id\","]
+#[doc = "    \"reason\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ChangeObjectiveStateWire {
+    pub expected_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub objective_id: ::std::string::String,
+    pub reason: NullableString,
+}
 #[doc = "`ChannelBindingStateWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -2314,7 +3167,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ChannelInboundEventState
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
 #[doc = "    \"session.turn\","]
-#[doc = "    \"team.turn\","]
+#[doc = "    \"team.message\","]
 #[doc = "    \"workspace.task\","]
 #[doc = "    \"ignored\""]
 #[doc = "  ]"]
@@ -2336,8 +3189,8 @@ impl ::std::convert::TryFrom<::std::string::String> for ChannelInboundEventState
 pub enum ChannelProjectionTargetKindWire {
     #[serde(rename = "session.turn")]
     SessionTurn,
-    #[serde(rename = "team.turn")]
-    TeamTurn,
+    #[serde(rename = "team.message")]
+    TeamMessage,
     #[serde(rename = "workspace.task")]
     WorkspaceTask,
     #[serde(rename = "ignored")]
@@ -2347,7 +3200,7 @@ impl ::std::fmt::Display for ChannelProjectionTargetKindWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::SessionTurn => f.write_str("session.turn"),
-            Self::TeamTurn => f.write_str("team.turn"),
+            Self::TeamMessage => f.write_str("team.message"),
             Self::WorkspaceTask => f.write_str("workspace.task"),
             Self::Ignored => f.write_str("ignored"),
         }
@@ -2358,7 +3211,7 @@ impl ::std::str::FromStr for ChannelProjectionTargetKindWire {
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "session.turn" => Ok(Self::SessionTurn),
-            "team.turn" => Ok(Self::TeamTurn),
+            "team.message" => Ok(Self::TeamMessage),
             "workspace.task" => Ok(Self::WorkspaceTask),
             "ignored" => Ok(Self::Ignored),
             _ => Err("invalid value".into()),
@@ -2499,105 +3352,6 @@ impl ::std::convert::From<ProjectChannelInboundEventCommand> for ChannelStorageR
 impl ::std::convert::From<ListChannelProjectionsCommand> for ChannelStorageRpcCommand {
     fn from(value: ListChannelProjectionsCommand) -> Self {
         Self::ListChannelProjectionsCommand(value)
-    }
-}
-#[doc = "`CheckpointMediaGenerationCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"checkpoint-media-generation\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/MediaGenerationCheckpointWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct CheckpointMediaGenerationCommand {
-    pub command: CheckpointMediaGenerationCommandCommand,
-    pub request: MediaGenerationCheckpointWire,
-}
-#[doc = "`CheckpointMediaGenerationCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"checkpoint-media-generation\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum CheckpointMediaGenerationCommandCommand {
-    #[serde(rename = "checkpoint-media-generation")]
-    CheckpointMediaGeneration,
-}
-impl ::std::fmt::Display for CheckpointMediaGenerationCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::CheckpointMediaGeneration => f.write_str("checkpoint-media-generation"),
-        }
-    }
-}
-impl ::std::str::FromStr for CheckpointMediaGenerationCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "checkpoint-media-generation" => Ok(Self::CheckpointMediaGeneration),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for CheckpointMediaGenerationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for CheckpointMediaGenerationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for CheckpointMediaGenerationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
     }
 }
 #[doc = "`ClaimJobCommand`"]
@@ -2864,139 +3618,6 @@ impl ::std::convert::TryFrom<::std::string::String>
 pub struct CleanupExpiredResourceTicketsWire {
     pub limit: NullableUnsigned32,
     pub now_ms: NullableInteger,
-}
-#[doc = "`CloneContextEpochCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"clone-context-epoch\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/CloneContextEpochWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct CloneContextEpochCommand {
-    pub command: CloneContextEpochCommandCommand,
-    pub request: CloneContextEpochWire,
-}
-#[doc = "`CloneContextEpochCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"clone-context-epoch\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum CloneContextEpochCommandCommand {
-    #[serde(rename = "clone-context-epoch")]
-    CloneContextEpoch,
-}
-impl ::std::fmt::Display for CloneContextEpochCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::CloneContextEpoch => f.write_str("clone-context-epoch"),
-        }
-    }
-}
-impl ::std::str::FromStr for CloneContextEpochCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "clone-context-epoch" => Ok(Self::CloneContextEpoch),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for CloneContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for CloneContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for CloneContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`CloneContextEpochWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"id\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"source_epoch_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"source_epoch_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct CloneContextEpochWire {
-    pub id: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub source_epoch_id: ::std::string::String,
 }
 #[doc = "`CommitBudgetCommand`"]
 #[doc = r""]
@@ -3501,6 +4122,109 @@ impl ::std::convert::TryFrom<::std::string::String> for CompleteMediaGenerationC
         value.parse()
     }
 }
+#[doc = "`ConfigPutWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"key\","]
+#[doc = "    \"value\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"value\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ConfigPutWire {
+    pub key: ConfigPutWireKey,
+    pub value: ::serde_json::Value,
+}
+#[doc = "`ConfigPutWireKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ConfigPutWireKey(::std::string::String);
+impl ::std::ops::Deref for ConfigPutWireKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ConfigPutWireKey> for ::std::string::String {
+    fn from(value: ConfigPutWireKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ConfigPutWireKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ConfigPutWireKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ConfigPutWireKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ConfigPutWireKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ConfigPutWireKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 #[doc = "`ConnectorCredentialStateWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -3981,6 +4705,122 @@ impl ::std::convert::From<ListConnectorSessionsCommand> for ConnectorStorageRpcC
         Self::ListConnectorSessionsCommand(value)
     }
 }
+#[doc = "`ContextEpochGenerationOutcomeWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"succeeded\","]
+#[doc = "    \"failed_before_output\","]
+#[doc = "    \"ambiguous\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ContextEpochGenerationOutcomeWire {
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    #[serde(rename = "failed_before_output")]
+    FailedBeforeOutput,
+    #[serde(rename = "ambiguous")]
+    Ambiguous,
+}
+impl ::std::fmt::Display for ContextEpochGenerationOutcomeWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Succeeded => f.write_str("succeeded"),
+            Self::FailedBeforeOutput => f.write_str("failed_before_output"),
+            Self::Ambiguous => f.write_str("ambiguous"),
+        }
+    }
+}
+impl ::std::str::FromStr for ContextEpochGenerationOutcomeWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "succeeded" => Ok(Self::Succeeded),
+            "failed_before_output" => Ok(Self::FailedBeforeOutput),
+            "ambiguous" => Ok(Self::Ambiguous),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ContextEpochGenerationOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ContextEpochGenerationOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ContextEpochGenerationOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ContextEpochMutationIdentityWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"epoch_id\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"epoch_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ContextEpochMutationIdentityWire {
+    pub epoch_id: ::std::string::String,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub worker_id: ::std::string::String,
+}
 #[doc = "`ContextEpochStateWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -3991,7 +4831,8 @@ impl ::std::convert::From<ListConnectorSessionsCommand> for ConnectorStorageRpcC
 #[doc = "  \"enum\": ["]
 #[doc = "    \"building\","]
 #[doc = "    \"active\","]
-#[doc = "    \"superseded\""]
+#[doc = "    \"superseded\","]
+#[doc = "    \"failed\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -4015,6 +4856,8 @@ pub enum ContextEpochStateWire {
     Active,
     #[serde(rename = "superseded")]
     Superseded,
+    #[serde(rename = "failed")]
+    Failed,
 }
 impl ::std::fmt::Display for ContextEpochStateWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -4022,6 +4865,7 @@ impl ::std::fmt::Display for ContextEpochStateWire {
             Self::Building => f.write_str("building"),
             Self::Active => f.write_str("active"),
             Self::Superseded => f.write_str("superseded"),
+            Self::Failed => f.write_str("failed"),
         }
     }
 }
@@ -4032,6 +4876,7 @@ impl ::std::str::FromStr for ContextEpochStateWire {
             "building" => Ok(Self::Building),
             "active" => Ok(Self::Active),
             "superseded" => Ok(Self::Superseded),
+            "failed" => Ok(Self::Failed),
             _ => Err("invalid value".into()),
         }
     }
@@ -4058,78 +4903,6 @@ impl ::std::convert::TryFrom<::std::string::String> for ContextEpochStateWire {
         value.parse()
     }
 }
-#[doc = "`ContextReplacementTierWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"tier1_snip\","]
-#[doc = "    \"tier2_placeholder\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ContextReplacementTierWire {
-    #[serde(rename = "tier1_snip")]
-    Tier1Snip,
-    #[serde(rename = "tier2_placeholder")]
-    Tier2Placeholder,
-}
-impl ::std::fmt::Display for ContextReplacementTierWire {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Tier1Snip => f.write_str("tier1_snip"),
-            Self::Tier2Placeholder => f.write_str("tier2_placeholder"),
-        }
-    }
-}
-impl ::std::str::FromStr for ContextReplacementTierWire {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "tier1_snip" => Ok(Self::Tier1Snip),
-            "tier2_placeholder" => Ok(Self::Tier2Placeholder),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ContextReplacementTierWire {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ContextReplacementTierWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ContextReplacementTierWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
 #[doc = "`ContextStorageRpcCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -4138,13 +4911,19 @@ impl ::std::convert::TryFrom<::std::string::String> for ContextReplacementTierWi
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutContextEpochCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/BeginContextEpochCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/MarkContextEpochDispatchedCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/MarkContextEpochOutputObservedCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/FinishContextEpochGenerationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ActivateContextEpochCommand\""]
-#[doc = "    },"]
-#[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/CloneContextEpochCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/PruneContextEpochsCommand\""]
@@ -4154,12 +4933,6 @@ impl ::std::convert::TryFrom<::std::string::String> for ContextReplacementTierWi
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/GetActiveContextEpochCommand\""]
-#[doc = "    },"]
-#[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutContextReplacementCommand\""]
-#[doc = "    },"]
-#[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ListContextReplacementsCommand\""]
 #[doc = "    }"]
 #[doc = "  ]"]
 #[doc = "}"]
@@ -4168,28 +4941,38 @@ impl ::std::convert::TryFrom<::std::string::String> for ContextReplacementTierWi
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum ContextStorageRpcCommand {
-    PutContextEpochCommand(PutContextEpochCommand),
+    BeginContextEpochCommand(BeginContextEpochCommand),
+    MarkContextEpochDispatchedCommand(MarkContextEpochDispatchedCommand),
+    MarkContextEpochOutputObservedCommand(MarkContextEpochOutputObservedCommand),
+    FinishContextEpochGenerationCommand(FinishContextEpochGenerationCommand),
     ActivateContextEpochCommand(ActivateContextEpochCommand),
-    CloneContextEpochCommand(CloneContextEpochCommand),
     PruneContextEpochsCommand(PruneContextEpochsCommand),
     ListContextEpochsCommand(ListContextEpochsCommand),
     GetActiveContextEpochCommand(GetActiveContextEpochCommand),
-    PutContextReplacementCommand(PutContextReplacementCommand),
-    ListContextReplacementsCommand(ListContextReplacementsCommand),
 }
-impl ::std::convert::From<PutContextEpochCommand> for ContextStorageRpcCommand {
-    fn from(value: PutContextEpochCommand) -> Self {
-        Self::PutContextEpochCommand(value)
+impl ::std::convert::From<BeginContextEpochCommand> for ContextStorageRpcCommand {
+    fn from(value: BeginContextEpochCommand) -> Self {
+        Self::BeginContextEpochCommand(value)
+    }
+}
+impl ::std::convert::From<MarkContextEpochDispatchedCommand> for ContextStorageRpcCommand {
+    fn from(value: MarkContextEpochDispatchedCommand) -> Self {
+        Self::MarkContextEpochDispatchedCommand(value)
+    }
+}
+impl ::std::convert::From<MarkContextEpochOutputObservedCommand> for ContextStorageRpcCommand {
+    fn from(value: MarkContextEpochOutputObservedCommand) -> Self {
+        Self::MarkContextEpochOutputObservedCommand(value)
+    }
+}
+impl ::std::convert::From<FinishContextEpochGenerationCommand> for ContextStorageRpcCommand {
+    fn from(value: FinishContextEpochGenerationCommand) -> Self {
+        Self::FinishContextEpochGenerationCommand(value)
     }
 }
 impl ::std::convert::From<ActivateContextEpochCommand> for ContextStorageRpcCommand {
     fn from(value: ActivateContextEpochCommand) -> Self {
         Self::ActivateContextEpochCommand(value)
-    }
-}
-impl ::std::convert::From<CloneContextEpochCommand> for ContextStorageRpcCommand {
-    fn from(value: CloneContextEpochCommand) -> Self {
-        Self::CloneContextEpochCommand(value)
     }
 }
 impl ::std::convert::From<PruneContextEpochsCommand> for ContextStorageRpcCommand {
@@ -4207,14 +4990,481 @@ impl ::std::convert::From<GetActiveContextEpochCommand> for ContextStorageRpcCom
         Self::GetActiveContextEpochCommand(value)
     }
 }
-impl ::std::convert::From<PutContextReplacementCommand> for ContextStorageRpcCommand {
-    fn from(value: PutContextReplacementCommand) -> Self {
-        Self::PutContextReplacementCommand(value)
+#[doc = "`ContextSummaryGenerationStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"prepared\","]
+#[doc = "    \"dispatched\","]
+#[doc = "    \"output_observed\","]
+#[doc = "    \"succeeded\","]
+#[doc = "    \"failed_before_output\","]
+#[doc = "    \"ambiguous\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ContextSummaryGenerationStateWire {
+    #[serde(rename = "prepared")]
+    Prepared,
+    #[serde(rename = "dispatched")]
+    Dispatched,
+    #[serde(rename = "output_observed")]
+    OutputObserved,
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    #[serde(rename = "failed_before_output")]
+    FailedBeforeOutput,
+    #[serde(rename = "ambiguous")]
+    Ambiguous,
+}
+impl ::std::fmt::Display for ContextSummaryGenerationStateWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Prepared => f.write_str("prepared"),
+            Self::Dispatched => f.write_str("dispatched"),
+            Self::OutputObserved => f.write_str("output_observed"),
+            Self::Succeeded => f.write_str("succeeded"),
+            Self::FailedBeforeOutput => f.write_str("failed_before_output"),
+            Self::Ambiguous => f.write_str("ambiguous"),
+        }
     }
 }
-impl ::std::convert::From<ListContextReplacementsCommand> for ContextStorageRpcCommand {
-    fn from(value: ListContextReplacementsCommand) -> Self {
-        Self::ListContextReplacementsCommand(value)
+impl ::std::str::FromStr for ContextSummaryGenerationStateWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "prepared" => Ok(Self::Prepared),
+            "dispatched" => Ok(Self::Dispatched),
+            "output_observed" => Ok(Self::OutputObserved),
+            "succeeded" => Ok(Self::Succeeded),
+            "failed_before_output" => Ok(Self::FailedBeforeOutput),
+            "ambiguous" => Ok(Self::Ambiguous),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ContextSummaryGenerationStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ContextSummaryGenerationStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ContextSummaryGenerationStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`CreateObjectiveCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"create-objective\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/CreateObjectiveWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CreateObjectiveCommand {
+    pub command: CreateObjectiveCommandCommand,
+    pub request: CreateObjectiveWire,
+}
+#[doc = "`CreateObjectiveCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"create-objective\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum CreateObjectiveCommandCommand {
+    #[serde(rename = "create-objective")]
+    CreateObjective,
+}
+impl ::std::fmt::Display for CreateObjectiveCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::CreateObjective => f.write_str("create-objective"),
+        }
+    }
+}
+impl ::std::str::FromStr for CreateObjectiveCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "create-objective" => Ok(Self::CreateObjective),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for CreateObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for CreateObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for CreateObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`CreateObjectiveWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"boundaries\","]
+#[doc = "    \"constraints\","]
+#[doc = "    \"id\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective\","]
+#[doc = "    \"principal_id\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"stop_policy\","]
+#[doc = "    \"success_criteria\","]
+#[doc = "    \"verification_policy\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"boundaries\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"constraints\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"principal_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"stop_policy\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"success_criteria\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"verification_policy\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CreateObjectiveWire {
+    pub boundaries: ::serde_json::Value,
+    pub constraints: ::serde_json::Value,
+    pub id: NullableString,
+    pub idempotency_key: ::std::string::String,
+    pub objective: ::std::string::String,
+    pub principal_id: ::std::string::String,
+    pub session_id: ::std::string::String,
+    pub stop_policy: ::serde_json::Value,
+    pub success_criteria: ::serde_json::Value,
+    pub verification_policy: ::serde_json::Value,
+}
+#[doc = "`CreatePlanProposalCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"create-plan-proposal\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/CreatePlanProposalWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CreatePlanProposalCommand {
+    pub command: CreatePlanProposalCommandCommand,
+    pub request: CreatePlanProposalWire,
+}
+#[doc = "`CreatePlanProposalCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"create-plan-proposal\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum CreatePlanProposalCommandCommand {
+    #[serde(rename = "create-plan-proposal")]
+    CreatePlanProposal,
+}
+impl ::std::fmt::Display for CreatePlanProposalCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::CreatePlanProposal => f.write_str("create-plan-proposal"),
+        }
+    }
+}
+impl ::std::str::FromStr for CreatePlanProposalCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "create-plan-proposal" => Ok(Self::CreatePlanProposal),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for CreatePlanProposalCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for CreatePlanProposalCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for CreatePlanProposalCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`CreatePlanProposalWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"content\","]
+#[doc = "    \"generation\","]
+#[doc = "    \"id\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"principal_id\","]
+#[doc = "    \"source\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PlanProposalContentWire\""]
+#[doc = "    },"]
+#[doc = "    \"generation\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PlanProposalGenerationWire\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"principal_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PlanProposalSourceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CreatePlanProposalWire {
+    pub content: PlanProposalContentWire,
+    pub generation: PlanProposalGenerationWire,
+    pub id: NullableString,
+    pub idempotency_key: CreatePlanProposalWireIdempotencyKey,
+    pub principal_id: ::std::string::String,
+    pub source: PlanProposalSourceWire,
+}
+#[doc = "`CreatePlanProposalWireIdempotencyKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct CreatePlanProposalWireIdempotencyKey(::std::string::String);
+impl ::std::ops::Deref for CreatePlanProposalWireIdempotencyKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<CreatePlanProposalWireIdempotencyKey> for ::std::string::String {
+    fn from(value: CreatePlanProposalWireIdempotencyKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for CreatePlanProposalWireIdempotencyKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for CreatePlanProposalWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for CreatePlanProposalWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for CreatePlanProposalWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for CreatePlanProposalWireIdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 #[doc = "`CreateResourceTicketCommand`"]
@@ -4514,6 +5764,1784 @@ impl ::std::convert::TryFrom<::std::string::String> for CreateSessionCommandComm
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+#[doc = "`DeferToolExecutionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"defer-tool-execution\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/DeferToolExecutionWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DeferToolExecutionCommand {
+    pub command: DeferToolExecutionCommandCommand,
+    pub request: DeferToolExecutionWire,
+}
+#[doc = "`DeferToolExecutionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"defer-tool-execution\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum DeferToolExecutionCommandCommand {
+    #[serde(rename = "defer-tool-execution")]
+    DeferToolExecution,
+}
+impl ::std::fmt::Display for DeferToolExecutionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::DeferToolExecution => f.write_str("defer-tool-execution"),
+        }
+    }
+}
+impl ::std::str::FromStr for DeferToolExecutionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "defer-tool-execution" => Ok(Self::DeferToolExecution),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferToolExecutionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferToolExecutionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferToolExecutionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`DeferToolExecutionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"input_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"operation\","]
+#[doc = "    \"session_attempt_id\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"session_job_id\","]
+#[doc = "    \"source_message_id\","]
+#[doc = "    \"tool_call_id\","]
+#[doc = "    \"tool_execution_id\","]
+#[doc = "    \"tool_invocation_attempt_id\","]
+#[doc = "    \"turn_id\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"input_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"operation\": {"]
+#[doc = "      \"$ref\": \"#/$defs/DeferredToolOperationWire\""]
+#[doc = "    },"]
+#[doc = "    \"session_attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"tool_call_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"tool_execution_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"tool_invocation_attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DeferToolExecutionWire {
+    pub input_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub operation: DeferredToolOperationWire,
+    pub session_attempt_id: ::std::string::String,
+    pub session_id: ::std::string::String,
+    pub session_job_id: ::std::string::String,
+    pub source_message_id: ::std::string::String,
+    pub tool_call_id: ::std::string::String,
+    pub tool_execution_id: ::std::string::String,
+    pub tool_invocation_attempt_id: ::std::string::String,
+    pub turn_id: ::std::string::String,
+    pub worker_id: ::std::string::String,
+}
+#[doc = "`DeferredMediaGenerationOperationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"binding\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"priority\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"binding\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"media_generation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"priority\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DeferredMediaGenerationOperationWire {
+    pub binding: ::serde_json::Value,
+    pub kind: DeferredMediaGenerationOperationWireKind,
+    pub priority: NullableInteger,
+}
+#[doc = "`DeferredMediaGenerationOperationWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"media_generation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum DeferredMediaGenerationOperationWireKind {
+    #[serde(rename = "media_generation")]
+    MediaGeneration,
+}
+impl ::std::fmt::Display for DeferredMediaGenerationOperationWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::MediaGeneration => f.write_str("media_generation"),
+        }
+    }
+}
+impl ::std::str::FromStr for DeferredMediaGenerationOperationWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "media_generation" => Ok(Self::MediaGeneration),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredMediaGenerationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredMediaGenerationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredMediaGenerationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"graph_id\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"lead_participant_id\","]
+#[doc = "    \"operation_id\","]
+#[doc = "    \"source_delivery_id\","]
+#[doc = "    \"tasks\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"graph_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"team_delegation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"lead_participant_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"operation_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"source_delivery_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"tasks\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/DeferredTeamDelegationTaskWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 8,"]
+#[doc = "      \"minItems\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DeferredTeamDelegationOperationWire {
+    pub conversation_id: DeferredTeamDelegationOperationWireConversationId,
+    pub graph_id: DeferredTeamDelegationOperationWireGraphId,
+    pub kind: DeferredTeamDelegationOperationWireKind,
+    pub lead_participant_id: DeferredTeamDelegationOperationWireLeadParticipantId,
+    pub operation_id: DeferredTeamDelegationOperationWireOperationId,
+    pub source_delivery_id: DeferredTeamDelegationOperationWireSourceDeliveryId,
+    pub tasks: ::std::vec::Vec<DeferredTeamDelegationTaskWire>,
+}
+#[doc = "`DeferredTeamDelegationOperationWireConversationId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationOperationWireConversationId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationOperationWireConversationId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWireConversationId>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationOperationWireConversationId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireConversationId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireConversationId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationOperationWireConversationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationOperationWireConversationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationOperationWireConversationId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWireGraphId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationOperationWireGraphId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationOperationWireGraphId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWireGraphId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationOperationWireGraphId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireGraphId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireGraphId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationOperationWireGraphId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationOperationWireGraphId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationOperationWireGraphId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"team_delegation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum DeferredTeamDelegationOperationWireKind {
+    #[serde(rename = "team_delegation")]
+    TeamDelegation,
+}
+impl ::std::fmt::Display for DeferredTeamDelegationOperationWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::TeamDelegation => f.write_str("team_delegation"),
+        }
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "team_delegation" => Ok(Self::TeamDelegation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationOperationWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWireLeadParticipantId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationOperationWireLeadParticipantId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationOperationWireLeadParticipantId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWireLeadParticipantId>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationOperationWireLeadParticipantId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireLeadParticipantId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireLeadParticipantId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationOperationWireLeadParticipantId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationOperationWireLeadParticipantId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationOperationWireLeadParticipantId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWireOperationId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationOperationWireOperationId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationOperationWireOperationId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWireOperationId>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationOperationWireOperationId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireOperationId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireOperationId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationOperationWireOperationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationOperationWireOperationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationOperationWireOperationId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationOperationWireSourceDeliveryId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationOperationWireSourceDeliveryId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationOperationWireSourceDeliveryId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWireSourceDeliveryId>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationOperationWireSourceDeliveryId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationOperationWireSourceDeliveryId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationOperationWireSourceDeliveryId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationOperationWireSourceDeliveryId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationOperationWireSourceDeliveryId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationOperationWireSourceDeliveryId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"child_input_id\","]
+#[doc = "    \"child_job_id\","]
+#[doc = "    \"child_turn_id\","]
+#[doc = "    \"depends_on_task_ids\","]
+#[doc = "    \"execution_binding\","]
+#[doc = "    \"graph_node_id\","]
+#[doc = "    \"id\","]
+#[doc = "    \"input_idempotency_key\","]
+#[doc = "    \"job_idempotency_key\","]
+#[doc = "    \"max_steps\","]
+#[doc = "    \"priority\","]
+#[doc = "    \"prompt\","]
+#[doc = "    \"target_participant_id\","]
+#[doc = "    \"target_session_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"child_input_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"child_job_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"child_turn_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"depends_on_task_ids\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"type\": \"string\","]
+#[doc = "        \"maxLength\": 512,"]
+#[doc = "        \"minLength\": 1"]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 7,"]
+#[doc = "      \"uniqueItems\": true"]
+#[doc = "    },"]
+#[doc = "    \"execution_binding\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"graph_node_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"input_idempotency_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 1024,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"job_idempotency_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 1024,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"max_steps\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"priority\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"prompt\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 32768,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"target_participant_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"target_session_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct DeferredTeamDelegationTaskWire {
+    pub child_input_id: DeferredTeamDelegationTaskWireChildInputId,
+    pub child_job_id: DeferredTeamDelegationTaskWireChildJobId,
+    pub child_turn_id: DeferredTeamDelegationTaskWireChildTurnId,
+    pub depends_on_task_ids: Vec<DeferredTeamDelegationTaskWireDependsOnTaskIdsItem>,
+    pub execution_binding: ::serde_json::Value,
+    pub graph_node_id: DeferredTeamDelegationTaskWireGraphNodeId,
+    pub id: DeferredTeamDelegationTaskWireId,
+    pub input_idempotency_key: DeferredTeamDelegationTaskWireInputIdempotencyKey,
+    pub job_idempotency_key: DeferredTeamDelegationTaskWireJobIdempotencyKey,
+    pub max_steps: NullableInteger,
+    pub priority: NullableInteger,
+    pub prompt: DeferredTeamDelegationTaskWirePrompt,
+    pub target_participant_id: DeferredTeamDelegationTaskWireTargetParticipantId,
+    pub target_session_id: DeferredTeamDelegationTaskWireTargetSessionId,
+}
+#[doc = "`DeferredTeamDelegationTaskWireChildInputId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireChildInputId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireChildInputId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireChildInputId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireChildInputId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireChildInputId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireChildInputId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireChildInputId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWireChildInputId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireChildInputId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireChildJobId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireChildJobId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireChildJobId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireChildJobId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireChildJobId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireChildJobId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireChildJobId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationTaskWireChildJobId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWireChildJobId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireChildJobId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireChildTurnId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireChildTurnId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireChildTurnId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireChildTurnId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireChildTurnId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireChildTurnId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireChildTurnId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationTaskWireChildTurnId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWireChildTurnId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireChildTurnId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireDependsOnTaskIdsItem`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireDependsOnTaskIdsItem(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireDependsOnTaskIdsItem>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationTaskWireDependsOnTaskIdsItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireDependsOnTaskIdsItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireGraphNodeId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireGraphNodeId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireGraphNodeId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireGraphNodeId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireGraphNodeId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireGraphNodeId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireGraphNodeId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationTaskWireGraphNodeId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWireGraphNodeId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireGraphNodeId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationTaskWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireInputIdempotencyKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 1024,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireInputIdempotencyKey(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireInputIdempotencyKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireInputIdempotencyKey>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationTaskWireInputIdempotencyKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireInputIdempotencyKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1024usize {
+            return Err("longer than 1024 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireInputIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireInputIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationTaskWireInputIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireInputIdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireJobIdempotencyKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 1024,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireJobIdempotencyKey(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireJobIdempotencyKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireJobIdempotencyKey>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationTaskWireJobIdempotencyKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireJobIdempotencyKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1024usize {
+            return Err("longer than 1024 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireJobIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireJobIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationTaskWireJobIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireJobIdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWirePrompt`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 32768,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWirePrompt(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWirePrompt {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWirePrompt> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWirePrompt) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWirePrompt {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 32768usize {
+            return Err("longer than 32768 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWirePrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for DeferredTeamDelegationTaskWirePrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for DeferredTeamDelegationTaskWirePrompt {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWirePrompt {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireTargetParticipantId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireTargetParticipantId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireTargetParticipantId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireTargetParticipantId>
+    for ::std::string::String
+{
+    fn from(value: DeferredTeamDelegationTaskWireTargetParticipantId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireTargetParticipantId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireTargetParticipantId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireTargetParticipantId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationTaskWireTargetParticipantId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireTargetParticipantId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredTeamDelegationTaskWireTargetSessionId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct DeferredTeamDelegationTaskWireTargetSessionId(::std::string::String);
+impl ::std::ops::Deref for DeferredTeamDelegationTaskWireTargetSessionId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationTaskWireTargetSessionId> for ::std::string::String {
+    fn from(value: DeferredTeamDelegationTaskWireTargetSessionId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for DeferredTeamDelegationTaskWireTargetSessionId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for DeferredTeamDelegationTaskWireTargetSessionId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for DeferredTeamDelegationTaskWireTargetSessionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for DeferredTeamDelegationTaskWireTargetSessionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for DeferredTeamDelegationTaskWireTargetSessionId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`DeferredToolOperationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/DeferredMediaGenerationOperationWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/DeferredTeamDelegationOperationWire\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum DeferredToolOperationWire {
+    MediaGenerationOperationWire(DeferredMediaGenerationOperationWire),
+    TeamDelegationOperationWire(DeferredTeamDelegationOperationWire),
+}
+impl ::std::convert::From<DeferredMediaGenerationOperationWire> for DeferredToolOperationWire {
+    fn from(value: DeferredMediaGenerationOperationWire) -> Self {
+        Self::MediaGenerationOperationWire(value)
+    }
+}
+impl ::std::convert::From<DeferredTeamDelegationOperationWire> for DeferredToolOperationWire {
+    fn from(value: DeferredTeamDelegationOperationWire) -> Self {
+        Self::TeamDelegationOperationWire(value)
     }
 }
 #[doc = "`DelegationDependencyKindWire`"]
@@ -5260,6 +8288,283 @@ pub struct EnqueueJobWire {
     pub retry_policy: NullableRetryPolicyWire,
     pub scheduled_at: NullableInteger,
 }
+#[doc = "`ExecuteApprovedPlanCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"execute-approved-plan\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ExecuteApprovedPlanWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteApprovedPlanCommand {
+    pub command: ExecuteApprovedPlanCommandCommand,
+    pub request: ExecuteApprovedPlanWire,
+}
+#[doc = "`ExecuteApprovedPlanCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"execute-approved-plan\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ExecuteApprovedPlanCommandCommand {
+    #[serde(rename = "execute-approved-plan")]
+    ExecuteApprovedPlan,
+}
+impl ::std::fmt::Display for ExecuteApprovedPlanCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ExecuteApprovedPlan => f.write_str("execute-approved-plan"),
+        }
+    }
+}
+impl ::std::str::FromStr for ExecuteApprovedPlanCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "execute-approved-plan" => Ok(Self::ExecuteApprovedPlan),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteApprovedPlanCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ExecuteApprovedPlanCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteApprovedPlanCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ExecuteApprovedPlanWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"proposal_id\","]
+#[doc = "    \"turn\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"proposal_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"turn\": {"]
+#[doc = "      \"$ref\": \"#/$defs/SubmitSessionTurnWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ExecuteApprovedPlanWire {
+    pub expected_revision: ::std::num::NonZeroU64,
+    pub idempotency_key: ExecuteApprovedPlanWireIdempotencyKey,
+    pub proposal_id: ExecuteApprovedPlanWireProposalId,
+    pub turn: SubmitSessionTurnWire,
+}
+#[doc = "`ExecuteApprovedPlanWireIdempotencyKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExecuteApprovedPlanWireIdempotencyKey(::std::string::String);
+impl ::std::ops::Deref for ExecuteApprovedPlanWireIdempotencyKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteApprovedPlanWireIdempotencyKey> for ::std::string::String {
+    fn from(value: ExecuteApprovedPlanWireIdempotencyKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExecuteApprovedPlanWireIdempotencyKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteApprovedPlanWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ExecuteApprovedPlanWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteApprovedPlanWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExecuteApprovedPlanWireIdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ExecuteApprovedPlanWireProposalId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ExecuteApprovedPlanWireProposalId(::std::string::String);
+impl ::std::ops::Deref for ExecuteApprovedPlanWireProposalId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ExecuteApprovedPlanWireProposalId> for ::std::string::String {
+    fn from(value: ExecuteApprovedPlanWireProposalId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ExecuteApprovedPlanWireProposalId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ExecuteApprovedPlanWireProposalId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ExecuteApprovedPlanWireProposalId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ExecuteApprovedPlanWireProposalId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ExecuteApprovedPlanWireProposalId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 #[doc = "`FailChannelDeliveryCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -5541,6 +8846,155 @@ pub struct FailJobWire {
     pub lease_token: ::std::string::String,
     pub worker_id: ::std::string::String,
 }
+#[doc = "`FailTeamDeliveryMaterializationCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"fail-team-delivery-materialization\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/FailTeamDeliveryMaterializationWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct FailTeamDeliveryMaterializationCommand {
+    pub command: FailTeamDeliveryMaterializationCommandCommand,
+    pub request: FailTeamDeliveryMaterializationWire,
+}
+#[doc = "`FailTeamDeliveryMaterializationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"fail-team-delivery-materialization\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum FailTeamDeliveryMaterializationCommandCommand {
+    #[serde(rename = "fail-team-delivery-materialization")]
+    FailTeamDeliveryMaterialization,
+}
+impl ::std::fmt::Display for FailTeamDeliveryMaterializationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::FailTeamDeliveryMaterialization => {
+                f.write_str("fail-team-delivery-materialization")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for FailTeamDeliveryMaterializationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "fail-team-delivery-materialization" => Ok(Self::FailTeamDeliveryMaterialization),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for FailTeamDeliveryMaterializationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for FailTeamDeliveryMaterializationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for FailTeamDeliveryMaterializationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`FailTeamDeliveryMaterializationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"delivery_id\","]
+#[doc = "    \"dispatch_job_id\","]
+#[doc = "    \"error\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"delivery_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"dispatch_job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"error\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct FailTeamDeliveryMaterializationWire {
+    pub delivery_id: ::std::string::String,
+    pub dispatch_job_id: ::std::string::String,
+    pub error: ::serde_json::Value,
+    pub lease_token: ::std::string::String,
+    pub worker_id: ::std::string::String,
+}
 #[doc = "`FinishConnectorSessionCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -5688,6 +9142,191 @@ pub struct FinishConnectorSessionWire {
     pub owner_id: ::std::string::String,
     pub session_id: ::std::string::String,
     pub state: ConnectorFinishedSessionStateWire,
+}
+#[doc = "`FinishContextEpochGenerationCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"finish-context-epoch-generation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/FinishContextEpochGenerationWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct FinishContextEpochGenerationCommand {
+    pub command: FinishContextEpochGenerationCommandCommand,
+    pub request: FinishContextEpochGenerationWire,
+}
+#[doc = "`FinishContextEpochGenerationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"finish-context-epoch-generation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum FinishContextEpochGenerationCommandCommand {
+    #[serde(rename = "finish-context-epoch-generation")]
+    FinishContextEpochGeneration,
+}
+impl ::std::fmt::Display for FinishContextEpochGenerationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::FinishContextEpochGeneration => f.write_str("finish-context-epoch-generation"),
+        }
+    }
+}
+impl ::std::str::FromStr for FinishContextEpochGenerationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "finish-context-epoch-generation" => Ok(Self::FinishContextEpochGeneration),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for FinishContextEpochGenerationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for FinishContextEpochGenerationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for FinishContextEpochGenerationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`FinishContextEpochGenerationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"epoch_id\","]
+#[doc = "    \"error\","]
+#[doc = "    \"generation_attempt\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"outcome\","]
+#[doc = "    \"retryable\","]
+#[doc = "    \"summary\","]
+#[doc = "    \"summary_digest\","]
+#[doc = "    \"token_estimate_after\","]
+#[doc = "    \"token_savings\","]
+#[doc = "    \"usage\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"epoch_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"error\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"generation_attempt\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ContextEpochGenerationOutcomeWire\""]
+#[doc = "    },"]
+#[doc = "    \"retryable\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableBoolean\""]
+#[doc = "    },"]
+#[doc = "    \"summary\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"summary_digest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"token_estimate_after\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"token_savings\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"usage\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct FinishContextEpochGenerationWire {
+    pub epoch_id: ::std::string::String,
+    pub error: ::serde_json::Value,
+    pub generation_attempt: i64,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub outcome: ContextEpochGenerationOutcomeWire,
+    pub retryable: NullableBoolean,
+    pub summary: NullableString,
+    pub summary_digest: NullableString,
+    pub token_estimate_after: NullableInteger,
+    pub token_savings: NullableInteger,
+    pub usage: ::serde_json::Value,
+    pub worker_id: ::std::string::String,
 }
 #[doc = "`FinishProviderInvocationCommand`"]
 #[doc = r""]
@@ -6061,6 +9700,8 @@ impl ::std::convert::TryFrom<::std::string::String> for FinishToolExecutionComma
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"content\","]
+#[doc = "    \"content_digest\","]
 #[doc = "    \"error\","]
 #[doc = "    \"execution_id\","]
 #[doc = "    \"input_id\","]
@@ -6068,7 +9709,7 @@ impl ::std::convert::TryFrom<::std::string::String> for FinishToolExecutionComma
 #[doc = "    \"is_error\","]
 #[doc = "    \"job_id\","]
 #[doc = "    \"lease_token\","]
-#[doc = "    \"result\","]
+#[doc = "    \"result_presentation\","]
 #[doc = "    \"session_attempt_id\","]
 #[doc = "    \"session_id\","]
 #[doc = "    \"state\","]
@@ -6076,6 +9717,12 @@ impl ::std::convert::TryFrom<::std::string::String> for FinishToolExecutionComma
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolResultContentWire\""]
+#[doc = "    },"]
+#[doc = "    \"content_digest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
 #[doc = "    \"error\": {"]
 #[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
 #[doc = "    },"]
@@ -6097,8 +9744,15 @@ impl ::std::convert::TryFrom<::std::string::String> for FinishToolExecutionComma
 #[doc = "    \"lease_token\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
-#[doc = "    \"result\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    \"result_presentation\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/$defs/ToolActivityPresentationWire\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"session_attempt_id\": {"]
 #[doc = "      \"type\": \"string\""]
@@ -6128,6 +9782,8 @@ impl ::std::convert::TryFrom<::std::string::String> for FinishToolExecutionComma
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct FinishToolExecutionWire {
+    pub content: NullableToolResultContentWire,
+    pub content_digest: NullableString,
     pub error: ::serde_json::Value,
     pub execution_id: ::std::string::String,
     pub input_id: ::std::string::String,
@@ -6135,7 +9791,7 @@ pub struct FinishToolExecutionWire {
     pub is_error: NullableBoolean,
     pub job_id: ::std::string::String,
     pub lease_token: ::std::string::String,
-    pub result: ::serde_json::Value,
+    pub result_presentation: ::std::option::Option<ToolActivityPresentationWire>,
     pub session_attempt_id: ::std::string::String,
     pub session_id: ::std::string::String,
     pub state: FinishToolExecutionWireState,
@@ -6326,13 +9982,9 @@ impl ::std::convert::TryFrom<::std::string::String> for GetActiveContextEpochCom
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
-#[doc = "    \"policy_version\","]
 #[doc = "    \"session_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    }"]
@@ -6344,7 +9996,6 @@ impl ::std::convert::TryFrom<::std::string::String> for GetActiveContextEpochCom
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct GetActiveContextEpochWire {
-    pub policy_version: ::std::string::String,
     pub session_id: ::std::string::String,
 }
 #[doc = "`GetBudgetScopeCommand`"]
@@ -6989,7 +10640,7 @@ impl ::std::convert::TryFrom<::std::string::String> for GetMediaGenerationComman
         value.parse()
     }
 }
-#[doc = "`GetObjectiveRunCommand`"]
+#[doc = "`GetObjectiveCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -7004,7 +10655,7 @@ impl ::std::convert::TryFrom<::std::string::String> for GetMediaGenerationComman
 #[doc = "    \"command\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"enum\": ["]
-#[doc = "        \"get-objective-run\""]
+#[doc = "        \"get-objective\""]
 #[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"objective_id\": {"]
@@ -7017,11 +10668,11 @@ impl ::std::convert::TryFrom<::std::string::String> for GetMediaGenerationComman
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct GetObjectiveRunCommand {
-    pub command: GetObjectiveRunCommandCommand,
+pub struct GetObjectiveCommand {
+    pub command: GetObjectiveCommandCommand,
     pub objective_id: ::std::string::String,
 }
-#[doc = "`GetObjectiveRunCommandCommand`"]
+#[doc = "`GetObjectiveCommandCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -7029,7 +10680,7 @@ pub struct GetObjectiveRunCommand {
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"get-objective-run\""]
+#[doc = "    \"get-objective\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -7046,33 +10697,33 @@ pub struct GetObjectiveRunCommand {
     PartialEq,
     PartialOrd,
 )]
-pub enum GetObjectiveRunCommandCommand {
-    #[serde(rename = "get-objective-run")]
-    GetObjectiveRun,
+pub enum GetObjectiveCommandCommand {
+    #[serde(rename = "get-objective")]
+    GetObjective,
 }
-impl ::std::fmt::Display for GetObjectiveRunCommandCommand {
+impl ::std::fmt::Display for GetObjectiveCommandCommand {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::GetObjectiveRun => f.write_str("get-objective-run"),
+            Self::GetObjective => f.write_str("get-objective"),
         }
     }
 }
-impl ::std::str::FromStr for GetObjectiveRunCommandCommand {
+impl ::std::str::FromStr for GetObjectiveCommandCommand {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "get-objective-run" => Ok(Self::GetObjectiveRun),
+            "get-objective" => Ok(Self::GetObjective),
             _ => Err("invalid value".into()),
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for GetObjectiveRunCommandCommand {
+impl ::std::convert::TryFrom<&str> for GetObjectiveCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for GetObjectiveRunCommandCommand {
+impl ::std::convert::TryFrom<&::std::string::String> for GetObjectiveCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -7080,7 +10731,7 @@ impl ::std::convert::TryFrom<&::std::string::String> for GetObjectiveRunCommandC
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for GetObjectiveRunCommandCommand {
+impl ::std::convert::TryFrom<::std::string::String> for GetObjectiveCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -7186,6 +10837,145 @@ impl ::std::convert::TryFrom<::std::string::String> for GetPlanProposalCommandCo
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "`GetPluginActionExecutionAdmissionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-plugin-action-execution-admission\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/GetPluginActionExecutionAdmissionWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetPluginActionExecutionAdmissionCommand {
+    pub command: GetPluginActionExecutionAdmissionCommandCommand,
+    pub request: GetPluginActionExecutionAdmissionWire,
+}
+#[doc = "`GetPluginActionExecutionAdmissionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-plugin-action-execution-admission\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetPluginActionExecutionAdmissionCommandCommand {
+    #[serde(rename = "get-plugin-action-execution-admission")]
+    GetPluginActionExecutionAdmission,
+}
+impl ::std::fmt::Display for GetPluginActionExecutionAdmissionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetPluginActionExecutionAdmission => {
+                f.write_str("get-plugin-action-execution-admission")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for GetPluginActionExecutionAdmissionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-plugin-action-execution-admission" => Ok(Self::GetPluginActionExecutionAdmission),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetPluginActionExecutionAdmissionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for GetPluginActionExecutionAdmissionCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for GetPluginActionExecutionAdmissionCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetPluginActionExecutionAdmissionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"plugin_id\","]
+#[doc = "    \"required_capability\","]
+#[doc = "    \"version\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"plugin_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"required_capability\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PluginCapabilityWire\""]
+#[doc = "    },"]
+#[doc = "    \"version\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetPluginActionExecutionAdmissionWire {
+    pub plugin_id: ::std::string::String,
+    pub required_capability: PluginCapabilityWire,
+    pub version: ::std::string::String,
 }
 #[doc = "`GetPluginInstallCommand`"]
 #[doc = r""]
@@ -7740,6 +11530,755 @@ impl ::std::convert::TryFrom<::std::string::String> for GetTeamConversationComma
         value.parse()
     }
 }
+#[doc = "`GetTeamDelegationOperationByToolExecutionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"tool_execution_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-delegation-operation-by-tool-execution\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"tool_execution_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamDelegationOperationByToolExecutionCommand {
+    pub command: GetTeamDelegationOperationByToolExecutionCommandCommand,
+    pub tool_execution_id: ::std::string::String,
+}
+#[doc = "`GetTeamDelegationOperationByToolExecutionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-delegation-operation-by-tool-execution\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamDelegationOperationByToolExecutionCommandCommand {
+    #[serde(rename = "get-team-delegation-operation-by-tool-execution")]
+    GetTeamDelegationOperationByToolExecution,
+}
+impl ::std::fmt::Display for GetTeamDelegationOperationByToolExecutionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamDelegationOperationByToolExecution => {
+                f.write_str("get-team-delegation-operation-by-tool-execution")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamDelegationOperationByToolExecutionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-delegation-operation-by-tool-execution" => {
+                Ok(Self::GetTeamDelegationOperationByToolExecution)
+            }
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamDelegationOperationByToolExecutionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for GetTeamDelegationOperationByToolExecutionCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for GetTeamDelegationOperationByToolExecutionCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetTeamDelegationOperationCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"operation_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-delegation-operation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"operation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamDelegationOperationCommand {
+    pub command: GetTeamDelegationOperationCommandCommand,
+    pub operation_id: ::std::string::String,
+}
+#[doc = "`GetTeamDelegationOperationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-delegation-operation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamDelegationOperationCommandCommand {
+    #[serde(rename = "get-team-delegation-operation")]
+    GetTeamDelegationOperation,
+}
+impl ::std::fmt::Display for GetTeamDelegationOperationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamDelegationOperation => f.write_str("get-team-delegation-operation"),
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamDelegationOperationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-delegation-operation" => Ok(Self::GetTeamDelegationOperation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamDelegationOperationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for GetTeamDelegationOperationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GetTeamDelegationOperationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetTeamDeliveryMaterializationContextCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"delivery_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-delivery-materialization-context\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"delivery_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamDeliveryMaterializationContextCommand {
+    pub command: GetTeamDeliveryMaterializationContextCommandCommand,
+    pub delivery_id: ::std::string::String,
+}
+#[doc = "`GetTeamDeliveryMaterializationContextCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-delivery-materialization-context\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamDeliveryMaterializationContextCommandCommand {
+    #[serde(rename = "get-team-delivery-materialization-context")]
+    GetTeamDeliveryMaterializationContext,
+}
+impl ::std::fmt::Display for GetTeamDeliveryMaterializationContextCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamDeliveryMaterializationContext => {
+                f.write_str("get-team-delivery-materialization-context")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamDeliveryMaterializationContextCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-delivery-materialization-context" => {
+                Ok(Self::GetTeamDeliveryMaterializationContext)
+            }
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamDeliveryMaterializationContextCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for GetTeamDeliveryMaterializationContextCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for GetTeamDeliveryMaterializationContextCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetTeamDiscussionRoundCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"round_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-discussion-round\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"round_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamDiscussionRoundCommand {
+    pub command: GetTeamDiscussionRoundCommandCommand,
+    pub round_id: ::std::string::String,
+}
+#[doc = "`GetTeamDiscussionRoundCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-discussion-round\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamDiscussionRoundCommandCommand {
+    #[serde(rename = "get-team-discussion-round")]
+    GetTeamDiscussionRound,
+}
+impl ::std::fmt::Display for GetTeamDiscussionRoundCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamDiscussionRound => f.write_str("get-team-discussion-round"),
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamDiscussionRoundCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-discussion-round" => Ok(Self::GetTeamDiscussionRound),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamDiscussionRoundCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for GetTeamDiscussionRoundCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GetTeamDiscussionRoundCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetTeamMessageCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"message_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-message\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamMessageCommand {
+    pub command: GetTeamMessageCommandCommand,
+    pub message_id: ::std::string::String,
+}
+#[doc = "`GetTeamMessageCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-message\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamMessageCommandCommand {
+    #[serde(rename = "get-team-message")]
+    GetTeamMessage,
+}
+impl ::std::fmt::Display for GetTeamMessageCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamMessage => f.write_str("get-team-message"),
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamMessageCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-message" => Ok(Self::GetTeamMessage),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for GetTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GetTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetTeamRoutingDecisionByMessageCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"message_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-team-routing-decision-by-message\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetTeamRoutingDecisionByMessageCommand {
+    pub command: GetTeamRoutingDecisionByMessageCommandCommand,
+    pub message_id: ::std::string::String,
+}
+#[doc = "`GetTeamRoutingDecisionByMessageCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-team-routing-decision-by-message\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetTeamRoutingDecisionByMessageCommandCommand {
+    #[serde(rename = "get-team-routing-decision-by-message")]
+    GetTeamRoutingDecisionByMessage,
+}
+impl ::std::fmt::Display for GetTeamRoutingDecisionByMessageCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetTeamRoutingDecisionByMessage => {
+                f.write_str("get-team-routing-decision-by-message")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for GetTeamRoutingDecisionByMessageCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-team-routing-decision-by-message" => Ok(Self::GetTeamRoutingDecisionByMessage),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetTeamRoutingDecisionByMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for GetTeamRoutingDecisionByMessageCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for GetTeamRoutingDecisionByMessageCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetToolExecutionByCallCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"get-tool-execution-by-call\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/GetToolExecutionByCallWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetToolExecutionByCallCommand {
+    pub command: GetToolExecutionByCallCommandCommand,
+    pub request: GetToolExecutionByCallWire,
+}
+#[doc = "`GetToolExecutionByCallCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"get-tool-execution-by-call\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum GetToolExecutionByCallCommandCommand {
+    #[serde(rename = "get-tool-execution-by-call")]
+    GetToolExecutionByCall,
+}
+impl ::std::fmt::Display for GetToolExecutionByCallCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::GetToolExecutionByCall => f.write_str("get-tool-execution-by-call"),
+        }
+    }
+}
+impl ::std::str::FromStr for GetToolExecutionByCallCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "get-tool-execution-by-call" => Ok(Self::GetToolExecutionByCall),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for GetToolExecutionByCallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for GetToolExecutionByCallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for GetToolExecutionByCallCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`GetToolExecutionByCallWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"source_message_id\","]
+#[doc = "    \"tool_call_id\","]
+#[doc = "    \"turn_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"source_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"tool_call_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct GetToolExecutionByCallWire {
+    pub source_message_id: ::std::string::String,
+    pub tool_call_id: ::std::string::String,
+    pub turn_id: ::std::string::String,
+}
 #[doc = "`GetToolExecutionCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -8035,6 +12574,179 @@ impl ::std::convert::TryFrom<::std::string::String> for GetWorkspaceChangeSetCom
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+#[doc = "`HasLiveSecretReferenceCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"secret_ref\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"has-live-secret-reference\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"secret_ref\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 2048,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct HasLiveSecretReferenceCommand {
+    pub command: HasLiveSecretReferenceCommandCommand,
+    pub secret_ref: HasLiveSecretReferenceCommandSecretRef,
+}
+#[doc = "`HasLiveSecretReferenceCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"has-live-secret-reference\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum HasLiveSecretReferenceCommandCommand {
+    #[serde(rename = "has-live-secret-reference")]
+    HasLiveSecretReference,
+}
+impl ::std::fmt::Display for HasLiveSecretReferenceCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::HasLiveSecretReference => f.write_str("has-live-secret-reference"),
+        }
+    }
+}
+impl ::std::str::FromStr for HasLiveSecretReferenceCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "has-live-secret-reference" => Ok(Self::HasLiveSecretReference),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for HasLiveSecretReferenceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for HasLiveSecretReferenceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for HasLiveSecretReferenceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`HasLiveSecretReferenceCommandSecretRef`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 2048,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct HasLiveSecretReferenceCommandSecretRef(::std::string::String);
+impl ::std::ops::Deref for HasLiveSecretReferenceCommandSecretRef {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<HasLiveSecretReferenceCommandSecretRef> for ::std::string::String {
+    fn from(value: HasLiveSecretReferenceCommandSecretRef) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for HasLiveSecretReferenceCommandSecretRef {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 2048usize {
+            return Err("longer than 2048 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for HasLiveSecretReferenceCommandSecretRef {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for HasLiveSecretReferenceCommandSecretRef {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for HasLiveSecretReferenceCommandSecretRef {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for HasLiveSecretReferenceCommandSecretRef {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 #[doc = "`HeartbeatConnectorSessionCommand`"]
@@ -9931,14 +14643,10 @@ impl ::std::convert::TryFrom<::std::string::String> for ListContextEpochsCommand
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
-#[doc = "    \"policy_version\","]
 #[doc = "    \"session_id\","]
 #[doc = "    \"state\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
@@ -9953,142 +14661,8 @@ impl ::std::convert::TryFrom<::std::string::String> for ListContextEpochsCommand
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ListContextEpochsWire {
-    pub policy_version: NullableString,
     pub session_id: ::std::string::String,
     pub state: NullableContextEpochStateWire,
-}
-#[doc = "`ListContextReplacementsCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"list-context-replacements\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ListContextReplacementsWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListContextReplacementsCommand {
-    pub command: ListContextReplacementsCommandCommand,
-    pub request: ListContextReplacementsWire,
-}
-#[doc = "`ListContextReplacementsCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"list-context-replacements\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ListContextReplacementsCommandCommand {
-    #[serde(rename = "list-context-replacements")]
-    ListContextReplacements,
-}
-impl ::std::fmt::Display for ListContextReplacementsCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::ListContextReplacements => f.write_str("list-context-replacements"),
-        }
-    }
-}
-impl ::std::str::FromStr for ListContextReplacementsCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "list-context-replacements" => Ok(Self::ListContextReplacements),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ListContextReplacementsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ListContextReplacementsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ListContextReplacementsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ListContextReplacementsWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"epoch_id\","]
-#[doc = "    \"policy_version\","]
-#[doc = "    \"session_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"epoch_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"session_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListContextReplacementsWire {
-    pub epoch_id: NullableString,
-    pub policy_version: NullableString,
-    pub session_id: ::std::string::String,
 }
 #[doc = "`ListDelegationGraphDependenciesCommand`"]
 #[doc = r""]
@@ -10712,6 +15286,139 @@ impl ::std::convert::TryFrom<::std::string::String> for ListMediaGenerationComma
         value.parse()
     }
 }
+#[doc = "`ListObjectiveAttemptReviewsCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-objective-attempt-reviews\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListObjectiveAttemptReviewsWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListObjectiveAttemptReviewsCommand {
+    pub command: ListObjectiveAttemptReviewsCommandCommand,
+    pub request: ListObjectiveAttemptReviewsWire,
+}
+#[doc = "`ListObjectiveAttemptReviewsCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-objective-attempt-reviews\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListObjectiveAttemptReviewsCommandCommand {
+    #[serde(rename = "list-objective-attempt-reviews")]
+    ListObjectiveAttemptReviews,
+}
+impl ::std::fmt::Display for ListObjectiveAttemptReviewsCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListObjectiveAttemptReviews => f.write_str("list-objective-attempt-reviews"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListObjectiveAttemptReviewsCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-objective-attempt-reviews" => Ok(Self::ListObjectiveAttemptReviews),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListObjectiveAttemptReviewsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListObjectiveAttemptReviewsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveAttemptReviewsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListObjectiveAttemptReviewsWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"attempt_id\","]
+#[doc = "    \"limit\","]
+#[doc = "    \"objective_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"attempt_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListObjectiveAttemptReviewsWire {
+    pub attempt_id: NullableString,
+    pub limit: NullableInteger,
+    pub objective_id: ::std::string::String,
+}
 #[doc = "`ListObjectiveAttemptsCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -10820,8 +15527,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveAttemptsCom
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
 #[doc = "    \"limit\","]
-#[doc = "    \"objective_id\","]
-#[doc = "    \"state\""]
+#[doc = "    \"objective_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"limit\": {"]
@@ -10829,9 +15535,6 @@ impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveAttemptsCom
 #[doc = "    },"]
 #[doc = "    \"objective_id\": {"]
 #[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveAttemptStateWire\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -10843,273 +15546,6 @@ impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveAttemptsCom
 pub struct ListObjectiveAttemptsWire {
     pub limit: NullableInteger,
     pub objective_id: ::std::string::String,
-    pub state: NullableObjectiveAttemptStateWire,
-}
-#[doc = "`ListObjectiveRunOperationsCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"list-objective-run-operations\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ListObjectiveRunOperationsWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListObjectiveRunOperationsCommand {
-    pub command: ListObjectiveRunOperationsCommandCommand,
-    pub request: ListObjectiveRunOperationsWire,
-}
-#[doc = "`ListObjectiveRunOperationsCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"list-objective-run-operations\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ListObjectiveRunOperationsCommandCommand {
-    #[serde(rename = "list-objective-run-operations")]
-    ListObjectiveRunOperations,
-}
-impl ::std::fmt::Display for ListObjectiveRunOperationsCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::ListObjectiveRunOperations => f.write_str("list-objective-run-operations"),
-        }
-    }
-}
-impl ::std::str::FromStr for ListObjectiveRunOperationsCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "list-objective-run-operations" => Ok(Self::ListObjectiveRunOperations),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ListObjectiveRunOperationsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ListObjectiveRunOperationsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveRunOperationsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ListObjectiveRunOperationsWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"objective_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"objective_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListObjectiveRunOperationsWire {
-    pub objective_id: ::std::string::String,
-}
-#[doc = "`ListObjectiveRunsCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"list-objective-runs\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ListObjectiveRunsWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListObjectiveRunsCommand {
-    pub command: ListObjectiveRunsCommandCommand,
-    pub request: ListObjectiveRunsWire,
-}
-#[doc = "`ListObjectiveRunsCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"list-objective-runs\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ListObjectiveRunsCommandCommand {
-    #[serde(rename = "list-objective-runs")]
-    ListObjectiveRuns,
-}
-impl ::std::fmt::Display for ListObjectiveRunsCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::ListObjectiveRuns => f.write_str("list-objective-runs"),
-        }
-    }
-}
-impl ::std::str::FromStr for ListObjectiveRunsCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "list-objective-runs" => Ok(Self::ListObjectiveRuns),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ListObjectiveRunsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ListObjectiveRunsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveRunsCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ListObjectiveRunsWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"limit\","]
-#[doc = "    \"principal_id\","]
-#[doc = "    \"reference_id\","]
-#[doc = "    \"reference_kind\","]
-#[doc = "    \"state\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"limit\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"principal_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"reference_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"reference_kind\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveReferenceKindWire\""]
-#[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveRunStateWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct ListObjectiveRunsWire {
-    pub limit: NullableInteger,
-    pub principal_id: NullableString,
-    pub reference_id: NullableString,
-    pub reference_kind: NullableObjectiveReferenceKindWire,
-    pub state: NullableObjectiveRunStateWire,
 }
 #[doc = "`ListObjectiveVerificationsCommand`"]
 #[doc = r""]
@@ -11221,7 +15657,8 @@ impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveVerificatio
 #[doc = "    \"attempt_id\","]
 #[doc = "    \"limit\","]
 #[doc = "    \"objective_id\","]
-#[doc = "    \"state\""]
+#[doc = "    \"requirement_id\","]
+#[doc = "    \"result\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"attempt_id\": {"]
@@ -11233,8 +15670,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ListObjectiveVerificatio
 #[doc = "    \"objective_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveVerificationStateWire\""]
+#[doc = "    \"requirement_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"result\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveVerificationResultWire\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -11247,7 +15687,146 @@ pub struct ListObjectiveVerificationsWire {
     pub attempt_id: NullableString,
     pub limit: NullableInteger,
     pub objective_id: ::std::string::String,
-    pub state: NullableObjectiveVerificationStateWire,
+    pub requirement_id: NullableString,
+    pub result: NullableObjectiveVerificationResultWire,
+}
+#[doc = "`ListObjectivesCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-objectives\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListObjectivesWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListObjectivesCommand {
+    pub command: ListObjectivesCommandCommand,
+    pub request: ListObjectivesWire,
+}
+#[doc = "`ListObjectivesCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-objectives\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListObjectivesCommandCommand {
+    #[serde(rename = "list-objectives")]
+    ListObjectives,
+}
+impl ::std::fmt::Display for ListObjectivesCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListObjectives => f.write_str("list-objectives"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListObjectivesCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-objectives" => Ok(Self::ListObjectives),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListObjectivesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListObjectivesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListObjectivesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListObjectivesWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"limit\","]
+#[doc = "    \"principal_id\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"states\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"principal_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"states\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveStatesWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListObjectivesWire {
+    pub limit: NullableInteger,
+    pub principal_id: NullableString,
+    pub session_id: NullableString,
+    pub states: NullableObjectiveStatesWire,
 }
 #[doc = "`ListPlanProposalOperationsCommand`"]
 #[doc = r""]
@@ -11483,6 +16062,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ListPlanProposalsCommand
 #[doc = "    \"principal_id\","]
 #[doc = "    \"reference_id\","]
 #[doc = "    \"reference_kind\","]
+#[doc = "    \"source_session_id\","]
 #[doc = "    \"state\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
@@ -11497,6 +16077,9 @@ impl ::std::convert::TryFrom<::std::string::String> for ListPlanProposalsCommand
 #[doc = "    },"]
 #[doc = "    \"reference_kind\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullablePlanReferenceKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"source_session_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
 #[doc = "    \"state\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullablePlanProposalStateWire\""]
@@ -11513,6 +16096,7 @@ pub struct ListPlanProposalsWire {
     pub principal_id: NullableString,
     pub reference_id: NullableString,
     pub reference_kind: NullablePlanReferenceKindWire,
+    pub source_session_id: NullableString,
     pub state: NullablePlanProposalStateWire,
 }
 #[doc = "`ListPluginInstallsCommand`"]
@@ -12036,6 +16620,144 @@ pub struct ListReadyDelegationGraphNodesWire {
     pub graph_id: ::std::string::String,
     pub limit: NullableInteger,
 }
+#[doc = "`ListResourceProvenanceCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-resource-provenance\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListResourceProvenanceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListResourceProvenanceCommand {
+    pub command: ListResourceProvenanceCommandCommand,
+    pub request: ListResourceProvenanceWire,
+}
+#[doc = "`ListResourceProvenanceCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-resource-provenance\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListResourceProvenanceCommandCommand {
+    #[serde(rename = "list-resource-provenance")]
+    ListResourceProvenance,
+}
+impl ::std::fmt::Display for ListResourceProvenanceCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListResourceProvenance => f.write_str("list-resource-provenance"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListResourceProvenanceCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-resource-provenance" => Ok(Self::ListResourceProvenance),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListResourceProvenanceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"cause_id\","]
+#[doc = "    \"cause_kind\","]
+#[doc = "    \"limit\","]
+#[doc = "    \"resource_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"cause_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"cause_kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableResourceProvenanceCauseKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableUnsigned32\""]
+#[doc = "    },"]
+#[doc = "    \"resource_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListResourceProvenanceWire {
+    pub cause_id: NullableString,
+    pub cause_kind: NullableResourceProvenanceCauseKindWire,
+    pub limit: NullableUnsigned32,
+    pub resource_id: NullableString,
+}
 #[doc = "`ListResourcesCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -12282,7 +17004,9 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionAttemptsComma
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
 #[doc = "    \"command\","]
-#[doc = "    \"session_id\""]
+#[doc = "    \"limit\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"status\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"command\": {"]
@@ -12291,8 +17015,23 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionAttemptsComma
 #[doc = "        \"list-session-inputs\""]
 #[doc = "      ]"]
 #[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"integer\","]
+#[doc = "          \"maximum\": 1000.0,"]
+#[doc = "          \"minimum\": 1.0"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"status\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableSessionInputStateWire\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -12303,7 +17042,9 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionAttemptsComma
 #[serde(deny_unknown_fields)]
 pub struct ListSessionInputsCommand {
     pub command: ListSessionInputsCommandCommand,
+    pub limit: ::std::option::Option<::std::num::NonZeroU64>,
     pub session_id: ::std::string::String,
+    pub status: NullableSessionInputStateWire,
 }
 #[doc = "`ListSessionInputsCommandCommand`"]
 #[doc = r""]
@@ -12380,18 +17121,61 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionInputsCommand
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"before_sequence\","]
 #[doc = "    \"command\","]
-#[doc = "    \"session_id\""]
+#[doc = "    \"limit\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"turn_ids\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"before_sequence\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"integer\","]
+#[doc = "          \"minimum\": 1.0"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"command\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"enum\": ["]
 #[doc = "        \"list-session-messages\""]
 #[doc = "      ]"]
 #[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"integer\","]
+#[doc = "          \"maximum\": 1000.0,"]
+#[doc = "          \"minimum\": 1.0"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_ids\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"array\","]
+#[doc = "          \"items\": {"]
+#[doc = "            \"type\": \"string\","]
+#[doc = "            \"minLength\": 1"]
+#[doc = "          },"]
+#[doc = "          \"maxItems\": 1000,"]
+#[doc = "          \"minItems\": 0,"]
+#[doc = "          \"uniqueItems\": true"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -12401,8 +17185,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionInputsCommand
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ListSessionMessagesCommand {
+    pub before_sequence: ::std::option::Option<::std::num::NonZeroU64>,
     pub command: ListSessionMessagesCommandCommand,
+    pub limit: ::std::option::Option<::std::num::NonZeroU64>,
     pub session_id: ::std::string::String,
+    pub turn_ids: ::std::option::Option<Vec<ListSessionMessagesCommandTurnIdsItem>>,
 }
 #[doc = "`ListSessionMessagesCommandCommand`"]
 #[doc = r""]
@@ -12469,6 +17256,74 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionMessagesComma
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+#[doc = "`ListSessionMessagesCommandTurnIdsItem`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ListSessionMessagesCommandTurnIdsItem(::std::string::String);
+impl ::std::ops::Deref for ListSessionMessagesCommandTurnIdsItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ListSessionMessagesCommandTurnIdsItem> for ::std::string::String {
+    fn from(value: ListSessionMessagesCommandTurnIdsItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ListSessionMessagesCommandTurnIdsItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListSessionMessagesCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListSessionMessagesCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListSessionMessagesCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ListSessionMessagesCommandTurnIdsItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 #[doc = "`ListSessionTurnControlsCommand`"]
@@ -12629,7 +17484,8 @@ pub struct ListSessionTurnControlsWire {
 #[doc = "  \"required\": ["]
 #[doc = "    \"command\","]
 #[doc = "    \"session_id\","]
-#[doc = "    \"state\""]
+#[doc = "    \"state\","]
+#[doc = "    \"turn_ids\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"command\": {"]
@@ -12643,6 +17499,23 @@ pub struct ListSessionTurnControlsWire {
 #[doc = "    },"]
 #[doc = "    \"state\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableSessionTurnStateWire\""]
+#[doc = "    },"]
+#[doc = "    \"turn_ids\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"array\","]
+#[doc = "          \"items\": {"]
+#[doc = "            \"type\": \"string\","]
+#[doc = "            \"minLength\": 1"]
+#[doc = "          },"]
+#[doc = "          \"maxItems\": 1000,"]
+#[doc = "          \"minItems\": 0,"]
+#[doc = "          \"uniqueItems\": true"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -12655,6 +17528,7 @@ pub struct ListSessionTurnsCommand {
     pub command: ListSessionTurnsCommandCommand,
     pub session_id: ::std::string::String,
     pub state: NullableSessionTurnStateWire,
+    pub turn_ids: ::std::option::Option<Vec<ListSessionTurnsCommandTurnIdsItem>>,
 }
 #[doc = "`ListSessionTurnsCommandCommand`"]
 #[doc = r""]
@@ -12721,6 +17595,74 @@ impl ::std::convert::TryFrom<::std::string::String> for ListSessionTurnsCommandC
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+#[doc = "`ListSessionTurnsCommandTurnIdsItem`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ListSessionTurnsCommandTurnIdsItem(::std::string::String);
+impl ::std::ops::Deref for ListSessionTurnsCommandTurnIdsItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ListSessionTurnsCommandTurnIdsItem> for ::std::string::String {
+    fn from(value: ListSessionTurnsCommandTurnIdsItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ListSessionTurnsCommandTurnIdsItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListSessionTurnsCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListSessionTurnsCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListSessionTurnsCommandTurnIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ListSessionTurnsCommandTurnIdsItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 #[doc = "`ListSessionsCommand`"]
@@ -13004,6 +17946,534 @@ pub struct ListTeamConversationsWire {
     pub principal_id: NullableString,
     pub state: NullableTeamConversationStateWire,
 }
+#[doc = "`ListTeamDelegationTasksCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"operation_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-team-delegation-tasks\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"operation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamDelegationTasksCommand {
+    pub command: ListTeamDelegationTasksCommandCommand,
+    pub operation_id: ::std::string::String,
+}
+#[doc = "`ListTeamDelegationTasksCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-team-delegation-tasks\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListTeamDelegationTasksCommandCommand {
+    #[serde(rename = "list-team-delegation-tasks")]
+    ListTeamDelegationTasks,
+}
+impl ::std::fmt::Display for ListTeamDelegationTasksCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListTeamDelegationTasks => f.write_str("list-team-delegation-tasks"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListTeamDelegationTasksCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-team-delegation-tasks" => Ok(Self::ListTeamDelegationTasks),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListTeamDelegationTasksCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListTeamDelegationTasksCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListTeamDelegationTasksCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListTeamDeliveriesCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-team-deliveries\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamDeliveriesWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamDeliveriesCommand {
+    pub command: ListTeamDeliveriesCommandCommand,
+    pub request: ListTeamDeliveriesWire,
+}
+#[doc = "`ListTeamDeliveriesCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-team-deliveries\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListTeamDeliveriesCommandCommand {
+    #[serde(rename = "list-team-deliveries")]
+    ListTeamDeliveries,
+}
+impl ::std::fmt::Display for ListTeamDeliveriesCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListTeamDeliveries => f.write_str("list-team-deliveries"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListTeamDeliveriesCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-team-deliveries" => Ok(Self::ListTeamDeliveries),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListTeamDeliveriesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListTeamDeliveriesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListTeamDeliveriesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListTeamDeliveriesWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"limit\","]
+#[doc = "    \"message_id\","]
+#[doc = "    \"routing_decision_id\","]
+#[doc = "    \"state\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"routing_decision_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"state\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableTeamDeliveryStateWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamDeliveriesWire {
+    pub conversation_id: NullableString,
+    pub limit: NullableInteger,
+    pub message_id: NullableString,
+    pub routing_decision_id: NullableString,
+    pub state: NullableTeamDeliveryStateWire,
+}
+#[doc = "`ListTeamDiscussionRoundsCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-team-discussion-rounds\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamDiscussionRoundsWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamDiscussionRoundsCommand {
+    pub command: ListTeamDiscussionRoundsCommandCommand,
+    pub request: ListTeamDiscussionRoundsWire,
+}
+#[doc = "`ListTeamDiscussionRoundsCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-team-discussion-rounds\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListTeamDiscussionRoundsCommandCommand {
+    #[serde(rename = "list-team-discussion-rounds")]
+    ListTeamDiscussionRounds,
+}
+impl ::std::fmt::Display for ListTeamDiscussionRoundsCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListTeamDiscussionRounds => f.write_str("list-team-discussion-rounds"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListTeamDiscussionRoundsCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-team-discussion-rounds" => Ok(Self::ListTeamDiscussionRounds),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListTeamDiscussionRoundsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListTeamDiscussionRoundsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListTeamDiscussionRoundsCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListTeamDiscussionRoundsWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"after_created_at\","]
+#[doc = "    \"after_round_id\","]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"limit\","]
+#[doc = "    \"state\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"after_created_at\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"after_round_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"state\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableTeamDiscussionRoundStateWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamDiscussionRoundsWire {
+    pub after_created_at: NullableInteger,
+    pub after_round_id: NullableString,
+    pub conversation_id: ::std::string::String,
+    pub limit: NullableInteger,
+    pub state: NullableTeamDiscussionRoundStateWire,
+}
+#[doc = "`ListTeamMessagesCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-team-messages\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamMessagesWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamMessagesCommand {
+    pub command: ListTeamMessagesCommandCommand,
+    pub request: ListTeamMessagesWire,
+}
+#[doc = "`ListTeamMessagesCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-team-messages\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListTeamMessagesCommandCommand {
+    #[serde(rename = "list-team-messages")]
+    ListTeamMessages,
+}
+impl ::std::fmt::Display for ListTeamMessagesCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListTeamMessages => f.write_str("list-team-messages"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListTeamMessagesCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-team-messages" => Ok(Self::ListTeamMessages),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListTeamMessagesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListTeamMessagesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListTeamMessagesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListTeamMessagesWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"after_created_at\","]
+#[doc = "    \"after_message_id\","]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"limit\","]
+#[doc = "    \"state\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"after_created_at\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"after_message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"state\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableTeamMessageStateWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListTeamMessagesWire {
+    pub after_created_at: NullableInteger,
+    pub after_message_id: NullableString,
+    pub conversation_id: ::std::string::String,
+    pub limit: NullableInteger,
+    pub state: NullableTeamMessageStateWire,
+}
 #[doc = "`ListTeamParticipantsCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -13132,7 +18602,7 @@ pub struct ListTeamParticipantsWire {
     pub conversation_id: ::std::string::String,
     pub state: NullableTeamParticipantStateWire,
 }
-#[doc = "`ListTeamTurnsCommand`"]
+#[doc = "`ListTeamRoutingDecisionsCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -13147,11 +18617,11 @@ pub struct ListTeamParticipantsWire {
 #[doc = "    \"command\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"enum\": ["]
-#[doc = "        \"list-team-turns\""]
+#[doc = "        \"list-team-routing-decisions\""]
 #[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ListTeamTurnsWire\""]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamRoutingDecisionsWire\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -13160,11 +18630,11 @@ pub struct ListTeamParticipantsWire {
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct ListTeamTurnsCommand {
-    pub command: ListTeamTurnsCommandCommand,
-    pub request: ListTeamTurnsWire,
+pub struct ListTeamRoutingDecisionsCommand {
+    pub command: ListTeamRoutingDecisionsCommandCommand,
+    pub request: ListTeamRoutingDecisionsWire,
 }
-#[doc = "`ListTeamTurnsCommandCommand`"]
+#[doc = "`ListTeamRoutingDecisionsCommandCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -13172,7 +18642,7 @@ pub struct ListTeamTurnsCommand {
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"list-team-turns\""]
+#[doc = "    \"list-team-routing-decisions\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -13189,33 +18659,33 @@ pub struct ListTeamTurnsCommand {
     PartialEq,
     PartialOrd,
 )]
-pub enum ListTeamTurnsCommandCommand {
-    #[serde(rename = "list-team-turns")]
-    ListTeamTurns,
+pub enum ListTeamRoutingDecisionsCommandCommand {
+    #[serde(rename = "list-team-routing-decisions")]
+    ListTeamRoutingDecisions,
 }
-impl ::std::fmt::Display for ListTeamTurnsCommandCommand {
+impl ::std::fmt::Display for ListTeamRoutingDecisionsCommandCommand {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::ListTeamTurns => f.write_str("list-team-turns"),
+            Self::ListTeamRoutingDecisions => f.write_str("list-team-routing-decisions"),
         }
     }
 }
-impl ::std::str::FromStr for ListTeamTurnsCommandCommand {
+impl ::std::str::FromStr for ListTeamRoutingDecisionsCommandCommand {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "list-team-turns" => Ok(Self::ListTeamTurns),
+            "list-team-routing-decisions" => Ok(Self::ListTeamRoutingDecisions),
             _ => Err("invalid value".into()),
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for ListTeamTurnsCommandCommand {
+impl ::std::convert::TryFrom<&str> for ListTeamRoutingDecisionsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for ListTeamTurnsCommandCommand {
+impl ::std::convert::TryFrom<&::std::string::String> for ListTeamRoutingDecisionsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -13223,7 +18693,7 @@ impl ::std::convert::TryFrom<&::std::string::String> for ListTeamTurnsCommandCom
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for ListTeamTurnsCommandCommand {
+impl ::std::convert::TryFrom<::std::string::String> for ListTeamRoutingDecisionsCommandCommand {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -13231,7 +18701,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ListTeamTurnsCommandComm
         value.parse()
     }
 }
-#[doc = "`ListTeamTurnsWire`"]
+#[doc = "`ListTeamRoutingDecisionsWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -13239,23 +18709,19 @@ impl ::std::convert::TryFrom<::std::string::String> for ListTeamTurnsCommandComm
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
-#[doc = "    \"after_created_at\","]
-#[doc = "    \"after_turn_id\","]
 #[doc = "    \"conversation_id\","]
-#[doc = "    \"limit\""]
+#[doc = "    \"limit\","]
+#[doc = "    \"message_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
-#[doc = "    \"after_created_at\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"after_turn_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
 #[doc = "    \"conversation_id\": {"]
-#[doc = "      \"type\": \"string\""]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
 #[doc = "    \"limit\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -13264,11 +18730,215 @@ impl ::std::convert::TryFrom<::std::string::String> for ListTeamTurnsCommandComm
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
-pub struct ListTeamTurnsWire {
-    pub after_created_at: NullableInteger,
-    pub after_turn_id: NullableString,
-    pub conversation_id: ::std::string::String,
+pub struct ListTeamRoutingDecisionsWire {
+    pub conversation_id: NullableString,
     pub limit: NullableInteger,
+    pub message_id: NullableString,
+}
+#[doc = "`ListToolActivitiesCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"list-tool-activities\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ListToolActivitiesWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListToolActivitiesCommand {
+    pub command: ListToolActivitiesCommandCommand,
+    pub request: ListToolActivitiesWire,
+}
+#[doc = "`ListToolActivitiesCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"list-tool-activities\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ListToolActivitiesCommandCommand {
+    #[serde(rename = "list-tool-activities")]
+    ListToolActivities,
+}
+impl ::std::fmt::Display for ListToolActivitiesCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ListToolActivities => f.write_str("list-tool-activities"),
+        }
+    }
+}
+impl ::std::str::FromStr for ListToolActivitiesCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "list-tool-activities" => Ok(Self::ListToolActivities),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListToolActivitiesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ListToolActivitiesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListToolActivitiesCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ListToolActivitiesWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"session_id\","]
+#[doc = "    \"source_message_ids\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_message_ids\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"type\": \"string\","]
+#[doc = "        \"minLength\": 1"]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 200,"]
+#[doc = "      \"minItems\": 1,"]
+#[doc = "      \"uniqueItems\": true"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ListToolActivitiesWire {
+    pub session_id: ::std::string::String,
+    pub source_message_ids: Vec<ListToolActivitiesWireSourceMessageIdsItem>,
+}
+#[doc = "`ListToolActivitiesWireSourceMessageIdsItem`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ListToolActivitiesWireSourceMessageIdsItem(::std::string::String);
+impl ::std::ops::Deref for ListToolActivitiesWireSourceMessageIdsItem {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ListToolActivitiesWireSourceMessageIdsItem> for ::std::string::String {
+    fn from(value: ListToolActivitiesWireSourceMessageIdsItem) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ListToolActivitiesWireSourceMessageIdsItem {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ListToolActivitiesWireSourceMessageIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ListToolActivitiesWireSourceMessageIdsItem
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ListToolActivitiesWireSourceMessageIdsItem {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ListToolActivitiesWireSourceMessageIdsItem {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`ListToolExecutionAttemptsCommand`"]
 #[doc = r""]
@@ -14062,6 +19732,254 @@ pub struct ListWorkspaceChangeSetsWire {
     pub state: NullableWorkspaceChangeSetStateWire,
     pub workspace_id: NullableString,
 }
+#[doc = "`MarkContextEpochDispatchedCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"mark-context-epoch-dispatched\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ContextEpochMutationIdentityWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MarkContextEpochDispatchedCommand {
+    pub command: MarkContextEpochDispatchedCommandCommand,
+    pub request: ContextEpochMutationIdentityWire,
+}
+#[doc = "`MarkContextEpochDispatchedCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"mark-context-epoch-dispatched\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MarkContextEpochDispatchedCommandCommand {
+    #[serde(rename = "mark-context-epoch-dispatched")]
+    MarkContextEpochDispatched,
+}
+impl ::std::fmt::Display for MarkContextEpochDispatchedCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::MarkContextEpochDispatched => f.write_str("mark-context-epoch-dispatched"),
+        }
+    }
+}
+impl ::std::str::FromStr for MarkContextEpochDispatchedCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "mark-context-epoch-dispatched" => Ok(Self::MarkContextEpochDispatched),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MarkContextEpochDispatchedCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for MarkContextEpochDispatchedCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for MarkContextEpochDispatchedCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`MarkContextEpochOutputObservedCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"mark-context-epoch-output-observed\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MarkContextEpochOutputObservedWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MarkContextEpochOutputObservedCommand {
+    pub command: MarkContextEpochOutputObservedCommandCommand,
+    pub request: MarkContextEpochOutputObservedWire,
+}
+#[doc = "`MarkContextEpochOutputObservedCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"mark-context-epoch-output-observed\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MarkContextEpochOutputObservedCommandCommand {
+    #[serde(rename = "mark-context-epoch-output-observed")]
+    MarkContextEpochOutputObserved,
+}
+impl ::std::fmt::Display for MarkContextEpochOutputObservedCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::MarkContextEpochOutputObserved => {
+                f.write_str("mark-context-epoch-output-observed")
+            }
+        }
+    }
+}
+impl ::std::str::FromStr for MarkContextEpochOutputObservedCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "mark-context-epoch-output-observed" => Ok(Self::MarkContextEpochOutputObserved),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MarkContextEpochOutputObservedCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for MarkContextEpochOutputObservedCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for MarkContextEpochOutputObservedCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`MarkContextEpochOutputObservedWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"epoch_id\","]
+#[doc = "    \"generation_attempt\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"epoch_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"generation_attempt\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MarkContextEpochOutputObservedWire {
+    pub epoch_id: ::std::string::String,
+    pub generation_attempt: i64,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub worker_id: ::std::string::String,
+}
 #[doc = "`MarkProviderInvocationOutputCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -14418,6 +20336,159 @@ pub struct MaterializeReadyDelegationGraphNodeWire {
     pub scheduled_at: NullableInteger,
     pub worker_id: ::std::string::String,
 }
+#[doc = "`MaterializeTeamDeliveryCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"materialize-team-delivery\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MaterializeTeamDeliveryWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MaterializeTeamDeliveryCommand {
+    pub command: MaterializeTeamDeliveryCommandCommand,
+    pub request: MaterializeTeamDeliveryWire,
+}
+#[doc = "`MaterializeTeamDeliveryCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"materialize-team-delivery\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MaterializeTeamDeliveryCommandCommand {
+    #[serde(rename = "materialize-team-delivery")]
+    MaterializeTeamDelivery,
+}
+impl ::std::fmt::Display for MaterializeTeamDeliveryCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::MaterializeTeamDelivery => f.write_str("materialize-team-delivery"),
+        }
+    }
+}
+impl ::std::str::FromStr for MaterializeTeamDeliveryCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "materialize-team-delivery" => Ok(Self::MaterializeTeamDelivery),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MaterializeTeamDeliveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for MaterializeTeamDeliveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for MaterializeTeamDeliveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`MaterializeTeamDeliveryWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"child_priority\","]
+#[doc = "    \"delivery_id\","]
+#[doc = "    \"dispatch_job_id\","]
+#[doc = "    \"execution_binding\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"max_steps\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"child_priority\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"delivery_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"dispatch_job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"execution_binding\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"max_steps\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MaterializeTeamDeliveryWire {
+    pub child_priority: NullableInteger,
+    pub delivery_id: ::std::string::String,
+    pub dispatch_job_id: ::std::string::String,
+    pub execution_binding: ::serde_json::Value,
+    pub lease_token: ::std::string::String,
+    pub max_steps: NullableInteger,
+    pub worker_id: ::std::string::String,
+}
 #[doc = "`MediaGenerationAcceptWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -14491,50 +20562,6 @@ pub struct MediaGenerationCancelWire {
     pub operation_id: ::std::string::String,
     pub reason: ::std::string::String,
 }
-#[doc = "`MediaGenerationCheckpointWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"lease_token\","]
-#[doc = "    \"operation_id\","]
-#[doc = "    \"progress\","]
-#[doc = "    \"provider_checkpoint\","]
-#[doc = "    \"worker_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"lease_token\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"operation_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"progress\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"provider_checkpoint\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"worker_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct MediaGenerationCheckpointWire {
-    pub lease_token: ::std::string::String,
-    pub operation_id: ::std::string::String,
-    pub progress: ::serde_json::Value,
-    pub provider_checkpoint: ::serde_json::Value,
-    pub worker_id: ::std::string::String,
-}
 #[doc = "`MediaGenerationCompleteWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -14546,6 +20573,7 @@ pub struct MediaGenerationCheckpointWire {
 #[doc = "    \"lease_token\","]
 #[doc = "    \"operation_id\","]
 #[doc = "    \"output_resource_ids\","]
+#[doc = "    \"poll_outcome\","]
 #[doc = "    \"result\","]
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
@@ -14561,6 +20589,9 @@ pub struct MediaGenerationCheckpointWire {
 #[doc = "      \"items\": {"]
 #[doc = "        \"type\": \"string\""]
 #[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"poll_outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationTerminalPollOutcomeWire\""]
 #[doc = "    },"]
 #[doc = "    \"result\": {"]
 #[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
@@ -14579,6 +20610,7 @@ pub struct MediaGenerationCompleteWire {
     pub lease_token: ::std::string::String,
     pub operation_id: ::std::string::String,
     pub output_resource_ids: ::std::vec::Vec<::std::string::String>,
+    pub poll_outcome: MediaGenerationTerminalPollOutcomeWire,
     pub result: ::serde_json::Value,
     pub worker_id: ::std::string::String,
 }
@@ -14768,6 +20800,7 @@ impl ::std::convert::TryFrom<::std::string::String> for MediaGenerationOperation
 #[doc = "    \"lease_token\","]
 #[doc = "    \"operation_id\","]
 #[doc = "    \"output_references\","]
+#[doc = "    \"poll_outcome\","]
 #[doc = "    \"progress\","]
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
@@ -14783,6 +20816,9 @@ impl ::std::convert::TryFrom<::std::string::String> for MediaGenerationOperation
 #[doc = "      \"items\": {"]
 #[doc = "        \"$ref\": \"#/$defs/JsonValue\""]
 #[doc = "      }"]
+#[doc = "    },"]
+#[doc = "    \"poll_outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationTerminalPollOutcomeWire\""]
 #[doc = "    },"]
 #[doc = "    \"progress\": {"]
 #[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
@@ -14801,8 +20837,187 @@ pub struct MediaGenerationOutputsWire {
     pub lease_token: ::std::string::String,
     pub operation_id: ::std::string::String,
     pub output_references: ::std::vec::Vec<::serde_json::Value>,
+    pub poll_outcome: MediaGenerationTerminalPollOutcomeWire,
     pub progress: ::serde_json::Value,
     pub worker_id: ::std::string::String,
+}
+#[doc = "`MediaGenerationResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"operation_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"media_generation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"operation_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MediaGenerationResourceProvenanceCauseWire {
+    pub kind: MediaGenerationResourceProvenanceCauseWireKind,
+    pub operation_id: MediaGenerationResourceProvenanceCauseWireOperationId,
+}
+#[doc = "`MediaGenerationResourceProvenanceCauseWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"media_generation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MediaGenerationResourceProvenanceCauseWireKind {
+    #[serde(rename = "media_generation")]
+    MediaGeneration,
+}
+impl ::std::fmt::Display for MediaGenerationResourceProvenanceCauseWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::MediaGeneration => f.write_str("media_generation"),
+        }
+    }
+}
+impl ::std::str::FromStr for MediaGenerationResourceProvenanceCauseWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "media_generation" => Ok(Self::MediaGeneration),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MediaGenerationResourceProvenanceCauseWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for MediaGenerationResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for MediaGenerationResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`MediaGenerationResourceProvenanceCauseWireOperationId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct MediaGenerationResourceProvenanceCauseWireOperationId(::std::string::String);
+impl ::std::ops::Deref for MediaGenerationResourceProvenanceCauseWireOperationId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<MediaGenerationResourceProvenanceCauseWireOperationId>
+    for ::std::string::String
+{
+    fn from(value: MediaGenerationResourceProvenanceCauseWireOperationId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for MediaGenerationResourceProvenanceCauseWireOperationId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for MediaGenerationResourceProvenanceCauseWireOperationId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for MediaGenerationResourceProvenanceCauseWireOperationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for MediaGenerationResourceProvenanceCauseWireOperationId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for MediaGenerationResourceProvenanceCauseWireOperationId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`MediaGenerationSettleWire`"]
 #[doc = r""]
@@ -14816,6 +21031,7 @@ pub struct MediaGenerationOutputsWire {
 #[doc = "    \"lease_token\","]
 #[doc = "    \"operation_id\","]
 #[doc = "    \"outcome\","]
+#[doc = "    \"poll_outcome\","]
 #[doc = "    \"reason\","]
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
@@ -14837,6 +21053,9 @@ pub struct MediaGenerationOutputsWire {
 #[doc = "        \"recovery_required\""]
 #[doc = "      ]"]
 #[doc = "    },"]
+#[doc = "    \"poll_outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationTerminalPollOutcomeWire\""]
+#[doc = "    },"]
 #[doc = "    \"reason\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
@@ -14855,6 +21074,7 @@ pub struct MediaGenerationSettleWire {
     pub lease_token: ::std::string::String,
     pub operation_id: ::std::string::String,
     pub outcome: MediaGenerationSettleWireOutcome,
+    pub poll_outcome: MediaGenerationTerminalPollOutcomeWire,
     pub reason: NullableString,
     pub worker_id: ::std::string::String,
 }
@@ -14952,7 +21172,7 @@ impl ::std::convert::TryFrom<::std::string::String> for MediaGenerationSettleWir
 #[doc = "      \"$ref\": \"#/$defs/AcceptMediaGenerationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/CheckpointMediaGenerationCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/SuspendMediaGenerationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/RecordMediaGenerationOutputsCommand\""]
@@ -14982,7 +21202,7 @@ pub enum MediaGenerationStorageRpcCommand {
     SubmitMediaGenerationCommand(SubmitMediaGenerationCommand),
     BeginMediaGenerationCommand(BeginMediaGenerationCommand),
     AcceptMediaGenerationCommand(AcceptMediaGenerationCommand),
-    CheckpointMediaGenerationCommand(CheckpointMediaGenerationCommand),
+    SuspendMediaGenerationCommand(SuspendMediaGenerationCommand),
     RecordMediaGenerationOutputsCommand(RecordMediaGenerationOutputsCommand),
     CompleteMediaGenerationCommand(CompleteMediaGenerationCommand),
     SettleMediaGenerationCommand(SettleMediaGenerationCommand),
@@ -15005,9 +21225,9 @@ impl ::std::convert::From<AcceptMediaGenerationCommand> for MediaGenerationStora
         Self::AcceptMediaGenerationCommand(value)
     }
 }
-impl ::std::convert::From<CheckpointMediaGenerationCommand> for MediaGenerationStorageRpcCommand {
-    fn from(value: CheckpointMediaGenerationCommand) -> Self {
-        Self::CheckpointMediaGenerationCommand(value)
+impl ::std::convert::From<SuspendMediaGenerationCommand> for MediaGenerationStorageRpcCommand {
+    fn from(value: SuspendMediaGenerationCommand) -> Self {
+        Self::SuspendMediaGenerationCommand(value)
     }
 }
 impl ::std::convert::From<RecordMediaGenerationOutputsCommand>
@@ -15092,6 +21312,224 @@ pub struct MediaGenerationSubmitWire {
     pub job_id: NullableString,
     pub principal_id: ::std::string::String,
     pub priority: NullableInteger,
+}
+#[doc = "`MediaGenerationSuspendWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"error\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"next_poll_at\","]
+#[doc = "    \"operation_id\","]
+#[doc = "    \"outcome\","]
+#[doc = "    \"progress\","]
+#[doc = "    \"provider_checkpoint\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"error\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"next_poll_at\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"operation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationSuspensionOutcomeWire\""]
+#[doc = "    },"]
+#[doc = "    \"progress\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"provider_checkpoint\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct MediaGenerationSuspendWire {
+    pub error: ::serde_json::Value,
+    pub lease_token: ::std::string::String,
+    pub next_poll_at: i64,
+    pub operation_id: ::std::string::String,
+    pub outcome: MediaGenerationSuspensionOutcomeWire,
+    pub progress: ::serde_json::Value,
+    pub provider_checkpoint: ::serde_json::Value,
+    pub worker_id: ::std::string::String,
+}
+#[doc = "`MediaGenerationSuspensionOutcomeWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"scheduled\","]
+#[doc = "    \"pending\","]
+#[doc = "    \"transient_error\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MediaGenerationSuspensionOutcomeWire {
+    #[serde(rename = "scheduled")]
+    Scheduled,
+    #[serde(rename = "pending")]
+    Pending,
+    #[serde(rename = "transient_error")]
+    TransientError,
+}
+impl ::std::fmt::Display for MediaGenerationSuspensionOutcomeWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Scheduled => f.write_str("scheduled"),
+            Self::Pending => f.write_str("pending"),
+            Self::TransientError => f.write_str("transient_error"),
+        }
+    }
+}
+impl ::std::str::FromStr for MediaGenerationSuspensionOutcomeWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "scheduled" => Ok(Self::Scheduled),
+            "pending" => Ok(Self::Pending),
+            "transient_error" => Ok(Self::TransientError),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MediaGenerationSuspensionOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for MediaGenerationSuspensionOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for MediaGenerationSuspensionOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`MediaGenerationTerminalPollOutcomeWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"none\","]
+#[doc = "    \"completed\","]
+#[doc = "    \"provider_failure\","]
+#[doc = "    \"transient_error\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum MediaGenerationTerminalPollOutcomeWire {
+    #[serde(rename = "none")]
+    None,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "provider_failure")]
+    ProviderFailure,
+    #[serde(rename = "transient_error")]
+    TransientError,
+}
+impl ::std::fmt::Display for MediaGenerationTerminalPollOutcomeWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::None => f.write_str("none"),
+            Self::Completed => f.write_str("completed"),
+            Self::ProviderFailure => f.write_str("provider_failure"),
+            Self::TransientError => f.write_str("transient_error"),
+        }
+    }
+}
+impl ::std::str::FromStr for MediaGenerationTerminalPollOutcomeWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "none" => Ok(Self::None),
+            "completed" => Ok(Self::Completed),
+            "provider_failure" => Ok(Self::ProviderFailure),
+            "transient_error" => Ok(Self::TransientError),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for MediaGenerationTerminalPollOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for MediaGenerationTerminalPollOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for MediaGenerationTerminalPollOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
 }
 #[doc = "`MessagePartsWire`"]
 #[doc = r""]
@@ -15803,7 +22241,7 @@ impl ::std::convert::From<::std::option::Option<MessagePartsWire>> for NullableM
         Self(value)
     }
 }
-#[doc = "`NullableObjectiveAttemptStateWire`"]
+#[doc = "`NullableObjectiveStatesWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -15811,7 +22249,7 @@ impl ::std::convert::From<::std::option::Option<MessagePartsWire>> for NullableM
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveAttemptStateWire\""]
+#[doc = "      \"$ref\": \"#/$defs/ObjectiveStatesWire\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"type\": \"null\""]
@@ -15822,28 +22260,28 @@ impl ::std::convert::From<::std::option::Option<MessagePartsWire>> for NullableM
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct NullableObjectiveAttemptStateWire(pub ::std::option::Option<ObjectiveAttemptStateWire>);
-impl ::std::ops::Deref for NullableObjectiveAttemptStateWire {
-    type Target = ::std::option::Option<ObjectiveAttemptStateWire>;
-    fn deref(&self) -> &::std::option::Option<ObjectiveAttemptStateWire> {
+pub struct NullableObjectiveStatesWire(pub ::std::option::Option<ObjectiveStatesWire>);
+impl ::std::ops::Deref for NullableObjectiveStatesWire {
+    type Target = ::std::option::Option<ObjectiveStatesWire>;
+    fn deref(&self) -> &::std::option::Option<ObjectiveStatesWire> {
         &self.0
     }
 }
-impl ::std::convert::From<NullableObjectiveAttemptStateWire>
-    for ::std::option::Option<ObjectiveAttemptStateWire>
+impl ::std::convert::From<NullableObjectiveStatesWire>
+    for ::std::option::Option<ObjectiveStatesWire>
 {
-    fn from(value: NullableObjectiveAttemptStateWire) -> Self {
+    fn from(value: NullableObjectiveStatesWire) -> Self {
         value.0
     }
 }
-impl ::std::convert::From<::std::option::Option<ObjectiveAttemptStateWire>>
-    for NullableObjectiveAttemptStateWire
+impl ::std::convert::From<::std::option::Option<ObjectiveStatesWire>>
+    for NullableObjectiveStatesWire
 {
-    fn from(value: ::std::option::Option<ObjectiveAttemptStateWire>) -> Self {
+    fn from(value: ::std::option::Option<ObjectiveStatesWire>) -> Self {
         Self(value)
     }
 }
-#[doc = "`NullableObjectiveReferenceKindWire`"]
+#[doc = "`NullableObjectiveVerificationResultWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -15851,7 +22289,7 @@ impl ::std::convert::From<::std::option::Option<ObjectiveAttemptStateWire>>
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveReferenceKindWire\""]
+#[doc = "      \"$ref\": \"#/$defs/ObjectiveVerificationResultWire\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"type\": \"null\""]
@@ -15862,30 +22300,30 @@ impl ::std::convert::From<::std::option::Option<ObjectiveAttemptStateWire>>
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct NullableObjectiveReferenceKindWire(
-    pub ::std::option::Option<ObjectiveReferenceKindWire>,
+pub struct NullableObjectiveVerificationResultWire(
+    pub ::std::option::Option<ObjectiveVerificationResultWire>,
 );
-impl ::std::ops::Deref for NullableObjectiveReferenceKindWire {
-    type Target = ::std::option::Option<ObjectiveReferenceKindWire>;
-    fn deref(&self) -> &::std::option::Option<ObjectiveReferenceKindWire> {
+impl ::std::ops::Deref for NullableObjectiveVerificationResultWire {
+    type Target = ::std::option::Option<ObjectiveVerificationResultWire>;
+    fn deref(&self) -> &::std::option::Option<ObjectiveVerificationResultWire> {
         &self.0
     }
 }
-impl ::std::convert::From<NullableObjectiveReferenceKindWire>
-    for ::std::option::Option<ObjectiveReferenceKindWire>
+impl ::std::convert::From<NullableObjectiveVerificationResultWire>
+    for ::std::option::Option<ObjectiveVerificationResultWire>
 {
-    fn from(value: NullableObjectiveReferenceKindWire) -> Self {
+    fn from(value: NullableObjectiveVerificationResultWire) -> Self {
         value.0
     }
 }
-impl ::std::convert::From<::std::option::Option<ObjectiveReferenceKindWire>>
-    for NullableObjectiveReferenceKindWire
+impl ::std::convert::From<::std::option::Option<ObjectiveVerificationResultWire>>
+    for NullableObjectiveVerificationResultWire
 {
-    fn from(value: ::std::option::Option<ObjectiveReferenceKindWire>) -> Self {
+    fn from(value: ::std::option::Option<ObjectiveVerificationResultWire>) -> Self {
         Self(value)
     }
 }
-#[doc = "`NullableObjectiveRunStateWire`"]
+#[doc = "`NullablePlanProposalContentWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -15893,7 +22331,7 @@ impl ::std::convert::From<::std::option::Option<ObjectiveReferenceKindWire>>
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveRunStateWire\""]
+#[doc = "      \"$ref\": \"#/$defs/PlanProposalContentWire\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"type\": \"null\""]
@@ -15904,66 +22342,24 @@ impl ::std::convert::From<::std::option::Option<ObjectiveReferenceKindWire>>
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct NullableObjectiveRunStateWire(pub ::std::option::Option<ObjectiveRunStateWire>);
-impl ::std::ops::Deref for NullableObjectiveRunStateWire {
-    type Target = ::std::option::Option<ObjectiveRunStateWire>;
-    fn deref(&self) -> &::std::option::Option<ObjectiveRunStateWire> {
+pub struct NullablePlanProposalContentWire(pub ::std::option::Option<PlanProposalContentWire>);
+impl ::std::ops::Deref for NullablePlanProposalContentWire {
+    type Target = ::std::option::Option<PlanProposalContentWire>;
+    fn deref(&self) -> &::std::option::Option<PlanProposalContentWire> {
         &self.0
     }
 }
-impl ::std::convert::From<NullableObjectiveRunStateWire>
-    for ::std::option::Option<ObjectiveRunStateWire>
+impl ::std::convert::From<NullablePlanProposalContentWire>
+    for ::std::option::Option<PlanProposalContentWire>
 {
-    fn from(value: NullableObjectiveRunStateWire) -> Self {
+    fn from(value: NullablePlanProposalContentWire) -> Self {
         value.0
     }
 }
-impl ::std::convert::From<::std::option::Option<ObjectiveRunStateWire>>
-    for NullableObjectiveRunStateWire
+impl ::std::convert::From<::std::option::Option<PlanProposalContentWire>>
+    for NullablePlanProposalContentWire
 {
-    fn from(value: ::std::option::Option<ObjectiveRunStateWire>) -> Self {
-        Self(value)
-    }
-}
-#[doc = "`NullableObjectiveVerificationStateWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"oneOf\": ["]
-#[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveVerificationStateWire\""]
-#[doc = "    },"]
-#[doc = "    {"]
-#[doc = "      \"type\": \"null\""]
-#[doc = "    }"]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(transparent)]
-pub struct NullableObjectiveVerificationStateWire(
-    pub ::std::option::Option<ObjectiveVerificationStateWire>,
-);
-impl ::std::ops::Deref for NullableObjectiveVerificationStateWire {
-    type Target = ::std::option::Option<ObjectiveVerificationStateWire>;
-    fn deref(&self) -> &::std::option::Option<ObjectiveVerificationStateWire> {
-        &self.0
-    }
-}
-impl ::std::convert::From<NullableObjectiveVerificationStateWire>
-    for ::std::option::Option<ObjectiveVerificationStateWire>
-{
-    fn from(value: NullableObjectiveVerificationStateWire) -> Self {
-        value.0
-    }
-}
-impl ::std::convert::From<::std::option::Option<ObjectiveVerificationStateWire>>
-    for NullableObjectiveVerificationStateWire
-{
-    fn from(value: ::std::option::Option<ObjectiveVerificationStateWire>) -> Self {
+    fn from(value: ::std::option::Option<PlanProposalContentWire>) -> Self {
         Self(value)
     }
 }
@@ -16240,6 +22636,48 @@ impl ::std::convert::From<::std::option::Option<ResourceOriginWire>>
     for NullableResourceOriginWire
 {
     fn from(value: ::std::option::Option<ResourceOriginWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableResourceProvenanceCauseKindWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceProvenanceCauseKindWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableResourceProvenanceCauseKindWire(
+    pub ::std::option::Option<ResourceProvenanceCauseKindWire>,
+);
+impl ::std::ops::Deref for NullableResourceProvenanceCauseKindWire {
+    type Target = ::std::option::Option<ResourceProvenanceCauseKindWire>;
+    fn deref(&self) -> &::std::option::Option<ResourceProvenanceCauseKindWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableResourceProvenanceCauseKindWire>
+    for ::std::option::Option<ResourceProvenanceCauseKindWire>
+{
+    fn from(value: NullableResourceProvenanceCauseKindWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<ResourceProvenanceCauseKindWire>>
+    for NullableResourceProvenanceCauseKindWire
+{
+    fn from(value: ::std::option::Option<ResourceProvenanceCauseKindWire>) -> Self {
         Self(value)
     }
 }
@@ -16595,6 +23033,46 @@ impl ::std::convert::From<::std::option::Option<SessionInputOriginWire>>
         Self(value)
     }
 }
+#[doc = "`NullableSessionInputStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/SessionInputStateWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableSessionInputStateWire(pub ::std::option::Option<SessionInputStateWire>);
+impl ::std::ops::Deref for NullableSessionInputStateWire {
+    type Target = ::std::option::Option<SessionInputStateWire>;
+    fn deref(&self) -> &::std::option::Option<SessionInputStateWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableSessionInputStateWire>
+    for ::std::option::Option<SessionInputStateWire>
+{
+    fn from(value: NullableSessionInputStateWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<SessionInputStateWire>>
+    for NullableSessionInputStateWire
+{
+    fn from(value: ::std::option::Option<SessionInputStateWire>) -> Self {
+        Self(value)
+    }
+}
 #[doc = "`NullableSessionKindWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -16827,48 +23305,6 @@ impl ::std::convert::From<::std::option::Option<::std::string::String>> for Null
         Self(value)
     }
 }
-#[doc = "`NullableTeamAudienceParticipantIdsWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"oneOf\": ["]
-#[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/TeamAudienceParticipantIdsWire\""]
-#[doc = "    },"]
-#[doc = "    {"]
-#[doc = "      \"type\": \"null\""]
-#[doc = "    }"]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(transparent)]
-pub struct NullableTeamAudienceParticipantIdsWire(
-    pub ::std::option::Option<TeamAudienceParticipantIdsWire>,
-);
-impl ::std::ops::Deref for NullableTeamAudienceParticipantIdsWire {
-    type Target = ::std::option::Option<TeamAudienceParticipantIdsWire>;
-    fn deref(&self) -> &::std::option::Option<TeamAudienceParticipantIdsWire> {
-        &self.0
-    }
-}
-impl ::std::convert::From<NullableTeamAudienceParticipantIdsWire>
-    for ::std::option::Option<TeamAudienceParticipantIdsWire>
-{
-    fn from(value: NullableTeamAudienceParticipantIdsWire) -> Self {
-        value.0
-    }
-}
-impl ::std::convert::From<::std::option::Option<TeamAudienceParticipantIdsWire>>
-    for NullableTeamAudienceParticipantIdsWire
-{
-    fn from(value: ::std::option::Option<TeamAudienceParticipantIdsWire>) -> Self {
-        Self(value)
-    }
-}
 #[doc = "`NullableTeamConversationModeWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -16949,6 +23385,168 @@ impl ::std::convert::From<::std::option::Option<TeamConversationStateWire>>
         Self(value)
     }
 }
+#[doc = "`NullableTeamDeliveryStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamDeliveryStateWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableTeamDeliveryStateWire(pub ::std::option::Option<TeamDeliveryStateWire>);
+impl ::std::ops::Deref for NullableTeamDeliveryStateWire {
+    type Target = ::std::option::Option<TeamDeliveryStateWire>;
+    fn deref(&self) -> &::std::option::Option<TeamDeliveryStateWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableTeamDeliveryStateWire>
+    for ::std::option::Option<TeamDeliveryStateWire>
+{
+    fn from(value: NullableTeamDeliveryStateWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<TeamDeliveryStateWire>>
+    for NullableTeamDeliveryStateWire
+{
+    fn from(value: ::std::option::Option<TeamDeliveryStateWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableTeamDiscussionRoundStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamDiscussionRoundStateWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableTeamDiscussionRoundStateWire(
+    pub ::std::option::Option<TeamDiscussionRoundStateWire>,
+);
+impl ::std::ops::Deref for NullableTeamDiscussionRoundStateWire {
+    type Target = ::std::option::Option<TeamDiscussionRoundStateWire>;
+    fn deref(&self) -> &::std::option::Option<TeamDiscussionRoundStateWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableTeamDiscussionRoundStateWire>
+    for ::std::option::Option<TeamDiscussionRoundStateWire>
+{
+    fn from(value: NullableTeamDiscussionRoundStateWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<TeamDiscussionRoundStateWire>>
+    for NullableTeamDiscussionRoundStateWire
+{
+    fn from(value: ::std::option::Option<TeamDiscussionRoundStateWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableTeamMessageKindWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamMessageKindWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableTeamMessageKindWire(pub ::std::option::Option<TeamMessageKindWire>);
+impl ::std::ops::Deref for NullableTeamMessageKindWire {
+    type Target = ::std::option::Option<TeamMessageKindWire>;
+    fn deref(&self) -> &::std::option::Option<TeamMessageKindWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableTeamMessageKindWire>
+    for ::std::option::Option<TeamMessageKindWire>
+{
+    fn from(value: NullableTeamMessageKindWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<TeamMessageKindWire>>
+    for NullableTeamMessageKindWire
+{
+    fn from(value: ::std::option::Option<TeamMessageKindWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableTeamMessageStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamMessageStateWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableTeamMessageStateWire(pub ::std::option::Option<TeamMessageStateWire>);
+impl ::std::ops::Deref for NullableTeamMessageStateWire {
+    type Target = ::std::option::Option<TeamMessageStateWire>;
+    fn deref(&self) -> &::std::option::Option<TeamMessageStateWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableTeamMessageStateWire>
+    for ::std::option::Option<TeamMessageStateWire>
+{
+    fn from(value: NullableTeamMessageStateWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<TeamMessageStateWire>>
+    for NullableTeamMessageStateWire
+{
+    fn from(value: ::std::option::Option<TeamMessageStateWire>) -> Self {
+        Self(value)
+    }
+}
 #[doc = "`NullableTeamParticipantStateWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -16989,7 +23587,7 @@ impl ::std::convert::From<::std::option::Option<TeamParticipantStateWire>>
         Self(value)
     }
 }
-#[doc = "`NullableTeamTurnKindWire`"]
+#[doc = "`NullableToolActivityEvidenceWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -16997,7 +23595,7 @@ impl ::std::convert::From<::std::option::Option<TeamParticipantStateWire>>
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/TeamTurnKindWire\""]
+#[doc = "      \"$ref\": \"#/$defs/ToolActivityEvidenceWire\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"type\": \"null\""]
@@ -17008,20 +23606,24 @@ impl ::std::convert::From<::std::option::Option<TeamParticipantStateWire>>
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(transparent)]
-pub struct NullableTeamTurnKindWire(pub ::std::option::Option<TeamTurnKindWire>);
-impl ::std::ops::Deref for NullableTeamTurnKindWire {
-    type Target = ::std::option::Option<TeamTurnKindWire>;
-    fn deref(&self) -> &::std::option::Option<TeamTurnKindWire> {
+pub struct NullableToolActivityEvidenceWire(pub ::std::option::Option<ToolActivityEvidenceWire>);
+impl ::std::ops::Deref for NullableToolActivityEvidenceWire {
+    type Target = ::std::option::Option<ToolActivityEvidenceWire>;
+    fn deref(&self) -> &::std::option::Option<ToolActivityEvidenceWire> {
         &self.0
     }
 }
-impl ::std::convert::From<NullableTeamTurnKindWire> for ::std::option::Option<TeamTurnKindWire> {
-    fn from(value: NullableTeamTurnKindWire) -> Self {
+impl ::std::convert::From<NullableToolActivityEvidenceWire>
+    for ::std::option::Option<ToolActivityEvidenceWire>
+{
+    fn from(value: NullableToolActivityEvidenceWire) -> Self {
         value.0
     }
 }
-impl ::std::convert::From<::std::option::Option<TeamTurnKindWire>> for NullableTeamTurnKindWire {
-    fn from(value: ::std::option::Option<TeamTurnKindWire>) -> Self {
+impl ::std::convert::From<::std::option::Option<ToolActivityEvidenceWire>>
+    for NullableToolActivityEvidenceWire
+{
+    fn from(value: ::std::option::Option<ToolActivityEvidenceWire>) -> Self {
         Self(value)
     }
 }
@@ -17062,6 +23664,53 @@ impl ::std::convert::From<::std::option::Option<ToolExecutionStateWire>>
     for NullableToolExecutionStateWire
 {
     fn from(value: ::std::option::Option<ToolExecutionStateWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableToolResultContentWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/ToolResultContentPartWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 64,"]
+#[doc = "      \"minItems\": 1"]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableToolResultContentWire(
+    pub ::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>>,
+);
+impl ::std::ops::Deref for NullableToolResultContentWire {
+    type Target = ::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>>;
+    fn deref(&self) -> &::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableToolResultContentWire>
+    for ::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>>
+{
+    fn from(value: NullableToolResultContentWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>>>
+    for NullableToolResultContentWire
+{
+    fn from(value: ::std::option::Option<::std::vec::Vec<ToolResultContentPartWire>>) -> Self {
         Self(value)
     }
 }
@@ -17185,7 +23834,7 @@ impl ::std::convert::From<::std::option::Option<WorkspaceChangeSetStateWire>>
         Self(value)
     }
 }
-#[doc = "`ObjectiveAttemptStateWire`"]
+#[doc = "`ObjectiveAttemptDispositionWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -17193,11 +23842,172 @@ impl ::std::convert::From<::std::option::Option<WorkspaceChangeSetStateWire>>
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"planned\","]
-#[doc = "    \"running\","]
+#[doc = "    \"continue\","]
+#[doc = "    \"blocked\","]
+#[doc = "    \"succeeded\","]
+#[doc = "    \"failed\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ObjectiveAttemptDispositionWire {
+    #[serde(rename = "continue")]
+    Continue,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "succeeded")]
+    Succeeded,
+    #[serde(rename = "failed")]
+    Failed,
+}
+impl ::std::fmt::Display for ObjectiveAttemptDispositionWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Continue => f.write_str("continue"),
+            Self::Blocked => f.write_str("blocked"),
+            Self::Succeeded => f.write_str("succeeded"),
+            Self::Failed => f.write_str("failed"),
+        }
+    }
+}
+impl ::std::str::FromStr for ObjectiveAttemptDispositionWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "continue" => Ok(Self::Continue),
+            "blocked" => Ok(Self::Blocked),
+            "succeeded" => Ok(Self::Succeeded),
+            "failed" => Ok(Self::Failed),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ObjectiveAttemptDispositionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveAttemptDispositionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ObjectiveAttemptDispositionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ObjectiveAttemptTriggerWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"initial\","]
+#[doc = "    \"automatic_continuation\","]
+#[doc = "    \"user_resume\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ObjectiveAttemptTriggerWire {
+    #[serde(rename = "initial")]
+    Initial,
+    #[serde(rename = "automatic_continuation")]
+    AutomaticContinuation,
+    #[serde(rename = "user_resume")]
+    UserResume,
+}
+impl ::std::fmt::Display for ObjectiveAttemptTriggerWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Initial => f.write_str("initial"),
+            Self::AutomaticContinuation => f.write_str("automatic_continuation"),
+            Self::UserResume => f.write_str("user_resume"),
+        }
+    }
+}
+impl ::std::str::FromStr for ObjectiveAttemptTriggerWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "initial" => Ok(Self::Initial),
+            "automatic_continuation" => Ok(Self::AutomaticContinuation),
+            "user_resume" => Ok(Self::UserResume),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ObjectiveAttemptTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveAttemptTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ObjectiveAttemptTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ObjectiveStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"active\","]
+#[doc = "    \"paused\","]
+#[doc = "    \"blocked\","]
+#[doc = "    \"limit_reached\","]
 #[doc = "    \"succeeded\","]
 #[doc = "    \"failed\","]
-#[doc = "    \"blocked\","]
+#[doc = "    \"cancel_requested\","]
 #[doc = "    \"cancelled\""]
 #[doc = "  ]"]
 #[doc = "}"]
@@ -17215,53 +24025,61 @@ impl ::std::convert::From<::std::option::Option<WorkspaceChangeSetStateWire>>
     PartialEq,
     PartialOrd,
 )]
-pub enum ObjectiveAttemptStateWire {
-    #[serde(rename = "planned")]
-    Planned,
-    #[serde(rename = "running")]
-    Running,
+pub enum ObjectiveStateWire {
+    #[serde(rename = "active")]
+    Active,
+    #[serde(rename = "paused")]
+    Paused,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "limit_reached")]
+    LimitReached,
     #[serde(rename = "succeeded")]
     Succeeded,
     #[serde(rename = "failed")]
     Failed,
-    #[serde(rename = "blocked")]
-    Blocked,
+    #[serde(rename = "cancel_requested")]
+    CancelRequested,
     #[serde(rename = "cancelled")]
     Cancelled,
 }
-impl ::std::fmt::Display for ObjectiveAttemptStateWire {
+impl ::std::fmt::Display for ObjectiveStateWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::Planned => f.write_str("planned"),
-            Self::Running => f.write_str("running"),
+            Self::Active => f.write_str("active"),
+            Self::Paused => f.write_str("paused"),
+            Self::Blocked => f.write_str("blocked"),
+            Self::LimitReached => f.write_str("limit_reached"),
             Self::Succeeded => f.write_str("succeeded"),
             Self::Failed => f.write_str("failed"),
-            Self::Blocked => f.write_str("blocked"),
+            Self::CancelRequested => f.write_str("cancel_requested"),
             Self::Cancelled => f.write_str("cancelled"),
         }
     }
 }
-impl ::std::str::FromStr for ObjectiveAttemptStateWire {
+impl ::std::str::FromStr for ObjectiveStateWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "planned" => Ok(Self::Planned),
-            "running" => Ok(Self::Running),
+            "active" => Ok(Self::Active),
+            "paused" => Ok(Self::Paused),
+            "blocked" => Ok(Self::Blocked),
+            "limit_reached" => Ok(Self::LimitReached),
             "succeeded" => Ok(Self::Succeeded),
             "failed" => Ok(Self::Failed),
-            "blocked" => Ok(Self::Blocked),
+            "cancel_requested" => Ok(Self::CancelRequested),
             "cancelled" => Ok(Self::Cancelled),
             _ => Err("invalid value".into()),
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for ObjectiveAttemptStateWire {
+impl ::std::convert::TryFrom<&str> for ObjectiveStateWire {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveAttemptStateWire {
+impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveStateWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -17269,7 +24087,7 @@ impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveAttemptStateWi
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveAttemptStateWire {
+impl ::std::convert::TryFrom<::std::string::String> for ObjectiveStateWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -17277,290 +24095,37 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveAttemptStateWir
         value.parse()
     }
 }
-#[doc = "`ObjectiveReferenceKindWire`"]
+#[doc = "`ObjectiveStatesWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
 #[doc = r" ```json"]
 #[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"session\","]
-#[doc = "    \"session_input\","]
-#[doc = "    \"session_turn\","]
-#[doc = "    \"scheduler_job\","]
-#[doc = "    \"plan_proposal\","]
-#[doc = "    \"workspace_change_proposal\","]
-#[doc = "    \"delegation_graph\","]
-#[doc = "    \"resource\","]
-#[doc = "    \"context_epoch\""]
-#[doc = "  ]"]
+#[doc = "  \"type\": \"array\","]
+#[doc = "  \"items\": {"]
+#[doc = "    \"$ref\": \"#/$defs/ObjectiveStateWire\""]
+#[doc = "  },"]
+#[doc = "  \"uniqueItems\": true"]
 #[doc = "}"]
 #[doc = r" ```"]
 #[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ObjectiveReferenceKindWire {
-    #[serde(rename = "session")]
-    Session,
-    #[serde(rename = "session_input")]
-    SessionInput,
-    #[serde(rename = "session_turn")]
-    SessionTurn,
-    #[serde(rename = "scheduler_job")]
-    SchedulerJob,
-    #[serde(rename = "plan_proposal")]
-    PlanProposal,
-    #[serde(rename = "workspace_change_proposal")]
-    WorkspaceChangeProposal,
-    #[serde(rename = "delegation_graph")]
-    DelegationGraph,
-    #[serde(rename = "resource")]
-    Resource,
-    #[serde(rename = "context_epoch")]
-    ContextEpoch,
-}
-impl ::std::fmt::Display for ObjectiveReferenceKindWire {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Session => f.write_str("session"),
-            Self::SessionInput => f.write_str("session_input"),
-            Self::SessionTurn => f.write_str("session_turn"),
-            Self::SchedulerJob => f.write_str("scheduler_job"),
-            Self::PlanProposal => f.write_str("plan_proposal"),
-            Self::WorkspaceChangeProposal => f.write_str("workspace_change_proposal"),
-            Self::DelegationGraph => f.write_str("delegation_graph"),
-            Self::Resource => f.write_str("resource"),
-            Self::ContextEpoch => f.write_str("context_epoch"),
-        }
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct ObjectiveStatesWire(pub Vec<ObjectiveStateWire>);
+impl ::std::ops::Deref for ObjectiveStatesWire {
+    type Target = Vec<ObjectiveStateWire>;
+    fn deref(&self) -> &Vec<ObjectiveStateWire> {
+        &self.0
     }
 }
-impl ::std::str::FromStr for ObjectiveReferenceKindWire {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "session" => Ok(Self::Session),
-            "session_input" => Ok(Self::SessionInput),
-            "session_turn" => Ok(Self::SessionTurn),
-            "scheduler_job" => Ok(Self::SchedulerJob),
-            "plan_proposal" => Ok(Self::PlanProposal),
-            "workspace_change_proposal" => Ok(Self::WorkspaceChangeProposal),
-            "delegation_graph" => Ok(Self::DelegationGraph),
-            "resource" => Ok(Self::Resource),
-            "context_epoch" => Ok(Self::ContextEpoch),
-            _ => Err("invalid value".into()),
-        }
+impl ::std::convert::From<ObjectiveStatesWire> for Vec<ObjectiveStateWire> {
+    fn from(value: ObjectiveStatesWire) -> Self {
+        value.0
     }
 }
-impl ::std::convert::TryFrom<&str> for ObjectiveReferenceKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveReferenceKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveReferenceKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ObjectiveRunOperationWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"start\","]
-#[doc = "    \"record_blocked\","]
-#[doc = "    \"mark_succeeded\","]
-#[doc = "    \"mark_failed\","]
-#[doc = "    \"cancel\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ObjectiveRunOperationWire {
-    #[serde(rename = "start")]
-    Start,
-    #[serde(rename = "record_blocked")]
-    RecordBlocked,
-    #[serde(rename = "mark_succeeded")]
-    MarkSucceeded,
-    #[serde(rename = "mark_failed")]
-    MarkFailed,
-    #[serde(rename = "cancel")]
-    Cancel,
-}
-impl ::std::fmt::Display for ObjectiveRunOperationWire {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Start => f.write_str("start"),
-            Self::RecordBlocked => f.write_str("record_blocked"),
-            Self::MarkSucceeded => f.write_str("mark_succeeded"),
-            Self::MarkFailed => f.write_str("mark_failed"),
-            Self::Cancel => f.write_str("cancel"),
-        }
-    }
-}
-impl ::std::str::FromStr for ObjectiveRunOperationWire {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "start" => Ok(Self::Start),
-            "record_blocked" => Ok(Self::RecordBlocked),
-            "mark_succeeded" => Ok(Self::MarkSucceeded),
-            "mark_failed" => Ok(Self::MarkFailed),
-            "cancel" => Ok(Self::Cancel),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ObjectiveRunOperationWire {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveRunOperationWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveRunOperationWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ObjectiveRunStateWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"open\","]
-#[doc = "    \"running\","]
-#[doc = "    \"blocked\","]
-#[doc = "    \"succeeded\","]
-#[doc = "    \"failed\","]
-#[doc = "    \"cancelled\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ObjectiveRunStateWire {
-    #[serde(rename = "open")]
-    Open,
-    #[serde(rename = "running")]
-    Running,
-    #[serde(rename = "blocked")]
-    Blocked,
-    #[serde(rename = "succeeded")]
-    Succeeded,
-    #[serde(rename = "failed")]
-    Failed,
-    #[serde(rename = "cancelled")]
-    Cancelled,
-}
-impl ::std::fmt::Display for ObjectiveRunStateWire {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Open => f.write_str("open"),
-            Self::Running => f.write_str("running"),
-            Self::Blocked => f.write_str("blocked"),
-            Self::Succeeded => f.write_str("succeeded"),
-            Self::Failed => f.write_str("failed"),
-            Self::Cancelled => f.write_str("cancelled"),
-        }
-    }
-}
-impl ::std::str::FromStr for ObjectiveRunStateWire {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "open" => Ok(Self::Open),
-            "running" => Ok(Self::Running),
-            "blocked" => Ok(Self::Blocked),
-            "succeeded" => Ok(Self::Succeeded),
-            "failed" => Ok(Self::Failed),
-            "cancelled" => Ok(Self::Cancelled),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ObjectiveRunStateWire {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveRunStateWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveRunStateWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
+impl ::std::convert::From<Vec<ObjectiveStateWire>> for ObjectiveStatesWire {
+    fn from(value: Vec<ObjectiveStateWire>) -> Self {
+        Self(value)
     }
 }
 #[doc = "`ObjectiveStorageRpcCommand`"]
@@ -17571,28 +24136,37 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveRunStateWire {
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveRunCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/CreateObjectiveCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/GetObjectiveRunCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/GetObjectiveCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ListObjectiveRunsCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/ListObjectivesCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/RecordObjectiveRunOperationCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/PauseObjectiveCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ListObjectiveRunOperationsCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/ResumeObjectiveCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveAttemptCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/AdmitObjectiveAttemptCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ReviewObjectiveAttemptCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RequestObjectiveCancelCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ReconcileObjectiveCancellationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListObjectiveAttemptsCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveVerificationCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/ListObjectiveAttemptReviewsCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListObjectiveVerificationsCommand\""]
@@ -17604,44 +24178,62 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveRunStateWire {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum ObjectiveStorageRpcCommand {
-    PutObjectiveRunCommand(PutObjectiveRunCommand),
-    GetObjectiveRunCommand(GetObjectiveRunCommand),
-    ListObjectiveRunsCommand(ListObjectiveRunsCommand),
-    RecordObjectiveRunOperationCommand(RecordObjectiveRunOperationCommand),
-    ListObjectiveRunOperationsCommand(ListObjectiveRunOperationsCommand),
-    PutObjectiveAttemptCommand(PutObjectiveAttemptCommand),
+    CreateObjectiveCommand(CreateObjectiveCommand),
+    GetObjectiveCommand(GetObjectiveCommand),
+    ListObjectivesCommand(ListObjectivesCommand),
+    PauseObjectiveCommand(PauseObjectiveCommand),
+    ResumeObjectiveCommand(ResumeObjectiveCommand),
+    AdmitObjectiveAttemptCommand(AdmitObjectiveAttemptCommand),
+    ReviewObjectiveAttemptCommand(ReviewObjectiveAttemptCommand),
+    RequestObjectiveCancelCommand(RequestObjectiveCancelCommand),
+    ReconcileObjectiveCancellationCommand(ReconcileObjectiveCancellationCommand),
     ListObjectiveAttemptsCommand(ListObjectiveAttemptsCommand),
-    PutObjectiveVerificationCommand(PutObjectiveVerificationCommand),
+    ListObjectiveAttemptReviewsCommand(ListObjectiveAttemptReviewsCommand),
     ListObjectiveVerificationsCommand(ListObjectiveVerificationsCommand),
 }
-impl ::std::convert::From<PutObjectiveRunCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: PutObjectiveRunCommand) -> Self {
-        Self::PutObjectiveRunCommand(value)
+impl ::std::convert::From<CreateObjectiveCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: CreateObjectiveCommand) -> Self {
+        Self::CreateObjectiveCommand(value)
     }
 }
-impl ::std::convert::From<GetObjectiveRunCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: GetObjectiveRunCommand) -> Self {
-        Self::GetObjectiveRunCommand(value)
+impl ::std::convert::From<GetObjectiveCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: GetObjectiveCommand) -> Self {
+        Self::GetObjectiveCommand(value)
     }
 }
-impl ::std::convert::From<ListObjectiveRunsCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: ListObjectiveRunsCommand) -> Self {
-        Self::ListObjectiveRunsCommand(value)
+impl ::std::convert::From<ListObjectivesCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: ListObjectivesCommand) -> Self {
+        Self::ListObjectivesCommand(value)
     }
 }
-impl ::std::convert::From<RecordObjectiveRunOperationCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: RecordObjectiveRunOperationCommand) -> Self {
-        Self::RecordObjectiveRunOperationCommand(value)
+impl ::std::convert::From<PauseObjectiveCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: PauseObjectiveCommand) -> Self {
+        Self::PauseObjectiveCommand(value)
     }
 }
-impl ::std::convert::From<ListObjectiveRunOperationsCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: ListObjectiveRunOperationsCommand) -> Self {
-        Self::ListObjectiveRunOperationsCommand(value)
+impl ::std::convert::From<ResumeObjectiveCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: ResumeObjectiveCommand) -> Self {
+        Self::ResumeObjectiveCommand(value)
     }
 }
-impl ::std::convert::From<PutObjectiveAttemptCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: PutObjectiveAttemptCommand) -> Self {
-        Self::PutObjectiveAttemptCommand(value)
+impl ::std::convert::From<AdmitObjectiveAttemptCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: AdmitObjectiveAttemptCommand) -> Self {
+        Self::AdmitObjectiveAttemptCommand(value)
+    }
+}
+impl ::std::convert::From<ReviewObjectiveAttemptCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: ReviewObjectiveAttemptCommand) -> Self {
+        Self::ReviewObjectiveAttemptCommand(value)
+    }
+}
+impl ::std::convert::From<RequestObjectiveCancelCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: RequestObjectiveCancelCommand) -> Self {
+        Self::RequestObjectiveCancelCommand(value)
+    }
+}
+impl ::std::convert::From<ReconcileObjectiveCancellationCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: ReconcileObjectiveCancellationCommand) -> Self {
+        Self::ReconcileObjectiveCancellationCommand(value)
     }
 }
 impl ::std::convert::From<ListObjectiveAttemptsCommand> for ObjectiveStorageRpcCommand {
@@ -17649,9 +24241,9 @@ impl ::std::convert::From<ListObjectiveAttemptsCommand> for ObjectiveStorageRpcC
         Self::ListObjectiveAttemptsCommand(value)
     }
 }
-impl ::std::convert::From<PutObjectiveVerificationCommand> for ObjectiveStorageRpcCommand {
-    fn from(value: PutObjectiveVerificationCommand) -> Self {
-        Self::PutObjectiveVerificationCommand(value)
+impl ::std::convert::From<ListObjectiveAttemptReviewsCommand> for ObjectiveStorageRpcCommand {
+    fn from(value: ListObjectiveAttemptReviewsCommand) -> Self {
+        Self::ListObjectiveAttemptReviewsCommand(value)
     }
 }
 impl ::std::convert::From<ListObjectiveVerificationsCommand> for ObjectiveStorageRpcCommand {
@@ -17659,89 +24251,7 @@ impl ::std::convert::From<ListObjectiveVerificationsCommand> for ObjectiveStorag
         Self::ListObjectiveVerificationsCommand(value)
     }
 }
-#[doc = "`ObjectiveVerificationKindWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"script\","]
-#[doc = "    \"model\","]
-#[doc = "    \"human\","]
-#[doc = "    \"runtime\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum ObjectiveVerificationKindWire {
-    #[serde(rename = "script")]
-    Script,
-    #[serde(rename = "model")]
-    Model,
-    #[serde(rename = "human")]
-    Human,
-    #[serde(rename = "runtime")]
-    Runtime,
-}
-impl ::std::fmt::Display for ObjectiveVerificationKindWire {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::Script => f.write_str("script"),
-            Self::Model => f.write_str("model"),
-            Self::Human => f.write_str("human"),
-            Self::Runtime => f.write_str("runtime"),
-        }
-    }
-}
-impl ::std::str::FromStr for ObjectiveVerificationKindWire {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "script" => Ok(Self::Script),
-            "model" => Ok(Self::Model),
-            "human" => Ok(Self::Human),
-            "runtime" => Ok(Self::Runtime),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for ObjectiveVerificationKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveVerificationKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationKindWire {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`ObjectiveVerificationStateWire`"]
+#[doc = "`ObjectiveVerificationResultWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -17769,7 +24279,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationKin
     PartialEq,
     PartialOrd,
 )]
-pub enum ObjectiveVerificationStateWire {
+pub enum ObjectiveVerificationResultWire {
     #[serde(rename = "passed")]
     Passed,
     #[serde(rename = "failed")]
@@ -17779,7 +24289,7 @@ pub enum ObjectiveVerificationStateWire {
     #[serde(rename = "blocked")]
     Blocked,
 }
-impl ::std::fmt::Display for ObjectiveVerificationStateWire {
+impl ::std::fmt::Display for ObjectiveVerificationResultWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Passed => f.write_str("passed"),
@@ -17789,7 +24299,7 @@ impl ::std::fmt::Display for ObjectiveVerificationStateWire {
         }
     }
 }
-impl ::std::str::FromStr for ObjectiveVerificationStateWire {
+impl ::std::str::FromStr for ObjectiveVerificationResultWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
@@ -17801,13 +24311,13 @@ impl ::std::str::FromStr for ObjectiveVerificationStateWire {
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for ObjectiveVerificationStateWire {
+impl ::std::convert::TryFrom<&str> for ObjectiveVerificationResultWire {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveVerificationStateWire {
+impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveVerificationResultWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -17815,12 +24325,781 @@ impl ::std::convert::TryFrom<&::std::string::String> for ObjectiveVerificationSt
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationStateWire {
+impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationResultWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
+    }
+}
+#[doc = "`PauseObjectiveCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"pause-objective\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ChangeObjectiveStateWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PauseObjectiveCommand {
+    pub command: PauseObjectiveCommandCommand,
+    pub request: ChangeObjectiveStateWire,
+}
+#[doc = "`PauseObjectiveCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"pause-objective\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum PauseObjectiveCommandCommand {
+    #[serde(rename = "pause-objective")]
+    PauseObjective,
+}
+impl ::std::fmt::Display for PauseObjectiveCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::PauseObjective => f.write_str("pause-objective"),
+        }
+    }
+}
+impl ::std::str::FromStr for PauseObjectiveCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "pause-objective" => Ok(Self::PauseObjective),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for PauseObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PauseObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PauseObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`PlanProposalContentWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"references\","]
+#[doc = "    \"steps\","]
+#[doc = "    \"summary\","]
+#[doc = "    \"title\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"references\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/PlanProposalReferenceWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 256"]
+#[doc = "    },"]
+#[doc = "    \"steps\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/PlanProposalStepWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 256,"]
+#[doc = "      \"minItems\": 1"]
+#[doc = "    },"]
+#[doc = "    \"summary\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"title\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposalContentWire {
+    pub references: ::std::vec::Vec<PlanProposalReferenceWire>,
+    pub steps: ::std::vec::Vec<PlanProposalStepWire>,
+    pub summary: PlanProposalContentWireSummary,
+    pub title: PlanProposalContentWireTitle,
+}
+#[doc = "`PlanProposalContentWireSummary`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalContentWireSummary(::std::string::String);
+impl ::std::ops::Deref for PlanProposalContentWireSummary {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalContentWireSummary> for ::std::string::String {
+    fn from(value: PlanProposalContentWireSummary) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalContentWireSummary {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalContentWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalContentWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalContentWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalContentWireSummary {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalContentWireTitle`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalContentWireTitle(::std::string::String);
+impl ::std::ops::Deref for PlanProposalContentWireTitle {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalContentWireTitle> for ::std::string::String {
+    fn from(value: PlanProposalContentWireTitle) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalContentWireTitle {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalContentWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalContentWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalContentWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalContentWireTitle {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"endpoint_digest\","]
+#[doc = "    \"endpoint_id\","]
+#[doc = "    \"generated_at\","]
+#[doc = "    \"model_id\","]
+#[doc = "    \"output\","]
+#[doc = "    \"output_digest\","]
+#[doc = "    \"protocol_id\","]
+#[doc = "    \"provider_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"endpoint_digest\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"endpoint_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"generated_at\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 0.0"]
+#[doc = "    },"]
+#[doc = "    \"model_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"output\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"output_digest\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"protocol_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"provider_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposalGenerationWire {
+    pub endpoint_digest: PlanProposalGenerationWireEndpointDigest,
+    pub endpoint_id: PlanProposalGenerationWireEndpointId,
+    pub generated_at: u64,
+    pub model_id: PlanProposalGenerationWireModelId,
+    pub output: ::serde_json::Value,
+    pub output_digest: PlanProposalGenerationWireOutputDigest,
+    pub protocol_id: PlanProposalGenerationWireProtocolId,
+    pub provider_id: PlanProposalGenerationWireProviderId,
+}
+#[doc = "`PlanProposalGenerationWireEndpointDigest`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireEndpointDigest(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireEndpointDigest {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireEndpointDigest> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireEndpointDigest) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireEndpointDigest {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireEndpointDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireEndpointDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireEndpointDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireEndpointDigest {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWireEndpointId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireEndpointId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireEndpointId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireEndpointId> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireEndpointId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireEndpointId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireEndpointId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireEndpointId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireEndpointId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireEndpointId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWireModelId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireModelId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireModelId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireModelId> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireModelId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireModelId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireModelId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireModelId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireModelId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireModelId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWireOutputDigest`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireOutputDigest(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireOutputDigest {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireOutputDigest> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireOutputDigest) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireOutputDigest {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireOutputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireOutputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireOutputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireOutputDigest {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWireProtocolId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireProtocolId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireProtocolId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireProtocolId> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireProtocolId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireProtocolId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireProtocolId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireProtocolId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireProtocolId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireProtocolId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalGenerationWireProviderId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalGenerationWireProviderId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalGenerationWireProviderId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalGenerationWireProviderId> for ::std::string::String {
+    fn from(value: PlanProposalGenerationWireProviderId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalGenerationWireProviderId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalGenerationWireProviderId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalGenerationWireProviderId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalGenerationWireProviderId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalGenerationWireProviderId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
     }
 }
 #[doc = "`PlanProposalOperationWire`"]
@@ -17831,12 +25110,10 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationSta
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
+#[doc = "    \"revise\","]
 #[doc = "    \"approve\","]
 #[doc = "    \"reject\","]
-#[doc = "    \"withdraw\","]
-#[doc = "    \"request_execution\","]
-#[doc = "    \"mark_executed\","]
-#[doc = "    \"mark_execution_failed\""]
+#[doc = "    \"withdraw\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -17854,28 +25131,22 @@ impl ::std::convert::TryFrom<::std::string::String> for ObjectiveVerificationSta
     PartialOrd,
 )]
 pub enum PlanProposalOperationWire {
+    #[serde(rename = "revise")]
+    Revise,
     #[serde(rename = "approve")]
     Approve,
     #[serde(rename = "reject")]
     Reject,
     #[serde(rename = "withdraw")]
     Withdraw,
-    #[serde(rename = "request_execution")]
-    RequestExecution,
-    #[serde(rename = "mark_executed")]
-    MarkExecuted,
-    #[serde(rename = "mark_execution_failed")]
-    MarkExecutionFailed,
 }
 impl ::std::fmt::Display for PlanProposalOperationWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
+            Self::Revise => f.write_str("revise"),
             Self::Approve => f.write_str("approve"),
             Self::Reject => f.write_str("reject"),
             Self::Withdraw => f.write_str("withdraw"),
-            Self::RequestExecution => f.write_str("request_execution"),
-            Self::MarkExecuted => f.write_str("mark_executed"),
-            Self::MarkExecutionFailed => f.write_str("mark_execution_failed"),
         }
     }
 }
@@ -17883,12 +25154,10 @@ impl ::std::str::FromStr for PlanProposalOperationWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
+            "revise" => Ok(Self::Revise),
             "approve" => Ok(Self::Approve),
             "reject" => Ok(Self::Reject),
             "withdraw" => Ok(Self::Withdraw),
-            "request_execution" => Ok(Self::RequestExecution),
-            "mark_executed" => Ok(Self::MarkExecuted),
-            "mark_execution_failed" => Ok(Self::MarkExecutionFailed),
             _ => Err("invalid value".into()),
         }
     }
@@ -17915,6 +25184,307 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanProposalOperationWir
         value.parse()
     }
 }
+#[doc = "`PlanProposalReferenceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"metadata\","]
+#[doc = "    \"reference_id\","]
+#[doc = "    \"role\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PlanReferenceKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"metadata\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"reference_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"role\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposalReferenceWire {
+    pub kind: PlanReferenceKindWire,
+    pub metadata: ::serde_json::Value,
+    pub reference_id: PlanProposalReferenceWireReferenceId,
+    pub role: NullableString,
+}
+#[doc = "`PlanProposalReferenceWireReferenceId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalReferenceWireReferenceId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalReferenceWireReferenceId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalReferenceWireReferenceId> for ::std::string::String {
+    fn from(value: PlanProposalReferenceWireReferenceId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalReferenceWireReferenceId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalReferenceWireReferenceId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalReferenceWireReferenceId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalReferenceWireReferenceId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalReferenceWireReferenceId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalSourceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"analysis_input_digest\","]
+#[doc = "    \"head_message_id\","]
+#[doc = "    \"head_sequence\","]
+#[doc = "    \"head_turn_id\","]
+#[doc = "    \"planning_request\","]
+#[doc = "    \"session_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"analysis_input_digest\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"head_message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"head_sequence\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 0.0"]
+#[doc = "    },"]
+#[doc = "    \"head_turn_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"planning_request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposalSourceWire {
+    pub analysis_input_digest: PlanProposalSourceWireAnalysisInputDigest,
+    pub head_message_id: NullableString,
+    pub head_sequence: u64,
+    pub head_turn_id: NullableString,
+    pub planning_request: ::serde_json::Value,
+    pub session_id: PlanProposalSourceWireSessionId,
+}
+#[doc = "`PlanProposalSourceWireAnalysisInputDigest`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalSourceWireAnalysisInputDigest(::std::string::String);
+impl ::std::ops::Deref for PlanProposalSourceWireAnalysisInputDigest {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalSourceWireAnalysisInputDigest> for ::std::string::String {
+    fn from(value: PlanProposalSourceWireAnalysisInputDigest) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalSourceWireAnalysisInputDigest {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalSourceWireAnalysisInputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalSourceWireAnalysisInputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalSourceWireAnalysisInputDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalSourceWireAnalysisInputDigest {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalSourceWireSessionId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalSourceWireSessionId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalSourceWireSessionId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalSourceWireSessionId> for ::std::string::String {
+    fn from(value: PlanProposalSourceWireSessionId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalSourceWireSessionId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalSourceWireSessionId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalSourceWireSessionId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalSourceWireSessionId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalSourceWireSessionId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 #[doc = "`PlanProposalStateWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -17926,10 +25496,7 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanProposalOperationWir
 #[doc = "    \"open\","]
 #[doc = "    \"approved\","]
 #[doc = "    \"rejected\","]
-#[doc = "    \"withdrawn\","]
-#[doc = "    \"execution_requested\","]
-#[doc = "    \"executed\","]
-#[doc = "    \"execution_failed\""]
+#[doc = "    \"withdrawn\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -17955,12 +25522,6 @@ pub enum PlanProposalStateWire {
     Rejected,
     #[serde(rename = "withdrawn")]
     Withdrawn,
-    #[serde(rename = "execution_requested")]
-    ExecutionRequested,
-    #[serde(rename = "executed")]
-    Executed,
-    #[serde(rename = "execution_failed")]
-    ExecutionFailed,
 }
 impl ::std::fmt::Display for PlanProposalStateWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
@@ -17969,9 +25530,6 @@ impl ::std::fmt::Display for PlanProposalStateWire {
             Self::Approved => f.write_str("approved"),
             Self::Rejected => f.write_str("rejected"),
             Self::Withdrawn => f.write_str("withdrawn"),
-            Self::ExecutionRequested => f.write_str("execution_requested"),
-            Self::Executed => f.write_str("executed"),
-            Self::ExecutionFailed => f.write_str("execution_failed"),
         }
     }
 }
@@ -17983,9 +25541,6 @@ impl ::std::str::FromStr for PlanProposalStateWire {
             "approved" => Ok(Self::Approved),
             "rejected" => Ok(Self::Rejected),
             "withdrawn" => Ok(Self::Withdrawn),
-            "execution_requested" => Ok(Self::ExecutionRequested),
-            "executed" => Ok(Self::Executed),
-            "execution_failed" => Ok(Self::ExecutionFailed),
             _ => Err("invalid value".into()),
         }
     }
@@ -18012,6 +25567,183 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanProposalStateWire {
         value.parse()
     }
 }
+#[doc = "`PlanProposalStepWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"detail\","]
+#[doc = "    \"id\","]
+#[doc = "    \"metadata\","]
+#[doc = "    \"title\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"detail\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"metadata\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"title\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PlanProposalStepWire {
+    pub detail: NullableString,
+    pub id: PlanProposalStepWireId,
+    pub metadata: ::serde_json::Value,
+    pub title: PlanProposalStepWireTitle,
+}
+#[doc = "`PlanProposalStepWireId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalStepWireId(::std::string::String);
+impl ::std::ops::Deref for PlanProposalStepWireId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalStepWireId> for ::std::string::String {
+    fn from(value: PlanProposalStepWireId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalStepWireId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalStepWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalStepWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalStepWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalStepWireId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`PlanProposalStepWireTitle`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct PlanProposalStepWireTitle(::std::string::String);
+impl ::std::ops::Deref for PlanProposalStepWireTitle {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<PlanProposalStepWireTitle> for ::std::string::String {
+    fn from(value: PlanProposalStepWireTitle) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for PlanProposalStepWireTitle {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for PlanProposalStepWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PlanProposalStepWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PlanProposalStepWireTitle {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for PlanProposalStepWireTitle {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 #[doc = "`PlanReferenceKindWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -18020,10 +25752,6 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanProposalStateWire {
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"session\","]
-#[doc = "    \"session_input\","]
-#[doc = "    \"session_turn\","]
-#[doc = "    \"scheduler_job\","]
 #[doc = "    \"workspace_change_proposal\","]
 #[doc = "    \"delegation_graph\","]
 #[doc = "    \"delegation_graph_node\","]
@@ -18047,14 +25775,6 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanProposalStateWire {
     PartialOrd,
 )]
 pub enum PlanReferenceKindWire {
-    #[serde(rename = "session")]
-    Session,
-    #[serde(rename = "session_input")]
-    SessionInput,
-    #[serde(rename = "session_turn")]
-    SessionTurn,
-    #[serde(rename = "scheduler_job")]
-    SchedulerJob,
     #[serde(rename = "workspace_change_proposal")]
     WorkspaceChangeProposal,
     #[serde(rename = "delegation_graph")]
@@ -18071,10 +25791,6 @@ pub enum PlanReferenceKindWire {
 impl ::std::fmt::Display for PlanReferenceKindWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::Session => f.write_str("session"),
-            Self::SessionInput => f.write_str("session_input"),
-            Self::SessionTurn => f.write_str("session_turn"),
-            Self::SchedulerJob => f.write_str("scheduler_job"),
             Self::WorkspaceChangeProposal => f.write_str("workspace_change_proposal"),
             Self::DelegationGraph => f.write_str("delegation_graph"),
             Self::DelegationGraphNode => f.write_str("delegation_graph_node"),
@@ -18088,10 +25804,6 @@ impl ::std::str::FromStr for PlanReferenceKindWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "session" => Ok(Self::Session),
-            "session_input" => Ok(Self::SessionInput),
-            "session_turn" => Ok(Self::SessionTurn),
-            "scheduler_job" => Ok(Self::SchedulerJob),
             "workspace_change_proposal" => Ok(Self::WorkspaceChangeProposal),
             "delegation_graph" => Ok(Self::DelegationGraph),
             "delegation_graph_node" => Ok(Self::DelegationGraphNode),
@@ -18132,7 +25844,7 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanReferenceKindWire {
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/PutPlanProposalCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/CreatePlanProposalCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/GetPlanProposalCommand\""]
@@ -18144,6 +25856,9 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanReferenceKindWire {
 #[doc = "      \"$ref\": \"#/$defs/RecordPlanProposalOperationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ExecuteApprovedPlanCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListPlanProposalOperationsCommand\""]
 #[doc = "    }"]
 #[doc = "  ]"]
@@ -18153,15 +25868,16 @@ impl ::std::convert::TryFrom<::std::string::String> for PlanReferenceKindWire {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum PlanStorageRpcCommand {
-    PutPlanProposalCommand(PutPlanProposalCommand),
+    CreatePlanProposalCommand(CreatePlanProposalCommand),
     GetPlanProposalCommand(GetPlanProposalCommand),
     ListPlanProposalsCommand(ListPlanProposalsCommand),
     RecordPlanProposalOperationCommand(RecordPlanProposalOperationCommand),
+    ExecuteApprovedPlanCommand(ExecuteApprovedPlanCommand),
     ListPlanProposalOperationsCommand(ListPlanProposalOperationsCommand),
 }
-impl ::std::convert::From<PutPlanProposalCommand> for PlanStorageRpcCommand {
-    fn from(value: PutPlanProposalCommand) -> Self {
-        Self::PutPlanProposalCommand(value)
+impl ::std::convert::From<CreatePlanProposalCommand> for PlanStorageRpcCommand {
+    fn from(value: CreatePlanProposalCommand) -> Self {
+        Self::CreatePlanProposalCommand(value)
     }
 }
 impl ::std::convert::From<GetPlanProposalCommand> for PlanStorageRpcCommand {
@@ -18177,6 +25893,11 @@ impl ::std::convert::From<ListPlanProposalsCommand> for PlanStorageRpcCommand {
 impl ::std::convert::From<RecordPlanProposalOperationCommand> for PlanStorageRpcCommand {
     fn from(value: RecordPlanProposalOperationCommand) -> Self {
         Self::RecordPlanProposalOperationCommand(value)
+    }
+}
+impl ::std::convert::From<ExecuteApprovedPlanCommand> for PlanStorageRpcCommand {
+    fn from(value: ExecuteApprovedPlanCommand) -> Self {
+        Self::ExecuteApprovedPlanCommand(value)
     }
 }
 impl ::std::convert::From<ListPlanProposalOperationsCommand> for PlanStorageRpcCommand {
@@ -18512,6 +26233,9 @@ impl ::std::convert::TryFrom<::std::string::String> for PluginManifestStateWire 
 #[doc = "      \"$ref\": \"#/$defs/PutPluginInstallCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ActivatePluginInstallCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/GetPluginInstallCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
@@ -18522,6 +26246,9 @@ impl ::std::convert::TryFrom<::std::string::String> for PluginManifestStateWire 
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/UpdatePluginManifestStateCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetPluginActionExecutionAdmissionCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/SubmitPluginActionCommand\""]
@@ -18537,10 +26264,12 @@ pub enum PluginStorageRpcCommand {
     GetPluginManifestCommand(GetPluginManifestCommand),
     ListPluginManifestsCommand(ListPluginManifestsCommand),
     PutPluginInstallCommand(PutPluginInstallCommand),
+    ActivatePluginInstallCommand(ActivatePluginInstallCommand),
     GetPluginInstallCommand(GetPluginInstallCommand),
     ListPluginInstallsCommand(ListPluginInstallsCommand),
     UpdatePluginInstallStateCommand(UpdatePluginInstallStateCommand),
     UpdatePluginManifestStateCommand(UpdatePluginManifestStateCommand),
+    GetPluginActionExecutionAdmissionCommand(GetPluginActionExecutionAdmissionCommand),
     SubmitPluginActionCommand(SubmitPluginActionCommand),
 }
 impl ::std::convert::From<PutPluginManifestCommand> for PluginStorageRpcCommand {
@@ -18563,6 +26292,11 @@ impl ::std::convert::From<PutPluginInstallCommand> for PluginStorageRpcCommand {
         Self::PutPluginInstallCommand(value)
     }
 }
+impl ::std::convert::From<ActivatePluginInstallCommand> for PluginStorageRpcCommand {
+    fn from(value: ActivatePluginInstallCommand) -> Self {
+        Self::ActivatePluginInstallCommand(value)
+    }
+}
 impl ::std::convert::From<GetPluginInstallCommand> for PluginStorageRpcCommand {
     fn from(value: GetPluginInstallCommand) -> Self {
         Self::GetPluginInstallCommand(value)
@@ -18581,6 +26315,11 @@ impl ::std::convert::From<UpdatePluginInstallStateCommand> for PluginStorageRpcC
 impl ::std::convert::From<UpdatePluginManifestStateCommand> for PluginStorageRpcCommand {
     fn from(value: UpdatePluginManifestStateCommand) -> Self {
         Self::UpdatePluginManifestStateCommand(value)
+    }
+}
+impl ::std::convert::From<GetPluginActionExecutionAdmissionCommand> for PluginStorageRpcCommand {
+    fn from(value: GetPluginActionExecutionAdmissionCommand) -> Self {
+        Self::GetPluginActionExecutionAdmissionCommand(value)
     }
 }
 impl ::std::convert::From<SubmitPluginActionCommand> for PluginStorageRpcCommand {
@@ -18730,6 +26469,144 @@ pub struct ProjectChannelInboundEventWire {
     pub inbound_event_id: ::std::string::String,
     pub metadata: ::serde_json::Value,
     pub target: ::serde_json::Value,
+}
+#[doc = "`ProjectTeamDeliveryOutcomeCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"project-team-delivery-outcome\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ProjectTeamDeliveryOutcomeWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTeamDeliveryOutcomeCommand {
+    pub command: ProjectTeamDeliveryOutcomeCommandCommand,
+    pub request: ProjectTeamDeliveryOutcomeWire,
+}
+#[doc = "`ProjectTeamDeliveryOutcomeCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"project-team-delivery-outcome\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ProjectTeamDeliveryOutcomeCommandCommand {
+    #[serde(rename = "project-team-delivery-outcome")]
+    ProjectTeamDeliveryOutcome,
+}
+impl ::std::fmt::Display for ProjectTeamDeliveryOutcomeCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ProjectTeamDeliveryOutcome => f.write_str("project-team-delivery-outcome"),
+        }
+    }
+}
+impl ::std::str::FromStr for ProjectTeamDeliveryOutcomeCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "project-team-delivery-outcome" => Ok(Self::ProjectTeamDeliveryOutcome),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ProjectTeamDeliveryOutcomeCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ProjectTeamDeliveryOutcomeCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ProjectTeamDeliveryOutcomeCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ProjectTeamDeliveryOutcomeWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"delivery_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"outcome_job_id\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"delivery_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"outcome_job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectTeamDeliveryOutcomeWire {
+    pub delivery_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub outcome_job_id: ::std::string::String,
+    pub worker_id: ::std::string::String,
 }
 #[doc = "`ProviderInvocationStateWire`"]
 #[doc = r""]
@@ -18928,7 +26805,6 @@ impl ::std::convert::TryFrom<::std::string::String> for PruneContextEpochsComman
 #[doc = "    \"dry_run\","]
 #[doc = "    \"keep_last_superseded\","]
 #[doc = "    \"older_than_updated_at\","]
-#[doc = "    \"policy_version\","]
 #[doc = "    \"session_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
@@ -18940,9 +26816,6 @@ impl ::std::convert::TryFrom<::std::string::String> for PruneContextEpochsComman
 #[doc = "    },"]
 #[doc = "    \"older_than_updated_at\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
@@ -18958,7 +26831,6 @@ pub struct PruneContextEpochsWire {
     pub dry_run: NullableBoolean,
     pub keep_last_superseded: NullableInteger,
     pub older_than_updated_at: NullableInteger,
-    pub policy_version: ::std::string::String,
     pub session_id: ::std::string::String,
 }
 #[doc = "`PutChannelBindingCommand`"]
@@ -19524,342 +27396,6 @@ pub struct PutConnectorRegistrationWire {
     pub plugin_id: ::std::string::String,
     pub version: NullableString,
 }
-#[doc = "`PutContextEpochCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-context-epoch\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutContextEpochWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutContextEpochCommand {
-    pub command: PutContextEpochCommandCommand,
-    pub request: PutContextEpochWire,
-}
-#[doc = "`PutContextEpochCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-context-epoch\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutContextEpochCommandCommand {
-    #[serde(rename = "put-context-epoch")]
-    PutContextEpoch,
-}
-impl ::std::fmt::Display for PutContextEpochCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutContextEpoch => f.write_str("put-context-epoch"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutContextEpochCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-context-epoch" => Ok(Self::PutContextEpoch),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutContextEpochCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutContextEpochWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"id\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"policy_version\","]
-#[doc = "    \"replacement_count\","]
-#[doc = "    \"session_id\","]
-#[doc = "    \"state\","]
-#[doc = "    \"token_estimate_after\","]
-#[doc = "    \"token_estimate_before\","]
-#[doc = "    \"token_savings\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"replacement_count\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"session_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableContextEpochStateWire\""]
-#[doc = "    },"]
-#[doc = "    \"token_estimate_after\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"token_estimate_before\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"token_savings\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutContextEpochWire {
-    pub id: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub policy_version: ::std::string::String,
-    pub replacement_count: NullableInteger,
-    pub session_id: ::std::string::String,
-    pub state: NullableContextEpochStateWire,
-    pub token_estimate_after: NullableInteger,
-    pub token_estimate_before: NullableInteger,
-    pub token_savings: NullableInteger,
-}
-#[doc = "`PutContextReplacementCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-context-replacement\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutContextReplacementWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutContextReplacementCommand {
-    pub command: PutContextReplacementCommandCommand,
-    pub request: PutContextReplacementWire,
-}
-#[doc = "`PutContextReplacementCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-context-replacement\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutContextReplacementCommandCommand {
-    #[serde(rename = "put-context-replacement")]
-    PutContextReplacement,
-}
-impl ::std::fmt::Display for PutContextReplacementCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutContextReplacement => f.write_str("put-context-replacement"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutContextReplacementCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-context-replacement" => Ok(Self::PutContextReplacement),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutContextReplacementCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutContextReplacementCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutContextReplacementCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutContextReplacementWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"epoch_id\","]
-#[doc = "    \"id\","]
-#[doc = "    \"message_id\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"original_token_estimate\","]
-#[doc = "    \"part_id\","]
-#[doc = "    \"policy_version\","]
-#[doc = "    \"replacement\","]
-#[doc = "    \"replacement_token_estimate\","]
-#[doc = "    \"session_id\","]
-#[doc = "    \"tier\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"epoch_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"message_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"original_token_estimate\": {"]
-#[doc = "      \"type\": \"integer\""]
-#[doc = "    },"]
-#[doc = "    \"part_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"policy_version\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"replacement\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"replacement_token_estimate\": {"]
-#[doc = "      \"type\": \"integer\""]
-#[doc = "    },"]
-#[doc = "    \"session_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"tier\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ContextReplacementTierWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutContextReplacementWire {
-    pub epoch_id: ::std::string::String,
-    pub id: NullableString,
-    pub message_id: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub original_token_estimate: i64,
-    pub part_id: ::std::string::String,
-    pub policy_version: ::std::string::String,
-    pub replacement: ::serde_json::Value,
-    pub replacement_token_estimate: i64,
-    pub session_id: ::std::string::String,
-    pub tier: ContextReplacementTierWire,
-}
 #[doc = "`PutDelegationGraphCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -20299,708 +27835,6 @@ pub struct PutDelegationGraphWire {
     pub idempotency_key: NullableString,
     pub metadata: ::serde_json::Value,
     pub principal_id: ::std::string::String,
-    pub title: NullableString,
-}
-#[doc = "`PutObjectiveAttemptCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-objective-attempt\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveAttemptWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveAttemptCommand {
-    pub command: PutObjectiveAttemptCommandCommand,
-    pub request: PutObjectiveAttemptWire,
-}
-#[doc = "`PutObjectiveAttemptCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-objective-attempt\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutObjectiveAttemptCommandCommand {
-    #[serde(rename = "put-objective-attempt")]
-    PutObjectiveAttempt,
-}
-impl ::std::fmt::Display for PutObjectiveAttemptCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutObjectiveAttempt => f.write_str("put-objective-attempt"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutObjectiveAttemptCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-objective-attempt" => Ok(Self::PutObjectiveAttempt),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutObjectiveAttemptCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutObjectiveAttemptCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutObjectiveAttemptCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutObjectiveAttemptWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"attempt_number\","]
-#[doc = "    \"delegation_graph_id\","]
-#[doc = "    \"error\","]
-#[doc = "    \"finished_at\","]
-#[doc = "    \"id\","]
-#[doc = "    \"idempotency_key\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"objective_id\","]
-#[doc = "    \"plan_proposal_id\","]
-#[doc = "    \"result\","]
-#[doc = "    \"scheduler_job_id\","]
-#[doc = "    \"session_id\","]
-#[doc = "    \"session_input_id\","]
-#[doc = "    \"session_turn_id\","]
-#[doc = "    \"started_at\","]
-#[doc = "    \"state\","]
-#[doc = "    \"summary\","]
-#[doc = "    \"workspace_change_proposal_id\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"attempt_number\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"delegation_graph_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"error\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"finished_at\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"idempotency_key\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"objective_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"plan_proposal_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"result\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"scheduler_job_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"session_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"session_input_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"session_turn_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"started_at\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
-#[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableObjectiveAttemptStateWire\""]
-#[doc = "    },"]
-#[doc = "    \"summary\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"workspace_change_proposal_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveAttemptWire {
-    pub attempt_number: NullableInteger,
-    pub delegation_graph_id: NullableString,
-    pub error: ::serde_json::Value,
-    pub finished_at: NullableInteger,
-    pub id: NullableString,
-    pub idempotency_key: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub objective_id: ::std::string::String,
-    pub plan_proposal_id: NullableString,
-    pub result: ::serde_json::Value,
-    pub scheduler_job_id: NullableString,
-    pub session_id: NullableString,
-    pub session_input_id: NullableString,
-    pub session_turn_id: NullableString,
-    pub started_at: NullableInteger,
-    pub state: NullableObjectiveAttemptStateWire,
-    pub summary: NullableString,
-    pub workspace_change_proposal_id: NullableString,
-}
-#[doc = "`PutObjectiveRunCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-objective-run\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveRunWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveRunCommand {
-    pub command: PutObjectiveRunCommandCommand,
-    pub request: PutObjectiveRunWire,
-}
-#[doc = "`PutObjectiveRunCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-objective-run\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutObjectiveRunCommandCommand {
-    #[serde(rename = "put-objective-run")]
-    PutObjectiveRun,
-}
-impl ::std::fmt::Display for PutObjectiveRunCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutObjectiveRun => f.write_str("put-objective-run"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutObjectiveRunCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-objective-run" => Ok(Self::PutObjectiveRun),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutObjectiveRunCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutObjectiveRunCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutObjectiveRunCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutObjectiveRunWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"constraints\","]
-#[doc = "    \"id\","]
-#[doc = "    \"idempotency_key\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"objective\","]
-#[doc = "    \"principal_id\","]
-#[doc = "    \"references\","]
-#[doc = "    \"scope\","]
-#[doc = "    \"stop_policy\","]
-#[doc = "    \"success_criteria\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"constraints\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"idempotency_key\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"objective\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"principal_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"references\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"scope\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"stop_policy\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"success_criteria\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveRunWire {
-    pub constraints: ::serde_json::Value,
-    pub id: NullableString,
-    pub idempotency_key: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub objective: ::std::string::String,
-    pub principal_id: ::std::string::String,
-    pub references: ::serde_json::Value,
-    pub scope: NullableString,
-    pub stop_policy: ::serde_json::Value,
-    pub success_criteria: ::serde_json::Value,
-}
-#[doc = "`PutObjectiveVerificationCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-objective-verification\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutObjectiveVerificationWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveVerificationCommand {
-    pub command: PutObjectiveVerificationCommandCommand,
-    pub request: PutObjectiveVerificationWire,
-}
-#[doc = "`PutObjectiveVerificationCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-objective-verification\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutObjectiveVerificationCommandCommand {
-    #[serde(rename = "put-objective-verification")]
-    PutObjectiveVerification,
-}
-impl ::std::fmt::Display for PutObjectiveVerificationCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutObjectiveVerification => f.write_str("put-objective-verification"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutObjectiveVerificationCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-objective-verification" => Ok(Self::PutObjectiveVerification),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutObjectiveVerificationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutObjectiveVerificationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutObjectiveVerificationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutObjectiveVerificationWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"attempt_id\","]
-#[doc = "    \"evidence\","]
-#[doc = "    \"id\","]
-#[doc = "    \"idempotency_key\","]
-#[doc = "    \"kind\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"objective_id\","]
-#[doc = "    \"reason\","]
-#[doc = "    \"state\","]
-#[doc = "    \"verifier_ref\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"attempt_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"evidence\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"idempotency_key\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"kind\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveVerificationKindWire\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"objective_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"reason\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"state\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveVerificationStateWire\""]
-#[doc = "    },"]
-#[doc = "    \"verifier_ref\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutObjectiveVerificationWire {
-    pub attempt_id: NullableString,
-    pub evidence: ::serde_json::Value,
-    pub id: NullableString,
-    pub idempotency_key: NullableString,
-    pub kind: ObjectiveVerificationKindWire,
-    pub metadata: ::serde_json::Value,
-    pub objective_id: ::std::string::String,
-    pub reason: NullableString,
-    pub state: ObjectiveVerificationStateWire,
-    pub verifier_ref: NullableString,
-}
-#[doc = "`PutPlanProposalCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"put-plan-proposal\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/PutPlanProposalWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutPlanProposalCommand {
-    pub command: PutPlanProposalCommandCommand,
-    pub request: PutPlanProposalWire,
-}
-#[doc = "`PutPlanProposalCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"put-plan-proposal\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum PutPlanProposalCommandCommand {
-    #[serde(rename = "put-plan-proposal")]
-    PutPlanProposal,
-}
-impl ::std::fmt::Display for PutPlanProposalCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::PutPlanProposal => f.write_str("put-plan-proposal"),
-        }
-    }
-}
-impl ::std::str::FromStr for PutPlanProposalCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "put-plan-proposal" => Ok(Self::PutPlanProposal),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for PutPlanProposalCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for PutPlanProposalCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for PutPlanProposalCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`PutPlanProposalWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"id\","]
-#[doc = "    \"idempotency_key\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"principal_id\","]
-#[doc = "    \"references\","]
-#[doc = "    \"steps\","]
-#[doc = "    \"summary\","]
-#[doc = "    \"title\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"idempotency_key\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"principal_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"references\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"steps\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"summary\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"title\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct PutPlanProposalWire {
-    pub id: NullableString,
-    pub idempotency_key: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub principal_id: ::std::string::String,
-    pub references: ::serde_json::Value,
-    pub steps: ::serde_json::Value,
-    pub summary: NullableString,
     pub title: NullableString,
 }
 #[doc = "`PutPluginInstallCommand`"]
@@ -21574,6 +28408,7 @@ impl ::std::convert::TryFrom<::std::string::String> for PutTeamParticipantComman
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"agent_session_id\","]
 #[doc = "    \"conversation_id\","]
 #[doc = "    \"display_name\","]
 #[doc = "    \"id\","]
@@ -21584,6 +28419,9 @@ impl ::std::convert::TryFrom<::std::string::String> for PutTeamParticipantComman
 #[doc = "    \"role\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"agent_session_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
 #[doc = "    \"conversation_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
@@ -21616,6 +28454,7 @@ impl ::std::convert::TryFrom<::std::string::String> for PutTeamParticipantComman
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct PutTeamParticipantWire {
+    pub agent_session_id: NullableString,
     pub conversation_id: ::std::string::String,
     pub display_name: NullableString,
     pub id: NullableString,
@@ -22324,6 +29163,286 @@ impl<'de> ::serde::Deserialize<'de> for ReadResourceContentCommandResourceId {
             })
     }
 }
+#[doc = "`ReadTeamConversationPageCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"read-team-conversation-page\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ReadTeamConversationPageWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadTeamConversationPageCommand {
+    pub command: ReadTeamConversationPageCommandCommand,
+    pub request: ReadTeamConversationPageWire,
+}
+#[doc = "`ReadTeamConversationPageCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"read-team-conversation-page\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ReadTeamConversationPageCommandCommand {
+    #[serde(rename = "read-team-conversation-page")]
+    ReadTeamConversationPage,
+}
+impl ::std::fmt::Display for ReadTeamConversationPageCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ReadTeamConversationPage => f.write_str("read-team-conversation-page"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReadTeamConversationPageCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "read-team-conversation-page" => Ok(Self::ReadTeamConversationPage),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReadTeamConversationPageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ReadTeamConversationPageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ReadTeamConversationPageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ReadTeamConversationPageWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"before_created_at\","]
+#[doc = "    \"before_message_id\","]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"limit\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"before_created_at\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"before_message_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"limit\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReadTeamConversationPageWire {
+    pub before_created_at: NullableInteger,
+    pub before_message_id: NullableString,
+    pub conversation_id: ::std::string::String,
+    pub limit: NullableInteger,
+}
+#[doc = "`ReconcileObjectiveCancellationCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"reconcile-objective-cancellation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ReconcileObjectiveCancellationWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReconcileObjectiveCancellationCommand {
+    pub command: ReconcileObjectiveCancellationCommandCommand,
+    pub request: ReconcileObjectiveCancellationWire,
+}
+#[doc = "`ReconcileObjectiveCancellationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"reconcile-objective-cancellation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ReconcileObjectiveCancellationCommandCommand {
+    #[serde(rename = "reconcile-objective-cancellation")]
+    ReconcileObjectiveCancellation,
+}
+impl ::std::fmt::Display for ReconcileObjectiveCancellationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ReconcileObjectiveCancellation => f.write_str("reconcile-objective-cancellation"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReconcileObjectiveCancellationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "reconcile-objective-cancellation" => Ok(Self::ReconcileObjectiveCancellation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReconcileObjectiveCancellationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ReconcileObjectiveCancellationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ReconcileObjectiveCancellationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ReconcileObjectiveCancellationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"attempt_id\","]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReconcileObjectiveCancellationWire {
+    pub attempt_id: ::std::string::String,
+    pub expected_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub objective_id: ::std::string::String,
+}
 #[doc = "`RecordBudgetUsageCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -22568,154 +29687,6 @@ impl ::std::convert::TryFrom<::std::string::String> for RecordMediaGenerationOut
         value.parse()
     }
 }
-#[doc = "`RecordObjectiveRunOperationCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"command\","]
-#[doc = "    \"request\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"command\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"enum\": ["]
-#[doc = "        \"record-objective-run-operation\""]
-#[doc = "      ]"]
-#[doc = "    },"]
-#[doc = "    \"request\": {"]
-#[doc = "      \"$ref\": \"#/$defs/RecordObjectiveRunOperationWire\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct RecordObjectiveRunOperationCommand {
-    pub command: RecordObjectiveRunOperationCommandCommand,
-    pub request: RecordObjectiveRunOperationWire,
-}
-#[doc = "`RecordObjectiveRunOperationCommandCommand`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"enum\": ["]
-#[doc = "    \"record-objective-run-operation\""]
-#[doc = "  ]"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(
-    :: serde :: Deserialize,
-    :: serde :: Serialize,
-    Clone,
-    Copy,
-    Debug,
-    Eq,
-    Hash,
-    Ord,
-    PartialEq,
-    PartialOrd,
-)]
-pub enum RecordObjectiveRunOperationCommandCommand {
-    #[serde(rename = "record-objective-run-operation")]
-    RecordObjectiveRunOperation,
-}
-impl ::std::fmt::Display for RecordObjectiveRunOperationCommandCommand {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        match *self {
-            Self::RecordObjectiveRunOperation => f.write_str("record-objective-run-operation"),
-        }
-    }
-}
-impl ::std::str::FromStr for RecordObjectiveRunOperationCommandCommand {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        match value {
-            "record-objective-run-operation" => Ok(Self::RecordObjectiveRunOperation),
-            _ => Err("invalid value".into()),
-        }
-    }
-}
-impl ::std::convert::TryFrom<&str> for RecordObjectiveRunOperationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for RecordObjectiveRunOperationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for RecordObjectiveRunOperationCommandCommand {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-#[doc = "`RecordObjectiveRunOperationWire`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"object\","]
-#[doc = "  \"required\": ["]
-#[doc = "    \"actor_id\","]
-#[doc = "    \"id\","]
-#[doc = "    \"metadata\","]
-#[doc = "    \"objective_id\","]
-#[doc = "    \"operation\","]
-#[doc = "    \"reason\""]
-#[doc = "  ],"]
-#[doc = "  \"properties\": {"]
-#[doc = "    \"actor_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
-#[doc = "    },"]
-#[doc = "    \"objective_id\": {"]
-#[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"operation\": {"]
-#[doc = "      \"$ref\": \"#/$defs/ObjectiveRunOperationWire\""]
-#[doc = "    },"]
-#[doc = "    \"reason\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    }"]
-#[doc = "  },"]
-#[doc = "  \"additionalProperties\": false"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(deny_unknown_fields)]
-pub struct RecordObjectiveRunOperationWire {
-    pub actor_id: ::std::string::String,
-    pub id: NullableString,
-    pub metadata: ::serde_json::Value,
-    pub objective_id: ::std::string::String,
-    pub operation: ObjectiveRunOperationWire,
-    pub reason: NullableString,
-}
 #[doc = "`RecordPlanProposalOperationCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -22824,8 +29795,11 @@ impl ::std::convert::TryFrom<::std::string::String> for RecordPlanProposalOperat
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
 #[doc = "    \"actor_id\","]
+#[doc = "    \"actor_kind\","]
+#[doc = "    \"content\","]
+#[doc = "    \"expected_revision\","]
 #[doc = "    \"id\","]
-#[doc = "    \"metadata\","]
+#[doc = "    \"idempotency_key\","]
 #[doc = "    \"operation\","]
 #[doc = "    \"proposal_id\","]
 #[doc = "    \"reason\""]
@@ -22834,11 +29808,25 @@ impl ::std::convert::TryFrom<::std::string::String> for RecordPlanProposalOperat
 #[doc = "    \"actor_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
+#[doc = "    \"actor_kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"human\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullablePlanProposalContentWire\""]
+#[doc = "    },"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
 #[doc = "    \"id\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
-#[doc = "    \"metadata\": {"]
-#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
 #[doc = "    },"]
 #[doc = "    \"operation\": {"]
 #[doc = "      \"$ref\": \"#/$defs/PlanProposalOperationWire\""]
@@ -22858,11 +29846,290 @@ impl ::std::convert::TryFrom<::std::string::String> for RecordPlanProposalOperat
 #[serde(deny_unknown_fields)]
 pub struct RecordPlanProposalOperationWire {
     pub actor_id: ::std::string::String,
+    pub actor_kind: RecordPlanProposalOperationWireActorKind,
+    pub content: NullablePlanProposalContentWire,
+    pub expected_revision: ::std::num::NonZeroU64,
     pub id: NullableString,
-    pub metadata: ::serde_json::Value,
+    pub idempotency_key: RecordPlanProposalOperationWireIdempotencyKey,
     pub operation: PlanProposalOperationWire,
     pub proposal_id: ::std::string::String,
     pub reason: NullableString,
+}
+#[doc = "`RecordPlanProposalOperationWireActorKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"human\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RecordPlanProposalOperationWireActorKind {
+    #[serde(rename = "human")]
+    Human,
+}
+impl ::std::fmt::Display for RecordPlanProposalOperationWireActorKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Human => f.write_str("human"),
+        }
+    }
+}
+impl ::std::str::FromStr for RecordPlanProposalOperationWireActorKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "human" => Ok(Self::Human),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RecordPlanProposalOperationWireActorKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RecordPlanProposalOperationWireActorKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RecordPlanProposalOperationWireActorKind {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RecordPlanProposalOperationWireIdempotencyKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct RecordPlanProposalOperationWireIdempotencyKey(::std::string::String);
+impl ::std::ops::Deref for RecordPlanProposalOperationWireIdempotencyKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<RecordPlanProposalOperationWireIdempotencyKey> for ::std::string::String {
+    fn from(value: RecordPlanProposalOperationWireIdempotencyKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for RecordPlanProposalOperationWireIdempotencyKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for RecordPlanProposalOperationWireIdempotencyKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for RecordPlanProposalOperationWireIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for RecordPlanProposalOperationWireIdempotencyKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for RecordPlanProposalOperationWireIdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`RecordResourceProvenanceCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"record-resource-provenance\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RecordResourceProvenanceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RecordResourceProvenanceCommand {
+    pub command: RecordResourceProvenanceCommandCommand,
+    pub request: RecordResourceProvenanceWire,
+}
+#[doc = "`RecordResourceProvenanceCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"record-resource-provenance\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RecordResourceProvenanceCommandCommand {
+    #[serde(rename = "record-resource-provenance")]
+    RecordResourceProvenance,
+}
+impl ::std::fmt::Display for RecordResourceProvenanceCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RecordResourceProvenance => f.write_str("record-resource-provenance"),
+        }
+    }
+}
+impl ::std::str::FromStr for RecordResourceProvenanceCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "record-resource-provenance" => Ok(Self::RecordResourceProvenance),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RecordResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RecordResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RecordResourceProvenanceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RecordResourceProvenanceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"cause\","]
+#[doc = "    \"input_resources\","]
+#[doc = "    \"resource\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"cause\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceProvenanceCauseWire\""]
+#[doc = "    },"]
+#[doc = "    \"input_resources\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/ResourceInputEvidenceWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 64"]
+#[doc = "    },"]
+#[doc = "    \"resource\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceInputEvidenceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RecordResourceProvenanceWire {
+    pub cause: ResourceProvenanceCauseWire,
+    pub input_resources: ::std::vec::Vec<ResourceInputEvidenceWire>,
+    pub resource: ResourceInputEvidenceWire,
 }
 #[doc = "`RecordWorkspaceChangeOperationCommand`"]
 #[doc = r""]
@@ -23263,6 +30530,140 @@ impl ::std::convert::TryFrom<::std::string::String> for ReleaseBudgetCommandComm
         value.parse()
     }
 }
+#[doc = "`RenameSessionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"rename-session\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RenameSessionWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RenameSessionCommand {
+    pub command: RenameSessionCommandCommand,
+    pub request: RenameSessionWire,
+}
+#[doc = "`RenameSessionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"rename-session\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RenameSessionCommandCommand {
+    #[serde(rename = "rename-session")]
+    RenameSession,
+}
+impl ::std::fmt::Display for RenameSessionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RenameSession => f.write_str("rename-session"),
+        }
+    }
+}
+impl ::std::str::FromStr for RenameSessionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "rename-session" => Ok(Self::RenameSession),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RenameSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RenameSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RenameSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RenameSessionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"title\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"title\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RenameSessionWire {
+    pub expected_revision: ::std::num::NonZeroU64,
+    pub session_id: ::std::string::String,
+    pub title: ::std::string::String,
+}
 #[doc = "`RequestMediaGenerationCancelCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -23363,6 +30764,144 @@ impl ::std::convert::TryFrom<::std::string::String> for RequestMediaGenerationCa
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "`RequestObjectiveCancelCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"request-objective-cancel\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RequestObjectiveCancelWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RequestObjectiveCancelCommand {
+    pub command: RequestObjectiveCancelCommandCommand,
+    pub request: RequestObjectiveCancelWire,
+}
+#[doc = "`RequestObjectiveCancelCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"request-objective-cancel\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RequestObjectiveCancelCommandCommand {
+    #[serde(rename = "request-objective-cancel")]
+    RequestObjectiveCancel,
+}
+impl ::std::fmt::Display for RequestObjectiveCancelCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RequestObjectiveCancel => f.write_str("request-objective-cancel"),
+        }
+    }
+}
+impl ::std::str::FromStr for RequestObjectiveCancelCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "request-objective-cancel" => Ok(Self::RequestObjectiveCancel),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RequestObjectiveCancelCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RequestObjectiveCancelCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RequestObjectiveCancelCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RequestObjectiveCancelWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective_id\","]
+#[doc = "    \"reason\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RequestObjectiveCancelWire {
+    pub expected_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub objective_id: ::std::string::String,
+    pub reason: ::std::string::String,
 }
 #[doc = "`RequestSessionTurnCancelCommand`"]
 #[doc = r""]
@@ -23506,6 +31045,176 @@ pub struct RequestSessionTurnCancelWire {
     pub reason: ::std::string::String,
     pub session_id: ::std::string::String,
     pub turn_id: ::std::string::String,
+}
+#[doc = "`RequireToolExecutionRecoveryCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"require-tool-execution-recovery\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RequireToolExecutionRecoveryWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RequireToolExecutionRecoveryCommand {
+    pub command: RequireToolExecutionRecoveryCommandCommand,
+    pub request: RequireToolExecutionRecoveryWire,
+}
+#[doc = "`RequireToolExecutionRecoveryCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"require-tool-execution-recovery\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RequireToolExecutionRecoveryCommandCommand {
+    #[serde(rename = "require-tool-execution-recovery")]
+    RequireToolExecutionRecovery,
+}
+impl ::std::fmt::Display for RequireToolExecutionRecoveryCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RequireToolExecutionRecovery => f.write_str("require-tool-execution-recovery"),
+        }
+    }
+}
+impl ::std::str::FromStr for RequireToolExecutionRecoveryCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "require-tool-execution-recovery" => Ok(Self::RequireToolExecutionRecovery),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RequireToolExecutionRecoveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for RequireToolExecutionRecoveryCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RequireToolExecutionRecoveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RequireToolExecutionRecoveryWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"evidence\","]
+#[doc = "    \"execution_id\","]
+#[doc = "    \"input_id\","]
+#[doc = "    \"invocation_attempt_id\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"session_attempt_id\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"turn_id\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"evidence\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"execution_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"input_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"invocation_attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RequireToolExecutionRecoveryWire {
+    pub evidence: ::serde_json::Value,
+    pub execution_id: ::std::string::String,
+    pub input_id: ::std::string::String,
+    pub invocation_attempt_id: ::std::string::String,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub session_attempt_id: ::std::string::String,
+    pub session_id: ::std::string::String,
+    pub turn_id: ::std::string::String,
+    pub worker_id: ::std::string::String,
 }
 #[doc = "`ReserveBudgetCommand`"]
 #[doc = r""]
@@ -23659,6 +31368,509 @@ pub struct ReserveBudgetWire {
     pub reason: ::std::string::String,
     pub requested: BudgetAmountWire,
     pub scope: BudgetScopeRefWire,
+}
+#[doc = "`ResolveToolExecutionApprovalCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"resolve-tool-execution-approval\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResolveToolExecutionApprovalWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveToolExecutionApprovalCommand {
+    pub command: ResolveToolExecutionApprovalCommandCommand,
+    pub request: ResolveToolExecutionApprovalWire,
+}
+#[doc = "`ResolveToolExecutionApprovalCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"resolve-tool-execution-approval\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ResolveToolExecutionApprovalCommandCommand {
+    #[serde(rename = "resolve-tool-execution-approval")]
+    ResolveToolExecutionApproval,
+}
+impl ::std::fmt::Display for ResolveToolExecutionApprovalCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ResolveToolExecutionApproval => f.write_str("resolve-tool-execution-approval"),
+        }
+    }
+}
+impl ::std::str::FromStr for ResolveToolExecutionApprovalCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "resolve-tool-execution-approval" => Ok(Self::ResolveToolExecutionApproval),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResolveToolExecutionApprovalCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ResolveToolExecutionApprovalCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResolveToolExecutionApprovalCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ResolveToolExecutionApprovalWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"decision\","]
+#[doc = "    \"execution_id\","]
+#[doc = "    \"expected_approval_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"principal_id\","]
+#[doc = "    \"reason\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"decision\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolExecutionApprovalDecisionWire\""]
+#[doc = "    },"]
+#[doc = "    \"execution_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"expected_approval_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"principal_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveToolExecutionApprovalWire {
+    pub decision: ToolExecutionApprovalDecisionWire,
+    pub execution_id: ::std::string::String,
+    pub expected_approval_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub principal_id: ::std::string::String,
+    pub reason: ::std::string::String,
+}
+#[doc = "`ResolveToolExecutionRecoveryCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"resolve-tool-execution-recovery\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResolveToolExecutionRecoveryWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveToolExecutionRecoveryCommand {
+    pub command: ResolveToolExecutionRecoveryCommandCommand,
+    pub request: ResolveToolExecutionRecoveryWire,
+}
+#[doc = "`ResolveToolExecutionRecoveryCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"resolve-tool-execution-recovery\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ResolveToolExecutionRecoveryCommandCommand {
+    #[serde(rename = "resolve-tool-execution-recovery")]
+    ResolveToolExecutionRecovery,
+}
+impl ::std::fmt::Display for ResolveToolExecutionRecoveryCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ResolveToolExecutionRecovery => f.write_str("resolve-tool-execution-recovery"),
+        }
+    }
+}
+impl ::std::str::FromStr for ResolveToolExecutionRecoveryCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "resolve-tool-execution-recovery" => Ok(Self::ResolveToolExecutionRecovery),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResolveToolExecutionRecoveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ResolveToolExecutionRecoveryCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResolveToolExecutionRecoveryCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ResolveToolExecutionRecoveryWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"content\","]
+#[doc = "    \"content_digest\","]
+#[doc = "    \"decision\","]
+#[doc = "    \"error\","]
+#[doc = "    \"execution_id\","]
+#[doc = "    \"expected_recovery_revision\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"principal_id\","]
+#[doc = "    \"reason\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolResultContentWire\""]
+#[doc = "    },"]
+#[doc = "    \"content_digest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"decision\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolExecutionRecoveryDecisionWire\""]
+#[doc = "    },"]
+#[doc = "    \"error\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"execution_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"expected_recovery_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"principal_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResolveToolExecutionRecoveryWire {
+    pub content: NullableToolResultContentWire,
+    pub content_digest: NullableString,
+    pub decision: ToolExecutionRecoveryDecisionWire,
+    pub error: ::serde_json::Value,
+    pub execution_id: ::std::string::String,
+    pub expected_recovery_revision: i64,
+    pub idempotency_key: ::std::string::String,
+    pub principal_id: ::std::string::String,
+    pub reason: ::std::string::String,
+}
+#[doc = "`ResourceInputEvidenceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"media_type\","]
+#[doc = "    \"resource_id\","]
+#[doc = "    \"sha256\","]
+#[doc = "    \"size_bytes\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"media_type\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"resource_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"sha256\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"size_bytes\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceInputEvidenceWire {
+    pub kind: ResourceKindWire,
+    pub media_type: NullableString,
+    pub resource_id: ResourceInputEvidenceWireResourceId,
+    pub sha256: ResourceInputEvidenceWireSha256,
+    pub size_bytes: ::std::num::NonZeroU64,
+}
+#[doc = "`ResourceInputEvidenceWireResourceId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ResourceInputEvidenceWireResourceId(::std::string::String);
+impl ::std::ops::Deref for ResourceInputEvidenceWireResourceId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ResourceInputEvidenceWireResourceId> for ::std::string::String {
+    fn from(value: ResourceInputEvidenceWireResourceId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ResourceInputEvidenceWireResourceId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResourceInputEvidenceWireResourceId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ResourceInputEvidenceWireResourceId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResourceInputEvidenceWireResourceId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ResourceInputEvidenceWireResourceId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ResourceInputEvidenceWireSha256`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ResourceInputEvidenceWireSha256(::std::string::String);
+impl ::std::ops::Deref for ResourceInputEvidenceWireSha256 {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ResourceInputEvidenceWireSha256> for ::std::string::String {
+    fn from(value: ResourceInputEvidenceWireSha256) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ResourceInputEvidenceWireSha256 {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResourceInputEvidenceWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ResourceInputEvidenceWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResourceInputEvidenceWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ResourceInputEvidenceWireSha256 {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`ResourceKindWire`"]
 #[doc = r""]
@@ -23859,6 +32071,115 @@ impl ::std::convert::TryFrom<::std::string::String> for ResourceOriginWire {
         value.parse()
     }
 }
+#[doc = "`ResourceProvenanceCauseKindWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"tool_execution\","]
+#[doc = "    \"media_generation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ResourceProvenanceCauseKindWire {
+    #[serde(rename = "tool_execution")]
+    ToolExecution,
+    #[serde(rename = "media_generation")]
+    MediaGeneration,
+}
+impl ::std::fmt::Display for ResourceProvenanceCauseKindWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ToolExecution => f.write_str("tool_execution"),
+            Self::MediaGeneration => f.write_str("media_generation"),
+        }
+    }
+}
+impl ::std::str::FromStr for ResourceProvenanceCauseKindWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "tool_execution" => Ok(Self::ToolExecution),
+            "media_generation" => Ok(Self::MediaGeneration),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResourceProvenanceCauseKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ResourceProvenanceCauseKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResourceProvenanceCauseKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolExecutionResourceProvenanceCauseWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationResourceProvenanceCauseWire\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum ResourceProvenanceCauseWire {
+    ToolExecutionResourceProvenanceCauseWire(ToolExecutionResourceProvenanceCauseWire),
+    MediaGenerationResourceProvenanceCauseWire(MediaGenerationResourceProvenanceCauseWire),
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWire>
+    for ResourceProvenanceCauseWire
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWire) -> Self {
+        Self::ToolExecutionResourceProvenanceCauseWire(value)
+    }
+}
+impl ::std::convert::From<MediaGenerationResourceProvenanceCauseWire>
+    for ResourceProvenanceCauseWire
+{
+    fn from(value: MediaGenerationResourceProvenanceCauseWire) -> Self {
+        Self::MediaGenerationResourceProvenanceCauseWire(value)
+    }
+}
 #[doc = "`ResourceSourceWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -23995,6 +32316,204 @@ impl ::std::convert::TryFrom<::std::string::String> for ResourceStateWire {
         value.parse()
     }
 }
+#[doc = "`RestoreSessionCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"restore-session\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/SessionStateTransitionWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RestoreSessionCommand {
+    pub command: RestoreSessionCommandCommand,
+    pub request: SessionStateTransitionWire,
+}
+#[doc = "`RestoreSessionCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"restore-session\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RestoreSessionCommandCommand {
+    #[serde(rename = "restore-session")]
+    RestoreSession,
+}
+impl ::std::fmt::Display for RestoreSessionCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RestoreSession => f.write_str("restore-session"),
+        }
+    }
+}
+impl ::std::str::FromStr for RestoreSessionCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "restore-session" => Ok(Self::RestoreSession),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RestoreSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RestoreSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RestoreSessionCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ResumeObjectiveCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"resume-objective\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ChangeObjectiveStateWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ResumeObjectiveCommand {
+    pub command: ResumeObjectiveCommandCommand,
+    pub request: ChangeObjectiveStateWire,
+}
+#[doc = "`ResumeObjectiveCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"resume-objective\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ResumeObjectiveCommandCommand {
+    #[serde(rename = "resume-objective")]
+    ResumeObjective,
+}
+impl ::std::fmt::Display for ResumeObjectiveCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ResumeObjective => f.write_str("resume-objective"),
+        }
+    }
+}
+impl ::std::str::FromStr for ResumeObjectiveCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "resume-objective" => Ok(Self::ResumeObjective),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ResumeObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ResumeObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ResumeObjectiveCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`RetryPolicyWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -24110,6 +32629,164 @@ impl ::std::convert::TryFrom<::std::string::String> for RetryPolicyWireStrategy 
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "`ReviewObjectiveAttemptCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"review-objective-attempt\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ReviewObjectiveAttemptWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewObjectiveAttemptCommand {
+    pub command: ReviewObjectiveAttemptCommandCommand,
+    pub request: ReviewObjectiveAttemptWire,
+}
+#[doc = "`ReviewObjectiveAttemptCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"review-objective-attempt\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ReviewObjectiveAttemptCommandCommand {
+    #[serde(rename = "review-objective-attempt")]
+    ReviewObjectiveAttempt,
+}
+impl ::std::fmt::Display for ReviewObjectiveAttemptCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ReviewObjectiveAttempt => f.write_str("review-objective-attempt"),
+        }
+    }
+}
+impl ::std::str::FromStr for ReviewObjectiveAttemptCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "review-objective-attempt" => Ok(Self::ReviewObjectiveAttempt),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ReviewObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ReviewObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ReviewObjectiveAttemptCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ReviewObjectiveAttemptWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"attempt_id\","]
+#[doc = "    \"disposition\","]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"id\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"objective_id\","]
+#[doc = "    \"reason\","]
+#[doc = "    \"verifications\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"disposition\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ObjectiveAttemptDispositionWire\""]
+#[doc = "    },"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"objective_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"verifications\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewObjectiveAttemptWire {
+    pub attempt_id: ::std::string::String,
+    pub disposition: ObjectiveAttemptDispositionWire,
+    pub expected_revision: i64,
+    pub id: NullableString,
+    pub idempotency_key: ::std::string::String,
+    pub objective_id: ::std::string::String,
+    pub reason: NullableString,
+    pub verifications: ::serde_json::Value,
 }
 #[doc = "`RevokeChannelBindingCommand`"]
 #[doc = r""]
@@ -24357,6 +33034,256 @@ impl ::std::convert::TryFrom<::std::string::String> for RevokeConnectorCredentia
 pub struct RevokeConnectorCredentialWire {
     pub credential_id: ::std::string::String,
 }
+#[doc = "`RouteTeamDeliveriesWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"array\","]
+#[doc = "  \"items\": {"]
+#[doc = "    \"$ref\": \"#/$defs/RouteTeamDeliveryWire\""]
+#[doc = "  },"]
+#[doc = "  \"maxItems\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct RouteTeamDeliveriesWire(pub ::std::vec::Vec<RouteTeamDeliveryWire>);
+impl ::std::ops::Deref for RouteTeamDeliveriesWire {
+    type Target = ::std::vec::Vec<RouteTeamDeliveryWire>;
+    fn deref(&self) -> &::std::vec::Vec<RouteTeamDeliveryWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<RouteTeamDeliveriesWire> for ::std::vec::Vec<RouteTeamDeliveryWire> {
+    fn from(value: RouteTeamDeliveriesWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<RouteTeamDeliveryWire>> for RouteTeamDeliveriesWire {
+    fn from(value: ::std::vec::Vec<RouteTeamDeliveryWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`RouteTeamDeliveryWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"budget_grant_id\","]
+#[doc = "    \"id\","]
+#[doc = "    \"role\","]
+#[doc = "    \"target_participant_id\","]
+#[doc = "    \"trigger\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"budget_grant_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"role\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamDeliveryRoleWire\""]
+#[doc = "    },"]
+#[doc = "    \"target_participant_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"trigger\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamDeliveryTriggerWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RouteTeamDeliveryWire {
+    pub budget_grant_id: NullableString,
+    pub id: NullableString,
+    pub role: TeamDeliveryRoleWire,
+    pub target_participant_id: ::std::string::String,
+    pub trigger: TeamDeliveryTriggerWire,
+}
+#[doc = "`RouteTeamMessageCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"route-team-message\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RouteTeamMessageWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RouteTeamMessageCommand {
+    pub command: RouteTeamMessageCommandCommand,
+    pub request: RouteTeamMessageWire,
+}
+#[doc = "`RouteTeamMessageCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"route-team-message\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum RouteTeamMessageCommandCommand {
+    #[serde(rename = "route-team-message")]
+    RouteTeamMessage,
+}
+impl ::std::fmt::Display for RouteTeamMessageCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::RouteTeamMessage => f.write_str("route-team-message"),
+        }
+    }
+}
+impl ::std::str::FromStr for RouteTeamMessageCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "route-team-message" => Ok(Self::RouteTeamMessage),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for RouteTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for RouteTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for RouteTeamMessageCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`RouteTeamMessageWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"actor_principal_id\","]
+#[doc = "    \"deliveries\","]
+#[doc = "    \"expected_lead_participant_id\","]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"id\","]
+#[doc = "    \"idempotency_key\","]
+#[doc = "    \"message_id\","]
+#[doc = "    \"metadata\","]
+#[doc = "    \"mode\","]
+#[doc = "    \"outcome\","]
+#[doc = "    \"reason\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"actor_principal_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"deliveries\": {"]
+#[doc = "      \"$ref\": \"#/$defs/RouteTeamDeliveriesWire\""]
+#[doc = "    },"]
+#[doc = "    \"expected_lead_participant_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"idempotency_key\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"metadata\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"mode\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamConversationModeWire\""]
+#[doc = "    },"]
+#[doc = "    \"outcome\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamRoutingOutcomeWire\""]
+#[doc = "    },"]
+#[doc = "    \"reason\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct RouteTeamMessageWire {
+    pub actor_principal_id: ::std::string::String,
+    pub deliveries: RouteTeamDeliveriesWire,
+    pub expected_lead_participant_id: NullableString,
+    pub expected_revision: i64,
+    pub id: NullableString,
+    pub idempotency_key: ::std::string::String,
+    pub message_id: ::std::string::String,
+    pub metadata: ::serde_json::Value,
+    pub mode: TeamConversationModeWire,
+    pub outcome: TeamRoutingOutcomeWire,
+    pub reason: ::std::string::String,
+}
 #[doc = "`RunControlPolicyWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -24556,6 +33483,12 @@ pub struct RuntimeEventScopeWire {
 #[doc = "      \"$ref\": \"#/$defs/PutConfigCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ApplyConfigMutationsCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/HasLiveSecretReferenceCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/GetConfigCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
@@ -24580,6 +33513,12 @@ pub struct RuntimeEventScopeWire {
 #[doc = "      \"$ref\": \"#/$defs/CleanupExpiredResourceTicketsCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RecordResourceProvenanceCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListResourceProvenanceCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/DoctorCommand\""]
 #[doc = "    }"]
 #[doc = "  ]"]
@@ -24592,6 +33531,8 @@ pub enum RuntimeStorageRpcCommand {
     AppendEventCommand(AppendEventCommand),
     QueryEventsCommand(QueryEventsCommand),
     PutConfigCommand(PutConfigCommand),
+    ApplyConfigMutationsCommand(ApplyConfigMutationsCommand),
+    HasLiveSecretReferenceCommand(HasLiveSecretReferenceCommand),
     GetConfigCommand(GetConfigCommand),
     WriteAtomicFileCommand(WriteAtomicFileCommand),
     IngestResourceCommand(IngestResourceCommand),
@@ -24600,6 +33541,8 @@ pub enum RuntimeStorageRpcCommand {
     ListResourcesCommand(ListResourcesCommand),
     CreateResourceTicketCommand(CreateResourceTicketCommand),
     CleanupExpiredResourceTicketsCommand(CleanupExpiredResourceTicketsCommand),
+    RecordResourceProvenanceCommand(RecordResourceProvenanceCommand),
+    ListResourceProvenanceCommand(ListResourceProvenanceCommand),
     DoctorCommand(DoctorCommand),
 }
 impl ::std::convert::From<AppendEventCommand> for RuntimeStorageRpcCommand {
@@ -24615,6 +33558,16 @@ impl ::std::convert::From<QueryEventsCommand> for RuntimeStorageRpcCommand {
 impl ::std::convert::From<PutConfigCommand> for RuntimeStorageRpcCommand {
     fn from(value: PutConfigCommand) -> Self {
         Self::PutConfigCommand(value)
+    }
+}
+impl ::std::convert::From<ApplyConfigMutationsCommand> for RuntimeStorageRpcCommand {
+    fn from(value: ApplyConfigMutationsCommand) -> Self {
+        Self::ApplyConfigMutationsCommand(value)
+    }
+}
+impl ::std::convert::From<HasLiveSecretReferenceCommand> for RuntimeStorageRpcCommand {
+    fn from(value: HasLiveSecretReferenceCommand) -> Self {
+        Self::HasLiveSecretReferenceCommand(value)
     }
 }
 impl ::std::convert::From<GetConfigCommand> for RuntimeStorageRpcCommand {
@@ -24657,6 +33610,16 @@ impl ::std::convert::From<CleanupExpiredResourceTicketsCommand> for RuntimeStora
         Self::CleanupExpiredResourceTicketsCommand(value)
     }
 }
+impl ::std::convert::From<RecordResourceProvenanceCommand> for RuntimeStorageRpcCommand {
+    fn from(value: RecordResourceProvenanceCommand) -> Self {
+        Self::RecordResourceProvenanceCommand(value)
+    }
+}
+impl ::std::convert::From<ListResourceProvenanceCommand> for RuntimeStorageRpcCommand {
+    fn from(value: ListResourceProvenanceCommand) -> Self {
+        Self::ListResourceProvenanceCommand(value)
+    }
+}
 impl ::std::convert::From<DoctorCommand> for RuntimeStorageRpcCommand {
     fn from(value: DoctorCommand) -> Self {
         Self::DoctorCommand(value)
@@ -24673,10 +33636,9 @@ impl ::std::convert::From<DoctorCommand> for RuntimeStorageRpcCommand {
 #[doc = "    \"session.turn\","]
 #[doc = "    \"workspace.task\","]
 #[doc = "    \"team.delivery\","]
-#[doc = "    \"team.round.close\","]
+#[doc = "    \"team.delivery.outcome\","]
 #[doc = "    \"plugin.action\","]
 #[doc = "    \"channel.delivery\","]
-#[doc = "    \"tool.deferred_result\","]
 #[doc = "    \"gateway.delivery\","]
 #[doc = "    \"memory.compaction\","]
 #[doc = "    \"resource.cleanup\","]
@@ -24707,14 +33669,12 @@ pub enum SchedulerJobKindWire {
     WorkspaceTask,
     #[serde(rename = "team.delivery")]
     TeamDelivery,
-    #[serde(rename = "team.round.close")]
-    TeamRoundClose,
+    #[serde(rename = "team.delivery.outcome")]
+    TeamDeliveryOutcome,
     #[serde(rename = "plugin.action")]
     PluginAction,
     #[serde(rename = "channel.delivery")]
     ChannelDelivery,
-    #[serde(rename = "tool.deferred_result")]
-    ToolDeferredResult,
     #[serde(rename = "gateway.delivery")]
     GatewayDelivery,
     #[serde(rename = "memory.compaction")]
@@ -24736,10 +33696,9 @@ impl ::std::fmt::Display for SchedulerJobKindWire {
             Self::SessionTurn => f.write_str("session.turn"),
             Self::WorkspaceTask => f.write_str("workspace.task"),
             Self::TeamDelivery => f.write_str("team.delivery"),
-            Self::TeamRoundClose => f.write_str("team.round.close"),
+            Self::TeamDeliveryOutcome => f.write_str("team.delivery.outcome"),
             Self::PluginAction => f.write_str("plugin.action"),
             Self::ChannelDelivery => f.write_str("channel.delivery"),
-            Self::ToolDeferredResult => f.write_str("tool.deferred_result"),
             Self::GatewayDelivery => f.write_str("gateway.delivery"),
             Self::MemoryCompaction => f.write_str("memory.compaction"),
             Self::ResourceCleanup => f.write_str("resource.cleanup"),
@@ -24757,10 +33716,9 @@ impl ::std::str::FromStr for SchedulerJobKindWire {
             "session.turn" => Ok(Self::SessionTurn),
             "workspace.task" => Ok(Self::WorkspaceTask),
             "team.delivery" => Ok(Self::TeamDelivery),
-            "team.round.close" => Ok(Self::TeamRoundClose),
+            "team.delivery.outcome" => Ok(Self::TeamDeliveryOutcome),
             "plugin.action" => Ok(Self::PluginAction),
             "channel.delivery" => Ok(Self::ChannelDelivery),
-            "tool.deferred_result" => Ok(Self::ToolDeferredResult),
             "gateway.delivery" => Ok(Self::GatewayDelivery),
             "memory.compaction" => Ok(Self::MemoryCompaction),
             "resource.cleanup" => Ok(Self::ResourceCleanup),
@@ -24837,6 +33795,7 @@ impl ::std::convert::From<::std::vec::Vec<SchedulerJobKindWire>> for SchedulerJo
 #[doc = "    \"pending\","]
 #[doc = "    \"ready\","]
 #[doc = "    \"running\","]
+#[doc = "    \"waiting\","]
 #[doc = "    \"succeeded\","]
 #[doc = "    \"retry_scheduled\","]
 #[doc = "    \"failed\","]
@@ -24864,6 +33823,8 @@ pub enum SchedulerJobStateWire {
     Ready,
     #[serde(rename = "running")]
     Running,
+    #[serde(rename = "waiting")]
+    Waiting,
     #[serde(rename = "succeeded")]
     Succeeded,
     #[serde(rename = "retry_scheduled")]
@@ -24879,6 +33840,7 @@ impl ::std::fmt::Display for SchedulerJobStateWire {
             Self::Pending => f.write_str("pending"),
             Self::Ready => f.write_str("ready"),
             Self::Running => f.write_str("running"),
+            Self::Waiting => f.write_str("waiting"),
             Self::Succeeded => f.write_str("succeeded"),
             Self::RetryScheduled => f.write_str("retry_scheduled"),
             Self::Failed => f.write_str("failed"),
@@ -24893,6 +33855,7 @@ impl ::std::str::FromStr for SchedulerJobStateWire {
             "pending" => Ok(Self::Pending),
             "ready" => Ok(Self::Ready),
             "running" => Ok(Self::Running),
+            "waiting" => Ok(Self::Waiting),
             "succeeded" => Ok(Self::Succeeded),
             "retry_scheduled" => Ok(Self::RetryScheduled),
             "failed" => Ok(Self::Failed),
@@ -25262,6 +34225,103 @@ impl<'de> ::serde::Deserialize<'de> for SessionInputOriginWireKind {
             })
     }
 }
+#[doc = "`SessionInputStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"admitted\","]
+#[doc = "    \"control_pending\","]
+#[doc = "    \"promoted\","]
+#[doc = "    \"completed\","]
+#[doc = "    \"failed\","]
+#[doc = "    \"cancelled\","]
+#[doc = "    \"rejected\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SessionInputStateWire {
+    #[serde(rename = "admitted")]
+    Admitted,
+    #[serde(rename = "control_pending")]
+    ControlPending,
+    #[serde(rename = "promoted")]
+    Promoted,
+    #[serde(rename = "completed")]
+    Completed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+    #[serde(rename = "rejected")]
+    Rejected,
+}
+impl ::std::fmt::Display for SessionInputStateWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Admitted => f.write_str("admitted"),
+            Self::ControlPending => f.write_str("control_pending"),
+            Self::Promoted => f.write_str("promoted"),
+            Self::Completed => f.write_str("completed"),
+            Self::Failed => f.write_str("failed"),
+            Self::Cancelled => f.write_str("cancelled"),
+            Self::Rejected => f.write_str("rejected"),
+        }
+    }
+}
+impl ::std::str::FromStr for SessionInputStateWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "admitted" => Ok(Self::Admitted),
+            "control_pending" => Ok(Self::ControlPending),
+            "promoted" => Ok(Self::Promoted),
+            "completed" => Ok(Self::Completed),
+            "failed" => Ok(Self::Failed),
+            "cancelled" => Ok(Self::Cancelled),
+            "rejected" => Ok(Self::Rejected),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SessionInputStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for SessionInputStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SessionInputStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`SessionKindWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -25333,6 +34393,36 @@ impl ::std::convert::TryFrom<::std::string::String> for SessionKindWire {
     ) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
+}
+#[doc = "`SessionStateTransitionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"expected_revision\","]
+#[doc = "    \"session_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"expected_revision\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SessionStateTransitionWire {
+    pub expected_revision: ::std::num::NonZeroU64,
+    pub session_id: ::std::string::String,
 }
 #[doc = "`SessionStatusWire`"]
 #[doc = r""]
@@ -25657,6 +34747,7 @@ impl ::std::convert::TryFrom<::std::string::String> for SessionTurnSettlementOut
 #[doc = "  \"enum\": ["]
 #[doc = "    \"queued\","]
 #[doc = "    \"running\","]
+#[doc = "    \"waiting\","]
 #[doc = "    \"cancel_requested\","]
 #[doc = "    \"succeeded\","]
 #[doc = "    \"failed\","]
@@ -25684,6 +34775,8 @@ pub enum SessionTurnStateWire {
     Queued,
     #[serde(rename = "running")]
     Running,
+    #[serde(rename = "waiting")]
+    Waiting,
     #[serde(rename = "cancel_requested")]
     CancelRequested,
     #[serde(rename = "succeeded")]
@@ -25702,6 +34795,7 @@ impl ::std::fmt::Display for SessionTurnStateWire {
         match *self {
             Self::Queued => f.write_str("queued"),
             Self::Running => f.write_str("running"),
+            Self::Waiting => f.write_str("waiting"),
             Self::CancelRequested => f.write_str("cancel_requested"),
             Self::Succeeded => f.write_str("succeeded"),
             Self::Failed => f.write_str("failed"),
@@ -25717,6 +34811,7 @@ impl ::std::str::FromStr for SessionTurnStateWire {
         match value {
             "queued" => Ok(Self::Queued),
             "running" => Ok(Self::Running),
+            "waiting" => Ok(Self::Waiting),
             "cancel_requested" => Ok(Self::CancelRequested),
             "succeeded" => Ok(Self::Succeeded),
             "failed" => Ok(Self::Failed),
@@ -25764,6 +34859,15 @@ impl ::std::convert::TryFrom<::std::string::String> for SessionTurnStateWire {
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListSessionsCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RenameSessionCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ArchiveSessionCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RestoreSessionCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/AdmitSessionInputCommand\""]
@@ -25829,6 +34933,9 @@ pub enum SessionsStorageRpcCommand {
     CreateSessionCommand(CreateSessionCommand),
     GetSessionCommand(GetSessionCommand),
     ListSessionsCommand(ListSessionsCommand),
+    RenameSessionCommand(RenameSessionCommand),
+    ArchiveSessionCommand(ArchiveSessionCommand),
+    RestoreSessionCommand(RestoreSessionCommand),
     AdmitSessionInputCommand(AdmitSessionInputCommand),
     SubmitSessionTurnCommand(SubmitSessionTurnCommand),
     StartSessionTurnAttemptCommand(StartSessionTurnAttemptCommand),
@@ -25861,6 +34968,21 @@ impl ::std::convert::From<GetSessionCommand> for SessionsStorageRpcCommand {
 impl ::std::convert::From<ListSessionsCommand> for SessionsStorageRpcCommand {
     fn from(value: ListSessionsCommand) -> Self {
         Self::ListSessionsCommand(value)
+    }
+}
+impl ::std::convert::From<RenameSessionCommand> for SessionsStorageRpcCommand {
+    fn from(value: RenameSessionCommand) -> Self {
+        Self::RenameSessionCommand(value)
+    }
+}
+impl ::std::convert::From<ArchiveSessionCommand> for SessionsStorageRpcCommand {
+    fn from(value: ArchiveSessionCommand) -> Self {
+        Self::ArchiveSessionCommand(value)
+    }
+}
+impl ::std::convert::From<RestoreSessionCommand> for SessionsStorageRpcCommand {
+    fn from(value: RestoreSessionCommand) -> Self {
+        Self::RestoreSessionCommand(value)
     }
 }
 impl ::std::convert::From<AdmitSessionInputCommand> for SessionsStorageRpcCommand {
@@ -25952,6 +35074,139 @@ impl ::std::convert::From<AppendSessionMessageCommand> for SessionsStorageRpcCom
     fn from(value: AppendSessionMessageCommand) -> Self {
         Self::AppendSessionMessageCommand(value)
     }
+}
+#[doc = "`SetTeamConversationLeadCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"set-team-conversation-lead\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/SetTeamConversationLeadWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SetTeamConversationLeadCommand {
+    pub command: SetTeamConversationLeadCommandCommand,
+    pub request: SetTeamConversationLeadWire,
+}
+#[doc = "`SetTeamConversationLeadCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"set-team-conversation-lead\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SetTeamConversationLeadCommandCommand {
+    #[serde(rename = "set-team-conversation-lead")]
+    SetTeamConversationLead,
+}
+impl ::std::fmt::Display for SetTeamConversationLeadCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::SetTeamConversationLead => f.write_str("set-team-conversation-lead"),
+        }
+    }
+}
+impl ::std::str::FromStr for SetTeamConversationLeadCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "set-team-conversation-lead" => Ok(Self::SetTeamConversationLead),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for SetTeamConversationLeadCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for SetTeamConversationLeadCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SetTeamConversationLeadCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`SetTeamConversationLeadWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"conversation_id\","]
+#[doc = "    \"expected_lead_participant_id\","]
+#[doc = "    \"lead_participant_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"conversation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"expected_lead_participant_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"lead_participant_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct SetTeamConversationLeadWire {
+    pub conversation_id: ::std::string::String,
+    pub expected_lead_participant_id: NullableString,
+    pub lead_participant_id: NullableString,
 }
 #[doc = "`SettleMediaGenerationCommand`"]
 #[doc = r""]
@@ -27590,6 +36845,8 @@ impl<'de> ::serde::Deserialize<'de> for StorageRpcRequestId {
 #[doc = "    \"io\","]
 #[doc = "    \"json\","]
 #[doc = "    \"invalid_input\","]
+#[doc = "    \"not_found\","]
+#[doc = "    \"conflict\","]
 #[doc = "    \"sha256_mismatch\","]
 #[doc = "    \"budget_denied\","]
 #[doc = "    \"invalid_job_request\","]
@@ -27619,6 +36876,10 @@ pub enum StorageRpcServiceErrorCode {
     Json,
     #[serde(rename = "invalid_input")]
     InvalidInput,
+    #[serde(rename = "not_found")]
+    NotFound,
+    #[serde(rename = "conflict")]
+    Conflict,
     #[serde(rename = "sha256_mismatch")]
     Sha256Mismatch,
     #[serde(rename = "budget_denied")]
@@ -27635,6 +36896,8 @@ impl ::std::fmt::Display for StorageRpcServiceErrorCode {
             Self::Io => f.write_str("io"),
             Self::Json => f.write_str("json"),
             Self::InvalidInput => f.write_str("invalid_input"),
+            Self::NotFound => f.write_str("not_found"),
+            Self::Conflict => f.write_str("conflict"),
             Self::Sha256Mismatch => f.write_str("sha256_mismatch"),
             Self::BudgetDenied => f.write_str("budget_denied"),
             Self::InvalidJobRequest => f.write_str("invalid_job_request"),
@@ -27650,6 +36913,8 @@ impl ::std::str::FromStr for StorageRpcServiceErrorCode {
             "io" => Ok(Self::Io),
             "json" => Ok(Self::Json),
             "invalid_input" => Ok(Self::InvalidInput),
+            "not_found" => Ok(Self::NotFound),
+            "conflict" => Ok(Self::Conflict),
             "sha256_mismatch" => Ok(Self::Sha256Mismatch),
             "budget_denied" => Ok(Self::BudgetDenied),
             "invalid_job_request" => Ok(Self::InvalidJobRequest),
@@ -28325,7 +37590,7 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitPluginActionComman
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
 #[doc = "    },"]
 #[doc = "    \"version\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "      \"type\": \"string\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -28348,7 +37613,7 @@ pub struct SubmitPluginActionWire {
     pub required_capability: NullablePluginCapabilityWire,
     pub retry_policy: NullableRetryPolicyWire,
     pub scheduled_at: NullableInteger,
-    pub version: NullableString,
+    pub version: ::std::string::String,
 }
 #[doc = "`SubmitSessionTurnCommand`"]
 #[doc = r""]
@@ -28470,7 +37735,6 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitSessionTurnCommand
 #[doc = "    \"max_steps\","]
 #[doc = "    \"not_before\","]
 #[doc = "    \"origin\","]
-#[doc = "    \"parent_turn_id\","]
 #[doc = "    \"principal_id\","]
 #[doc = "    \"priority\","]
 #[doc = "    \"regenerates_turn_id\","]
@@ -28530,9 +37794,6 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitSessionTurnCommand
 #[doc = "    \"origin\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableSessionInputOriginWire\""]
 #[doc = "    },"]
-#[doc = "    \"parent_turn_id\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
 #[doc = "    \"principal_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
@@ -28575,7 +37836,6 @@ pub struct SubmitSessionTurnWire {
     pub max_steps: NullableInteger,
     pub not_before: NullableInteger,
     pub origin: NullableSessionInputOriginWire,
-    pub parent_turn_id: NullableString,
     pub principal_id: ::std::string::String,
     pub priority: NullableInteger,
     pub regenerates_turn_id: NullableString,
@@ -28656,40 +37916,103 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitSessionTurnWireInp
         value.parse()
     }
 }
-#[doc = "`TeamAudienceParticipantIdsWire`"]
+#[doc = "`SuspendMediaGenerationCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
 #[doc = r" ```json"]
 #[doc = "{"]
-#[doc = "  \"type\": \"array\","]
-#[doc = "  \"items\": {"]
-#[doc = "    \"type\": \"string\""]
-#[doc = "  }"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"suspend-media-generation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/MediaGenerationSuspendWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
 #[doc = "}"]
 #[doc = r" ```"]
 #[doc = r" </details>"]
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
-#[serde(transparent)]
-pub struct TeamAudienceParticipantIdsWire(pub ::std::vec::Vec<::std::string::String>);
-impl ::std::ops::Deref for TeamAudienceParticipantIdsWire {
-    type Target = ::std::vec::Vec<::std::string::String>;
-    fn deref(&self) -> &::std::vec::Vec<::std::string::String> {
-        &self.0
+#[serde(deny_unknown_fields)]
+pub struct SuspendMediaGenerationCommand {
+    pub command: SuspendMediaGenerationCommandCommand,
+    pub request: MediaGenerationSuspendWire,
+}
+#[doc = "`SuspendMediaGenerationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"suspend-media-generation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum SuspendMediaGenerationCommandCommand {
+    #[serde(rename = "suspend-media-generation")]
+    SuspendMediaGeneration,
+}
+impl ::std::fmt::Display for SuspendMediaGenerationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::SuspendMediaGeneration => f.write_str("suspend-media-generation"),
+        }
     }
 }
-impl ::std::convert::From<TeamAudienceParticipantIdsWire>
-    for ::std::vec::Vec<::std::string::String>
-{
-    fn from(value: TeamAudienceParticipantIdsWire) -> Self {
-        value.0
+impl ::std::str::FromStr for SuspendMediaGenerationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "suspend-media-generation" => Ok(Self::SuspendMediaGeneration),
+            _ => Err("invalid value".into()),
+        }
     }
 }
-impl ::std::convert::From<::std::vec::Vec<::std::string::String>>
-    for TeamAudienceParticipantIdsWire
-{
-    fn from(value: ::std::vec::Vec<::std::string::String>) -> Self {
-        Self(value)
+impl ::std::convert::TryFrom<&str> for SuspendMediaGenerationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for SuspendMediaGenerationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for SuspendMediaGenerationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
     }
 }
 #[doc = "`TeamConversationModeWire`"]
@@ -28700,8 +38023,8 @@ impl ::std::convert::From<::std::vec::Vec<::std::string::String>>
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"tl\","]
-#[doc = "    \"free\","]
+#[doc = "    \"orchestrated\","]
+#[doc = "    \"peer\","]
 #[doc = "    \"hybrid\""]
 #[doc = "  ]"]
 #[doc = "}"]
@@ -28720,18 +38043,18 @@ impl ::std::convert::From<::std::vec::Vec<::std::string::String>>
     PartialOrd,
 )]
 pub enum TeamConversationModeWire {
-    #[serde(rename = "tl")]
-    Tl,
-    #[serde(rename = "free")]
-    Free,
+    #[serde(rename = "orchestrated")]
+    Orchestrated,
+    #[serde(rename = "peer")]
+    Peer,
     #[serde(rename = "hybrid")]
     Hybrid,
 }
 impl ::std::fmt::Display for TeamConversationModeWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::Tl => f.write_str("tl"),
-            Self::Free => f.write_str("free"),
+            Self::Orchestrated => f.write_str("orchestrated"),
+            Self::Peer => f.write_str("peer"),
             Self::Hybrid => f.write_str("hybrid"),
         }
     }
@@ -28740,8 +38063,8 @@ impl ::std::str::FromStr for TeamConversationModeWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "tl" => Ok(Self::Tl),
-            "free" => Ok(Self::Free),
+            "orchestrated" => Ok(Self::Orchestrated),
+            "peer" => Ok(Self::Peer),
             "hybrid" => Ok(Self::Hybrid),
             _ => Err("invalid value".into()),
         }
@@ -28844,6 +38167,503 @@ impl ::std::convert::TryFrom<&::std::string::String> for TeamConversationStateWi
     }
 }
 impl ::std::convert::TryFrom<::std::string::String> for TeamConversationStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamDeliveryRoleWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"speaker\","]
+#[doc = "    \"observer\","]
+#[doc = "    \"summarizer\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamDeliveryRoleWire {
+    #[serde(rename = "speaker")]
+    Speaker,
+    #[serde(rename = "observer")]
+    Observer,
+    #[serde(rename = "summarizer")]
+    Summarizer,
+}
+impl ::std::fmt::Display for TeamDeliveryRoleWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Speaker => f.write_str("speaker"),
+            Self::Observer => f.write_str("observer"),
+            Self::Summarizer => f.write_str("summarizer"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamDeliveryRoleWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "speaker" => Ok(Self::Speaker),
+            "observer" => Ok(Self::Observer),
+            "summarizer" => Ok(Self::Summarizer),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamDeliveryRoleWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamDeliveryRoleWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamDeliveryRoleWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamDeliveryStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"queued\","]
+#[doc = "    \"dispatched\","]
+#[doc = "    \"responded\","]
+#[doc = "    \"passed\","]
+#[doc = "    \"failed\","]
+#[doc = "    \"cancelled\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamDeliveryStateWire {
+    #[serde(rename = "queued")]
+    Queued,
+    #[serde(rename = "dispatched")]
+    Dispatched,
+    #[serde(rename = "responded")]
+    Responded,
+    #[serde(rename = "passed")]
+    Passed,
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "cancelled")]
+    Cancelled,
+}
+impl ::std::fmt::Display for TeamDeliveryStateWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Queued => f.write_str("queued"),
+            Self::Dispatched => f.write_str("dispatched"),
+            Self::Responded => f.write_str("responded"),
+            Self::Passed => f.write_str("passed"),
+            Self::Failed => f.write_str("failed"),
+            Self::Cancelled => f.write_str("cancelled"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamDeliveryStateWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "queued" => Ok(Self::Queued),
+            "dispatched" => Ok(Self::Dispatched),
+            "responded" => Ok(Self::Responded),
+            "passed" => Ok(Self::Passed),
+            "failed" => Ok(Self::Failed),
+            "cancelled" => Ok(Self::Cancelled),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamDeliveryStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamDeliveryStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamDeliveryStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamDeliveryTriggerWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"direct\","]
+#[doc = "    \"mention\","]
+#[doc = "    \"lead\","]
+#[doc = "    \"round\","]
+#[doc = "    \"delegation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamDeliveryTriggerWire {
+    #[serde(rename = "direct")]
+    Direct,
+    #[serde(rename = "mention")]
+    Mention,
+    #[serde(rename = "lead")]
+    Lead,
+    #[serde(rename = "round")]
+    Round,
+    #[serde(rename = "delegation")]
+    Delegation,
+}
+impl ::std::fmt::Display for TeamDeliveryTriggerWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Direct => f.write_str("direct"),
+            Self::Mention => f.write_str("mention"),
+            Self::Lead => f.write_str("lead"),
+            Self::Round => f.write_str("round"),
+            Self::Delegation => f.write_str("delegation"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamDeliveryTriggerWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "direct" => Ok(Self::Direct),
+            "mention" => Ok(Self::Mention),
+            "lead" => Ok(Self::Lead),
+            "round" => Ok(Self::Round),
+            "delegation" => Ok(Self::Delegation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamDeliveryTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamDeliveryTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamDeliveryTriggerWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamDiscussionRoundStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"open\","]
+#[doc = "    \"closed\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamDiscussionRoundStateWire {
+    #[serde(rename = "open")]
+    Open,
+    #[serde(rename = "closed")]
+    Closed,
+}
+impl ::std::fmt::Display for TeamDiscussionRoundStateWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Open => f.write_str("open"),
+            Self::Closed => f.write_str("closed"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamDiscussionRoundStateWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "open" => Ok(Self::Open),
+            "closed" => Ok(Self::Closed),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamDiscussionRoundStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamDiscussionRoundStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamDiscussionRoundStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamMessageKindWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"message\","]
+#[doc = "    \"decision\","]
+#[doc = "    \"handoff\","]
+#[doc = "    \"system\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamMessageKindWire {
+    #[serde(rename = "message")]
+    Message,
+    #[serde(rename = "decision")]
+    Decision,
+    #[serde(rename = "handoff")]
+    Handoff,
+    #[serde(rename = "system")]
+    System,
+}
+impl ::std::fmt::Display for TeamMessageKindWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Message => f.write_str("message"),
+            Self::Decision => f.write_str("decision"),
+            Self::Handoff => f.write_str("handoff"),
+            Self::System => f.write_str("system"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamMessageKindWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "message" => Ok(Self::Message),
+            "decision" => Ok(Self::Decision),
+            "handoff" => Ok(Self::Handoff),
+            "system" => Ok(Self::System),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamMessageKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamMessageKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamMessageKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamMessageStateWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"admitted\","]
+#[doc = "    \"routed\","]
+#[doc = "    \"visible\","]
+#[doc = "    \"blocked\","]
+#[doc = "    \"superseded\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamMessageStateWire {
+    #[serde(rename = "admitted")]
+    Admitted,
+    #[serde(rename = "routed")]
+    Routed,
+    #[serde(rename = "visible")]
+    Visible,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "superseded")]
+    Superseded,
+}
+impl ::std::fmt::Display for TeamMessageStateWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Admitted => f.write_str("admitted"),
+            Self::Routed => f.write_str("routed"),
+            Self::Visible => f.write_str("visible"),
+            Self::Blocked => f.write_str("blocked"),
+            Self::Superseded => f.write_str("superseded"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamMessageStateWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "admitted" => Ok(Self::Admitted),
+            "routed" => Ok(Self::Routed),
+            "visible" => Ok(Self::Visible),
+            "blocked" => Ok(Self::Blocked),
+            "superseded" => Ok(Self::Superseded),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamMessageStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamMessageStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamMessageStateWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -29010,6 +38830,78 @@ impl ::std::convert::TryFrom<::std::string::String> for TeamParticipantStateWire
         value.parse()
     }
 }
+#[doc = "`TeamRoutingOutcomeWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"deliver\","]
+#[doc = "    \"blocked\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum TeamRoutingOutcomeWire {
+    #[serde(rename = "deliver")]
+    Deliver,
+    #[serde(rename = "blocked")]
+    Blocked,
+}
+impl ::std::fmt::Display for TeamRoutingOutcomeWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Deliver => f.write_str("deliver"),
+            Self::Blocked => f.write_str("blocked"),
+        }
+    }
+}
+impl ::std::str::FromStr for TeamRoutingOutcomeWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "deliver" => Ok(Self::Deliver),
+            "blocked" => Ok(Self::Blocked),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for TeamRoutingOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for TeamRoutingOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for TeamRoutingOutcomeWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`TeamStorageRpcCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -29030,6 +38922,9 @@ impl ::std::convert::TryFrom<::std::string::String> for TeamParticipantStateWire
 #[doc = "      \"$ref\": \"#/$defs/UpdateTeamConversationStateCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/SetTeamConversationLeadCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/PutTeamParticipantCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
@@ -29039,10 +38934,55 @@ impl ::std::convert::TryFrom<::std::string::String> for TeamParticipantStateWire
 #[doc = "      \"$ref\": \"#/$defs/UpdateTeamParticipantStateCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/AppendTeamTurnCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/AdmitTeamMessageCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
-#[doc = "      \"$ref\": \"#/$defs/ListTeamTurnsCommand\""]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamMessageCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamMessagesCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RouteTeamMessageCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamRoutingDecisionByMessageCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamRoutingDecisionsCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamDeliveriesCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamDiscussionRoundCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamDiscussionRoundsCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamDelegationOperationCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamDelegationOperationByToolExecutionCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListTeamDelegationTasksCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ReadTeamConversationPageCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetTeamDeliveryMaterializationContextCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/MaterializeTeamDeliveryCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/FailTeamDeliveryMaterializationCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ProjectTeamDeliveryOutcomeCommand\""]
 #[doc = "    }"]
 #[doc = "  ]"]
 #[doc = "}"]
@@ -29055,11 +38995,29 @@ pub enum TeamStorageRpcCommand {
     GetTeamConversationCommand(GetTeamConversationCommand),
     ListTeamConversationsCommand(ListTeamConversationsCommand),
     UpdateTeamConversationStateCommand(UpdateTeamConversationStateCommand),
+    SetTeamConversationLeadCommand(SetTeamConversationLeadCommand),
     PutTeamParticipantCommand(PutTeamParticipantCommand),
     ListTeamParticipantsCommand(ListTeamParticipantsCommand),
     UpdateTeamParticipantStateCommand(UpdateTeamParticipantStateCommand),
-    AppendTeamTurnCommand(AppendTeamTurnCommand),
-    ListTeamTurnsCommand(ListTeamTurnsCommand),
+    AdmitTeamMessageCommand(AdmitTeamMessageCommand),
+    GetTeamMessageCommand(GetTeamMessageCommand),
+    ListTeamMessagesCommand(ListTeamMessagesCommand),
+    RouteTeamMessageCommand(RouteTeamMessageCommand),
+    GetTeamRoutingDecisionByMessageCommand(GetTeamRoutingDecisionByMessageCommand),
+    ListTeamRoutingDecisionsCommand(ListTeamRoutingDecisionsCommand),
+    ListTeamDeliveriesCommand(ListTeamDeliveriesCommand),
+    GetTeamDiscussionRoundCommand(GetTeamDiscussionRoundCommand),
+    ListTeamDiscussionRoundsCommand(ListTeamDiscussionRoundsCommand),
+    GetTeamDelegationOperationCommand(GetTeamDelegationOperationCommand),
+    GetTeamDelegationOperationByToolExecutionCommand(
+        GetTeamDelegationOperationByToolExecutionCommand,
+    ),
+    ListTeamDelegationTasksCommand(ListTeamDelegationTasksCommand),
+    ReadTeamConversationPageCommand(ReadTeamConversationPageCommand),
+    GetTeamDeliveryMaterializationContextCommand(GetTeamDeliveryMaterializationContextCommand),
+    MaterializeTeamDeliveryCommand(MaterializeTeamDeliveryCommand),
+    FailTeamDeliveryMaterializationCommand(FailTeamDeliveryMaterializationCommand),
+    ProjectTeamDeliveryOutcomeCommand(ProjectTeamDeliveryOutcomeCommand),
 }
 impl ::std::convert::From<PutTeamConversationCommand> for TeamStorageRpcCommand {
     fn from(value: PutTeamConversationCommand) -> Self {
@@ -29081,6 +39039,11 @@ impl ::std::convert::From<UpdateTeamConversationStateCommand> for TeamStorageRpc
         Self::UpdateTeamConversationStateCommand(value)
     }
 }
+impl ::std::convert::From<SetTeamConversationLeadCommand> for TeamStorageRpcCommand {
+    fn from(value: SetTeamConversationLeadCommand) -> Self {
+        Self::SetTeamConversationLeadCommand(value)
+    }
+}
 impl ::std::convert::From<PutTeamParticipantCommand> for TeamStorageRpcCommand {
     fn from(value: PutTeamParticipantCommand) -> Self {
         Self::PutTeamParticipantCommand(value)
@@ -29096,17 +39059,94 @@ impl ::std::convert::From<UpdateTeamParticipantStateCommand> for TeamStorageRpcC
         Self::UpdateTeamParticipantStateCommand(value)
     }
 }
-impl ::std::convert::From<AppendTeamTurnCommand> for TeamStorageRpcCommand {
-    fn from(value: AppendTeamTurnCommand) -> Self {
-        Self::AppendTeamTurnCommand(value)
+impl ::std::convert::From<AdmitTeamMessageCommand> for TeamStorageRpcCommand {
+    fn from(value: AdmitTeamMessageCommand) -> Self {
+        Self::AdmitTeamMessageCommand(value)
     }
 }
-impl ::std::convert::From<ListTeamTurnsCommand> for TeamStorageRpcCommand {
-    fn from(value: ListTeamTurnsCommand) -> Self {
-        Self::ListTeamTurnsCommand(value)
+impl ::std::convert::From<GetTeamMessageCommand> for TeamStorageRpcCommand {
+    fn from(value: GetTeamMessageCommand) -> Self {
+        Self::GetTeamMessageCommand(value)
     }
 }
-#[doc = "`TeamTurnKindWire`"]
+impl ::std::convert::From<ListTeamMessagesCommand> for TeamStorageRpcCommand {
+    fn from(value: ListTeamMessagesCommand) -> Self {
+        Self::ListTeamMessagesCommand(value)
+    }
+}
+impl ::std::convert::From<RouteTeamMessageCommand> for TeamStorageRpcCommand {
+    fn from(value: RouteTeamMessageCommand) -> Self {
+        Self::RouteTeamMessageCommand(value)
+    }
+}
+impl ::std::convert::From<GetTeamRoutingDecisionByMessageCommand> for TeamStorageRpcCommand {
+    fn from(value: GetTeamRoutingDecisionByMessageCommand) -> Self {
+        Self::GetTeamRoutingDecisionByMessageCommand(value)
+    }
+}
+impl ::std::convert::From<ListTeamRoutingDecisionsCommand> for TeamStorageRpcCommand {
+    fn from(value: ListTeamRoutingDecisionsCommand) -> Self {
+        Self::ListTeamRoutingDecisionsCommand(value)
+    }
+}
+impl ::std::convert::From<ListTeamDeliveriesCommand> for TeamStorageRpcCommand {
+    fn from(value: ListTeamDeliveriesCommand) -> Self {
+        Self::ListTeamDeliveriesCommand(value)
+    }
+}
+impl ::std::convert::From<GetTeamDiscussionRoundCommand> for TeamStorageRpcCommand {
+    fn from(value: GetTeamDiscussionRoundCommand) -> Self {
+        Self::GetTeamDiscussionRoundCommand(value)
+    }
+}
+impl ::std::convert::From<ListTeamDiscussionRoundsCommand> for TeamStorageRpcCommand {
+    fn from(value: ListTeamDiscussionRoundsCommand) -> Self {
+        Self::ListTeamDiscussionRoundsCommand(value)
+    }
+}
+impl ::std::convert::From<GetTeamDelegationOperationCommand> for TeamStorageRpcCommand {
+    fn from(value: GetTeamDelegationOperationCommand) -> Self {
+        Self::GetTeamDelegationOperationCommand(value)
+    }
+}
+impl ::std::convert::From<GetTeamDelegationOperationByToolExecutionCommand>
+    for TeamStorageRpcCommand
+{
+    fn from(value: GetTeamDelegationOperationByToolExecutionCommand) -> Self {
+        Self::GetTeamDelegationOperationByToolExecutionCommand(value)
+    }
+}
+impl ::std::convert::From<ListTeamDelegationTasksCommand> for TeamStorageRpcCommand {
+    fn from(value: ListTeamDelegationTasksCommand) -> Self {
+        Self::ListTeamDelegationTasksCommand(value)
+    }
+}
+impl ::std::convert::From<ReadTeamConversationPageCommand> for TeamStorageRpcCommand {
+    fn from(value: ReadTeamConversationPageCommand) -> Self {
+        Self::ReadTeamConversationPageCommand(value)
+    }
+}
+impl ::std::convert::From<GetTeamDeliveryMaterializationContextCommand> for TeamStorageRpcCommand {
+    fn from(value: GetTeamDeliveryMaterializationContextCommand) -> Self {
+        Self::GetTeamDeliveryMaterializationContextCommand(value)
+    }
+}
+impl ::std::convert::From<MaterializeTeamDeliveryCommand> for TeamStorageRpcCommand {
+    fn from(value: MaterializeTeamDeliveryCommand) -> Self {
+        Self::MaterializeTeamDeliveryCommand(value)
+    }
+}
+impl ::std::convert::From<FailTeamDeliveryMaterializationCommand> for TeamStorageRpcCommand {
+    fn from(value: FailTeamDeliveryMaterializationCommand) -> Self {
+        Self::FailTeamDeliveryMaterializationCommand(value)
+    }
+}
+impl ::std::convert::From<ProjectTeamDeliveryOutcomeCommand> for TeamStorageRpcCommand {
+    fn from(value: ProjectTeamDeliveryOutcomeCommand) -> Self {
+        Self::ProjectTeamDeliveryOutcomeCommand(value)
+    }
+}
+#[doc = "`TeamTargetKindWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
 #[doc = r""]
@@ -29114,10 +39154,9 @@ impl ::std::convert::From<ListTeamTurnsCommand> for TeamStorageRpcCommand {
 #[doc = "{"]
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
-#[doc = "    \"message\","]
-#[doc = "    \"decision\","]
-#[doc = "    \"handoff\","]
-#[doc = "    \"system\""]
+#[doc = "    \"participant\","]
+#[doc = "    \"lead\","]
+#[doc = "    \"all\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -29134,45 +39173,41 @@ impl ::std::convert::From<ListTeamTurnsCommand> for TeamStorageRpcCommand {
     PartialEq,
     PartialOrd,
 )]
-pub enum TeamTurnKindWire {
-    #[serde(rename = "message")]
-    Message,
-    #[serde(rename = "decision")]
-    Decision,
-    #[serde(rename = "handoff")]
-    Handoff,
-    #[serde(rename = "system")]
-    System,
+pub enum TeamTargetKindWire {
+    #[serde(rename = "participant")]
+    Participant,
+    #[serde(rename = "lead")]
+    Lead,
+    #[serde(rename = "all")]
+    All,
 }
-impl ::std::fmt::Display for TeamTurnKindWire {
+impl ::std::fmt::Display for TeamTargetKindWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
-            Self::Message => f.write_str("message"),
-            Self::Decision => f.write_str("decision"),
-            Self::Handoff => f.write_str("handoff"),
-            Self::System => f.write_str("system"),
+            Self::Participant => f.write_str("participant"),
+            Self::Lead => f.write_str("lead"),
+            Self::All => f.write_str("all"),
         }
     }
 }
-impl ::std::str::FromStr for TeamTurnKindWire {
+impl ::std::str::FromStr for TeamTargetKindWire {
     type Err = self::error::ConversionError;
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
-            "message" => Ok(Self::Message),
-            "decision" => Ok(Self::Decision),
-            "handoff" => Ok(Self::Handoff),
-            "system" => Ok(Self::System),
+            "participant" => Ok(Self::Participant),
+            "lead" => Ok(Self::Lead),
+            "all" => Ok(Self::All),
             _ => Err("invalid value".into()),
         }
     }
 }
-impl ::std::convert::TryFrom<&str> for TeamTurnKindWire {
+impl ::std::convert::TryFrom<&str> for TeamTargetKindWire {
     type Error = self::error::ConversionError;
     fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<&::std::string::String> for TeamTurnKindWire {
+impl ::std::convert::TryFrom<&::std::string::String> for TeamTargetKindWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: &::std::string::String,
@@ -29180,7 +39215,527 @@ impl ::std::convert::TryFrom<&::std::string::String> for TeamTurnKindWire {
         value.parse()
     }
 }
-impl ::std::convert::TryFrom<::std::string::String> for TeamTurnKindWire {
+impl ::std::convert::TryFrom<::std::string::String> for TeamTargetKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`TeamTargetWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"participant_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/TeamTargetKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"participant_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct TeamTargetWire {
+    pub kind: TeamTargetKindWire,
+    pub participant_id: NullableString,
+}
+#[doc = "`TeamTargetsWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"array\","]
+#[doc = "  \"items\": {"]
+#[doc = "    \"$ref\": \"#/$defs/TeamTargetWire\""]
+#[doc = "  },"]
+#[doc = "  \"maxItems\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct TeamTargetsWire(pub ::std::vec::Vec<TeamTargetWire>);
+impl ::std::ops::Deref for TeamTargetsWire {
+    type Target = ::std::vec::Vec<TeamTargetWire>;
+    fn deref(&self) -> &::std::vec::Vec<TeamTargetWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<TeamTargetsWire> for ::std::vec::Vec<TeamTargetWire> {
+    fn from(value: TeamTargetsWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<TeamTargetWire>> for TeamTargetsWire {
+    fn from(value: ::std::vec::Vec<TeamTargetWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`ToolActivityEvidenceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"call\","]
+#[doc = "    \"result\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"call\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolActivityPresentationWire\""]
+#[doc = "    },"]
+#[doc = "    \"result\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/$defs/ToolActivityPresentationWire\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolActivityEvidenceWire {
+    pub call: ToolActivityPresentationWire,
+    pub result: ::std::option::Option<ToolActivityPresentationWire>,
+}
+#[doc = "`ToolActivityPresentationDetailWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"label\","]
+#[doc = "    \"value\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"label\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 128,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"value\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 1024,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolActivityPresentationDetailWire {
+    pub label: ToolActivityPresentationDetailWireLabel,
+    pub value: ToolActivityPresentationDetailWireValue,
+}
+#[doc = "`ToolActivityPresentationDetailWireLabel`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 128,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolActivityPresentationDetailWireLabel(::std::string::String);
+impl ::std::ops::Deref for ToolActivityPresentationDetailWireLabel {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolActivityPresentationDetailWireLabel> for ::std::string::String {
+    fn from(value: ToolActivityPresentationDetailWireLabel) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolActivityPresentationDetailWireLabel {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 128usize {
+            return Err("longer than 128 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolActivityPresentationDetailWireLabel {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolActivityPresentationDetailWireLabel {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolActivityPresentationDetailWireLabel {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolActivityPresentationDetailWireLabel {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolActivityPresentationDetailWireValue`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 1024,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolActivityPresentationDetailWireValue(::std::string::String);
+impl ::std::ops::Deref for ToolActivityPresentationDetailWireValue {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolActivityPresentationDetailWireValue> for ::std::string::String {
+    fn from(value: ToolActivityPresentationDetailWireValue) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolActivityPresentationDetailWireValue {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 1024usize {
+            return Err("longer than 1024 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolActivityPresentationDetailWireValue {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolActivityPresentationDetailWireValue {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolActivityPresentationDetailWireValue {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolActivityPresentationDetailWireValue {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolActivityPresentationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"details\","]
+#[doc = "    \"summary\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"details\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"type\": \"array\","]
+#[doc = "          \"items\": {"]
+#[doc = "            \"$ref\": \"#/$defs/ToolActivityPresentationDetailWire\""]
+#[doc = "          },"]
+#[doc = "          \"maxItems\": 16"]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"summary\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 512,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolActivityPresentationWire {
+    pub details: ::std::option::Option<::std::vec::Vec<ToolActivityPresentationDetailWire>>,
+    pub summary: ToolActivityPresentationWireSummary,
+}
+#[doc = "`ToolActivityPresentationWireSummary`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 512,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolActivityPresentationWireSummary(::std::string::String);
+impl ::std::ops::Deref for ToolActivityPresentationWireSummary {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolActivityPresentationWireSummary> for ::std::string::String {
+    fn from(value: ToolActivityPresentationWireSummary) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolActivityPresentationWireSummary {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 512usize {
+            return Err("longer than 512 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolActivityPresentationWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolActivityPresentationWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolActivityPresentationWireSummary {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolActivityPresentationWireSummary {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolActivityRecordWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"activity\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"source_message_id\","]
+#[doc = "    \"state\","]
+#[doc = "    \"tool_call_id\","]
+#[doc = "    \"tool_name\","]
+#[doc = "    \"turn_id\","]
+#[doc = "    \"updated_at\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"activity\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolActivityEvidenceWire\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"source_message_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"state\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolExecutionStateWire\""]
+#[doc = "    },"]
+#[doc = "    \"tool_call_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"tool_name\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"updated_at\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolActivityRecordWire {
+    pub activity: NullableToolActivityEvidenceWire,
+    pub session_id: ::std::string::String,
+    pub source_message_id: ::std::string::String,
+    pub state: ToolExecutionStateWire,
+    pub tool_call_id: ::std::string::String,
+    pub tool_name: ::std::string::String,
+    pub turn_id: ::std::string::String,
+    pub updated_at: i64,
+}
+#[doc = "`ToolExecutionApprovalDecisionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"approve_once\","]
+#[doc = "    \"deny\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolExecutionApprovalDecisionWire {
+    #[serde(rename = "approve_once")]
+    ApproveOnce,
+    #[serde(rename = "deny")]
+    Deny,
+}
+impl ::std::fmt::Display for ToolExecutionApprovalDecisionWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ApproveOnce => f.write_str("approve_once"),
+            Self::Deny => f.write_str("deny"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolExecutionApprovalDecisionWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "approve_once" => Ok(Self::ApproveOnce),
+            "deny" => Ok(Self::Deny),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionApprovalDecisionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolExecutionApprovalDecisionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionApprovalDecisionWire {
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -29271,6 +39826,7 @@ pub struct ToolExecutionAttemptRecordWire {
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
 #[doc = "    \"running\","]
+#[doc = "    \"suspended\","]
 #[doc = "    \"succeeded\","]
 #[doc = "    \"failed\","]
 #[doc = "    \"cancelled\","]
@@ -29295,6 +39851,8 @@ pub struct ToolExecutionAttemptRecordWire {
 pub enum ToolExecutionAttemptStateWire {
     #[serde(rename = "running")]
     Running,
+    #[serde(rename = "suspended")]
+    Suspended,
     #[serde(rename = "succeeded")]
     Succeeded,
     #[serde(rename = "failed")]
@@ -29310,6 +39868,7 @@ impl ::std::fmt::Display for ToolExecutionAttemptStateWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Running => f.write_str("running"),
+            Self::Suspended => f.write_str("suspended"),
             Self::Succeeded => f.write_str("succeeded"),
             Self::Failed => f.write_str("failed"),
             Self::Cancelled => f.write_str("cancelled"),
@@ -29323,6 +39882,7 @@ impl ::std::str::FromStr for ToolExecutionAttemptStateWire {
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "running" => Ok(Self::Running),
+            "suspended" => Ok(Self::Suspended),
             "succeeded" => Ok(Self::Succeeded),
             "failed" => Ok(Self::Failed),
             "cancelled" => Ok(Self::Cancelled),
@@ -29362,7 +39922,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionAttemptStat
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"activity\","]
+#[doc = "    \"approval_revision\","]
 #[doc = "    \"attempt_count\","]
+#[doc = "    \"content\","]
+#[doc = "    \"content_digest\","]
 #[doc = "    \"created_at\","]
 #[doc = "    \"current_invocation_attempt_id\","]
 #[doc = "    \"descriptor\","]
@@ -29375,7 +39939,8 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionAttemptStat
 #[doc = "    \"is_error\","]
 #[doc = "    \"permission\","]
 #[doc = "    \"principal_id\","]
-#[doc = "    \"result\","]
+#[doc = "    \"recovery\","]
+#[doc = "    \"recovery_revision\","]
 #[doc = "    \"session_id\","]
 #[doc = "    \"source_message_id\","]
 #[doc = "    \"state\","]
@@ -29385,8 +39950,20 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionAttemptStat
 #[doc = "    \"updated_at\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"activity\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolActivityEvidenceWire\""]
+#[doc = "    },"]
+#[doc = "    \"approval_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
 #[doc = "    \"attempt_count\": {"]
 #[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"content\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableToolResultContentWire\""]
+#[doc = "    },"]
+#[doc = "    \"content_digest\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
 #[doc = "    \"created_at\": {"]
 #[doc = "      \"type\": \"integer\""]
@@ -29424,8 +40001,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionAttemptStat
 #[doc = "    \"principal_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
-#[doc = "    \"result\": {"]
+#[doc = "    \"recovery\": {"]
 #[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"recovery_revision\": {"]
+#[doc = "      \"type\": \"integer\""]
 #[doc = "    },"]
 #[doc = "    \"session_id\": {"]
 #[doc = "      \"type\": \"string\""]
@@ -29456,7 +40036,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionAttemptStat
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct ToolExecutionRecordWire {
+    pub activity: NullableToolActivityEvidenceWire,
+    pub approval_revision: i64,
     pub attempt_count: i64,
+    pub content: NullableToolResultContentWire,
+    pub content_digest: NullableString,
     pub created_at: i64,
     pub current_invocation_attempt_id: NullableString,
     pub descriptor: ::serde_json::Value,
@@ -29469,7 +40053,8 @@ pub struct ToolExecutionRecordWire {
     pub is_error: NullableBoolean,
     pub permission: ::serde_json::Value,
     pub principal_id: ::std::string::String,
-    pub result: ::serde_json::Value,
+    pub recovery: ::serde_json::Value,
+    pub recovery_revision: i64,
     pub session_id: ::std::string::String,
     pub source_message_id: ::std::string::String,
     pub state: ToolExecutionStateWire,
@@ -29477,6 +40062,586 @@ pub struct ToolExecutionRecordWire {
     pub tool_name: ::std::string::String,
     pub turn_id: ::std::string::String,
     pub updated_at: i64,
+}
+#[doc = "`ToolExecutionRecoveryDecisionWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"confirm_succeeded\","]
+#[doc = "    \"confirm_failed\","]
+#[doc = "    \"retry\","]
+#[doc = "    \"abandon_turn\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolExecutionRecoveryDecisionWire {
+    #[serde(rename = "confirm_succeeded")]
+    ConfirmSucceeded,
+    #[serde(rename = "confirm_failed")]
+    ConfirmFailed,
+    #[serde(rename = "retry")]
+    Retry,
+    #[serde(rename = "abandon_turn")]
+    AbandonTurn,
+}
+impl ::std::fmt::Display for ToolExecutionRecoveryDecisionWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ConfirmSucceeded => f.write_str("confirm_succeeded"),
+            Self::ConfirmFailed => f.write_str("confirm_failed"),
+            Self::Retry => f.write_str("retry"),
+            Self::AbandonTurn => f.write_str("abandon_turn"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolExecutionRecoveryDecisionWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "confirm_succeeded" => Ok(Self::ConfirmSucceeded),
+            "confirm_failed" => Ok(Self::ConfirmFailed),
+            "retry" => Ok(Self::Retry),
+            "abandon_turn" => Ok(Self::AbandonTurn),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionRecoveryDecisionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolExecutionRecoveryDecisionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionRecoveryDecisionWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"execution_id\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"source_message_id\","]
+#[doc = "    \"tool_call_id\","]
+#[doc = "    \"turn_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"execution_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"tool_execution\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"source_message_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"tool_call_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolExecutionResourceProvenanceCauseWire {
+    pub execution_id: ToolExecutionResourceProvenanceCauseWireExecutionId,
+    pub kind: ToolExecutionResourceProvenanceCauseWireKind,
+    pub session_id: ToolExecutionResourceProvenanceCauseWireSessionId,
+    pub source_message_id: ToolExecutionResourceProvenanceCauseWireSourceMessageId,
+    pub tool_call_id: ToolExecutionResourceProvenanceCauseWireToolCallId,
+    pub turn_id: ToolExecutionResourceProvenanceCauseWireTurnId,
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireExecutionId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolExecutionResourceProvenanceCauseWireExecutionId(::std::string::String);
+impl ::std::ops::Deref for ToolExecutionResourceProvenanceCauseWireExecutionId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWireExecutionId>
+    for ::std::string::String
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWireExecutionId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireExecutionId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireExecutionId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireExecutionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireExecutionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolExecutionResourceProvenanceCauseWireExecutionId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"tool_execution\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolExecutionResourceProvenanceCauseWireKind {
+    #[serde(rename = "tool_execution")]
+    ToolExecution,
+}
+impl ::std::fmt::Display for ToolExecutionResourceProvenanceCauseWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ToolExecution => f.write_str("tool_execution"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "tool_execution" => Ok(Self::ToolExecution),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireSessionId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolExecutionResourceProvenanceCauseWireSessionId(::std::string::String);
+impl ::std::ops::Deref for ToolExecutionResourceProvenanceCauseWireSessionId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWireSessionId>
+    for ::std::string::String
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWireSessionId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireSessionId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireSessionId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireSessionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireSessionId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolExecutionResourceProvenanceCauseWireSessionId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireSourceMessageId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolExecutionResourceProvenanceCauseWireSourceMessageId(::std::string::String);
+impl ::std::ops::Deref for ToolExecutionResourceProvenanceCauseWireSourceMessageId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWireSourceMessageId>
+    for ::std::string::String
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWireSourceMessageId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireSourceMessageId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireSourceMessageId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireSourceMessageId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireSourceMessageId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolExecutionResourceProvenanceCauseWireSourceMessageId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireToolCallId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolExecutionResourceProvenanceCauseWireToolCallId(::std::string::String);
+impl ::std::ops::Deref for ToolExecutionResourceProvenanceCauseWireToolCallId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWireToolCallId>
+    for ::std::string::String
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWireToolCallId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireToolCallId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireToolCallId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireToolCallId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireToolCallId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolExecutionResourceProvenanceCauseWireToolCallId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolExecutionResourceProvenanceCauseWireTurnId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolExecutionResourceProvenanceCauseWireTurnId(::std::string::String);
+impl ::std::ops::Deref for ToolExecutionResourceProvenanceCauseWireTurnId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWireTurnId>
+    for ::std::string::String
+{
+    fn from(value: ToolExecutionResourceProvenanceCauseWireTurnId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolExecutionResourceProvenanceCauseWireTurnId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolExecutionResourceProvenanceCauseWireTurnId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireTurnId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolExecutionResourceProvenanceCauseWireTurnId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolExecutionResourceProvenanceCauseWireTurnId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`ToolExecutionStateWire`"]
 #[doc = r""]
@@ -29487,7 +40652,9 @@ pub struct ToolExecutionRecordWire {
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
 #[doc = "    \"running\","]
+#[doc = "    \"waiting\","]
 #[doc = "    \"retry_ready\","]
+#[doc = "    \"approved\","]
 #[doc = "    \"denied\","]
 #[doc = "    \"approval_required\","]
 #[doc = "    \"succeeded\","]
@@ -29513,8 +40680,12 @@ pub struct ToolExecutionRecordWire {
 pub enum ToolExecutionStateWire {
     #[serde(rename = "running")]
     Running,
+    #[serde(rename = "waiting")]
+    Waiting,
     #[serde(rename = "retry_ready")]
     RetryReady,
+    #[serde(rename = "approved")]
+    Approved,
     #[serde(rename = "denied")]
     Denied,
     #[serde(rename = "approval_required")]
@@ -29532,7 +40703,9 @@ impl ::std::fmt::Display for ToolExecutionStateWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::Running => f.write_str("running"),
+            Self::Waiting => f.write_str("waiting"),
             Self::RetryReady => f.write_str("retry_ready"),
+            Self::Approved => f.write_str("approved"),
             Self::Denied => f.write_str("denied"),
             Self::ApprovalRequired => f.write_str("approval_required"),
             Self::Succeeded => f.write_str("succeeded"),
@@ -29547,7 +40720,9 @@ impl ::std::str::FromStr for ToolExecutionStateWire {
     fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
         match value {
             "running" => Ok(Self::Running),
+            "waiting" => Ok(Self::Waiting),
             "retry_ready" => Ok(Self::RetryReady),
+            "approved" => Ok(Self::Approved),
             "denied" => Ok(Self::Denied),
             "approval_required" => Ok(Self::ApprovalRequired),
             "succeeded" => Ok(Self::Succeeded),
@@ -29580,6 +40755,585 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionStateWire {
         value.parse()
     }
 }
+#[doc = "`ToolResultContentPartWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolResultTextContentPartWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolResultJsonContentPartWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ToolResultResourceContentPartWire\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(untagged)]
+pub enum ToolResultContentPartWire {
+    TextContentPartWire(ToolResultTextContentPartWire),
+    JsonContentPartWire(ToolResultJsonContentPartWire),
+    ResourceContentPartWire(ToolResultResourceContentPartWire),
+}
+impl ::std::convert::From<ToolResultTextContentPartWire> for ToolResultContentPartWire {
+    fn from(value: ToolResultTextContentPartWire) -> Self {
+        Self::TextContentPartWire(value)
+    }
+}
+impl ::std::convert::From<ToolResultJsonContentPartWire> for ToolResultContentPartWire {
+    fn from(value: ToolResultJsonContentPartWire) -> Self {
+        Self::JsonContentPartWire(value)
+    }
+}
+impl ::std::convert::From<ToolResultResourceContentPartWire> for ToolResultContentPartWire {
+    fn from(value: ToolResultResourceContentPartWire) -> Self {
+        Self::ResourceContentPartWire(value)
+    }
+}
+#[doc = "`ToolResultJsonContentPartWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"type\","]
+#[doc = "    \"value\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"json\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"value\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolResultJsonContentPartWire {
+    #[serde(rename = "type")]
+    pub type_: ToolResultJsonContentPartWireType,
+    pub value: ::serde_json::Value,
+}
+#[doc = "`ToolResultJsonContentPartWireType`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"json\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolResultJsonContentPartWireType {
+    #[serde(rename = "json")]
+    Json,
+}
+impl ::std::fmt::Display for ToolResultJsonContentPartWireType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Json => f.write_str("json"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolResultJsonContentPartWireType {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "json" => Ok(Self::Json),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultJsonContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolResultJsonContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolResultJsonContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ToolResultResourceContentPartWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"media_type\","]
+#[doc = "    \"resource_id\","]
+#[doc = "    \"sha256\","]
+#[doc = "    \"size_bytes\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"media_type\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"resource_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"sha256\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"size_bytes\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"resource\""]
+#[doc = "      ]"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolResultResourceContentPartWire {
+    pub kind: ResourceKindWire,
+    pub media_type: NullableString,
+    pub resource_id: ToolResultResourceContentPartWireResourceId,
+    pub sha256: ToolResultResourceContentPartWireSha256,
+    pub size_bytes: ::std::num::NonZeroU64,
+    #[serde(rename = "type")]
+    pub type_: ToolResultResourceContentPartWireType,
+}
+#[doc = "`ToolResultResourceContentPartWireResourceId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolResultResourceContentPartWireResourceId(::std::string::String);
+impl ::std::ops::Deref for ToolResultResourceContentPartWireResourceId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolResultResourceContentPartWireResourceId> for ::std::string::String {
+    fn from(value: ToolResultResourceContentPartWireResourceId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolResultResourceContentPartWireResourceId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultResourceContentPartWireResourceId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ToolResultResourceContentPartWireResourceId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ToolResultResourceContentPartWireResourceId
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolResultResourceContentPartWireResourceId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolResultResourceContentPartWireSha256`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolResultResourceContentPartWireSha256(::std::string::String);
+impl ::std::ops::Deref for ToolResultResourceContentPartWireSha256 {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolResultResourceContentPartWireSha256> for ::std::string::String {
+    fn from(value: ToolResultResourceContentPartWireSha256) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolResultResourceContentPartWireSha256 {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultResourceContentPartWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolResultResourceContentPartWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolResultResourceContentPartWireSha256 {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolResultResourceContentPartWireSha256 {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolResultResourceContentPartWireType`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"resource\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolResultResourceContentPartWireType {
+    #[serde(rename = "resource")]
+    Resource,
+}
+impl ::std::fmt::Display for ToolResultResourceContentPartWireType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Resource => f.write_str("resource"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolResultResourceContentPartWireType {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "resource" => Ok(Self::Resource),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultResourceContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolResultResourceContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolResultResourceContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ToolResultTextContentPartWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"text\","]
+#[doc = "    \"type\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"text\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"type\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"text\""]
+#[doc = "      ]"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ToolResultTextContentPartWire {
+    pub text: ToolResultTextContentPartWireText,
+    #[serde(rename = "type")]
+    pub type_: ToolResultTextContentPartWireType,
+}
+#[doc = "`ToolResultTextContentPartWireText`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ToolResultTextContentPartWireText(::std::string::String);
+impl ::std::ops::Deref for ToolResultTextContentPartWireText {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ToolResultTextContentPartWireText> for ::std::string::String {
+    fn from(value: ToolResultTextContentPartWireText) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ToolResultTextContentPartWireText {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultTextContentPartWireText {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolResultTextContentPartWireText {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolResultTextContentPartWireText {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ToolResultTextContentPartWireText {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ToolResultTextContentPartWireType`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"text\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ToolResultTextContentPartWireType {
+    #[serde(rename = "text")]
+    Text,
+}
+impl ::std::fmt::Display for ToolResultTextContentPartWireType {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Text => f.write_str("text"),
+        }
+    }
+}
+impl ::std::str::FromStr for ToolResultTextContentPartWireType {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "text" => Ok(Self::Text),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ToolResultTextContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for ToolResultTextContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for ToolResultTextContentPartWireType {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`ToolsStorageRpcCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -29591,13 +41345,31 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionStateWire {
 #[doc = "      \"$ref\": \"#/$defs/BeginToolExecutionCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/DeferToolExecutionCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/FinishToolExecutionCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/RequireToolExecutionRecoveryCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ResolveToolExecutionRecoveryCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ResolveToolExecutionApprovalCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/GetToolExecutionCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/GetToolExecutionByCallCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListToolExecutionsCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ListToolActivitiesCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ListToolExecutionAttemptsCommand\""]
@@ -29610,9 +41382,15 @@ impl ::std::convert::TryFrom<::std::string::String> for ToolExecutionStateWire {
 #[serde(untagged)]
 pub enum ToolsStorageRpcCommand {
     BeginToolExecutionCommand(BeginToolExecutionCommand),
+    DeferToolExecutionCommand(DeferToolExecutionCommand),
     FinishToolExecutionCommand(FinishToolExecutionCommand),
+    RequireToolExecutionRecoveryCommand(RequireToolExecutionRecoveryCommand),
+    ResolveToolExecutionRecoveryCommand(ResolveToolExecutionRecoveryCommand),
+    ResolveToolExecutionApprovalCommand(ResolveToolExecutionApprovalCommand),
     GetToolExecutionCommand(GetToolExecutionCommand),
+    GetToolExecutionByCallCommand(GetToolExecutionByCallCommand),
     ListToolExecutionsCommand(ListToolExecutionsCommand),
+    ListToolActivitiesCommand(ListToolActivitiesCommand),
     ListToolExecutionAttemptsCommand(ListToolExecutionAttemptsCommand),
 }
 impl ::std::convert::From<BeginToolExecutionCommand> for ToolsStorageRpcCommand {
@@ -29620,9 +41398,29 @@ impl ::std::convert::From<BeginToolExecutionCommand> for ToolsStorageRpcCommand 
         Self::BeginToolExecutionCommand(value)
     }
 }
+impl ::std::convert::From<DeferToolExecutionCommand> for ToolsStorageRpcCommand {
+    fn from(value: DeferToolExecutionCommand) -> Self {
+        Self::DeferToolExecutionCommand(value)
+    }
+}
 impl ::std::convert::From<FinishToolExecutionCommand> for ToolsStorageRpcCommand {
     fn from(value: FinishToolExecutionCommand) -> Self {
         Self::FinishToolExecutionCommand(value)
+    }
+}
+impl ::std::convert::From<RequireToolExecutionRecoveryCommand> for ToolsStorageRpcCommand {
+    fn from(value: RequireToolExecutionRecoveryCommand) -> Self {
+        Self::RequireToolExecutionRecoveryCommand(value)
+    }
+}
+impl ::std::convert::From<ResolveToolExecutionRecoveryCommand> for ToolsStorageRpcCommand {
+    fn from(value: ResolveToolExecutionRecoveryCommand) -> Self {
+        Self::ResolveToolExecutionRecoveryCommand(value)
+    }
+}
+impl ::std::convert::From<ResolveToolExecutionApprovalCommand> for ToolsStorageRpcCommand {
+    fn from(value: ResolveToolExecutionApprovalCommand) -> Self {
+        Self::ResolveToolExecutionApprovalCommand(value)
     }
 }
 impl ::std::convert::From<GetToolExecutionCommand> for ToolsStorageRpcCommand {
@@ -29630,9 +41428,19 @@ impl ::std::convert::From<GetToolExecutionCommand> for ToolsStorageRpcCommand {
         Self::GetToolExecutionCommand(value)
     }
 }
+impl ::std::convert::From<GetToolExecutionByCallCommand> for ToolsStorageRpcCommand {
+    fn from(value: GetToolExecutionByCallCommand) -> Self {
+        Self::GetToolExecutionByCallCommand(value)
+    }
+}
 impl ::std::convert::From<ListToolExecutionsCommand> for ToolsStorageRpcCommand {
     fn from(value: ListToolExecutionsCommand) -> Self {
         Self::ListToolExecutionsCommand(value)
+    }
+}
+impl ::std::convert::From<ListToolActivitiesCommand> for ToolsStorageRpcCommand {
+    fn from(value: ListToolActivitiesCommand) -> Self {
+        Self::ListToolActivitiesCommand(value)
     }
 }
 impl ::std::convert::From<ListToolExecutionAttemptsCommand> for ToolsStorageRpcCommand {
@@ -30346,11 +42154,15 @@ impl ::std::convert::TryFrom<::std::string::String> for UpdatePluginInstallState
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"expected_state\","]
 #[doc = "    \"plugin_id\","]
 #[doc = "    \"state\","]
 #[doc = "    \"version\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"expected_state\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PluginInstallStateWire\""]
+#[doc = "    },"]
 #[doc = "    \"plugin_id\": {"]
 #[doc = "      \"type\": \"string\""]
 #[doc = "    },"]
@@ -30358,7 +42170,7 @@ impl ::std::convert::TryFrom<::std::string::String> for UpdatePluginInstallState
 #[doc = "      \"$ref\": \"#/$defs/PluginInstallStateWire\""]
 #[doc = "    },"]
 #[doc = "    \"version\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "      \"type\": \"string\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -30368,9 +42180,10 @@ impl ::std::convert::TryFrom<::std::string::String> for UpdatePluginInstallState
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct UpdatePluginInstallStateWire {
+    pub expected_state: PluginInstallStateWire,
     pub plugin_id: ::std::string::String,
     pub state: PluginInstallStateWire,
-    pub version: NullableString,
+    pub version: ::std::string::String,
 }
 #[doc = "`UpdatePluginManifestStateCommand`"]
 #[doc = r""]
@@ -30491,7 +42304,7 @@ impl ::std::convert::TryFrom<::std::string::String> for UpdatePluginManifestStat
 #[doc = "      \"$ref\": \"#/$defs/PluginManifestStateWire\""]
 #[doc = "    },"]
 #[doc = "    \"version\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "      \"type\": \"string\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -30503,7 +42316,7 @@ impl ::std::convert::TryFrom<::std::string::String> for UpdatePluginManifestStat
 pub struct UpdatePluginManifestStateWire {
     pub plugin_id: ::std::string::String,
     pub state: PluginManifestStateWire,
-    pub version: NullableString,
+    pub version: ::std::string::String,
 }
 #[doc = "`UpdateTeamConversationStateCommand`"]
 #[doc = r""]
@@ -31334,4 +43147,4 @@ impl ::std::convert::TryFrom<::std::string::String> for WriteAtomicFileCommandCo
 }
 
 pub const STORAGE_RPC_SCHEMA_SHA256: &str =
-    "7e55719f548e777b833bf5b42c94998ffe3151dd94a83cc63979680c11fd7c66";
+    "09088670e08b3a2f17b2b7981306157f308d1655e6041fd743ca4df7c173dd48";

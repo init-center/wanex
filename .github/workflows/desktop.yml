@@ -1,0 +1,149 @@
+name: Cross-Platform Release Gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cross-platform-release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            test_concurrency: 2
+          - os: macos-15
+            target: darwin-arm64
+            test_concurrency: 2
+          - os: macos-15-intel
+            target: darwin-x64
+            test_concurrency: 2
+          - os: windows-2025
+            target: win32-x64
+            test_concurrency: 1
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          components: rustfmt, clippy
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+        env:
+          WANEX_TEST_CONCURRENCY: ${{ matrix.test_concurrency }}
+      - if: matrix.target == 'linux-x64'
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - if: matrix.target == 'linux-x64'
+        run: pnpm security:js
+      - if: matrix.target == 'linux-x64'
+        run: pnpm security:rust
+
+  packed-core-node24:
+    name: Packed Core Node 24
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - run: pnpm install --frozen-lockfile --config.engine-strict=false
+      - run: cargo build
+      - run: pnpm release:sdk
+      - run: pnpm proof:sdk-consumers
+
+  distribution:
+    name: Distribution ${{ matrix.target }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: linux-x64
+            desktop: false
+          - os: macos-15
+            target: darwin-arm64
+            desktop: true
+          - os: macos-15-intel
+            target: darwin-x64
+            desktop: true
+          - os: windows-2025
+            target: win32-x64
+            desktop: true
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm stage:native -- --target ${{ matrix.target }}
+      - run: pnpm proof:native-runtime
+      - if: matrix.target == 'linux-x64'
+        run: sudo apt-get update && sudo apt-get install --yes expect
+      - run: pnpm proof:tui
+      - if: matrix.desktop
+        run: pnpm check:desktop
+      - if: matrix.desktop
+        run: pnpm test:desktop
+      - if: matrix.desktop
+        run: pnpm proof:desktop
+      - run: pnpm audit:host-distribution -- --target ${{ matrix.target }} --tui-receipt target/distribution/tui/installed-proof.json
+      - run: pnpm release:sdk
+      - run: pnpm release:native -- --target ${{ matrix.target }}
+      - run: pnpm proof:sdk-consumers -- --native-target ${{ matrix.target }} --native-package-report target/sdk/native/${{ matrix.target }}/report.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: wanex-distribution-${{ matrix.target }}
+          if-no-files-found: error
+          path: |
+            target/distribution/native
+            target/distribution/native-runtime-proof.json
+            target/distribution/tui
+            target/distribution/host-distribution-audit-${{ matrix.target }}.json
+            target/distribution/product-desktop/product-desktop-report.json
+            target/distribution/product-desktop/product-desktop-proof.png
+            target/sdk/native/${{ matrix.target }}

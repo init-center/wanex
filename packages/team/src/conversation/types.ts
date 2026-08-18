@@ -1,23 +1,54 @@
 import type {
-  AppendTeamTurnRequest,
-  EnqueueJobRequest,
+  AdmitTeamMessageRequest,
+  FailTeamDeliveryMaterializationReceipt,
+  FailTeamDeliveryMaterializationRequest,
   JsonValue,
+  ListTeamDeliveriesRequest,
+  ListTeamDiscussionRoundsRequest,
+  ListTeamMessagesRequest,
+  ListTeamRoutingDecisionsRequest,
+  MaterializeTeamDeliveryReceipt,
+  MaterializeTeamDeliveryRequest,
   MessagePart,
+  RouteTeamDeliveryRequest,
+  ProjectTeamDeliveryOutcomeReceipt,
+  ProjectTeamDeliveryOutcomeRequest,
+  ReadTeamConversationPageRequest,
   PrincipalId,
+  SessionId,
+  RouteTeamMessageReceipt,
+  RouteTeamMessageRequest,
+  SetTeamConversationLeadRequest,
   TeamConversationMode,
+  TeamConversationPage,
   TeamConversationRecord,
   TeamConversationState,
+  TeamDeliveryRecord,
+  TeamDeliveryChildTurnPlan,
+  TeamDeliveryMaterializationContext,
+  TeamDiscussionRoundOutcome,
+  TeamDiscussionRoundRecord,
+  TeamDiscussionRoundResult,
+  TeamDiscussionRoundState,
+  TeamMessageRecord,
+  TeamMessageKind,
   TeamParticipantKind,
   TeamParticipantRecord,
   TeamParticipantState,
-  TeamTurnRecord
+  TeamRoutingDecisionRecord,
+  TeamRoutingOutcome,
+  TeamTarget
 } from "@wanex/protocol"
-import type { TeamConversationRuntime } from "./runtime.js"
 import type { TeamConversationRuntimeStorage } from "./storage.js"
 
 export interface TeamConversationRuntimeOptions {
   readonly storage: TeamConversationRuntimeStorage
   readonly principalId?: PrincipalId
+  /**
+   * Best-effort notification after a durable route creates dispatch work.
+   * Scheduler recovery remains authoritative when the notification is absent.
+   */
+  readonly notifyWorkAvailable?: () => void
 }
 
 export interface CreateTeamConversationRequest {
@@ -43,111 +74,73 @@ export interface AddTeamParticipantRequest {
   readonly kind: TeamParticipantKind
   readonly displayName?: string
   readonly role?: string
+  readonly agentSessionId?: SessionId
   readonly metadata?: JsonValue
   readonly idempotencyKey?: string
 }
 
-export interface AppendTeamMessageRequest {
+export interface SubmitRoutedTeamMessageRequest {
+  readonly idempotencyKey: string
+  readonly message: TeamMessageAdmissionInput
+  readonly route: TeamMessageRouteInput
+}
+
+export interface SubmitOrchestratedTeamMessageRequest {
+  readonly idempotencyKey: string
+  readonly message: TeamMessageAdmissionInput
+}
+
+export interface TeamMessageAdmissionInput {
   readonly id?: string
   readonly conversationId: string
-  readonly speakerParticipantId: string
-  readonly audienceParticipantIds?: readonly string[]
-  readonly kind?: AppendTeamTurnRequest["kind"]
+  readonly authorParticipantId: string
+  readonly parentMessageId?: string
+  readonly kind?: TeamMessageKind
+  readonly targets: readonly TeamTarget[]
   readonly content: readonly MessagePart[]
   readonly metadata?: JsonValue
 }
 
-export interface ListTeamTurnsRequest {
-  readonly afterCreatedAt?: number
-  readonly afterTurnId?: string
-  readonly limit?: number
-}
-
-export interface TeamRoundPolicy {
-  readonly maxTurns: number
-  readonly mode?: TeamConversationMode
-  readonly includeParticipantKinds?: readonly TeamParticipantKind[]
+export interface TeamMessageRouteInput {
+  readonly expectedLeadParticipantId?: string
+  readonly mode: TeamConversationMode
+  readonly outcome: TeamRoutingOutcome
+  readonly actorPrincipalId: PrincipalId
+  readonly reason: string
   readonly metadata?: JsonValue
-}
-
-export interface TeamSpeakerContext {
-  readonly conversation: TeamConversationRecord
-  readonly speaker: TeamParticipantRecord
-  readonly participants: readonly TeamParticipantRecord[]
-  readonly turns: readonly TeamTurnRecord[]
-  readonly turnIndex: number
-}
-
-export interface TeamSpeakerResponse {
-  readonly content: readonly MessagePart[]
-  readonly audienceParticipantIds?: readonly string[]
-  readonly kind?: AppendTeamTurnRequest["kind"]
-  readonly metadata?: JsonValue
-}
-
-export type TeamSpeakerHandler = (
-  context: TeamSpeakerContext
-) => Promise<TeamSpeakerResponse | null | undefined> | TeamSpeakerResponse | null | undefined
-
-export type TeamSpeakerHandlers =
-  | ReadonlyMap<string, TeamSpeakerHandler>
-  | Record<string, TeamSpeakerHandler>
-
-export interface OrchestrateTeamRoundRequest {
-  readonly conversationId: string
-  readonly policy: TeamRoundPolicy
-  readonly speakers: TeamSpeakerHandlers
-}
-
-export type TeamRoundStopReason =
-  | "max_turns"
-  | "conversation_not_open"
-  | "no_active_speaker"
-  | "speaker_not_registered"
-  | "empty_response"
-
-export interface TeamRoundResult {
-  readonly conversation: TeamConversationRecord
-  readonly turns: readonly TeamTurnRecord[]
-  readonly stopReason: TeamRoundStopReason
-}
-
-export interface TeamRoundJobPayload {
-  readonly conversationId: string
-  readonly policy: TeamRoundPolicy
-  readonly metadata?: JsonValue
-}
-
-export interface SubmitTeamRoundJobRequest extends TeamRoundJobPayload {
-  readonly id?: string
-  readonly principalId: PrincipalId
-  readonly scheduledAt?: number
-  readonly notBefore?: number
-  readonly priority?: number
-  readonly maxAttempts?: number
-  readonly retryPolicy?: EnqueueJobRequest["retryPolicy"]
-  readonly idempotencyKey?: string
-  readonly budgetGrantId?: string
-}
-
-export interface TeamRoundJobHandlerOptions {
-  readonly runtime: TeamConversationRuntime
-  readonly speakers: TeamSpeakerHandlers
-}
-
-export interface TeamRoundJobResult {
-  readonly conversationId: string
-  readonly stopReason: TeamRoundStopReason
-  readonly turnIds: readonly string[]
-  readonly metadata?: JsonValue
+  readonly deliveries: readonly RouteTeamDeliveryRequest[]
 }
 
 export type {
+  AdmitTeamMessageRequest,
+  FailTeamDeliveryMaterializationReceipt,
+  FailTeamDeliveryMaterializationRequest,
+  ListTeamDeliveriesRequest,
+  ListTeamDiscussionRoundsRequest,
+  ListTeamMessagesRequest,
+  ListTeamRoutingDecisionsRequest,
+  MaterializeTeamDeliveryReceipt,
+  MaterializeTeamDeliveryRequest,
+  ProjectTeamDeliveryOutcomeReceipt,
+  ProjectTeamDeliveryOutcomeRequest,
+  ReadTeamConversationPageRequest,
+  RouteTeamMessageReceipt,
+  RouteTeamMessageRequest,
+  SetTeamConversationLeadRequest,
   TeamConversationMode,
+  TeamConversationPage,
   TeamConversationRecord,
   TeamConversationState,
+  TeamDeliveryRecord,
+  TeamDeliveryChildTurnPlan,
+  TeamDeliveryMaterializationContext,
+  TeamDiscussionRoundOutcome,
+  TeamDiscussionRoundRecord,
+  TeamDiscussionRoundResult,
+  TeamDiscussionRoundState,
+  TeamMessageRecord,
   TeamParticipantKind,
   TeamParticipantRecord,
   TeamParticipantState,
-  TeamTurnRecord
+  TeamRoutingDecisionRecord
 }

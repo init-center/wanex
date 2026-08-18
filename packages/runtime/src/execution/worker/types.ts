@@ -1,4 +1,5 @@
 import type {
+  SessionInputOrigin,
   SessionTurnExecutionBinding,
   SessionTurnId
 } from "@wanex/protocol"
@@ -19,6 +20,7 @@ export interface ResolveSessionTurnAgentContextRequest {
   readonly sessionId: string
   readonly turnId: string
   readonly inputId: string
+  readonly origin?: SessionInputOrigin
   readonly executionBinding?: SessionTurnExecutionBinding
   readonly signal: AbortSignal
 }

@@ -1,11 +1,14 @@
 use crate::event_store::append_event_tx;
 use crate::rows::row_to_resource;
 use crate::{
-    CleanupExpiredResourceTickets, EventScope, FileRecord, IngestResource, ListResources,
-    ResourceCapability, ResourceContentChunk, ResourceRecord, ResourceTicket,
-    ResourceTicketCleanupReceipt, Result, RuntimeEvent, SystemService, SystemServiceError,
+    CleanupExpiredResourceTickets, EventScope, FileRecord, IngestResource, ListResourceProvenance,
+    ListResources, RecordResourceProvenance, ResourceCapability, ResourceContentChunk,
+    ResourceInputEvidence, ResourceProvenanceCause, ResourceProvenanceRecord, ResourceRecord,
+    ResourceTicket, ResourceTicketCleanupReceipt, Result, RuntimeEvent, SystemService,
+    SystemServiceError,
 };
 use rusqlite::{params, OptionalExtension};
+use serde_json::{json, Map, Value};
 use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use uuid::Uuid;
@@ -18,6 +21,14 @@ const RESOURCE_SELECT: &str = "SELECT
     source_url, source_expires_at, metadata_json, width, height, duration_ms,
     created_at, updated_at
  FROM resource";
+
+const RESOURCE_PROVENANCE_SELECT: &str = "SELECT
+    id, resource_id, resource_sha256, resource_size_bytes, resource_kind,
+    resource_media_type, cause_json, input_resources_json, digest, created_at
+ FROM resource_provenance";
+
+const MAX_PROVENANCE_INPUT_RESOURCES: usize = 64;
+const MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
 
 impl SystemService {
     pub fn write_atomic_file(
@@ -115,17 +126,29 @@ impl SystemService {
         let origin = request.origin.as_deref().unwrap_or("system");
         validate_resource_kind(kind)?;
         validate_resource_origin(origin)?;
+        let source = request.source.clone();
+        let snapshot_digest = crate::util::digest_json(&json!({
+            "sha256": &sha256,
+            "kind": kind,
+            "origin": origin,
+            "mediaType": request.media_type,
+            "label": request.label,
+            "source": source,
+            "metadata": request.metadata,
+            "width": request.width,
+            "height": request.height,
+            "durationMs": request.duration_ms,
+        }));
         let logical_path = request
             .logical_path
             .clone()
-            .unwrap_or_else(|| default_resource_logical_path(kind, &sha256));
+            .unwrap_or_else(|| default_resource_logical_path(kind, &snapshot_digest));
         crate::util::validate_logical_path(&logical_path)?;
         let resource_id = request
             .id
             .clone()
-            .unwrap_or_else(|| format!("res_{sha256}"));
+            .unwrap_or_else(|| format!("res_{snapshot_digest}"));
         let now = crate::util::now_ms();
-        let source = request.source.clone();
         let metadata_json = request
             .metadata
             .as_ref()
@@ -510,6 +533,405 @@ impl SystemService {
 
         Ok(receipt)
     }
+
+    pub fn record_resource_provenance(
+        &self,
+        request: &RecordResourceProvenance,
+    ) -> Result<ResourceProvenanceRecord> {
+        validate_provenance_request(request)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let output = validate_resource_input_evidence_tx(&tx, &request.resource)?;
+        validate_provenance_cause_tx(&tx, &request.cause, &request.input_resources, &output)?;
+        for input in &request.input_resources {
+            validate_resource_input_evidence_tx(&tx, input)?;
+        }
+
+        let canonical = serde_json::json!({
+            "resource": resource_input_evidence_json(&request.resource),
+            "cause": resource_provenance_cause_json(&request.cause),
+            "inputResources": request
+                .input_resources
+                .iter()
+                .map(resource_input_evidence_json)
+                .collect::<Vec<_>>()
+        });
+        let digest = crate::util::digest_json(&canonical);
+        let id = format!("rprov_{digest}");
+        let (cause_kind, cause_id) = provenance_cause_identity(&request.cause);
+        tx.execute(
+            "INSERT OR IGNORE INTO resource_provenance (
+                id, resource_id, resource_sha256, resource_size_bytes,
+                resource_kind, resource_media_type, cause_kind, cause_id,
+                cause_json, input_resources_json, digest, created_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            params![
+                id,
+                request.resource.resource_id,
+                request.resource.sha256,
+                request.resource.size_bytes,
+                request.resource.kind,
+                request.resource.media_type,
+                cause_kind,
+                cause_id,
+                serde_json::to_string(&request.cause)?,
+                serde_json::to_string(&request.input_resources)?,
+                digest,
+                now
+            ],
+        )?;
+        let record = get_resource_provenance_tx(&tx, &id)?;
+        if record.resource != request.resource
+            || record.cause != request.cause
+            || record.input_resources != request.input_resources
+            || record.digest != digest
+        {
+            return Err(SystemServiceError::Invariant(
+                "resource provenance digest is bound to different evidence".to_string(),
+            ));
+        }
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn list_resource_provenance(
+        &self,
+        request: &ListResourceProvenance,
+    ) -> Result<Vec<ResourceProvenanceRecord>> {
+        if request.resource_id.as_deref().is_some_and(str::is_empty)
+            || request.cause_id.as_deref().is_some_and(str::is_empty)
+        {
+            return Err(SystemServiceError::InvalidInput(
+                "resource provenance filters must not be empty".to_string(),
+            ));
+        }
+        if request.cause_id.is_some() && request.cause_kind.is_none() {
+            return Err(SystemServiceError::InvalidInput(
+                "resource provenance cause_id requires cause_kind".to_string(),
+            ));
+        }
+        if request
+            .cause_kind
+            .as_deref()
+            .is_some_and(|kind| !matches!(kind, "tool_execution" | "media_generation"))
+        {
+            return Err(SystemServiceError::InvalidInput(
+                "invalid resource provenance cause_kind".to_string(),
+            ));
+        }
+        let limit = request.limit.unwrap_or(100).clamp(1, 1_000);
+        let conn = self.connect()?;
+        let mut statement = conn.prepare(&format!(
+            "{RESOURCE_PROVENANCE_SELECT}
+             WHERE (?1 IS NULL OR resource_id = ?1)
+               AND (?2 IS NULL OR cause_kind = ?2)
+               AND (?3 IS NULL OR cause_id = ?3)
+             ORDER BY created_at ASC, id ASC LIMIT ?4"
+        ))?;
+        let rows = statement.query_map(
+            params![
+                request.resource_id,
+                request.cause_kind,
+                request.cause_id,
+                limit
+            ],
+            row_to_resource_provenance,
+        )?;
+        rows.collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(Into::into)
+    }
+}
+
+pub(crate) fn validate_resource_input_evidence_tx(
+    tx: &rusqlite::Transaction<'_>,
+    evidence: &ResourceInputEvidence,
+) -> Result<ResourceRecord> {
+    validate_resource_input_evidence_shape(evidence)?;
+    let record = tx
+        .query_row(
+            &format!("{RESOURCE_SELECT} WHERE id = ?"),
+            params![evidence.resource_id],
+            row_to_resource,
+        )
+        .optional()?
+        .ok_or_else(|| {
+            SystemServiceError::InvalidInput(format!(
+                "resource evidence is missing: {}",
+                evidence.resource_id
+            ))
+        })?;
+    if record.state != "available"
+        || record.sha256 != evidence.sha256
+        || record.size_bytes != evidence.size_bytes
+        || record.kind != evidence.kind
+        || record.media_type != evidence.media_type
+    {
+        return Err(SystemServiceError::Invariant(format!(
+            "resource evidence does not match available immutable resource: {}",
+            evidence.resource_id
+        )));
+    }
+    Ok(record)
+}
+
+pub(crate) fn get_resource_tx(
+    tx: &rusqlite::Transaction<'_>,
+    resource_id: &str,
+) -> Result<ResourceRecord> {
+    tx.query_row(
+        &format!("{RESOURCE_SELECT} WHERE id = ?"),
+        params![resource_id],
+        row_to_resource,
+    )
+    .optional()?
+    .ok_or_else(|| {
+        SystemServiceError::Invariant(format!(
+            "resource not found after durable publication: {resource_id}"
+        ))
+    })
+}
+
+pub(crate) fn resource_input_evidence_json(evidence: &ResourceInputEvidence) -> Value {
+    let mut object = Map::from_iter([
+        (
+            "resourceId".to_string(),
+            Value::String(evidence.resource_id.clone()),
+        ),
+        ("sha256".to_string(), Value::String(evidence.sha256.clone())),
+        ("sizeBytes".to_string(), Value::from(evidence.size_bytes)),
+        ("kind".to_string(), Value::String(evidence.kind.clone())),
+    ]);
+    if let Some(media_type) = &evidence.media_type {
+        object.insert("mediaType".to_string(), Value::String(media_type.clone()));
+    }
+    Value::Object(object)
+}
+
+pub(crate) fn require_media_output_provenance_tx(
+    tx: &rusqlite::Transaction<'_>,
+    resource_id: &str,
+    operation_id: &str,
+) -> Result<()> {
+    let exists: bool = tx.query_row(
+        "SELECT EXISTS(
+           SELECT 1 FROM resource_provenance
+           WHERE resource_id = ? AND cause_kind = 'media_generation' AND cause_id = ?
+         )",
+        params![resource_id, operation_id],
+        |row| row.get(0),
+    )?;
+    if !exists {
+        return Err(SystemServiceError::Invariant(format!(
+            "media generation output has no matching provenance: {resource_id}"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_provenance_request(request: &RecordResourceProvenance) -> Result<()> {
+    if request.input_resources.len() > MAX_PROVENANCE_INPUT_RESOURCES {
+        return Err(SystemServiceError::InvalidInput(format!(
+            "resource provenance accepts at most {MAX_PROVENANCE_INPUT_RESOURCES} inputs"
+        )));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for input in &request.input_resources {
+        validate_resource_input_evidence_shape(input)?;
+        if !seen.insert(input.resource_id.as_str()) {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "resource provenance input is duplicated: {}",
+                input.resource_id
+            )));
+        }
+    }
+    validate_resource_input_evidence_shape(&request.resource)
+}
+
+fn validate_resource_input_evidence_shape(evidence: &ResourceInputEvidence) -> Result<()> {
+    if evidence.resource_id.is_empty()
+        || evidence.size_bytes <= 0
+        || evidence.size_bytes > MAX_SAFE_INTEGER
+    {
+        return Err(SystemServiceError::InvalidInput(
+            "resource evidence identity and positive safe size are required".to_string(),
+        ));
+    }
+    crate::sessions::validate_sha256(&evidence.sha256, "resource evidence sha256")?;
+    validate_resource_kind(&evidence.kind)?;
+    if evidence.media_type.as_deref().is_some_and(str::is_empty) {
+        return Err(SystemServiceError::InvalidInput(
+            "resource evidence media_type must not be empty".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_provenance_cause_tx(
+    tx: &rusqlite::Transaction<'_>,
+    cause: &ResourceProvenanceCause,
+    input_resources: &[ResourceInputEvidence],
+    output: &ResourceRecord,
+) -> Result<()> {
+    match cause {
+        ResourceProvenanceCause::ToolExecution {
+            execution_id,
+            session_id,
+            turn_id,
+            source_message_id,
+            tool_call_id,
+        } => {
+            if output.origin != "tool_output" {
+                return Err(SystemServiceError::Invariant(
+                    "tool provenance requires a tool_output resource".to_string(),
+                ));
+            }
+            let identity: Option<(String, String, String, String, String)> = tx
+                .query_row(
+                    "SELECT session_id, turn_id, source_message_id, tool_call_id, state
+                     FROM tool_execution WHERE id = ?",
+                    params![execution_id],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            row.get(1)?,
+                            row.get(2)?,
+                            row.get(3)?,
+                            row.get(4)?,
+                        ))
+                    },
+                )
+                .optional()?;
+            let Some((stored_session, stored_turn, stored_message, stored_call, state)) = identity
+            else {
+                return Err(SystemServiceError::InvalidInput(
+                    "tool provenance execution does not exist".to_string(),
+                ));
+            };
+            if stored_session != *session_id
+                || stored_turn != *turn_id
+                || stored_message != *source_message_id
+                || stored_call != *tool_call_id
+                || !matches!(state.as_str(), "running" | "recovery_required")
+            {
+                return Err(SystemServiceError::Invariant(
+                    "tool provenance cause does not match durable execution identity".to_string(),
+                ));
+            }
+        }
+        ResourceProvenanceCause::MediaGeneration { operation_id } => {
+            if output.origin != "model_output" {
+                return Err(SystemServiceError::Invariant(
+                    "media provenance requires a model_output resource".to_string(),
+                ));
+            }
+            let operation: Option<(String, String)> = tx
+                .query_row(
+                    "SELECT state, binding_json FROM media_generation_operation WHERE id = ?",
+                    params![operation_id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .optional()?;
+            let Some((state, binding_json)) = operation else {
+                return Err(SystemServiceError::InvalidInput(
+                    "media provenance operation does not exist".to_string(),
+                ));
+            };
+            if !matches!(state.as_str(), "submitting" | "polling" | "materializing") {
+                return Err(SystemServiceError::Invariant(
+                    "media provenance requires an active generation operation".to_string(),
+                ));
+            }
+            let binding: Value = serde_json::from_str(&binding_json)?;
+            let frozen = binding
+                .get("request")
+                .and_then(|value| value.get("inputResources"))
+                .cloned()
+                .ok_or_else(|| {
+                    SystemServiceError::Invariant(
+                        "media generation binding has no frozen input resources".to_string(),
+                    )
+                })?;
+            let frozen: Vec<ResourceInputEvidence> = serde_json::from_value(frozen)?;
+            if frozen != input_resources {
+                return Err(SystemServiceError::Invariant(
+                    "media provenance inputs do not match frozen operation evidence".to_string(),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn provenance_cause_identity(cause: &ResourceProvenanceCause) -> (&'static str, &str) {
+    match cause {
+        ResourceProvenanceCause::ToolExecution { execution_id, .. } => {
+            ("tool_execution", execution_id)
+        }
+        ResourceProvenanceCause::MediaGeneration { operation_id } => {
+            ("media_generation", operation_id)
+        }
+    }
+}
+
+fn resource_provenance_cause_json(cause: &ResourceProvenanceCause) -> Value {
+    match cause {
+        ResourceProvenanceCause::ToolExecution {
+            execution_id,
+            session_id,
+            turn_id,
+            source_message_id,
+            tool_call_id,
+        } => serde_json::json!({
+            "kind": "tool_execution",
+            "executionId": execution_id,
+            "sessionId": session_id,
+            "turnId": turn_id,
+            "sourceMessageId": source_message_id,
+            "toolCallId": tool_call_id
+        }),
+        ResourceProvenanceCause::MediaGeneration { operation_id } => serde_json::json!({
+            "kind": "media_generation",
+            "operationId": operation_id
+        }),
+    }
+}
+
+fn get_resource_provenance_tx(
+    tx: &rusqlite::Transaction<'_>,
+    id: &str,
+) -> Result<ResourceProvenanceRecord> {
+    tx.query_row(
+        &format!("{RESOURCE_PROVENANCE_SELECT} WHERE id = ?"),
+        params![id],
+        row_to_resource_provenance,
+    )
+    .map_err(Into::into)
+}
+
+fn row_to_resource_provenance(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ResourceProvenanceRecord> {
+    let cause_json: String = row.get(6)?;
+    let inputs_json: String = row.get(7)?;
+    Ok(ResourceProvenanceRecord {
+        id: row.get(0)?,
+        resource: ResourceInputEvidence {
+            resource_id: row.get(1)?,
+            sha256: row.get(2)?,
+            size_bytes: row.get(3)?,
+            kind: row.get(4)?,
+            media_type: row.get(5)?,
+        },
+        cause: serde_json::from_str(&cause_json).map_err(json_sql_error)?,
+        input_resources: serde_json::from_str(&inputs_json).map_err(json_sql_error)?,
+        digest: row.get(8)?,
+        created_at: row.get(9)?,
+    })
+}
+
+fn json_sql_error(error: serde_json::Error) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(error))
 }
 
 fn write_immutable_resource_bytes(
@@ -618,8 +1040,8 @@ fn validate_resource_state(state: &str) -> Result<()> {
     }
 }
 
-fn default_resource_logical_path(kind: &str, sha256: &str) -> String {
-    format!("resources/{kind}/{sha256}")
+fn default_resource_logical_path(kind: &str, snapshot_digest: &str) -> String {
+    format!("resources/{kind}/{snapshot_digest}")
 }
 
 fn get_resource_by_logical_path_tx(

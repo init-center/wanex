@@ -26,10 +26,14 @@ existing owner.
 | Runtime facade | `@wanex/runtime` |
 | Optional kernel capabilities | `@wanex/mcp`, `@wanex/workspace`, `@wanex/team`, `@wanex/extension`, `@wanex/plugin`, `@wanex/connector` |
 | Trusted app facade | `@wanex/app` |
-| Products | `@wanex/cli`, `@wanex/product-app`, `@wanex/product-app-command-host`, `@wanex/product-app-local`, `@wanex/product-app-web`, `@wanex/product-app-tui` |
+| Products | `@wanex/cli`, `@wanex/product`, `@wanex/plugin-command-host`, `@wanex/desktop`, `@wanex/local-host`, `@wanex/web`, `@wanex/tui` |
 | Non-production proof | `@wanex/eval-harness` plus non-workspace external consumer fixtures |
 
-Production packages must not depend on examples, Eval, or upper products.
+Production packages must not depend on examples or Eval. Lower layers must not
+depend on upper products. A leaf product may consume a reviewed, explicit
+Product or trusted-host recipe subpath when the direction follows ownership and
+avoids duplicating composition; each such package edge remains allowlisted and
+audited individually.
 Runtime and App defaults must remain free of Workspace, Team, Plugin, Connector,
 TUI, and concrete adapter closure.
 
@@ -75,14 +79,21 @@ Do not expose internal filesystem paths or create forwarding packages.
 - Extension owns contribution contracts, deterministic resolution, and static
   source hosting without runtime dependencies.
 - Plugin owns trust, install, sandbox, subprocess, catalog, and action workers;
-  Product command projection belongs to Product App Command Host.
+  Product command projection belongs to Command Host.
 - Connector owns adapter contracts, packaging, leases, delivery, and
   supervision; it consumes Runtime Secrets rather than owning another resolver.
   Deterministic adapters are test fixtures only.
-- Product App TUI owns its contribution resolver, shell read model, controller,
-  presenter, and terminal host.
+- TUI owns terminal interaction, presentation, and terminal-host
+  composition. Its executable host consumes the presentation-neutral
+  `@wanex/local-host/application` lifecycle instead of copying Product and Team
+  wiring. application remains the sole dynamic command and contribution
+  authority; the renderer consumes its safe catalog, preview, and execution
+  surface without loading Plugin Runtime or maintaining a second shell model.
+- Desktop owns only Electron process, renderer trust, explicit
+  native-resource staging, and packaged lifecycle. Product Local remains the
+  framework-neutral local Host below it.
 
-The active workspace has 18 package manifests. Deleted identities are recorded
+The active workspace has 20 package manifests. Deleted identities are recorded
 only as governance tombstones and implementation history.
 
 ## Verification

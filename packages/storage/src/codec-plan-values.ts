@@ -1,36 +1,114 @@
-import {
-  type JsonValue,
-  type PlanProposalOperationRecord,
-  type PlanProposalRecord,
-  type PlanProposalReference,
-  type PlanProposalStep
+import type {
+  JsonValue,
+  PlanProposalContent,
+  PlanProposalExecutionBinding,
+  PlanProposalGenerationBinding,
+  PlanProposalOperationRecord,
+  PlanProposalRecord,
+  PlanProposalReference,
+  PlanProposalSourceBinding,
+  PlanProposalStep
 } from "@wanex/protocol"
 
 import {
+  expectArray,
+  expectNumber,
   expectString,
   isRecord,
+  optionalNumber,
   optionalString,
   withOptionalFields
 } from "./codec-helpers.js"
+import {
+  messagePartsFromJson,
+  messagePartsToJson
+} from "./codec-message.js"
+import { toRpcJsonValue } from "./codec-common.js"
+import type {
+  PlanProposalContentWire,
+  PlanProposalGenerationWire,
+  PlanProposalReferenceWire,
+  PlanProposalSourceWire,
+  PlanProposalStepWire
+} from "./generated/storage-rpc.js"
 
-export function planStepToJson(step: PlanProposalStep): JsonValue {
+export function planStepToWire(step: PlanProposalStep): PlanProposalStepWire {
   return {
-    ...(step.id === undefined ? {} : { id: step.id }),
+    id: step.id,
     title: step.title,
-    ...(step.detail === undefined ? {} : { detail: step.detail }),
-    ...(step.status === undefined ? {} : { status: step.status }),
-    ...(step.metadata === undefined ? {} : { metadata: step.metadata })
+    detail: step.detail ?? null,
+    metadata: toRpcJsonValue(step.metadata ?? null)
   }
 }
 
-export function planReferenceToJson(reference: PlanProposalReference): JsonValue {
+export function planReferenceToWire(
+  reference: PlanProposalReference
+): PlanProposalReferenceWire {
   return {
     kind: reference.kind,
     reference_id: reference.id,
-    ...(reference.role === undefined ? {} : { role: reference.role }),
-    ...(reference.metadata === undefined
-      ? {}
-      : { metadata: reference.metadata })
+    role: reference.role ?? null,
+    metadata: toRpcJsonValue(reference.metadata ?? null)
+  }
+}
+
+export function planContentToWire(
+  content: PlanProposalContent
+): PlanProposalContentWire {
+  const [first, ...rest] = content.steps.map(planStepToWire)
+  if (first === undefined) {
+    throw new Error("plan proposal content requires at least one step")
+  }
+  return {
+    title: content.title,
+    summary: content.summary,
+    steps: [first, ...rest],
+    references: content.references.map(planReferenceToWire)
+  }
+}
+
+export function planSourceToWire(
+  source: PlanProposalSourceBinding
+): PlanProposalSourceWire {
+  return {
+    session_id: source.sessionId,
+    head_sequence: source.headSequence,
+    head_message_id: source.headMessageId ?? null,
+    head_turn_id: source.headTurnId ?? null,
+    analysis_input_digest: source.analysisInputDigest,
+    planning_request: messagePartsToJson(source.planningRequest)
+  }
+}
+
+export function planGenerationToWire(
+  generation: PlanProposalGenerationBinding
+): PlanProposalGenerationWire {
+  return {
+    endpoint_id: generation.endpointId,
+    endpoint_digest: generation.endpointDigest,
+    protocol_id: generation.protocolId,
+    provider_id: generation.providerId,
+    model_id: generation.modelId,
+    generated_at: generation.generatedAt,
+    output_digest: generation.outputDigest,
+    output: messagePartsToJson(generation.output)
+  }
+}
+
+export function planContentFromJson(value: JsonValue): PlanProposalContent {
+  if (!isRecord(value)) {
+    throw new Error("plan proposal content must be an object")
+  }
+  return {
+    title: expectString(value.title, "plan_proposal_content.title"),
+    summary: expectString(value.summary, "plan_proposal_content.summary"),
+    steps: expectArray(value.steps, "plan_proposal_content.steps").map(
+      planStepFromJson
+    ),
+    references: expectArray(
+      value.references,
+      "plan_proposal_content.references"
+    ).map(planReferenceFromJson)
   }
 }
 
@@ -40,15 +118,11 @@ export function planStepFromJson(value: JsonValue): PlanProposalStep {
   }
   return withOptionalFields(
     {
+      id: expectString(value.id, "plan_proposal_step.id"),
       title: expectString(value.title, "plan_proposal_step.title")
     },
     {
-      id: optionalString(value.id, "plan_proposal_step.id"),
       detail: optionalString(value.detail, "plan_proposal_step.detail"),
-      status:
-        value.status === null || value.status === undefined
-          ? undefined
-          : expectPlanStepStatus(value.status, "plan_proposal_step.status"),
       metadata: value.metadata ?? undefined
     }
   )
@@ -75,6 +149,91 @@ export function planReferenceFromJson(
   )
 }
 
+export function planSourceFromJson(value: JsonValue): PlanProposalSourceBinding {
+  if (!isRecord(value)) {
+    throw new Error("plan proposal source must be an object")
+  }
+  return withOptionalFields(
+    {
+      sessionId: expectString(value.session_id, "plan_proposal_source.session_id"),
+      headSequence: expectNumber(
+        value.head_sequence,
+        "plan_proposal_source.head_sequence"
+      ),
+      analysisInputDigest: expectString(
+        value.analysis_input_digest,
+        "plan_proposal_source.analysis_input_digest"
+      ),
+      planningRequest: messagePartsFromJson(value.planning_request)
+    },
+    {
+      headMessageId: optionalString(
+        value.head_message_id,
+        "plan_proposal_source.head_message_id"
+      ),
+      headTurnId: optionalString(
+        value.head_turn_id,
+        "plan_proposal_source.head_turn_id"
+      )
+    }
+  )
+}
+
+export function planGenerationFromJson(
+  value: JsonValue
+): PlanProposalGenerationBinding {
+  if (!isRecord(value)) {
+    throw new Error("plan proposal generation must be an object")
+  }
+  return {
+    endpointId: expectString(
+      value.endpoint_id,
+      "plan_proposal_generation.endpoint_id"
+    ),
+    endpointDigest: expectString(
+      value.endpoint_digest,
+      "plan_proposal_generation.endpoint_digest"
+    ),
+    protocolId: expectString(
+      value.protocol_id,
+      "plan_proposal_generation.protocol_id"
+    ),
+    providerId: expectString(
+      value.provider_id,
+      "plan_proposal_generation.provider_id"
+    ),
+    modelId: expectString(value.model_id, "plan_proposal_generation.model_id"),
+    generatedAt: expectNumber(
+      value.generated_at,
+      "plan_proposal_generation.generated_at"
+    ),
+    outputDigest: expectString(
+      value.output_digest,
+      "plan_proposal_generation.output_digest"
+    ),
+    output: messagePartsFromJson(value.output)
+  }
+}
+
+export function planExecutionFromJson(
+  value: JsonValue
+): PlanProposalExecutionBinding {
+  if (!isRecord(value)) {
+    throw new Error("plan proposal execution binding must be an object")
+  }
+  return {
+    inputId: expectString(value.input_id, "plan_proposal_execution.input_id"),
+    turnId: expectString(value.turn_id, "plan_proposal_execution.turn_id"),
+    jobId: expectString(value.job_id, "plan_proposal_execution.job_id"),
+    executionBindingDigest: expectString(
+      value.execution_binding_digest,
+      "plan_proposal_execution.execution_binding_digest"
+    ),
+    digest: expectString(value.digest, "plan_proposal_execution.digest"),
+    boundAt: expectNumber(value.bound_at, "plan_proposal_execution.bound_at")
+  }
+}
+
 export function expectPlanProposalState(
   value: unknown,
   name: string
@@ -84,10 +243,7 @@ export function expectPlanProposalState(
     state !== "open" &&
     state !== "approved" &&
     state !== "rejected" &&
-    state !== "withdrawn" &&
-    state !== "execution_requested" &&
-    state !== "executed" &&
-    state !== "execution_failed"
+    state !== "withdrawn"
   ) {
     throw new Error(`invalid plan proposal state: ${state}`)
   }
@@ -100,32 +256,42 @@ export function expectPlanProposalOperationKind(
 ): PlanProposalOperationRecord["operation"] {
   const operation = expectString(value, name)
   if (
+    operation !== "revise" &&
     operation !== "approve" &&
     operation !== "reject" &&
-    operation !== "withdraw" &&
-    operation !== "request_execution" &&
-    operation !== "mark_executed" &&
-    operation !== "mark_execution_failed"
+    operation !== "withdraw"
   ) {
     throw new Error(`invalid plan proposal operation: ${operation}`)
   }
   return operation
 }
 
-function expectPlanStepStatus(
-  value: unknown,
+export function optionalPlanContent(
+  value: JsonValue | undefined,
   name: string
-): PlanProposalStep["status"] {
-  const status = expectString(value, name)
-  if (
-    status !== "pending" &&
-    status !== "in_progress" &&
-    status !== "completed" &&
-    status !== "blocked"
-  ) {
-    throw new Error(`invalid plan proposal step status: ${status}`)
+): PlanProposalContent | undefined {
+  if (value === null || value === undefined) {
+    return undefined
   }
-  return status
+  try {
+    return planContentFromJson(value)
+  } catch (error) {
+    throw new Error(`${name}: ${(error as Error).message}`)
+  }
+}
+
+export function optionalPlanExecution(
+  value: JsonValue | undefined,
+  name: string
+): PlanProposalExecutionBinding | undefined {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  try {
+    return planExecutionFromJson(value)
+  } catch (error) {
+    throw new Error(`${name}: ${(error as Error).message}`)
+  }
 }
 
 function expectPlanReferenceKind(
@@ -134,10 +300,6 @@ function expectPlanReferenceKind(
 ): PlanProposalReference["kind"] {
   const kind = expectString(value, name)
   if (
-    kind !== "session" &&
-    kind !== "session_input" &&
-    kind !== "session_turn" &&
-    kind !== "scheduler_job" &&
     kind !== "workspace_change_proposal" &&
     kind !== "delegation_graph" &&
     kind !== "delegation_graph_node" &&

@@ -23,6 +23,10 @@ export function payloadSessionId(payload: unknown): string | undefined {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
     return undefined
   }
-  const value = (payload as { readonly sessionId?: unknown }).sessionId
+  const evidence = (payload as { readonly evidence?: unknown }).evidence
+  if (typeof evidence !== "object" || evidence === null || Array.isArray(evidence)) {
+    return undefined
+  }
+  const value = (evidence as { readonly sessionId?: unknown }).sessionId
   return typeof value === "string" ? value : undefined
 }

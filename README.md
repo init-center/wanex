@@ -13,7 +13,7 @@ Wanex is now a workspace-stage runtime kernel with:
 - Rust `system-service` backed by SQLite;
 - TypeScript protocol and storage client;
 - durable session, event, scheduler, worker, and agent runtimes;
-- provider profiles and provider fidelity helpers;
+- model endpoints and protocol-fidelity adapters;
 - context and memory compaction foundations;
 - workspace task, changeset, proposal, apply, git, and isolation runtimes;
 - delegation graph and runtime foundations;
@@ -22,11 +22,12 @@ Wanex is now a workspace-stage runtime kernel with:
 - connector/channel runtime contracts and reference adapters;
 - resource/media and A2UI projection contracts;
 - app-facing runtime composition;
-- public Runtime/App facades, a frozen validation product, local Product App
-  Web/TUI hosts, and a regression harness under reconstruction.
+- public Runtime/App facades, a concrete desktop Product, local application
+  Web/TUI hosts, and a regression harness.
 
-Wanex is not an Electron app, gateway-first daemon, UI renderer, marketplace, or
-concrete channel SDK bundle.
+The Kernel is not coupled to Electron, a gateway-first daemon, a UI renderer,
+a marketplace, or a concrete channel SDK bundle. The workspace includes one
+private Electron leaf that packages the concrete desktop Product.
 
 ## App Entry Points
 
@@ -57,82 +58,131 @@ Optional capabilities are explicit:
   explicit `@wanex/runtime/bootstrap` subpath.
 - Product regression entry: `@wanex/eval-harness`.
 
-`@wanex/product-app` is the first concrete upper app backend shell. It consumes
+`@wanex/product` is the first concrete upper app backend shell. It consumes
 the typed `@wanex/app` contract, owns its command catalog and selected
 session/layout/mode/preference state, and exposes a Product-owned command
 adapter and surface client without selecting
 plugin runtime, connector runtime, runtime-composition, runtime-host, or raw
 storage as default app dependencies.
 
-`@wanex/product-app-command-host` is the explicit hot Product App entry for
+`@wanex/plugin-command-host` is the explicit hot application entry for
 plugin-backed commands. It shares one injected store across submission, worker
-execution, and activity reads, and owns explicit worker start/stop lifecycle.
-Default Product App/Web/TUI packages do not depend on it.
+execution, and activity reads, exposes a Product creation binding, and owns
+explicit worker start/stop lifecycle without creating a second Product Shell.
+Its optional trusted management handle couples native local-package selection,
+one-shot review, exact install-state CAS, immutable materialization, and catalog
+refresh without exposing paths to a renderer. Default application/Web/TUI
+packages do not depend on it.
 
-`@wanex/product-app-tui` is an optional leaf terminal surface over Product App.
-It consumes `@wanex/product-app/surface-client` and projects Product App state
-into TUI shell contracts without becoming part of the default Product App
-closure.
+`@wanex/tui` is an optional leaf terminal surface over application.
+It consumes `@wanex/product/surface` and projects application state
+into Pi full-screen and injected line-session presentation without becoming
+part of the default application closure. Product's dynamic command catalog is
+its only generic command authority.
 
-`@wanex/product-app-web` is the browser-safe upper Web surface. Product App
-Local owns its thin Node host as the `@wanex/product-app-local/web-host`
-subpath. Together they expose Product App through a renderer-neutral request
+`@wanex/web` is the browser-safe upper Web surface. application
+Local owns its thin Node host as the `@wanex/local-host/web-host`
+subpath. Together they expose application through a renderer-neutral request
 envelope, not a gateway or framework runtime.
 
-`@wanex/product-app-local` is the direct local Product App Web product entry. A
+`@wanex/local-host` is the direct local Web application product entry. A
 trusted local backend uses it to open local profile/store storage, create
-Product App, attach Product App Web, and serve the thin Node host while keeping
+application, attach Web application, and serve the thin Node host while keeping
 renderers away from store paths, service binary paths, secrets, and raw storage
 clients. Its trusted host handle exposes narrow `settings` and
-`providerProfiles` facades so desktop, CLI, and local backend code do not need
+`modelEndpoints` facades so desktop, CLI, and local backend code do not need
 to mutate storage or provider config directly. Use `readSnapshot()` for a safe
 startup/status read model.
 
-`@wanex/product-app-local/desktop-host` is the framework-free trusted desktop
-main-process subpath over Product App Local. It starts the local product
-lifecycle, exposes a safe request envelope for snapshots, Product App Web
-requests, and redacted provider-profile reads/switching, and closes resources
+`@wanex/local-host/desktop-host` is the framework-free trusted desktop
+main-process subpath over Local Host. It starts the local product
+lifecycle, exposes a safe request envelope for snapshots, Web application
+requests, and redacted model-endpoint reads/switching, and closes resources
 without depending on Electron, Tauri, or a packaged desktop runtime.
+
+`@wanex/desktop` is the actual private Electron Product. It owns
+one secure BrowserWindow, starts Product Local on an ephemeral loopback origin,
+loads the real Product Web UI, and closes the Host and System Service before
+exit. It ships one ASAR plus explicit System Service and keyring artifacts;
+there is no application `node_modules`, preload, generic IPC bridge, Gateway,
+or restart supervisor.
+
+To start the real persistent desktop Product directly from the repository:
+
+```bash
+pnpm start:desktop
+```
+
+This command builds the host System Service and Desktop artifacts, then opens
+the normal Provider onboarding and Product lifecycle. It does not use the
+isolated fake endpoint or receipt behavior reserved for packaged proof.
+
+To package and prove the desktop Product on the current host:
+
+```bash
+pnpm stage:native -- --target darwin-arm64
+pnpm proof:desktop
+```
+
+The proof drives five isolated lifecycle samples and a separate eleven-process
+same-profile journey through the visible Product DOM. The relaunch journey
+proves credential-free conversation continuity, attachment picker/paste/drop
+input, ordinary composer-driven image generation through `image_generate`,
+trusted Resource preview, explicit Plan review and approval followed by
+same-Session execution, bounded Goal auto-continuation with independent
+verification, cancellation after transient output followed by fresh
+same-Session regeneration, one explicit queue-after-current follow-up that
+preserves and completes its parent before promoting a fresh child operation,
+one tool-free Side Query that remains outside canonical history while its
+parent continues normally,
+exact Provider cleanup, and a final unconfigured reopen. It
+preserves a screenshot under
+`target/distribution/product-desktop` and verifies complete process cleanup.
 
 To try the direct local product host after building the system-service binary:
 
 ```bash
 cargo build -p wanex-system-service
-pnpm --filter @wanex/product-app-local start -- \
-  --profile-root ./.wanex-product-app-local \
+pnpm --filter @wanex/local-host start -- \
+  --profile-root ./.wanex-local-host \
   --profile-id default \
-  --provider-profile-id local \
-  --provider-model-id local-model \
-  --poll-interval-ms 0
+  --model-endpoint-id local \
+  --provider-model-id local-model
 ```
 
-The root demo aliases delegate to `@wanex/product-app-local` for seeded/blank
-Product App Web behavior:
+The root demo aliases delegate to `@wanex/local-host` for seeded/blank
+Web application behavior:
 
 ```bash
-pnpm demo:product-app-web:blank
+pnpm demo:web:blank
 ```
 
-Use `pnpm demo:product-app-web:seeded` for a pre-populated session,
-`pnpm demo:product-app-web -- --poll-interval-ms 0` to disable browser
-polling, or `pnpm demo:product-app-web -- --open` to open the system browser.
+Use `pnpm demo:web:seeded` for a pre-populated session or
+`pnpm demo:web -- --open` to open the system browser. The local
+browser receives progress through an authenticated event stream and performs
+canonical reconciliation after invalidation or uncertainty.
 
-The optional Product App TUI surface also has root demo aliases that run with a
+The optional TUI surface also has root demo aliases that run with a
 temporary store and clean up after exit:
 
 ```bash
-pnpm demo:product-app-tui
-pnpm demo:product-app-tui:json
-pnpm demo:product-app-tui:interactive
+pnpm demo:tui
+pnpm demo:tui:json
+pnpm demo:tui:interactive
+pnpm demo:tui:fullscreen
 ```
 
-For a bounded low-thermal Product App Local path check, run:
+The `fullscreen` alias starts the Pi-powered interactive Product TUI. Use
+`Ctrl+Q` to exit. The `interactive` alias remains the injected line-oriented
+surface for automation and simple terminal consumers.
+
+For a bounded low-thermal Local Host path check, run:
 
 ```bash
-pnpm --silent smoke:product-app-local
+pnpm --silent smoke:local-host
 ```
 
-The smoke command starts Product App Local with a temporary profile root outside
+The smoke command starts Local Host with a temporary profile root outside
 the workspace, verifies the local Web document, layout action, workbench start
 action, and product privacy boundary, prints one JSON result to stdout, closes
 the host, and exits. Use the `--silent` pnpm form when stdout must be directly
@@ -143,15 +193,15 @@ To check the user-visible provider feedback contract across Web and TUI without
 running the full eval suite:
 
 ```bash
-pnpm smoke:product-app-feedback
+pnpm smoke:product-feedback
 ```
 
-This focused smoke reuses the Product App feedback matrix eval scenario. It
+This focused smoke reuses the application feedback matrix eval scenario. It
 proves that a missing provider key is shown as blocked in Web and TUI, then a
 trusted host setup activates a ready provider and the same Web/TUI paths
 complete without exposing secrets or host-only paths.
 
-Concrete Product App hosts under `apps/` are leaf products, not implementation
+Concrete application hosts under `apps/` are leaf products, not implementation
 dependencies for another product. Packed external-consumer fixtures validate
 ordinary SDK adoption. Eval Harness validates release contracts and
 deterministic fixtures; owner tests retain subsystem behavior.
@@ -170,12 +220,12 @@ required verification gate.
 ```text
 apps/
   cli/
-  product-app/
-  product-app-command-host/
-  product-app-local/
-  product-app-tui/
-  product-app-web/
-  product-app-web-node-host/
+  product/
+  plugin-command-host/
+  desktop/
+  local-host/
+  tui/
+  web/
 crates/
   system-service/
 packages/
@@ -317,8 +367,8 @@ For focused iteration, prefer package-local checks first, then run
 `pnpm audit:structure`:
 
 ```bash
-pnpm --filter @wanex/product-app-local check
-pnpm --filter @wanex/product-app-local test -- web-host
+pnpm --filter @wanex/local-host check
+pnpm --filter @wanex/local-host test -- web-host
 pnpm audit:structure
 ```
 

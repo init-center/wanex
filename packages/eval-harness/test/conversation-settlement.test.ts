@@ -5,7 +5,7 @@ import type {
 import type { CoreStore } from "@wanex/storage"
 import {
   observeConversationSettlementStorage
-} from "../src/product-app/conversation-helpers.js"
+} from "../src/product/conversation-helpers.js"
 
 describe("Eval conversation settlement observer", () => {
   it("matches exact future settlements and retains completed jobs", async () => {

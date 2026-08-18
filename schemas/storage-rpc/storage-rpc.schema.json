@@ -69,6 +69,8 @@
         "io",
         "json",
         "invalid_input",
+        "not_found",
+        "conflict",
         "sha256_mismatch",
         "budget_denied",
         "invalid_job_request",
@@ -234,6 +236,81 @@
         { "type": "null" }
       ]
     },
+    "ResourceInputEvidenceWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource_id", "sha256", "size_bytes", "kind", "media_type"],
+      "properties": {
+        "resource_id": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "kind": { "$ref": "#/$defs/ResourceKindWire" },
+        "media_type": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "ToolExecutionResourceProvenanceCauseWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "execution_id", "session_id", "turn_id", "source_message_id", "tool_call_id"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["tool_execution"] },
+        "execution_id": { "type": "string", "minLength": 1 },
+        "session_id": { "type": "string", "minLength": 1 },
+        "turn_id": { "type": "string", "minLength": 1 },
+        "source_message_id": { "type": "string", "minLength": 1 },
+        "tool_call_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "MediaGenerationResourceProvenanceCauseWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "operation_id"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["media_generation"] },
+        "operation_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ResourceProvenanceCauseWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/ToolExecutionResourceProvenanceCauseWire" },
+        { "$ref": "#/$defs/MediaGenerationResourceProvenanceCauseWire" }
+      ]
+    },
+    "RecordResourceProvenanceWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "cause", "input_resources"],
+      "properties": {
+        "resource": { "$ref": "#/$defs/ResourceInputEvidenceWire" },
+        "cause": { "$ref": "#/$defs/ResourceProvenanceCauseWire" },
+        "input_resources": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/ResourceInputEvidenceWire" }
+        }
+      }
+    },
+    "ResourceProvenanceCauseKindWire": {
+      "type": "string",
+      "enum": ["tool_execution", "media_generation"]
+    },
+    "NullableResourceProvenanceCauseKindWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/ResourceProvenanceCauseKindWire" },
+        { "type": "null" }
+      ]
+    },
+    "ListResourceProvenanceWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource_id", "cause_kind", "cause_id", "limit"],
+      "properties": {
+        "resource_id": { "$ref": "#/$defs/NullableString" },
+        "cause_kind": { "$ref": "#/$defs/NullableResourceProvenanceCauseKindWire" },
+        "cause_id": { "$ref": "#/$defs/NullableString" },
+        "limit": { "$ref": "#/$defs/NullableUnsigned32" }
+      }
+    },
     "IngestResourceWire": {
       "type": "object",
       "additionalProperties": false,
@@ -301,6 +378,39 @@
         "command": { "type": "string", "enum": ["put-config"] },
         "key": { "type": "string" },
         "value": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ConfigPutWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "value"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "value": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ApplyConfigMutationsCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "puts", "deletes"],
+      "properties": {
+        "command": { "type": "string", "enum": ["apply-config-mutations"] },
+        "puts": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/ConfigPutWire" }
+        },
+        "deletes": {
+          "type": "array",
+          "maxItems": 64,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    },
+    "HasLiveSecretReferenceCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "secret_ref"],
+      "properties": {
+        "command": { "type": "string", "enum": ["has-live-secret-reference"] },
+        "secret_ref": { "type": "string", "minLength": 1, "maxLength": 2048 }
       }
     },
     "GetConfigCommand": {
@@ -375,6 +485,22 @@
         "request": { "$ref": "#/$defs/CleanupExpiredResourceTicketsWire" }
       }
     },
+    "RecordResourceProvenanceCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["record-resource-provenance"] },
+        "request": { "$ref": "#/$defs/RecordResourceProvenanceWire" }
+      }
+    },
+    "ListResourceProvenanceCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["list-resource-provenance"] },
+        "request": { "$ref": "#/$defs/ListResourceProvenanceWire" }
+      }
+    },
     "DoctorCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command"],
@@ -387,6 +513,8 @@
         { "$ref": "#/$defs/AppendEventCommand" },
         { "$ref": "#/$defs/QueryEventsCommand" },
         { "$ref": "#/$defs/PutConfigCommand" },
+        { "$ref": "#/$defs/ApplyConfigMutationsCommand" },
+        { "$ref": "#/$defs/HasLiveSecretReferenceCommand" },
         { "$ref": "#/$defs/GetConfigCommand" },
         { "$ref": "#/$defs/WriteAtomicFileCommand" },
         { "$ref": "#/$defs/IngestResourceCommand" },
@@ -395,6 +523,8 @@
         { "$ref": "#/$defs/ListResourcesCommand" },
         { "$ref": "#/$defs/CreateResourceTicketCommand" },
         { "$ref": "#/$defs/CleanupExpiredResourceTicketsCommand" },
+        { "$ref": "#/$defs/RecordResourceProvenanceCommand" },
+        { "$ref": "#/$defs/ListResourceProvenanceCommand" },
         { "$ref": "#/$defs/DoctorCommand" }
       ]
     },
@@ -437,46 +567,58 @@
         "provider_checkpoint": { "$ref": "#/$defs/JsonValue" }
       }
     },
-    "MediaGenerationCheckpointWire": {
+    "MediaGenerationSuspensionOutcomeWire": {
+      "type": "string", "enum": ["scheduled", "pending", "transient_error"]
+    },
+    "MediaGenerationTerminalPollOutcomeWire": {
+      "type": "string", "enum": ["none", "completed", "provider_failure", "transient_error"]
+    },
+    "MediaGenerationSuspendWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["operation_id", "worker_id", "lease_token", "provider_checkpoint", "progress"],
+      "required": ["operation_id", "worker_id", "lease_token", "next_poll_at", "outcome", "provider_checkpoint", "progress", "error"],
       "properties": {
         "operation_id": { "type": "string" },
         "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
+        "next_poll_at": { "type": "integer" },
+        "outcome": { "$ref": "#/$defs/MediaGenerationSuspensionOutcomeWire" },
         "provider_checkpoint": { "$ref": "#/$defs/JsonValue" },
-        "progress": { "$ref": "#/$defs/JsonValue" }
+        "progress": { "$ref": "#/$defs/JsonValue" },
+        "error": { "$ref": "#/$defs/JsonValue" }
       }
     },
     "MediaGenerationOutputsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["operation_id", "worker_id", "lease_token", "output_references", "progress"],
+      "required": ["operation_id", "worker_id", "lease_token", "poll_outcome", "output_references", "progress"],
       "properties": {
         "operation_id": { "type": "string" },
         "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
+        "poll_outcome": { "$ref": "#/$defs/MediaGenerationTerminalPollOutcomeWire" },
         "output_references": { "type": "array", "items": { "$ref": "#/$defs/JsonValue" } },
         "progress": { "$ref": "#/$defs/JsonValue" }
       }
     },
     "MediaGenerationCompleteWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["operation_id", "worker_id", "lease_token", "output_resource_ids", "result"],
+      "required": ["operation_id", "worker_id", "lease_token", "poll_outcome", "output_resource_ids", "result"],
       "properties": {
         "operation_id": { "type": "string" },
         "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
+        "poll_outcome": { "$ref": "#/$defs/MediaGenerationTerminalPollOutcomeWire" },
         "output_resource_ids": { "type": "array", "items": { "type": "string" } },
         "result": { "$ref": "#/$defs/JsonValue" }
       }
     },
     "MediaGenerationSettleWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["operation_id", "worker_id", "lease_token", "outcome", "error", "reason"],
+      "required": ["operation_id", "worker_id", "lease_token", "poll_outcome", "outcome", "error", "reason"],
       "properties": {
         "operation_id": { "type": "string" },
         "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
+        "poll_outcome": { "$ref": "#/$defs/MediaGenerationTerminalPollOutcomeWire" },
         "outcome": { "type": "string", "enum": ["failed", "cancelled", "recovery_required"] },
         "error": { "$ref": "#/$defs/JsonValue" },
         "reason": { "$ref": "#/$defs/NullableString" }
@@ -508,9 +650,9 @@
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["accept-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationAcceptWire" } }
     },
-    "CheckpointMediaGenerationCommand": {
+    "SuspendMediaGenerationCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["checkpoint-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationCheckpointWire" } }
+      "properties": { "command": { "type": "string", "enum": ["suspend-media-generation"] }, "request": { "$ref": "#/$defs/MediaGenerationSuspendWire" } }
     },
     "RecordMediaGenerationOutputsCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
@@ -541,7 +683,7 @@
         { "$ref": "#/$defs/SubmitMediaGenerationCommand" },
         { "$ref": "#/$defs/BeginMediaGenerationCommand" },
         { "$ref": "#/$defs/AcceptMediaGenerationCommand" },
-        { "$ref": "#/$defs/CheckpointMediaGenerationCommand" },
+        { "$ref": "#/$defs/SuspendMediaGenerationCommand" },
         { "$ref": "#/$defs/RecordMediaGenerationOutputsCommand" },
         { "$ref": "#/$defs/CompleteMediaGenerationCommand" },
         { "$ref": "#/$defs/SettleMediaGenerationCommand" },
@@ -572,6 +714,16 @@
     "SessionInputIntentWire": {
       "type": "string", "enum": ["normal", "follow_up", "steer", "interrupt"]
     },
+    "SessionInputStateWire": {
+      "type": "string",
+      "enum": [
+        "admitted", "control_pending", "promoted", "completed", "failed",
+        "cancelled", "rejected"
+      ]
+    },
+    "NullableSessionInputStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/SessionInputStateWire" }, { "type": "null" }]
+    },
     "NullableSessionInputIntentWire": {
       "oneOf": [{ "$ref": "#/$defs/SessionInputIntentWire" }, { "type": "null" }]
     },
@@ -585,7 +737,7 @@
     "SessionTurnStateWire": {
       "type": "string",
       "enum": [
-        "queued", "running", "cancel_requested", "succeeded", "failed",
+        "queued", "running", "waiting", "cancel_requested", "succeeded", "failed",
         "cancelled", "interrupted", "recovery_required"
       ]
     },
@@ -644,13 +796,30 @@
         "limit": { "$ref": "#/$defs/NullableUnsigned32" }
       }
     },
+    "RenameSessionWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "title", "expected_revision"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "title": { "type": "string" },
+        "expected_revision": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "SessionStateTransitionWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "expected_revision"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "expected_revision": { "type": "integer", "minimum": 1 }
+      }
+    },
     "SubmitSessionTurnWire": {
       "type": "object", "additionalProperties": false,
       "required": [
         "id", "turn_id", "session_id", "principal_id", "idempotency_key",
         "input_type", "content", "origin", "intent", "run_control_policy",
         "expected_turn_id", "job_id", "job_idempotency_key",
-        "execution_binding", "max_steps", "parent_turn_id",
+        "execution_binding", "max_steps",
         "regenerates_turn_id", "scheduled_at", "not_before", "priority",
         "budget_grant_id"
       ],
@@ -672,7 +841,6 @@
         "job_idempotency_key": { "$ref": "#/$defs/NullableString" },
         "execution_binding": { "$ref": "#/$defs/JsonValue" },
         "max_steps": { "$ref": "#/$defs/NullableInteger" },
-        "parent_turn_id": { "$ref": "#/$defs/NullableString" },
         "regenerates_turn_id": { "$ref": "#/$defs/NullableString" },
         "scheduled_at": { "$ref": "#/$defs/NullableInteger" },
         "not_before": { "$ref": "#/$defs/NullableInteger" },
@@ -882,6 +1050,30 @@
         "request": { "$ref": "#/$defs/ListSessionsWire" }
       }
     },
+    "RenameSessionCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["rename-session"] },
+        "request": { "$ref": "#/$defs/RenameSessionWire" }
+      }
+    },
+    "ArchiveSessionCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["archive-session"] },
+        "request": { "$ref": "#/$defs/SessionStateTransitionWire" }
+      }
+    },
+    "RestoreSessionCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["restore-session"] },
+        "request": { "$ref": "#/$defs/SessionStateTransitionWire" }
+      }
+    },
     "AdmitSessionInputCommand": {
       "type": "object", "additionalProperties": false,
       "required": [
@@ -998,27 +1190,66 @@
     },
     "ListSessionInputsCommand": {
       "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id"],
+      "required": ["command", "session_id", "status", "limit"],
       "properties": {
         "command": { "type": "string", "enum": ["list-session-inputs"] },
-        "session_id": { "type": "string" }
+        "session_id": { "type": "string" },
+        "status": { "$ref": "#/$defs/NullableSessionInputStateWire" },
+        "limit": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 1000 },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "ListSessionMessagesCommand": {
       "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id"],
+      "required": ["command", "session_id", "before_sequence", "limit", "turn_ids"],
       "properties": {
         "command": { "type": "string", "enum": ["list-session-messages"] },
-        "session_id": { "type": "string" }
+        "session_id": { "type": "string" },
+        "before_sequence": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1 },
+            { "type": "null" }
+          ]
+        },
+        "limit": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 1000 },
+            { "type": "null" }
+          ]
+        },
+        "turn_ids": {
+          "oneOf": [
+            {
+              "type": "array", "minItems": 0, "maxItems": 1000,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "ListSessionTurnsCommand": {
       "type": "object", "additionalProperties": false,
-      "required": ["command", "session_id", "state"],
+      "required": ["command", "session_id", "state", "turn_ids"],
       "properties": {
         "command": { "type": "string", "enum": ["list-session-turns"] },
         "session_id": { "type": "string" },
-        "state": { "$ref": "#/$defs/NullableSessionTurnStateWire" }
+        "state": { "$ref": "#/$defs/NullableSessionTurnStateWire" },
+        "turn_ids": {
+          "oneOf": [
+            {
+              "type": "array", "minItems": 0, "maxItems": 1000,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "ListSessionAttemptsCommand": {
@@ -1056,6 +1287,9 @@
         { "$ref": "#/$defs/CreateSessionCommand" },
         { "$ref": "#/$defs/GetSessionCommand" },
         { "$ref": "#/$defs/ListSessionsCommand" },
+        { "$ref": "#/$defs/RenameSessionCommand" },
+        { "$ref": "#/$defs/ArchiveSessionCommand" },
+        { "$ref": "#/$defs/RestoreSessionCommand" },
         { "$ref": "#/$defs/AdmitSessionInputCommand" },
         { "$ref": "#/$defs/SubmitSessionTurnCommand" },
         { "$ref": "#/$defs/StartSessionTurnAttemptCommand" },
@@ -1080,55 +1314,121 @@
       "oneOf": [{ "type": "boolean" }, { "type": "null" }]
     },
     "ContextEpochStateWire": {
-      "type": "string", "enum": ["building", "active", "superseded"]
+      "type": "string", "enum": ["building", "active", "superseded", "failed"]
     },
     "NullableContextEpochStateWire": {
       "oneOf": [{ "$ref": "#/$defs/ContextEpochStateWire" }, { "type": "null" }]
     },
-    "ContextReplacementTierWire": {
-      "type": "string", "enum": ["tier1_snip", "tier2_placeholder"]
+    "ContextSummaryGenerationStateWire": {
+      "type": "string",
+      "enum": [
+        "prepared", "dispatched", "output_observed", "succeeded",
+        "failed_before_output", "ambiguous"
+      ]
     },
-    "PutContextEpochWire": {
+    "BeginContextEpochWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "id", "session_id", "policy_version", "state", "token_estimate_before",
-        "token_estimate_after", "token_savings", "replacement_count", "metadata"
+        "id", "session_id", "job_id", "worker_id", "lease_token",
+        "max_provider_attempts", "previous_epoch_id", "previous_summary_digest",
+        "source_head_sequence", "source_head_message_id", "cut_sequence",
+        "cut_message_id", "retained_from_sequence", "retained_from_message_id",
+        "source_digest", "policy", "policy_digest", "model_endpoint",
+        "request_digest", "token_estimate_before"
       ],
       "properties": {
-        "id": { "$ref": "#/$defs/NullableString" },
+        "id": { "type": "string" },
         "session_id": { "type": "string" },
-        "policy_version": { "type": "string" },
-        "state": { "$ref": "#/$defs/NullableContextEpochStateWire" },
-        "token_estimate_before": { "$ref": "#/$defs/NullableInteger" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "max_provider_attempts": { "type": "integer" },
+        "previous_epoch_id": { "$ref": "#/$defs/NullableString" },
+        "previous_summary_digest": { "$ref": "#/$defs/NullableString" },
+        "source_head_sequence": { "type": "integer" },
+        "source_head_message_id": { "type": "string" },
+        "cut_sequence": { "type": "integer" },
+        "cut_message_id": { "type": "string" },
+        "retained_from_sequence": { "type": "integer" },
+        "retained_from_message_id": { "type": "string" },
+        "source_digest": { "type": "string" },
+        "policy": { "$ref": "#/$defs/JsonValue" },
+        "policy_digest": { "type": "string" },
+        "model_endpoint": { "$ref": "#/$defs/JsonValue" },
+        "request_digest": { "type": "string" },
+        "token_estimate_before": { "type": "integer" }
+      }
+    },
+    "ContextEpochMutationIdentityWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["epoch_id", "job_id", "worker_id", "lease_token"],
+      "properties": {
+        "epoch_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" }
+      }
+    },
+    "MarkContextEpochOutputObservedWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "epoch_id", "job_id", "worker_id", "lease_token", "generation_attempt"
+      ],
+      "properties": {
+        "epoch_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "generation_attempt": { "type": "integer" }
+      }
+    },
+    "ContextEpochGenerationOutcomeWire": {
+      "type": "string",
+      "enum": ["succeeded", "failed_before_output", "ambiguous"]
+    },
+    "FinishContextEpochGenerationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "epoch_id", "job_id", "worker_id", "lease_token", "generation_attempt",
+        "outcome", "retryable", "summary", "summary_digest", "usage", "error",
+        "token_estimate_after", "token_savings"
+      ],
+      "properties": {
+        "epoch_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "generation_attempt": { "type": "integer" },
+        "outcome": { "$ref": "#/$defs/ContextEpochGenerationOutcomeWire" },
+        "retryable": { "$ref": "#/$defs/NullableBoolean" },
+        "summary": { "$ref": "#/$defs/NullableString" },
+        "summary_digest": { "$ref": "#/$defs/NullableString" },
+        "usage": { "$ref": "#/$defs/JsonValue" },
+        "error": { "$ref": "#/$defs/JsonValue" },
         "token_estimate_after": { "$ref": "#/$defs/NullableInteger" },
-        "token_savings": { "$ref": "#/$defs/NullableInteger" },
-        "replacement_count": { "$ref": "#/$defs/NullableInteger" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
+        "token_savings": { "$ref": "#/$defs/NullableInteger" }
       }
     },
     "ActivateContextEpochWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["epoch_id"],
-      "properties": { "epoch_id": { "type": "string" } }
-    },
-    "CloneContextEpochWire": {
-      "type": "object", "additionalProperties": false,
-      "required": ["source_epoch_id", "id", "metadata"],
+      "required": [
+        "epoch_id", "job_id", "worker_id", "lease_token", "expected_previous_epoch_id"
+      ],
       "properties": {
-        "source_epoch_id": { "type": "string" },
-        "id": { "$ref": "#/$defs/NullableString" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
+        "epoch_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "expected_previous_epoch_id": { "$ref": "#/$defs/NullableString" }
       }
     },
     "PruneContextEpochsWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "session_id", "policy_version", "keep_last_superseded",
-        "older_than_updated_at", "dry_run"
+        "session_id", "keep_last_superseded", "older_than_updated_at", "dry_run"
       ],
       "properties": {
         "session_id": { "type": "string" },
-        "policy_version": { "type": "string" },
         "keep_last_superseded": { "$ref": "#/$defs/NullableInteger" },
         "older_than_updated_at": { "$ref": "#/$defs/NullableInteger" },
         "dry_run": { "$ref": "#/$defs/NullableBoolean" }
@@ -1136,57 +1436,47 @@
     },
     "ListContextEpochsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "policy_version", "state"],
+      "required": ["session_id", "state"],
       "properties": {
         "session_id": { "type": "string" },
-        "policy_version": { "$ref": "#/$defs/NullableString" },
         "state": { "$ref": "#/$defs/NullableContextEpochStateWire" }
       }
     },
     "GetActiveContextEpochWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "policy_version"],
-      "properties": {
-        "session_id": { "type": "string" },
-        "policy_version": { "type": "string" }
-      }
+      "required": ["session_id"],
+      "properties": { "session_id": { "type": "string" } }
     },
-    "PutContextReplacementWire": {
-      "type": "object", "additionalProperties": false,
-      "required": [
-        "id", "epoch_id", "session_id", "policy_version", "message_id",
-        "part_id", "tier", "original_token_estimate",
-        "replacement_token_estimate", "replacement", "metadata"
-      ],
-      "properties": {
-        "id": { "$ref": "#/$defs/NullableString" },
-        "epoch_id": { "type": "string" },
-        "session_id": { "type": "string" },
-        "policy_version": { "type": "string" },
-        "message_id": { "$ref": "#/$defs/NullableString" },
-        "part_id": { "type": "string" },
-        "tier": { "$ref": "#/$defs/ContextReplacementTierWire" },
-        "original_token_estimate": { "type": "integer" },
-        "replacement_token_estimate": { "type": "integer" },
-        "replacement": { "$ref": "#/$defs/JsonValue" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
-      }
-    },
-    "ListContextReplacementsWire": {
-      "type": "object", "additionalProperties": false,
-      "required": ["session_id", "policy_version", "epoch_id"],
-      "properties": {
-        "session_id": { "type": "string" },
-        "policy_version": { "$ref": "#/$defs/NullableString" },
-        "epoch_id": { "$ref": "#/$defs/NullableString" }
-      }
-    },
-    "PutContextEpochCommand": {
+    "BeginContextEpochCommand": {
       "type": "object", "additionalProperties": false,
       "required": ["command", "request"],
       "properties": {
-        "command": { "type": "string", "enum": ["put-context-epoch"] },
-        "request": { "$ref": "#/$defs/PutContextEpochWire" }
+        "command": { "type": "string", "enum": ["begin-context-epoch"] },
+        "request": { "$ref": "#/$defs/BeginContextEpochWire" }
+      }
+    },
+    "MarkContextEpochDispatchedCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["mark-context-epoch-dispatched"] },
+        "request": { "$ref": "#/$defs/ContextEpochMutationIdentityWire" }
+      }
+    },
+    "MarkContextEpochOutputObservedCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["mark-context-epoch-output-observed"] },
+        "request": { "$ref": "#/$defs/MarkContextEpochOutputObservedWire" }
+      }
+    },
+    "FinishContextEpochGenerationCommand": {
+      "type": "object", "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["finish-context-epoch-generation"] },
+        "request": { "$ref": "#/$defs/FinishContextEpochGenerationWire" }
       }
     },
     "ActivateContextEpochCommand": {
@@ -1195,14 +1485,6 @@
       "properties": {
         "command": { "type": "string", "enum": ["activate-context-epoch"] },
         "request": { "$ref": "#/$defs/ActivateContextEpochWire" }
-      }
-    },
-    "CloneContextEpochCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "request"],
-      "properties": {
-        "command": { "type": "string", "enum": ["clone-context-epoch"] },
-        "request": { "$ref": "#/$defs/CloneContextEpochWire" }
       }
     },
     "PruneContextEpochsCommand": {
@@ -1229,32 +1511,16 @@
         "request": { "$ref": "#/$defs/GetActiveContextEpochWire" }
       }
     },
-    "PutContextReplacementCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "request"],
-      "properties": {
-        "command": { "type": "string", "enum": ["put-context-replacement"] },
-        "request": { "$ref": "#/$defs/PutContextReplacementWire" }
-      }
-    },
-    "ListContextReplacementsCommand": {
-      "type": "object", "additionalProperties": false,
-      "required": ["command", "request"],
-      "properties": {
-        "command": { "type": "string", "enum": ["list-context-replacements"] },
-        "request": { "$ref": "#/$defs/ListContextReplacementsWire" }
-      }
-    },
     "ContextStorageRpcCommand": {
       "oneOf": [
-        { "$ref": "#/$defs/PutContextEpochCommand" },
+        { "$ref": "#/$defs/BeginContextEpochCommand" },
+        { "$ref": "#/$defs/MarkContextEpochDispatchedCommand" },
+        { "$ref": "#/$defs/MarkContextEpochOutputObservedCommand" },
+        { "$ref": "#/$defs/FinishContextEpochGenerationCommand" },
         { "$ref": "#/$defs/ActivateContextEpochCommand" },
-        { "$ref": "#/$defs/CloneContextEpochCommand" },
         { "$ref": "#/$defs/PruneContextEpochsCommand" },
         { "$ref": "#/$defs/ListContextEpochsCommand" },
-        { "$ref": "#/$defs/GetActiveContextEpochCommand" },
-        { "$ref": "#/$defs/PutContextReplacementCommand" },
-        { "$ref": "#/$defs/ListContextReplacementsCommand" }
+        { "$ref": "#/$defs/GetActiveContextEpochCommand" }
       ]
     },
     "NullableMessagePartsWire": {
@@ -1262,7 +1528,7 @@
     },
     "BudgetScopeKindWire": {
       "type": "string",
-      "enum": ["session", "turn", "team_round", "plugin", "principal", "provider_model"]
+      "enum": ["session", "turn", "objective", "team_round", "plugin", "principal", "provider_model"]
     },
     "BudgetWindowKindWire": {
       "type": "string", "enum": ["run", "session", "day", "month"]
@@ -1326,8 +1592,8 @@
     "SchedulerJobKindWire": {
       "type": "string",
       "enum": [
-        "session.turn", "workspace.task", "team.delivery", "team.round.close",
-        "plugin.action", "channel.delivery", "tool.deferred_result",
+        "session.turn", "workspace.task", "team.delivery", "team.delivery.outcome",
+        "plugin.action", "channel.delivery",
         "gateway.delivery", "memory.compaction", "resource.cleanup",
         "budget.grant_expire", "provider.retry", "config.sync", "media.generate"
       ]
@@ -1337,7 +1603,7 @@
     },
     "SchedulerJobStateWire": {
       "type": "string",
-      "enum": ["pending", "ready", "running", "succeeded", "retry_scheduled", "failed", "cancelled"]
+      "enum": ["pending", "ready", "running", "waiting", "succeeded", "retry_scheduled", "failed", "cancelled"]
     },
     "NullableSchedulerJobStateWire": {
       "oneOf": [{ "$ref": "#/$defs/SchedulerJobStateWire" }, { "type": "null" }]
@@ -1647,19 +1913,18 @@
     },
     "PlanProposalStateWire": {
       "type": "string",
-      "enum": ["open", "approved", "rejected", "withdrawn", "execution_requested", "executed", "execution_failed"]
+      "enum": ["open", "approved", "rejected", "withdrawn"]
     },
     "NullablePlanProposalStateWire": {
       "oneOf": [{ "$ref": "#/$defs/PlanProposalStateWire" }, { "type": "null" }]
     },
     "PlanProposalOperationWire": {
       "type": "string",
-      "enum": ["approve", "reject", "withdraw", "request_execution", "mark_executed", "mark_execution_failed"]
+      "enum": ["revise", "approve", "reject", "withdraw"]
     },
     "PlanReferenceKindWire": {
       "type": "string",
       "enum": [
-        "session", "session_input", "session_turn", "scheduler_job",
         "workspace_change_proposal", "delegation_graph", "delegation_graph_node",
         "team_conversation", "resource", "context_epoch"
       ]
@@ -1667,25 +1932,95 @@
     "NullablePlanReferenceKindWire": {
       "oneOf": [{ "$ref": "#/$defs/PlanReferenceKindWire" }, { "type": "null" }]
     },
-    "PutPlanProposalWire": {
+    "PlanProposalStepWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "principal_id", "title", "summary", "steps", "references", "metadata", "idempotency_key"],
+      "required": ["id", "title", "detail", "metadata"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "detail": { "$ref": "#/$defs/NullableString" },
+        "metadata": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "PlanProposalReferenceWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "reference_id", "role", "metadata"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/PlanReferenceKindWire" },
+        "reference_id": { "type": "string", "minLength": 1 },
+        "role": { "$ref": "#/$defs/NullableString" },
+        "metadata": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "PlanProposalContentWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["title", "summary", "steps", "references"],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 },
+        "steps": {
+          "type": "array", "minItems": 1, "maxItems": 256,
+          "items": { "$ref": "#/$defs/PlanProposalStepWire" }
+        },
+        "references": {
+          "type": "array", "maxItems": 256,
+          "items": { "$ref": "#/$defs/PlanProposalReferenceWire" }
+        }
+      }
+    },
+    "NullablePlanProposalContentWire": {
+      "oneOf": [{ "$ref": "#/$defs/PlanProposalContentWire" }, { "type": "null" }]
+    },
+    "PlanProposalSourceWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "session_id", "head_sequence", "head_message_id", "head_turn_id",
+        "analysis_input_digest", "planning_request"
+      ],
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "head_sequence": { "type": "integer", "minimum": 0 },
+        "head_message_id": { "$ref": "#/$defs/NullableString" },
+        "head_turn_id": { "$ref": "#/$defs/NullableString" },
+        "analysis_input_digest": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "planning_request": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "PlanProposalGenerationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "endpoint_id", "endpoint_digest", "protocol_id", "provider_id",
+        "model_id", "generated_at", "output_digest", "output"
+      ],
+      "properties": {
+        "endpoint_id": { "type": "string", "minLength": 1 },
+        "endpoint_digest": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "protocol_id": { "type": "string", "minLength": 1 },
+        "provider_id": { "type": "string", "minLength": 1 },
+        "model_id": { "type": "string", "minLength": 1 },
+        "generated_at": { "type": "integer", "minimum": 0 },
+        "output_digest": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "output": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "CreatePlanProposalWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "principal_id", "source", "generation", "content", "idempotency_key"],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
         "principal_id": { "type": "string" },
-        "title": { "$ref": "#/$defs/NullableString" },
-        "summary": { "$ref": "#/$defs/NullableString" },
-        "steps": { "$ref": "#/$defs/JsonValue" },
-        "references": { "$ref": "#/$defs/JsonValue" },
-        "metadata": { "$ref": "#/$defs/JsonValue" },
-        "idempotency_key": { "$ref": "#/$defs/NullableString" }
+        "source": { "$ref": "#/$defs/PlanProposalSourceWire" },
+        "generation": { "$ref": "#/$defs/PlanProposalGenerationWire" },
+        "content": { "$ref": "#/$defs/PlanProposalContentWire" },
+        "idempotency_key": { "type": "string", "minLength": 1 }
       }
     },
     "ListPlanProposalsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["principal_id", "state", "reference_kind", "reference_id", "limit"],
+      "required": ["principal_id", "source_session_id", "state", "reference_kind", "reference_id", "limit"],
       "properties": {
         "principal_id": { "$ref": "#/$defs/NullableString" },
+        "source_session_id": { "$ref": "#/$defs/NullableString" },
         "state": { "$ref": "#/$defs/NullablePlanProposalStateWire" },
         "reference_kind": { "$ref": "#/$defs/NullablePlanReferenceKindWire" },
         "reference_id": { "$ref": "#/$defs/NullableString" },
@@ -1694,14 +2029,30 @@
     },
     "RecordPlanProposalOperationWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "proposal_id", "operation", "actor_id", "reason", "metadata"],
+      "required": [
+        "id", "proposal_id", "operation", "expected_revision", "actor_kind",
+        "actor_id", "content", "reason", "idempotency_key"
+      ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
         "proposal_id": { "type": "string" },
         "operation": { "$ref": "#/$defs/PlanProposalOperationWire" },
+        "expected_revision": { "type": "integer", "minimum": 1 },
+        "actor_kind": { "type": "string", "enum": ["human"] },
         "actor_id": { "type": "string" },
+        "content": { "$ref": "#/$defs/NullablePlanProposalContentWire" },
         "reason": { "$ref": "#/$defs/NullableString" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
+        "idempotency_key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ExecuteApprovedPlanWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["proposal_id", "expected_revision", "idempotency_key", "turn"],
+      "properties": {
+        "proposal_id": { "type": "string", "minLength": 1 },
+        "expected_revision": { "type": "integer", "minimum": 1 },
+        "idempotency_key": { "type": "string", "minLength": 1 },
+        "turn": { "$ref": "#/$defs/SubmitSessionTurnWire" }
       }
     },
     "ListPlanProposalOperationsWire": {
@@ -1709,9 +2060,9 @@
       "required": ["proposal_id"],
       "properties": { "proposal_id": { "type": "string" } }
     },
-    "PutPlanProposalCommand": {
+    "CreatePlanProposalCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["put-plan-proposal"] }, "request": { "$ref": "#/$defs/PutPlanProposalWire" } }
+      "properties": { "command": { "type": "string", "enum": ["create-plan-proposal"] }, "request": { "$ref": "#/$defs/CreatePlanProposalWire" } }
     },
     "GetPlanProposalCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "proposal_id"],
@@ -1725,204 +2076,204 @@
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["record-plan-proposal-operation"] }, "request": { "$ref": "#/$defs/RecordPlanProposalOperationWire" } }
     },
+    "ExecuteApprovedPlanCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["execute-approved-plan"] }, "request": { "$ref": "#/$defs/ExecuteApprovedPlanWire" } }
+    },
     "ListPlanProposalOperationsCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["list-plan-proposal-operations"] }, "request": { "$ref": "#/$defs/ListPlanProposalOperationsWire" } }
     },
     "PlanStorageRpcCommand": {
       "oneOf": [
-        { "$ref": "#/$defs/PutPlanProposalCommand" }, { "$ref": "#/$defs/GetPlanProposalCommand" },
+        { "$ref": "#/$defs/CreatePlanProposalCommand" }, { "$ref": "#/$defs/GetPlanProposalCommand" },
         { "$ref": "#/$defs/ListPlanProposalsCommand" }, { "$ref": "#/$defs/RecordPlanProposalOperationCommand" },
+        { "$ref": "#/$defs/ExecuteApprovedPlanCommand" },
         { "$ref": "#/$defs/ListPlanProposalOperationsCommand" }
       ]
     },
-    "ObjectiveRunStateWire": {
+    "ObjectiveStateWire": {
       "type": "string",
-      "enum": ["open", "running", "blocked", "succeeded", "failed", "cancelled"]
+      "enum": ["active", "paused", "blocked", "limit_reached", "succeeded", "failed", "cancel_requested", "cancelled"]
     },
-    "NullableObjectiveRunStateWire": {
-      "oneOf": [{ "$ref": "#/$defs/ObjectiveRunStateWire" }, { "type": "null" }]
+    "ObjectiveStatesWire": {
+      "type": "array", "uniqueItems": true,
+      "items": { "$ref": "#/$defs/ObjectiveStateWire" }
     },
-    "ObjectiveRunOperationWire": {
-      "type": "string",
-      "enum": ["start", "record_blocked", "mark_succeeded", "mark_failed", "cancel"]
+    "NullableObjectiveStatesWire": {
+      "oneOf": [{ "$ref": "#/$defs/ObjectiveStatesWire" }, { "type": "null" }]
     },
-    "ObjectiveAttemptStateWire": {
-      "type": "string",
-      "enum": ["planned", "running", "succeeded", "failed", "blocked", "cancelled"]
+    "ObjectiveAttemptTriggerWire": {
+      "type": "string", "enum": ["initial", "automatic_continuation", "user_resume"]
     },
-    "NullableObjectiveAttemptStateWire": {
-      "oneOf": [{ "$ref": "#/$defs/ObjectiveAttemptStateWire" }, { "type": "null" }]
+    "ObjectiveAttemptDispositionWire": {
+      "type": "string", "enum": ["continue", "blocked", "succeeded", "failed"]
     },
-    "ObjectiveVerificationKindWire": {
-      "type": "string",
-      "enum": ["script", "model", "human", "runtime"]
+    "ObjectiveVerificationResultWire": {
+      "type": "string", "enum": ["passed", "failed", "inconclusive", "blocked"]
     },
-    "ObjectiveVerificationStateWire": {
-      "type": "string",
-      "enum": ["passed", "failed", "inconclusive", "blocked"]
+    "NullableObjectiveVerificationResultWire": {
+      "oneOf": [{ "$ref": "#/$defs/ObjectiveVerificationResultWire" }, { "type": "null" }]
     },
-    "NullableObjectiveVerificationStateWire": {
-      "oneOf": [{ "$ref": "#/$defs/ObjectiveVerificationStateWire" }, { "type": "null" }]
-    },
-    "ObjectiveReferenceKindWire": {
-      "type": "string",
-      "enum": [
-        "session", "session_input", "session_turn", "scheduler_job",
-        "plan_proposal", "workspace_change_proposal", "delegation_graph",
-        "resource", "context_epoch"
-      ]
-    },
-    "NullableObjectiveReferenceKindWire": {
-      "oneOf": [{ "$ref": "#/$defs/ObjectiveReferenceKindWire" }, { "type": "null" }]
-    },
-    "PutObjectiveRunWire": {
+    "CreateObjectiveWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "id", "principal_id", "objective", "scope", "constraints",
-        "success_criteria", "stop_policy", "references", "metadata",
-        "idempotency_key"
+        "id", "session_id", "principal_id", "objective", "boundaries",
+        "constraints", "success_criteria", "verification_policy",
+        "stop_policy", "idempotency_key"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
+        "session_id": { "type": "string" },
         "principal_id": { "type": "string" },
         "objective": { "type": "string" },
-        "scope": { "$ref": "#/$defs/NullableString" },
+        "boundaries": { "$ref": "#/$defs/JsonValue" },
         "constraints": { "$ref": "#/$defs/JsonValue" },
         "success_criteria": { "$ref": "#/$defs/JsonValue" },
+        "verification_policy": { "$ref": "#/$defs/JsonValue" },
         "stop_policy": { "$ref": "#/$defs/JsonValue" },
-        "references": { "$ref": "#/$defs/JsonValue" },
-        "metadata": { "$ref": "#/$defs/JsonValue" },
-        "idempotency_key": { "$ref": "#/$defs/NullableString" }
+        "idempotency_key": { "type": "string" }
       }
     },
-    "ListObjectiveRunsWire": {
+    "ListObjectivesWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["principal_id", "state", "reference_kind", "reference_id", "limit"],
+      "required": ["session_id", "principal_id", "states", "limit"],
       "properties": {
+        "session_id": { "$ref": "#/$defs/NullableString" },
         "principal_id": { "$ref": "#/$defs/NullableString" },
-        "state": { "$ref": "#/$defs/NullableObjectiveRunStateWire" },
-        "reference_kind": { "$ref": "#/$defs/NullableObjectiveReferenceKindWire" },
-        "reference_id": { "$ref": "#/$defs/NullableString" },
+        "states": { "$ref": "#/$defs/NullableObjectiveStatesWire" },
         "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
-    "RecordObjectiveRunOperationWire": {
+    "ChangeObjectiveStateWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "objective_id", "operation", "actor_id", "reason", "metadata"],
+      "required": ["objective_id", "expected_revision", "reason", "idempotency_key"],
       "properties": {
-        "id": { "$ref": "#/$defs/NullableString" },
         "objective_id": { "type": "string" },
-        "operation": { "$ref": "#/$defs/ObjectiveRunOperationWire" },
-        "actor_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
         "reason": { "$ref": "#/$defs/NullableString" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
+        "idempotency_key": { "type": "string" }
       }
     },
-    "ListObjectiveRunOperationsWire": {
+    "AdmitObjectiveAttemptWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["objective_id"],
-      "properties": { "objective_id": { "type": "string" } }
+      "required": ["objective_id", "expected_revision", "trigger", "idempotency_key", "turn"],
+      "properties": {
+        "objective_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
+        "trigger": { "$ref": "#/$defs/ObjectiveAttemptTriggerWire" },
+        "idempotency_key": { "type": "string" },
+        "turn": { "$ref": "#/$defs/SubmitSessionTurnWire" }
+      }
     },
-    "PutObjectiveAttemptWire": {
+    "ReviewObjectiveAttemptWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "id", "objective_id", "attempt_number", "state", "session_id",
-        "session_input_id", "session_turn_id", "scheduler_job_id",
-        "delegation_graph_id", "plan_proposal_id",
-        "workspace_change_proposal_id", "summary", "result", "error",
-        "metadata", "started_at", "finished_at", "idempotency_key"
+        "id", "objective_id", "attempt_id", "expected_revision",
+        "disposition", "reason", "verifications", "idempotency_key"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
         "objective_id": { "type": "string" },
-        "attempt_number": { "$ref": "#/$defs/NullableInteger" },
-        "state": { "$ref": "#/$defs/NullableObjectiveAttemptStateWire" },
-        "session_id": { "$ref": "#/$defs/NullableString" },
-        "session_input_id": { "$ref": "#/$defs/NullableString" },
-        "session_turn_id": { "$ref": "#/$defs/NullableString" },
-        "scheduler_job_id": { "$ref": "#/$defs/NullableString" },
-        "delegation_graph_id": { "$ref": "#/$defs/NullableString" },
-        "plan_proposal_id": { "$ref": "#/$defs/NullableString" },
-        "workspace_change_proposal_id": { "$ref": "#/$defs/NullableString" },
-        "summary": { "$ref": "#/$defs/NullableString" },
-        "result": { "$ref": "#/$defs/JsonValue" },
-        "error": { "$ref": "#/$defs/JsonValue" },
-        "metadata": { "$ref": "#/$defs/JsonValue" },
-        "started_at": { "$ref": "#/$defs/NullableInteger" },
-        "finished_at": { "$ref": "#/$defs/NullableInteger" },
-        "idempotency_key": { "$ref": "#/$defs/NullableString" }
+        "attempt_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
+        "disposition": { "$ref": "#/$defs/ObjectiveAttemptDispositionWire" },
+        "reason": { "$ref": "#/$defs/NullableString" },
+        "verifications": { "$ref": "#/$defs/JsonValue" },
+        "idempotency_key": { "type": "string" }
+      }
+    },
+    "RequestObjectiveCancelWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["objective_id", "expected_revision", "reason", "idempotency_key"],
+      "properties": {
+        "objective_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
+        "reason": { "type": "string" },
+        "idempotency_key": { "type": "string" }
+      }
+    },
+    "ReconcileObjectiveCancellationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["objective_id", "attempt_id", "expected_revision", "idempotency_key"],
+      "properties": {
+        "objective_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
+        "idempotency_key": { "type": "string" }
       }
     },
     "ListObjectiveAttemptsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["objective_id", "state", "limit"],
+      "required": ["objective_id", "limit"],
       "properties": {
         "objective_id": { "type": "string" },
-        "state": { "$ref": "#/$defs/NullableObjectiveAttemptStateWire" },
         "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
-    "PutObjectiveVerificationWire": {
+    "ListObjectiveAttemptReviewsWire": {
       "type": "object", "additionalProperties": false,
-      "required": [
-        "id", "objective_id", "attempt_id", "kind", "state", "reason",
-        "evidence", "verifier_ref", "metadata", "idempotency_key"
-      ],
+      "required": ["objective_id", "attempt_id", "limit"],
       "properties": {
-        "id": { "$ref": "#/$defs/NullableString" },
         "objective_id": { "type": "string" },
         "attempt_id": { "$ref": "#/$defs/NullableString" },
-        "kind": { "$ref": "#/$defs/ObjectiveVerificationKindWire" },
-        "state": { "$ref": "#/$defs/ObjectiveVerificationStateWire" },
-        "reason": { "$ref": "#/$defs/NullableString" },
-        "evidence": { "$ref": "#/$defs/JsonValue" },
-        "verifier_ref": { "$ref": "#/$defs/NullableString" },
-        "metadata": { "$ref": "#/$defs/JsonValue" },
-        "idempotency_key": { "$ref": "#/$defs/NullableString" }
+        "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
     "ListObjectiveVerificationsWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["objective_id", "attempt_id", "state", "limit"],
+      "required": ["objective_id", "attempt_id", "requirement_id", "result", "limit"],
       "properties": {
         "objective_id": { "type": "string" },
         "attempt_id": { "$ref": "#/$defs/NullableString" },
-        "state": { "$ref": "#/$defs/NullableObjectiveVerificationStateWire" },
+        "requirement_id": { "$ref": "#/$defs/NullableString" },
+        "result": { "$ref": "#/$defs/NullableObjectiveVerificationResultWire" },
         "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
-    "PutObjectiveRunCommand": {
+    "CreateObjectiveCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["put-objective-run"] }, "request": { "$ref": "#/$defs/PutObjectiveRunWire" } }
+      "properties": { "command": { "type": "string", "enum": ["create-objective"] }, "request": { "$ref": "#/$defs/CreateObjectiveWire" } }
     },
-    "GetObjectiveRunCommand": {
+    "GetObjectiveCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "objective_id"],
-      "properties": { "command": { "type": "string", "enum": ["get-objective-run"] }, "objective_id": { "type": "string" } }
+      "properties": { "command": { "type": "string", "enum": ["get-objective"] }, "objective_id": { "type": "string" } }
     },
-    "ListObjectiveRunsCommand": {
+    "ListObjectivesCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["list-objective-runs"] }, "request": { "$ref": "#/$defs/ListObjectiveRunsWire" } }
+      "properties": { "command": { "type": "string", "enum": ["list-objectives"] }, "request": { "$ref": "#/$defs/ListObjectivesWire" } }
     },
-    "RecordObjectiveRunOperationCommand": {
+    "PauseObjectiveCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["record-objective-run-operation"] }, "request": { "$ref": "#/$defs/RecordObjectiveRunOperationWire" } }
+      "properties": { "command": { "type": "string", "enum": ["pause-objective"] }, "request": { "$ref": "#/$defs/ChangeObjectiveStateWire" } }
     },
-    "ListObjectiveRunOperationsCommand": {
+    "ResumeObjectiveCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["list-objective-run-operations"] }, "request": { "$ref": "#/$defs/ListObjectiveRunOperationsWire" } }
+      "properties": { "command": { "type": "string", "enum": ["resume-objective"] }, "request": { "$ref": "#/$defs/ChangeObjectiveStateWire" } }
     },
-    "PutObjectiveAttemptCommand": {
+    "AdmitObjectiveAttemptCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["put-objective-attempt"] }, "request": { "$ref": "#/$defs/PutObjectiveAttemptWire" } }
+      "properties": { "command": { "type": "string", "enum": ["admit-objective-attempt"] }, "request": { "$ref": "#/$defs/AdmitObjectiveAttemptWire" } }
+    },
+    "ReviewObjectiveAttemptCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["review-objective-attempt"] }, "request": { "$ref": "#/$defs/ReviewObjectiveAttemptWire" } }
+    },
+    "RequestObjectiveCancelCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["request-objective-cancel"] }, "request": { "$ref": "#/$defs/RequestObjectiveCancelWire" } }
+    },
+    "ReconcileObjectiveCancellationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["reconcile-objective-cancellation"] }, "request": { "$ref": "#/$defs/ReconcileObjectiveCancellationWire" } }
     },
     "ListObjectiveAttemptsCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["list-objective-attempts"] }, "request": { "$ref": "#/$defs/ListObjectiveAttemptsWire" } }
     },
-    "PutObjectiveVerificationCommand": {
+    "ListObjectiveAttemptReviewsCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["put-objective-verification"] }, "request": { "$ref": "#/$defs/PutObjectiveVerificationWire" } }
+      "properties": { "command": { "type": "string", "enum": ["list-objective-attempt-reviews"] }, "request": { "$ref": "#/$defs/ListObjectiveAttemptReviewsWire" } }
     },
     "ListObjectiveVerificationsCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
@@ -1930,11 +2281,12 @@
     },
     "ObjectiveStorageRpcCommand": {
       "oneOf": [
-        { "$ref": "#/$defs/PutObjectiveRunCommand" }, { "$ref": "#/$defs/GetObjectiveRunCommand" },
-        { "$ref": "#/$defs/ListObjectiveRunsCommand" }, { "$ref": "#/$defs/RecordObjectiveRunOperationCommand" },
-        { "$ref": "#/$defs/ListObjectiveRunOperationsCommand" }, { "$ref": "#/$defs/PutObjectiveAttemptCommand" },
-        { "$ref": "#/$defs/ListObjectiveAttemptsCommand" }, { "$ref": "#/$defs/PutObjectiveVerificationCommand" },
-        { "$ref": "#/$defs/ListObjectiveVerificationsCommand" }
+        { "$ref": "#/$defs/CreateObjectiveCommand" }, { "$ref": "#/$defs/GetObjectiveCommand" },
+        { "$ref": "#/$defs/ListObjectivesCommand" }, { "$ref": "#/$defs/PauseObjectiveCommand" },
+        { "$ref": "#/$defs/ResumeObjectiveCommand" }, { "$ref": "#/$defs/AdmitObjectiveAttemptCommand" },
+        { "$ref": "#/$defs/ReviewObjectiveAttemptCommand" }, { "$ref": "#/$defs/RequestObjectiveCancelCommand" },
+        { "$ref": "#/$defs/ReconcileObjectiveCancellationCommand" }, { "$ref": "#/$defs/ListObjectiveAttemptsCommand" },
+        { "$ref": "#/$defs/ListObjectiveAttemptReviewsCommand" }, { "$ref": "#/$defs/ListObjectiveVerificationsCommand" }
       ]
     },
     "DelegationGraphStateWire": {
@@ -2144,7 +2496,7 @@
       ]
     },
     "TeamConversationModeWire": {
-      "type": "string", "enum": ["tl", "free", "hybrid"]
+      "type": "string", "enum": ["orchestrated", "peer", "hybrid"]
     },
     "NullableTeamConversationModeWire": {
       "oneOf": [{ "$ref": "#/$defs/TeamConversationModeWire" }, { "type": "null" }]
@@ -2164,17 +2516,52 @@
     "NullableTeamParticipantStateWire": {
       "oneOf": [{ "$ref": "#/$defs/TeamParticipantStateWire" }, { "type": "null" }]
     },
-    "TeamTurnKindWire": {
+    "TeamMessageKindWire": {
       "type": "string", "enum": ["message", "decision", "handoff", "system"]
     },
-    "NullableTeamTurnKindWire": {
-      "oneOf": [{ "$ref": "#/$defs/TeamTurnKindWire" }, { "type": "null" }]
+    "NullableTeamMessageKindWire": {
+      "oneOf": [{ "$ref": "#/$defs/TeamMessageKindWire" }, { "type": "null" }]
     },
-    "TeamAudienceParticipantIdsWire": {
-      "type": "array", "items": { "type": "string" }
+    "TeamMessageStateWire": {
+      "type": "string", "enum": ["admitted", "routed", "visible", "blocked", "superseded"]
     },
-    "NullableTeamAudienceParticipantIdsWire": {
-      "oneOf": [{ "$ref": "#/$defs/TeamAudienceParticipantIdsWire" }, { "type": "null" }]
+    "NullableTeamMessageStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/TeamMessageStateWire" }, { "type": "null" }]
+    },
+    "TeamTargetKindWire": {
+      "type": "string", "enum": ["participant", "lead", "all"]
+    },
+    "TeamTargetWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "participant_id"],
+      "properties": {
+        "kind": { "$ref": "#/$defs/TeamTargetKindWire" },
+        "participant_id": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "TeamTargetsWire": {
+      "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/TeamTargetWire" }
+    },
+    "TeamRoutingOutcomeWire": {
+      "type": "string", "enum": ["deliver", "blocked"]
+    },
+    "TeamDeliveryRoleWire": {
+      "type": "string", "enum": ["speaker", "observer", "summarizer"]
+    },
+    "TeamDeliveryTriggerWire": {
+      "type": "string", "enum": ["direct", "mention", "lead", "round", "delegation"]
+    },
+    "TeamDeliveryStateWire": {
+      "type": "string", "enum": ["queued", "dispatched", "responded", "passed", "failed", "cancelled"]
+    },
+    "NullableTeamDeliveryStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/TeamDeliveryStateWire" }, { "type": "null" }]
+    },
+    "TeamDiscussionRoundStateWire": {
+      "type": "string", "enum": ["open", "closed"]
+    },
+    "NullableTeamDiscussionRoundStateWire": {
+      "oneOf": [{ "$ref": "#/$defs/TeamDiscussionRoundStateWire" }, { "type": "null" }]
     },
     "PutTeamConversationWire": {
       "type": "object", "additionalProperties": false,
@@ -2206,11 +2593,20 @@
         "state": { "$ref": "#/$defs/TeamConversationStateWire" }
       }
     },
+    "SetTeamConversationLeadWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversation_id", "expected_lead_participant_id", "lead_participant_id"],
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "expected_lead_participant_id": { "$ref": "#/$defs/NullableString" },
+        "lead_participant_id": { "$ref": "#/$defs/NullableString" }
+      }
+    },
     "PutTeamParticipantWire": {
       "type": "object", "additionalProperties": false,
       "required": [
         "id", "conversation_id", "principal_id", "kind", "display_name",
-        "role", "metadata", "idempotency_key"
+        "role", "agent_session_id", "metadata", "idempotency_key"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
@@ -2219,6 +2615,7 @@
         "kind": { "$ref": "#/$defs/TeamParticipantKindWire" },
         "display_name": { "$ref": "#/$defs/NullableString" },
         "role": { "$ref": "#/$defs/NullableString" },
+        "agent_session_id": { "$ref": "#/$defs/NullableString" },
         "metadata": { "$ref": "#/$defs/JsonValue" },
         "idempotency_key": { "$ref": "#/$defs/NullableString" }
       }
@@ -2239,30 +2636,148 @@
         "state": { "$ref": "#/$defs/TeamParticipantStateWire" }
       }
     },
-    "AppendTeamTurnWire": {
+    "AdmitTeamMessageWire": {
       "type": "object", "additionalProperties": false,
       "required": [
-        "id", "conversation_id", "speaker_participant_id",
-        "audience_participant_ids", "kind", "content", "metadata"
+        "id", "conversation_id", "author_participant_id", "parent_message_id",
+        "kind", "targets", "content", "metadata",
+        "idempotency_key"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
         "conversation_id": { "type": "string" },
-        "speaker_participant_id": { "type": "string" },
-        "audience_participant_ids": { "$ref": "#/$defs/NullableTeamAudienceParticipantIdsWire" },
-        "kind": { "$ref": "#/$defs/NullableTeamTurnKindWire" },
+        "author_participant_id": { "type": "string" },
+        "parent_message_id": { "$ref": "#/$defs/NullableString" },
+        "kind": { "$ref": "#/$defs/NullableTeamMessageKindWire" },
+        "targets": { "$ref": "#/$defs/TeamTargetsWire" },
         "content": { "$ref": "#/$defs/MessagePartsWire" },
-        "metadata": { "$ref": "#/$defs/JsonValue" }
+        "metadata": { "$ref": "#/$defs/JsonValue" },
+        "idempotency_key": { "type": "string" }
       }
     },
-    "ListTeamTurnsWire": {
+    "ListTeamMessagesWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["conversation_id", "after_created_at", "after_turn_id", "limit"],
+      "required": ["conversation_id", "state", "after_created_at", "after_message_id", "limit"],
       "properties": {
         "conversation_id": { "type": "string" },
+        "state": { "$ref": "#/$defs/NullableTeamMessageStateWire" },
         "after_created_at": { "$ref": "#/$defs/NullableInteger" },
-        "after_turn_id": { "$ref": "#/$defs/NullableString" },
+        "after_message_id": { "$ref": "#/$defs/NullableString" },
         "limit": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "RouteTeamDeliveryWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "target_participant_id", "role", "trigger", "budget_grant_id"],
+      "properties": {
+        "id": { "$ref": "#/$defs/NullableString" },
+        "target_participant_id": { "type": "string" },
+        "role": { "$ref": "#/$defs/TeamDeliveryRoleWire" },
+        "trigger": { "$ref": "#/$defs/TeamDeliveryTriggerWire" },
+        "budget_grant_id": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "RouteTeamDeliveriesWire": {
+      "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/RouteTeamDeliveryWire" }
+    },
+    "RouteTeamMessageWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "id", "message_id", "expected_revision", "expected_lead_participant_id", "mode", "outcome",
+        "actor_principal_id", "reason", "metadata", "idempotency_key", "deliveries"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/NullableString" },
+        "message_id": { "type": "string" },
+        "expected_revision": { "type": "integer" },
+        "expected_lead_participant_id": { "$ref": "#/$defs/NullableString" },
+        "mode": { "$ref": "#/$defs/TeamConversationModeWire" },
+        "outcome": { "$ref": "#/$defs/TeamRoutingOutcomeWire" },
+        "actor_principal_id": { "type": "string" },
+        "reason": { "type": "string" },
+        "metadata": { "$ref": "#/$defs/JsonValue" },
+        "idempotency_key": { "type": "string" },
+        "deliveries": { "$ref": "#/$defs/RouteTeamDeliveriesWire" }
+      }
+    },
+    "ListTeamRoutingDecisionsWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversation_id", "message_id", "limit"],
+      "properties": {
+        "conversation_id": { "$ref": "#/$defs/NullableString" },
+        "message_id": { "$ref": "#/$defs/NullableString" },
+        "limit": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "ListTeamDeliveriesWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversation_id", "message_id", "routing_decision_id", "state", "limit"],
+      "properties": {
+        "conversation_id": { "$ref": "#/$defs/NullableString" },
+        "message_id": { "$ref": "#/$defs/NullableString" },
+        "routing_decision_id": { "$ref": "#/$defs/NullableString" },
+        "state": { "$ref": "#/$defs/NullableTeamDeliveryStateWire" },
+        "limit": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "ListTeamDiscussionRoundsWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversation_id", "state", "after_created_at", "after_round_id", "limit"],
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "state": { "$ref": "#/$defs/NullableTeamDiscussionRoundStateWire" },
+        "after_created_at": { "$ref": "#/$defs/NullableInteger" },
+        "after_round_id": { "$ref": "#/$defs/NullableString" },
+        "limit": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "ReadTeamConversationPageWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conversation_id", "before_created_at", "before_message_id", "limit"],
+      "properties": {
+        "conversation_id": { "type": "string" },
+        "before_created_at": { "$ref": "#/$defs/NullableInteger" },
+        "before_message_id": { "$ref": "#/$defs/NullableString" },
+        "limit": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "MaterializeTeamDeliveryWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "delivery_id", "dispatch_job_id", "worker_id", "lease_token",
+        "execution_binding", "max_steps", "child_priority"
+      ],
+      "properties": {
+        "delivery_id": { "type": "string" },
+        "dispatch_job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "execution_binding": { "$ref": "#/$defs/JsonValue" },
+        "max_steps": { "$ref": "#/$defs/NullableInteger" },
+        "child_priority": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "FailTeamDeliveryMaterializationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "delivery_id", "dispatch_job_id", "worker_id", "lease_token", "error"
+      ],
+      "properties": {
+        "delivery_id": { "type": "string" },
+        "dispatch_job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "error": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ProjectTeamDeliveryOutcomeWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["delivery_id", "outcome_job_id", "worker_id", "lease_token"],
+      "properties": {
+        "delivery_id": { "type": "string" },
+        "outcome_job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" }
       }
     },
     "PutTeamConversationCommand": {
@@ -2281,6 +2796,10 @@
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["update-team-conversation-state"] }, "request": { "$ref": "#/$defs/UpdateTeamConversationStateWire" } }
     },
+    "SetTeamConversationLeadCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["set-team-conversation-lead"] }, "request": { "$ref": "#/$defs/SetTeamConversationLeadWire" } }
+    },
     "PutTeamParticipantCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["put-team-participant"] }, "request": { "$ref": "#/$defs/PutTeamParticipantWire" } }
@@ -2293,21 +2812,94 @@
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
       "properties": { "command": { "type": "string", "enum": ["update-team-participant-state"] }, "request": { "$ref": "#/$defs/UpdateTeamParticipantStateWire" } }
     },
-    "AppendTeamTurnCommand": {
+    "AdmitTeamMessageCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["append-team-turn"] }, "request": { "$ref": "#/$defs/AppendTeamTurnWire" } }
+      "properties": { "command": { "type": "string", "enum": ["admit-team-message"] }, "request": { "$ref": "#/$defs/AdmitTeamMessageWire" } }
     },
-    "ListTeamTurnsCommand": {
+    "GetTeamMessageCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "message_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-message"] }, "message_id": { "type": "string" } }
+    },
+    "ListTeamMessagesCommand": {
       "type": "object", "additionalProperties": false, "required": ["command", "request"],
-      "properties": { "command": { "type": "string", "enum": ["list-team-turns"] }, "request": { "$ref": "#/$defs/ListTeamTurnsWire" } }
+      "properties": { "command": { "type": "string", "enum": ["list-team-messages"] }, "request": { "$ref": "#/$defs/ListTeamMessagesWire" } }
+    },
+    "RouteTeamMessageCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["route-team-message"] }, "request": { "$ref": "#/$defs/RouteTeamMessageWire" } }
+    },
+    "GetTeamRoutingDecisionByMessageCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "message_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-routing-decision-by-message"] }, "message_id": { "type": "string" } }
+    },
+    "ListTeamRoutingDecisionsCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["list-team-routing-decisions"] }, "request": { "$ref": "#/$defs/ListTeamRoutingDecisionsWire" } }
+    },
+    "ListTeamDeliveriesCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["list-team-deliveries"] }, "request": { "$ref": "#/$defs/ListTeamDeliveriesWire" } }
+    },
+    "GetTeamDiscussionRoundCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "round_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-discussion-round"] }, "round_id": { "type": "string" } }
+    },
+    "GetTeamDelegationOperationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "operation_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-delegation-operation"] }, "operation_id": { "type": "string" } }
+    },
+    "GetTeamDelegationOperationByToolExecutionCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "tool_execution_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-delegation-operation-by-tool-execution"] }, "tool_execution_id": { "type": "string" } }
+    },
+    "ListTeamDelegationTasksCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "operation_id"],
+      "properties": { "command": { "type": "string", "enum": ["list-team-delegation-tasks"] }, "operation_id": { "type": "string" } }
+    },
+    "ListTeamDiscussionRoundsCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["list-team-discussion-rounds"] }, "request": { "$ref": "#/$defs/ListTeamDiscussionRoundsWire" } }
+    },
+    "ReadTeamConversationPageCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["read-team-conversation-page"] }, "request": { "$ref": "#/$defs/ReadTeamConversationPageWire" } }
+    },
+    "GetTeamDeliveryMaterializationContextCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "delivery_id"],
+      "properties": { "command": { "type": "string", "enum": ["get-team-delivery-materialization-context"] }, "delivery_id": { "type": "string" } }
+    },
+    "MaterializeTeamDeliveryCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["materialize-team-delivery"] }, "request": { "$ref": "#/$defs/MaterializeTeamDeliveryWire" } }
+    },
+    "FailTeamDeliveryMaterializationCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["fail-team-delivery-materialization"] }, "request": { "$ref": "#/$defs/FailTeamDeliveryMaterializationWire" } }
+    },
+    "ProjectTeamDeliveryOutcomeCommand": {
+      "type": "object", "additionalProperties": false, "required": ["command", "request"],
+      "properties": { "command": { "type": "string", "enum": ["project-team-delivery-outcome"] }, "request": { "$ref": "#/$defs/ProjectTeamDeliveryOutcomeWire" } }
     },
     "TeamStorageRpcCommand": {
       "oneOf": [
         { "$ref": "#/$defs/PutTeamConversationCommand" }, { "$ref": "#/$defs/GetTeamConversationCommand" },
         { "$ref": "#/$defs/ListTeamConversationsCommand" }, { "$ref": "#/$defs/UpdateTeamConversationStateCommand" },
+        { "$ref": "#/$defs/SetTeamConversationLeadCommand" },
         { "$ref": "#/$defs/PutTeamParticipantCommand" }, { "$ref": "#/$defs/ListTeamParticipantsCommand" },
-        { "$ref": "#/$defs/UpdateTeamParticipantStateCommand" }, { "$ref": "#/$defs/AppendTeamTurnCommand" },
-        { "$ref": "#/$defs/ListTeamTurnsCommand" }
+        { "$ref": "#/$defs/UpdateTeamParticipantStateCommand" }, { "$ref": "#/$defs/AdmitTeamMessageCommand" },
+        { "$ref": "#/$defs/GetTeamMessageCommand" }, { "$ref": "#/$defs/ListTeamMessagesCommand" },
+        { "$ref": "#/$defs/RouteTeamMessageCommand" }, { "$ref": "#/$defs/GetTeamRoutingDecisionByMessageCommand" },
+        { "$ref": "#/$defs/ListTeamRoutingDecisionsCommand" }, { "$ref": "#/$defs/ListTeamDeliveriesCommand" },
+        { "$ref": "#/$defs/GetTeamDiscussionRoundCommand" },
+        { "$ref": "#/$defs/ListTeamDiscussionRoundsCommand" },
+        { "$ref": "#/$defs/GetTeamDelegationOperationCommand" },
+        { "$ref": "#/$defs/GetTeamDelegationOperationByToolExecutionCommand" },
+        { "$ref": "#/$defs/ListTeamDelegationTasksCommand" },
+        { "$ref": "#/$defs/ReadTeamConversationPageCommand" },
+        { "$ref": "#/$defs/GetTeamDeliveryMaterializationContextCommand" },
+        { "$ref": "#/$defs/MaterializeTeamDeliveryCommand" },
+        { "$ref": "#/$defs/FailTeamDeliveryMaterializationCommand" },
+        { "$ref": "#/$defs/ProjectTeamDeliveryOutcomeCommand" }
       ]
     },
     "PluginCapabilityWire": {
@@ -2373,6 +2965,14 @@
         "idempotency_key": { "$ref": "#/$defs/NullableString" }
       }
     },
+    "ActivatePluginInstallWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["manifest", "install"],
+      "properties": {
+        "manifest": { "$ref": "#/$defs/PutPluginManifestWire" },
+        "install": { "$ref": "#/$defs/PutPluginInstallWire" }
+      }
+    },
     "GetPluginInstallWire": {
       "type": "object", "additionalProperties": false, "required": ["plugin_id", "version"],
       "properties": { "plugin_id": { "type": "string" }, "version": { "$ref": "#/$defs/NullableString" } }
@@ -2388,14 +2988,15 @@
     "UpdatePluginManifestStateWire": {
       "type": "object", "additionalProperties": false, "required": ["plugin_id", "version", "state"],
       "properties": {
-        "plugin_id": { "type": "string" }, "version": { "$ref": "#/$defs/NullableString" },
+        "plugin_id": { "type": "string" }, "version": { "type": "string" },
         "state": { "$ref": "#/$defs/PluginManifestStateWire" }
       }
     },
     "UpdatePluginInstallStateWire": {
-      "type": "object", "additionalProperties": false, "required": ["plugin_id", "version", "state"],
+      "type": "object", "additionalProperties": false, "required": ["plugin_id", "version", "expected_state", "state"],
       "properties": {
-        "plugin_id": { "type": "string" }, "version": { "$ref": "#/$defs/NullableString" },
+        "plugin_id": { "type": "string" }, "version": { "type": "string" },
+        "expected_state": { "$ref": "#/$defs/PluginInstallStateWire" },
         "state": { "$ref": "#/$defs/PluginInstallStateWire" }
       }
     },
@@ -2407,7 +3008,7 @@
         "not_before", "priority", "max_attempts", "retry_policy", "budget_grant_id"
       ],
       "properties": {
-        "plugin_id": { "type": "string" }, "version": { "$ref": "#/$defs/NullableString" },
+        "plugin_id": { "type": "string" }, "version": { "type": "string" },
         "action_id": { "type": "string" }, "principal_id": { "type": "string" },
         "payload": { "$ref": "#/$defs/JsonValue" },
         "required_capability": { "$ref": "#/$defs/NullablePluginCapabilityWire" },
@@ -2421,21 +3022,34 @@
         "budget_grant_id": { "$ref": "#/$defs/NullableString" }
       }
     },
+    "GetPluginActionExecutionAdmissionWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["plugin_id", "version", "required_capability"],
+      "properties": {
+        "plugin_id": { "type": "string" },
+        "version": { "type": "string" },
+        "required_capability": { "$ref": "#/$defs/PluginCapabilityWire" }
+      }
+    },
     "PutPluginManifestCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["put-plugin-manifest"] }, "request": { "$ref": "#/$defs/PutPluginManifestWire" } } },
     "GetPluginManifestCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["get-plugin-manifest"] }, "request": { "$ref": "#/$defs/GetPluginManifestWire" } } },
     "ListPluginManifestsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-plugin-manifests"] }, "request": { "$ref": "#/$defs/ListPluginManifestsWire" } } },
     "PutPluginInstallCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["put-plugin-install"] }, "request": { "$ref": "#/$defs/PutPluginInstallWire" } } },
+    "ActivatePluginInstallCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["activate-plugin-install"] }, "request": { "$ref": "#/$defs/ActivatePluginInstallWire" } } },
     "GetPluginInstallCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["get-plugin-install"] }, "request": { "$ref": "#/$defs/GetPluginInstallWire" } } },
     "ListPluginInstallsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-plugin-installs"] }, "request": { "$ref": "#/$defs/ListPluginInstallsWire" } } },
     "UpdatePluginInstallStateCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["update-plugin-install-state"] }, "request": { "$ref": "#/$defs/UpdatePluginInstallStateWire" } } },
     "UpdatePluginManifestStateCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["update-plugin-manifest-state"] }, "request": { "$ref": "#/$defs/UpdatePluginManifestStateWire" } } },
+    "GetPluginActionExecutionAdmissionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["get-plugin-action-execution-admission"] }, "request": { "$ref": "#/$defs/GetPluginActionExecutionAdmissionWire" } } },
     "SubmitPluginActionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["submit-plugin-action"] }, "request": { "$ref": "#/$defs/SubmitPluginActionWire" } } },
     "PluginStorageRpcCommand": {
       "oneOf": [
         { "$ref": "#/$defs/PutPluginManifestCommand" }, { "$ref": "#/$defs/GetPluginManifestCommand" },
         { "$ref": "#/$defs/ListPluginManifestsCommand" }, { "$ref": "#/$defs/PutPluginInstallCommand" },
+        { "$ref": "#/$defs/ActivatePluginInstallCommand" },
         { "$ref": "#/$defs/GetPluginInstallCommand" }, { "$ref": "#/$defs/ListPluginInstallsCommand" },
         { "$ref": "#/$defs/UpdatePluginInstallStateCommand" }, { "$ref": "#/$defs/UpdatePluginManifestStateCommand" },
+        { "$ref": "#/$defs/GetPluginActionExecutionAdmissionCommand" },
         { "$ref": "#/$defs/SubmitPluginActionCommand" }
       ]
     },
@@ -2473,7 +3087,7 @@
     "NullableChannelBindingStateWire": { "oneOf": [{ "$ref": "#/$defs/ChannelBindingStateWire" }, { "type": "null" }] },
     "ChannelInboundEventStateWire": { "type": "string", "enum": ["received", "projected", "ignored", "failed"] },
     "NullableChannelInboundEventStateWire": { "oneOf": [{ "$ref": "#/$defs/ChannelInboundEventStateWire" }, { "type": "null" }] },
-    "ChannelProjectionTargetKindWire": { "type": "string", "enum": ["session.turn", "team.turn", "workspace.task", "ignored"] },
+    "ChannelProjectionTargetKindWire": { "type": "string", "enum": ["session.turn", "team.message", "workspace.task", "ignored"] },
     "NullableChannelProjectionTargetKindWire": { "oneOf": [{ "$ref": "#/$defs/ChannelProjectionTargetKindWire" }, { "type": "null" }] },
     "PutChannelBindingWire": {
       "type": "object", "additionalProperties": false,
@@ -2576,24 +3190,128 @@
     },
     "ToolExecutionStateWire": {
       "type": "string",
-      "enum": ["running", "retry_ready", "denied", "approval_required", "succeeded", "failed", "cancelled", "recovery_required"]
+      "enum": ["running", "waiting", "retry_ready", "approved", "denied", "approval_required", "succeeded", "failed", "cancelled", "recovery_required"]
     },
     "NullableToolExecutionStateWire": {
       "oneOf": [{ "$ref": "#/$defs/ToolExecutionStateWire" }, { "type": "null" }]
     },
+    "ToolResultTextContentPartWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "text"],
+      "properties": {
+        "type": { "type": "string", "enum": ["text"] },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ToolResultJsonContentPartWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "value"],
+      "properties": {
+        "type": { "type": "string", "enum": ["json"] },
+        "value": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ToolResultResourceContentPartWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["type", "resource_id", "sha256", "size_bytes", "kind", "media_type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["resource"] },
+        "resource_id": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "kind": { "$ref": "#/$defs/ResourceKindWire" },
+        "media_type": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "ToolResultContentPartWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/ToolResultTextContentPartWire" },
+        { "$ref": "#/$defs/ToolResultJsonContentPartWire" },
+        { "$ref": "#/$defs/ToolResultResourceContentPartWire" }
+      ]
+    },
+    "NullableToolResultContentWire": {
+      "oneOf": [
+        {
+          "type": "array", "minItems": 1, "maxItems": 64,
+          "items": { "$ref": "#/$defs/ToolResultContentPartWire" }
+        },
+        { "type": "null" }
+      ]
+    },
+    "ToolActivityPresentationDetailWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "value"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "value": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      }
+    },
+    "ToolActivityPresentationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["summary", "details"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "details": {
+          "oneOf": [
+            { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/ToolActivityPresentationDetailWire" } },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "ToolActivityEvidenceWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["call", "result"],
+      "properties": {
+        "call": { "$ref": "#/$defs/ToolActivityPresentationWire" },
+        "result": {
+          "oneOf": [
+            { "$ref": "#/$defs/ToolActivityPresentationWire" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "NullableToolActivityEvidenceWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/ToolActivityEvidenceWire" },
+        { "type": "null" }
+      ]
+    },
+    "ToolActivityRecordWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "turn_id", "source_message_id", "tool_call_id", "tool_name", "state", "activity", "updated_at"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "source_message_id": { "type": "string" },
+        "tool_call_id": { "type": "string" },
+        "tool_name": { "type": "string" },
+        "state": { "$ref": "#/$defs/ToolExecutionStateWire" },
+        "activity": { "$ref": "#/$defs/NullableToolActivityEvidenceWire" },
+        "updated_at": { "type": "integer" }
+      }
+    },
     "ToolExecutionRecordWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "session_id", "turn_id", "input_id", "source_message_id", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "state", "current_invocation_attempt_id", "attempt_count", "idempotency_key", "result", "is_error", "error", "created_at", "finished_at", "updated_at"],
+      "required": ["id", "session_id", "turn_id", "input_id", "source_message_id", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "activity", "state", "current_invocation_attempt_id", "attempt_count", "idempotency_key", "approval_revision", "recovery_revision", "recovery", "content", "content_digest", "is_error", "error", "created_at", "finished_at", "updated_at"],
       "properties": {
         "id": { "type": "string" }, "session_id": { "type": "string" }, "turn_id": { "type": "string" },
         "input_id": { "type": "string" }, "source_message_id": { "type": "string" },
         "principal_id": { "type": "string" }, "tool_call_id": { "type": "string" },
         "tool_name": { "type": "string" }, "input": { "$ref": "#/$defs/JsonValue" },
         "descriptor": { "$ref": "#/$defs/JsonValue" }, "permission": { "$ref": "#/$defs/JsonValue" },
+        "activity": { "$ref": "#/$defs/NullableToolActivityEvidenceWire" },
         "state": { "$ref": "#/$defs/ToolExecutionStateWire" },
         "current_invocation_attempt_id": { "$ref": "#/$defs/NullableString" },
         "attempt_count": { "type": "integer" },
-        "idempotency_key": { "type": "string" }, "result": { "$ref": "#/$defs/JsonValue" },
+        "idempotency_key": { "type": "string" },
+        "approval_revision": { "type": "integer" },
+        "recovery_revision": { "type": "integer" },
+        "recovery": { "$ref": "#/$defs/JsonValue" },
+        "content": { "$ref": "#/$defs/NullableToolResultContentWire" },
+        "content_digest": { "$ref": "#/$defs/NullableString" },
         "is_error": { "$ref": "#/$defs/NullableBoolean" }, "error": { "$ref": "#/$defs/JsonValue" },
         "created_at": { "type": "integer" }, "finished_at": { "$ref": "#/$defs/NullableInteger" },
         "updated_at": { "type": "integer" }
@@ -2601,7 +3319,7 @@
     },
     "ToolExecutionAttemptStateWire": {
       "type": "string",
-      "enum": ["running", "succeeded", "failed", "cancelled", "interrupted", "recovery_required"]
+      "enum": ["running", "suspended", "succeeded", "failed", "cancelled", "interrupted", "recovery_required"]
     },
     "ToolExecutionAttemptRecordWire": {
       "type": "object", "additionalProperties": false,
@@ -2622,7 +3340,7 @@
     },
     "BeginToolExecutionWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "turn_id", "attempt_id", "input_id", "source_message_id", "job_id", "worker_id", "lease_token", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "state", "idempotency_key"],
+      "required": ["session_id", "turn_id", "attempt_id", "input_id", "source_message_id", "job_id", "worker_id", "lease_token", "principal_id", "tool_call_id", "tool_name", "input", "descriptor", "permission", "activity", "state", "idempotency_key"],
       "properties": {
         "session_id": { "type": "string" }, "turn_id": { "type": "string" }, "attempt_id": { "type": "string" },
         "input_id": { "type": "string" }, "source_message_id": { "type": "string" }, "job_id": { "type": "string" },
@@ -2630,13 +3348,99 @@
         "principal_id": { "type": "string" }, "tool_call_id": { "type": "string" }, "tool_name": { "type": "string" },
         "input": { "$ref": "#/$defs/JsonValue" }, "descriptor": { "$ref": "#/$defs/JsonValue" },
         "permission": { "$ref": "#/$defs/JsonValue" },
+        "activity": { "$ref": "#/$defs/NullableToolActivityEvidenceWire" },
         "state": { "type": "string", "enum": ["running", "denied", "approval_required"] },
         "idempotency_key": { "type": "string" }
       }
     },
+    "DeferredMediaGenerationOperationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "binding", "priority"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["media_generation"] },
+        "binding": { "$ref": "#/$defs/JsonValue" },
+        "priority": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "DeferredTeamDelegationTaskWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "id", "graph_node_id", "target_participant_id", "target_session_id",
+        "prompt", "depends_on_task_ids", "child_input_id", "child_turn_id",
+        "child_job_id", "input_idempotency_key", "job_idempotency_key",
+        "execution_binding", "max_steps", "priority"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "graph_node_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "target_participant_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "target_session_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 32768 },
+        "depends_on_task_ids": {
+          "type": "array", "maxItems": 7, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+        },
+        "child_input_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "child_turn_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "child_job_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "input_idempotency_key": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "job_idempotency_key": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "execution_binding": { "$ref": "#/$defs/JsonValue" },
+        "max_steps": { "$ref": "#/$defs/NullableInteger" },
+        "priority": { "$ref": "#/$defs/NullableInteger" }
+      }
+    },
+    "DeferredTeamDelegationOperationWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "kind", "operation_id", "conversation_id", "source_delivery_id",
+        "lead_participant_id", "graph_id", "tasks"
+      ],
+      "properties": {
+        "kind": { "type": "string", "enum": ["team_delegation"] },
+        "operation_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "conversation_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "source_delivery_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "lead_participant_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "graph_id": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "tasks": {
+          "type": "array", "minItems": 1, "maxItems": 8,
+          "items": { "$ref": "#/$defs/DeferredTeamDelegationTaskWire" }
+        }
+      }
+    },
+    "DeferredToolOperationWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/DeferredMediaGenerationOperationWire" },
+        { "$ref": "#/$defs/DeferredTeamDelegationOperationWire" }
+      ]
+    },
+    "DeferToolExecutionWire": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "session_id", "turn_id", "session_attempt_id", "input_id",
+        "source_message_id", "session_job_id", "worker_id", "lease_token",
+        "tool_execution_id", "tool_invocation_attempt_id", "tool_call_id",
+        "operation"
+      ],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "session_attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "source_message_id": { "type": "string" },
+        "session_job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "tool_execution_id": { "type": "string" },
+        "tool_invocation_attempt_id": { "type": "string" },
+        "tool_call_id": { "type": "string" },
+        "operation": { "$ref": "#/$defs/DeferredToolOperationWire" }
+      }
+    },
     "FinishToolExecutionWire": {
       "type": "object", "additionalProperties": false,
-      "required": ["session_id", "turn_id", "session_attempt_id", "input_id", "job_id", "worker_id", "lease_token", "execution_id", "invocation_attempt_id", "state", "result", "is_error", "error"],
+      "required": ["session_id", "turn_id", "session_attempt_id", "input_id", "job_id", "worker_id", "lease_token", "execution_id", "invocation_attempt_id", "state", "content", "content_digest", "is_error", "result_presentation", "error"],
       "properties": {
         "session_id": { "type": "string" }, "turn_id": { "type": "string" },
         "session_attempt_id": { "type": "string" }, "input_id": { "type": "string" },
@@ -2645,8 +3449,62 @@
         "execution_id": { "type": "string" },
         "invocation_attempt_id": { "type": "string" },
         "state": { "type": "string", "enum": ["succeeded", "failed", "cancelled"] },
-        "result": { "$ref": "#/$defs/JsonValue" }, "is_error": { "$ref": "#/$defs/NullableBoolean" },
+        "content": { "$ref": "#/$defs/NullableToolResultContentWire" },
+        "content_digest": { "$ref": "#/$defs/NullableString" },
+        "is_error": { "$ref": "#/$defs/NullableBoolean" },
+        "result_presentation": {
+          "oneOf": [
+            { "$ref": "#/$defs/ToolActivityPresentationWire" },
+            { "type": "null" }
+          ]
+        },
         "error": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "RequireToolExecutionRecoveryWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "turn_id", "session_attempt_id", "input_id", "job_id", "worker_id", "lease_token", "execution_id", "invocation_attempt_id", "evidence"],
+      "properties": {
+        "session_id": { "type": "string" }, "turn_id": { "type": "string" },
+        "session_attempt_id": { "type": "string" }, "input_id": { "type": "string" },
+        "job_id": { "type": "string" }, "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" }, "execution_id": { "type": "string" },
+        "invocation_attempt_id": { "type": "string" },
+        "evidence": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ToolExecutionRecoveryDecisionWire": {
+      "type": "string",
+      "enum": ["confirm_succeeded", "confirm_failed", "retry", "abandon_turn"]
+    },
+    "ResolveToolExecutionRecoveryWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["execution_id", "expected_recovery_revision", "decision", "principal_id", "reason", "idempotency_key", "content", "content_digest", "error"],
+      "properties": {
+        "execution_id": { "type": "string" },
+        "expected_recovery_revision": { "type": "integer" },
+        "decision": { "$ref": "#/$defs/ToolExecutionRecoveryDecisionWire" },
+        "principal_id": { "type": "string" }, "reason": { "type": "string" },
+        "idempotency_key": { "type": "string" },
+        "content": { "$ref": "#/$defs/NullableToolResultContentWire" },
+        "content_digest": { "$ref": "#/$defs/NullableString" },
+        "error": { "$ref": "#/$defs/JsonValue" }
+      }
+    },
+    "ToolExecutionApprovalDecisionWire": {
+      "type": "string",
+      "enum": ["approve_once", "deny"]
+    },
+    "ResolveToolExecutionApprovalWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["execution_id", "expected_approval_revision", "decision", "principal_id", "reason", "idempotency_key"],
+      "properties": {
+        "execution_id": { "type": "string" },
+        "expected_approval_revision": { "type": "integer" },
+        "decision": { "$ref": "#/$defs/ToolExecutionApprovalDecisionWire" },
+        "principal_id": { "type": "string" },
+        "reason": { "type": "string" },
+        "idempotency_key": { "type": "string" }
       }
     },
     "ListToolExecutionsWire": {
@@ -2656,19 +3514,47 @@
         "state": { "$ref": "#/$defs/NullableToolExecutionStateWire" }, "limit": { "$ref": "#/$defs/NullableInteger" }
       }
     },
+    "ListToolActivitiesWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["session_id", "source_message_ids"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "source_message_ids": {
+          "type": "array", "minItems": 1, "maxItems": 200, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "ListToolExecutionAttemptsWire": {
       "type": "object", "additionalProperties": false, "required": ["execution_id"],
       "properties": { "execution_id": { "type": "string" } }
     },
+    "GetToolExecutionByCallWire": {
+      "type": "object", "additionalProperties": false,
+      "required": ["turn_id", "source_message_id", "tool_call_id"],
+      "properties": {
+        "turn_id": { "type": "string" },
+        "source_message_id": { "type": "string" },
+        "tool_call_id": { "type": "string" }
+      }
+    },
     "BeginToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["begin-tool-execution"] }, "request": { "$ref": "#/$defs/BeginToolExecutionWire" } } },
+    "DeferToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["defer-tool-execution"] }, "request": { "$ref": "#/$defs/DeferToolExecutionWire" } } },
     "FinishToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["finish-tool-execution"] }, "request": { "$ref": "#/$defs/FinishToolExecutionWire" } } },
+    "RequireToolExecutionRecoveryCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["require-tool-execution-recovery"] }, "request": { "$ref": "#/$defs/RequireToolExecutionRecoveryWire" } } },
+    "ResolveToolExecutionRecoveryCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["resolve-tool-execution-recovery"] }, "request": { "$ref": "#/$defs/ResolveToolExecutionRecoveryWire" } } },
+    "ResolveToolExecutionApprovalCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["resolve-tool-execution-approval"] }, "request": { "$ref": "#/$defs/ResolveToolExecutionApprovalWire" } } },
     "GetToolExecutionCommand": { "type": "object", "additionalProperties": false, "required": ["command", "execution_id"], "properties": { "command": { "type": "string", "enum": ["get-tool-execution"] }, "execution_id": { "type": "string" } } },
+    "GetToolExecutionByCallCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["get-tool-execution-by-call"] }, "request": { "$ref": "#/$defs/GetToolExecutionByCallWire" } } },
     "ListToolExecutionsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-tool-executions"] }, "request": { "$ref": "#/$defs/ListToolExecutionsWire" } } },
+    "ListToolActivitiesCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-tool-activities"] }, "request": { "$ref": "#/$defs/ListToolActivitiesWire" } } },
     "ListToolExecutionAttemptsCommand": { "type": "object", "additionalProperties": false, "required": ["command", "request"], "properties": { "command": { "type": "string", "enum": ["list-tool-execution-attempts"] }, "request": { "$ref": "#/$defs/ListToolExecutionAttemptsWire" } } },
     "ToolsStorageRpcCommand": {
       "oneOf": [
-        { "$ref": "#/$defs/BeginToolExecutionCommand" }, { "$ref": "#/$defs/FinishToolExecutionCommand" },
-        { "$ref": "#/$defs/GetToolExecutionCommand" }, { "$ref": "#/$defs/ListToolExecutionsCommand" },
+        { "$ref": "#/$defs/BeginToolExecutionCommand" }, { "$ref": "#/$defs/DeferToolExecutionCommand" }, { "$ref": "#/$defs/FinishToolExecutionCommand" },
+        { "$ref": "#/$defs/RequireToolExecutionRecoveryCommand" }, { "$ref": "#/$defs/ResolveToolExecutionRecoveryCommand" },
+        { "$ref": "#/$defs/ResolveToolExecutionApprovalCommand" },
+        { "$ref": "#/$defs/GetToolExecutionCommand" }, { "$ref": "#/$defs/GetToolExecutionByCallCommand" }, { "$ref": "#/$defs/ListToolExecutionsCommand" }, { "$ref": "#/$defs/ListToolActivitiesCommand" },
         { "$ref": "#/$defs/ListToolExecutionAttemptsCommand" }
       ]
     },

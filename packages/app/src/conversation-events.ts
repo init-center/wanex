@@ -3,16 +3,24 @@ import type {
   ProviderRunEvent
 } from "@wanex/runtime/provider"
 import type {
+  RuntimeHostSessionTurnResultObserver
+} from "@wanex/runtime/host"
+import type {
   WanexAppConversationEvent,
   WanexAppConversationEventListener,
   WanexAppConversationEventUnsubscribe,
-  WanexAppEvents
+  WanexAppEvents,
+  WanexAppGoalEvent,
+  WanexAppGoalEventCause,
+  WanexAppGoalEventListener,
+  WanexAppGoalEventUnsubscribe
 } from "./types-events.js"
 
 const MAX_ASSISTANT_DELTA_CHARS = 16_384
 
 export class WanexAppConversationEventHub implements WanexAppEvents {
   private readonly listeners = new Set<WanexAppConversationEventListener>()
+  private readonly goalListeners = new Set<WanexAppGoalEventListener>()
   private sequence = 0
   private disposed = false
 
@@ -21,11 +29,63 @@ export class WanexAppConversationEventHub implements WanexAppEvents {
     if (projected === undefined || this.disposed) {
       return
     }
+    this.emit(projected)
+  }
+
+  readonly observeSessionTurnResult: RuntimeHostSessionTurnResultObserver = (
+    signal
+  ) => {
+    if (this.disposed) {
+      return
+    }
+    this.sequence += 1
+    this.emit({
+      kind: "wanex-app.conversation.operation-invalidated",
+      sequence: this.sequence,
+      at: Date.now(),
+      reference: signal.reference,
+      cause:
+        signal.outcome === "completed"
+          ? "execution_completed"
+          : signal.outcome === "suspended"
+            ? "execution_suspended"
+            : "execution_failed"
+    })
+  }
+
+  readonly observeGoalInvalidation = (signal: {
+    readonly objectiveId: string
+    readonly sessionId: string
+    readonly cause: WanexAppGoalEventCause
+  }): void => {
+    if (this.disposed) {
+      return
+    }
+    this.sequence += 1
+    this.emitGoal({
+      kind: "wanex-app.goal.invalidated",
+      sequence: this.sequence,
+      at: Date.now(),
+      ...signal
+    })
+  }
+
+  private emit(event: WanexAppConversationEvent): void {
     for (const listener of this.listeners) {
       try {
-        listener(projected)
+        listener(event)
       } catch {
         // Presentation listeners cannot affect provider execution.
+      }
+    }
+  }
+
+  private emitGoal(event: WanexAppGoalEvent): void {
+    for (const listener of this.goalListeners) {
+      try {
+        listener(event)
+      } catch {
+        // Presentation listeners cannot affect durable Goal coordination.
       }
     }
   }
@@ -47,12 +107,30 @@ export class WanexAppConversationEventHub implements WanexAppEvents {
     }
   }
 
+  subscribeGoalEvents(
+    listener: WanexAppGoalEventListener
+  ): WanexAppGoalEventUnsubscribe {
+    if (this.disposed) {
+      return () => {}
+    }
+    this.goalListeners.add(listener)
+    let subscribed = true
+    return () => {
+      if (!subscribed) {
+        return
+      }
+      subscribed = false
+      this.goalListeners.delete(listener)
+    }
+  }
+
   dispose(): void {
     if (this.disposed) {
       return
     }
     this.disposed = true
     this.listeners.clear()
+    this.goalListeners.clear()
   }
 
   private project(

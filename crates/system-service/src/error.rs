@@ -10,6 +10,10 @@ pub enum SystemServiceError {
     InvalidLogicalPath(String),
     #[error("invalid input: {0}")]
     InvalidInput(String),
+    #[error("not found: {0}")]
+    NotFound(String),
+    #[error("conflict: {0}")]
+    Conflict(String),
     #[error("sha256 mismatch for {logical_path}: expected {expected}, got {actual}")]
     Sha256Mismatch {
         logical_path: String,

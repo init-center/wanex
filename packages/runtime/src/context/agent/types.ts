@@ -5,6 +5,7 @@ import type {
 } from "../instruction/index.js"
 import type { SkillDiscoveryOptions, SkillSnapshot } from "../skill/index.js"
 import type { ToolPermissionPolicy, ToolRegistry } from "../../tools/index.js"
+import type { ModelCapabilityRouteExecutionBinding } from "@wanex/protocol"
 
 export interface PrepareAgentContextOptions {
   readonly instructions?: InstructionDiscoveryOptions
@@ -29,6 +30,7 @@ export interface PreparedAgentContext {
   readonly skillSnapshot?: SkillSnapshot
   readonly tools?: ToolRegistry
   readonly toolPermissionPolicy?: ToolPermissionPolicy
+  readonly capabilityRoutes?: readonly ModelCapabilityRouteExecutionBinding[]
 }
 
 export interface AgentContextProfile {

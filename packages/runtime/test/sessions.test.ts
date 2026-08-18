@@ -9,9 +9,9 @@ import {
 import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
 import { WanexSessionCore } from "../src/sessions/index.js"
 import {
-  createStartedTurn,
-  fakeProfile
+  createStartedTurn
 } from "./durable-turn-test-fixture.js"
+import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -48,7 +48,7 @@ describe("WanexSessionCore durable turn contract", () => {
       }],
       jobId: "job_core_submit",
       executionBinding: createTurnExecutionBinding({
-        profile: fakeProfile("core_submit"),
+        modelEndpoint: fakeModelEndpoint("core_submit"),
         createdAt: 1
       })
     })
@@ -182,7 +182,7 @@ describe("WanexSessionCore durable turn contract", () => {
         }
       })
     ).rejects.toThrow(
-      "session.turn jobs must be created by submit_session_turn"
+      "domain-owned jobs must be created by their specialized transaction"
     )
   })
 })

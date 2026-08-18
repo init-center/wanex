@@ -6,6 +6,7 @@ import {
   type ProviderAdapter,
   type ProviderEvent
 } from "../src/provider/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 describe("provider stream contract", () => {
   it("assembles canonical text and terminal metadata", async () => {
@@ -86,6 +87,36 @@ describe("provider stream contract", () => {
     })
   })
 
+  it("requires finish reason and assembled tool calls to agree", async () => {
+    await expect(consumeProviderStream({ provider: scripted([
+      { type: "finish", reason: "tool_calls" }
+    ]), request: { messages: [] } })).rejects.toMatchObject({
+      detail: {
+        category: "protocol",
+        message: "provider finished with tool_calls but emitted no tool call",
+        outputObserved: false
+      }
+    })
+
+    await expect(consumeProviderStream({ provider: scripted([
+      { type: "tool_call_start", index: 0, toolCallId: "call_mismatch" },
+      {
+        type: "tool_call_delta",
+        toolCallId: "call_mismatch",
+        toolNameDelta: "lookup",
+        inputJsonDelta: "{}"
+      },
+      { type: "tool_call_end", toolCallId: "call_mismatch" },
+      { type: "finish", reason: "stop" }
+    ]), request: { messages: [] } })).rejects.toMatchObject({
+      detail: {
+        category: "protocol",
+        message: "provider emitted a tool call but finished with stop",
+        outputObserved: true
+      }
+    })
+  })
+
   it("normalizes an already-aborted request as a structured terminal error", async () => {
     const controller = new AbortController()
     controller.abort()
@@ -119,10 +150,9 @@ describe("provider stream contract", () => {
 
 function scripted(events: readonly ProviderEvent[]): ProviderAdapter {
   return {
-    kind: "fake",
+    protocol: { id: "fake" },
     providerId: "scripted",
-    modelId: "fixture",
-    capabilities: { input: ["text"], output: ["text"] },
+    model: testConversationModel("fixture"),
     async *stream() { yield* events },
     buildReplayMessages() { return [] }
   }

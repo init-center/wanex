@@ -16,7 +16,7 @@ interface AdmittedUserMessage {
 }
 
 // @public (undocumented)
-export function admitUserMessage(storage: Pick<CoreStore, "getResource">, profile: ProviderProfile, input: readonly UserMessageInputPart[]): Promise<AdmittedUserMessage>;
+export function admitUserMessage(storage: Pick<CoreStore, "getResource">, endpoint: ModelEndpoint, input: readonly UserMessageInputPart[]): Promise<AdmittedUserMessage>;
 
 // @public (undocumented)
 export interface ArtifactBundle {
@@ -99,6 +99,78 @@ type MessagePartId = string;
 type MessagePartVisibility = "user" | "assistant" | "internal" | "provider_replay_only";
 
 // @public (undocumented)
+interface ModelBehavior {
+    // (undocumented)
+    readonly reasoningReplay?: "optional" | "required" | "forbidden";
+}
+
+// @public (undocumented)
+interface ModelCatalogProvenance {
+    // (undocumented)
+    readonly catalogId: string;
+    // (undocumented)
+    readonly revision: string;
+    // (undocumented)
+    readonly source: "builtin" | "provider" | "custom";
+}
+
+// @public (undocumented)
+interface ModelDescriptor {
+    // (undocumented)
+    readonly behavior?: ModelBehavior;
+    // (undocumented)
+    readonly catalog: ModelCatalogProvenance;
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly limits?: ModelLimits;
+    // (undocumented)
+    readonly operations: readonly ModelOperation[];
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+interface ModelEndpoint {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+type ModelFeature = "tool_calling" | "parallel_tool_calls" | "reasoning";
+
+// @public (undocumented)
+type ModelInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+interface ModelLimits {
+    // (undocumented)
+    readonly contextWindowTokens?: number;
+    // (undocumented)
+    readonly maxInputResources?: number;
+    // (undocumented)
+    readonly maxInputTokens?: number;
+    // (undocumented)
+    readonly maxOutputTokens?: number;
+}
+
+// @public (undocumented)
+type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+type ModelOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
 interface PreparedProviderReplayMessage {
     // (undocumented)
     readonly content: readonly PreparedProviderReplayPart[];
@@ -107,7 +179,7 @@ interface PreparedProviderReplayMessage {
 }
 
 // @public (undocumented)
-type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart> | PreparedProviderResourcePart;
+type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart | ToolResultMessagePart> | PreparedProviderResourcePart | PreparedProviderToolResultPart;
 
 // @public (undocumented)
 interface PreparedProviderResourcePart extends ResourceMessagePart {
@@ -116,7 +188,25 @@ interface PreparedProviderResourcePart extends ResourceMessagePart {
 }
 
 // @public (undocumented)
-export function prepareProviderReplayResources(storage: Pick<CoreStore, "getResource" | "readResourceContent">, capabilities: ProviderCapabilities, messages: readonly ProviderReplayMessage[]): Promise<PreparedProviderReplayMessage[]>;
+type PreparedProviderToolResultContentPart = Exclude<ToolResultContentPart, ToolResultResourceContentPart> | PreparedProviderToolResultResourcePart;
+
+// @public (undocumented)
+interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePart, "content"> {
+    // (undocumented)
+    readonly content: readonly PreparedProviderToolResultContentPart[];
+}
+
+// @public (undocumented)
+interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
+    // (undocumented)
+    readonly bytes?: Uint8Array;
+}
+
+// @public (undocumented)
+export function prepareProviderReplayResources(storage: Pick<CoreStore, "getResource" | "readResourceContent">, provider: {
+    readonly protocol: ProviderProtocolDescriptor;
+    readonly inputModalities: readonly ModelInputModality[];
+}, messages: readonly ProviderReplayMessage[]): Promise<PreparedProviderReplayMessage[]>;
 
 // @public (undocumented)
 export interface ProviderArtifactBase {
@@ -162,11 +252,15 @@ export interface ProviderBase64ArtifactOutput extends ProviderArtifactBase {
 }
 
 // @public (undocumented)
-interface ProviderCapabilities {
+interface ProviderConnection {
     // (undocumented)
-    readonly input: readonly ProviderInputModality[];
+    readonly baseUrl?: string;
     // (undocumented)
-    readonly output: readonly ProviderOutputModality[];
+    readonly id: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
 }
 
 // @public (undocumented)
@@ -188,36 +282,15 @@ export interface ProviderInlineBytesArtifactOutput extends ProviderArtifactBase 
 }
 
 // @public (undocumented)
-type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
-
-// @public (undocumented)
-type ProviderOutputModality = "text" | "image" | "audio" | "video";
-
-// @public (undocumented)
 export function providerOutputToIngestRequest(output: ProviderArtifactOutput): IngestResourceRequest;
 
 // @public (undocumented)
-interface ProviderProfile {
-    // (undocumented)
-    readonly anthropicVersion?: string;
-    // (undocumented)
-    readonly baseUrl?: string;
-    // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+interface ProviderProtocolDescriptor {
     // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly kind: ProviderProfileKind;
-    // (undocumented)
-    readonly modelId: string;
-    // (undocumented)
-    readonly providerId: string;
-    // (undocumented)
-    readonly secretRef?: string;
+    readonly version?: string;
 }
-
-// @public (undocumented)
-type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
 
 // @public (undocumented)
 export interface ProviderRemoteUrlArtifactOutput extends ProviderArtifactBase {
@@ -347,7 +420,7 @@ interface ResourceInputEvidence {
 }
 
 // @public (undocumented)
-export function resourceInputModality(resource: Pick<ResourceRecord, "kind" | "mediaType"> | ResourceInputEvidence): ProviderInputModality;
+export function resourceInputModality(resource: Pick<ResourceRecord, "kind" | "mediaType"> | ResourceInputEvidence): ModelInputModality;
 
 // @public (undocumented)
 type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
@@ -491,15 +564,42 @@ interface ToolCallMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
+type ToolResultContentPart = ToolResultTextContentPart | ToolResultJsonContentPart | ToolResultResourceContentPart;
+
+// @public (undocumented)
+interface ToolResultJsonContentPart {
+    // (undocumented)
+    readonly type: "json";
+    // (undocumented)
+    readonly value: JsonValue;
+}
+
+// @public (undocumented)
 interface ToolResultMessagePart extends MessagePartBase {
     // (undocumented)
-    readonly isError: boolean;
+    readonly content: readonly ToolResultContentPart[];
     // (undocumented)
-    readonly result: JsonValue;
+    readonly contentDigest: string;
+    // (undocumented)
+    readonly isError: boolean;
     // (undocumented)
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
+}
+
+// @public (undocumented)
+interface ToolResultResourceContentPart extends ResourceInputEvidence {
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+interface ToolResultTextContentPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
 }
 
 // @public (undocumented)
@@ -520,6 +620,9 @@ interface UserTextMessageInputPart {
     // (undocumented)
     readonly type: "text";
 }
+
+// @public (undocumented)
+export function validateCanonicalUserMessage(storage: Pick<CoreStore, "getResource">, endpoint: ModelEndpoint, content: readonly MessagePart[]): Promise<readonly ResourceInputEvidence[]>;
 
 // @public (undocumented)
 export const WANEX_RUNTIME_RESOURCES: "wanex-runtime-resources";

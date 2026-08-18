@@ -17,11 +17,11 @@ interface AppAgentContributionValue {
     // (undocumented)
     readonly instructionRefs?: readonly string[];
     // (undocumented)
+    readonly modelEndpointId?: string;
+    // (undocumented)
     readonly modelId?: string;
     // (undocumented)
     readonly name: string;
-    // (undocumented)
-    readonly providerProfileId?: string;
     // (undocumented)
     readonly skillRefs?: readonly string[];
     // (undocumented)
@@ -47,6 +47,8 @@ interface AppCommandContributionValue {
     readonly inputSchema?: AppCommandInputSchema;
     // (undocumented)
     readonly name: string;
+    // (undocumented)
+    readonly paletteVisibility: AppCommandPaletteVisibility;
     // (undocumented)
     readonly title: string;
 }
@@ -168,6 +170,9 @@ interface AppCommandInputStringSchema extends AppCommandInputSchemaAnnotations {
 type AppCommandInputValueSchema = AppCommandInputObjectSchema | AppCommandInputStringSchema | AppCommandInputNumberSchema | AppCommandInputIntegerSchema | AppCommandInputBooleanSchema | AppCommandInputArraySchema;
 
 // @public (undocumented)
+type AppCommandPaletteVisibility = "visible" | "hidden";
+
+// @public (undocumented)
 type AppExtensionConflictPolicy = "replace" | "append" | "merge" | "error";
 
 // @public (undocumented)
@@ -221,7 +226,7 @@ interface AppExtensionDiagnostic {
 }
 
 // @public (undocumented)
-type AppExtensionDiagnosticCode = "extension.invalid_id" | "extension.invalid_domain" | "extension.blocked_source" | "extension.privileged_untrusted" | "extension.command_input_schema_invalid" | "extension.command_input_schema_unsupported" | "extension.command_input_schema_limit_exceeded" | "extension.duplicate_replaced" | "extension.duplicate_error" | "extension.appended" | "extension.merged";
+type AppExtensionDiagnosticCode = "extension.invalid_id" | "extension.invalid_domain" | "extension.blocked_source" | "extension.privileged_untrusted" | "extension.command_palette_visibility_invalid" | "extension.command_input_schema_invalid" | "extension.command_input_schema_unsupported" | "extension.command_input_schema_limit_exceeded" | "extension.duplicate_replaced" | "extension.duplicate_error" | "extension.appended" | "extension.merged";
 
 // @public (undocumented)
 type AppExtensionDiagnosticSeverity = "info" | "warning" | "error";

@@ -1,5 +1,6 @@
 import type {
   AppAgentContribution,
+  AppExtensionCatalogGeneration,
   AppCommandContribution,
   AppExtensionContribution,
   AppExtensionDiagnostic,
@@ -22,11 +23,13 @@ import type {
 } from "./types-extension.js"
 
 export function projectWanexAppExtensionReadModel(
-  snapshot: AppExtensionResolvedSnapshot | undefined
+  generation: AppExtensionCatalogGeneration | undefined
 ): WanexAppExtensionReadModel {
+  const snapshot = generation?.snapshot
   const contributions = snapshot?.contributions ?? []
   return {
     configured: snapshot !== undefined,
+    ...(generation === undefined ? {} : { revision: generation.revision }),
     counts: domainCounts(snapshot),
     contributions: contributions.map(projectContributionRow),
     commands:
@@ -46,10 +49,12 @@ export function projectWanexAppExtensionReadModel(
 }
 
 export function extensionStatus(
-  snapshot: AppExtensionResolvedSnapshot | undefined
+  generation: AppExtensionCatalogGeneration | undefined
 ): WanexAppExtensionStatus {
+  const snapshot = generation?.snapshot
   return {
     configured: snapshot !== undefined,
+    ...(generation === undefined ? {} : { revision: generation.revision }),
     contributionCount: snapshot?.contributions.length ?? 0,
     diagnosticCount: snapshot?.diagnostics.length ?? 0,
     byDomain: domainCounts(snapshot)
@@ -100,6 +105,7 @@ function projectCommandContributionRow(
     ...(contribution.value.category === undefined
       ? {}
       : { category: contribution.value.category }),
+    paletteVisibility: contribution.value.paletteVisibility,
     handlerRef: contribution.value.handlerRef
   }
 }
@@ -114,9 +120,9 @@ function projectAgentContributionRow(
     ...(contribution.value.title === undefined
       ? {}
       : { title: contribution.value.title }),
-    ...(contribution.value.providerProfileId === undefined
+    ...(contribution.value.modelEndpointId === undefined
       ? {}
-      : { providerProfileId: contribution.value.providerProfileId }),
+      : { modelEndpointId: contribution.value.modelEndpointId }),
     ...(contribution.value.modelId === undefined
       ? {}
       : { modelId: contribution.value.modelId }),

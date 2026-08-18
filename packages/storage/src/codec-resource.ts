@@ -6,6 +6,9 @@ import {
   type JsonValue,
   type ListResourcesRequest,
   type ResourceContentChunk,
+  type ResourceInputEvidence,
+  type ResourceProvenanceCause,
+  type ResourceProvenanceRecord,
   type ResourceRecord,
   type ResourceTicket,
   type ResourceTicketCleanupReceipt
@@ -28,8 +31,13 @@ import {
 import type {
   CleanupExpiredResourceTicketsWire,
   IngestResourceWire,
-  ListResourcesWire
+  ListResourceProvenanceWire,
+  ListResourcesWire,
+  RecordResourceProvenanceWire,
+  ResourceInputEvidenceWire,
+  ResourceProvenanceCauseWire
 } from "./generated/storage-rpc.js"
+import { digestCanonicalJson } from "./codec-canonical.js"
 
 export function fromRpcFileRecord(value: JsonValue): FileRecord {
   if (!isRecord(value)) {
@@ -111,6 +119,201 @@ export function fromRpcResourceRecord(value: JsonValue): ResourceRecord {
     height: optionalNumber(value.height, "resource.height"),
     durationMs: optionalNumber(value.duration_ms, "resource.duration_ms")
   })
+}
+
+export function toRpcResourceInputEvidence(
+  evidence: ResourceInputEvidence
+): ResourceInputEvidenceWire {
+  validateResourceInputEvidence(evidence)
+  return {
+    resource_id: evidence.resourceId,
+    sha256: evidence.sha256,
+    size_bytes: evidence.sizeBytes,
+    kind: evidence.kind,
+    media_type: evidence.mediaType ?? null
+  }
+}
+
+export function fromRpcResourceInputEvidence(
+  value: JsonValue,
+  name = "resource evidence"
+): ResourceInputEvidence {
+  if (!isRecord(value)) throw new Error(`${name} must be an object`)
+  const evidence = withOptionalFields(
+    {
+      resourceId: expectString(value.resource_id, `${name}.resource_id`),
+      sha256: expectString(value.sha256, `${name}.sha256`),
+      sizeBytes: expectNumber(value.size_bytes, `${name}.size_bytes`),
+      kind: expectResourceKind(value.kind, `${name}.kind`)
+    },
+    { mediaType: optionalString(value.media_type, `${name}.media_type`) }
+  )
+  validateResourceInputEvidence(evidence)
+  return evidence
+}
+
+export function toRpcRecordResourceProvenanceRequest(
+  request: import("@wanex/protocol").RecordResourceProvenanceRequest
+): RecordResourceProvenanceWire {
+  if (request.inputResources.length > 64) {
+    throw new Error("resource provenance accepts at most 64 inputs")
+  }
+  assertUniqueResourceEvidence(request.inputResources, "resource provenance inputs")
+  return {
+    resource: toRpcResourceInputEvidence(request.resource),
+    cause: toRpcResourceProvenanceCause(request.cause),
+    input_resources: request.inputResources.map(toRpcResourceInputEvidence)
+  }
+}
+
+export function toRpcListResourceProvenanceRequest(
+  request: import("@wanex/protocol").ListResourceProvenanceRequest
+): ListResourceProvenanceWire {
+  if (request.causeId !== undefined && request.causeKind === undefined) {
+    throw new Error("resource provenance causeId requires causeKind")
+  }
+  return {
+    resource_id: request.resourceId ?? null,
+    cause_kind: request.causeKind ?? null,
+    cause_id: request.causeId ?? null,
+    limit: request.limit ?? null
+  }
+}
+
+export function fromRpcResourceProvenanceRecord(
+  value: JsonValue
+): ResourceProvenanceRecord {
+  if (!isRecord(value)) throw new Error("resource provenance must be an object")
+  assertArray(value.input_resources, "resource provenance.input_resources")
+  const resource = fromRpcResourceInputEvidence(
+    value.resource ?? null,
+    "resource provenance.resource"
+  )
+  const cause = fromRpcResourceProvenanceCause(value.cause ?? null)
+  const inputResources = value.input_resources.map((input, index) =>
+    fromRpcResourceInputEvidence(input, `resource provenance.input_resources.${index}`)
+  )
+  assertUniqueResourceEvidence(inputResources, "resource provenance inputs")
+  const digest = expectString(value.digest, "resource provenance.digest")
+  const actualDigest = resourceProvenanceDigest({ resource, cause, inputResources })
+  if (digest !== actualDigest) throw new Error("resource provenance digest is invalid")
+  const id = expectString(value.id, "resource provenance.id")
+  if (id !== `rprov_${digest}`) throw new Error("resource provenance id is invalid")
+  return {
+    id,
+    resource,
+    cause,
+    inputResources,
+    digest,
+    createdAt: expectNumber(value.created_at, "resource provenance.created_at")
+  }
+}
+
+function toRpcResourceProvenanceCause(
+  cause: ResourceProvenanceCause
+): ResourceProvenanceCauseWire {
+  if (cause.kind === "media_generation") {
+    return { kind: cause.kind, operation_id: requireNonEmpty(cause.operationId, "operationId") }
+  }
+  return {
+    kind: cause.kind,
+    execution_id: requireNonEmpty(cause.executionId, "executionId"),
+    session_id: requireNonEmpty(cause.sessionId, "sessionId"),
+    turn_id: requireNonEmpty(cause.turnId, "turnId"),
+    source_message_id: requireNonEmpty(cause.sourceMessageId, "sourceMessageId"),
+    tool_call_id: requireNonEmpty(cause.toolCallId, "toolCallId")
+  }
+}
+
+function fromRpcResourceProvenanceCause(value: JsonValue): ResourceProvenanceCause {
+  if (!isRecord(value)) throw new Error("resource provenance cause must be an object")
+  if (value.kind === "media_generation") {
+    return {
+      kind: value.kind,
+      operationId: requireNonEmpty(
+        expectString(value.operation_id, "resource provenance cause.operation_id"),
+        "operation_id"
+      )
+    }
+  }
+  if (value.kind !== "tool_execution") {
+    throw new Error("resource provenance cause kind is invalid")
+  }
+  return {
+    kind: value.kind,
+    executionId: requireNonEmpty(expectString(value.execution_id, "cause.execution_id"), "execution_id"),
+    sessionId: requireNonEmpty(expectString(value.session_id, "cause.session_id"), "session_id"),
+    turnId: requireNonEmpty(expectString(value.turn_id, "cause.turn_id"), "turn_id"),
+    sourceMessageId: requireNonEmpty(expectString(value.source_message_id, "cause.source_message_id"), "source_message_id"),
+    toolCallId: requireNonEmpty(expectString(value.tool_call_id, "cause.tool_call_id"), "tool_call_id")
+  }
+}
+
+function resourceProvenanceDigest(request: {
+  readonly resource: ResourceInputEvidence
+  readonly cause: ResourceProvenanceCause
+  readonly inputResources: readonly ResourceInputEvidence[]
+}): string {
+  return digestCanonicalJson({
+    resource: resourceInputEvidenceJson(request.resource),
+    cause: resourceProvenanceCauseJson(request.cause),
+    inputResources: request.inputResources.map(resourceInputEvidenceJson)
+  })
+}
+
+export function resourceInputEvidenceJson(
+  evidence: ResourceInputEvidence
+): Readonly<Record<string, JsonValue>> {
+  return {
+    resourceId: evidence.resourceId,
+    sha256: evidence.sha256,
+    sizeBytes: evidence.sizeBytes,
+    kind: evidence.kind,
+    ...(evidence.mediaType === undefined ? {} : { mediaType: evidence.mediaType })
+  }
+}
+
+function resourceProvenanceCauseJson(
+  cause: ResourceProvenanceCause
+): Readonly<Record<string, JsonValue>> {
+  return cause.kind === "media_generation"
+    ? { kind: cause.kind, operationId: cause.operationId }
+    : {
+        kind: cause.kind,
+        executionId: cause.executionId,
+        sessionId: cause.sessionId,
+        turnId: cause.turnId,
+        sourceMessageId: cause.sourceMessageId,
+        toolCallId: cause.toolCallId
+      }
+}
+
+function validateResourceInputEvidence(evidence: ResourceInputEvidence): void {
+  requireNonEmpty(evidence.resourceId, "resourceId")
+  if (!/^[0-9a-f]{64}$/.test(evidence.sha256)) {
+    throw new Error("resource evidence sha256 must be lowercase SHA-256")
+  }
+  if (!Number.isSafeInteger(evidence.sizeBytes) || evidence.sizeBytes <= 0) {
+    throw new Error("resource evidence sizeBytes must be a positive safe integer")
+  }
+  if (evidence.mediaType !== undefined) requireNonEmpty(evidence.mediaType, "mediaType")
+}
+
+function assertUniqueResourceEvidence(
+  resources: readonly ResourceInputEvidence[],
+  name: string
+): void {
+  const seen = new Set<string>()
+  for (const resource of resources) {
+    validateResourceInputEvidence(resource)
+    if (seen.has(resource.resourceId)) throw new Error(`${name} contains a duplicate resource`)
+    seen.add(resource.resourceId)
+  }
+}
+
+function requireNonEmpty(value: string, name: string): string {
+  if (value.length === 0) throw new Error(`${name} must not be empty`)
+  return value
 }
 
 export function fromRpcResourceContentChunk(

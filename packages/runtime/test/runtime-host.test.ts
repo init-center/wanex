@@ -3,7 +3,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { DeterministicContextCompiler } from "../src/context/memory/index.js"
+import type {
+  CompileContextInput,
+  CompiledContext,
+  ContextCompiler
+} from "../src/context/memory/index.js"
 import type {
   ProviderAdapter,
   ProviderEvent,
@@ -25,6 +29,7 @@ import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
   EchoTool,
+  jsonToolResultContent,
   ToolRegistry,
   type ToolDefinition,
   type ToolInvocation
@@ -34,12 +39,13 @@ import {
   resolveRuntimeHostDiagnostics,
   WanexRuntimeHost
 } from "../src/host/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 1
+const expectedSchemaVersion = 14
 
 const tempDirs: string[] = []
 let testStorageHandle: StorageHandle | undefined
@@ -68,6 +74,43 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/host", () => {
+  it("propagates exact follow-up head admission through the host", async () => {
+    const host = await createHost({ provider: new ConcurrentProbeProvider() })
+    try {
+      const parent = await host.submitUserTurn({
+        content: [{ type: "text", text: "parent" }],
+        sessionId: "ses_host_follow_up"
+      })
+      const accepted = await host.submitUserTurn({
+        content: [{ type: "text", text: "after parent" }],
+        sessionId: parent.session.id,
+        intent: "follow_up",
+        runControlPolicy: "queue_after_current",
+        expectedTurnId: parent.turnId,
+        origin: {
+          kind: "interactive",
+          sourceRef: "guided-follow-up",
+          parentRef: parent.turnId
+        }
+      })
+
+      await expect(
+        host.submitUserTurn({
+          content: [{ type: "text", text: "stale later target" }],
+          sessionId: parent.session.id,
+          intent: "follow_up",
+          runControlPolicy: "queue_after_current",
+          expectedTurnId: accepted.turnId
+        })
+      ).rejects.toThrow(/current session head/)
+      await expect(
+        host.storage.listSessionTurns({ sessionId: parent.session.id })
+      ).resolves.toHaveLength(2)
+    } finally {
+      await host.dispose()
+    }
+  })
+
   it("actively aborts a blocked provider after durable cancellation", async () => {
     const provider = new AbortAwareBlockingProvider(false)
     const host = await createHost({ provider })
@@ -133,7 +176,7 @@ describe("@wanex/runtime/host", () => {
     await host.dispose()
   })
 
-  it("fails closed when active cancellation follows provider output", async () => {
+  it("settles confirmed cancellation after partial provider output without replay", async () => {
     const provider = new AbortAwareBlockingProvider(true)
     const host = await createHost({ provider })
     const submitted = await host.submitUserTurn({
@@ -154,13 +197,13 @@ describe("@wanex/runtime/host", () => {
     expect(receipt.status).toBe("cancel_requested")
     await provider.aborted.promise
     await eventually(async () => {
-      await expect(host.listJobs({ state: "failed" })).resolves.toHaveLength(1)
+      await expect(host.listJobs({ state: "cancelled" })).resolves.toHaveLength(1)
       expect(host.getHealthSnapshot().activeExecutionCount).toBe(0)
     })
     const turns = await host.storage.listSessionTurns({
       sessionId: submitted.session.id
     })
-    expect(turns).toMatchObject([{ state: "recovery_required" }])
+    expect(turns).toMatchObject([{ state: "cancelled" }])
     const invocations = await host.storage.listProviderInvocations({
       turnId: submitted.turnId
     })
@@ -168,6 +211,10 @@ describe("@wanex/runtime/host", () => {
       state: "ambiguous",
       outputObserved: true
     }])
+    const messages = await host.storage.listSessionMessages({
+      sessionId: submitted.session.id
+    })
+    expect(messages).toMatchObject([{ role: "user" }])
     await host.dispose()
   })
 
@@ -268,17 +315,16 @@ describe("@wanex/runtime/host", () => {
     expect(messages[2]?.content).toMatchObject([{
       type: "tool_result",
       toolCallId: "call_host_echo",
-      result: { error: "tool_cancelled", cleaned: true },
+      content: [{ value: { error: "tool_cancelled", cleaned: true } }],
       isError: true
     }])
     const executions = await host.storage.listToolExecutions({
       turnId: submitted.turnId
     })
     expect(executions).toMatchObject([{
-      state: "cancelled",
-      isError: true,
-      result: { error: "tool_cancelled", cleaned: true }
+      state: "cancelled"
     }])
+    expect(executions[0]).not.toHaveProperty("content")
     await host.dispose()
   })
 
@@ -739,6 +785,15 @@ describe("@wanex/runtime/host", () => {
       providerId: "fake",
       modelId: "fake-model"
     })
+    expect(result.evidence).toMatchObject({
+      source: { sessionId: "ses_host_ephemeral", headSequence: 2 },
+      provider: {
+        endpointId: "direct:fake:fake-model",
+        protocolId: "fake",
+        providerId: "fake",
+        modelId: "fake-model"
+      }
+    })
     expect(inputsAfter).toEqual(inputsBefore)
     expect(messagesAfter).toEqual(messagesBefore)
     expect(jobsAfter).toEqual(jobsBefore)
@@ -785,6 +840,38 @@ describe("@wanex/runtime/host", () => {
     await host.dispose()
     await host.dispose()
     expect(() => host.start()).toThrow("runtime host is disposed")
+  })
+
+  it("invalidates a settled session turn without exposing worker internals", async () => {
+    const observed: unknown[] = []
+    const host = await createHost({
+      fakeResponseText: "host invalidation response",
+      observeSessionTurnResult(signal) {
+        observed.push(signal)
+        throw new Error("advisory observer failed")
+      }
+    })
+    const submitted = await host.submitUserTurn({
+      content: [{ type: "text", text: "observe terminal signal" }],
+      sessionId: "ses_host_result_observer"
+    })
+
+    const result = await host.runOnce()
+
+    expect(result.results[0]?.worker.status).toBe("completed")
+    expect(observed).toEqual([{
+      kind: "wanex-runtime.session-turn-result",
+      outcome: "completed",
+      reference: {
+        sessionId: submitted.session.id,
+        inputId: submitted.inputId,
+        turnId: submitted.turnId,
+        jobId: submitted.receipt.job.id
+      }
+    }])
+    expect(JSON.stringify(observed)).not.toContain("leaseToken")
+    expect(JSON.stringify(observed)).not.toContain("workerId")
+    await host.dispose()
   })
 
   it("wakes a long-idle background worker after local submission", async () => {
@@ -974,13 +1061,7 @@ describe("@wanex/runtime/host", () => {
     const host = await createHost({
       workerCount: 1,
       provider,
-      contextCompiler: new DeterministicContextCompiler({
-        policy: {
-          recentUserTurns: 1,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
-        }
-      })
+      contextCompiler: new MarkerContextCompiler()
     })
     await host.submitUserTurn({
       content: [{ type: "text", text: "old host request" }],
@@ -1001,7 +1082,7 @@ describe("@wanex/runtime/host", () => {
       .filter((part): part is TextMessagePart => part.type === "text")
       .map((part) => part.text)
       .join("\n")
-    expect(replayText).toContain("[compacted")
+    expect(replayText).toContain("injected-context-marker")
     expect(replayText).toContain("new host request")
     await host.dispose()
   })
@@ -1041,49 +1122,57 @@ describe("@wanex/runtime/host", () => {
   })
 
   it("automatically submits and runs memory compaction after successful agent work", async () => {
+    const provider = new SemanticHostProvider()
     const host = await createHost({
       workerCount: 1,
-      fakeResponseText: "host memory response ".repeat(80),
+      provider,
       memoryCompaction: {
         enabled: true,
         workerCount: 1,
-        waterlineTokens: 1,
         policy: {
-          version: "host-memory-v1",
-          recentUserTurns: 0,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
+          reserveInputTokens: 1_000,
+          keepRecentTokens: 100,
+          minimumRecentTurns: 1,
+          maxSummaryOutputTokens: 100,
+          minimumTokenSavings: 1
         },
         retention: {
           keepLastSuperseded: 0
         }
       }
     })
-    await host.submitUserTurn({
-      content: [{ type: "text", text: "remember this" }],
-      sessionId: "ses_host_memory"
-    })
-
-    const result = await host.runOnce()
+    let result
+    for (const text of ["remember first", "remember second", "remember third"]) {
+      await host.submitUserTurn({
+        content: [{ type: "text", text }],
+        sessionId: "ses_host_memory"
+      })
+      result = await host.runOnce()
+    }
+    if (result === undefined) throw new Error("expected final host run result")
 
     expect(result.results[0]?.worker.status).toBe("completed")
     expect(result.memory?.plans).toHaveLength(1)
     expect(result.memory?.plans[0]).toMatchObject({
       sessionId: "ses_host_memory",
       decision: "submit",
-      reason: "above_waterline",
-      policyVersion: "host-memory-v1"
+      reason: "above_waterline"
     })
     expect(result.memory?.submittedJobs).toHaveLength(1)
     expect(result.memory?.workerResults[0]?.status).toBe("completed")
+    expect(provider.summaryRequests).toHaveLength(1)
+    expect(provider.summaryRequests[0]?.maxOutputTokens).toBe(100)
+    expect(provider.summaryRequests[0]?.tools).toBeUndefined()
     await expect(
       host.storage.getActiveContextEpoch({
-        sessionId: "ses_host_memory",
-        policyVersion: "host-memory-v1"
+        sessionId: "ses_host_memory"
       })
     ).resolves.toMatchObject({
       state: "active",
-      replacementCount: 1
+      generationState: "succeeded",
+      cutSequence: 4,
+      retainedFromSequence: 5,
+      summary: expect.stringContaining("Host semantic checkpoint")
     })
     await expect(host.listJobs({ kind: "memory.compaction" })).resolves.toHaveLength(
       1
@@ -1094,16 +1183,16 @@ describe("@wanex/runtime/host", () => {
   it("skips automatic memory compaction below the configured waterline", async () => {
     const host = await createHost({
       workerCount: 1,
-      fakeResponseText: "short response",
+      provider: new SemanticHostProvider(),
       memoryCompaction: {
         enabled: true,
         workerCount: 1,
-        waterlineTokens: 1_000_000,
         policy: {
-          version: "host-memory-below",
-          recentUserTurns: 0,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
+          reserveInputTokens: 1_000,
+          keepRecentTokens: 100,
+          minimumRecentTurns: 1,
+          maxSummaryOutputTokens: 100,
+          minimumTokenSavings: 1
         }
       }
     })
@@ -1132,10 +1221,9 @@ describe("@wanex/runtime/host", () => {
 })
 
 class ConcurrentProbeProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "probe"
-  readonly modelId = "probe-model"
+  readonly model = testConversationModel("probe-model")
   active = 0
   maxActive = 0
 
@@ -1201,7 +1289,7 @@ class AbortAwareBlockingProvider extends ConcurrentProbeProvider {
         message: "provider request aborted",
         retryable: false,
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         phase: this.emitPartialOutput ? "stream" : "request"
       }
     }
@@ -1227,7 +1315,7 @@ class ShutdownCleanupBlockingProvider extends ConcurrentProbeProvider {
         message: "provider request aborted after cleanup",
         retryable: false,
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         phase: "request"
       }
     }
@@ -1240,6 +1328,8 @@ class AbortAwareHostTool implements ToolDefinition {
   readonly inputSchema = { type: "object", additionalProperties: true } as const
   readonly risk = "external" as const
   readonly idempotent = false
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "immediate" as const
   readonly runtimeBinding = createToolRuntimeBinding({
     implementationId: "wanex.test.runtime-host.abort-aware",
     implementationRevision: "1"
@@ -1256,9 +1346,9 @@ class AbortAwareHostTool implements ToolDefinition {
     await this.releaseCleanup.promise
     this.cleanupComplete = true
     return {
+      outcome: "failed" as const,
       toolCallId: invocation.toolCallId,
-      result: { error: "tool_cancelled", cleaned: true },
-      isError: true
+      content: jsonToolResultContent({ error: "tool_cancelled", cleaned: true })
     }
   }
 }
@@ -1300,7 +1390,7 @@ class FailingForTextProvider extends ConcurrentProbeProvider {
           message: `planned provider failure: ${text}`,
           retryable: false,
           providerId: this.providerId,
-          modelId: this.modelId,
+          modelId: this.model.id,
           phase: "request"
         }
       }
@@ -1316,6 +1406,53 @@ class RecordingProvider extends ConcurrentProbeProvider {
   override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
     this.lastMessages = request.messages
     yield* textEvents("old host assistant ".repeat(80))
+  }
+}
+
+class SemanticHostProvider extends ConcurrentProbeProvider {
+  override readonly model = {
+    ...testConversationModel("host-memory-model"),
+    limits: { contextWindowTokens: 2_200, maxOutputTokens: 100 }
+  }
+  readonly summaryRequests: ProviderRequest[] = []
+
+  override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    const systemText = request.messages[0]?.content
+      .filter((part): part is TextMessagePart => part.type === "text")
+      .map((part) => part.text)
+      .join("\n") ?? ""
+    if (systemText.includes("semantic checkpoint")) {
+      this.summaryRequests.push(request)
+      yield* textEvents("## Goal\nHost semantic checkpoint")
+      return
+    }
+    yield* textEvents("host memory response ".repeat(80))
+  }
+}
+
+class MarkerContextCompiler implements ContextCompiler {
+  async compile(input: CompileContextInput): Promise<CompiledContext> {
+    return {
+      sessionId: input.sessionId,
+      messages: [
+        {
+          role: "system",
+          content: [{
+            type: "text",
+            id: "injected_context_marker",
+            text: "injected-context-marker"
+          }]
+        },
+        ...input.messages.map((message) => ({
+          role: message.role,
+          content: message.content
+        }))
+      ],
+      stats: {
+        tokenEstimateBefore: 0,
+        tokenEstimateAfter: 0
+      }
+    }
   }
 }
 

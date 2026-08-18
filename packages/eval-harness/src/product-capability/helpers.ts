@@ -3,7 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 export async function createProductCapabilityStoreDir(
-  prefix = "wanex-eval-product-app-backend-cli-"
+  prefix = "wanex-eval-product-backend-cli-"
 ): Promise<string> {
   return await mkdtemp(join(tmpdir(), prefix))
 }

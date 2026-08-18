@@ -4,22 +4,21 @@ import type { CliDiagnosticsStore } from "../storage.js"
 export async function supportBundleValue(
   storage: CliDiagnosticsStore,
   request: {
-    readonly providerProfileIds?: readonly string[]
+    readonly modelEndpointIds?: readonly string[]
     readonly sessionId?: string
     readonly eventLimit?: number
     readonly jobLimit?: number
     readonly pluginLimit?: number
     readonly memoryMaintenance?: boolean
     readonly staleAfterMs?: number
-    readonly policyVersion?: string
     readonly sessionLimit?: number
   }
 ): Promise<unknown> {
   const bundle = await buildSupportBundle({
     storage,
-    ...(request.providerProfileIds === undefined
+    ...(request.modelEndpointIds === undefined
       ? {}
-      : { providerProfileIds: request.providerProfileIds }),
+      : { modelEndpointIds: request.modelEndpointIds }),
     ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
     ...(request.eventLimit === undefined ? {} : { eventLimit: request.eventLimit }),
     ...(request.jobLimit === undefined ? {} : { jobLimit: request.jobLimit }),
@@ -33,9 +32,6 @@ export async function supportBundleValue(
             ...(request.staleAfterMs === undefined
               ? {}
               : { staleAfterMs: request.staleAfterMs }),
-            ...(request.policyVersion === undefined
-              ? {}
-              : { policyVersion: request.policyVersion }),
             ...(request.sessionLimit === undefined
               ? {}
               : { sessionLimit: request.sessionLimit }),

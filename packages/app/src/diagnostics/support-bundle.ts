@@ -3,10 +3,10 @@ import type {
   RuntimeEvent
 } from "@wanex/protocol"
 import {
-  providerConfigKey,
-  providerProfileFromJson,
-  summarizeProviderProfile,
-  type ProviderProfileSummary
+  modelEndpointConfigKey,
+  modelEndpointFromJson,
+  summarizeModelEndpoint,
+  type ModelEndpointSummary
 } from "@wanex/runtime/provider"
 import type { CoreStore } from "@wanex/storage"
 import type { PluginStore } from "@wanex/storage/plugin"
@@ -27,7 +27,7 @@ export interface SupportBundleOptions
     "now" | "runtimeHost" | "runtimeHostHealth"
   > {
   readonly storage: SupportBundleStore
-  readonly providerProfileIds?: readonly string[]
+  readonly modelEndpointIds?: readonly string[]
   readonly eventLimit?: number
   readonly jobLimit?: number
   readonly pluginLimit?: number
@@ -39,14 +39,13 @@ export interface SupportBundleMemoryOptions {
   readonly sessionLimit?: number
   readonly jobLimit?: number
   readonly staleAfterMs?: number
-  readonly policyVersion?: string
 }
 
 export interface SupportBundle {
   readonly generatedAt: number
   readonly doctor: DoctorReport
   readonly diagnostics: AppDiagnosticsSnapshot
-  readonly providers: readonly SupportBundleProviderProfileSummary[]
+  readonly modelEndpoints: readonly SupportBundleModelEndpointSummary[]
   readonly events: readonly SupportBundleEventSummary[]
   readonly limits: SupportBundleLimits
 }
@@ -57,10 +56,10 @@ export interface SupportBundleLimits {
   readonly pluginLimit: number
 }
 
-export interface SupportBundleProviderProfileSummary {
+export interface SupportBundleModelEndpointSummary {
   readonly id: string
   readonly found: boolean
-  readonly profile?: ProviderProfileSummary
+  readonly endpoint?: ModelEndpointSummary
 }
 
 export interface SupportBundleEventSummary {
@@ -94,7 +93,7 @@ export async function buildSupportBundle(
     manifests,
     installs,
     events,
-    providers,
+    modelEndpoints,
     memoryMaintenance
   ] = await Promise.all([
     options.storage.doctor(),
@@ -107,7 +106,7 @@ export async function buildSupportBundle(
         : { scope: { sessionId: options.sessionId } }),
       limit: eventLimit
     }),
-    readProviderSummaries(options.storage, options.providerProfileIds ?? []),
+    readModelEndpointSummaries(options.storage, options.modelEndpointIds ?? []),
     memoryOptions === undefined
       ? Promise.resolve(undefined)
       : getMemoryMaintenanceDiagnosticsSnapshot({
@@ -144,7 +143,7 @@ export async function buildSupportBundle(
     generatedAt,
     doctor,
     diagnostics,
-    providers,
+    modelEndpoints,
     events: events.map(summarizeEvent),
     limits: {
       eventLimit,
@@ -154,13 +153,13 @@ export async function buildSupportBundle(
   }
 }
 
-async function readProviderSummaries(
+async function readModelEndpointSummaries(
   storage: SupportBundleStore,
-  profileIds: readonly string[]
-): Promise<SupportBundleProviderProfileSummary[]> {
+  endpointIds: readonly string[]
+): Promise<SupportBundleModelEndpointSummary[]> {
   return await Promise.all(
-    profileIds.map(async (id): Promise<SupportBundleProviderProfileSummary> => {
-      const value = await storage.getConfig(providerConfigKey(id))
+    endpointIds.map(async (id): Promise<SupportBundleModelEndpointSummary> => {
+      const value = await storage.getConfig(modelEndpointConfigKey(id))
       if (value === null) {
         return {
           id,
@@ -170,7 +169,7 @@ async function readProviderSummaries(
       return {
         id,
         found: true,
-        profile: summarizeProviderProfile(providerProfileFromJson(value))
+        endpoint: summarizeModelEndpoint(modelEndpointFromJson(value))
       }
     })
   )

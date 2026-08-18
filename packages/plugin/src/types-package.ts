@@ -10,7 +10,6 @@ import type { PluginSandboxAccessRequest } from "./types-sandbox.js"
 export interface PluginSubprocessManifestEntryAction {
   readonly actionId: string
   readonly capability: PluginCapability
-  readonly version?: string
   readonly sandbox?: PluginSandboxAccessRequest
 }
 
@@ -21,6 +20,24 @@ export interface PluginSubprocessManifestEntry {
   readonly timeoutMs?: number
   readonly stderrLimitBytes?: number
   readonly actions: readonly PluginSubprocessManifestEntryAction[]
+}
+
+export type PluginPackageCommandPaletteVisibility = "visible" | "hidden"
+
+export interface PluginPackageCommandContribution {
+  readonly id: string
+  readonly name: string
+  readonly title: string
+  readonly description?: string
+  readonly aliases?: readonly string[]
+  readonly category?: string
+  readonly paletteVisibility: PluginPackageCommandPaletteVisibility
+  readonly actionId: string
+  readonly inputSchema?: JsonValue
+}
+
+export interface PluginPackageContributions {
+  readonly commands?: readonly PluginPackageCommandContribution[]
 }
 
 export type PluginPackageSourceKind =
@@ -104,6 +121,7 @@ export interface PluginPackageLayout {
   readonly packageName?: string
   readonly entry: PluginSubprocessManifestEntry
   readonly capabilities: readonly PluginCapability[]
+  readonly contributes?: PluginPackageContributions
   readonly runtimeDependencies?: readonly PluginPackageRuntimeDependency[]
   readonly files?: readonly PluginPackageFileEntry[]
   readonly metadata?: JsonValue

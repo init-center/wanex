@@ -1,6 +1,7 @@
 import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
+  ArchiveSessionRequest,
   AppendSessionMessageRequest,
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
@@ -21,6 +22,8 @@ import type {
   ProviderInvocationRecord,
   RequestSessionTurnCancelReceipt,
   RequestSessionTurnCancelRequest,
+  RenameSessionRequest,
+  RestoreSessionRequest,
   SessionAttemptRecord,
   SessionInputRecord,
   SessionMessageRecord,
@@ -58,6 +61,7 @@ import {
   messagePartsToJson,
   sessionInputOriginToJson,
   toRpcApplySessionTurnControlRequest,
+  toRpcArchiveSessionRequest,
   toRpcBeginProviderInvocationRequest,
   toRpcFinishProviderInvocationRequest,
   toRpcInterruptSessionTurnRequest,
@@ -65,6 +69,8 @@ import {
   toRpcListSessionsRequest,
   toRpcListSessionTurnControlsRequest,
   toRpcRequestSessionTurnCancelRequest,
+  toRpcRenameSessionRequest,
+  toRpcRestoreSessionRequest,
   toRpcMarkProviderInvocationOutputRequest,
   toRpcSettleSessionTurnRequest,
   toRpcStartSessionTurnAttemptRequest,
@@ -98,6 +104,30 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
     })
     assertArray(value, "sessions")
     return value.map(fromRpcSessionRecord)
+  }
+
+  async renameSession(request: RenameSessionRequest): Promise<SessionRecord> {
+    const value = await this.callSession({
+      command: "rename-session",
+      request: toRpcRenameSessionRequest(request)
+    })
+    return fromRpcSessionRecord(value)
+  }
+
+  async archiveSession(request: ArchiveSessionRequest): Promise<SessionRecord> {
+    const value = await this.callSession({
+      command: "archive-session",
+      request: toRpcArchiveSessionRequest(request)
+    })
+    return fromRpcSessionRecord(value)
+  }
+
+  async restoreSession(request: RestoreSessionRequest): Promise<SessionRecord> {
+    const value = await this.callSession({
+      command: "restore-session",
+      request: toRpcRestoreSessionRequest(request)
+    })
+    return fromRpcSessionRecord(value)
   }
 
   async admitSessionInput(
@@ -244,7 +274,9 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
   ): Promise<SessionInputRecord[]> {
     const value = await this.callSession({
       command: "list-session-inputs",
-      session_id: request.sessionId
+      session_id: request.sessionId,
+      status: request.status ?? null,
+      limit: request.limit ?? null
     })
     assertArray(value, "session inputs")
     return value.map(fromRpcSessionInputRecord)
@@ -255,7 +287,10 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
   ): Promise<SessionMessageRecord[]> {
     const value = await this.callSession({
       command: "list-session-messages",
-      session_id: request.sessionId
+      session_id: request.sessionId,
+      before_sequence: request.beforeSequence ?? null,
+      limit: request.limit ?? null,
+      turn_ids: request.turnIds === undefined ? null : [...request.turnIds]
     })
     assertArray(value, "session messages")
     return value.map(fromRpcSessionMessageRecord)
@@ -267,7 +302,8 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
     const value = await this.callSession({
       command: "list-session-turns",
       session_id: request.sessionId,
-      state: request.state ?? null
+      state: request.state ?? null,
+      turn_ids: request.turnIds === undefined ? null : [...request.turnIds]
     })
     assertArray(value, "session turns")
     return value.map(fromRpcSessionTurnRecord)

@@ -8,7 +8,7 @@
       "targetOwner": "@wanex/app",
       "targetPhase": "Phase 751",
       "rationale": "Trusted application backends need one stable public facade above Runtime.",
-      "evidence": "Product App consumes the root and Phase 744 public-facade tests prove the journey."
+      "evidence": "application consumes the root and Phase 744 public-facade tests prove the journey."
     },
     "@wanex/cli": {
       "path": "apps/cli",
@@ -46,6 +46,15 @@
       "rationale": "A dependency-free contribution contract and deterministic resolver have multiple independent App and Product consumers.",
       "evidence": "The contract and static host were consolidated; App, Product command host, and Product TUI compile against the retained owner."
     },
+    "@wanex/local-credential-store": {
+      "path": "packages/local-credential-store",
+      "role": "internal",
+      "disposition": "retain",
+      "targetOwner": "@wanex/local-credential-store",
+      "targetPhase": "Phase 859",
+      "rationale": "Local keychain references and the native credential binding form one platform security and distribution boundary shared by independent Product Local/Desktop and Product TUI executables.",
+      "evidence": "Phase 859 moves the sole native adapter out of Product Local, deletes the old subpaths, and verifies both executable consumers without adding Product, Storage, Web, or execution authority to this package."
+    },
     "@wanex/mcp": {
       "path": "packages/mcp",
       "role": "public-capability",
@@ -64,50 +73,59 @@
       "rationale": "Plugin trust, install, sandbox, subprocess, and worker lifecycle require one explicit optional security boundary.",
       "evidence": "Plugin was renamed directly, Product command projection moved to its product owner, and 44 Plugin plus 8 Product host tests pass."
     },
-    "@wanex/product-app": {
-      "path": "apps/product-app",
+    "@wanex/product": {
+      "path": "apps/product",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product-app",
+      "targetOwner": "@wanex/product",
       "targetPhase": "Phase 751",
       "rationale": "This is the frozen validation product backend and owns product-specific read models.",
-      "evidence": "Web, local, TUI, and command-host products consume it as their common product backend."
+      "evidence": "Web, local, TUI, and plugin-command-host products consume it as their common product backend."
     },
-    "@wanex/product-app-command-host": {
-      "path": "apps/product-app-command-host",
+    "@wanex/plugin-command-host": {
+      "path": "apps/plugin-command-host",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product-app-command-host",
-      "targetPhase": "Phase 756",
-      "rationale": "Optional plugin action execution has a distinct process, security, dependency, and lifecycle boundary outside default Product App closure.",
-      "evidence": "Distribution footprint isolates @wanex/plugin to this hot product entry, while package tests and Eval execute durable plugin actions without adding Plugin to Product App, Web, TUI, Runtime, or App defaults."
+      "targetOwner": "@wanex/plugin-command-host",
+      "targetPhase": "PLUGIN-1",
+      "rationale": "Optional plugin action execution has a distinct process, security, dependency, and lifecycle boundary outside default application closure.",
+      "evidence": "The optional host reconstructs active Plugin generations from durable installs, publishes one immutable command catalog, owns the sole plugin.action worker and exact-version execution registry, and exposes a structurally compatible composition port without depending on Local Host. The packaged Desktop product leaf explicitly composes it; default Local Host, Web, TUI, Runtime, and App closures remain Plugin-free."
     },
-    "@wanex/product-app-local": {
-      "path": "apps/product-app-local",
+    "@wanex/desktop": {
+      "path": "apps/desktop",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product-app-local",
+      "targetOwner": "@wanex/desktop",
+      "targetPhase": "Phase 811",
+      "rationale": "Electron introduces a distinct executable process, renderer trust boundary, native-resource closure, and packaging lifecycle that must remain outside Product Local and every Kernel package.",
+      "evidence": "The packaged leaf loads the real Product Web document from its owned ephemeral loopback Host, stages exactly one System Service and keyring binding, composes optional Plugin management with an Electron-main native directory selector and user-data install root, and proves secure startup, conversation settlement, screenshot rendering, and complete process cleanup without application node_modules."
+    },
+    "@wanex/local-host": {
+      "path": "apps/local-host",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/local-host",
       "targetPhase": "Phase 751",
       "rationale": "The local executable host owns local lifecycle and distribution concerns.",
-      "evidence": "It drives the Web and local smoke entry and will absorb the thin Node Web host."
+      "evidence": "It owns the shared Web, desktop, and TUI local lifecycle and exposes one named optional Plugin composition port while remaining independent of Plugin Host and Plugin Runtime."
     },
-    "@wanex/product-app-tui": {
-      "path": "apps/product-app-tui",
+    "@wanex/tui": {
+      "path": "apps/tui",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product-app-tui",
+      "targetOwner": "@wanex/tui",
       "targetPhase": "Phase 751",
       "rationale": "The terminal product is a distinct executable leaf with terminal-only dependencies.",
-      "evidence": "It owns the Product App TUI entry and consumes the shared product backend."
+      "evidence": "It owns the TUI entry and consumes the shared product backend."
     },
-    "@wanex/product-app-web": {
-      "path": "apps/product-app-web",
+    "@wanex/web": {
+      "path": "apps/web",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product-app-web",
+      "targetOwner": "@wanex/web",
       "targetPhase": "Phase 751",
       "rationale": "The browser-safe product adapter has a distinct platform dependency boundary.",
-      "evidence": "Local and Node hosts consume it while it depends only on the Product App backend."
+      "evidence": "Local and Node hosts consume it while it depends only on the application backend."
     },
     "@wanex/protocol": {
       "path": "packages/protocol",
@@ -165,6 +183,15 @@
     }
   },
   "tombstones": {
+    "@wanex/command-host": {
+      "path": "apps/command-host",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/plugin-command-host",
+      "targetPhase": "PLUGIN-1",
+      "rationale": "The generic identity obscured that this optional host owns only plugin-backed Product commands.",
+      "evidence": "The package was renamed directly and its second Product Shell API was deleted without a forwarding package or alias."
+    },
     "@wanex/agent-context-runtime": {
       "path": "packages/agent-context-runtime",
       "role": "internal",
@@ -304,10 +331,10 @@
       "path": "packages/delegation-runtime",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/team/delegation",
+      "targetOwner": "@wanex/team/conversation",
       "targetPhase": "Phase 752",
-      "rationale": "Delegation execution policy does not justify a package apart from team orchestration.",
-      "evidence": "Implementation and owner tests moved to @wanex/team/delegation; the old package was deleted without an alias in Phase 752."
+      "rationale": "Sub-agent execution reuses durable Team Tool, Session, Scheduler, and graph primitives; a process-local plan runtime is not a valid owner.",
+      "evidence": "The temporary in-package process-local runtime was retired after durable Team lead-delegation acceptance in TEAM-10C4. No compatibility entry remains; generic graphs remain at @wanex/team/delegation/graph."
     },
     "@wanex/event-core": {
       "path": "packages/event-core",
@@ -327,14 +354,14 @@
       "rationale": "An in-workspace source example cannot prove compiled SDK installation and does not justify a package identity.",
       "evidence": "The isolated Phase 755 minimal-agent project installs only @wanex/runtime from the temporary registry, runs a durable turn, and disposes idempotently; the package was deleted without an alias."
     },
-    "@wanex/product-app-web-node-host": {
-      "path": "apps/product-app-web-node-host",
+    "@wanex/web-node-host": {
+      "path": "apps/web-node-host",
       "role": "app",
       "disposition": "delete",
-      "targetOwner": "@wanex/product-app-local/web-host",
+      "targetOwner": "@wanex/local-host/web-host",
       "targetPhase": "Phase 756",
-      "rationale": "The thin Node HTTP/browser host shares Product App Local's deployment and lifecycle and has no independent publication or product consumer.",
-      "evidence": "Implementation and owner tests moved to Product App Local, Eval consumes its explicit web-host subpath, and the old package was deleted without an alias."
+      "rationale": "The thin Node HTTP/browser host shares Local Host's deployment and lifecycle and has no independent publication or product consumer.",
+      "evidence": "Implementation and owner tests moved to Local Host, Eval consumes its explicit web-host subpath, and the old package was deleted without an alias."
     },
     "@wanex/example-connector": {
       "path": "apps/example-connector",
@@ -394,10 +421,10 @@
       "path": "packages/objective-runtime",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/app/workflows/objective",
-      "targetPhase": "Phase 751",
-      "rationale": "Objective automation is an explicit optional App workflow rather than a default shell command group or package.",
-      "evidence": "Implementation and owner tests moved to the explicit App workflow subpath; eager App construction and the old package were deleted."
+      "targetOwner": "@wanex/app",
+      "targetPhase": "Phase 794",
+      "rationale": "Goal behavior is App-owned coordination over neutral durable Objective records and ordinary Runtime turns, not a standalone runtime package or optional forwarding workflow.",
+      "evidence": "Phase 794 deleted the obsolete workflow subpath and exposed trusted Goal commands from the App root; Runtime remains Objective-unaware."
     },
     "@wanex/plan-proposal-runtime": {
       "path": "packages/plan-proposal-runtime",
@@ -412,10 +439,10 @@
       "path": "packages/plugin-action-adapter",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/product-app-command-host",
+      "targetOwner": "@wanex/plugin-command-host",
       "targetPhase": "Phase 752",
       "rationale": "Plugin action projection is host integration detail, not a standalone adapter package.",
-      "evidence": "Implementation and owner tests moved to @wanex/product-app-command-host; the old package was deleted without an alias in Phase 752."
+      "evidence": "Implementation and owner tests moved to the current plugin command host owner; the old package was deleted without an alias in Phase 752."
     },
     "@wanex/plugin-runtime": {
       "path": "packages/plugin-runtime",
@@ -565,28 +592,28 @@
       "path": "apps/tui-shell",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/product-app-tui/shell",
-      "targetPhase": "Phase 752",
+      "targetOwner": "deleted with no retained owner",
+      "targetPhase": "Phase 850",
       "rationale": "A separate workspace app for a shell implementation has no independent product consumer.",
-      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/shell; the old package was deleted without an alias in Phase 752."
+      "evidence": "The old package remains deleted. Phase 850 also deleted the temporary Product TUI shell subpath after proving it had no real consumer and duplicated Product command authority."
     },
     "@wanex/tui-shell-core": {
       "path": "packages/tui-shell-core",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/product-app-tui/shell-core",
-      "targetPhase": "Phase 752",
+      "targetOwner": "deleted with no retained owner",
+      "targetPhase": "Phase 850",
       "rationale": "Terminal shell coordination does not justify a package apart from the terminal dependency closure.",
-      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/shell-core; the old package was deleted without an alias in Phase 752."
+      "evidence": "The old package remains deleted. Phase 850 deleted the temporary Product TUI shell-core subpath because no real consumer required a generic terminal read model."
     },
     "@wanex/tui-surface-core": {
       "path": "packages/tui-surface-core",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/product-app-tui/contributions",
-      "targetPhase": "Phase 752",
+      "targetOwner": "deleted with no retained owner",
+      "targetPhase": "Phase 850",
       "rationale": "Terminal surface types and resolution belong with the terminal package.",
-      "evidence": "Implementation and owner tests moved to @wanex/product-app-tui/contributions; the old package was deleted without an alias in Phase 752."
+      "evidence": "The old package remains deleted. Phase 850 deleted the temporary Product TUI contribution-resolver subpath; Product's dynamic command catalog is the only command authority."
     },
     "@wanex/ui-surface-core": {
       "path": "packages/ui-surface-core",

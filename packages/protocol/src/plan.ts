@@ -1,28 +1,30 @@
-import type { PrincipalId } from "./ids.js"
+import type {
+  MessageId,
+  PrincipalId,
+  SessionId,
+  SessionInputId,
+  SessionTurnId
+} from "./ids.js"
 import type { JsonValue } from "./json.js"
+import type { MessagePart } from "./message.js"
+import type {
+  SubmitSessionTurnReceipt,
+  SubmitSessionTurnRequest
+} from "./session.js"
 
 export type PlanProposalState =
   | "open"
   | "approved"
   | "rejected"
   | "withdrawn"
-  | "execution_requested"
-  | "executed"
-  | "execution_failed"
 
 export type PlanProposalOperationKind =
+  | "revise"
   | "approve"
   | "reject"
   | "withdraw"
-  | "request_execution"
-  | "mark_executed"
-  | "mark_execution_failed"
 
 export type PlanReferenceKind =
-  | "session"
-  | "session_input"
-  | "session_turn"
-  | "scheduler_job"
   | "workspace_change_proposal"
   | "delegation_graph"
   | "delegation_graph_node"
@@ -31,10 +33,9 @@ export type PlanReferenceKind =
   | "context_epoch"
 
 export interface PlanProposalStep {
-  readonly id?: string
+  readonly id: string
   readonly title: string
   readonly detail?: string
-  readonly status?: "pending" | "in_progress" | "completed" | "blocked"
   readonly metadata?: JsonValue
 }
 
@@ -45,41 +46,80 @@ export interface PlanProposalReference {
   readonly metadata?: JsonValue
 }
 
-export interface PlanProposalRecord {
-  readonly id: string
-  readonly principalId: PrincipalId
-  readonly title?: string
-  readonly summary?: string
+export interface PlanProposalContent {
+  readonly title: string
+  readonly summary: string
   readonly steps: readonly PlanProposalStep[]
   readonly references: readonly PlanProposalReference[]
+}
+
+export interface PlanProposalSourceBinding {
+  readonly sessionId: SessionId
+  readonly headSequence: number
+  readonly headMessageId?: MessageId
+  readonly headTurnId?: SessionTurnId
+  readonly analysisInputDigest: string
+  readonly planningRequest: readonly MessagePart[]
+}
+
+export interface PlanProposalGenerationBinding {
+  readonly endpointId: string
+  readonly endpointDigest: string
+  readonly protocolId: string
+  readonly providerId: string
+  readonly modelId: string
+  readonly generatedAt: number
+  readonly outputDigest: string
+  readonly output: readonly MessagePart[]
+}
+
+export interface PlanProposalExecutionBinding {
+  readonly inputId: SessionInputId
+  readonly turnId: SessionTurnId
+  readonly jobId: string
+  readonly executionBindingDigest: string
+  readonly digest: string
+  readonly boundAt: number
+}
+
+export interface PlanProposalRecord extends PlanProposalContent {
+  readonly id: string
+  readonly principalId: PrincipalId
+  readonly revision: number
+  readonly source: PlanProposalSourceBinding
+  readonly generation: PlanProposalGenerationBinding
   readonly state: PlanProposalState
-  readonly metadata?: JsonValue
+  readonly execution?: PlanProposalExecutionBinding
   readonly createdAt: number
   readonly updatedAt: number
-  readonly closedAt?: number
+  readonly decidedAt?: number
+}
+
+export interface PlanProposalActor {
+  readonly kind: "human"
+  readonly id: PrincipalId
 }
 
 export interface PlanProposalOperationRecord {
   readonly id: string
   readonly proposalId: string
   readonly operation: PlanProposalOperationKind
-  readonly actorId: PrincipalId
+  readonly actor: PlanProposalActor
   readonly fromState: PlanProposalState
   readonly toState: PlanProposalState
+  readonly fromRevision: number
+  readonly toRevision: number
+  readonly content?: PlanProposalContent
   readonly reason?: string
-  readonly metadata?: JsonValue
   readonly createdAt: number
 }
 
-export interface PutPlanProposalRequest {
+export interface CreatePlanProposalRequest extends PlanProposalContent {
   readonly id?: string
   readonly principalId: PrincipalId
-  readonly title?: string
-  readonly summary?: string
-  readonly steps: readonly PlanProposalStep[]
-  readonly references?: readonly PlanProposalReference[]
-  readonly metadata?: JsonValue
-  readonly idempotencyKey?: string
+  readonly source: PlanProposalSourceBinding
+  readonly generation: PlanProposalGenerationBinding
+  readonly idempotencyKey: string
 }
 
 export interface GetPlanProposalRequest {
@@ -88,6 +128,7 @@ export interface GetPlanProposalRequest {
 
 export interface ListPlanProposalsRequest {
   readonly principalId?: PrincipalId
+  readonly sourceSessionId?: SessionId
   readonly state?: PlanProposalState
   readonly referenceKind?: PlanReferenceKind
   readonly referenceId?: string
@@ -98,9 +139,23 @@ export interface RecordPlanProposalOperationRequest {
   readonly id?: string
   readonly proposalId: string
   readonly operation: PlanProposalOperationKind
-  readonly actorId: PrincipalId
+  readonly expectedRevision: number
+  readonly actor: PlanProposalActor
+  readonly content?: PlanProposalContent
   readonly reason?: string
-  readonly metadata?: JsonValue
+  readonly idempotencyKey: string
+}
+
+export interface ExecuteApprovedPlanRequest {
+  readonly proposalId: string
+  readonly expectedRevision: number
+  readonly idempotencyKey: string
+  readonly turn: SubmitSessionTurnRequest
+}
+
+export interface ExecuteApprovedPlanReceipt {
+  readonly proposal: PlanProposalRecord
+  readonly submission: SubmitSessionTurnReceipt
 }
 
 export interface ListPlanProposalOperationsRequest {

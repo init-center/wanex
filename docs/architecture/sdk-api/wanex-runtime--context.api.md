@@ -4,6 +4,7 @@
 
 ```ts
 
+import { CoreStore } from '@wanex/storage';
 import { SchedulerStore } from '@wanex/storage';
 import { ToolExecutionStore } from '@wanex/storage';
 
@@ -79,6 +80,9 @@ export interface AgentSkillContextProfile {
 export function assertAgentContextProfile(profile: AgentContextProfile): void;
 
 // @public (undocumented)
+type CapabilityRouteSource = "configured" | "single_candidate";
+
+// @public (undocumented)
 export interface CompileContextInput {
     // (undocumented)
     readonly epochId?: string;
@@ -87,9 +91,7 @@ export interface CompileContextInput {
     // (undocumented)
     readonly messages: readonly SessionMessageRecord[];
     // (undocumented)
-    readonly policy?: Partial<ContextMemoryPolicy>;
-    // (undocumented)
-    readonly sessionId: SessionId;
+    readonly sessionId: string;
     // (undocumented)
     readonly tokenEstimator?: ContextTokenEstimator;
 }
@@ -101,13 +103,90 @@ export interface CompiledContext {
     // (undocumented)
     readonly messages: readonly ProviderReplayMessage[];
     // (undocumented)
-    readonly policy: ContextMemoryPolicy;
-    // (undocumented)
-    readonly replacements: readonly ContextReplacementRecord[];
-    // (undocumented)
-    readonly sessionId: SessionId;
+    readonly sessionId: string;
     // (undocumented)
     readonly stats: ContextCompileStats;
+}
+
+// @public (undocumented)
+export interface ContextCompactionEvidence {
+    // (undocumented)
+    readonly cutMessageId: string;
+    // (undocumented)
+    readonly cutSequence: number;
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly policy: ContextCompactionPolicy;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly previousEpochId?: string;
+    // (undocumented)
+    readonly previousSummaryDigest?: string;
+    // (undocumented)
+    readonly projectedTokenEstimateAfter: number;
+    // (undocumented)
+    readonly requestDigest: string;
+    // (undocumented)
+    readonly retainedFromMessageId: string;
+    // (undocumented)
+    readonly retainedFromSequence: number;
+    // (undocumented)
+    readonly sessionId: string;
+    // (undocumented)
+    readonly sourceDigest: string;
+    // (undocumented)
+    readonly sourceHeadMessageId: string;
+    // (undocumented)
+    readonly sourceHeadSequence: number;
+    // (undocumented)
+    readonly tokenEstimateBefore: number;
+}
+
+// @public (undocumented)
+export type ContextCompactionPlanReason = "above_waterline" | "below_waterline" | "model_limit_unknown" | "no_compactable_turns" | "unsafe_turn_boundary" | "summary_input_too_large" | "insufficient_savings" | "retained_tail_too_large";
+
+// @public (undocumented)
+export interface ContextCompactionPolicy {
+    // (undocumented)
+    readonly algorithm: "semantic-summary";
+    // (undocumented)
+    readonly keepRecentTokens: number;
+    // (undocumented)
+    readonly maxProviderAttempts: number;
+    // (undocumented)
+    readonly maxSerializedToolResultChars: number;
+    // (undocumented)
+    readonly maxSummaryOutputTokens: number;
+    // (undocumented)
+    readonly minimumRecentTurns: number;
+    // (undocumented)
+    readonly minimumTokenSavings: number;
+    // (undocumented)
+    readonly modelContextWindowTokens: number;
+    // (undocumented)
+    readonly modelMaxInputTokens?: number;
+    // (undocumented)
+    readonly waterlineTokens: number;
+}
+
+// @public (undocumented)
+export interface ContextCompactionPolicyOverrides {
+    // (undocumented)
+    readonly keepRecentTokens?: number;
+    // (undocumented)
+    readonly maxProviderAttempts?: number;
+    // (undocumented)
+    readonly maxSerializedToolResultChars?: number;
+    // (undocumented)
+    readonly maxSummaryOutputTokens?: number;
+    // (undocumented)
+    readonly minimumRecentTurns?: number;
+    // (undocumented)
+    readonly minimumTokenSavings?: number;
+    // (undocumented)
+    readonly reserveInputTokens?: number;
 }
 
 // @public (undocumented)
@@ -119,12 +198,15 @@ export interface ContextCompiler {
 // @public (undocumented)
 export interface ContextCompileStats {
     // (undocumented)
-    readonly replacementCount: number;
+    readonly summarizedThroughSequence?: number;
     // (undocumented)
     readonly tokenEstimateAfter: number;
     // (undocumented)
     readonly tokenEstimateBefore: number;
 }
+
+// @public (undocumented)
+export function contextDigest(value: unknown): string;
 
 // @public (undocumented)
 interface ContextEpochRecord {
@@ -133,17 +215,53 @@ interface ContextEpochRecord {
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
+    readonly cutMessageId: string;
+    // (undocumented)
+    readonly cutSequence: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly generationAttempt: number;
+    // (undocumented)
+    readonly generationState: ContextSummaryGenerationState;
+    // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly metadata?: JsonValue;
+    readonly jobId: string;
     // (undocumented)
-    readonly policyVersion: string;
+    readonly maxProviderAttempts: number;
     // (undocumented)
-    readonly replacementCount: number;
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly policy: JsonValue;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly previousEpochId?: string;
+    // (undocumented)
+    readonly previousSummaryDigest?: string;
+    // (undocumented)
+    readonly requestDigest: string;
+    // (undocumented)
+    readonly retainedFromMessageId: string;
+    // (undocumented)
+    readonly retainedFromSequence: number;
     // (undocumented)
     readonly sessionId: string;
     // (undocumented)
+    readonly sourceDigest: string;
+    // (undocumented)
+    readonly sourceHeadMessageId: string;
+    // (undocumented)
+    readonly sourceHeadSequence: number;
+    // (undocumented)
     readonly state: ContextEpochState;
+    // (undocumented)
+    readonly summary?: string;
+    // (undocumented)
+    readonly summaryDigest?: string;
     // (undocumented)
     readonly tokenEstimateAfter: number;
     // (undocumented)
@@ -152,101 +270,45 @@ interface ContextEpochRecord {
     readonly tokenSavings: number;
     // (undocumented)
     readonly updatedAt: number;
+    // (undocumented)
+    readonly usage?: ContextSummaryUsage;
 }
 
 // @public (undocumented)
-type ContextEpochState = "building" | "active" | "superseded";
+type ContextEpochState = "building" | "active" | "superseded" | "failed";
 
 // @public (undocumented)
-export interface ContextMemoryPolicy {
-    // (undocumented)
-    readonly maxInputTokens: number;
-    // (undocumented)
-    readonly placeholderTextOverChars: number;
-    // (undocumented)
-    readonly recentUserTurns: number;
-    // (undocumented)
-    readonly snipHeadChars: number;
-    // (undocumented)
-    readonly snipTailChars: number;
-    // (undocumented)
-    readonly snipTextOverChars: number;
-    // (undocumented)
-    readonly version: string;
-}
-
-// @public (undocumented)
-interface ContextReplacementRecord$1 {
-    // (undocumented)
-    readonly createdAt: number;
-    // (undocumented)
-    readonly epochId: string;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly messageId?: string;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly originalTokenEstimate: number;
-    // (undocumented)
-    readonly partId: string;
-    // (undocumented)
-    readonly policyVersion: string;
-    // (undocumented)
-    readonly replacement: MessagePart;
-    // (undocumented)
-    readonly replacementTokenEstimate: number;
-    // (undocumented)
-    readonly sessionId: string;
-    // (undocumented)
-    readonly tier: ContextReplacementTier$1;
-    // (undocumented)
-    readonly updatedAt: number;
-}
-
-// @public (undocumented)
-export interface ContextReplacementRecord {
-    // (undocumented)
-    readonly epochId?: string;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly messageId?: string;
-    // (undocumented)
-    readonly originalTokenEstimate: number;
-    // (undocumented)
-    readonly partId: string;
-    // (undocumented)
-    readonly policyVersion: string;
-    // (undocumented)
-    readonly replacement: MessagePart;
-    // (undocumented)
-    readonly replacementTokenEstimate: number;
-    // (undocumented)
-    readonly sessionId: SessionId;
-    // (undocumented)
-    readonly tier: ContextReplacementTier;
-}
-
-// @public (undocumented)
-export interface ContextReplacementStore {
+export interface ContextEpochStore {
     // (undocumented)
     getActiveContextEpoch(request: GetActiveContextEpochRequest): Promise<ContextEpochRecord | null>;
-    // (undocumented)
-    listContextReplacements(request: ListContextReplacementsRequest): Promise<readonly ContextReplacementRecord$1[]>;
-    // (undocumented)
-    putContextReplacement(request: PutContextReplacementRequest): Promise<ContextReplacementRecord$1>;
 }
 
 // @public (undocumented)
-type ContextReplacementTier$1 = "tier1_snip" | "tier2_placeholder";
+type ContextSummaryGenerationState = "prepared" | "dispatched" | "output_observed" | "succeeded" | "failed_before_output" | "ambiguous";
 
 // @public (undocumented)
-export type ContextReplacementTier = "tier1_snip" | "tier2_placeholder";
+interface ContextSummaryUsage {
+    // (undocumented)
+    readonly cacheReadTokens?: number;
+    // (undocumented)
+    readonly cacheWriteTokens?: number;
+    // (undocumented)
+    readonly inputTokens?: number;
+    // (undocumented)
+    readonly metadata?: Readonly<Record<string, JsonValue>>;
+    // (undocumented)
+    readonly outputTokens?: number;
+    // (undocumented)
+    readonly reasoningTokens?: number;
+}
+
+// @public (undocumented)
+export function contextTextDigest(value: string): string;
 
 // @public (undocumented)
 export interface ContextTokenEstimator {
+    // (undocumented)
+    estimateMessagesTokens(messages: readonly ProviderReplayMessage[]): number;
     // (undocumented)
     estimatePartsTokens(parts: readonly MessagePart[]): number;
     // (undocumented)
@@ -257,24 +319,190 @@ export interface ContextTokenEstimator {
 export const DEFAULT_CONTEXT_TOKEN_ESTIMATOR: ContextTokenEstimator;
 
 // @public (undocumented)
-export const DEFAULT_POLICY: ContextMemoryPolicy;
-
-// @public (undocumented)
-export class DeterministicContextCompiler implements ContextCompiler {
-    constructor(options?: DeterministicContextCompilerOptions);
+interface DeferredMediaGenerationOperationReceipt {
     // (undocumented)
-    compile(input: CompileContextInput): Promise<CompiledContext>;
+    readonly job: SchedulerJobRecord;
+    // (undocumented)
+    readonly kind: "media_generation";
+    // (undocumented)
+    readonly record: MediaGenerationOperationRecord;
 }
 
 // @public (undocumented)
-export interface DeterministicContextCompilerOptions {
+interface DeferredMediaGenerationOperationRequest {
     // (undocumented)
-    readonly policy?: Partial<ContextMemoryPolicy>;
+    readonly binding: MediaGenerationOperationBinding;
     // (undocumented)
-    readonly replacementStore?: ContextReplacementStore;
+    readonly kind: "media_generation";
     // (undocumented)
-    readonly tokenEstimator?: ContextTokenEstimator;
+    readonly priority?: number;
 }
+
+// @public (undocumented)
+interface DeferredTeamDelegationOperationReceipt {
+    // (undocumented)
+    readonly dependencies: readonly DelegationGraphDependencyRecord[];
+    // (undocumented)
+    readonly graph: DelegationGraphRecord;
+    // (undocumented)
+    readonly jobs: readonly SchedulerJobRecord[];
+    // (undocumented)
+    readonly kind: "team_delegation";
+    // (undocumented)
+    readonly nodes: readonly DelegationGraphNodeRecord[];
+    // (undocumented)
+    readonly record: TeamDelegationOperationRecord;
+    // (undocumented)
+    readonly tasks: readonly TeamDelegationTaskRecord[];
+}
+
+// @public (undocumented)
+interface DeferredTeamDelegationOperationRequest {
+    // (undocumented)
+    readonly conversationId: string;
+    // (undocumented)
+    readonly graphId: string;
+    // (undocumented)
+    readonly kind: "team_delegation";
+    // (undocumented)
+    readonly leadParticipantId: string;
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly sourceDeliveryId: string;
+    // (undocumented)
+    readonly tasks: readonly DeferredTeamDelegationTaskRequest[];
+}
+
+// @public (undocumented)
+interface DeferredTeamDelegationTaskRequest {
+    // (undocumented)
+    readonly childInputId: string;
+    // (undocumented)
+    readonly childJobId: string;
+    // (undocumented)
+    readonly childTurnId: string;
+    // (undocumented)
+    readonly dependsOnTaskIds: readonly string[];
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly graphNodeId: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputIdempotencyKey: string;
+    // (undocumented)
+    readonly jobIdempotencyKey: string;
+    // (undocumented)
+    readonly maxSteps?: number;
+    // (undocumented)
+    readonly priority?: number;
+    // (undocumented)
+    readonly prompt: string;
+    // (undocumented)
+    readonly targetParticipantId: string;
+    // (undocumented)
+    readonly targetSessionId: string;
+}
+
+// @public (undocumented)
+type DeferredToolOperationReceipt = DeferredMediaGenerationOperationReceipt | DeferredTeamDelegationOperationReceipt;
+
+// @public (undocumented)
+type DeferredToolOperationRequest = DeferredMediaGenerationOperationRequest | DeferredTeamDelegationOperationRequest;
+
+// @public (undocumented)
+interface DeferToolExecutionReceipt {
+    // (undocumented)
+    readonly operation: DeferredToolOperationReceipt;
+    // (undocumented)
+    readonly sessionAttempt: SessionAttemptRecord;
+    // (undocumented)
+    readonly sessionJob: SchedulerJobRecord;
+    // (undocumented)
+    readonly toolExecution: ToolExecutionRecord;
+    // (undocumented)
+    readonly toolInvocationAttempt: ToolExecutionAttemptRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
+}
+
+// @public (undocumented)
+type DelegationDependencyKind = "after_success" | "after_terminal";
+
+// @public (undocumented)
+interface DelegationGraphDependencyRecord {
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly fromNodeId: string;
+    // (undocumented)
+    readonly graphId: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: DelegationDependencyKind;
+    // (undocumented)
+    readonly toNodeId: string;
+}
+
+// @public (undocumented)
+interface DelegationGraphNodeRecord {
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly graphId: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: DelegationNodeKind;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly schedulerJobId?: string;
+    // (undocumented)
+    readonly startedAt?: number;
+    // (undocumented)
+    readonly state: DelegationNodeState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+interface DelegationGraphRecord {
+    // (undocumented)
+    readonly closedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly state: DelegationGraphState;
+    // (undocumented)
+    readonly title?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type DelegationGraphState = "open" | "running" | "succeeded" | "failed" | "cancelled";
+
+// @public (undocumented)
+type DelegationNodeKind = "agent_task" | "workspace_task" | "tool_task" | "aggregation";
+
+// @public (undocumented)
+type DelegationNodeState = "pending" | "ready" | "running" | "succeeded" | "failed" | "cancelled" | "skipped";
 
 // @public (undocumented)
 export function discoverInstructionSnapshot(options: InstructionDiscoveryOptions): Promise<InstructionSnapshot>;
@@ -289,6 +517,9 @@ export class EmptyContextCompiler implements ContextCompiler {
 }
 
 // @public (undocumented)
+export function estimateMessagesTokens(messages: readonly ProviderReplayMessage[]): number;
+
+// @public (undocumented)
 export function estimatePartsTokens(parts: readonly MessagePart[]): number;
 
 // @public (undocumented)
@@ -299,8 +530,6 @@ export function formatSkillActivationResult(result: SkillActivationResult): stri
 
 // @public (undocumented)
 interface GetActiveContextEpochRequest {
-    // (undocumented)
-    readonly policyVersion: string;
     // (undocumented)
     readonly sessionId: string;
 }
@@ -456,17 +685,164 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-interface ListContextReplacementsRequest {
-    // (undocumented)
-    readonly epochId?: string;
-    // (undocumented)
-    readonly policyVersion?: string;
+interface MediaGenerationConversationRelation {
     // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly sourceMessageId: string;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly toolExecutionId: string;
+    // (undocumented)
+    readonly turnId: string;
 }
 
 // @public (undocumented)
-export function mergePolicy(override: Partial<ContextMemoryPolicy> | undefined, base?: ContextMemoryPolicy): ContextMemoryPolicy;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+
+// @public (undocumented)
+interface MediaGenerationOperationBinding {
+    // (undocumented)
+    readonly connection: ModelEndpoint["connection"];
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly endpointId: string;
+    // (undocumented)
+    readonly model: ModelEndpoint["model"];
+    // (undocumented)
+    readonly protocol: ModelEndpoint["protocol"];
+    // (undocumented)
+    readonly request: MediaGenerationRequestBinding;
+    // (undocumented)
+    readonly requestDigest: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationOperationRecord {
+    // (undocumented)
+    readonly binding: MediaGenerationOperationBinding;
+    // (undocumented)
+    readonly cancelReason?: string;
+    // (undocumented)
+    readonly cancelRequestedAt?: number;
+    // (undocumented)
+    readonly consecutivePollFailures: number;
+    // (undocumented)
+    readonly conversation?: MediaGenerationConversationRelation;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly dispatchAttempt: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly externalOperationId?: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly lastPollError?: JsonValue;
+    // (undocumented)
+    readonly nextPollAt?: number;
+    // (undocumented)
+    readonly outputReferences: readonly MediaGenerationOutputReferenceRecord[];
+    // (undocumented)
+    readonly outputResourceIds: readonly ResourceId[];
+    // (undocumented)
+    readonly pollCount: number;
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly progress?: JsonValue;
+    // (undocumented)
+    readonly providerCheckpoint?: JsonValue;
+    // (undocumented)
+    readonly state: MediaGenerationOperationState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type MediaGenerationOperationState = "queued" | "submitting" | "polling" | "materializing" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "recovery_required";
+
+// @public (undocumented)
+type MediaGenerationOutputModality = Exclude<ModelOutputModality, "text">;
+
+// @public (undocumented)
+interface MediaGenerationOutputReferenceRecord extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly kindOfReference: MediaGenerationProviderOutputReference["kindOfReference"];
+    // (undocumented)
+    readonly provider?: string;
+    // (undocumented)
+    readonly providerFileId?: string;
+    // (undocumented)
+    readonly sourceExpiresAt?: number;
+    // (undocumented)
+    readonly sourceUrl?: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationProviderFileReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly fileId: string;
+    // (undocumented)
+    readonly kindOfReference: "provider_file";
+    // (undocumented)
+    readonly provider: string;
+}
+
+// @public (undocumented)
+type MediaGenerationProviderOutputReference = MediaGenerationProviderFileReference | MediaGenerationRemoteUrlReference;
+
+// @public (undocumented)
+interface MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+interface MediaGenerationRemoteUrlReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly expiresAt?: number;
+    // (undocumented)
+    readonly kindOfReference: "remote_url";
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationRequestBinding {
+    // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly operation: MediaGenerationOperation;
+    // (undocumented)
+    readonly options: JsonValue;
+    // (undocumented)
+    readonly outputModality: MediaGenerationOutputModality;
+    // (undocumented)
+    readonly prompt: string;
+}
 
 // @public (undocumented)
 type MessageId = string;
@@ -489,6 +865,114 @@ type MessagePartId = string;
 
 // @public (undocumented)
 type MessagePartVisibility = "user" | "assistant" | "internal" | "provider_replay_only";
+
+// @public (undocumented)
+interface ModelBehavior {
+    // (undocumented)
+    readonly reasoningReplay?: "optional" | "required" | "forbidden";
+}
+
+// @public (undocumented)
+interface ModelCapabilityRequirement {
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly operation: ModelOperation;
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+interface ModelCapabilityRouteExecutionBinding {
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly requirement: ModelCapabilityRequirement;
+    // (undocumented)
+    readonly source: CapabilityRouteSource;
+}
+
+// @public (undocumented)
+interface ModelCatalogProvenance {
+    // (undocumented)
+    readonly catalogId: string;
+    // (undocumented)
+    readonly revision: string;
+    // (undocumented)
+    readonly source: "builtin" | "provider" | "custom";
+}
+
+// @public (undocumented)
+interface ModelDescriptor {
+    // (undocumented)
+    readonly behavior?: ModelBehavior;
+    // (undocumented)
+    readonly catalog: ModelCatalogProvenance;
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly limits?: ModelLimits;
+    // (undocumented)
+    readonly operations: readonly ModelOperation[];
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+interface ModelEndpoint {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+interface ModelEndpointExecutionBinding {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly endpointId: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+type ModelFeature = "tool_calling" | "parallel_tool_calls" | "reasoning";
+
+// @public (undocumented)
+type ModelInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+interface ModelLimits {
+    // (undocumented)
+    readonly contextWindowTokens?: number;
+    // (undocumented)
+    readonly maxInputResources?: number;
+    // (undocumented)
+    readonly maxInputTokens?: number;
+    // (undocumented)
+    readonly maxOutputTokens?: number;
+}
+
+// @public (undocumented)
+type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+type ModelOutputModality = "text" | "image" | "audio" | "video";
 
 // @public (undocumented)
 export const nodeInstructionFileSystem: InstructionFileSystem;
@@ -543,7 +1027,30 @@ export interface PrepareAgentContextOptions {
 }
 
 // @public (undocumented)
+export function prepareContextCompaction(input: PrepareContextCompactionInput): PreparedContextCompaction;
+
+// @public (undocumented)
+export interface PrepareContextCompactionInput {
+    // (undocumented)
+    readonly activeEpoch: ContextEpochRecord | null;
+    // (undocumented)
+    readonly messages: readonly SessionMessageRecord[];
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly policy?: ContextCompactionPolicyOverrides;
+    // (undocumented)
+    readonly sessionId: string;
+    // (undocumented)
+    readonly tokenEstimator?: ContextTokenEstimator;
+    // (undocumented)
+    readonly turns: readonly SessionTurnRecord[];
+}
+
+// @public (undocumented)
 export interface PreparedAgentContext {
+    // (undocumented)
+    readonly capabilityRoutes?: readonly ModelCapabilityRouteExecutionBinding[];
     // (undocumented)
     readonly contextCompiler?: ContextCompiler;
     // (undocumented)
@@ -557,6 +1064,58 @@ export interface PreparedAgentContext {
 }
 
 // @public (undocumented)
+export interface PreparedContextCompaction {
+    // (undocumented)
+    readonly decision: "submit" | "skip";
+    // (undocumented)
+    readonly evidence?: ContextCompactionEvidence;
+    // (undocumented)
+    readonly policy?: ContextCompactionPolicy;
+    // (undocumented)
+    readonly projectedTokenEstimateAfter: number;
+    // (undocumented)
+    readonly providerMessages?: readonly ProviderReplayMessage[];
+    // (undocumented)
+    readonly reason: ContextCompactionPlanReason;
+    // (undocumented)
+    readonly tokenEstimateBefore: number;
+    // (undocumented)
+    readonly tokenSavings: number;
+}
+
+// @public (undocumented)
+interface PreparedProviderReplayMessage {
+    // (undocumented)
+    readonly content: readonly PreparedProviderReplayPart[];
+    // (undocumented)
+    readonly role: ProviderReplayMessage["role"];
+}
+
+// @public (undocumented)
+type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart | ToolResultMessagePart> | PreparedProviderResourcePart | PreparedProviderToolResultPart;
+
+// @public (undocumented)
+interface PreparedProviderResourcePart extends ResourceMessagePart {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+}
+
+// @public (undocumented)
+type PreparedProviderToolResultContentPart = Exclude<ToolResultContentPart, ToolResultResourceContentPart> | PreparedProviderToolResultResourcePart;
+
+// @public (undocumented)
+interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePart, "content"> {
+    // (undocumented)
+    readonly content: readonly PreparedProviderToolResultContentPart[];
+}
+
+// @public (undocumented)
+interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
+    // (undocumented)
+    readonly bytes?: Uint8Array;
+}
+
+// @public (undocumented)
 type PrincipalId = string;
 
 // @public (undocumented)
@@ -564,6 +1123,26 @@ export type ProjectInstructionTrust = "trusted" | "untrusted";
 
 // @public (undocumented)
 export type ProjectSkillTrust = "trusted" | "untrusted";
+
+// @public (undocumented)
+interface ProviderConnection {
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
+}
+
+// @public (undocumented)
+interface ProviderProtocolDescriptor {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly version?: string;
+}
 
 // @public (undocumented)
 interface ProviderReplayMessage {
@@ -588,32 +1167,6 @@ interface ProviderState {
 }
 
 // @public (undocumented)
-interface PutContextReplacementRequest {
-    // (undocumented)
-    readonly epochId: string;
-    // (undocumented)
-    readonly id?: string;
-    // (undocumented)
-    readonly messageId?: string;
-    // (undocumented)
-    readonly metadata?: JsonValue;
-    // (undocumented)
-    readonly originalTokenEstimate: number;
-    // (undocumented)
-    readonly partId: string;
-    // (undocumented)
-    readonly policyVersion: string;
-    // (undocumented)
-    readonly replacement: MessagePart;
-    // (undocumented)
-    readonly replacementTokenEstimate: number;
-    // (undocumented)
-    readonly sessionId: string;
-    // (undocumented)
-    readonly tier: ContextReplacementTier$1;
-}
-
-// @public (undocumented)
 interface ReasoningMessagePart extends MessagePartBase {
     // (undocumented)
     readonly providerState?: ProviderState;
@@ -621,6 +1174,21 @@ interface ReasoningMessagePart extends MessagePartBase {
     readonly text?: string;
     // (undocumented)
     readonly type: "reasoning";
+}
+
+// @public (undocumented)
+export function reconstructContextCompaction(input: ReconstructContextCompactionInput): SerializedContextSource;
+
+// @public (undocumented)
+export interface ReconstructContextCompactionInput {
+    // (undocumented)
+    readonly activeEpoch: ContextEpochRecord | null;
+    // (undocumented)
+    readonly evidence: ContextCompactionEvidence;
+    // (undocumented)
+    readonly messages: readonly SessionMessageRecord[];
+    // (undocumented)
+    readonly tokenEstimator?: ContextTokenEstimator;
 }
 
 // @public (undocumented)
@@ -640,6 +1208,21 @@ export interface RenderSkillSnapshotOptions {
     // (undocumented)
     readonly snapshot: SkillSnapshot;
 }
+
+// @public (undocumented)
+interface RequireToolExecutionRecoveryReceipt {
+    // (undocumented)
+    readonly attempt: SessionAttemptRecord;
+    // (undocumented)
+    readonly execution: ToolExecutionRecord;
+    // (undocumented)
+    readonly job: SchedulerJobRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
+}
+
+// @public (undocumented)
+export function resolveContextCompactionPolicy(modelEndpoint: ModelEndpointExecutionBinding, override?: ContextCompactionPolicyOverrides): ContextCompactionPolicy | null;
 
 // @public (undocumented)
 type ResourceId = string;
@@ -668,6 +1251,16 @@ interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
 }
 
 // @public (undocumented)
+interface RetryPolicy {
+    // (undocumented)
+    readonly initialDelayMs?: number;
+    // (undocumented)
+    readonly maxDelayMs?: number;
+    // (undocumented)
+    readonly strategy: "none" | "fixed" | "exponential";
+}
+
+// @public (undocumented)
 type RunControlPolicy = "queue_after_current" | "abort_current_then_run" | "steer_at_safe_point";
 
 // @public (undocumented)
@@ -689,7 +1282,131 @@ interface RuntimeAbortSignal {
 }
 
 // @public (undocumented)
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.delivery.outcome" | "plugin.action" | "channel.delivery" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
+
+// @public (undocumented)
+interface SchedulerJobRecord {
+    // (undocumented)
+    readonly attempt: number;
+    // (undocumented)
+    readonly budgetGrantId?: string;
+    // (undocumented)
+    readonly concurrencyKey?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey?: string;
+    // (undocumented)
+    readonly kind: SchedulerJobKind;
+    // (undocumented)
+    readonly lastError?: JsonValue;
+    // (undocumented)
+    readonly leaseExpiresAt?: number;
+    // (undocumented)
+    readonly leaseOwner?: string;
+    // (undocumented)
+    readonly leaseToken?: string;
+    // (undocumented)
+    readonly maxAttempts: number;
+    // (undocumented)
+    readonly notBefore?: number;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly principalId: string;
+    // (undocumented)
+    readonly priority: number;
+    // (undocumented)
+    readonly result?: JsonValue;
+    // (undocumented)
+    readonly retryPolicy: RetryPolicy;
+    // (undocumented)
+    readonly scheduledAt: number;
+    // (undocumented)
+    readonly state: SchedulerJobState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type SchedulerJobState = "pending" | "ready" | "running" | "waiting" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
+
+// @public (undocumented)
+export class SemanticContextCompiler implements ContextCompiler {
+    constructor(options: SemanticContextCompilerOptions);
+    // (undocumented)
+    compile(input: CompileContextInput): Promise<CompiledContext>;
+}
+
+// @public (undocumented)
+export interface SemanticContextCompilerOptions {
+    // (undocumented)
+    readonly epochStore: ContextEpochStore;
+    // (undocumented)
+    readonly tokenEstimator?: ContextTokenEstimator;
+}
+
+// @public (undocumented)
+export function serializeContextSource(request: {
+    readonly previousEpoch: ContextEpochRecord | null;
+    readonly messages: readonly SessionMessageRecord[];
+    readonly policy: ContextCompactionPolicy;
+    readonly tokenEstimator: ContextTokenEstimator;
+}): SerializedContextSource;
+
+// @public (undocumented)
+export interface SerializedContextSource {
+    // (undocumented)
+    readonly providerMessages: readonly PreparedProviderReplayMessage[];
+    // (undocumented)
+    readonly requestDigest: string;
+    // (undocumented)
+    readonly sourceDigest: string;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly tokenEstimate: number;
+}
+
+// @public (undocumented)
 type SessionAttemptId = string;
+
+// @public (undocumented)
+interface SessionAttemptRecord {
+    // (undocumented)
+    readonly attemptNumber: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: SessionAttemptId;
+    // (undocumented)
+    readonly inputId: SessionInputId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly leaseToken: string;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: SessionAttemptState;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+type SessionAttemptState = "running" | "suspended" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 
 // @public (undocumented)
 type SessionId = string;
@@ -713,7 +1430,7 @@ interface SessionInputOrigin {
 }
 
 // @public (undocumented)
-type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "system" | (string & {});
+type SessionInputOriginKind = "interactive" | "scheduler" | "connector" | "agent" | "plan" | "objective" | "system" | (string & {});
 
 // @public (undocumented)
 interface SessionInputRecord {
@@ -782,7 +1499,86 @@ interface SessionMessageRecord {
 }
 
 // @public (undocumented)
+interface SessionTurnCompletionBinding {
+    // (undocumented)
+    readonly maxOutputTokens: number;
+}
+
+// @public (undocumented)
+interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[];
+    // (undocumented)
+    readonly completion: SessionTurnCompletionBinding;
+    // (undocumented)
+    readonly contextSnapshot?: JsonValue;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly environmentSnapshot?: JsonValue;
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly permissionSnapshot?: JsonValue;
+    // (undocumented)
+    readonly recovery: SessionTurnRecoveryBinding;
+    // (undocumented)
+    readonly resources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly toolSnapshot?: JsonValue;
+}
+
+// @public (undocumented)
 type SessionTurnId = string;
+
+// @public (undocumented)
+interface SessionTurnRecord {
+    // (undocumented)
+    readonly cancelReason?: string;
+    // (undocumented)
+    readonly cancelRequestedAt?: number;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly currentAttemptId?: SessionAttemptId;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: SessionTurnId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly maxSteps: number;
+    // (undocumented)
+    readonly primaryInputId: SessionInputId;
+    // (undocumented)
+    readonly regeneratesTurnId?: SessionTurnId;
+    // (undocumented)
+    readonly result?: JsonValue;
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly state: SessionTurnState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+interface SessionTurnRecoveryBinding {
+    // (undocumented)
+    readonly idempotentToolMaxAttempts: number;
+    // (undocumented)
+    readonly providerMaxAttempts: number;
+}
+
+// @public (undocumented)
+type SessionTurnState = "queued" | "running" | "waiting" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 
 // @public (undocumented)
 export const SKILL_ACTIVATION_TOOL_NAME: "activate_skill";
@@ -838,6 +1634,8 @@ export class SkillActivationTool implements ToolDefinition {
         readonly idempotentHint: true;
     };
     // (undocumented)
+    readonly concurrency: "parallel_safe";
+    // (undocumented)
     readonly description = "Load one discovered skill and its supporting context.";
     // (undocumented)
     readonly idempotent = true;
@@ -857,6 +1655,8 @@ export class SkillActivationTool implements ToolDefinition {
     invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>;
     // (undocumented)
     readonly name: "activate_skill";
+    // (undocumented)
+    readonly resultMode: "immediate";
     // (undocumented)
     readonly risk: "read_only";
     // (undocumented)
@@ -996,15 +1796,12 @@ export type SkillScope = "global" | "project";
 // @public (undocumented)
 export interface SkillSnapshot {
     // (undocumented)
+    readonly complete: boolean;
+    // (undocumented)
     readonly diagnostics: readonly SkillDiagnostic[];
     // (undocumented)
     readonly sources: readonly SkillSource[];
-    // (undocumented)
-    readonly status: SkillSnapshotStatus;
 }
-
-// @public (undocumented)
-export type SkillSnapshotStatus = "available" | "unavailable";
 
 // @public (undocumented)
 export function skillSnapshotToSystemPart(snapshot: SkillSnapshot): MessagePart | null;
@@ -1082,10 +1879,100 @@ export interface SkillTrustPolicy {
 }
 
 // @public (undocumented)
+export function stableContextJson(value: unknown): string;
+
+// @public (undocumented)
 export function stableInstructionHash(value: string): string;
 
 // @public (undocumented)
 export function stableSkillHash(value: string): string;
+
+// @public (undocumented)
+interface TeamDelegationOperationRecord {
+    // (undocumented)
+    readonly conversationId: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly delegationGraphId: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly leadParticipantId: string;
+    // (undocumented)
+    readonly parentInputId: SessionInputId;
+    // (undocumented)
+    readonly parentSessionAttemptId: string;
+    // (undocumented)
+    readonly parentSessionId: SessionId;
+    // (undocumented)
+    readonly parentSessionJobId: string;
+    // (undocumented)
+    readonly parentToolCallId: string;
+    // (undocumented)
+    readonly parentToolExecutionId: string;
+    // (undocumented)
+    readonly parentToolInvocationAttemptId: string;
+    // (undocumented)
+    readonly parentTurnId: SessionTurnId;
+    // (undocumented)
+    readonly sourceDeliveryId: string;
+    // (undocumented)
+    readonly sourceDiscussionRoundId: string;
+    // (undocumented)
+    readonly sourceRoutingDecisionId: string;
+    // (undocumented)
+    readonly state: TeamDelegationOperationState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type TeamDelegationOperationState = "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled";
+
+// @public (undocumented)
+interface TeamDelegationTaskRecord {
+    // (undocumented)
+    readonly childInputId: SessionInputId;
+    // (undocumented)
+    readonly childJobId: string;
+    // (undocumented)
+    readonly childTurnId: SessionTurnId;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly executionBinding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly executionBindingDigest: string;
+    // (undocumented)
+    readonly graphNodeId: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputIdempotencyKey: string;
+    // (undocumented)
+    readonly jobIdempotencyKey: string;
+    // (undocumented)
+    readonly materializedAt?: number;
+    // (undocumented)
+    readonly maxSteps?: number;
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly priority?: number;
+    // (undocumented)
+    readonly prompt: string;
+    // (undocumented)
+    readonly targetParticipantId: string;
+    // (undocumented)
+    readonly targetSessionId: SessionId;
+    // (undocumented)
+    readonly updatedAt: number;
+}
 
 // @public (undocumented)
 interface TextMessagePart extends MessagePartBase {
@@ -1093,6 +1980,30 @@ interface TextMessagePart extends MessagePartBase {
     readonly text: string;
     // (undocumented)
     readonly type: "text";
+}
+
+// @public (undocumented)
+interface ToolActivityEvidence {
+    // (undocumented)
+    readonly call: ToolActivityPresentation;
+    // (undocumented)
+    readonly result?: ToolActivityPresentation;
+}
+
+// @public (undocumented)
+interface ToolActivityPresentation {
+    // (undocumented)
+    readonly details?: readonly ToolActivityPresentationDetail[];
+    // (undocumented)
+    readonly summary: string;
+}
+
+// @public (undocumented)
+interface ToolActivityPresentationDetail {
+    // (undocumented)
+    readonly label: string;
+    // (undocumented)
+    readonly value: string;
 }
 
 // @public (undocumented)
@@ -1107,6 +2018,22 @@ interface ToolAnnotations {
     readonly readOnlyHint?: boolean;
     // (undocumented)
     readonly title?: string;
+}
+
+// @public (undocumented)
+interface ToolApprovalPresentation {
+    // (undocumented)
+    readonly details?: readonly ToolApprovalPresentationDetail[];
+    // (undocumented)
+    readonly summary: string;
+}
+
+// @public (undocumented)
+interface ToolApprovalPresentationDetail {
+    // (undocumented)
+    readonly label: string;
+    // (undocumented)
+    readonly value: string;
 }
 
 // @public (undocumented)
@@ -1130,9 +2057,25 @@ interface ToolCallMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
+type ToolConcurrency = "parallel_safe" | "exclusive";
+
+// @public (undocumented)
 interface ToolDefinition extends ToolDescriptor {
     // (undocumented)
     invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>;
+    // (undocumented)
+    presentCall?(input: JsonValue): ToolActivityPresentation;
+    // (undocumented)
+    presentFailure?(request: {
+        readonly input: JsonValue;
+        readonly error: unknown;
+        readonly reason: "exception" | "cancelled" | "timed_out";
+    }): ToolActivityPresentation;
+    // (undocumented)
+    presentResult?(request: {
+        readonly input: JsonValue;
+        readonly result: ToolExecutionResult;
+    }): ToolActivityPresentation;
     // (undocumented)
     readonly runtimeBinding: ToolRuntimeBinding;
 }
@@ -1142,6 +2085,8 @@ interface ToolDescriptor {
     // (undocumented)
     readonly annotations?: ToolAnnotations;
     // (undocumented)
+    readonly concurrency: ToolConcurrency;
+    // (undocumented)
     readonly description: string;
     // (undocumented)
     readonly idempotent: boolean;
@@ -1150,19 +2095,148 @@ interface ToolDescriptor {
     // (undocumented)
     readonly name: string;
     // (undocumented)
+    readonly requiredCapabilities?: readonly ModelCapabilityRequirement[];
+    // (undocumented)
+    readonly resultMode: ToolResultMode;
+    // (undocumented)
     readonly risk: ToolRisk;
 }
 
 // @public (undocumented)
-interface ToolExecutionOutcome {
+interface ToolExecutionApprovalSuspensionReceipt {
+    // (undocumented)
+    readonly attempt: SessionAttemptRecord;
+    // (undocumented)
+    readonly execution: ToolExecutionRecord;
+    // (undocumented)
+    readonly job: SchedulerJobRecord;
+    // (undocumented)
+    readonly turn: SessionTurnRecord;
+}
+
+// @public (undocumented)
+type ToolExecutionAttemptId = string;
+
+// @public (undocumented)
+interface ToolExecutionAttemptRecord {
+    // (undocumented)
+    readonly attemptNumber: number;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly executionId: string;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: ToolExecutionAttemptId;
+    // (undocumented)
+    readonly jobId: string;
+    // (undocumented)
+    readonly sessionAttemptId: SessionAttemptId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: ToolExecutionAttemptState;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workerId: string;
+}
+
+// @public (undocumented)
+type ToolExecutionAttemptState = "running" | "suspended" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+type ToolExecutionOutcome = (ToolExecutionOutcomeBase & {
+    readonly state: "completed";
+    readonly result: ToolResultMessagePart;
+}) | (ToolExecutionOutcomeBase & {
+    readonly state: "recovery_required";
+    readonly recovery: RequireToolExecutionRecoveryReceipt;
+}) | (ToolExecutionOutcomeBase & {
+    readonly state: "suspended";
+    readonly receipt: DeferToolExecutionReceipt;
+}) | (ToolExecutionOutcomeBase & {
+    readonly state: "approval_required";
+    readonly receipt: ToolExecutionApprovalSuspensionReceipt;
+});
+
+// @public (undocumented)
+interface ToolExecutionOutcomeBase {
     // (undocumented)
     readonly descriptor?: ToolDescriptor;
     // (undocumented)
     readonly invoked: boolean;
     // (undocumented)
     readonly permission: ToolPermissionDecision;
+}
+
+// @public (undocumented)
+interface ToolExecutionRecord {
     // (undocumented)
-    readonly result: ToolResultMessagePart;
+    readonly activity?: ToolActivityEvidence;
+    // (undocumented)
+    readonly approvalRevision: number;
+    // (undocumented)
+    readonly attemptCount: number;
+    // (undocumented)
+    readonly content?: readonly ToolResultContentPart[];
+    // (undocumented)
+    readonly contentDigest?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly currentInvocationAttemptId?: ToolExecutionAttemptId;
+    // (undocumented)
+    readonly descriptor: JsonValue;
+    // (undocumented)
+    readonly error?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly input: JsonValue;
+    // (undocumented)
+    readonly inputId: string;
+    // (undocumented)
+    readonly isError?: boolean;
+    // (undocumented)
+    readonly permission: JsonValue;
+    // (undocumented)
+    readonly principalId: string;
+    // (undocumented)
+    readonly recovery?: ToolExecutionRecoveryEvidence;
+    // (undocumented)
+    readonly recoveryRevision: number;
+    // (undocumented)
+    readonly sessionId: string;
+    // (undocumented)
+    readonly sourceMessageId: string;
+    // (undocumented)
+    readonly state: ToolExecutionState;
+    // (undocumented)
+    readonly toolCallId: string;
+    // (undocumented)
+    readonly toolName: string;
+    // (undocumented)
+    readonly turnId: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+interface ToolExecutionRecoveryEvidence {
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly reconciliationRef?: string;
+    // (undocumented)
+    readonly type: "ambiguous_tool_outcome";
 }
 
 // @public (undocumented)
@@ -1187,7 +2261,7 @@ interface ToolExecutionRequest extends ToolInvocationIdentity {
     // (undocumented)
     readonly sourceMessageId: string;
     // (undocumented)
-    readonly storage: ToolExecutionStore;
+    readonly storage: Pick<ToolExecutionStore, "beginToolExecution" | "finishToolExecution" | "getToolExecutionByCall" | "requireToolExecutionRecovery" | "deferToolExecution"> & Pick<CoreStore, "getResource" | "ingestResource" | "recordResourceProvenance">;
     // (undocumented)
     readonly timeoutMs?: number;
     // (undocumented)
@@ -1195,14 +2269,24 @@ interface ToolExecutionRequest extends ToolInvocationIdentity {
 }
 
 // @public (undocumented)
-interface ToolExecutionResult {
-    // (undocumented)
-    readonly isError: boolean;
-    // (undocumented)
-    readonly result: JsonValue;
-    // (undocumented)
+type ToolExecutionResult = {
+    readonly outcome: "succeeded" | "failed";
     readonly toolCallId: string;
-}
+    readonly content: readonly ToolResultContentPart[];
+} | {
+    readonly outcome: "ambiguous";
+    readonly toolCallId: string;
+    readonly message: string;
+    readonly reconciliationRef?: string;
+    readonly metadata?: JsonValue;
+} | {
+    readonly outcome: "deferred";
+    readonly toolCallId: string;
+    readonly operation: DeferredToolOperationRequest;
+};
+
+// @public (undocumented)
+type ToolExecutionState = "running" | "waiting" | "retry_ready" | "approved" | "denied" | "approval_required" | "succeeded" | "failed" | "cancelled" | "recovery_required";
 
 // @public (undocumented)
 interface ToolInputSchema extends Readonly<Record<string, JsonValue>> {
@@ -1213,9 +2297,13 @@ interface ToolInputSchema extends Readonly<Record<string, JsonValue>> {
 // @public (undocumented)
 interface ToolInvocation extends ToolInvocationIdentity {
     // (undocumented)
+    readonly capabilityRoutes?: readonly ModelCapabilityRouteExecutionBinding[];
+    // (undocumented)
     readonly idempotencyKey: string;
     // (undocumented)
     readonly input: JsonValue;
+    // (undocumented)
+    readonly resources: ToolResourceOutputPort;
     // (undocumented)
     readonly signal?: RuntimeAbortSignal;
     // (undocumented)
@@ -1239,13 +2327,40 @@ interface ToolInvocationIdentity {
 }
 
 // @public (undocumented)
+interface ToolOutputResourceRequest {
+    // (undocumented)
+    readonly content: Uint8Array;
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly inputResourceIds?: readonly string[];
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
 type ToolPermissionDecision = {
     readonly status: "allow";
     readonly reason: string;
     readonly authorizationRef?: string;
 } | {
-    readonly status: "deny" | "approval_required";
+    readonly status: "deny";
     readonly reason: string;
+    readonly authorizationRef?: string;
+} | {
+    readonly status: "approval_required";
+    readonly reason: string;
+    readonly presentation: ToolApprovalPresentation;
     readonly authorizationRef?: string;
 };
 
@@ -1286,15 +2401,57 @@ interface ToolRegistrySnapshot {
 }
 
 // @public (undocumented)
+interface ToolResourceOutputPort {
+    // (undocumented)
+    publish(request: ToolOutputResourceRequest): Promise<Extract<ToolResultContentPart, {
+        type: "resource";
+    }>>;
+    // (undocumented)
+    reference(resourceId: string): Promise<Extract<ToolResultContentPart, {
+        type: "resource";
+    }>>;
+}
+
+// @public (undocumented)
+type ToolResultContentPart = ToolResultTextContentPart | ToolResultJsonContentPart | ToolResultResourceContentPart;
+
+// @public (undocumented)
+interface ToolResultJsonContentPart {
+    // (undocumented)
+    readonly type: "json";
+    // (undocumented)
+    readonly value: JsonValue;
+}
+
+// @public (undocumented)
 interface ToolResultMessagePart extends MessagePartBase {
     // (undocumented)
-    readonly isError: boolean;
+    readonly content: readonly ToolResultContentPart[];
     // (undocumented)
-    readonly result: JsonValue;
+    readonly contentDigest: string;
+    // (undocumented)
+    readonly isError: boolean;
     // (undocumented)
     readonly toolCallId: string;
     // (undocumented)
     readonly type: "tool_result";
+}
+
+// @public (undocumented)
+type ToolResultMode = "immediate" | "deferred";
+
+// @public (undocumented)
+interface ToolResultResourceContentPart extends ResourceInputEvidence {
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+interface ToolResultTextContentPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
 }
 
 // @public (undocumented)
@@ -1309,6 +2466,9 @@ interface ToolRuntimeBinding {
     // (undocumented)
     readonly implementationRevision: string;
 }
+
+// @public (undocumented)
+export function validateActiveEpoch(epoch: ContextEpochRecord | null, messages: readonly SessionMessageRecord[], sessionId: string): ContextEpochRecord | null;
 
 // @public (undocumented)
 export const WANEX_RUNTIME_AGENT_CONTEXT: "wanex-runtime-agent-context";

@@ -3,27 +3,32 @@ import type { PluginActionHost } from "../src/index.js"
 import { createCompositePluginActionHost } from "../src/index.js"
 
 describe("composite plugin action host", () => {
-  it("routes resolve and execute by plugin id", async () => {
+  it("routes resolve and execute by exact plugin version", async () => {
     const first = recordingHost("first")
     const second = recordingHost("second")
     const composite = createCompositePluginActionHost([
-      { pluginId: "plugin.first", host: first.host },
-      { pluginId: "plugin.second", host: second.host }
+      { pluginId: "plugin.same", version: "1.0.0", host: first.host },
+      { pluginId: "plugin.same", version: "2.0.0", host: second.host }
     ])
 
     await expect(
-      composite.resolve({ pluginId: "plugin.second", actionId: "echo" })
-    ).resolves.toEqual({ capability: "config.read" })
+      composite.resolve({
+        pluginId: "plugin.same",
+        version: "2.0.0",
+        actionId: "echo"
+      })
+    ).resolves.toEqual({ capability: "config.read", version: "2.0.0" })
     expect(
       await composite.resolve({
-        pluginId: "plugin.missing",
+        pluginId: "plugin.same",
+        version: "3.0.0",
         actionId: "echo"
       })
     ).toBeUndefined()
     await expect(
       composite.execute({
         job: {} as never,
-        manifest: { pluginId: "plugin.first" } as never,
+        manifest: { pluginId: "plugin.same", version: "1.0.0" } as never,
         actionId: "echo",
         capability: "config.read",
         payload: null,
@@ -44,18 +49,18 @@ describe("composite plugin action host", () => {
     const host = recordingHost("only").host
     expect(() =>
       createCompositePluginActionHost([
-        { pluginId: "plugin.same", host },
-        { pluginId: "plugin.same", host }
+        { pluginId: "plugin.same", version: "1.0.0", host },
+        { pluginId: "plugin.same", version: "1.0.0", host }
       ])
     ).toThrow("duplicate")
     const composite = createCompositePluginActionHost([
-      { pluginId: "plugin.only", host }
+      { pluginId: "plugin.only", version: "1.0.0", host }
     ])
     await expect(async () =>
       await composite.execute({
-        manifest: { pluginId: "plugin.missing" }
+        manifest: { pluginId: "plugin.only", version: "2.0.0" }
       } as never)
-    ).rejects.toThrow("not registered")
+    ).rejects.toThrow("plugin.only@2.0.0")
   })
 })
 
@@ -73,9 +78,9 @@ function recordingHost(label: string): {
       return state.resolutions
     },
     host: {
-      async resolve() {
+      async resolve(request) {
         state.resolutions += 1
-        return { capability: "config.read" }
+        return { capability: "config.read", version: request.version }
       },
       async execute() {
         state.executions += 1

@@ -5,7 +5,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
-import { createToolRuntimeBinding } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding, jsonToolResultContent } from "@wanex/runtime/tools"
 import { WorkspacePathResolver } from "../path-policy.js"
 import {
   inputRecord,
@@ -43,6 +43,8 @@ export class WorkspaceExecTool implements ToolDefinition {
   } as const
   readonly risk = "external" as const
   readonly idempotent = false
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "immediate" as const
   readonly annotations = {
     destructiveHint: true,
     openWorldHint: true
@@ -98,6 +100,63 @@ export class WorkspaceExecTool implements ToolDefinition {
     })
   }
 
+  presentCall(input: JsonValue) {
+    const record = inputRecord(input)
+    const program = requiredString(record, "program")
+    const cwd = optionalString(record, "cwd") ?? "."
+    return {
+      summary: `Run ${program}`,
+      details: [
+        { label: "Program", value: program },
+        { label: "Directory", value: cwd }
+      ]
+    }
+  }
+
+  presentResult(request: {
+    readonly input: JsonValue
+    readonly result: ToolExecutionResult
+  }) {
+    const input = inputRecord(request.input)
+    const program = requiredString(input, "program")
+    const output = immediateResultRecord(request.result)
+    const exitCode = typeof output?.exitCode === "number"
+      ? String(output.exitCode)
+      : "Unavailable"
+    const durationMs = typeof output?.durationMs === "number"
+      ? `${output.durationMs} ms`
+      : "Unavailable"
+    return {
+      summary: request.result.outcome === "succeeded"
+        ? `${program} completed`
+        : `${program} failed`,
+      details: [
+        { label: "Exit code", value: exitCode },
+        { label: "Duration", value: durationMs }
+      ]
+    }
+  }
+
+  presentFailure(request: {
+    readonly input: JsonValue
+    readonly reason: "exception" | "cancelled" | "timed_out"
+  }) {
+    const input = inputRecord(request.input)
+    const program = requiredString(input, "program")
+    const cwd = optionalString(input, "cwd") ?? "."
+    return {
+      summary: request.reason === "timed_out"
+        ? `${program} timed out`
+        : request.reason === "cancelled"
+          ? `${program} stopped`
+          : `${program} failed`,
+      details: [
+        { label: "Program", value: program },
+        { label: "Directory", value: cwd }
+      ]
+    }
+  }
+
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
     const input = inputRecord(invocation.input)
     const program = requiredString(input, "program")
@@ -106,13 +165,13 @@ export class WorkspaceExecTool implements ToolDefinition {
     const decision = this.programPolicy.authorize({ program, args })
     if (decision.status === "deny") {
       return {
+        outcome: "failed",
         toolCallId: invocation.toolCallId,
-        result: {
+        content: jsonToolResultContent({
           error: "program_not_allowed",
           reason: decision.reason,
           program
-        },
-        isError: true
+        })
       }
     }
     const requestedTimeout = optionalPositiveInteger(input, "timeoutMs")
@@ -138,8 +197,9 @@ export class WorkspaceExecTool implements ToolDefinition {
       result.exitCode !== 0 ||
       result.cleanup === "failed"
     return {
+      outcome: isError ? "failed" : "succeeded",
       toolCallId: invocation.toolCallId,
-      result: {
+      content: jsonToolResultContent({
         program,
         args,
         cwd: cwdInput ?? ".",
@@ -153,10 +213,25 @@ export class WorkspaceExecTool implements ToolDefinition {
         durationMs: result.durationMs,
         stdout: outputJson(result.stdout),
         stderr: outputJson(result.stderr)
-      } satisfies JsonValue,
-      isError
+      } satisfies JsonValue)
     }
   }
+}
+
+function immediateResultRecord(
+  result: ToolExecutionResult
+): Readonly<Record<string, JsonValue>> | undefined {
+  if (
+    (result.outcome !== "succeeded" && result.outcome !== "failed") ||
+    result.content.length !== 1 ||
+    result.content[0]?.type !== "json"
+  ) {
+    return undefined
+  }
+  const value = result.content[0].value
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? value as Readonly<Record<string, JsonValue>>
+    : undefined
 }
 
 function outputJson(output: ExecutionOutput): JsonValue {

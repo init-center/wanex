@@ -16,7 +16,15 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         }
       ],
@@ -26,7 +34,15 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/product",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         }
       ]
@@ -41,6 +57,10 @@
       "realConsumers": []
     },
     "@wanex/connector": {
+      "consumers": [],
+      "realConsumers": []
+    },
+    "@wanex/desktop": {
       "consumers": [],
       "realConsumers": []
     },
@@ -59,15 +79,15 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/product",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/tui",
           "field": "dependencies"
         }
       ],
@@ -77,15 +97,71 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/product",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/local-credential-store": {
+      "consumers": [
+        {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/local-host": {
+      "consumers": [
+        {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         }
       ]
@@ -101,100 +177,73 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         }
       ],
       "realConsumers": [
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         }
       ]
     },
-    "@wanex/product-app": {
+    "@wanex/plugin-command-host": {
       "consumers": [
         {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/eval-harness",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-command-host",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-web",
           "field": "dependencies"
         }
       ],
       "realConsumers": [
         {
-          "package": "@wanex/product-app-command-host",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-web",
+          "package": "@wanex/desktop",
           "field": "dependencies"
         }
       ]
     },
-    "@wanex/product-app-command-host": {
-      "consumers": [
-        {
-          "package": "@wanex/eval-harness",
-          "field": "dependencies"
-        }
-      ],
-      "realConsumers": []
-    },
-    "@wanex/product-app-local": {
-      "consumers": [
-        {
-          "package": "@wanex/eval-harness",
-          "field": "dependencies"
-        }
-      ],
-      "realConsumers": []
-    },
-    "@wanex/product-app-tui": {
-      "consumers": [
-        {
-          "package": "@wanex/eval-harness",
-          "field": "dependencies"
-        }
-      ],
-      "realConsumers": []
-    },
-    "@wanex/product-app-web": {
+    "@wanex/product": {
       "consumers": [
         {
           "package": "@wanex/eval-harness",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-local",
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/plugin-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/web",
           "field": "dependencies"
         }
       ],
       "realConsumers": [
         {
-          "package": "@wanex/product-app-local",
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/plugin-command-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/web",
           "field": "dependencies"
         }
       ]
@@ -218,6 +267,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "devDependencies"
         },
@@ -226,19 +279,11 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/product",
           "field": "dependencies"
         },
         {
@@ -255,6 +300,10 @@
         },
         {
           "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         },
         {
@@ -276,6 +325,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "devDependencies"
         },
@@ -284,19 +337,11 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/product",
           "field": "dependencies"
         },
         {
@@ -313,6 +358,10 @@
         },
         {
           "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         },
         {
@@ -340,6 +389,14 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-credential-store",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "dependencies"
         },
@@ -348,15 +405,19 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
+          "package": "@wanex/product",
+          "field": "devDependencies"
         },
         {
           "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         },
         {
@@ -378,6 +439,14 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-credential-store",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "dependencies"
         },
@@ -386,15 +455,19 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
+          "package": "@wanex/product",
+          "field": "devDependencies"
         },
         {
           "package": "@wanex/team",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
           "field": "dependencies"
         },
         {
@@ -422,6 +495,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "devDependencies"
         },
@@ -430,19 +507,11 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
-          "field": "devDependencies"
-        },
-        {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/product",
           "field": "devDependencies"
         },
         {
@@ -456,6 +525,10 @@
         {
           "package": "@wanex/team",
           "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "devDependencies"
         },
         {
           "package": "@wanex/workspace",
@@ -476,6 +549,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/mcp",
           "field": "devDependencies"
         },
@@ -484,19 +561,11 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app",
-          "field": "devDependencies"
-        },
-        {
-          "package": "@wanex/product-app-command-host",
+          "package": "@wanex/plugin-command-host",
           "field": "dependencies"
         },
         {
-          "package": "@wanex/product-app-local",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/product-app-tui",
+          "package": "@wanex/product",
           "field": "devDependencies"
         },
         {
@@ -510,6 +579,10 @@
         {
           "package": "@wanex/team",
           "field": "dependencies"
+        },
+        {
+          "package": "@wanex/tui",
+          "field": "devDependencies"
         },
         {
           "package": "@wanex/workspace",
@@ -531,9 +604,45 @@
         {
           "package": "@wanex/eval-harness",
           "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        }
+      ]
+    },
+    "@wanex/tui": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
         }
       ],
       "realConsumers": []
+    },
+    "@wanex/web": {
+      "consumers": [
+        {
+          "package": "@wanex/eval-harness",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        }
+      ],
+      "realConsumers": [
+        {
+          "package": "@wanex/local-host",
+          "field": "dependencies"
+        }
+      ]
     },
     "@wanex/workspace": {
       "consumers": [

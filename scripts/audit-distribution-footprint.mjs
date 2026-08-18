@@ -12,11 +12,12 @@ const entries = [
   { name: "@wanex/runtime", kind: "cold-runtime-facade" },
   { name: "@wanex/cli", kind: "cold-product" },
   { name: "@wanex/app", kind: "slim-hot-product" },
-  { name: "@wanex/product-app", kind: "slim-hot-product" },
-  { name: "@wanex/product-app-command-host", kind: "hot-product" },
-  { name: "@wanex/product-app-local", kind: "interactive-product" },
-  { name: "@wanex/product-app-web", kind: "interactive-product" },
-  { name: "@wanex/product-app-tui", kind: "interactive-product" },
+  { name: "@wanex/product", kind: "slim-hot-product" },
+  { name: "@wanex/plugin-command-host", kind: "hot-product" },
+  { name: "@wanex/desktop", kind: "interactive-product" },
+  { name: "@wanex/local-host", kind: "interactive-product" },
+  { name: "@wanex/web", kind: "interactive-product" },
+  { name: "@wanex/tui", kind: "interactive-product" },
 ]
 
 const forbiddenPackages = [
@@ -25,6 +26,18 @@ const forbiddenPackages = [
 ]
 
 const concreteAdapterPackages = []
+
+const tuiForbiddenDependencies = [
+  "@wanex/connector",
+  "@wanex/gateway",
+  "@wanex/plugin",
+  "@wanex/desktop",
+  "@wanex/web",
+  "@wanex/team",
+  "electron",
+  "react",
+  "react-dom"
+]
 
 const excludedPackageDirs = new Set([
   "node_modules",
@@ -190,6 +203,12 @@ function buildEntryReport(request) {
   const concreteAdapterClosure = concreteAdapterPackages.filter((packageName) =>
     closure.includes(packageName)
   )
+  const directDependencies =
+    request.manifests.get(request.entry.name)?.dependencies ?? []
+  const tuiForbiddenClosure = tuiForbiddenDependencies.filter(
+    (packageName) =>
+      directDependencies.includes(packageName)
+  )
   const totals = {
     packageCount: closure.length,
     packageBytes: sum(closureMetrics.map((item) => item.metrics?.packageBytes ?? 0)),
@@ -208,7 +227,8 @@ function buildEntryReport(request) {
       pluginRuntime: closure.includes("@wanex/plugin"),
       connectorRuntime: closure.includes("@wanex/connector"),
       concreteAdapters: concreteAdapterClosure,
-      forbiddenPackages: forbiddenClosure
+      forbiddenPackages: forbiddenClosure,
+      tuiForbiddenDependencies: tuiForbiddenClosure
     },
     workspaceClosure: closure,
     largestPackages: closureMetrics
@@ -224,7 +244,7 @@ function buildEntryReport(request) {
 }
 
 function footprintFailures(entry) {
-  if (entry.entry === "@wanex/product-app-command-host") {
+  if (entry.entry === "@wanex/plugin-command-host") {
     const failures = []
     if (!entry.contains.pluginRuntime) {
       failures.push({
@@ -238,6 +258,39 @@ function footprintFailures(entry) {
         code: "footprint_unrelated_connector_runtime",
         entry: entry.entry,
         message: "product command host must not include connector runtime"
+      })
+    }
+    return failures
+  }
+  if (entry.entry === "@wanex/tui") {
+    const failures = []
+    if (entry.missing.length > 0) {
+      failures.push({
+        code: "footprint_entry_missing",
+        entry: entry.entry,
+        message: "TUI footprint audit entry is missing",
+        detail: { missing: entry.missing }
+      })
+    }
+    if (entry.contains.tuiForbiddenDependencies.length > 0) {
+      failures.push({
+        code: "footprint_tui_forbidden_dependency",
+        entry: entry.entry,
+        message: "TUI includes a forbidden upper-product or renderer dependency",
+        detail: {
+          packages: entry.contains.tuiForbiddenDependencies
+        }
+      })
+    }
+    if (entry.totals.fixtureFileCount > 0 || entry.totals.fixtureBytes > 0) {
+      failures.push({
+        code: "footprint_fixture_closure",
+        entry: entry.entry,
+        message: "TUI includes fixture files in its package closure",
+        detail: {
+          fixtureFileCount: entry.totals.fixtureFileCount,
+          fixtureBytes: entry.totals.fixtureBytes
+        }
       })
     }
     return failures
@@ -347,6 +400,15 @@ function printTextReport(report) {
           : entry.contains.forbiddenPackages.join(", ")
       }`
     )
+    if (entry.entry === "@wanex/tui") {
+      console.log(
+        `  TUI forbidden dependencies: ${
+          entry.contains.tuiForbiddenDependencies.length === 0
+            ? "none"
+            : entry.contains.tuiForbiddenDependencies.join(", ")
+        }`
+      )
+    }
     console.log("  largest packages:")
     for (const packageSummary of entry.largestPackages.slice(0, 5)) {
       console.log(

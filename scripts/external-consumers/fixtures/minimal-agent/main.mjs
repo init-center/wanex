@@ -8,13 +8,24 @@ const runtime = await createWanexRuntime({
     mode: "persistent",
     storeDir: join(required("WANEX_FIXTURE_ROOT"), "store")
   },
-  provider: {
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
+  modelEndpoint: {
     id: "external-minimal-agent",
-    modelId: "external-minimal-model",
-    responseText: "external minimal agent complete"
-  }
+    connection: { id: "external-minimal-agent", providerId: "fake" },
+    protocol: { id: "fake" },
+    model: {
+      id: "external-minimal-model",
+      operations: ["conversation"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "builtin",
+        catalogId: "wanex.external-minimal-model",
+        revision: "1"
+      }
+    }
+  },
+  fakeResponseText: "external minimal agent complete"
 })
 
 try {

@@ -1,7 +1,7 @@
 import { rm } from "node:fs/promises"
 import { createWanexApp } from "@wanex/app"
 import { createEvalScenario } from "../runner.js"
-import { assert } from "../scenario-utils.js"
+import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
 import { mktemp } from "./helpers.js"
 
 export const appDefaultEntryContractScenario = createEvalScenario({
@@ -16,10 +16,10 @@ export const appDefaultEntryContractScenario = createEvalScenario({
         storeDir
       },
       artifacts: { explicitPath: context.serviceBin },
-      providerProfile: {
-        id: "eval-app-default",
-        modelId: "eval-app-model"
-      }
+      modelEndpoint: evalFakeModelEndpoint(
+        "eval-app-default",
+        "eval-app-model"
+      )
     })
 
     try {
@@ -34,9 +34,8 @@ export const appDefaultEntryContractScenario = createEvalScenario({
         "Wanex App should complete a durable operation through the default entry"
       )
       assert(
-        status.providerProfileId === "eval-app-default" &&
-          status.activeProviderProfileId === "eval-app-default",
-        "Wanex App should project the active provider profile"
+        status.activeModelEndpointId === "eval-app-default",
+        "Wanex App should project the active model endpoint"
       )
       assert(
         !("storeDir" in status) &&
@@ -53,8 +52,7 @@ export const appDefaultEntryContractScenario = createEvalScenario({
         jobId: receipt.jobId,
         operationState: operation.state,
         assistantText: operation.result?.assistantText,
-        providerProfileId: status.providerProfileId,
-        activeProviderProfileId: status.activeProviderProfileId,
+        activeModelEndpointId: status.activeModelEndpointId,
         messageCount: operation.result?.messageCount,
         privateFieldCount: 0
       }

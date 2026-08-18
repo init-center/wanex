@@ -6,9 +6,9 @@ import {
   prepareAgentContext
 } from "@wanex/runtime/context"
 import { WanexAgentRuntime } from "@wanex/runtime/host"
-import { writeProviderProfile } from "@wanex/runtime/provider"
+import { writeModelEndpoint } from "@wanex/runtime/provider"
 import type { EvalStore } from "../eval-storage.js"
-import { assert } from "../scenario-utils.js"
+import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
 import { skillMarkdown, writeFileRecursive } from "./file-helpers.js"
 import { assistantTextFromMessages } from "./message-text.js"
 
@@ -52,16 +52,16 @@ export async function runAgentContextProfileSmoke(
         }
       })
     )
-    await writeProviderProfile(storage, {
-      id: "product-matrix-context-profile",
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
-      providerId: "fake",
-      modelId: "product-matrix-context-model"
-    })
+    await writeModelEndpoint(
+      storage,
+      evalFakeModelEndpoint(
+        "product-matrix-context-profile",
+        "product-matrix-context-model"
+      )
+    )
     const agent = new WanexAgentRuntime({
       storage,
-      providerProfileId: "product-matrix-context-profile",
+      modelEndpointId: "product-matrix-context-profile",
       ...(prepared.contextCompiler === undefined
         ? {}
         : { contextCompiler: prepared.contextCompiler }),
@@ -83,7 +83,9 @@ export async function runAgentContextProfileSmoke(
         assistantText: assistantTextFromMessages(result.messages, result.turnId),
         instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
         skillNames:
-          prepared.skillSnapshot?.sources.map((source) => source.name) ?? [],
+          prepared.skillSnapshot?.complete === true
+            ? prepared.skillSnapshot.sources.map((source) => source.name)
+            : [],
         leakedSkillBody: JSON.stringify(result.messages).includes(
           "FULL PRODUCT MATRIX SKILL BODY"
         )

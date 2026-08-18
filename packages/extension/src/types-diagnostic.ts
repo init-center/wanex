@@ -7,6 +7,7 @@ export type AppExtensionDiagnosticCode =
   | "extension.invalid_domain"
   | "extension.blocked_source"
   | "extension.privileged_untrusted"
+  | "extension.command_palette_visibility_invalid"
   | "extension.command_input_schema_invalid"
   | "extension.command_input_schema_unsupported"
   | "extension.command_input_schema_limit_exceeded"

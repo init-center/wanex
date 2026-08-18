@@ -7,12 +7,15 @@ import {
   type StorageTestStore
 } from "@wanex/storage/testing"
 import {
-  DeepSeekThinkingAdapter,
   MissingRequiredProviderStateError,
+  OpenAICompatibleAdapter,
   consumeProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
+import { prepareProviderReplayResources } from "../src/resources/index.js"
+import { WanexSessionCore } from "../src/sessions/index.js"
 import { createStartedTurn } from "./durable-turn-test-fixture.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -51,7 +54,7 @@ describe("DeepSeek provider fidelity", () => {
     ).toThrow(MissingRequiredProviderStateError)
   })
 
-  it("preserves streamed reasoning through durable session messages and replay", async () => {
+  it("reconstructs required reasoning replay after storage process replacement", async () => {
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-llm-fidelity-"))
     tempDirs.push(storeDir)
     const storage = createStorageTestStore({
@@ -79,22 +82,143 @@ describe("DeepSeek provider fidelity", () => {
       providerState: result.providerState
     })
 
-    const messages = await fixture.session.listMessages({
+    const storageIndex = clients.indexOf(storage)
+    if (storageIndex < 0) {
+      throw new Error("DeepSeek test storage client is not registered")
+    }
+    clients.splice(storageIndex, 1)
+    await storage.dispose()
+    const reopened = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "persistent",
+      storeDir,
+      serviceBin
+    })
+    clients.push(reopened)
+    const reopenedSession = new WanexSessionCore({ storage: reopened })
+    const messages = await reopenedSession.listMessages({
       sessionId: fixture.execution.sessionId
     })
-    const replay = adapter.buildReplayMessages([
-      { role: "assistant", content: messages[1]!.content }
-    ])
+    const prepared = await prepareProviderReplayResources(
+      reopened,
+      {
+        protocol: adapter.protocol,
+        inputModalities: adapter.model.inputModalities
+      },
+      [{ role: "assistant", content: messages[1]!.content }]
+    )
+    const replay = adapter.buildReplayMessages(prepared)
     expect(replay[0]).toMatchObject({
       role: "assistant",
       reasoning_content: "durable reasoning"
     })
   })
+
+  it("replays reasoning only for assistant tool-call turns", () => {
+    const adapter = createAdapter()
+    const reasoning = reasoningPart("private chain of thought")
+
+    const [ordinary] = adapter.buildReplayMessages([{
+      role: "assistant",
+      content: [reasoning, { type: "text", id: "part_text", text: "Visible answer" }]
+    }])
+    expect(ordinary).toEqual({
+      role: "assistant",
+      content: "Visible answer"
+    })
+
+    const [reasoningOnly] = adapter.buildReplayMessages([{
+      role: "assistant",
+      content: [reasoning]
+    }])
+    expect(reasoningOnly).toEqual({
+      role: "assistant",
+      content: ""
+    })
+
+    const [toolCall] = adapter.buildReplayMessages([{
+      role: "assistant",
+      content: [
+        reasoning,
+        {
+          type: "tool_call",
+          id: "part_call",
+          toolCallId: "call_1",
+          toolName: "lookup",
+          input: {}
+        }
+      ]
+    }])
+    expect(toolCall).toEqual({
+      role: "assistant",
+      content: "",
+      reasoning_content: "private chain of thought",
+      tool_calls: [{
+        id: "call_1",
+        type: "function",
+        function: { name: "lookup", arguments: "{}" }
+      }]
+    })
+  })
+
+  it("never replays stored reasoning when the model forbids passback", () => {
+    const adapter = new OpenAICompatibleAdapter({
+      providerId: "deepseek",
+      model: testConversationModel("deepseek-v4", {
+        behavior: { reasoningReplay: "forbidden" }
+      }),
+      baseUrl: "https://api.example/v1",
+      apiKey: "secret"
+    })
+
+    const [message] = adapter.buildReplayMessages([{
+      role: "assistant",
+      content: [
+        reasoningPart("must remain local"),
+        {
+          type: "tool_call",
+          id: "part_call",
+          toolCallId: "call_1",
+          toolName: "lookup",
+          input: {}
+        }
+      ]
+    }])
+
+    expect(message).toEqual({
+      role: "assistant",
+      content: "",
+      tool_calls: [{
+        id: "call_1",
+        type: "function",
+        function: { name: "lookup", arguments: "{}" }
+      }]
+    })
+  })
 })
 
-function createAdapter(): DeepSeekThinkingAdapter {
-  return new DeepSeekThinkingAdapter({
-    modelId: "deepseek-v4",
+function reasoningPart(text: string) {
+  return {
+    type: "reasoning" as const,
+    id: "part_reasoning",
+    text,
+    visibility: "provider_replay_only" as const,
+    providerState: {
+      providerId: "deepseek",
+      modelId: "deepseek-v4",
+      stateKind: "reasoning" as const,
+      replayPolicy: "required" as const,
+      payload: { reasoning_content: text }
+    }
+  }
+}
+
+function createAdapter(): OpenAICompatibleAdapter {
+  return new OpenAICompatibleAdapter({
+    providerId: "deepseek",
+    model: testConversationModel("deepseek-v4", {
+      behavior: { reasoningReplay: "required" }
+    }),
     baseUrl: "https://api.deepseek.example/v1",
     apiKey: "secret",
     fetch: fixtureFetch()

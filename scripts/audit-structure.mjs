@@ -22,6 +22,7 @@ const packageJsonPaths = (await Promise.all(
 const packages = []
 const sourceFiles = []
 const warnings = []
+const violations = await findSourceIdentityViolations(rootDir)
 
 for (const packageJsonPath of packageJsonPaths) {
   const packageDir = dirname(packageJsonPath)
@@ -91,17 +92,23 @@ const report = {
     packages: packages.length,
     sourceFiles: sourceFiles.length,
     sourceLines: sourceFiles.reduce((sum, file) => sum + file.lines, 0),
-    warnings: warnings.length
+    warnings: warnings.length,
+    violations: violations.length
   },
   packages: packages.sort((a, b) => a.name.localeCompare(b.name)),
   largestFiles: [...sourceFiles].sort(byLinesDesc).slice(0, 20),
-  warnings: warnings.sort(byWarning)
+  warnings: warnings.sort(byWarning),
+  violations
 }
 
 if (json) {
   console.log(JSON.stringify(report, null, 2))
 } else {
   printTextReport(report)
+}
+
+if (violations.length > 0) {
+  process.exitCode = 1
 }
 
 async function findPackageJsons(dir) {
@@ -147,6 +154,83 @@ async function findTsFiles(dir) {
   return files
 }
 
+async function findSourceIdentityViolations(rootDir) {
+  const roots = [
+    join(rootDir, "apps", "product", "src"),
+    join(rootDir, "apps", "web", "src"),
+    join(rootDir, "apps", "local-host", "src"),
+    join(rootDir, "apps", "desktop", "src"),
+    join(rootDir, "apps", "tui", "src"),
+    join(rootDir, "apps", "plugin-command-host", "src")
+  ]
+  const files = (await Promise.all(roots.map((root) => findSourceFiles(root)))).flat()
+  const violations = []
+  const forbiddenContent = [
+    ["product-prefix", /\bProductApp(?:Backend|Web)?[A-Za-z0-9_]*/g],
+    ["product-variable-prefix", /\bproductApp\b/g],
+    ["product-constant-prefix", /\bPRODUCT_APP_[A-Za-z0-9_]*/g],
+    ["product-app-copy", /\bproduct app\b/gi],
+    ["react-selector", /(?:wanex-react-|data-react-|REACT_)/g]
+  ]
+  for (const filePath of files) {
+    const relative = repositoryRelativePath(rootDir, filePath)
+    if (
+      relative.split("/").includes("generated") ||
+      relative.includes("/target/")
+    ) {
+      continue
+    }
+    if (relative.split("/").includes("react") || /\/react\.css$/.test(relative)) {
+      violations.push({
+        code: "framework-named-source-path",
+        path: relative,
+        message: "Upper-application source paths must describe ownership, not React"
+      })
+    }
+    if (/\/types-[^/]+\.ts$/.test(relative)) {
+      violations.push({
+        code: "prefix-named-type-file",
+        path: relative,
+        message: "Upper-application type families belong in domain directories"
+      })
+    }
+    const text = await readFile(filePath, "utf8")
+    for (const [code, pattern] of forbiddenContent) {
+      if (pattern.test(text)) {
+        violations.push({
+          code,
+          path: relative,
+          message: "Upper-application source contains a retired identity prefix"
+        })
+        pattern.lastIndex = 0
+      }
+    }
+  }
+  return violations.sort((left, right) => left.path.localeCompare(right.path) || left.code.localeCompare(right.code))
+}
+
+async function findSourceFiles(dir) {
+  try {
+    const dirStat = await stat(dir)
+    if (!dirStat.isDirectory()) return []
+  } catch {
+    return []
+  }
+  const entries = await readdir(dir, { withFileTypes: true })
+  const files = []
+  for (const entry of entries) {
+    const fullPath = join(dir, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...(await findSourceFiles(fullPath)))
+      continue
+    }
+    if (entry.isFile() && /\.(?:ts|tsx|css)$/.test(entry.name)) {
+      files.push(fullPath)
+    }
+  }
+  return files
+}
+
 async function countLines(filePath) {
   const text = await readFile(filePath, "utf8")
   if (text.length === 0) {
@@ -180,6 +264,7 @@ function printTextReport(report) {
   console.log(`Source files: ${report.totals.sourceFiles}`)
   console.log(`Source lines: ${report.totals.sourceLines}`)
   console.log(`Warnings: ${report.totals.warnings}`)
+  console.log(`Violations: ${report.totals.violations}`)
   console.log("")
   console.log("Largest files:")
   for (const file of report.largestFiles.slice(0, 10)) {
@@ -194,6 +279,15 @@ function printTextReport(report) {
       console.log(
         `- [${warning.code}] ${warning.path}: ${warning.lines} (${warning.message})`
       )
+    }
+  }
+  console.log("")
+  console.log("Identity violations:")
+  if (report.violations.length === 0) {
+    console.log("- none")
+  } else {
+    for (const violation of report.violations) {
+      console.log(`- [${violation.code}] ${violation.path}: ${violation.message}`)
     }
   }
 }

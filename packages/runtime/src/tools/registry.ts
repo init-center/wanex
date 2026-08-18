@@ -1,10 +1,24 @@
-import type { ToolCallMessagePart } from "@wanex/protocol"
+import type {
+  JsonValue,
+  ToolCallMessagePart,
+  ToolExecutionRecord
+} from "@wanex/protocol"
+import {
+  modelCapabilityRequirementKey,
+  normalizeModelCapabilityRequirement
+} from "../provider/model-descriptor.js"
 import {
   assertToolRuntimeBinding,
   canonicalizeToolEvidence,
   compareCanonicalStrings
 } from "./evidence.js"
-import { toolResultPart } from "./parts.js"
+import { jsonToolResultContent, toolResultPart } from "./parts.js"
+import {
+  presentToolCall,
+  presentToolFailure,
+  presentToolResult
+} from "./presentation.js"
+import { createToolResourceOutputPort } from "./resources.js"
 import type {
   ToolBindingEvidence,
   ToolDefinition,
@@ -18,6 +32,13 @@ import type {
 
 type InputValidator = ((value: unknown) => boolean) & {
   readonly errors?: unknown
+}
+
+/** @internal */
+export interface PreparedToolExecution {
+  readonly tool: ToolDefinition | undefined
+  readonly descriptor: ToolDescriptor
+  readonly permission: ToolPermissionDecision
 }
 
 export class ToolRegistry {
@@ -54,12 +75,48 @@ export class ToolRegistry {
   }
 
   async execute(request: ToolExecutionRequest): Promise<ToolExecutionOutcome> {
+    const existing = await request.storage.getToolExecutionByCall({
+      turnId: request.turnId,
+      sourceMessageId: request.sourceMessageId,
+      toolCallId: request.call.toolCallId
+    })
+    const prepared = await this.prepareExecution(request, existing)
+    return await this.executePrepared(request, prepared)
+  }
+
+  /** @internal */
+  async prepareExecution(
+    request: ToolExecutionRequest,
+    existing: ToolExecutionRecord | null
+  ): Promise<PreparedToolExecution> {
     throwIfToolInvocationAborted(request.signal)
     const tool = this.tools.get(request.call.toolName)
     const descriptor = tool === undefined
       ? unknownToolDescriptor(request.call.toolName)
       : projectDescriptor(tool)
-    const permission = await preflight(this, tool, descriptor, request)
+    const permission = existing === null
+      ? await preflight(this, tool, descriptor, request)
+      : await persistedPreflight(this, tool, descriptor, request, existing)
+    if (
+      permission.status === "approval_required" &&
+      descriptor.concurrency !== "exclusive"
+    ) {
+      throw new Error("approval-required Tool must be exclusive")
+    }
+    return { tool, descriptor, permission }
+  }
+
+  /** @internal */
+  async executePrepared(
+    request: ToolExecutionRequest,
+    prepared: PreparedToolExecution
+  ): Promise<ToolExecutionOutcome> {
+    throwIfToolInvocationAborted(request.signal)
+    const { tool, descriptor, permission } = prepared
+    const callPresentation =
+      tool === undefined || permission.status === "deny"
+        ? undefined
+        : presentToolCall(tool, request.call.input)
     const receipt = await request.storage.beginToolExecution({
       sessionId: request.sessionId,
       turnId: request.turnId,
@@ -79,6 +136,9 @@ export class ToolRegistry {
           : executionDescriptor(descriptor, tool.runtimeBinding)
       ),
       permission: jsonClone(permission),
+      ...(callPresentation === undefined
+        ? {}
+        : { activity: { call: callPresentation } }),
       state:
         permission.status === "allow" && tool !== undefined
           ? "running"
@@ -91,8 +151,29 @@ export class ToolRegistry {
       const reused = recoverOrReuse(request, descriptor, permission, receipt)
       if (reused !== undefined) return reused
     }
-    if (permission.status !== "allow" || tool === undefined) {
-      return rejectedOutcome(request.call, permission, descriptor)
+    if (permission.status === "approval_required") {
+      if (receipt.approvalSuspension !== undefined) {
+        return {
+          state: "approval_required",
+          descriptor,
+          permission,
+          receipt: receipt.approvalSuspension,
+          invoked: false
+        }
+      }
+      if (
+        receipt.execution.state !== "running" ||
+        receipt.invocationAttempt === undefined
+      ) {
+        throw new Error(
+          "approval-required Tool has neither durable suspension nor approved invocation"
+        )
+      }
+    } else if (permission.status !== "allow" || tool === undefined) {
+      return rejectedOutcomeFromExecution(request.call, receipt.execution, descriptor)
+    }
+    if (tool === undefined) {
+      throw new Error("authorized tool definition is missing")
     }
     const executionId = receipt.execution.id
     const invocationAttemptId = receipt.invocationAttempt?.id
@@ -111,54 +192,140 @@ export class ToolRegistry {
         })
       }
       invocationStarted = true
-      const invocation = await invokeWithControl(tool, request)
+      const invocation = await invokeWithControl(tool, request, executionId)
       const result = invocation.result
       if (result.toolCallId !== request.call.toolCallId) {
         throw new Error(
           `tool returned mismatched toolCallId: ${result.toolCallId}`
         )
       }
+      if (result.outcome === "deferred") {
+        if (descriptor.resultMode !== "deferred") {
+          throw new Error(
+            `immediate tool returned a deferred result: ${descriptor.name}`
+          )
+        }
+        const deferred = await request.storage.deferToolExecution({
+          sessionId: request.sessionId,
+          turnId: request.turnId,
+          sessionAttemptId: request.attemptId,
+          inputId: request.inputId,
+          sourceMessageId: request.sourceMessageId,
+          sessionJobId: request.jobId,
+          workerId: request.workerId,
+          leaseToken: request.leaseToken,
+          toolExecutionId: executionId,
+          toolInvocationAttemptId: invocationAttemptId,
+          toolCallId: request.call.toolCallId,
+          operation: result.operation
+        })
+        return {
+          state: "suspended",
+          descriptor,
+          permission,
+          receipt: deferred,
+          invoked: true
+        }
+      }
+      if (descriptor.resultMode !== "immediate") {
+        throw new Error(
+          `deferred tool returned an immediate result: ${descriptor.name}`
+        )
+      }
+      if (result.outcome === "ambiguous") {
+        const recovery = await request.storage.requireToolExecutionRecovery({
+          sessionId: request.sessionId,
+          turnId: request.turnId,
+          sessionAttemptId: request.attemptId,
+          inputId: request.inputId,
+          jobId: request.jobId,
+          workerId: request.workerId,
+          leaseToken: request.leaseToken,
+          executionId,
+          invocationAttemptId,
+          evidence: {
+            type: "ambiguous_tool_outcome",
+            message: result.message,
+            ...(result.reconciliationRef === undefined
+              ? {}
+              : { reconciliationRef: result.reconciliationRef }),
+            ...(result.metadata === undefined ? {} : { metadata: result.metadata })
+          }
+        })
+        if (recovery === null) {
+          throw new ToolExecutionLeaseLostError()
+        }
+        return {
+          state: "recovery_required",
+          descriptor,
+          permission,
+          recovery,
+          invoked: true
+        }
+      }
       const outcome = {
+        state: "completed" as const,
         descriptor,
         permission,
-        result: toolResultPart(result.toolCallId, result.result, result.isError),
+        result: toolResultPart(
+          result.toolCallId,
+          result.content,
+          result.outcome === "failed"
+        ),
         invoked: true
       }
-      if (invocation.controlObserved && result.isError) {
+      if (invocation.controlObserved && result.outcome === "failed") {
         const reason = request.signal?.aborted === true ? "aborted" : "timed_out"
         await finishToolExecution(request, {
           ...finishIdentity(request, executionId, invocationAttemptId),
           state: "cancelled",
-          result: result.result,
-          isError: true,
           error: { reason, message: "tool invocation ended during cancellation" }
         })
         return outcome
       }
+      const resultPresentation =
+        callPresentation === undefined
+          ? undefined
+          : presentToolResult(tool, request.call.input, result)
       await finishToolExecution(request, {
         ...finishIdentity(request, executionId, invocationAttemptId),
-        state: result.isError ? "failed" : "succeeded",
-        result: result.result,
-        isError: result.isError
+        state: result.outcome === "failed" ? "failed" : "succeeded",
+        content: outcome.result.content,
+        contentDigest: outcome.result.contentDigest,
+        isError: result.outcome === "failed",
+        ...(resultPresentation === undefined ? {} : { resultPresentation })
       })
       return outcome
     } catch (error) {
       if (error instanceof ToolExecutionLeaseLostError) throw error
       if (request.signal?.aborted === true || isControlError(error)) {
         const reason = request.signal?.aborted === true ? "aborted" : "timed_out"
+        const failurePresentation =
+          callPresentation === undefined || !invocationStarted
+            ? undefined
+            : presentToolFailure(
+                tool,
+                request.call.input,
+                error,
+                reason === "aborted" ? "cancelled" : "timed_out"
+              )
         await finishToolExecution(request, {
           ...finishIdentity(request, executionId, invocationAttemptId),
           state: "cancelled",
-          error: { reason, message: errorMessage(error) }
+          error: { reason, message: errorMessage(error) },
+          ...(failurePresentation === undefined
+            ? {}
+            : { resultPresentation: failurePresentation })
         })
         const errorKind =
           request.signal?.aborted === true ? "tool_cancelled" : "tool_timeout"
         return {
+          state: "completed",
           descriptor,
           permission,
           result: toolResultPart(
             request.call.toolCallId,
-            { error: errorKind, message: errorMessage(error) },
+            jsonToolResultContent({ error: errorKind, message: errorMessage(error) }),
             true
           ),
           invoked: true
@@ -166,20 +333,34 @@ export class ToolRegistry {
       }
       const result = toolResultPart(
         request.call.toolCallId,
-        {
+        jsonToolResultContent({
           error: "tool_exception",
           message: errorMessage(error)
-        },
+        }),
         true
       )
+      const failurePresentation =
+        callPresentation === undefined || !invocationStarted
+          ? undefined
+          : presentToolFailure(
+              tool,
+              request.call.input,
+              error,
+              "exception"
+            )
       await finishToolExecution(request, {
         ...finishIdentity(request, executionId, invocationAttemptId),
         state: "failed",
-        result: result.result,
+        content: result.content,
+        contentDigest: result.contentDigest,
         isError: true,
-        error: result.result
+        error: { error: "tool_exception", message: errorMessage(error) },
+        ...(failurePresentation === undefined
+          ? {}
+          : { resultPresentation: failurePresentation })
       })
       return {
+        state: "completed",
         descriptor,
         permission,
         result,
@@ -229,7 +410,7 @@ async function preflight(
     return { status: "deny", reason: "permission_policy_missing" }
   }
   try {
-    return await request.permissionPolicy.authorize({
+    return validatePermissionDecision(await request.permissionPolicy.authorize({
       principalId: request.principalId,
       sessionId: request.sessionId,
       inputId: request.inputId,
@@ -237,13 +418,119 @@ async function preflight(
       attemptId: request.attemptId,
       call: request.call,
       descriptor
-    })
+    }))
   } catch (error) {
     return {
       status: "deny",
       reason: `permission_policy_error:${error instanceof Error ? error.message : String(error)}`
     }
   }
+}
+
+async function persistedPreflight(
+  registry: ToolRegistry,
+  tool: ToolDefinition | undefined,
+  descriptor: ToolDescriptor,
+  request: ToolExecutionRequest,
+  existing: ToolExecutionRecord
+): Promise<ToolPermissionDecision> {
+  if (
+    existing.turnId !== request.turnId ||
+    existing.sourceMessageId !== request.sourceMessageId ||
+    existing.toolCallId !== request.call.toolCallId ||
+    existing.toolName !== request.call.toolName ||
+    existing.principalId !== request.principalId
+  ) {
+    throw new Error("persisted tool execution does not match the exact call identity")
+  }
+  if (tool === undefined) {
+    throw new Error(`persisted tool is no longer registered: ${request.call.toolName}`)
+  }
+  const validator = await registry["validator"](tool.name, tool.inputSchema)
+  if (!validator(request.call.input)) {
+    throw new Error(`persisted tool input no longer matches its schema: ${tool.name}`)
+  }
+  return permissionDecisionFromJson(existing.permission)
+}
+
+function permissionDecisionFromJson(value: JsonValue): ToolPermissionDecision {
+  if (!isJsonRecord(value) || typeof value.reason !== "string") {
+    throw new Error("persisted tool permission is invalid")
+  }
+  const authorizationRef = typeof value.authorizationRef === "string"
+    ? value.authorizationRef
+    : undefined
+  if (value.status === "allow" || value.status === "deny") {
+    return validatePermissionDecision({
+      status: value.status,
+      reason: value.reason,
+      ...(authorizationRef === undefined ? {} : { authorizationRef })
+    })
+  }
+  if (value.status !== "approval_required" || !isJsonRecord(value.presentation)) {
+    throw new Error("persisted tool permission status is invalid")
+  }
+  const summary = value.presentation.summary
+  const detailsValue = value.presentation.details
+  if (typeof summary !== "string") {
+    throw new Error("persisted tool approval presentation is invalid")
+  }
+  const details = detailsValue === undefined
+    ? undefined
+    : Array.isArray(detailsValue)
+      ? detailsValue.map((detail) => {
+          if (
+            !isJsonRecord(detail) ||
+            typeof detail.label !== "string" ||
+            typeof detail.value !== "string"
+          ) {
+            throw new Error("persisted tool approval detail is invalid")
+          }
+          return { label: detail.label, value: detail.value }
+        })
+      : (() => { throw new Error("persisted tool approval details are invalid") })()
+  return validatePermissionDecision({
+    status: "approval_required",
+    reason: value.reason,
+    presentation: {
+      summary,
+      ...(details === undefined ? {} : { details })
+    },
+    ...(authorizationRef === undefined ? {} : { authorizationRef })
+  })
+}
+
+function validatePermissionDecision(
+  decision: ToolPermissionDecision
+): ToolPermissionDecision {
+  if (utf8Length(decision.reason) < 1 || utf8Length(decision.reason) > 1_024) {
+    throw new Error("tool permission reason must contain 1 to 1024 UTF-8 bytes")
+  }
+  if (decision.status !== "approval_required") return decision
+  const { summary, details = [] } = decision.presentation
+  if (utf8Length(summary) < 1 || utf8Length(summary) > 512) {
+    throw new Error("tool approval summary must contain 1 to 512 UTF-8 bytes")
+  }
+  if (details.length > 16) {
+    throw new Error("tool approval details exceed 16 rows")
+  }
+  for (const detail of details) {
+    if (
+      utf8Length(detail.label) < 1 || utf8Length(detail.label) > 128 ||
+      utf8Length(detail.value) < 1 || utf8Length(detail.value) > 1_024
+    ) {
+      throw new Error("tool approval detail is invalid or exceeds its bound")
+    }
+  }
+  return decision
+}
+
+function utf8Length(value: string): number {
+  return Buffer.byteLength(value, "utf8")
+}
+
+function isJsonRecord(value: unknown): value is { readonly [key: string]: JsonValue } {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function recoverOrReuse(
@@ -266,25 +553,81 @@ function recoverOrReuse(
     )
   }
   if (execution.state === "succeeded" || execution.state === "failed") {
+    if (execution.content === undefined || execution.contentDigest === undefined) {
+      throw new Error(`settled tool execution has no canonical content: ${execution.id}`)
+    }
+    const result = toolResultPart(
+      execution.toolCallId,
+      execution.content,
+      execution.isError ?? execution.state === "failed"
+    )
+    if (result.contentDigest !== execution.contentDigest) {
+      throw new Error(`settled tool execution content digest changed: ${execution.id}`)
+    }
     return {
+      state: "completed",
       descriptor,
       permission,
-      result: toolResultPart(
-        execution.toolCallId,
-        execution.result ?? execution.error ?? null,
-        execution.isError ?? execution.state === "failed"
-      ),
+      result,
       invoked: false
     }
   }
-  return rejectedOutcome(
-    request.call,
-    {
-      status: execution.state === "approval_required" ? "approval_required" : "deny",
-      reason: execution.state
-    },
-    descriptor
+  if (execution.state === "denied") {
+    return rejectedOutcomeFromExecution(request.call, execution, descriptor)
+  }
+  if (execution.state === "recovery_required") {
+    throw new Error(`tool execution requires reconciliation: ${execution.id}`)
+  }
+  if (execution.state === "approval_required") {
+    throw new Error(
+      `approval-required tool execution resumed without a durable decision: ${execution.id}`
+    )
+  }
+  throw new Error(
+    `tool execution is not reusable from state ${execution.state}: ${execution.id}`
   )
+}
+
+function rejectedOutcomeFromExecution(
+  call: ToolCallMessagePart,
+  execution: import("@wanex/protocol").ToolExecutionRecord,
+  descriptor?: ToolDescriptor
+): ToolExecutionOutcome {
+  if (
+    execution.state !== "denied" ||
+    execution.content === undefined ||
+    execution.contentDigest === undefined
+  ) {
+    throw new Error(
+      `denied tool execution has no canonical content: ${execution.id}`
+    )
+  }
+  const result = toolResultPart(
+    call.toolCallId,
+    execution.content,
+    true
+  )
+  if (result.contentDigest !== execution.contentDigest) {
+    throw new Error(
+      `denied tool execution content digest changed: ${execution.id}`
+    )
+  }
+  const persistedPermission = permissionDecisionFromJson(execution.permission)
+  return {
+    state: "completed",
+    ...(descriptor === undefined ? {} : { descriptor }),
+    permission: persistedPermission.status === "approval_required"
+      ? {
+          status: "deny",
+          reason: "approval_denied",
+          ...(persistedPermission.authorizationRef === undefined
+            ? {}
+            : { authorizationRef: persistedPermission.authorizationRef })
+        }
+      : persistedPermission,
+    result,
+    invoked: false
+  }
 }
 
 function finishIdentity(
@@ -307,7 +650,8 @@ function finishIdentity(
 
 async function invokeWithControl(
   tool: ToolDefinition,
-  request: ToolExecutionRequest
+  request: ToolExecutionRequest,
+  executionId: string
 ): Promise<{
   readonly result: import("./types.js").ToolExecutionResult
   readonly controlObserved: boolean
@@ -339,6 +683,17 @@ async function invokeWithControl(
     toolName: request.call.toolName,
     input: request.call.input,
     idempotencyKey: request.idempotencyKey,
+    capabilityRoutes: [],
+    resources: createToolResourceOutputPort(request.storage, {
+      executionId,
+      principalId: request.principalId,
+      sessionId: request.sessionId,
+      inputId: request.inputId,
+      turnId: request.turnId,
+      attemptId: request.attemptId,
+      sourceMessageId: request.sourceMessageId,
+      toolCallId: request.call.toolCallId
+    }),
     ...(signal === undefined ? {} : { signal })
   })
   const completed = invocation.then((result) => ({
@@ -406,7 +761,9 @@ function unknownToolDescriptor(name: string): ToolDescriptor {
     description: "Unregistered tool selected by provider.",
     inputSchema: { type: "object" },
     risk: "external",
-    idempotent: false
+    idempotent: false,
+    concurrency: "exclusive",
+    resultMode: "immediate"
   }
 }
 
@@ -432,6 +789,44 @@ function validateDescriptor(tool: ToolDefinition): void {
   ) {
     throw new Error(`invalid tool risk: ${tool.name}`)
   }
+  if (tool.concurrency !== "parallel_safe" && tool.concurrency !== "exclusive") {
+    throw new Error(`invalid tool concurrency: ${tool.name}`)
+  }
+  if (tool.resultMode !== "immediate" && tool.resultMode !== "deferred") {
+    throw new Error(`invalid tool result mode: ${tool.name}`)
+  }
+  if (tool.resultMode === "deferred" && tool.concurrency !== "exclusive") {
+    throw new Error(`deferred tool must be exclusive: ${tool.name}`)
+  }
+  if (tool.resultMode === "deferred" && !tool.idempotent) {
+    throw new Error(`deferred tool must be idempotent: ${tool.name}`)
+  }
+  if (tool.risk === "mutating" && tool.concurrency === "parallel_safe") {
+    throw new Error(`mutating tool cannot be parallel_safe: ${tool.name}`)
+  }
+  if (tool.presentResult !== undefined && tool.presentCall === undefined) {
+    throw new Error(`tool result presentation requires presentCall: ${tool.name}`)
+  }
+  if (tool.presentFailure !== undefined && tool.presentCall === undefined) {
+    throw new Error(`tool failure presentation requires presentCall: ${tool.name}`)
+  }
+  const capabilityKeys = new Set<string>()
+  if ((tool.requiredCapabilities?.length ?? 0) > 16) {
+    throw new Error(`tool capability requirements exceed 16: ${tool.name}`)
+  }
+  for (const requirement of tool.requiredCapabilities ?? []) {
+    const normalized = normalizeModelCapabilityRequirement(requirement)
+    if (normalized.operation === "conversation") {
+      throw new Error(
+        `tool capability requirement cannot select conversation: ${tool.name}`
+      )
+    }
+    const key = modelCapabilityRequirementKey(normalized)
+    if (capabilityKeys.has(key)) {
+      throw new Error(`duplicate tool capability requirement: ${tool.name}`)
+    }
+    capabilityKeys.add(key)
+  }
   canonicalizeToolEvidence(projectDescriptor(tool), `tool descriptor ${tool.name}`)
 }
 
@@ -449,6 +844,15 @@ function normalizeToolDefinition(tool: ToolDefinition): ToolDefinition {
   return Object.freeze({
     ...descriptor,
     runtimeBinding,
+    ...(tool.presentCall === undefined
+      ? {}
+      : { presentCall: tool.presentCall.bind(tool) }),
+    ...(tool.presentResult === undefined
+      ? {}
+      : { presentResult: tool.presentResult.bind(tool) }),
+    ...(tool.presentFailure === undefined
+      ? {}
+      : { presentFailure: tool.presentFailure.bind(tool) }),
     invoke: tool.invoke.bind(tool)
   })
 }
@@ -475,6 +879,19 @@ function projectDescriptor(tool: ToolDefinition): ToolDescriptor {
     inputSchema: tool.inputSchema,
     risk: tool.risk,
     idempotent: tool.idempotent,
+    concurrency: tool.concurrency,
+    resultMode: tool.resultMode,
+    ...(tool.requiredCapabilities === undefined
+      ? {}
+      : {
+          requiredCapabilities: tool.requiredCapabilities
+            .map(normalizeModelCapabilityRequirement)
+            .sort((left, right) =>
+              modelCapabilityRequirementKey(left).localeCompare(
+                modelCapabilityRequirementKey(right)
+              )
+            )
+        }),
     ...(tool.annotations === undefined ? {} : { annotations: tool.annotations })
   }
 }
@@ -486,15 +903,16 @@ function rejectedOutcome(
   detail: Record<string, unknown> = {}
 ): ToolExecutionOutcome {
   return {
+    state: "completed",
     ...(descriptor === undefined ? {} : { descriptor }),
     permission,
     result: toolResultPart(
       call.toolCallId,
-      {
+      jsonToolResultContent({
         error: permission.reason,
         toolName: call.toolName,
         ...detail
-      },
+      } as import("@wanex/protocol").JsonValue),
       true
     ),
     invoked: false

@@ -9,15 +9,15 @@ export const cliSupportBundleOperationalScenario = createEvalScenario({
   tags: ["cli", "support", "security", "product-path"],
   async run(context) {
     await runCli(context, [
-      "provider",
+      "model-endpoint",
       "set",
       "eval-cli-support",
-      "--kind",
-      "openai-compatible",
+      "--protocol",
+      "fake",
       "--provider-id",
-      "deepseek",
+      "fake",
       "--model",
-      "deepseek-chat",
+      "eval-cli-support-model",
       "--secret-ref",
       "env://EVAL_CLI_SUPPORT_API_KEY"
     ])
@@ -25,12 +25,14 @@ export const cliSupportBundleOperationalScenario = createEvalScenario({
       "run",
       "eval cli support bundle",
       "--session",
-      "ses_eval_cli_support_bundle"
+      "ses_eval_cli_support_bundle",
+      "--model-endpoint",
+      "eval-cli-support"
     ])
 
     const response = await runCli(context, [
       "support-bundle",
-      "--provider-profile",
+      "--model-endpoint",
       "eval-cli-support",
       "--session",
       "ses_eval_cli_support_bundle",
@@ -43,12 +45,12 @@ export const cliSupportBundleOperationalScenario = createEvalScenario({
     const value = expectRecord(response.value)
     const serialized = JSON.stringify(value)
     assert(!serialized.includes("EVAL_CLI_SUPPORT_API_KEY"), "CLI bundle must redact secret refs")
-    const providers = expectArray(value.providers).map(expectRecord)
+    const modelEndpoints = expectArray(value.modelEndpoints).map(expectRecord)
     assert(
-      providers[0]?.profile !== undefined &&
-        expectRecord(providers[0].profile).credentialConfigured === true &&
+      modelEndpoints[0]?.endpoint !== undefined &&
+        expectRecord(modelEndpoints[0].endpoint).credentialConfigured === true &&
         !serialized.includes("secretRef"),
-      "CLI bundle should expose only safe provider profile metadata"
+      "CLI bundle should expose only safe model endpoint metadata"
     )
     return {
       providerRedacted: true,

@@ -11,7 +11,7 @@ export function unavailable(
   diagnostics: readonly SkillDiagnostic[]
 ): SkillSnapshot {
   return {
-    status: "unavailable",
+    complete: false,
     sources,
     diagnostics: [...diagnostics, diagnostic]
   }

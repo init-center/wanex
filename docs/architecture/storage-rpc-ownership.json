@@ -7,9 +7,11 @@
       "schemaCommandUnion": "RuntimeStorageRpcCommand",
       "typescriptFiles": ["store-runtime-core.ts"],
       "commands": [
-        "append-event", "query-events", "put-config", "get-config",
+        "append-event", "query-events", "put-config", "apply-config-mutations", "has-live-secret-reference", "get-config",
         "write-atomic-file", "ingest-resource", "get-resource",
-        "read-resource-content", "list-resources", "create-resource-ticket",
+        "read-resource-content", "list-resources",
+        "record-resource-provenance", "list-resource-provenance",
+        "create-resource-ticket",
         "cleanup-expired-resource-tickets", "doctor"
       ]
     },
@@ -20,6 +22,7 @@
       "typescriptFiles": ["store-session.ts"],
       "commands": [
         "create-session", "get-session", "list-sessions",
+        "rename-session", "archive-session", "restore-session",
         "admit-session-input", "submit-session-turn",
         "start-session-turn-attempt", "settle-session-turn",
         "begin-provider-invocation", "mark-provider-invocation-output",
@@ -38,10 +41,11 @@
       "schemaCommandUnion": "ContextStorageRpcCommand",
       "typescriptFiles": ["store-context.ts"],
       "commands": [
-        "put-context-epoch", "activate-context-epoch", "clone-context-epoch",
+        "begin-context-epoch", "mark-context-epoch-dispatched",
+        "mark-context-epoch-output-observed",
+        "finish-context-epoch-generation", "activate-context-epoch",
         "prune-context-epochs", "list-context-epochs",
-        "get-active-context-epoch", "put-context-replacement",
-        "list-context-replacements"
+        "get-active-context-epoch"
       ]
     },
     "scheduler": {
@@ -63,8 +67,11 @@
       "typescriptFiles": ["store-tools.ts"],
       "commands": [
         "begin-tool-execution", "finish-tool-execution",
-        "get-tool-execution", "list-tool-executions",
-        "list-tool-execution-attempts"
+        "defer-tool-execution",
+        "require-tool-execution-recovery", "resolve-tool-execution-recovery",
+        "resolve-tool-execution-approval", "get-tool-execution",
+        "get-tool-execution-by-call", "list-tool-executions",
+        "list-tool-activities", "list-tool-execution-attempts"
       ]
     },
     "media_generation": {
@@ -73,8 +80,9 @@
       "schemaCommandUnion": "MediaGenerationStorageRpcCommand",
       "typescriptFiles": ["store-media-generation.ts"],
       "commands": [
-        "submit-media-generation", "begin-media-generation",
-        "accept-media-generation", "checkpoint-media-generation",
+        "submit-media-generation",
+        "begin-media-generation",
+        "accept-media-generation", "suspend-media-generation",
         "record-media-generation-outputs", "complete-media-generation",
         "settle-media-generation", "request-media-generation-cancel",
         "get-media-generation", "list-media-generation"
@@ -100,25 +108,27 @@
       "schemaCommandUnion": "PlanStorageRpcCommand",
       "typescriptFiles": ["store-plan.ts"],
       "commands": [
-        "put-plan-proposal", "get-plan-proposal", "list-plan-proposals",
-        "record-plan-proposal-operation", "list-plan-proposal-operations"
+        "create-plan-proposal", "get-plan-proposal", "list-plan-proposals",
+        "record-plan-proposal-operation", "execute-approved-plan",
+        "list-plan-proposal-operations"
       ]
     },
     "objective": {
       "classification": "optional",
-      "owner": "@wanex/app/workflows/objective",
+      "owner": "@wanex/app",
       "schemaCommandUnion": "ObjectiveStorageRpcCommand",
       "typescriptFiles": ["store-objective.ts"],
       "commands": [
-        "put-objective-run", "get-objective-run", "list-objective-runs",
-        "record-objective-run-operation", "list-objective-run-operations",
-        "put-objective-attempt", "list-objective-attempts",
-        "put-objective-verification", "list-objective-verifications"
+        "create-objective", "get-objective", "list-objectives",
+        "pause-objective", "resume-objective", "admit-objective-attempt",
+        "review-objective-attempt", "request-objective-cancel",
+        "reconcile-objective-cancellation", "list-objective-attempts",
+        "list-objective-attempt-reviews", "list-objective-verifications"
       ]
     },
     "delegation": {
       "classification": "optional",
-      "owner": "@wanex/team/delegation",
+      "owner": "@wanex/team/delegation/graph",
       "schemaCommandUnion": "DelegationStorageRpcCommand",
       "typescriptFiles": ["store-delegation.ts"],
       "commands": [
@@ -141,19 +151,33 @@
       "commands": [
         "put-team-conversation", "get-team-conversation",
         "list-team-conversations", "update-team-conversation-state",
+        "set-team-conversation-lead",
         "put-team-participant", "list-team-participants",
-        "update-team-participant-state", "append-team-turn", "list-team-turns"
+        "update-team-participant-state", "admit-team-message",
+        "get-team-message", "list-team-messages", "route-team-message",
+        "get-team-routing-decision-by-message",
+        "list-team-routing-decisions", "list-team-deliveries",
+        "get-team-discussion-round", "list-team-discussion-rounds",
+        "read-team-conversation-page",
+        "get-team-delivery-materialization-context",
+        "materialize-team-delivery", "fail-team-delivery-materialization",
+        "project-team-delivery-outcome",
+        "get-team-delegation-operation",
+        "get-team-delegation-operation-by-tool-execution",
+        "list-team-delegation-tasks"
       ]
     },
     "plugin": {
       "classification": "optional",
-      "owner": "@wanex/plugin-host",
+      "owner": "@wanex/plugin",
       "schemaCommandUnion": "PluginStorageRpcCommand",
       "typescriptFiles": ["store-plugin.ts"],
       "commands": [
         "put-plugin-manifest", "get-plugin-manifest", "list-plugin-manifests",
+        "activate-plugin-install",
         "put-plugin-install", "get-plugin-install", "list-plugin-installs",
         "update-plugin-install-state", "update-plugin-manifest-state",
+        "get-plugin-action-execution-admission",
         "submit-plugin-action"
       ]
     },

@@ -1,217 +1,282 @@
+import type { BudgetLimit } from "./budget.js"
 import type {
-  DelegationGraphId,
-  PlanProposalId,
+  ObjectiveAttemptId,
+  ObjectiveAttemptReviewId,
+  ObjectiveId,
+  ObjectiveVerificationId,
   PrincipalId,
-  SchedulerJobId,
   SessionId,
   SessionInputId,
-  SessionTurnId,
-  WorkspaceChangeProposalId
+  SessionTurnId
 } from "./ids.js"
-import type { JsonValue } from "./json.js"
+import type {
+  RequestSessionTurnCancelReceipt,
+  SubmitSessionTurnReceipt,
+  SubmitSessionTurnRequest
+} from "./session.js"
 
-export type ObjectiveRunState =
-  | "open"
-  | "running"
+export type ObjectiveState =
+  | "active"
+  | "paused"
+  | "blocked"
+  | "limit_reached"
+  | "succeeded"
+  | "failed"
+  | "cancel_requested"
+  | "cancelled"
+
+export type ObjectiveAttemptTrigger =
+  | "initial"
+  | "automatic_continuation"
+  | "user_resume"
+
+export type ObjectiveAttemptDisposition =
+  | "continue"
   | "blocked"
   | "succeeded"
   | "failed"
-  | "cancelled"
 
-export type ObjectiveRunOperationKind =
-  | "start"
-  | "record_blocked"
-  | "mark_succeeded"
-  | "mark_failed"
-  | "cancel"
+export type ObjectiveVerifierKind = "model" | "script" | "human" | "runtime"
 
-export type ObjectiveAttemptState =
-  | "planned"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "blocked"
-  | "cancelled"
-
-export type ObjectiveVerificationKind = "script" | "model" | "human" | "runtime"
-
-export type ObjectiveVerificationState =
+export type ObjectiveVerificationResult =
   | "passed"
   | "failed"
   | "inconclusive"
   | "blocked"
 
-export interface ObjectiveStopPolicy {
-  readonly maxAttempts?: number
-  readonly maxElapsedMs?: number
-  readonly maxTokens?: number
-  readonly repeatedBlockThreshold?: number
-  readonly requireVerification?: boolean
-  readonly metadata?: JsonValue
-}
-
-export type ObjectiveReferenceKind =
-  | "session"
-  | "session_input"
-  | "session_turn"
-  | "scheduler_job"
-  | "plan_proposal"
-  | "workspace_change_proposal"
-  | "delegation_graph"
+export type ObjectiveVerificationEvidenceKind =
+  | "provider_output"
   | "resource"
-  | "context_epoch"
+  | "tool_execution"
+  | "runtime_projection"
+  | "human_attestation"
 
-export interface ObjectiveReference {
-  readonly kind: ObjectiveReferenceKind
-  readonly id: string
-  readonly role?: string
-  readonly metadata?: JsonValue
+export type ObjectiveStateReasonCode =
+  | "created"
+  | "user_paused"
+  | "user_resumed"
+  | "verification_succeeded"
+  | "verification_blocked"
+  | "max_attempts"
+  | "deadline"
+  | "budget"
+  | "verification_failed"
+  | "cancel_requested"
+  | "cancelled"
+  | "unrecoverable_failure"
+
+export interface ObjectiveStateReason {
+  readonly code: ObjectiveStateReasonCode
+  readonly detail?: string
 }
 
-export interface ObjectiveRunRecord {
+export interface ObjectiveSuccessCriterion {
   readonly id: string
+  readonly description: string
+}
+
+export interface ObjectiveVerificationRequirement {
+  readonly id: string
+  readonly criterionIds: readonly string[]
+  readonly verifierKind: ObjectiveVerifierKind
+  readonly verifierRef: string
+}
+
+export interface ObjectiveVerificationPolicy {
+  readonly requirements: readonly ObjectiveVerificationRequirement[]
+}
+
+export interface ObjectiveStopPolicy {
+  readonly maxAttempts: number
+  readonly maxConsecutiveBlockedAttempts: number
+  readonly deadlineAt?: number
+  readonly budget?: BudgetLimit
+}
+
+export interface ObjectiveRecord {
+  readonly id: ObjectiveId
+  readonly sessionId: SessionId
   readonly principalId: PrincipalId
   readonly objective: string
-  readonly scope?: string
-  readonly constraints?: readonly string[]
-  readonly successCriteria?: readonly string[]
-  readonly stopPolicy?: ObjectiveStopPolicy
-  readonly references: readonly ObjectiveReference[]
-  readonly state: ObjectiveRunState
-  readonly metadata?: JsonValue
+  readonly boundaries: readonly string[]
+  readonly constraints: readonly string[]
+  readonly successCriteria: readonly ObjectiveSuccessCriterion[]
+  readonly verificationPolicy: ObjectiveVerificationPolicy
+  readonly stopPolicy: ObjectiveStopPolicy
+  readonly revision: number
+  readonly state: ObjectiveState
+  readonly reason: ObjectiveStateReason
+  readonly activeAttemptId?: ObjectiveAttemptId
   readonly createdAt: number
   readonly updatedAt: number
   readonly closedAt?: number
 }
 
-export interface ObjectiveRunOperationRecord {
-  readonly id: string
-  readonly objectiveId: string
-  readonly operation: ObjectiveRunOperationKind
-  readonly actorId: PrincipalId
-  readonly fromState: ObjectiveRunState
-  readonly toState: ObjectiveRunState
-  readonly reason?: string
-  readonly metadata?: JsonValue
-  readonly createdAt: number
+export interface ObjectiveAttemptRecord {
+  readonly id: ObjectiveAttemptId
+  readonly objectiveId: ObjectiveId
+  readonly attemptNumber: number
+  readonly inputId: SessionInputId
+  readonly turnId: SessionTurnId
+  readonly jobId: string
+  readonly executionBindingDigest: string
+  readonly trigger: ObjectiveAttemptTrigger
+  readonly budgetGrantId?: string
+  readonly idempotencyKey: string
+  readonly boundAt: number
 }
 
-export interface ObjectiveAttemptRecord {
-  readonly id: string
-  readonly objectiveId: string
-  readonly attemptNumber: number
-  readonly state: ObjectiveAttemptState
-  readonly sessionId?: SessionId
-  readonly sessionInputId?: SessionInputId
-  readonly sessionTurnId?: SessionTurnId
-  readonly schedulerJobId?: SchedulerJobId
-  readonly delegationGraphId?: DelegationGraphId
-  readonly planProposalId?: PlanProposalId
-  readonly workspaceChangeProposalId?: WorkspaceChangeProposalId
-  readonly summary?: string
-  readonly result?: JsonValue
-  readonly error?: JsonValue
-  readonly metadata?: JsonValue
-  readonly startedAt?: number
-  readonly finishedAt?: number
-  readonly createdAt: number
-  readonly updatedAt: number
+export interface ObjectiveVerificationEvidence {
+  readonly kind: ObjectiveVerificationEvidenceKind
+  readonly referenceId: string
+  readonly digest: string
 }
 
 export interface ObjectiveVerificationRecord {
-  readonly id: string
-  readonly objectiveId: string
-  readonly attemptId?: string
-  readonly kind: ObjectiveVerificationKind
-  readonly state: ObjectiveVerificationState
+  readonly id: ObjectiveVerificationId
+  readonly objectiveId: ObjectiveId
+  readonly attemptId: ObjectiveAttemptId
+  readonly requirementId: string
+  readonly verifierKind: ObjectiveVerifierKind
+  readonly verifierRef: string
+  readonly result: ObjectiveVerificationResult
   readonly reason?: string
-  readonly evidence?: JsonValue
-  readonly verifierRef?: string
-  readonly metadata?: JsonValue
+  readonly evidence: readonly ObjectiveVerificationEvidence[]
   readonly createdAt: number
 }
 
-export interface PutObjectiveRunRequest {
-  readonly id?: string
+export interface ObjectiveAttemptReviewRecord {
+  readonly id: ObjectiveAttemptReviewId
+  readonly objectiveId: ObjectiveId
+  readonly attemptId: ObjectiveAttemptId
+  readonly disposition: ObjectiveAttemptDisposition
+  readonly reason?: string
+  readonly createdAt: number
+}
+
+export interface CreateObjectiveRequest {
+  readonly id?: ObjectiveId
+  readonly sessionId: SessionId
   readonly principalId: PrincipalId
   readonly objective: string
-  readonly scope?: string
+  readonly boundaries?: readonly string[]
   readonly constraints?: readonly string[]
-  readonly successCriteria?: readonly string[]
-  readonly stopPolicy?: ObjectiveStopPolicy
-  readonly references?: readonly ObjectiveReference[]
-  readonly metadata?: JsonValue
-  readonly idempotencyKey?: string
+  readonly successCriteria: readonly ObjectiveSuccessCriterion[]
+  readonly verificationPolicy: ObjectiveVerificationPolicy
+  readonly stopPolicy: ObjectiveStopPolicy
+  readonly idempotencyKey: string
 }
 
-export interface GetObjectiveRunRequest {
-  readonly objectiveId: string
+export interface GetObjectiveRequest {
+  readonly objectiveId: ObjectiveId
 }
 
-export interface ListObjectiveRunsRequest {
+export interface ListObjectivesRequest {
+  readonly sessionId?: SessionId
   readonly principalId?: PrincipalId
-  readonly state?: ObjectiveRunState
-  readonly referenceKind?: ObjectiveReferenceKind
-  readonly referenceId?: string
+  readonly states?: readonly ObjectiveState[]
   readonly limit?: number
 }
 
-export interface RecordObjectiveRunOperationRequest {
-  readonly id?: string
-  readonly objectiveId: string
-  readonly operation: ObjectiveRunOperationKind
-  readonly actorId: PrincipalId
+export interface PauseObjectiveRequest {
+  readonly objectiveId: ObjectiveId
+  readonly expectedRevision: number
   readonly reason?: string
-  readonly metadata?: JsonValue
+  readonly idempotencyKey: string
 }
 
-export interface ListObjectiveRunOperationsRequest {
-  readonly objectiveId: string
+export interface ResumeObjectiveRequest {
+  readonly objectiveId: ObjectiveId
+  readonly expectedRevision: number
+  readonly reason?: string
+  readonly idempotencyKey: string
 }
 
-export interface PutObjectiveAttemptRequest {
-  readonly id?: string
-  readonly objectiveId: string
-  readonly attemptNumber?: number
-  readonly state?: ObjectiveAttemptState
-  readonly sessionId?: SessionId
-  readonly sessionInputId?: SessionInputId
-  readonly sessionTurnId?: SessionTurnId
-  readonly schedulerJobId?: SchedulerJobId
-  readonly delegationGraphId?: DelegationGraphId
-  readonly planProposalId?: PlanProposalId
-  readonly workspaceChangeProposalId?: WorkspaceChangeProposalId
-  readonly summary?: string
-  readonly result?: JsonValue
-  readonly error?: JsonValue
-  readonly metadata?: JsonValue
-  readonly startedAt?: number
-  readonly finishedAt?: number
-  readonly idempotencyKey?: string
+export interface AdmitObjectiveAttemptRequest {
+  readonly objectiveId: ObjectiveId
+  readonly expectedRevision: number
+  readonly trigger: ObjectiveAttemptTrigger
+  readonly idempotencyKey: string
+  readonly turn: SubmitSessionTurnRequest
+}
+
+export interface ObjectiveAttemptAdmittedReceipt {
+  readonly status: "admitted"
+  readonly objective: ObjectiveRecord
+  readonly attempt: ObjectiveAttemptRecord
+  readonly submission: SubmitSessionTurnReceipt
+}
+
+export interface ObjectiveAttemptLimitReachedReceipt {
+  readonly status: "limit_reached"
+  readonly objective: ObjectiveRecord
+}
+
+export type AdmitObjectiveAttemptReceipt =
+  | ObjectiveAttemptAdmittedReceipt
+  | ObjectiveAttemptLimitReachedReceipt
+
+export interface ObjectiveVerificationSubmission {
+  readonly requirementId: string
+  readonly verifierKind: ObjectiveVerifierKind
+  readonly verifierRef: string
+  readonly result: ObjectiveVerificationResult
+  readonly reason?: string
+  readonly evidence: readonly ObjectiveVerificationEvidence[]
+}
+
+export interface ReviewObjectiveAttemptRequest {
+  readonly id?: ObjectiveAttemptReviewId
+  readonly objectiveId: ObjectiveId
+  readonly attemptId: ObjectiveAttemptId
+  readonly expectedRevision: number
+  readonly disposition: ObjectiveAttemptDisposition
+  readonly reason?: string
+  readonly verifications: readonly ObjectiveVerificationSubmission[]
+  readonly idempotencyKey: string
+}
+
+export interface ReviewObjectiveAttemptReceipt {
+  readonly objective: ObjectiveRecord
+  readonly attempt: ObjectiveAttemptRecord
+  readonly review: ObjectiveAttemptReviewRecord
+  readonly verifications: readonly ObjectiveVerificationRecord[]
+}
+
+export interface RequestObjectiveCancelRequest {
+  readonly objectiveId: ObjectiveId
+  readonly expectedRevision: number
+  readonly reason: string
+  readonly idempotencyKey: string
+}
+
+export interface RequestObjectiveCancelReceipt {
+  readonly objective: ObjectiveRecord
+  readonly turnCancellation?: RequestSessionTurnCancelReceipt
+}
+
+export interface ReconcileObjectiveCancellationRequest {
+  readonly objectiveId: ObjectiveId
+  readonly attemptId: ObjectiveAttemptId
+  readonly expectedRevision: number
+  readonly idempotencyKey: string
 }
 
 export interface ListObjectiveAttemptsRequest {
-  readonly objectiveId: string
-  readonly state?: ObjectiveAttemptState
+  readonly objectiveId: ObjectiveId
   readonly limit?: number
 }
 
-export interface PutObjectiveVerificationRequest {
-  readonly id?: string
-  readonly objectiveId: string
-  readonly attemptId?: string
-  readonly kind: ObjectiveVerificationKind
-  readonly state: ObjectiveVerificationState
-  readonly reason?: string
-  readonly evidence?: JsonValue
-  readonly verifierRef?: string
-  readonly metadata?: JsonValue
-  readonly idempotencyKey?: string
+export interface ListObjectiveAttemptReviewsRequest {
+  readonly objectiveId: ObjectiveId
+  readonly attemptId?: ObjectiveAttemptId
+  readonly limit?: number
 }
 
 export interface ListObjectiveVerificationsRequest {
-  readonly objectiveId: string
-  readonly attemptId?: string
-  readonly state?: ObjectiveVerificationState
+  readonly objectiveId: ObjectiveId
+  readonly attemptId?: ObjectiveAttemptId
+  readonly requirementId?: string
+  readonly result?: ObjectiveVerificationResult
   readonly limit?: number
 }

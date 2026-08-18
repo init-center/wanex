@@ -1,6 +1,7 @@
 import { WanexAgentRuntime } from "@wanex/runtime/host"
-import { writeProviderProfile } from "@wanex/runtime/provider"
+import { writeModelEndpoint } from "@wanex/runtime/provider"
 import type { EvalStore } from "../eval-storage.js"
+import { evalFakeModelEndpoint } from "../scenario-utils.js"
 import { assistantTextFromMessages } from "./message-text.js"
 
 export async function runSingleAgentSmoke(
@@ -9,16 +10,13 @@ export async function runSingleAgentSmoke(
   readonly sessionId: string
   readonly assistantText: string
 }> {
-  await writeProviderProfile(storage, {
-    id: "product-matrix-profile",
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    providerId: "fake",
-    modelId: "product-matrix-model"
-  })
+  await writeModelEndpoint(
+    storage,
+    evalFakeModelEndpoint("product-matrix-profile", "product-matrix-model")
+  )
   const agent = new WanexAgentRuntime({
     storage,
-    providerProfileId: "product-matrix-profile"
+    modelEndpointId: "product-matrix-profile"
   })
   try {
     const result = await agent.submitAndRunUserTurn({

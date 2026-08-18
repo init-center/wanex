@@ -1,19 +1,22 @@
-import { createHash } from "node:crypto"
 import type {
   MessagePart,
+  ModelEndpoint,
   SessionTurnExecutionBinding,
   StartSessionTurnAttemptReceipt,
   SubmitSessionTurnReceipt
 } from "@wanex/protocol"
 import type { WanexSessionCore } from "@wanex/runtime/sessions"
+import {
+  modelEndpointToJson,
+  normalizeModelEndpoint
+} from "@wanex/runtime/provider"
+import { evalFakeModelEndpoint } from "./scenario-utils.js"
 
-const evalProviderProfile = {
-  id: "eval-durable-turn",
-  kind: "fake",
-  capabilities: { input: ["text"], output: ["text"] },
-  providerId: "eval",
-  modelId: "eval-durable-turn-model"
-} as const
+const evalModelEndpoint = evalFakeModelEndpoint(
+  "eval-durable-turn",
+  "eval-durable-turn-model",
+  "eval"
+)
 
 export interface StartEvalTurnRequest {
   readonly session: WanexSessionCore
@@ -25,6 +28,7 @@ export interface StartEvalTurnRequest {
   readonly workerId: string
   readonly idempotencyKey: string
   readonly content: readonly MessagePart[]
+  readonly modelEndpoint?: ModelEndpoint
   readonly maxSteps?: number
 }
 
@@ -54,7 +58,7 @@ export async function startEvalTurn(
     content: request.content,
     jobId: request.jobId,
     jobIdempotencyKey: request.idempotencyKey + ":job",
-    executionBinding: createEvalTurnBinding(),
+    executionBinding: createEvalTurnBinding(request.modelEndpoint),
     maxSteps: request.maxSteps ?? 1
   })
   const job = await request.session.claimJob({
@@ -110,28 +114,28 @@ export async function settleEvalTurn(
   })
 }
 
-function createEvalTurnBinding(): SessionTurnExecutionBinding {
-  const provider = {
-    profileId: evalProviderProfile.id,
-    profileDigest: digestJson(evalProviderProfile),
-    adapterId: evalProviderProfile.kind,
-    providerId: evalProviderProfile.providerId,
-    modelId: evalProviderProfile.modelId,
-    capabilities: evalProviderProfile.capabilities
-  } as const
+function createEvalTurnBinding(
+  modelEndpoint: ModelEndpoint = evalModelEndpoint
+): SessionTurnExecutionBinding {
+  const endpoint = normalizeModelEndpoint(modelEndpoint)
   const binding = {
     createdAt: Date.now(),
-    provider,
+    modelEndpoint: {
+      endpointId: endpoint.id,
+      endpointDigest: digestJson(modelEndpointToJson(endpoint)),
+      connection: endpoint.connection,
+      protocol: endpoint.protocol,
+      model: endpoint.model
+    },
+    completion: { maxOutputTokens: 4_096 },
+    capabilityRoutes: [],
     resources: [],
     recovery: {
       providerMaxAttempts: 2,
       idempotentToolMaxAttempts: 2
     }
   }
-  return {
-    digest: digestJson(binding),
-    ...binding
-  }
+  return { digest: digestJson(binding), ...binding }
 }
 
 function digestJson(value: unknown): string {
@@ -143,9 +147,7 @@ function stableJson(value: unknown): string {
 }
 
 function sortJson(value: unknown): unknown {
-  if (Array.isArray(value)) {
-    return value.map(sortJson)
-  }
+  if (Array.isArray(value)) return value.map(sortJson)
   if (value !== null && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
@@ -155,3 +157,4 @@ function sortJson(value: unknown): unknown {
   }
   return value
 }
+import { createHash } from "node:crypto"

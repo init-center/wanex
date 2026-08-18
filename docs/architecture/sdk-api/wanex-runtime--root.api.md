@@ -19,11 +19,87 @@ type JsonValue = JsonPrimitive | {
 } | readonly JsonValue[];
 
 // @public (undocumented)
-interface ProviderCapabilities {
+interface ModelBehavior {
     // (undocumented)
-    readonly input: readonly ProviderInputModality[];
+    readonly reasoningReplay?: "optional" | "required" | "forbidden";
+}
+
+// @public (undocumented)
+interface ModelCatalogProvenance {
     // (undocumented)
-    readonly output: readonly ProviderOutputModality[];
+    readonly catalogId: string;
+    // (undocumented)
+    readonly revision: string;
+    // (undocumented)
+    readonly source: "builtin" | "provider" | "custom";
+}
+
+// @public (undocumented)
+interface ModelDescriptor {
+    // (undocumented)
+    readonly behavior?: ModelBehavior;
+    // (undocumented)
+    readonly catalog: ModelCatalogProvenance;
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly limits?: ModelLimits;
+    // (undocumented)
+    readonly operations: readonly ModelOperation[];
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+interface ModelEndpoint {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+type ModelFeature = "tool_calling" | "parallel_tool_calls" | "reasoning";
+
+// @public (undocumented)
+type ModelInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+interface ModelLimits {
+    // (undocumented)
+    readonly contextWindowTokens?: number;
+    // (undocumented)
+    readonly maxInputResources?: number;
+    // (undocumented)
+    readonly maxInputTokens?: number;
+    // (undocumented)
+    readonly maxOutputTokens?: number;
+}
+
+// @public (undocumented)
+type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+type ModelOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+interface ProviderConnection {
+    // (undocumented)
+    readonly baseUrl?: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
 }
 
 // @public (undocumented)
@@ -75,10 +151,12 @@ interface ProviderFinishEvent {
 }
 
 // @public (undocumented)
-type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
-
-// @public (undocumented)
-type ProviderOutputModality = "text" | "image" | "audio" | "video";
+interface ProviderProtocolDescriptor {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly version?: string;
+}
 
 // @public (undocumented)
 interface ProviderReasoningDeltaEvent {
@@ -243,9 +321,9 @@ interface SecretResolveContext {
     // (undocumented)
     readonly credentialId?: string;
     // (undocumented)
-    readonly principalId?: string;
+    readonly modelEndpointId?: string;
     // (undocumented)
-    readonly providerProfileId?: string;
+    readonly principalId?: string;
     // (undocumented)
     readonly signal?: AbortSignal;
 }
@@ -358,7 +436,7 @@ export interface WanexRuntimeOperationReference {
 }
 
 // @public (undocumented)
-export type WanexRuntimeOperationState = "queued" | "running" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+export type WanexRuntimeOperationState = "queued" | "running" | "waiting" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
 
 // @public (undocumented)
 export interface WanexRuntimeOptions {
@@ -374,15 +452,17 @@ export interface WanexRuntimeOptions {
     // (undocumented)
     readonly errorIntervalMs?: number;
     // (undocumented)
+    readonly fakeResponseText?: string;
+    // (undocumented)
     readonly heartbeatIntervalMs?: number;
     // (undocumented)
     readonly idleIntervalMs?: number;
     // (undocumented)
     readonly leaseMs?: number;
     // (undocumented)
-    readonly observeProviderEvent?: ProviderEventObserver;
+    readonly modelEndpoint: ModelEndpoint;
     // (undocumented)
-    readonly provider?: WanexRuntimeProviderOptions;
+    readonly observeProviderEvent?: ProviderEventObserver;
     // (undocumented)
     readonly secretResolver?: SecretResolverPort;
     // (undocumented)
@@ -392,28 +472,6 @@ export interface WanexRuntimeOptions {
     // (undocumented)
     readonly workerCount?: number;
 }
-
-// @public (undocumented)
-export type WanexRuntimeProviderOptions = {
-    readonly kind?: "fake";
-    readonly id?: string;
-    readonly providerId?: string;
-    readonly modelId?: string;
-    readonly responseText?: string;
-    readonly capabilities?: ProviderCapabilities;
-} | {
-    readonly kind: "openai-compatible" | "anthropic" | "deepseek";
-    readonly id?: string;
-    readonly providerId?: string;
-    readonly modelId: string;
-    readonly baseUrl?: string;
-    readonly secretRef?: string;
-    readonly anthropicVersion?: string;
-    readonly capabilities: ProviderCapabilities;
-};
-
-// @public (undocumented)
-export type WanexRuntimeProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
 
 // @public (undocumented)
 export interface WanexRuntimeReadOperationRequest extends WanexRuntimeOperationReference {
@@ -455,11 +513,13 @@ export interface WanexRuntimeStatus {
     // (undocumented)
     readonly disposed: boolean;
     // (undocumented)
+    readonly modelEndpointId: string;
+    // (undocumented)
     readonly modelId: string;
     // (undocumented)
-    readonly providerKind: WanexRuntimeProviderProfileKind;
+    readonly protocolId: string;
     // (undocumented)
-    readonly providerProfileId: string;
+    readonly providerId: string;
     // (undocumented)
     readonly started: boolean;
     // (undocumented)

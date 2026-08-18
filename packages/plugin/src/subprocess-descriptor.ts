@@ -5,7 +5,7 @@ export function pluginActionDescriptorFromDefinitionLike(
 ): PluginActionDescriptor {
   return {
     capability: definition.capability,
-    ...(definition.version === undefined ? {} : { version: definition.version }),
+    version: definition.version,
     ...(definition.sandbox === undefined ? {} : { sandbox: definition.sandbox })
   }
 }

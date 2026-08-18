@@ -37,7 +37,6 @@ export type {
   SkillFileSystem,
   SkillScope,
   SkillSnapshot,
-  SkillSnapshotStatus,
   SkillSource,
   SkillSourceProvenance,
   SkillSupportingFile,

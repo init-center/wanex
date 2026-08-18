@@ -9,6 +9,7 @@ import { resolveStepCommand } from "./process-step.mjs"
 
 const execFileAsync = promisify(execFile)
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const TOOL_PROBE_TIMEOUT_MS = 30_000
 const requiredPackageManager = {
   name: "pnpm",
   version: ">=11 <12",
@@ -435,7 +436,7 @@ async function runCommand(command, args) {
     const resolved = resolveStepCommand({ command, args })
     const result = await execFileAsync(resolved.command, resolved.args, {
       cwd: rootDir,
-      timeout: 10_000,
+      timeout: TOOL_PROBE_TIMEOUT_MS,
       windowsHide: true
     })
     return {

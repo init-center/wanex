@@ -44,24 +44,29 @@ export function createVerifySteps() {
       args: ["test:host-distribution-budget"]
     },
     {
-      name: "Electron boundary typecheck",
+      name: "Product Desktop typecheck",
       command: "pnpm",
-      args: ["check:electron-boundary"]
+      args: ["check:desktop"]
     },
     {
-      name: "Electron boundary policy tests",
+      name: "Product Desktop policy tests",
       command: "pnpm",
-      args: ["test:electron-boundary"]
+      args: ["test:desktop"]
     },
     {
-      name: "Product App Local smoke script tests",
+      name: "Local Host smoke script tests",
       command: "pnpm",
-      args: ["test:product-app-local-smoke-script"]
+      args: ["test:local-host-smoke-script"]
     },
     {
-      name: "Product App TUI demo script tests",
+      name: "TUI demo script tests",
       command: "pnpm",
-      args: ["test:product-app-tui-demo-script"]
+      args: ["test:tui-script"]
+    },
+    {
+      name: "TUI distribution tests",
+      command: "pnpm",
+      args: ["--filter", "@wanex/tui", "test", "--run", "test/distribution.test.mjs"]
     },
     {
       name: "Verify script tests",
@@ -197,6 +202,11 @@ export function createVerifySteps() {
       name: "Packed SDK runtime consumer proofs",
       command: "pnpm",
       args: ["proof:sdk-consumers"]
+    },
+    {
+      name: "Installed TUI proof",
+      command: "pnpm",
+      args: ["proof:tui"]
     },
     {
       name: "Compiled SDK determinism audit",

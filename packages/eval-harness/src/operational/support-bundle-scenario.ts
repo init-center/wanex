@@ -1,21 +1,23 @@
 import { buildSupportBundle } from "@wanex/app/diagnostics"
+import { writeModelEndpoint } from "@wanex/runtime/provider"
 import { createEvalScenario } from "../runner.js"
-import { assert } from "../scenario-utils.js"
+import { assert, evalOpenAICompatibleModelEndpoint } from "../scenario-utils.js"
 
 export const supportBundleOperationalScenario = createEvalScenario({
   id: "support-bundle.redaction-operational",
   title: "Support bundle redacts provider credentials and stays read-only",
   tags: ["support", "diagnostics", "security"],
   async run(context) {
-    await context.storage.putConfig("provider.profile.support", {
-      id: "support",
-      kind: "openai-compatible",
-      capabilities: { input: ["text"], output: ["text"] },
-      providerId: "deepseek",
-      modelId: "deepseek-chat",
-      baseUrl: "https://api.deepseek.com/v1",
-      secretRef: "env://EVAL_SUPPORT_API_KEY"
-    })
+    await writeModelEndpoint(
+      context.storage,
+      evalOpenAICompatibleModelEndpoint({
+        id: "support",
+        providerId: "deepseek",
+        modelId: "deepseek-chat",
+        baseUrl: "https://api.deepseek.com/v1",
+        secretRef: "env://EVAL_SUPPORT_API_KEY"
+      })
+    )
     await context.storage.enqueueJob({
       id: "job_eval_support_bundle_memory",
       kind: "memory.compaction",
@@ -31,7 +33,7 @@ export const supportBundleOperationalScenario = createEvalScenario({
 
     const bundle = await buildSupportBundle({
       storage: context.storage,
-      providerProfileIds: ["support"],
+      modelEndpointIds: ["support"],
       memoryMaintenance: true,
       runtimeHost: {
         generatedAt: 900,
@@ -94,9 +96,9 @@ export const supportBundleOperationalScenario = createEvalScenario({
 
     assert(!serialized.includes("EVAL_SUPPORT_API_KEY"), "support bundle must redact secret refs")
     assert(
-      bundle.providers[0]?.profile?.credentialConfigured === true &&
+      bundle.modelEndpoints[0]?.endpoint?.credentialConfigured === true &&
         !serialized.includes("secretRef"),
-      "support bundle should expose only safe provider profile metadata"
+      "support bundle should expose only safe model endpoint metadata"
     )
     assert(
       bundle.diagnostics.diagnostics.some(
@@ -121,7 +123,7 @@ export const supportBundleOperationalScenario = createEvalScenario({
 
     return {
       providerRedacted:
-        bundle.providers[0]?.profile?.credentialConfigured === true &&
+        bundle.modelEndpoints[0]?.endpoint?.credentialConfigured === true &&
         !serialized.includes("secretRef"),
       runtimeHostIncluded: bundle.diagnostics.diagnostics.some(
         (entry) => entry.code === "app.runtime_host.summary"

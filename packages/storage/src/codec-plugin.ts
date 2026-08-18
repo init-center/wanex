@@ -1,10 +1,14 @@
 import {
+  type ActivatePluginInstallRequest,
+  type GetPluginActionExecutionAdmissionRequest,
   type GetPluginInstallRequest,
   type GetPluginManifestRequest,
   type JsonValue,
   type ListPluginInstallsRequest,
   type ListPluginManifestsRequest,
   type PluginActionSubmission,
+  type PluginActionExecutionAdmission,
+  type PluginInstallActivation,
   type PluginInstallRecord,
   type PluginManifestRecord,
   type PutPluginInstallRequest,
@@ -16,6 +20,8 @@ import {
 
 import { toRpcJsonValue } from "./codec-common.js"
 import type {
+  ActivatePluginInstallWire,
+  GetPluginActionExecutionAdmissionWire,
   GetPluginInstallWire,
   GetPluginManifestWire,
   ListPluginInstallsWire,
@@ -92,6 +98,15 @@ export function toRpcPutPluginInstallRequest(
   }
 }
 
+export function toRpcActivatePluginInstallRequest(
+  request: ActivatePluginInstallRequest
+): ActivatePluginInstallWire {
+  return {
+    manifest: toRpcPutPluginManifestRequest(request.manifest),
+    install: toRpcPutPluginInstallRequest(request.install)
+  }
+}
+
 export function toRpcGetPluginInstallRequest(
   request: GetPluginInstallRequest
 ): GetPluginInstallWire {
@@ -116,7 +131,7 @@ export function toRpcUpdatePluginManifestStateRequest(
 ): UpdatePluginManifestStateWire {
   return {
     plugin_id: request.pluginId,
-    version: request.version ?? null,
+    version: request.version,
     state: request.state
   }
 }
@@ -126,7 +141,8 @@ export function toRpcUpdatePluginInstallStateRequest(
 ): UpdatePluginInstallStateWire {
   return {
     plugin_id: request.pluginId,
-    version: request.version ?? null,
+    version: request.version,
+    expected_state: request.expectedState,
     state: request.state
   }
 }
@@ -136,7 +152,7 @@ export function toRpcSubmitPluginActionRequest(
 ): SubmitPluginActionWire {
   return {
     plugin_id: request.pluginId,
-    version: request.version ?? null,
+    version: request.version,
     action_id: request.actionId,
     principal_id: request.principalId,
     payload: toRpcJsonValue(request.payload),
@@ -156,6 +172,16 @@ export function toRpcSubmitPluginActionRequest(
             max_delay_ms: request.retryPolicy.maxDelayMs ?? null
           },
     budget_grant_id: request.budgetGrantId ?? null
+  }
+}
+
+export function toRpcGetPluginActionExecutionAdmissionRequest(
+  request: GetPluginActionExecutionAdmissionRequest
+): GetPluginActionExecutionAdmissionWire {
+  return {
+    plugin_id: request.pluginId,
+    version: request.version,
+    required_capability: request.requiredCapability
   }
 }
 
@@ -211,6 +237,22 @@ export function fromRpcPluginInstallRecord(value: JsonValue): PluginInstallRecor
   )
 }
 
+export function fromRpcPluginInstallActivation(
+  value: JsonValue
+): PluginInstallActivation {
+  if (!isRecord(value)) {
+    throw new Error("plugin install activation must be an object")
+  }
+  return {
+    manifest: fromRpcPluginManifestRecord(
+      expectJsonField(value, "manifest", "plugin_install_activation.manifest")
+    ),
+    install: fromRpcPluginInstallRecord(
+      expectJsonField(value, "install", "plugin_install_activation.install")
+    )
+  }
+}
+
 export function fromRpcPluginActionSubmission(
   value: JsonValue
 ): PluginActionSubmission {
@@ -223,6 +265,30 @@ export function fromRpcPluginActionSubmission(
     ),
     job: fromRpcSchedulerJobRecord(
       expectJsonField(value, "job", "plugin_action.job")
+    )
+  }
+}
+
+export function fromRpcPluginActionExecutionAdmission(
+  value: JsonValue
+): PluginActionExecutionAdmission {
+  if (!isRecord(value)) {
+    throw new Error("plugin action execution admission must be an object")
+  }
+  return {
+    manifest: fromRpcPluginManifestRecord(
+      expectJsonField(
+        value,
+        "manifest",
+        "plugin_action_execution_admission.manifest"
+      )
+    ),
+    install: fromRpcPluginInstallRecord(
+      expectJsonField(
+        value,
+        "install",
+        "plugin_action_execution_admission.install"
+      )
     )
   }
 }

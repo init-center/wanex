@@ -6,7 +6,14 @@ import type {
   ProviderRequest,
   ProviderReplayMessage
 } from "@wanex/runtime/provider"
-import type { JsonValue, TextMessagePart } from "@wanex/protocol"
+import type {
+  JsonValue,
+  ModelEndpoint,
+  ModelFeature,
+  ModelInputModality,
+  TextMessagePart
+} from "@wanex/protocol"
+import { fakeModelDescriptor } from "@wanex/runtime/provider"
 import {
   type PluginInstallPlan,
   WANEX_PLUGIN_INSTALL_PLAN_KIND,
@@ -23,6 +30,76 @@ export function assert(condition: boolean, message: string): asserts condition {
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+export function evalFakeModelEndpoint(
+  id: string,
+  modelId: string,
+  providerId = "fake",
+  options: {
+    readonly inputModalities?: readonly ModelInputModality[]
+    readonly features?: readonly ModelFeature[]
+    readonly secretRef?: string
+  } = {}
+): ModelEndpoint {
+  return {
+    id,
+    connection: {
+      id,
+      providerId,
+      ...(options.secretRef === undefined ? {} : { secretRef: options.secretRef })
+    },
+    protocol: { id: "fake" },
+    model: {
+      id: modelId,
+      operations: ["conversation"],
+      inputModalities: options.inputModalities ?? ["text"],
+      outputModalities: ["text"],
+      features: options.features ?? [],
+      catalog: {
+        source: "builtin",
+        catalogId: `eval.fake.${id}`,
+        revision: "1"
+      }
+    }
+  }
+}
+
+export function evalOpenAICompatibleModelEndpoint(request: {
+  readonly id: string
+  readonly modelId: string
+  readonly providerId?: string
+  readonly baseUrl: string
+  readonly secretRef?: string
+  readonly inputModalities?: readonly ModelInputModality[]
+  readonly features?: readonly ModelFeature[]
+  readonly reasoningReplay?: "optional" | "required" | "forbidden"
+}): ModelEndpoint {
+  return {
+    id: request.id,
+    connection: {
+      id: request.id,
+      providerId: request.providerId ?? "openai-compatible",
+      baseUrl: request.baseUrl,
+      ...(request.secretRef === undefined ? {} : { secretRef: request.secretRef })
+    },
+    protocol: { id: "openai-chat-completions" },
+    model: {
+      id: request.modelId,
+      operations: ["conversation"],
+      inputModalities: request.inputModalities ?? ["text"],
+      outputModalities: ["text"],
+      features: request.features ?? ["tool_calling"],
+      ...(request.reasoningReplay === undefined
+        ? {}
+        : { behavior: { reasoningReplay: request.reasoningReplay } }),
+      catalog: {
+        source: "custom",
+        catalogId: `eval.${request.id}`,
+        revision: "1"
+      }
+    }
+  }
 }
 
 export function evalPluginInstallPlan(pluginHostFixture: string): PluginInstallPlan {
@@ -105,10 +182,9 @@ export async function putRequestedCreateProposal(
 }
 
 export class EvalFailingProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "eval-provider"
-  readonly modelId = "eval-model"
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly model = fakeModelDescriptor("eval-model")
 
   constructor(private readonly failingText: string) {}
 
@@ -123,7 +199,7 @@ export class EvalFailingProvider implements ProviderAdapter {
           message: `planned eval provider failure: ${text}`,
           retryable: false,
           providerId: this.providerId,
-          modelId: this.modelId,
+          modelId: this.model.id,
           phase: "request"
         }
       }

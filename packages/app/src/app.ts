@@ -5,11 +5,12 @@ import { createWanexAppAgentContextProfileManager } from "./context-profile.js"
 import { WanexAppConversationOperationController } from "./conversation-operation.js"
 import { WanexAppMediaGenerationOperationController } from "./media-generation-operation.js"
 import { WanexAppConversationEventHub } from "./conversation-events.js"
-import { TEXT_PROVIDER_CAPABILITIES } from "@wanex/runtime/provider"
+import { composeWanexAppAgentContext } from "./agent-context-composition.js"
 import {
-  initializeWanexAppProviderProfile,
-  requireWanexAppActiveProviderProfileId,
-} from "./provider-profile.js"
+  readWanexAppActiveModelEndpointId,
+  requireWanexAppActiveModelEndpointId,
+  upsertWanexAppModelEndpoint
+} from "./model-endpoint.js"
 import { bootstrapWanexAppRuntime } from "./runtime.js"
 import type {
   WanexApp,
@@ -17,16 +18,14 @@ import type {
   WanexAppStatus
 } from "./types-app.js"
 import type { WanexAppCommandContext } from "./command-context.js"
-
-const defaultProviderProfileId = "wanex-app-fake"
+import { PlanWorkflow } from "./workflows/plan/runtime.js"
+import { WanexAppGoalCoordinator } from "./goal-coordinator.js"
+import { prepareWanexAppModelCapabilityContext } from "./model-capability-context.js"
+import { MediaGenerationAdapterRegistry } from "@wanex/runtime/media-generation"
 
 export async function createWanexApp(
   options: WanexAppOptions
 ): Promise<WanexApp> {
-  const providerProfileId = options.providerProfile?.id ?? defaultProviderProfileId
-  const providerKind = options.providerProfile?.kind ?? "fake"
-  const providerId = options.providerProfile?.providerId ?? providerKind
-  const modelId = options.providerProfile?.modelId ?? "wanex-app-model"
   const runtime = await bootstrapWanexAppRuntime({
     storage: options.storage,
     ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts }),
@@ -44,23 +43,76 @@ export async function createWanexApp(
     manager: agentContext
   })
   const extensions = createWanexAppExtensionContributionManager(
-    options.extensions?.snapshot
+    options.extensions?.source
   )
   const events = new WanexAppConversationEventHub()
+  const mediaGenerationAdapters = options.mediaGenerationAdapters ?? []
+  const mediaGenerationAdapterRegistry = new MediaGenerationAdapterRegistry(
+    mediaGenerationAdapters
+  )
+  const isModelEndpointExecutable = mediaGenerationAdapterRegistry.supports.bind(
+    mediaGenerationAdapterRegistry
+  )
+  let goalCoordinator: WanexAppGoalCoordinator | undefined
+  let activeModelEndpointId: string | undefined
+  let releaseTrustedProviderHost: (() => void) | undefined
   const host = runtime.app.createRuntimeHost({
     workerCount: options.workerCount ?? 1,
     observeProviderEvent: events.observeProviderEvent,
-    ...(options.mediaGenerationAdapters === undefined
+      observeSessionTurnResult(signal) {
+        events.observeSessionTurnResult(signal)
+        goalCoordinator?.observeSessionTurnResult(signal)
+        options.observeSessionTurnResult?.(signal)
+      },
+    ...(mediaGenerationAdapters.length === 0
       ? {}
-      : { mediaGenerationAdapters: options.mediaGenerationAdapters }),
+      : { mediaGenerationAdapters }),
     ...(options.mediaGenerationWorkerCount === undefined
       ? {}
       : { mediaGenerationWorkerCount: options.mediaGenerationWorkerCount }),
     ...(options.mediaGenerationMaxOutputBytes === undefined
       ? {}
       : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
-    async resolveAgentContext() {
-      return await extensions.prepareAgentContext(agentContext.current())
+    ...(options.mediaGenerationPollInitialDelayMs === undefined
+      ? {}
+      : {
+          mediaGenerationPollInitialDelayMs:
+            options.mediaGenerationPollInitialDelayMs
+        }),
+    ...(options.mediaGenerationPollMaxDelayMs === undefined
+      ? {}
+      : { mediaGenerationPollMaxDelayMs: options.mediaGenerationPollMaxDelayMs }),
+    ...(options.mediaGenerationMaxConsecutivePollFailures === undefined
+      ? {}
+      : {
+          mediaGenerationMaxConsecutivePollFailures:
+            options.mediaGenerationMaxConsecutivePollFailures
+        }),
+    async resolveAgentContext(request) {
+      const discovered = agentContext.current()
+      const configured = composeWanexAppAgentContext({
+        ...(discovered === undefined ? {} : { discovered }),
+        ...(options.runtimeContext === undefined
+          ? {}
+          : { runtime: options.runtimeContext })
+      })
+      const contextualRuntime = await options.runtimeContextResolver?.(request)
+      const base = await extensions.prepareAgentContext(
+        composeWanexAppAgentContext({
+          ...(configured === undefined ? {} : { discovered: configured }),
+          ...(contextualRuntime === undefined
+            ? {}
+            : { runtime: contextualRuntime })
+        })
+      )
+      return await prepareWanexAppModelCapabilityContext({
+        storage: runtime.storage,
+        isModelEndpointExecutable,
+        ...(base === undefined ? {} : { base }),
+        ...(request.executionBinding === undefined
+          ? {}
+          : { executionBinding: request.executionBinding })
+      })
     }
   })
   const conversationOperations = new WanexAppConversationOperationController({
@@ -68,31 +120,39 @@ export async function createWanexApp(
     host
   })
   const mediaGenerationOperations =
-    new WanexAppMediaGenerationOperationController({ host })
+    new WanexAppMediaGenerationOperationController({
+      host,
+      storage: runtime.storage,
+      isModelEndpointExecutable
+    })
+  const planWorkflow = new PlanWorkflow({
+    storage: runtime.app.storage,
+    runtime: host
+  })
+  goalCoordinator = new WanexAppGoalCoordinator({
+    storage: runtime.app.storage,
+    host,
+    async resolveActiveModelEndpointId() {
+      activeModelEndpointId =
+        await readWanexAppActiveModelEndpointId(runtime.storage)
+      return activeModelEndpointId
+    },
+    observeGoalInvalidation: events.observeGoalInvalidation
+  })
   let disposed = false
   let disposePromise: Promise<void> | undefined
-  let activeProviderProfileId = providerProfileId
 
-  await initializeWanexAppProviderProfile({
-    storage: runtime.storage,
-    profile: {
-      id: providerProfileId,
-      kind: providerKind,
-      providerId,
-      modelId,
-      capabilities:
-        options.providerProfile?.capabilities ?? TEXT_PROVIDER_CAPABILITIES,
-      ...(options.providerProfile?.baseUrl === undefined
-        ? {}
-        : { baseUrl: options.providerProfile.baseUrl }),
-      ...(options.providerProfile?.secretRef === undefined
-        ? {}
-        : { secretRef: options.providerProfile.secretRef })
-    }
-  })
-  activeProviderProfileId =
-    await requireWanexAppActiveProviderProfileId(runtime.storage)
+  if (options.modelEndpoint !== undefined) {
+    await upsertWanexAppModelEndpoint({
+      storage: runtime.storage,
+      modelEndpoint: options.modelEndpoint
+    })
+  }
+  activeModelEndpointId = await readWanexAppActiveModelEndpointId(
+    runtime.storage
+  )
   conversationOperations.start()
+  await goalCoordinator.start()
 
   const dispose = async (): Promise<void> => {
     if (disposePromise !== undefined) {
@@ -100,11 +160,32 @@ export async function createWanexApp(
     }
     disposed = true
     disposePromise = (async () => {
-      await agentContextMonitor.stop()
-      mediaGenerationOperations.dispose()
-      await conversationOperations.dispose()
-      events.dispose()
-      await runtime.dispose()
+      let releaseError: unknown
+      const release = releaseTrustedProviderHost
+      releaseTrustedProviderHost = undefined
+      try {
+        release?.()
+      } catch (error) {
+        releaseError = error
+      }
+      try {
+        await agentContextMonitor.stop()
+        await goalCoordinator.dispose()
+        mediaGenerationOperations.dispose()
+        planWorkflow.dispose()
+        await conversationOperations.dispose()
+        events.dispose()
+        await runtime.dispose()
+      } catch (error) {
+        if (releaseError !== undefined) {
+          throw new AggregateError(
+            [releaseError, error],
+            "trusted Provider host release and App disposal failed"
+          )
+        }
+        throw error
+      }
+      if (releaseError !== undefined) throw releaseError
     })()
     return await disposePromise
   }
@@ -121,8 +202,9 @@ export async function createWanexApp(
       disposed,
       started: processor.started,
       workerCount: processor.workerCount,
-      providerProfileId,
-      activeProviderProfileId,
+      ...(activeModelEndpointId === undefined
+        ? {}
+        : { activeModelEndpointId }),
       agentContext: agentContext.status(),
       agentContextMonitor: agentContextMonitor.status(),
       extensions: extensions.status()
@@ -136,17 +218,18 @@ export async function createWanexApp(
     extensions,
     conversationOperations,
     mediaGenerationOperations,
+    planWorkflow,
+    goalCoordinator,
+    isModelEndpointExecutable,
     assertActive,
-    getActiveProviderProfileId() {
-      return activeProviderProfileId
+    async refreshActiveModelEndpointId() {
+      const endpointId =
+        await requireWanexAppActiveModelEndpointId(runtime.storage)
+      activeModelEndpointId = endpointId
+      return endpointId
     },
-    async refreshActiveProviderProfileId() {
-      activeProviderProfileId =
-        await requireWanexAppActiveProviderProfileId(runtime.storage)
-      return activeProviderProfileId
-    },
-    setActiveProviderProfileId(profileId) {
-      activeProviderProfileId = profileId
+    setActiveModelEndpointId(endpointId) {
+      activeModelEndpointId = endpointId
     },
     dispose
   }
@@ -155,9 +238,68 @@ export async function createWanexApp(
     isDisposed: () => disposed
   })
 
+  try {
+    if (options.trustedProviderHost !== undefined) {
+      const { createWanexAppProviderMutationCoordinator } = await import(
+        "@wanex/app/provider-mutation"
+      )
+      const providerMutation = createWanexAppProviderMutationCoordinator({
+        storage: runtime.storage,
+        modelEndpoints: commands,
+        credentialStore: options.trustedProviderHost.credentialStore,
+        credentialPolicy: options.trustedProviderHost.credentialPolicy,
+        ...(options.trustedProviderHost.createRevisionId === undefined
+          ? {}
+          : {
+              createRevisionId:
+                options.trustedProviderHost.createRevisionId
+            })
+      })
+      await providerMutation.reconcilePending()
+      const release = options.trustedProviderHost.bindMutationCoordinator?.(
+        providerMutation
+      )
+      if (release !== undefined) releaseTrustedProviderHost = release
+      const replacement = await options.trustedProviderHost
+        .requestInitialReplacement(await commands.listModelEndpoints())
+      if (replacement !== undefined) {
+        await providerMutation.replace(replacement)
+        activeModelEndpointId = await readWanexAppActiveModelEndpointId(
+          runtime.storage
+        )
+      }
+    }
+  } catch (error) {
+    try {
+      await dispose()
+    } catch (disposeError) {
+      throw new AggregateError(
+        [error, disposeError],
+        "trusted Provider host initialization failed and App cleanup failed"
+      )
+    }
+    throw error
+  }
+
   return {
     commands,
     events,
+    trustedExecution: {
+      async prepareExecutionBinding(request) {
+        assertActive()
+        const modelEndpointId =
+          await requireWanexAppActiveModelEndpointId(runtime.storage)
+        activeModelEndpointId = modelEndpointId
+        return await host.prepareExecutionBinding({
+          ...request,
+          modelEndpointId
+        })
+      },
+      wake() {
+        assertActive()
+        host.wake()
+      }
+    },
     status,
     start() {
       assertActive()

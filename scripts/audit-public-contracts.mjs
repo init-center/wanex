@@ -39,7 +39,7 @@ const requiredRootReadmeEntryPhrases = [
   "Default agent runtime: `@wanex/runtime`",
   "Default upper-product backend: `@wanex/app`",
   "Optional capabilities are explicit:",
-  "Concrete Product App hosts under `apps/`"
+  "Concrete application hosts under `apps/`"
 ]
 const requiredPublicContractEntryPhrases = [
   "Default agent runtime:",

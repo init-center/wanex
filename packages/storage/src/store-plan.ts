@@ -1,19 +1,23 @@
 import type {
+  CreatePlanProposalRequest,
+  ExecuteApprovedPlanReceipt,
+  ExecuteApprovedPlanRequest,
   GetPlanProposalRequest,
   ListPlanProposalOperationsRequest,
   ListPlanProposalsRequest,
   PlanProposalOperationRecord,
   PlanProposalRecord,
-  PutPlanProposalRequest,
   RecordPlanProposalOperationRequest
 } from "@wanex/protocol"
 
 import {
   fromRpcPlanProposalOperationRecord,
   fromRpcPlanProposalRecord,
+  fromRpcExecuteApprovedPlanReceipt,
+  toRpcCreatePlanProposalRequest,
+  toRpcExecuteApprovedPlanRequest,
   toRpcListPlanProposalOperationsRequest,
   toRpcListPlanProposalsRequest,
-  toRpcPutPlanProposalRequest,
   toRpcRecordPlanProposalOperationRequest
 } from "./codec-plan.js"
 import { assertArray } from "./codec-helpers.js"
@@ -21,12 +25,12 @@ import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { PlanStorageRpcCommand } from "./generated/storage-rpc.js"
 
 export class PlanStoreMethods extends RpcStoreFacetBase {
-  async putPlanProposal(
-    request: PutPlanProposalRequest
+  async createPlanProposal(
+    request: CreatePlanProposalRequest
   ): Promise<PlanProposalRecord> {
     const value = await this.callPlan({
-      command: "put-plan-proposal",
-      request: toRpcPutPlanProposalRequest(request)
+      command: "create-plan-proposal",
+      request: toRpcCreatePlanProposalRequest(request)
     })
     return fromRpcPlanProposalRecord(value)
   }
@@ -60,6 +64,16 @@ export class PlanStoreMethods extends RpcStoreFacetBase {
       request: toRpcRecordPlanProposalOperationRequest(request)
     })
     return fromRpcPlanProposalOperationRecord(value)
+  }
+
+  async executeApprovedPlan(
+    request: ExecuteApprovedPlanRequest
+  ): Promise<ExecuteApprovedPlanReceipt> {
+    const value = await this.callPlan({
+      command: "execute-approved-plan",
+      request: toRpcExecuteApprovedPlanRequest(request)
+    })
+    return fromRpcExecuteApprovedPlanReceipt(value)
   }
 
   async listPlanProposalOperations(

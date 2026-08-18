@@ -1,5 +1,4 @@
 export {
-  isPluginPackageLayout,
   registerPluginManifestRequestFromPackageLayout
 } from "./codec-layout-manifest.js"
 export {

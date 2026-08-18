@@ -1,44 +1,38 @@
 import type {
   JsonValue,
-  ProviderCapabilities,
+  ModelDescriptor,
   TextMessagePart,
   ToolCallMessagePart
 } from "@wanex/protocol"
-import {
-  assertProfileCapabilitiesSupported,
-  TEXT_PROVIDER_CAPABILITIES
-} from "../capabilities.js"
+import { assertConversationModelSupported, fakeModelDescriptor } from "../model-descriptor.js"
 import { providerErrorEvent } from "../errors.js"
 import { textContent } from "../replay.js"
 import type {
   ProviderAdapter,
   ProviderEvent,
-  ProviderReplayMessage,
+  PreparedProviderReplayMessage,
   ProviderRequest
 } from "../types.js"
 
 export interface FakeProviderAdapterOptions {
   readonly providerId?: string
-  readonly modelId?: string
+  readonly model?: ModelDescriptor
   readonly responseText: string
   readonly toolName?: string
-  readonly capabilities?: ProviderCapabilities
 }
 
 export class FakeProviderAdapter implements ProviderAdapter {
-  readonly kind = "fake" as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId: string
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
+  readonly model: ModelDescriptor
   private readonly responseText: string
   private readonly toolName: string | undefined
 
   constructor(options: FakeProviderAdapterOptions) {
     this.providerId = options.providerId ?? "fake"
-    this.modelId = options.modelId ?? "fake-model"
-    this.capabilities = assertProfileCapabilitiesSupported(
+    this.model = assertConversationModelSupported(
       "fake",
-      options.capabilities ?? TEXT_PROVIDER_CAPABILITIES
+      options.model ?? fakeModelDescriptor()
     )
     this.responseText = options.responseText
     this.toolName = options.toolName
@@ -48,7 +42,7 @@ export class FakeProviderAdapter implements ProviderAdapter {
     if (request.signal?.aborted === true) {
       yield providerErrorEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error: new DOMException("aborted", "AbortError"),
         phase: "request",
         signalAborted: true
@@ -79,28 +73,54 @@ export class FakeProviderAdapter implements ProviderAdapter {
   }
 
   buildReplayMessages(
-    messages: readonly ProviderReplayMessage[]
+    messages: readonly PreparedProviderReplayMessage[]
   ): JsonValue[] {
     return messages.map((message): JsonValue => ({
       role: message.role,
-      content: message.content.some((part) => part.type === "resource")
-        ? message.content.map((part) =>
-            part.type === "resource"
-              ? {
-                  type: "resource",
-                  resourceId: part.resourceId,
-                  kind: part.kind,
-                  mediaType: part.mediaType ?? null,
-                  sizeBytes: part.sizeBytes,
-                  sha256: part.sha256
-                }
-              : part.type === "text"
-                ? { type: "text", text: part.text }
-                : { type: part.type }
-          )
+      content: message.content.some(
+        (part) => part.type === "resource" || part.type === "tool_result"
+      )
+        ? message.content.map(fakeReplayPart)
         : textContent(message.content)
     }))
   }
+}
+
+function fakeReplayPart(
+  part: PreparedProviderReplayMessage["content"][number]
+): JsonValue {
+  if (part.type === "resource") {
+    return {
+      type: "resource",
+      resourceId: part.resourceId,
+      kind: part.kind,
+      mediaType: part.mediaType ?? null,
+      sizeBytes: part.sizeBytes,
+      sha256: part.sha256
+    }
+  }
+  if (part.type === "tool_result") {
+    return {
+      type: "tool_result",
+      toolCallId: part.toolCallId,
+      contentDigest: part.contentDigest,
+      isError: part.isError,
+      content: part.content.map((item): JsonValue => {
+        if (item.type === "text") return { type: "text", text: item.text }
+        if (item.type === "json") return { type: "json", value: item.value }
+        return {
+          type: "resource",
+          resourceId: item.resourceId,
+          kind: item.kind,
+          mediaType: item.mediaType ?? null,
+          sizeBytes: item.sizeBytes,
+          sha256: item.sha256
+        }
+      })
+    }
+  }
+  if (part.type === "text") return { type: "text", text: part.text }
+  return { type: part.type }
 }
 
 export function fakeTextPart(text: string): TextMessagePart {

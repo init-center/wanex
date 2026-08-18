@@ -20,7 +20,6 @@ import {
   pluginPackageTrustRecordFromInstallPlan,
   pluginPackageLayoutFromJson,
   pluginSubprocessManifestEntryFromJson,
-  runPluginInstallerAdapter,
   registerPluginManifestRequestFromPackageLayout,
   resolveTrustedPluginCommand,
   type PluginActionHost,
@@ -149,6 +148,7 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, {
       "connector.telegram": {
         "deliver-message": {
+          version: "1.0.0",
           capability: "channel.deliver",
           handler: async ({ manifest, payload }) => ({
             delivered: true,
@@ -280,6 +280,7 @@ describe("@wanex/plugin", () => {
     const mismatchWorker = createPluginWorker(storage, {
       "connector.telegram": {
         "deliver-message": {
+          version: "1.0.0",
           capability: "network.fetch",
           handler: () => ({ unreachable: true })
         }
@@ -317,6 +318,7 @@ describe("@wanex/plugin", () => {
     const disabledWorker = createPluginWorker(storage, {
       "connector.telegram": {
         "deliver-message": {
+          version: "1.0.0",
           capability: "channel.deliver",
           handler: () => ({ unreachable: true })
         }
@@ -332,6 +334,110 @@ describe("@wanex/plugin", () => {
     expect(JSON.stringify(disabled.job?.lastError)).toContain(
       "plugin manifest is not registered"
     )
+  })
+
+  it("fails queued actions closed when the exact install is disabled", async () => {
+    const { runtime, storage } = await createRuntime()
+    await runtime.registerManifest({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      capabilities: ["channel.deliver"]
+    })
+    await runtime.submitAction({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      actionId: "deliver-message",
+      principalId: "principal_plugin_runtime",
+      payload: {},
+      requiredCapability: "channel.deliver",
+      jobId: "job_plugin_action_install_disabled"
+    })
+    await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "installed",
+      state: "disabled"
+    })
+    let called = false
+    const worker = createPluginWorker(storage, {
+      "connector.telegram": {
+        "deliver-message": {
+          version: "1.0.0",
+          capability: "channel.deliver",
+          handler: () => {
+            called = true
+            return { unreachable: true }
+          }
+        }
+      }
+    })
+
+    const result = await worker.runOnce()
+
+    expect(result.status).toBe("failed")
+    expect(called).toBe(false)
+    if (result.status !== "failed") {
+      throw new Error("expected disabled install action to fail")
+    }
+    expect(JSON.stringify(result.job?.lastError)).toContain(
+      "plugin install is not installed"
+    )
+  })
+
+  it("allows actions already inside immutable host execution to complete", async () => {
+    const { runtime, storage } = await createRuntime()
+    await runtime.registerManifest({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      capabilities: ["channel.deliver"]
+    })
+    await runtime.submitAction({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      actionId: "deliver-message",
+      principalId: "principal_plugin_runtime",
+      payload: {},
+      requiredCapability: "channel.deliver",
+      jobId: "job_plugin_action_disable_while_running"
+    })
+    let signalStarted: () => void = () => undefined
+    const started = new Promise<void>((resolveStarted) => {
+      signalStarted = resolveStarted
+    })
+    let releaseExecution: () => void = () => undefined
+    const released = new Promise<void>((resolveReleased) => {
+      releaseExecution = resolveReleased
+    })
+    const worker = createPluginWorker(storage, {
+      "connector.telegram": {
+        "deliver-message": {
+          version: "1.0.0",
+          capability: "channel.deliver",
+          async handler() {
+            signalStarted()
+            await released
+            return { completedAfterDisable: true }
+          }
+        }
+      }
+    })
+
+    const running = worker.runOnce()
+    await started
+    await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "installed",
+      state: "disabled"
+    })
+    releaseExecution()
+    const result = await running
+
+    expect(result.status).toBe("completed")
+    if (result.status !== "completed") {
+      throw new Error("expected admitted action to complete")
+    }
+    expect(result.job.result).toEqual({ completedAfterDisable: true })
   })
 
   it("rejects plugin.action handler results that are not JSON-safe", async () => {
@@ -353,6 +459,7 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, {
       "connector.telegram": {
         "deliver-message": {
+          version: "1.0.0",
           capability: "channel.deliver",
           handler: () => ({ callback: () => "not json" }) as never
         }
@@ -388,6 +495,7 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, {
       "connector.telegram": {
         "fetch-profile": {
+          version: "1.0.0",
           capability: "network.fetch",
           sandbox: {
             networks: ["api.telegram.example"],
@@ -436,6 +544,7 @@ describe("@wanex/plugin", () => {
       {
         "connector.telegram": {
           "fetch-profile": {
+            version: "1.0.0",
             capability: "network.fetch",
             sandbox: {
               networks: ["api.telegram.example"],
@@ -494,6 +603,7 @@ describe("@wanex/plugin", () => {
       {
         "connector.telegram": {
           "fetch-profile": {
+            version: "1.0.0",
             capability: "network.fetch",
             sandbox: {
               networks: ["api.telegram.example"],
@@ -553,6 +663,7 @@ describe("@wanex/plugin", () => {
       {
         "connector.telegram": {
           "fetch-profile": {
+            version: "1.0.0",
             capability: "network.fetch",
             sandbox: {
               networks: ["api.telegram.example"]
@@ -611,6 +722,7 @@ describe("@wanex/plugin", () => {
       {
         "connector.telegram": {
           "fetch-profile": {
+            version: "1.0.0",
             capability: "network.fetch",
             sandbox: {
               networks: ["api.telegram.example"]
@@ -675,6 +787,7 @@ describe("@wanex/plugin", () => {
       {
         "connector.telegram": {
           "fetch-profile": {
+            version: "1.0.0",
             capability: "network.fetch",
             handler: () => {
               called = true
@@ -971,6 +1084,20 @@ describe("@wanex/plugin", () => {
         ]
       })
     ).toThrow(/invalid plugin capability/)
+
+    expect(() =>
+      pluginSubprocessManifestEntryFromJson({
+        kind: "wanex.plugin.host.subprocess.v1",
+        command: execPath,
+        actions: [
+          {
+            actionId: "legacy-versioned-action",
+            capability: "channel.deliver",
+            version: "1.0.0"
+          }
+        ]
+      })
+    ).toThrow(/package version is authoritative/)
   })
 
   it("creates subprocess action hosts from plugin manifest entries", async () => {
@@ -1166,7 +1293,7 @@ describe("@wanex/plugin", () => {
     const { runtime, storage } = await createRuntime()
     const installRoot = dirname(execPath)
     const command = basename(execPath)
-    const registered = await runtime.registerInstallPlan({
+    const registered = await runtime.activateInstallPlan({
       plan: {
         ...pluginInstallPlan(),
         layout: {
@@ -1209,6 +1336,7 @@ describe("@wanex/plugin", () => {
       subprocess: true,
       pluginId: "connector.telegram",
       actionId: "deliver-message",
+      cwd: installRoot,
       payload: { text: "durable install" }
     })
   })
@@ -1217,7 +1345,7 @@ describe("@wanex/plugin", () => {
     const { runtime, storage } = await createRuntime()
     const installRoot = dirname(execPath)
     const command = basename(execPath)
-    await runtime.registerInstallPlan({
+    await runtime.activateInstallPlan({
       plan: {
         ...pluginInstallPlan(),
         layout: {
@@ -1259,15 +1387,16 @@ describe("@wanex/plugin", () => {
 
   it("rejects trusted subprocess hosts for disabled or removed installs", async () => {
     const { runtime } = await createRuntime()
-    const registered = await runtime.registerInstallPlan({
+    const registered = await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       installIdempotencyKey: "install-plan-telegram-host-disabled"
     })
-    const disabled = await runtime.updateInstallState(
-      "connector.telegram",
-      "disabled",
-      "1.0.0"
-    )
+    const disabled = await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "installed",
+      state: "disabled"
+    })
 
     expect(() =>
       createTrustedSubprocessPluginActionHostFromInstall({
@@ -1279,11 +1408,12 @@ describe("@wanex/plugin", () => {
       runtime.createTrustedSubprocessActionHost("connector.telegram", "1.0.0")
     ).rejects.toThrow(/plugin install is not installed: disabled/)
 
-    const removed = await runtime.updateInstallState(
-      "connector.telegram",
-      "removed",
-      "1.0.0"
-    )
+    const removed = await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "disabled",
+      state: "removed"
+    })
     expect(() =>
       createTrustedSubprocessPluginActionHostFromInstall({
         manifest: registered.manifest,
@@ -1422,7 +1552,7 @@ describe("@wanex/plugin", () => {
   it("registers plugin install plans as manifest and durable install records", async () => {
     const { runtime, storage } = await createRuntime()
 
-    const registered = await runtime.registerInstallPlan({
+    const registered = await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       manifestId: "manifest_connector_telegram_install_plan",
       manifestIdempotencyKey: "manifest-install-plan-telegram",
@@ -1478,11 +1608,11 @@ describe("@wanex/plugin", () => {
   it("keeps plugin install plan registration idempotent", async () => {
     const { runtime } = await createRuntime()
 
-    const first = await runtime.registerInstallPlan({
+    const first = await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       installIdempotencyKey: "install-plan-telegram-idempotent"
     })
-    const second = await runtime.registerInstallPlan({
+    const second = await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       installIdempotencyKey: "install-plan-telegram-idempotent"
     })
@@ -1493,16 +1623,17 @@ describe("@wanex/plugin", () => {
 
   it("updates plugin install lifecycle state through the runtime facade", async () => {
     const { runtime } = await createRuntime()
-    const registered = await runtime.registerInstallPlan({
+    const registered = await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       installIdempotencyKey: "install-plan-telegram-lifecycle"
     })
 
-    const disabled = await runtime.updateInstallState(
-      "connector.telegram",
-      "disabled",
-      "1.0.0"
-    )
+    const disabled = await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "installed",
+      state: "disabled"
+    })
     expect(disabled).toMatchObject({
       id: registered.install.id,
       state: "disabled"
@@ -1510,11 +1641,12 @@ describe("@wanex/plugin", () => {
     expect(disabled.disabledAt).toEqual(expect.any(Number))
     expect(disabled.removedAt).toBeUndefined()
 
-    const restored = await runtime.updateInstallState(
-      "connector.telegram",
-      "installed",
-      "1.0.0"
-    )
+    const restored = await runtime.updateInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "disabled",
+      state: "installed"
+    })
     expect(restored).toMatchObject({
       id: registered.install.id,
       state: "installed"
@@ -1525,13 +1657,13 @@ describe("@wanex/plugin", () => {
 
   it("rejects conflicting plugin install plans for the same plugin version", async () => {
     const { runtime } = await createRuntime()
-    await runtime.registerInstallPlan({
+    await runtime.activateInstallPlan({
       plan: pluginInstallPlan(),
       installIdempotencyKey: "install-plan-telegram-conflict"
     })
 
     await expect(
-      runtime.registerInstallPlan({
+      runtime.activateInstallPlan({
         plan: {
           ...pluginInstallPlan(),
           install: {
@@ -1541,128 +1673,6 @@ describe("@wanex/plugin", () => {
         installIdempotencyKey: "install-plan-telegram-conflict"
       })
     ).rejects.toThrow(/plugin install already exists with different content/)
-  })
-
-  it("runs plugin installer adapters and persists returned install plans", async () => {
-    const { runtime, storage } = await createRuntime()
-    const result = await runPluginInstallerAdapter({
-      runtime,
-      request: {
-        source: {
-          kind: "archive",
-          uri: "file:///plugins/connector.telegram-1.0.0.tgz"
-        },
-        expectedPluginId: "connector.telegram",
-        expectedVersion: "1.0.0",
-        installRootDir: "/plugins/connector.telegram/1.0.0",
-        metadata: { requestedBy: "test" }
-      },
-      adapter: {
-        install(request) {
-          const plan = pluginInstallPlanFromJson(pluginInstallPlan())
-          return {
-            plan: {
-              ...plan,
-              source: request.source,
-              install: {
-                rootDir: request.installRootDir ?? "/unexpected"
-              }
-            },
-            metadata: {
-              adapter: "fixture"
-            }
-          }
-        }
-      },
-      installIdempotencyKey: "installer-adapter-telegram"
-    })
-
-    expect(result).toMatchObject({
-      manifest: {
-        pluginId: "connector.telegram",
-        version: "1.0.0"
-      },
-      install: {
-        pluginId: "connector.telegram",
-        version: "1.0.0",
-        state: "installed",
-        installRootDir: "/plugins/connector.telegram/1.0.0"
-      },
-      installerMetadata: {
-        adapter: "fixture"
-      }
-    })
-    await expect(
-      storage.getPluginInstall({
-        pluginId: "connector.telegram",
-        version: "1.0.0"
-      })
-    ).resolves.toMatchObject({
-      id: result.install.id
-    })
-  })
-
-  it("rejects plugin installer adapter plans with mismatched identity", async () => {
-    const { runtime } = await createRuntime()
-
-    await expect(
-      runPluginInstallerAdapter({
-        runtime,
-        request: {
-          source: { kind: "archive" },
-          expectedPluginId: "connector.expected",
-          expectedVersion: "1.0.0"
-        },
-        adapter: {
-          install() {
-            return {
-              plan: pluginInstallPlan()
-            }
-          }
-        }
-      })
-    ).rejects.toThrow(/pluginId mismatch/)
-
-    await expect(
-      runPluginInstallerAdapter({
-        runtime,
-        request: {
-          source: { kind: "archive" },
-          expectedPluginId: "connector.telegram",
-          expectedVersion: "2.0.0"
-        },
-        adapter: {
-          install() {
-            return {
-              plan: pluginInstallPlan()
-            }
-          }
-        }
-      })
-    ).rejects.toThrow(/version mismatch/)
-  })
-
-  it("rejects plugin installer adapter plans with mismatched install roots", async () => {
-    const { runtime } = await createRuntime()
-
-    await expect(
-      runPluginInstallerAdapter({
-        runtime,
-        request: {
-          source: { kind: "archive" },
-          expectedPluginId: "connector.telegram",
-          expectedVersion: "1.0.0",
-          installRootDir: "/plugins/expected"
-        },
-        adapter: {
-          install() {
-            return {
-              plan: pluginInstallPlan()
-            }
-          }
-        }
-      })
-    ).rejects.toThrow(/installRootDir mismatch/)
   })
 
   it("validates plugin sandbox policies and action access requests", async () => {
@@ -1693,6 +1703,7 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, {
       "connector.telegram": {
         "fetch-profile": {
+          version: "1.0.0",
           capability: "network.fetch",
           sandbox: { maxExecutionMs: 0 },
           handler: () => ({ unreachable: true })
@@ -1724,8 +1735,48 @@ async function createRuntime(): Promise<{
     serviceBin
   })
   clients.push(storage)
-  const runtime = new PluginRuntime({ storage })
+  const runtime = new ExecutableFixturePluginRuntime(storage)
   return { storeDir, storage, runtime }
+}
+
+class ExecutableFixturePluginRuntime extends PluginRuntime {
+  constructor(private readonly fixtureStorage: StorageTestStore) {
+    super({ storage: fixtureStorage })
+  }
+
+  override async registerManifest(
+    request: Parameters<PluginRuntime["registerManifest"]>[0]
+  ) {
+    const manifest = await super.registerManifest(request)
+    const existing = await this.fixtureStorage.getPluginInstall({
+      pluginId: manifest.pluginId,
+      version: manifest.version
+    })
+    if (existing !== null) {
+      return manifest
+    }
+    const installRootDir = process.cwd()
+    await this.fixtureStorage.putPluginInstall({
+      pluginId: manifest.pluginId,
+      version: manifest.version,
+      layout: {
+        kind: "wanex.plugin.package.layout.v1",
+        pluginId: manifest.pluginId,
+        version: manifest.version
+      },
+      trust: {
+        kind: "wanex.plugin.package.trust.v1",
+        pluginId: manifest.pluginId,
+        version: manifest.version,
+        source: { kind: "local" },
+        install: { rootDir: installRootDir },
+        decision: { status: "allow" }
+      },
+      installRootDir,
+      idempotencyKey: `plugin-test-install:${manifest.pluginId}:${manifest.version}`
+    })
+    return manifest
+  }
 }
 
 function createPluginWorker(

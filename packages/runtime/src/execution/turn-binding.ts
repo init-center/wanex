@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import type {
   JsonValue,
-  ProviderProfile,
+  ModelEndpoint,
   ResourceInputEvidence,
   SessionTurnExecutionBinding,
   SessionTurnRecoveryBinding
@@ -9,15 +9,22 @@ import type {
 import type { CoreStore } from "@wanex/storage"
 import type { PreparedAgentContext } from "../context/agent/index.js"
 import {
-  providerFromProfile,
-  sameProviderCapabilities,
+  modelEndpointToJson,
+  modelEndpointDigest,
+  modelEndpointExecutionBinding,
+  modelEndpointFromExecutionBinding,
+  normalizeModelCapabilityRouteExecutionBindings,
+  normalizeModelEndpoint,
+  providerFromModelEndpoint,
+  sameModelDescriptor,
   type ProviderAdapter
 } from "../provider/index.js"
 import type { SecretResolverPort } from "../secrets/index.js"
 import { assertToolRuntimeBinding } from "../tools/evidence.js"
 
 export interface CreateTurnExecutionBindingRequest {
-  readonly profile: ProviderProfile
+  readonly modelEndpoint: ModelEndpoint
+  readonly maxOutputTokens?: number
   readonly agentContext?: PreparedAgentContext
   readonly environmentSnapshot?: JsonValue
   readonly recovery?: SessionTurnRecoveryBinding
@@ -30,29 +37,23 @@ export const DEFAULT_TURN_RECOVERY_BINDING = {
   idempotentToolMaxAttempts: 2
 } as const satisfies SessionTurnRecoveryBinding
 
+export const DEFAULT_TURN_MAX_OUTPUT_TOKENS = 4_096
+
 export function createTurnExecutionBinding(
   request: CreateTurnExecutionBindingRequest
 ): SessionTurnExecutionBinding {
-  const provider = {
-    profileId: request.profile.id,
-    profileDigest: providerProfileDigest(request.profile),
-    adapterId: request.profile.kind,
-    providerId: request.profile.providerId,
-    modelId: request.profile.modelId,
-    capabilities: request.profile.capabilities,
-    ...(request.profile.baseUrl === undefined
-      ? {}
-      : { baseUrl: request.profile.baseUrl }),
-    ...(request.profile.secretRef === undefined
-      ? {}
-      : { secretRef: request.profile.secretRef }),
-    ...(request.profile.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: request.profile.anthropicVersion })
-  } as const
+  const endpoint = normalizeModelEndpoint(request.modelEndpoint)
+  const modelEndpoint = modelEndpointExecutionBinding(endpoint)
   const withoutDigest = {
     createdAt: request.createdAt ?? Date.now(),
-    provider,
+    modelEndpoint,
+    completion: resolveTurnCompletionBinding(
+      endpoint,
+      request.maxOutputTokens
+    ),
+    capabilityRoutes: normalizeModelCapabilityRouteExecutionBindings(
+      request.agentContext?.capabilityRoutes ?? []
+    ),
     resources: request.resources ?? [],
     recovery: request.recovery ?? DEFAULT_TURN_RECOVERY_BINDING,
     ...contextSnapshots(request.agentContext),
@@ -78,17 +79,23 @@ export async function providerForTurnBinding(
   const direct = options.directProvider
   if (
     direct !== undefined &&
-    direct.providerId === binding.provider.providerId &&
-    direct.modelId === binding.provider.modelId &&
-    sameProviderCapabilities(direct.capabilities, binding.provider.capabilities)
+    direct.protocol.id === binding.modelEndpoint.protocol.id &&
+    direct.providerId === binding.modelEndpoint.connection.providerId &&
+    sameModelDescriptor(direct.model, binding.modelEndpoint.model)
   ) {
     return direct
   }
-  const profile = profileFromBinding(binding)
-  if (providerProfileDigest(profile) !== binding.provider.profileDigest) {
-    throw new Error("turn provider binding digest is invalid")
+  const endpoint = modelEndpointFromBinding(binding)
+  if (modelEndpointDigest(endpoint) !== binding.modelEndpoint.endpointDigest) {
+    throw new Error("turn model endpoint binding digest is invalid")
   }
-  return await providerFromProfile(profile, options.secretResolver)
+  normalizeModelCapabilityRouteExecutionBindings(binding.capabilityRoutes)
+  assertPositiveInteger(
+    binding.completion.maxOutputTokens,
+    "turn completion maxOutputTokens"
+  )
+  assertCompletionFitsModel(endpoint, binding.completion.maxOutputTokens)
+  return await providerFromModelEndpoint(endpoint, options.secretResolver)
 }
 
 export function assertTurnExecutionBindingValid(
@@ -98,10 +105,15 @@ export function assertTurnExecutionBindingValid(
   if (digestJson(unsignedBinding) !== digest) {
     throw new Error("turn execution binding digest is invalid")
   }
-  const profile = profileFromBinding(binding)
-  if (providerProfileDigest(profile) !== binding.provider.profileDigest) {
-    throw new Error("turn provider binding digest is invalid")
+  const endpoint = modelEndpointFromBinding(binding)
+  if (modelEndpointDigest(endpoint) !== binding.modelEndpoint.endpointDigest) {
+    throw new Error("turn model endpoint binding digest is invalid")
   }
+  assertPositiveInteger(
+    binding.completion.maxOutputTokens,
+    "turn completion maxOutputTokens"
+  )
+  assertCompletionFitsModel(endpoint, binding.completion.maxOutputTokens)
   assertPositiveInteger(
     binding.recovery.providerMaxAttempts,
     "turn recovery providerMaxAttempts"
@@ -110,6 +122,46 @@ export function assertTurnExecutionBindingValid(
     binding.recovery.idempotentToolMaxAttempts,
     "turn recovery idempotentToolMaxAttempts"
   )
+}
+
+function resolveTurnCompletionBinding(
+  endpoint: ModelEndpoint,
+  requested: number | undefined
+): SessionTurnExecutionBinding["completion"] {
+  const contextWindowTokens = endpoint.model.limits?.contextWindowTokens
+  const maxOutputTokens = endpoint.model.limits?.maxOutputTokens
+  const contextDefault =
+    contextWindowTokens === undefined
+      ? DEFAULT_TURN_MAX_OUTPUT_TOKENS
+      : Math.max(1, Math.floor(contextWindowTokens / 4))
+  const resolved =
+    requested ??
+    Math.min(
+      DEFAULT_TURN_MAX_OUTPUT_TOKENS,
+      contextDefault,
+      maxOutputTokens ?? DEFAULT_TURN_MAX_OUTPUT_TOKENS
+    )
+  assertPositiveInteger(resolved, "turn completion maxOutputTokens")
+  assertCompletionFitsModel(endpoint, resolved)
+  return { maxOutputTokens: resolved }
+}
+
+function assertCompletionFitsModel(
+  endpoint: ModelEndpoint,
+  maxOutputTokens: number
+): void {
+  const modelMaximum = endpoint.model.limits?.maxOutputTokens
+  if (modelMaximum !== undefined && maxOutputTokens > modelMaximum) {
+    throw new Error(
+      "turn completion maxOutputTokens exceeds the model output limit"
+    )
+  }
+  const contextWindow = endpoint.model.limits?.contextWindowTokens
+  if (contextWindow !== undefined && maxOutputTokens >= contextWindow) {
+    throw new Error(
+      "turn completion maxOutputTokens must be smaller than the model context window"
+    )
+  }
 }
 
 function assertPositiveInteger(value: number, label: string): void {
@@ -129,6 +181,8 @@ export function assertAgentContextMatchesBinding(
       stableJson(binding.contextSnapshot ?? null) ||
     stableJson(snapshots.toolSnapshot ?? null) !==
       stableJson(binding.toolSnapshot ?? null) ||
+    stableJson(context?.capabilityRoutes ?? []) !==
+      stableJson(binding.capabilityRoutes) ||
     stableJson(snapshots.permissionSnapshot ?? null) !==
       stableJson(binding.permissionSnapshot ?? null)
   ) {
@@ -136,40 +190,10 @@ export function assertAgentContextMatchesBinding(
   }
 }
 
-export function providerProfileDigest(profile: ProviderProfile): string {
-  return digestJson({
-    id: profile.id,
-    kind: profile.kind,
-    providerId: profile.providerId,
-    modelId: profile.modelId,
-    capabilities: profile.capabilities,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.secretRef === undefined ? {} : { secretRef: profile.secretRef }),
-    ...(profile.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: profile.anthropicVersion })
-  })
-}
-
-function profileFromBinding(
+function modelEndpointFromBinding(
   binding: SessionTurnExecutionBinding
-): ProviderProfile {
-  return {
-    id: binding.provider.profileId,
-    kind: binding.provider.adapterId,
-    providerId: binding.provider.providerId,
-    modelId: binding.provider.modelId,
-    capabilities: binding.provider.capabilities,
-    ...(binding.provider.baseUrl === undefined
-      ? {}
-      : { baseUrl: binding.provider.baseUrl }),
-    ...(binding.provider.secretRef === undefined
-      ? {}
-      : { secretRef: binding.provider.secretRef }),
-    ...(binding.provider.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: binding.provider.anthropicVersion })
-  }
+): ModelEndpoint {
+  return modelEndpointFromExecutionBinding(binding.modelEndpoint)
 }
 
 function contextSnapshots(context: PreparedAgentContext | undefined): {

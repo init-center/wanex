@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest"
 import {
-  DeepSeekThinkingAdapter,
   OpenAICompatibleAdapter,
   consumeProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 describe("OpenAI-compatible streaming provider", () => {
   it("parses split SSE text, reasoning, tool calls, usage, and finish", async () => {
     const requests: unknown[] = []
     const adapter = new OpenAICompatibleAdapter({
       providerId: "openai-compatible",
-      modelId: "model-a",
+      model: testConversationModel("model-a"),
       baseUrl: "https://api.example/v1/",
       apiKey: "secret",
       fetch: fixtureFetch([
@@ -45,7 +45,7 @@ describe("OpenAI-compatible streaming provider", () => {
   it("classifies HTTP errors and retry-after", async () => {
     const adapter = new OpenAICompatibleAdapter({
       providerId: "openai",
-      modelId: "model",
+      model: testConversationModel("model"),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: async () => ({
@@ -64,7 +64,7 @@ describe("OpenAI-compatible streaming provider", () => {
   it("accepts normal EOF after finish and classifies malformed wire data", async () => {
     const eofAdapter = new OpenAICompatibleAdapter({
       providerId: "compatible",
-      modelId: "model",
+      model: testConversationModel("model"),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: fixtureFetch([
@@ -76,7 +76,7 @@ describe("OpenAI-compatible streaming provider", () => {
 
     const malformedAdapter = new OpenAICompatibleAdapter({
       providerId: "compatible",
-      modelId: "model",
+      model: testConversationModel("model"),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: fixtureFetch(["data: {not-json}\n\n"])
@@ -86,8 +86,11 @@ describe("OpenAI-compatible streaming provider", () => {
   })
 
   it("preserves required DeepSeek reasoning for same-model replay", async () => {
-    const adapter = new DeepSeekThinkingAdapter({
-      modelId: "deepseek-v4",
+    const adapter = new OpenAICompatibleAdapter({
+      providerId: "deepseek",
+      model: testConversationModel("deepseek-v4", {
+        behavior: { reasoningReplay: "required" }
+      }),
       baseUrl: "https://api.deepseek.example/v1",
       apiKey: "secret",
       fetch: fixtureFetch([

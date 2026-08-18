@@ -21,6 +21,7 @@ mod resources;
 mod rows;
 mod run_control;
 mod scheduler;
+mod secret_references;
 mod sessions;
 mod team;
 mod tools;
@@ -35,7 +36,7 @@ pub use error::{Result, SystemServiceError};
 pub use models::*;
 
 pub const SERVICE_NAME: &str = "wanex-system-service";
-pub const CURRENT_SCHEMA_VERSION: i64 = 1;
+pub const CURRENT_SCHEMA_VERSION: i64 = 14;
 const BASELINE_SCHEMA: &str = include_str!("../schema.sql");
 
 #[derive(Debug)]

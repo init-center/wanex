@@ -267,13 +267,24 @@ async function runInternalSample(
       storeDir: options.storeDir,
       serviceBin: artifact.path
     },
-    provider: {
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
+    modelEndpoint: {
       id: "native-runtime-proof",
-      modelId: "native-runtime-proof-model",
-      responseText: "native Runtime proof complete"
-    }
+      connection: { id: "native-runtime-proof", providerId: "fake" },
+      protocol: { id: "fake" },
+      model: {
+        id: "native-runtime-proof-model",
+        operations: ["conversation"],
+        inputModalities: ["text"],
+        outputModalities: ["text"],
+        features: [],
+        catalog: {
+          source: "builtin",
+          catalogId: "wanex.native-runtime-proof",
+          revision: "1"
+        }
+      }
+    },
+    fakeResponseText: "native Runtime proof complete"
   })
   const create = performance.now() - createStartedAt
   try {

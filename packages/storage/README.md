@@ -38,6 +38,13 @@ try {
 Remote handles provide endpoint and token only. The authenticated server
 derives the store; clients cannot select a store path or tenant database.
 
+`RuntimeStore.applyConfigMutations(...)` atomically applies a bounded set of
+unique config puts and deletes through one System Service transaction. Every
+changed key emits the existing value-free `config.updated` invalidation event
+inside that transaction. Domain owners should use this only when one logical
+configuration invariant spans several keys; it is not a general transaction
+callback and never exposes SQLite to Node.js.
+
 ## Optional Stores
 
 Optional capabilities are explicit subpaths and borrow the handle transport:

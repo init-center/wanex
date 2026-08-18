@@ -4,12 +4,14 @@ import {
   consumeProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 describe("Anthropic streaming provider", () => {
   it("translates text, thinking, tool input, usage, and finish", async () => {
     const requests: unknown[] = []
     const adapter = new AnthropicAdapter({
-      modelId: "claude-fixture",
+      providerId: "anthropic",
+      model: testConversationModel("claude-fixture"),
       baseUrl: "https://api.anthropic.example/v1",
       apiKey: "secret",
       fetch: fixtureFetch([
@@ -49,7 +51,8 @@ describe("Anthropic streaming provider", () => {
   it("projects system context through the Anthropic top-level field", async () => {
     const requests: unknown[] = []
     const adapter = new AnthropicAdapter({
-      modelId: "claude-fixture",
+      providerId: "anthropic",
+      model: testConversationModel("claude-fixture"),
       baseUrl: "https://api.anthropic.example/v1",
       apiKey: "secret",
       fetch: fixtureFetch([

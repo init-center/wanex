@@ -1,0 +1,27 @@
+.shell { position: relative; isolation: isolate; height: 100vh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--color-text); background: var(--color-canvas); }
+.message-header, .card-heading, .context-panel-header, .inline-actions, .composer-meta, .turn-actions { display: flex; align-items: center; }
+.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--size-sidebar) minmax(0, 1fr) auto; overflow: hidden; background: transparent; }
+.secondary-action, .mode-switch button, .inline-actions button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 11px;
+  color: var(--color-text-button);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: 7px;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; }
+.main.is-empty { justify-content: flex-start; }
+.availability-notice { width: min(var(--size-content), calc(100% - 84px)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 18px auto 0; padding: 11px 13px; color: var(--color-warning); background: var(--color-warning-soft); border: 1px solid var(--color-border-warning-soft); border-radius: 10px; font-size: 11px; line-height: 17px; }
+.availability-icon { display: grid; place-items: center; }
+.availability-copy { min-width: 0; display: flex; flex-direction: column; }
+.availability-copy strong { color: var(--color-warning-strong); font-size: 11px; }
+.availability-copy > span { overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.availability-notice button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--color-warning-strong); background: var(--color-surface-soft); border: 1px solid var(--color-border-warning-soft); border-radius: 6px; }
+.availability-notice button:hover:not(:disabled) { background: var(--color-surface); border-color: var(--color-border-warning-soft); }
+.error { width: min(var(--size-content), calc(100% - 84px)); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 18px auto 0; padding: 11px 13px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-border-danger-soft); border-radius: 10px; font-size: 12px; line-height: 18px; }
+.error button { display: grid; place-items: center; padding: 2px; color: inherit; background: transparent; border: 0; }

@@ -92,8 +92,8 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
       ["--json"]
     )
     const appFacade = entryByName(report, "@wanex/app")
-    const productApp = entryByName(report, "@wanex/product-app")
-    const productAppLocal = entryByName(report, "@wanex/product-app-local")
+    const productPackage = entryByName(report, "@wanex/product")
+    const local = entryByName(report, "@wanex/local-host")
     const cli = entryByName(report, "@wanex/cli")
 
     assert(appFacade.missing.length === 0, "app should exist")
@@ -105,28 +105,28 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
       appFacade.contains.concreteAdapters.length === 0,
       "app should not include concrete connector adapters"
     )
-    assert(productApp.missing.length === 0, "product app should exist")
+    assert(productPackage.missing.length === 0, "application should exist")
     assert(
-      !productApp.contains.pluginRuntime &&
-        !productApp.contains.connectorRuntime,
-      "product app should stay on the product app backend path"
+      !productPackage.contains.pluginRuntime &&
+        !productPackage.contains.connectorRuntime,
+      "application should stay on the application backend path"
     )
     assert(
-      productApp.contains.concreteAdapters.length === 0,
-      "product app should not include concrete connector adapters"
+      productPackage.contains.concreteAdapters.length === 0,
+      "application should not include concrete connector adapters"
     )
     assert(
-      productAppLocal.missing.length === 0,
-      "product-app-local should exist"
+      local.missing.length === 0,
+      "local-host should exist"
     )
     assert(
-      !productAppLocal.contains.pluginRuntime &&
-        !productAppLocal.contains.connectorRuntime,
-      "product-app-local should stay on the slim local Product App Web path"
+      !local.contains.pluginRuntime &&
+        !local.contains.connectorRuntime,
+      "local-host should stay on the slim local web application path"
     )
     assert(
-      productAppLocal.contains.concreteAdapters.length === 0,
-      "product-app-local should not include concrete connector adapters"
+      local.contains.concreteAdapters.length === 0,
+      "local-host should not include concrete connector adapters"
     )
     assert(
       !cli.contains.pluginRuntime && !cli.contains.connectorRuntime,
@@ -138,15 +138,15 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
         connectorRuntime: appFacade.contains.connectorRuntime,
         concreteAdapters: appFacade.contains.concreteAdapters
       },
-      productApp: {
-        pluginRuntime: productApp.contains.pluginRuntime,
-        connectorRuntime: productApp.contains.connectorRuntime,
-        concreteAdapters: productApp.contains.concreteAdapters
+      productPackage: {
+        pluginRuntime: productPackage.contains.pluginRuntime,
+        connectorRuntime: productPackage.contains.connectorRuntime,
+        concreteAdapters: productPackage.contains.concreteAdapters
       },
-      productAppLocal: {
-        pluginRuntime: productAppLocal.contains.pluginRuntime,
-        connectorRuntime: productAppLocal.contains.connectorRuntime,
-        concreteAdapters: productAppLocal.contains.concreteAdapters
+      local: {
+        pluginRuntime: local.contains.pluginRuntime,
+        connectorRuntime: local.contains.connectorRuntime,
+        concreteAdapters: local.contains.concreteAdapters
       },
       coldEntries: [cli.entry]
     }

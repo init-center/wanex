@@ -13,8 +13,8 @@ Implemented commands:
 - `wanex run <text>`
 - `wanex events`
 - `wanex memory sweep`
-- `wanex provider set <id>`
-- `wanex provider get <id>`
+- `wanex model-endpoint set <id>`
+- `wanex model-endpoint get <id>`
 
 Planned commands:
 
@@ -34,17 +34,17 @@ explicit resolved store directory. The two modes are intentionally exclusive.
 The CLI uses one-shot storage clients for command execution. It does not start a
 gateway or keep a background process alive.
 
-## Provider Profiles
+## Model Endpoints
 
-Provider profiles are stored through runtime config APIs:
+Model endpoints are stored through runtime config APIs:
 
 ```bash
-wanex provider set local --kind fake --provider-id fake --model fake-model
-wanex provider set vision --kind openai-compatible --provider-id openai --model gpt-vision --input-modalities text,image --output-modalities text --base-url https://api.example/v1 --secret-ref env:OPENAI_API_KEY
-wanex run "hello" --provider local
+wanex model-endpoint set local --protocol fake --provider-id fake --model fake-model
+wanex model-endpoint set vision --protocol openai-chat-completions --provider-id openai --model gpt-vision --input-modalities text,image --output-modalities text --base-url https://api.example/v1 --secret-ref env://OPENAI_API_KEY
+wanex run "hello" --model-endpoint local
 ```
 
-Secrets are redacted from provider command output.
+Secret references are redacted from model-endpoint command output.
 
 ## Diagnostics
 
@@ -62,7 +62,7 @@ the cold path free of the full runtime composition layer.
 Collect a redacted support/debug bundle without starting workers:
 
 ```bash
-wanex support-bundle --provider-profile local --memory-maintenance
+wanex support-bundle --model-endpoint local --memory-maintenance
 ```
 
 The bundle includes doctor status, app diagnostics, selected safe provider
@@ -75,9 +75,12 @@ tokens, raw chat history, or plugin stderr dumps by default.
 Submit explicit memory compaction jobs through `@wanex/memory-runtime`:
 
 ```bash
-wanex memory sweep --waterline-tokens 1 --policy-version cli-memory-v1
+wanex model-endpoint set local --protocol fake --provider-id fake --model fake-model --model-context-window-tokens 128000 --model-max-output-tokens 8192
+wanex memory sweep --minimum-token-savings 1024
 ```
 
 This command scans active agent sessions and enqueues durable
 `memory.compaction` jobs when the memory plan says compaction is useful. It does
-not start workers, run compaction inline, or start a gateway.
+not start workers, run compaction inline, or start a gateway. The waterline is
+derived from each completed Turn's frozen model limits; unknown input limits
+are skipped rather than replaced by a CLI guess.

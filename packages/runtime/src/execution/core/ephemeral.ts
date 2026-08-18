@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { ContextCompiler } from "../../context/memory/index.js"
 import {
   consumeProviderStream,
@@ -6,6 +7,7 @@ import {
 import type {
   EphemeralQueryRequest,
   EphemeralQueryResult,
+  ModelEndpoint,
   RuntimeAbortSignal
 } from "@wanex/protocol"
 import type { WanexSessionCore } from "../../sessions/index.js"
@@ -13,10 +15,12 @@ import { runCancellable, throwIfAborted } from "./cancellable.js"
 import { isToolCall } from "./replay.js"
 import { buildSessionReplayMessages } from "./session-replay.js"
 import { prepareProviderReplayResources } from "../../resources/index.js"
+import { modelEndpointDigest } from "../../provider/index.js"
 
 export interface EphemeralSideQueryRuntimeOptions {
   readonly session: WanexSessionCore
   readonly provider: ProviderAdapter
+  readonly modelEndpoint: ModelEndpoint
   readonly contextCompiler?: ContextCompiler
   readonly timeoutMs?: number
 }
@@ -32,12 +36,19 @@ export async function runEphemeralSideQuery(
   validateEphemeralQueryRequest(request)
   throwIfAborted(request.signal, "ephemeral query")
 
+  assertProviderMatchesEndpoint(options.provider, options.modelEndpoint)
+
+  const sourceMessages =
+    request.sessionId === undefined
+      ? []
+      : await options.session.listMessages({ sessionId: request.sessionId })
   const replayMessages =
     request.sessionId === undefined
       ? []
       : await buildSessionReplayMessages({
           session: options.session,
           sessionId: request.sessionId,
+          messages: sourceMessages,
           ...(options.contextCompiler === undefined
             ? {}
             : { contextCompiler: options.contextCompiler })
@@ -45,7 +56,10 @@ export async function runEphemeralSideQuery(
 
   const preparedMessages = await prepareProviderReplayResources(
     options.session,
-    options.provider.capabilities,
+    {
+      protocol: options.provider.protocol,
+      inputModalities: options.provider.model.inputModalities
+    },
     [
       ...replayMessages,
       {
@@ -55,15 +69,18 @@ export async function runEphemeralSideQuery(
     ]
   )
 
+  const providerRequest = {
+    messages: preparedMessages,
+    ...(request.maxOutputTokens === undefined
+      ? {}
+      : { maxOutputTokens: request.maxOutputTokens })
+  }
   const response = await runCancellable(
     (signal) =>
       consumeProviderStream({
         provider: options.provider,
         request: {
-          messages: preparedMessages,
-          ...(request.maxOutputTokens === undefined
-            ? {}
-            : { maxOutputTokens: request.maxOutputTokens }),
+          ...providerRequest,
           ...(signal === undefined ? {} : { signal })
         }
       }),
@@ -83,13 +100,82 @@ export async function runEphemeralSideQuery(
 
   return {
     output: response.parts,
+    evidence: {
+      ...(request.sessionId === undefined
+        ? {}
+        : {
+            source: sourceEvidence(request.sessionId, sourceMessages)
+          }),
+      provider: {
+        endpointId: options.modelEndpoint.id,
+        endpointDigest: modelEndpointDigest(options.modelEndpoint),
+        protocolId: options.modelEndpoint.protocol.id,
+        providerId: options.modelEndpoint.connection.providerId,
+        modelId: options.modelEndpoint.model.id
+      },
+      inputDigest: digestJson(providerRequest),
+      outputDigest: digestJson(response.parts),
+      completedAt: Date.now()
+    },
     telemetry: {
       providerId: options.provider.providerId,
-      modelId: options.provider.modelId,
+      modelId: options.provider.model.id,
       replayMessageCount: replayMessages.length,
       outputPartCount: response.parts.length
     }
   }
+}
+
+function sourceEvidence(
+  sessionId: string,
+  messages: Awaited<ReturnType<WanexSessionCore["listMessages"]>>
+): NonNullable<EphemeralQueryResult["evidence"]["source"]> {
+  const head = messages.reduce<(typeof messages)[number] | undefined>(
+    (current, candidate) =>
+      current === undefined || candidate.sequence > current.sequence
+        ? candidate
+        : current,
+    undefined
+  )
+  return {
+    sessionId,
+    headSequence: head?.sequence ?? 0,
+    ...(head === undefined
+      ? {}
+      : { headMessageId: head.id, headTurnId: head.turnId })
+  }
+}
+
+function assertProviderMatchesEndpoint(
+  provider: ProviderAdapter,
+  endpoint: ModelEndpoint
+): void {
+  if (
+    provider.protocol.id !== endpoint.protocol.id ||
+    provider.providerId !== endpoint.connection.providerId ||
+    provider.model.id !== endpoint.model.id
+  ) {
+    throw new Error("ephemeral query provider does not match its model endpoint")
+  }
+}
+
+function digestJson(value: unknown): string {
+  return createHash("sha256").update(stableJson(value)).digest("hex")
+}
+
+function stableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map(stableJson).join(",")}]`
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).sort(
+      ([left], [right]) => left.localeCompare(right)
+    )
+    return `{${entries
+      .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+      .join(",")}}`
+  }
+  return JSON.stringify(value)
 }
 
 function validateEphemeralQueryRequest(

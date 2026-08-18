@@ -8,14 +8,12 @@ export {
   pluginPackageTrustRecordFromJson
 } from "./codec-trust.js"
 export {
-  isPluginPackageLayout,
   pluginPackageLayoutFromJson,
   registerPluginManifestRequestFromPackageLayout,
   validatePluginPackageLayout
 } from "./codec-layout.js"
 export {
   assertPluginInstallExecutable,
-  isPluginInstallPlan,
   pluginInstallPlanFromJson,
   pluginPackageTrustRecordFromInstallPlan,
   resolveTrustedPluginCommand,

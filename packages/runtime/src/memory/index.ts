@@ -19,8 +19,6 @@ export const WANEX_RUNTIME_MEMORY = "wanex-runtime-memory" as const
 export type {
   CreateMemoryCompactionWorkerOptions,
   MemoryCompactionPlan,
-  MemoryCompactionPlanDecision,
-  MemoryCompactionPlanReason,
   MemoryCompactionSweepReceipt,
   MemoryCompactionHandlerOptions,
   MemoryCompactionJobPayload,

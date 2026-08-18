@@ -56,7 +56,9 @@ export function pluginInstallPlanFromJson(value: JsonValue): PluginInstallPlan {
 export function pluginPackageTrustRecordFromInstallPlan(
   plan: PluginInstallPlan | JsonValue
 ): PluginPackageTrustRecord {
-  const parsed = isPluginInstallPlan(plan) ? plan : pluginInstallPlanFromJson(plan)
+  const parsed = pluginInstallPlanFromJson(
+    expectJsonValue(plan, "plugin install plan")
+  )
   return {
     kind: WANEX_PLUGIN_PACKAGE_TRUST_KIND,
     pluginId: parsed.layout.pluginId,
@@ -107,17 +109,6 @@ export function resolveTrustedPluginCommand(
     throw new Error("trusted plugin subprocess command escapes install root")
   }
   return resolved
-}
-
-export function isPluginInstallPlan(
-  value: PluginInstallPlan | JsonValue
-): value is PluginInstallPlan {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    (value as { readonly kind?: unknown }).kind === WANEX_PLUGIN_INSTALL_PLAN_KIND
-  )
 }
 
 export function validateInstallerPlanMatchesRequestPlan(

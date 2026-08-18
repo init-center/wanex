@@ -114,7 +114,7 @@ function skillSnapshotFromContributions(
   contributions: readonly AppSkillContribution[]
 ): SkillSnapshot {
   return {
-    status: "available",
+    complete: true,
     sources: contributions.map((contribution, index) =>
       skillSourceFromContribution(contribution, index)
     ),
@@ -193,10 +193,7 @@ function mergeSkillSnapshots(
     return undefined
   }
   return {
-    status:
-      base?.status === "unavailable" || extension.status === "unavailable"
-        ? "unavailable"
-        : "available",
+    complete: (base?.complete ?? true) && extension.complete,
     sources: [...(base?.sources ?? []), ...extension.sources],
     diagnostics: [...(base?.diagnostics ?? []), ...extension.diagnostics]
   }

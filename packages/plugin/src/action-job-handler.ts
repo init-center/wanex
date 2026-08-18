@@ -6,7 +6,7 @@ import type {
 } from "@wanex/runtime/jobs"
 import {
   defaultPluginSandboxPolicy,
-  requireExecutableManifest
+  requireExecutablePluginManifest
 } from "./action-manifest.js"
 import { pluginActionJobPayloadFromJson } from "./action-payload.js"
 import { resolvePluginActionHost } from "./action-host-in-process.js"
@@ -29,18 +29,14 @@ export function createPluginActionJobHandler(
     const descriptor = await host.resolve({
       pluginId: payload.pluginId,
       actionId: payload.actionId,
-      ...(payload.version === undefined ? {} : { version: payload.version })
+      version: payload.version
     })
     if (descriptor === undefined) {
       throw new Error(
         `plugin action handler not registered: ${payload.pluginId}/${payload.actionId}`
       )
     }
-    if (
-      descriptor.version !== undefined &&
-      payload.version !== undefined &&
-      descriptor.version !== payload.version
-    ) {
+    if (descriptor.version !== payload.version) {
       throw new Error(
         `plugin action handler version mismatch: ${payload.pluginId}/${payload.actionId}`
       )
@@ -54,12 +50,10 @@ export function createPluginActionJobHandler(
       )
     }
 
-    const manifest = await requireExecutableManifest(options.storage, {
+    const manifest = await requireExecutablePluginManifest(options.storage, {
       pluginId: payload.pluginId,
+      version: payload.version,
       capability: descriptor.capability,
-      ...((payload.version ?? descriptor.version) === undefined
-        ? {}
-        : { version: payload.version ?? descriptor.version })
     })
     if (descriptor.sandbox !== undefined) {
       validatePluginSandboxAccessRequest(descriptor.sandbox)

@@ -42,8 +42,8 @@ describe("verify", () => {
     expect(
       stepByName(steps, "Storage RPC schema migration policy tests").args
     ).toEqual(["test:storage-rpc-schema-migration-policy"])
-    expect(stepByName(steps, "Product App Local smoke script tests").args).toEqual([
-      "test:product-app-local-smoke-script"
+    expect(stepByName(steps, "Local Host smoke script tests").args).toEqual([
+      "test:local-host-smoke-script"
     ])
     expect(stepByName(steps, "Native artifact staging tests").args).toEqual([
       "test:native-artifact"
@@ -54,20 +54,30 @@ describe("verify", () => {
     expect(stepByName(steps, "Host distribution budget tests").args).toEqual([
       "test:host-distribution-budget"
     ])
-    expect(stepByName(steps, "Electron boundary typecheck").args).toEqual([
-      "check:electron-boundary"
+    expect(stepByName(steps, "Product Desktop typecheck").args).toEqual([
+      "check:desktop"
     ])
-    expect(stepByName(steps, "Electron boundary policy tests").args).toEqual([
-      "test:electron-boundary"
+    expect(stepByName(steps, "Product Desktop policy tests").args).toEqual([
+      "test:desktop"
     ])
     expect(
-      steps.some((step) => step.name === "Product App Web demo tests")
+      steps.some((step) => step.name === "Web application demo tests")
     ).toBe(false)
-    expect(stepByName(steps, "Product App TUI demo script tests").args).toEqual([
-      "test:product-app-tui-demo-script"
+    expect(stepByName(steps, "TUI demo script tests").args).toEqual([
+      "test:tui-script"
+    ])
+    expect(stepByName(steps, "TUI distribution tests").args).toEqual([
+      "--filter",
+      "@wanex/tui",
+      "test",
+      "--run",
+      "test/distribution.test.mjs"
     ])
     expect(stepByName(steps, "Packed SDK runtime consumer proofs").args).toEqual([
       "proof:sdk-consumers"
+    ])
+    expect(stepByName(steps, "Installed TUI proof").args).toEqual([
+      "proof:tui"
     ])
     expect(stepByName(steps, "Rust tests").args).toEqual(["test"])
     expect(stepByName(steps, "Rust clippy").args).toEqual([

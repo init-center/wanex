@@ -38,15 +38,18 @@ export interface AppCommandContributionValue {
   readonly description?: string
   readonly aliases?: readonly string[]
   readonly category?: string
+  readonly paletteVisibility: AppCommandPaletteVisibility
   readonly handlerRef: string
   readonly inputSchema?: AppCommandInputSchema
 }
+
+export type AppCommandPaletteVisibility = "visible" | "hidden"
 
 export interface AppAgentContributionValue {
   readonly name: string
   readonly title?: string
   readonly description?: string
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly modelId?: string
   readonly instructionRefs?: readonly string[]
   readonly skillRefs?: readonly string[]

@@ -24,6 +24,13 @@ export async function routeWanexAppWorkflowEnvelope(
       result: await commands.askSideQuery(envelope.sideQuery)
     }
   }
+  if (envelope.scheduledTick !== undefined) {
+    return {
+      kind: "scheduled",
+      command: "submitScheduledTick",
+      result: await commands.submitScheduledTick(envelope.scheduledTick)
+    }
+  }
   if (envelope.guidedFollowUp !== undefined) {
     return {
       kind: "guided_follow_up",
@@ -37,20 +44,14 @@ export async function routeWanexAppWorkflowEnvelope(
   }
   return {
     kind: "agent",
-    command: "runAgentTurn",
-    result: await commands.runAgentTurn({
+    command: "submitConversationOperation",
+    result: await commands.submitConversationOperation({
       content: [{ type: "text", text: envelope.text }],
       ...(envelope.sessionId === undefined
         ? {}
         : { sessionId: envelope.sessionId }),
       origin: agent.origin,
-      ...(agent.intent === undefined ? {} : { intent: agent.intent }),
-      ...(agent.runControlPolicy === undefined
-        ? {}
-        : { runControlPolicy: agent.runControlPolicy }),
-      ...(agent.expectedTurnId === undefined
-        ? {}
-        : { expectedTurnId: agent.expectedTurnId })
+      ...(agent.intent === undefined ? {} : { intent: agent.intent })
     })
   }
 }

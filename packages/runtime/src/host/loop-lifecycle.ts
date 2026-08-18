@@ -1,5 +1,5 @@
 import type { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
-import type { WorkerLoop } from "../jobs/index.js"
+import type { WorkerLoop, WorkerRunOnceResult } from "../jobs/index.js"
 import { RuntimeHostLoopHealthTracker } from "./loop-health.js"
 import type { RuntimeHostMemoryWorker } from "./memory-compaction.js"
 import type { RuntimeHostLoopHealth } from "./types.js"
@@ -10,6 +10,7 @@ type AgentHostLoop = ReturnType<WanexAgentRuntime["start"]>
 export interface RuntimeHostLoopLifecycleOptions {
   readonly idleIntervalMs?: number
   readonly errorIntervalMs?: number
+  readonly onAgentResult?: (result: WorkerRunOnceResult) => void
 }
 
 export class RuntimeHostLoopLifecycle {
@@ -47,7 +48,10 @@ export class RuntimeHostLoopLifecycle {
         ...(this.options.errorIntervalMs === undefined
           ? {}
           : { errorIntervalMs: this.options.errorIntervalMs }),
-        onResult: (result) => health.recordResult(result.status),
+        onResult: (result) => {
+          health.recordResult(result.status)
+          this.options.onAgentResult?.(result)
+        },
         onError: () => health.recordError()
       })
       health.attach(loop)

@@ -4,7 +4,7 @@ This directory contains implementation-local architecture notes for Wanex.
 
 ## Current Roadmap Override
 
-Phase 741 closed the current Product App feature route. The architecture audit
+Phase 741 closed the current application feature route. The architecture audit
 after that phase found that the durable kernel direction remains valid, but the
 next work must converge public facades and complete the real provider/tool/SDK
 path before adding more product features.
@@ -15,7 +15,7 @@ The frozen Phase 745-757 reconstruction route is:
 
 Documents in this directory continue to describe the currently implemented
 contracts until each migration phase changes the code. They must not be read as
-authorization to extend Product App or the current broad package surface.
+authorization to extend application or the current broad package surface.
 Phase 744 established the Runtime/App public entries; Phase 745 now freezes
 package disposition, real-consumer evidence, and physical facade ceilings.
 

@@ -7,8 +7,12 @@ import type { AddressInfo } from "node:net"
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import {
   createRuntimeEvent,
+  type BeginContextEpochRequest,
+  type ContextEpochRecord,
   type JsonValue,
-  type RuntimeEvent
+  type RuntimeEvent,
+  type SchedulerJobRecord,
+  type SessionMessageRecord
 } from "@wanex/protocol"
 import {
   createCoreStore,
@@ -34,30 +38,41 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 1
+const expectedSchemaVersion = 14
 
 const tempDirs: string[] = []
 const servers: Server[] = []
 
 function testTurnBinding(label: string) {
-  const profile = {
+  const endpoint = {
     id: "profile_" + label,
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    providerId: "fake",
-    modelId: "model_" + label
+    connection: { id: "connection_" + label, providerId: "fake" },
+    protocol: { id: "fake" },
+    model: {
+      id: "model_" + label,
+      operations: ["conversation"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "builtin",
+        catalogId: "storage.test." + label,
+        revision: "1"
+      }
+    }
   } as const
-  const provider = {
-    profileId: profile.id,
-    profileDigest: digestJson(profile),
-    adapterId: profile.kind,
-    providerId: profile.providerId,
-    modelId: profile.modelId,
-    capabilities: profile.capabilities
+  const modelEndpoint = {
+    endpointId: endpoint.id,
+    endpointDigest: digestJson(endpoint),
+    connection: endpoint.connection,
+    protocol: endpoint.protocol,
+    model: endpoint.model
   } as const
   const binding = {
     createdAt: 1,
-    provider,
+    modelEndpoint,
+    completion: { maxOutputTokens: 4_096 },
+    capabilityRoutes: [],
     resources: [],
     recovery: {
       providerMaxAttempts: 1,
@@ -68,19 +83,41 @@ function testTurnBinding(label: string) {
 }
 
 function testMediaGenerationBinding(label: string) {
-  return {
-    profileId: `media_profile_${label}`,
-    profileDigest: `media_profile_digest_${label}`,
-    adapterId: "fake-media-adapter",
-    providerId: "fake-media-provider",
-    modelId: `fake-media-model-${label}`,
-    request: {
-      prompt: `media prompt ${label}`,
-      outputModality: "image" as const,
-      inputResources: [],
-      options: null
+  const endpoint = {
+    id: `media_profile_${label}`,
+    connection: {
+      id: `media_connection_${label}`,
+      providerId: "fake-media-provider"
     },
-    requestDigest: `media_request_digest_${label}`
+    protocol: { id: "fake-media" },
+    model: {
+      id: `fake-media-model-${label}`,
+      operations: ["image.generate"] as const,
+      inputModalities: ["text"] as const,
+      outputModalities: ["image"] as const,
+      features: [],
+      catalog: {
+        source: "builtin" as const,
+        catalogId: `storage.media.${label}`,
+        revision: "1"
+      }
+    }
+  }
+  const request = {
+    operation: "image.generate" as const,
+    prompt: `media prompt ${label}`,
+    outputModality: "image" as const,
+    inputResources: [],
+    options: null
+  }
+  return {
+    endpointId: endpoint.id,
+    endpointDigest: digestJson(endpoint),
+    connection: endpoint.connection,
+    protocol: endpoint.protocol,
+    model: endpoint.model,
+    request,
+    requestDigest: digestJson(request)
   }
 }
 
@@ -178,24 +215,52 @@ describe("@wanex/storage", () => {
       state: "polling",
       externalOperationId: "external-storage-operation"
     })
-    await client.checkpointMediaGenerationOperation({
+    const suspended = await client.suspendMediaGenerationOperation({
       operationId: submitted.operation.id,
       workerId: "media_storage_worker",
       leaseToken,
+      nextPollAt: Date.now() + 1_000,
+      outcome: "pending",
       providerCheckpoint: { cursor: 2 },
       progress: { percent: 50 }
     })
+    expect(suspended).toMatchObject({
+      action: "suspended",
+      operation: {
+        state: "polling",
+        pollCount: 1,
+        consecutivePollFailures: 0,
+        providerCheckpoint: { cursor: 2 },
+        progress: { percent: 50 }
+      },
+      job: { state: "pending" }
+    })
+    expect(suspended?.job.leaseToken).toBeUndefined()
     await expect(
       client.requestMediaGenerationCancel({
         operationId: submitted.operation.id,
         reason: "storage test cancellation"
       })
     ).resolves.toMatchObject({ state: "cancel_requested" })
+    const cancellationClaim = await client.claimJob({
+      workerId: "media_storage_cancel_worker",
+      leaseMs: 60_000,
+      kinds: ["media.generate"]
+    })
+    expect(cancellationClaim?.id).toBe(submitted.job.id)
+    await expect(
+      client.beginMediaGenerationOperation({
+        operationId: submitted.operation.id,
+        workerId: "media_storage_cancel_worker",
+        leaseToken: cancellationClaim!.leaseToken!
+      })
+    ).resolves.toMatchObject({ action: "cancel" })
     await expect(
       client.settleMediaGenerationOperation({
         operationId: submitted.operation.id,
-        workerId: "media_storage_worker",
-        leaseToken,
+        workerId: "media_storage_cancel_worker",
+        leaseToken: cancellationClaim!.leaseToken!,
+        pollOutcome: "none",
         outcome: "cancelled",
         reason: "storage test cancellation"
       })
@@ -302,6 +367,23 @@ describe("@wanex/storage", () => {
     await expect(client.getConfig("provider.default")).resolves.toEqual({
       id: "deepseek"
     })
+    await client.applyConfigMutations({
+      puts: [
+        { key: "provider.first", value: { id: "openai" } },
+        { key: "provider.second", value: { id: "anthropic" } }
+      ],
+      deletes: ["provider.default"]
+    })
+    await expect(client.getConfig("provider.first")).resolves.toEqual({
+      id: "openai"
+    })
+    await expect(client.getConfig("provider.second")).resolves.toEqual({
+      id: "anthropic"
+    })
+    await expect(client.getConfig("provider.default")).resolves.toBeNull()
+    await expect(
+      client.hasLiveSecretReference("env://UNUSED_PROVIDER_KEY")
+    ).resolves.toBe(false)
     const configEvents = await client.queryEvents({
       limit: 10
     })
@@ -492,6 +574,56 @@ describe("@wanex/storage", () => {
       .toBe(true)
   })
 
+  it("round-trips revision-fenced session lifecycle commands", async () => {
+    const client = await createClient()
+    const created = await client.createSession({
+      id: "ses_storage_lifecycle",
+      title: "Lifecycle",
+      kind: "chat"
+    })
+    expect(created.revision).toBe(1)
+
+    const renamed = await client.renameSession({
+      sessionId: created.id,
+      title: "Renamed lifecycle",
+      expectedRevision: created.revision
+    })
+    expect(renamed).toMatchObject({
+      title: "Renamed lifecycle",
+      status: "active",
+      revision: 2
+    })
+    await expect(
+      client.renameSession({
+        sessionId: created.id,
+        title: "Stale",
+        expectedRevision: 1
+      })
+    ).rejects.toMatchObject({ code: "conflict" })
+
+    const archived = await client.archiveSession({
+      sessionId: created.id,
+      expectedRevision: renamed.revision
+    })
+    expect(archived).toMatchObject({ status: "archived", revision: 3 })
+    expect(archived.archivedAt).toEqual(expect.any(Number))
+    await expect(
+      client.admitSessionInput({
+        sessionId: created.id,
+        principalId: "principal_storage_lifecycle",
+        idempotencyKey: "storage:lifecycle:archived",
+        content: [{ type: "text", id: "part_archived", text: "blocked" }]
+      })
+    ).rejects.toMatchObject({ code: "conflict" })
+
+    const restored = await client.restoreSession({
+      sessionId: created.id,
+      expectedRevision: archived.revision
+    })
+    expect(restored).toMatchObject({ status: "active", revision: 4 })
+    expect(restored.archivedAt).toBeUndefined()
+  })
+
   it("persists exact durable turns and canonical ordering through the process boundary", async () => {
     const client = await createClient()
     await client.createSession({
@@ -659,6 +791,108 @@ describe("@wanex/storage", () => {
       [4, "turn_storage_b", "assistant"]
     ])
     expect(messages[1]?.providerState?.[0]?.payload).toEqual({ token: "a" })
+    await expect(client.listSessionMessages({
+      sessionId: "ses_storage_turn",
+      limit: 2
+    })).resolves.toMatchObject([
+      { sequence: 3, turnId: "turn_storage_b" },
+      { sequence: 4, turnId: "turn_storage_b" }
+    ])
+    await expect(client.listSessionMessages({
+      sessionId: "ses_storage_turn",
+      beforeSequence: 4,
+      limit: 2
+    })).resolves.toMatchObject([
+      { sequence: 2, turnId: "turn_storage_a" },
+      { sequence: 3, turnId: "turn_storage_b" }
+    ])
+    await expect(client.listSessionMessages({
+      sessionId: "ses_storage_turn",
+      turnIds: ["turn_storage_a"]
+    })).resolves.toMatchObject([
+      { sequence: 1, turnId: "turn_storage_a" },
+      { sequence: 2, turnId: "turn_storage_a" }
+    ])
+    await expect(client.listSessionTurns({
+      sessionId: "ses_storage_turn",
+      turnIds: ["turn_storage_b"]
+    })).resolves.toMatchObject([
+      { id: "turn_storage_b" }
+    ])
+    await expect(client.listSessionInputs({
+      sessionId: "ses_storage_turn",
+      status: "completed",
+      limit: 1
+    })).resolves.toMatchObject([
+      { id: "inp_storage_turn_b", status: "completed" }
+    ])
+  })
+
+  it("rejects follow-up admission against a later queued turn", async () => {
+    const client = await createClient()
+    await client.createSession({ id: "ses_storage_follow_up", kind: "agent" })
+    const parent = await client.submitSessionTurn({
+      id: "inp_storage_follow_up_parent",
+      turnId: "turn_storage_follow_up_parent",
+      sessionId: "ses_storage_follow_up",
+      principalId: "user_storage_follow_up",
+      idempotencyKey: "idem_storage_follow_up_parent",
+      content: [{
+        type: "text",
+        id: "part_storage_follow_up_parent",
+        text: "parent"
+      }],
+      jobId: "job_storage_follow_up_parent",
+      executionBinding: testTurnBinding("storage_follow_up_parent")
+    })
+    const accepted = await client.submitSessionTurn({
+      id: "inp_storage_follow_up_child",
+      turnId: "turn_storage_follow_up_child",
+      sessionId: "ses_storage_follow_up",
+      principalId: "user_storage_follow_up",
+      idempotencyKey: "idem_storage_follow_up_child",
+      content: [{
+        type: "text",
+        id: "part_storage_follow_up_child",
+        text: "child"
+      }],
+      origin: {
+        kind: "interactive",
+        sourceRef: "guided-follow-up",
+        parentRef: parent.turn.id
+      },
+      intent: "follow_up",
+      runControlPolicy: "queue_after_current",
+      expectedTurnId: parent.turn.id,
+      jobId: "job_storage_follow_up_child",
+      executionBinding: testTurnBinding("storage_follow_up_child")
+    })
+
+    await expect(
+      client.submitSessionTurn({
+        id: "inp_storage_follow_up_stale",
+        turnId: "turn_storage_follow_up_stale",
+        sessionId: "ses_storage_follow_up",
+        principalId: "user_storage_follow_up",
+        idempotencyKey: "idem_storage_follow_up_stale",
+        content: [{
+          type: "text",
+          id: "part_storage_follow_up_stale",
+          text: "stale"
+        }],
+        intent: "follow_up",
+        runControlPolicy: "queue_after_current",
+        expectedTurnId: accepted.turn.id,
+        jobId: "job_storage_follow_up_stale",
+        executionBinding: testTurnBinding("storage_follow_up_stale")
+      })
+    ).rejects.toBeInstanceOf(SystemServiceClientError)
+    await expect(
+      client.listSessionInputs({ sessionId: "ses_storage_follow_up" })
+    ).resolves.toHaveLength(2)
+    await expect(
+      client.listSessionTurns({ sessionId: "ses_storage_follow_up" })
+    ).resolves.toHaveLength(2)
   })
 
   it("persists turn controls and running cancellation without premature completion", async () => {
@@ -1719,251 +1953,153 @@ setInterval(() => {}, 1000)
     })).toThrow("cleanupTimeoutMs must be a positive integer")
   })
 
-  it("persists and lists context replacements through system-service", async () => {
+  it("persists lease-fenced semantic context epochs through system-service", async () => {
     const client = await createClient()
-    await client.createSession({
-      id: "ses_context_storage",
-      kind: "agent"
+    await seedStorageContextTurns(client, "ses_context_storage", 3)
+    const canonicalBefore = await client.listSessionMessages({
+      sessionId: "ses_context_storage"
     })
-    const epoch = await client.putContextEpoch({
+    const firstJob = await claimStorageContextJob(
+      client,
+      "job_context_storage_first",
+      "worker_context_storage_first",
+      "ses_context_storage"
+    )
+    const first = contextEpochRequest({
       id: "ctxepoch_storage",
       sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      metadata: { source: "storage-test" }
+      job: firstJob,
+      workerId: "worker_context_storage_first",
+      messages: canonicalBefore,
+      cutIndex: 1,
+      digestSeed: "a"
     })
+    const epoch = await client.beginContextEpoch(first)
     expect(epoch).toMatchObject({
       id: "ctxepoch_storage",
       sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      state: "building"
-    })
-
-    const first = await client.putContextReplacement({
-      id: "ctxrep_storage",
-      epochId: "ctxepoch_storage",
-      sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      messageId: "msg_storage",
-      partId: "part_storage",
-      tier: "tier1_snip",
-      originalTokenEstimate: 100,
-      replacementTokenEstimate: 8,
-      replacement: {
-        type: "text",
-        id: "part_storage",
-        text: "short"
-      }
-    })
-    expect(first.id).toBe("ctxrep_storage")
-
-    const second = await client.putContextReplacement({
-      id: "ctxrep_storage_ignored",
-      epochId: "ctxepoch_storage",
-      sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      messageId: "msg_storage",
-      partId: "part_storage",
-      tier: "tier2_placeholder",
-      originalTokenEstimate: 100,
-      replacementTokenEstimate: 3,
-      replacement: {
-        type: "text",
-        id: "part_storage",
-        text: "[compacted]"
-      },
-      metadata: { source: "storage-test" }
-    })
-    expect(second.id).toBe("ctxrep_storage")
-    expect(second.tier).toBe("tier2_placeholder")
-
-    const listed = await client.listContextReplacements({
-      sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      epochId: "ctxepoch_storage"
-    })
-    expect(listed).toHaveLength(1)
-    expect(listed[0]?.replacement).toMatchObject({
-      type: "text",
-      id: "part_storage",
-      text: "[compacted]"
-    })
-    expect(listed[0]?.metadata).toEqual({ source: "storage-test" })
-
-    const finalized = await client.putContextEpoch({
-      id: "ctxepoch_storage",
-      sessionId: "ses_context_storage",
-      policyVersion: "policy_storage",
-      tokenEstimateBefore: 100,
-      tokenEstimateAfter: 3,
-      tokenSavings: 97,
-      replacementCount: 1,
-      metadata: { source: "storage-test", finalized: true }
-    })
-    expect(finalized).toMatchObject({
-      id: "ctxepoch_storage",
+      jobId: firstJob.id,
       state: "building",
-      replacementCount: 1,
-      metadata: { source: "storage-test", finalized: true }
+      generationState: "prepared",
+      generationAttempt: 0,
+      modelEndpoint: first.modelEndpoint
     })
     await expect(
-      client.getActiveContextEpoch({
-        sessionId: "ses_context_storage",
-        policyVersion: "policy_storage"
+      client.markContextEpochDispatched({
+        epochId: epoch.id,
+        jobId: firstJob.id,
+        workerId: "worker_context_storage_first",
+        leaseToken: "stale"
       })
-    ).resolves.toBeNull()
+    ).rejects.toThrow(/lease/)
+    const dispatched = await client.markContextEpochDispatched({
+      epochId: epoch.id,
+      jobId: firstJob.id,
+      workerId: "worker_context_storage_first",
+      leaseToken: firstJob.leaseToken!
+    })
+    await client.markContextEpochOutputObserved({
+      epochId: epoch.id,
+      jobId: firstJob.id,
+      workerId: "worker_context_storage_first",
+      leaseToken: firstJob.leaseToken!,
+      generationAttempt: dispatched.generationAttempt
+    })
+    const summary = "## Goal\nStorage semantic summary"
+    const succeeded = await client.finishContextEpochGeneration({
+      epochId: epoch.id,
+      jobId: firstJob.id,
+      workerId: "worker_context_storage_first",
+      leaseToken: firstJob.leaseToken!,
+      generationAttempt: dispatched.generationAttempt,
+      outcome: "succeeded",
+      summary,
+      summaryDigest: createHash("sha256").update(summary).digest("hex"),
+      usage: { inputTokens: 100, outputTokens: 20 },
+      tokenEstimateAfter: 80,
+      tokenSavings: 220
+    })
+    expect(succeeded).toMatchObject({
+      generationState: "succeeded",
+      summary,
+      usage: { inputTokens: 100, outputTokens: 20 },
+      tokenEstimateAfter: 80,
+      tokenSavings: 220
+    })
     const active = await client.activateContextEpoch({
-      epochId: "ctxepoch_storage"
+      epochId: epoch.id,
+      jobId: firstJob.id,
+      workerId: "worker_context_storage_first",
+      leaseToken: firstJob.leaseToken!
     })
-    expect(active).toMatchObject({
-      id: "ctxepoch_storage",
-      state: "active",
-      replacementCount: 1
+    expect(active.state).toBe("active")
+    await expect(
+      client.getActiveContextEpoch({ sessionId: "ses_context_storage" })
+    ).resolves.toMatchObject({ id: epoch.id, state: "active" })
+    await expect(
+      client.listSessionMessages({ sessionId: "ses_context_storage" })
+    ).resolves.toEqual(canonicalBefore)
+
+    const failedJob = await claimStorageContextJob(
+      client,
+      "job_context_storage_failed",
+      "worker_context_storage_failed",
+      "ses_context_storage"
+    )
+    const failedRequest = contextEpochRequest({
+      id: "ctxepoch_storage_failed",
+      sessionId: "ses_context_storage",
+      job: failedJob,
+      workerId: "worker_context_storage_failed",
+      messages: canonicalBefore,
+      cutIndex: 3,
+      previous: active,
+      digestSeed: "b"
+    })
+    const failedPrepared = await client.beginContextEpoch(failedRequest)
+    const failedDispatch = await client.markContextEpochDispatched({
+      epochId: failedPrepared.id,
+      jobId: failedJob.id,
+      workerId: "worker_context_storage_failed",
+      leaseToken: failedJob.leaseToken!
+    })
+    const failed = await client.finishContextEpochGeneration({
+      epochId: failedPrepared.id,
+      jobId: failedJob.id,
+      workerId: "worker_context_storage_failed",
+      leaseToken: failedJob.leaseToken!,
+      generationAttempt: failedDispatch.generationAttempt,
+      outcome: "ambiguous",
+      error: { category: "owner_loss" }
+    })
+    expect(failed).toMatchObject({
+      state: "failed",
+      generationState: "ambiguous",
+      error: { category: "owner_loss" }
     })
     await expect(
       client.getActiveContextEpoch({
-        sessionId: "ses_context_storage",
-        policyVersion: "policy_storage"
+        sessionId: "ses_context_storage"
       })
-    ).resolves.toMatchObject({
-      id: "ctxepoch_storage",
-      state: "active"
-    })
-    await expect(
-      client.putContextReplacement({
-        id: "ctxrep_storage_after_active",
-        epochId: "ctxepoch_storage",
-        sessionId: "ses_context_storage",
-        policyVersion: "policy_storage",
-        messageId: "msg_storage",
-        partId: "part_storage_after_active",
-        tier: "tier1_snip",
-        originalTokenEstimate: 10,
-        replacementTokenEstimate: 5,
-        replacement: {
-          type: "text",
-          id: "part_storage_after_active",
-          text: "short"
-        }
-      })
-    ).rejects.toThrow(/building epoch/)
-  })
-
-  it("clones and prunes context epochs through system-service", async () => {
-    const client = await createClient()
-    await client.createSession({
-      id: "ses_context_maintenance_storage",
-      kind: "agent"
-    })
-
-    async function createActiveEpoch(epochId: string, partId: string) {
-      await client.putContextEpoch({
-        id: epochId,
-        sessionId: "ses_context_maintenance_storage",
-        policyVersion: "policy_maintenance_storage",
-        tokenEstimateBefore: 100,
-        tokenEstimateAfter: 5,
-        tokenSavings: 95,
-        replacementCount: 1
-      })
-      await client.putContextReplacement({
-        id: `ctxrep_${partId}`,
-        epochId,
-        sessionId: "ses_context_maintenance_storage",
-        policyVersion: "policy_maintenance_storage",
-        messageId: `msg_${partId}`,
-        partId,
-        tier: "tier2_placeholder",
-        originalTokenEstimate: 100,
-        replacementTokenEstimate: 5,
-        replacement: {
-          type: "text",
-          id: partId,
-          text: "[compacted]"
-        }
-      })
-      return await client.activateContextEpoch({ epochId })
-    }
-
-    await createActiveEpoch("ctxepoch_storage_maintenance_one", "part_one")
-    await createActiveEpoch("ctxepoch_storage_maintenance_two", "part_two")
-    await createActiveEpoch("ctxepoch_storage_maintenance_three", "part_three")
-
-    await expect(
-      client.activateContextEpoch({
-        epochId: "ctxepoch_storage_maintenance_one"
-      })
-    ).rejects.toThrow(/superseded/)
-
-    const cloned = await client.cloneContextEpoch({
-      sourceEpochId: "ctxepoch_storage_maintenance_one",
-      id: "ctxepoch_storage_maintenance_clone",
-      metadata: { reason: "restore" }
-    })
-    expect(cloned).toMatchObject({
-      id: "ctxepoch_storage_maintenance_clone",
-      state: "building",
-      replacementCount: 1,
-      metadata: { reason: "restore" }
-    })
-    const clonedReplacements = await client.listContextReplacements({
-      sessionId: "ses_context_maintenance_storage",
-      policyVersion: "policy_maintenance_storage",
-      epochId: "ctxepoch_storage_maintenance_clone"
-    })
-    expect(clonedReplacements).toHaveLength(1)
-    expect(clonedReplacements[0]?.partId).toBe("part_one")
-    expect(clonedReplacements[0]?.id).not.toBe("ctxrep_part_one")
-
-    await client.activateContextEpoch({
-      epochId: "ctxepoch_storage_maintenance_clone"
-    })
-    await expect(
-      client.getActiveContextEpoch({
-        sessionId: "ses_context_maintenance_storage",
-        policyVersion: "policy_maintenance_storage"
-      })
-    ).resolves.toMatchObject({
-      id: "ctxepoch_storage_maintenance_clone"
-    })
+    ).resolves.toMatchObject({ id: active.id })
 
     const dryRun = await client.pruneContextEpochs({
-      sessionId: "ses_context_maintenance_storage",
-      policyVersion: "policy_maintenance_storage",
-      keepLastSuperseded: 1,
+      sessionId: "ses_context_storage",
+      keepLastSuperseded: 0,
       dryRun: true
     })
     expect(dryRun).toMatchObject({
-      sessionId: "ses_context_maintenance_storage",
-      policyVersion: "policy_maintenance_storage",
-      scannedCount: 3,
-      deletedReplacementCount: 2,
+      sessionId: "ses_context_storage",
+      scannedCount: 0,
+      deletedEpochIds: [],
       dryRun: true
     })
-    await expect(
-      client.listContextEpochs({
-        sessionId: "ses_context_maintenance_storage",
-        policyVersion: "policy_maintenance_storage",
-        state: "superseded"
-      })
-    ).resolves.toHaveLength(3)
-
-    const pruned = await client.pruneContextEpochs({
-      sessionId: "ses_context_maintenance_storage",
-      policyVersion: "policy_maintenance_storage",
-      keepLastSuperseded: 1
+    const epochs = await client.listContextEpochs({
+      sessionId: "ses_context_storage"
     })
-    expect(pruned).toMatchObject({
-      deletedReplacementCount: 2,
-      dryRun: false
-    })
-    expect(pruned.deletedEpochIds).toHaveLength(2)
-    const remaining = await client.listContextEpochs({
-      sessionId: "ses_context_maintenance_storage",
-      policyVersion: "policy_maintenance_storage"
-    })
-    expect(remaining.map((epoch) => epoch.state).sort()).toEqual([
+    expect(epochs.map((item) => item.state).sort()).toEqual([
       "active",
-      "superseded"
+      "failed"
     ])
   })
 
@@ -2147,13 +2283,42 @@ setInterval(() => {}, 1000)
       summary: "Referenced by plan"
     })
 
-    const proposal = await client.putPlanProposal({
+    const generationOutput = [
+      {
+        id: "part_plan_storage_output",
+        type: "text" as const,
+        text: '{"title":"Plan storage"}'
+      }
+    ]
+    const createRequest = {
       id: "planp_storage",
       principalId: "agent_plan_storage",
+      source: {
+        sessionId: "ses_plan_storage",
+        headSequence: 0,
+        analysisInputDigest: "a".repeat(64),
+        planningRequest: [
+          {
+            id: "part_plan_storage_request",
+            type: "text" as const,
+            text: "Plan this change"
+          }
+        ]
+      },
+      generation: {
+        endpointId: "profile_plan_storage",
+        endpointDigest: "b".repeat(64),
+        protocolId: "fake",
+        providerId: "fake",
+        modelId: "model_plan_storage",
+        generatedAt: 1,
+        outputDigest: digestJson(generationOutput),
+        output: generationOutput
+      },
       title: "Plan storage",
       summary: "Durable plan proposal",
       steps: [
-        { id: "step_1", title: "Inspect", status: "pending" },
+        { id: "step_1", title: "Inspect" },
         {
           id: "step_2",
           title: "Implement",
@@ -2161,123 +2326,151 @@ setInterval(() => {}, 1000)
         }
       ],
       references: [
-        { kind: "session", id: "ses_plan_storage", role: "source" },
         {
-          kind: "workspace_change_proposal",
+          kind: "workspace_change_proposal" as const,
           id: "wcp_plan_storage",
           role: "related"
         }
       ],
-      metadata: { source: "storage-client-test" },
       idempotencyKey: "plan-storage-key"
-    })
-    const duplicate = await client.putPlanProposal({
-      id: "ignored_plan_storage",
-      principalId: "agent_plan_storage",
-      title: "Plan storage",
-      summary: "Durable plan proposal",
-      steps: [
-        { id: "step_1", title: "Inspect", status: "pending" },
-        {
-          id: "step_2",
-          title: "Implement",
-          detail: "storage boundary"
-        }
-      ],
-      references: [
-        { kind: "session", id: "ses_plan_storage", role: "source" },
-        {
-          kind: "workspace_change_proposal",
-          id: "wcp_plan_storage",
-          role: "related"
-        }
-      ],
-      metadata: { source: "storage-client-test" },
-      idempotencyKey: "plan-storage-key"
-    })
+    }
+    const proposal = await client.createPlanProposal(createRequest)
+    const duplicate = await client.createPlanProposal(createRequest)
 
     expect(duplicate.id).toBe(proposal.id)
     expect(proposal).toMatchObject({
       id: "planp_storage",
       principalId: "agent_plan_storage",
+      revision: 1,
       state: "open",
-      metadata: { source: "storage-client-test" }
+      source: { sessionId: "ses_plan_storage", headSequence: 0 }
     })
     expect(proposal.references.map((reference) => reference.id)).toEqual([
-      "ses_plan_storage",
       "wcp_plan_storage"
     ])
 
     await expect(
       client.recordPlanProposalOperation({
-        id: "planop_storage_invalid",
+        id: "planop_storage_stale",
         proposalId: proposal.id,
-        operation: "request_execution",
-        actorId: "user_plan_storage"
+        operation: "revise",
+        expectedRevision: 99,
+        actor: { kind: "human", id: "user_plan_storage" },
+        content: {
+          title: proposal.title,
+          summary: proposal.summary,
+          steps: proposal.steps,
+          references: proposal.references
+        },
+        idempotencyKey: "plan-storage-stale"
       })
-    ).rejects.toThrow("invalid plan proposal transition")
+    ).rejects.toThrow("plan proposal revision changed")
+
+    const revised = await client.recordPlanProposalOperation({
+      id: "planop_storage_revise",
+      proposalId: proposal.id,
+      operation: "revise",
+      expectedRevision: 1,
+      actor: { kind: "human", id: "user_plan_storage" },
+      content: {
+        title: "Revised Plan storage",
+        summary: "Human-reviewed durable plan proposal",
+        steps: proposal.steps,
+        references: proposal.references
+      },
+      reason: "tighten plan",
+      idempotencyKey: "plan-storage-revise"
+    })
+    expect(revised).toMatchObject({
+      operation: "revise",
+      fromRevision: 1,
+      toRevision: 2,
+      fromState: "open",
+      toState: "open"
+    })
 
     const approved = await client.recordPlanProposalOperation({
       id: "planop_storage_approve",
       proposalId: proposal.id,
       operation: "approve",
-      actorId: "user_plan_storage",
-      reason: "approved in storage test"
+      expectedRevision: 2,
+      actor: { kind: "human", id: "user_plan_storage" },
+      reason: "approved in storage test",
+      idempotencyKey: "plan-storage-approve"
     })
     expect(approved).toMatchObject({
       operation: "approve",
       fromState: "open",
-      toState: "approved"
+      toState: "approved",
+      fromRevision: 2,
+      toRevision: 3
     })
 
-    const executionRequested = await client.recordPlanProposalOperation({
-      id: "planop_storage_request_execution",
+    const executionRequest = {
       proposalId: proposal.id,
-      operation: "request_execution",
-      actorId: "user_plan_storage",
-      metadata: { target: "runtime" }
-    })
-    expect(executionRequested).toMatchObject({
-      operation: "request_execution",
-      fromState: "approved",
-      toState: "execution_requested"
-    })
-
-    const executed = await client.recordPlanProposalOperation({
-      id: "planop_storage_mark_executed",
-      proposalId: proposal.id,
-      operation: "mark_executed",
-      actorId: "runtime_plan_storage",
-      metadata: { jobId: "job_plan_storage" }
-    })
+      expectedRevision: 3,
+      idempotencyKey: "plan-storage-execution",
+      turn: {
+        id: "inp_plan_storage",
+        turnId: "turn_plan_storage",
+        jobId: "job_plan_storage",
+        sessionId: "ses_plan_storage",
+        principalId: "agent_plan_storage",
+        idempotencyKey: "plan-storage-turn",
+        content: [
+          {
+            id: "part_plan_storage_execution",
+            type: "text" as const,
+            text: "Execute the approved plan"
+          }
+        ],
+        origin: { kind: "plan", sourceRef: proposal.id },
+        executionBinding: testTurnBinding("plan_storage"),
+        maxSteps: 4
+      }
+    }
+    const executed = await client.executeApprovedPlan(executionRequest)
+    const duplicateExecution = await client.executeApprovedPlan(executionRequest)
+    expect(duplicateExecution).toEqual(executed)
     expect(executed).toMatchObject({
-      operation: "mark_executed",
-      fromState: "execution_requested",
-      toState: "executed"
+      proposal: {
+        id: proposal.id,
+        revision: 3,
+        state: "approved",
+        execution: {
+          inputId: "inp_plan_storage",
+          turnId: "turn_plan_storage",
+          jobId: "job_plan_storage"
+        }
+      },
+      submission: {
+        turn: { id: "turn_plan_storage", state: "queued" },
+        job: { id: "job_plan_storage", state: "ready" }
+      }
     })
 
     await expect(
       client.getPlanProposal({ proposalId: proposal.id })
     ).resolves.toMatchObject({
       id: proposal.id,
-      state: "executed",
-      metadata: { source: "storage-client-test" }
+      revision: 3,
+      state: "approved"
     })
 
     await expect(
       client.listPlanProposals({
-        referenceKind: "session",
-        referenceId: "ses_plan_storage",
-        state: "executed"
+        sourceSessionId: "ses_plan_storage",
+        referenceKind: "workspace_change_proposal",
+        referenceId: "wcp_plan_storage",
+        state: "approved"
       })
     ).resolves.toEqual([expect.objectContaining({ id: proposal.id })])
 
     await expect(
       client.listPlanProposalOperations({ proposalId: proposal.id })
     ).resolves.toEqual([
+      expect.objectContaining({ operation: "revise" }),
       expect.objectContaining({ operation: "approve" }),
-      expect.objectContaining({ operation: "request_execution" }),
-      expect.objectContaining({ operation: "mark_executed" })
     ])
 
     const events = await client.queryEvents({
@@ -2288,13 +2481,13 @@ setInterval(() => {}, 1000)
       "plan.proposal.created",
       "plan.proposal.operation_recorded",
       "plan.proposal.operation_recorded",
-      "plan.proposal.operation_recorded"
+      "plan.proposal.execution_bound"
     ])
     expect(events.every((event) => event.scope.planProposalId === proposal.id))
       .toBe(true)
   })
 
-  it("persists objective run lifecycle through system-service", async () => {
+  it("persists the durable objective lifecycle through system-service", async () => {
     const client = await createClient()
     await client.createSession({
       id: "ses_objective_storage",
@@ -2302,257 +2495,300 @@ setInterval(() => {}, 1000)
       title: "Objective source"
     })
 
-    const objective = await client.putObjectiveRun({
+    const createRequest = {
       id: "objective_storage",
+      sessionId: "ses_objective_storage",
       principalId: "agent_objective_storage",
       objective: "Reduce login LCP below 2.5s",
-      scope: "apps/web",
-      constraints: [
-        "do not change public auth API",
-        "run verification before success"
-      ],
-      successCriteria: ["npm test passes"],
+      boundaries: ["apps/web"],
+      constraints: ["do not change public auth API"],
+      successCriteria: [{
+        id: "criterion_tests",
+        description: "the verification suite passes"
+      }],
+      verificationPolicy: {
+        requirements: [{
+          id: "requirement_tests",
+          criterionIds: ["criterion_tests"],
+          verifierKind: "script" as const,
+          verifierRef: "storage-test-suite"
+        }]
+      },
       stopPolicy: {
         maxAttempts: 3,
-        maxElapsedMs: 600_000,
-        repeatedBlockThreshold: 2,
-        requireVerification: true
-      },
-      references: [
-        {
-          kind: "session",
-          id: "ses_objective_storage",
-          role: "source",
-          metadata: { order: 1 }
+        maxConsecutiveBlockedAttempts: 2,
+        budget: {
+          tokens: 100,
+          costMicros: 1_000
         }
-      ],
-      metadata: { source: "storage-client-test" },
-      idempotencyKey: "objective-storage-key"
-    })
-    const duplicate = await client.putObjectiveRun({
-      id: "ignored_objective_storage",
-      principalId: "agent_objective_storage",
-      objective: "Reduce login LCP below 2.5s",
-      scope: "apps/web",
-      constraints: [
-        "do not change public auth API",
-        "run verification before success"
-      ],
-      successCriteria: ["npm test passes"],
-      stopPolicy: {
-        maxAttempts: 3,
-        maxElapsedMs: 600_000,
-        repeatedBlockThreshold: 2,
-        requireVerification: true
       },
-      references: [
-        {
-          kind: "session",
-          id: "ses_objective_storage",
-          role: "source",
-          metadata: { order: 1 }
-        }
-      ],
-      metadata: { source: "storage-client-test" },
       idempotencyKey: "objective-storage-key"
-    })
-
-    expect(duplicate.id).toBe(objective.id)
+    }
+    const objective = await client.createObjective(createRequest)
+    await expect(client.createObjective(createRequest)).resolves.toEqual(objective)
     expect(objective).toMatchObject({
       id: "objective_storage",
+      sessionId: "ses_objective_storage",
       principalId: "agent_objective_storage",
       objective: "Reduce login LCP below 2.5s",
-      state: "open",
+      state: "active",
+      revision: 1,
+      reason: { code: "created" },
       stopPolicy: {
         maxAttempts: 3,
-        requireVerification: true
-      },
-      metadata: { source: "storage-client-test" }
-    })
-    expect(objective.references).toEqual([
-      {
-        kind: "session",
-        id: "ses_objective_storage",
-        role: "source",
-        metadata: { order: 1 }
+        maxConsecutiveBlockedAttempts: 2,
+        budget: { tokens: 100, costMicros: 1_000 }
       }
-    ])
-
+    })
     await expect(
-      client.recordObjectiveRunOperation({
-        id: "objectiveop_storage_invalid",
-        objectiveId: objective.id,
-        operation: "mark_succeeded",
-        actorId: "user_objective_storage"
+      client.getObjective({ objectiveId: objective.id })
+    ).resolves.toEqual(objective)
+    await expect(
+      client.listObjectives({
+        sessionId: "ses_objective_storage",
+        states: ["active"]
       })
-    ).rejects.toThrow("invalid objective run transition")
+    ).resolves.toEqual([objective])
 
-    const started = await client.recordObjectiveRunOperation({
-      id: "objectiveop_storage_start",
+    const paused = await client.pauseObjective({
       objectiveId: objective.id,
-      operation: "start",
-      actorId: "user_objective_storage",
-      reason: "approved"
+      expectedRevision: 1,
+      reason: "review direction",
+      idempotencyKey: "objective-storage-pause"
     })
-    expect(started).toMatchObject({
-      operation: "start",
-      fromState: "open",
-      toState: "running"
-    })
-
-    const blocked = await client.recordObjectiveRunOperation({
-      id: "objectiveop_storage_blocked",
+    expect(paused).toMatchObject({ state: "paused", revision: 2 })
+    const resumed = await client.resumeObjective({
       objectiveId: objective.id,
-      operation: "record_blocked",
-      actorId: "runtime_objective_storage",
-      reason: "needs credentials",
-      metadata: { source: "storage-client-test" }
+      expectedRevision: 2,
+      reason: "continue",
+      idempotencyKey: "objective-storage-resume"
     })
-    expect(blocked).toMatchObject({
-      operation: "record_blocked",
-      fromState: "running",
-      toState: "blocked",
-      metadata: { source: "storage-client-test" }
-    })
+    expect(resumed).toMatchObject({ state: "active", revision: 3 })
 
-    const restarted = await client.recordObjectiveRunOperation({
-      id: "objectiveop_storage_restart",
+    const admissionRequest = {
       objectiveId: objective.id,
-      operation: "start",
-      actorId: "user_objective_storage",
-      reason: "credentials provided"
-    })
-    expect(restarted).toMatchObject({
-      operation: "start",
-      fromState: "blocked",
-      toState: "running"
-    })
-
-    const attempt = await client.putObjectiveAttempt({
-      id: "objectiveatt_storage_1",
+      expectedRevision: 3,
+      trigger: "initial" as const,
+      idempotencyKey: "objective-storage-admit",
+      turn: {
+        id: "inp_objective_storage",
+        turnId: "turn_objective_storage",
+        sessionId: "ses_objective_storage",
+        principalId: "agent_objective_storage",
+        idempotencyKey: "objective-storage-turn",
+        content: [{
+          type: "text" as const,
+          id: "part_objective_storage",
+          text: "Continue the objective"
+        }],
+        origin: { kind: "objective", sourceRef: objective.id },
+        jobId: "job_objective_storage",
+        executionBinding: testTurnBinding("objective_storage"),
+        maxSteps: 4
+      }
+    }
+    const admitted = await client.admitObjectiveAttempt(admissionRequest)
+    expect(admitted.status).toBe("admitted")
+    if (admitted.status !== "admitted") throw new Error("objective not admitted")
+    await expect(client.admitObjectiveAttempt(admissionRequest)).resolves.toEqual(
+      admitted
+    )
+    expect(admitted.objective).toMatchObject({ revision: 4, state: "active" })
+    expect(admitted.attempt).toMatchObject({
       objectiveId: objective.id,
       attemptNumber: 1,
-      state: "succeeded",
-      sessionId: "ses_objective_storage",
-      sessionInputId: "inp_objective_storage",
-      sessionTurnId: "turn_objective_storage",
-      schedulerJobId: "job_objective_storage",
-      summary: "Verified LCP target",
-      result: { lcpMs: 2300 },
-      metadata: { attempt: 1 },
-      startedAt: 100,
-      finishedAt: 200,
-      idempotencyKey: "objective-storage-attempt-key"
+      inputId: admitted.submission.admission.inputId,
+      turnId: admitted.submission.turn.id,
+      jobId: admitted.submission.job.id,
+      trigger: "initial",
+      budgetGrantId: expect.any(String)
     })
-    const duplicateAttempt = await client.putObjectiveAttempt({
-      id: "ignored_objectiveatt_storage",
-      objectiveId: objective.id,
-      attemptNumber: 1,
-      state: "succeeded",
-      sessionId: "ses_objective_storage",
-      sessionInputId: "inp_objective_storage",
-      sessionTurnId: "turn_objective_storage",
-      schedulerJobId: "job_objective_storage",
-      summary: "Verified LCP target",
-      result: { lcpMs: 2300 },
-      metadata: { attempt: 1 },
-      startedAt: 100,
-      finishedAt: 200,
-      idempotencyKey: "objective-storage-attempt-key"
-    })
-    expect(duplicateAttempt.id).toBe(attempt.id)
-    expect(attempt).toMatchObject({
-      id: "objectiveatt_storage_1",
-      objectiveId: objective.id,
-      attemptNumber: 1,
-      state: "succeeded",
-      result: { lcpMs: 2300 }
-    })
-
-    const verification = await client.putObjectiveVerification({
-      id: "objectivever_storage_1",
-      objectiveId: objective.id,
-      attemptId: attempt.id,
-      kind: "script",
-      state: "passed",
-      reason: "test command passed",
-      evidence: { command: "npm test", exitCode: 0 },
-      verifierRef: "local-script",
-      idempotencyKey: "objective-storage-verification-key"
-    })
-    expect(verification).toMatchObject({
-      id: "objectivever_storage_1",
-      objectiveId: objective.id,
-      attemptId: attempt.id,
-      state: "passed",
-      evidence: { command: "npm test", exitCode: 0 }
-    })
-
-    const succeeded = await client.recordObjectiveRunOperation({
-      id: "objectiveop_storage_succeeded",
-      objectiveId: objective.id,
-      operation: "mark_succeeded",
-      actorId: "runtime_objective_storage",
-      reason: "verification passed",
-      metadata: { verificationId: verification.id }
-    })
-    expect(succeeded).toMatchObject({
-      operation: "mark_succeeded",
-      fromState: "running",
-      toState: "succeeded"
-    })
-
     await expect(
-      client.getObjectiveRun({ objectiveId: objective.id })
-    ).resolves.toMatchObject({
-      id: objective.id,
+      client.listObjectiveAttempts({ objectiveId: objective.id })
+    ).resolves.toEqual([admitted.attempt])
+
+    const job = await client.claimJob({
+      workerId: "worker_objective_storage",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    expect(job?.id).toBe(admitted.attempt.jobId)
+    const started = await client.startSessionTurnAttempt({
+      sessionId: admitted.submission.turn.sessionId,
+      turnId: admitted.attempt.turnId,
+      inputId: admitted.attempt.inputId,
+      jobId: admitted.attempt.jobId,
+      workerId: "worker_objective_storage",
+      leaseToken: job!.leaseToken!
+    })
+    const invocation = await client.beginProviderInvocation({
+      sessionId: admitted.submission.turn.sessionId,
+      turnId: admitted.attempt.turnId,
+      attemptId: started.attempt.id,
+      inputId: admitted.attempt.inputId,
+      jobId: admitted.attempt.jobId,
+      workerId: "worker_objective_storage",
+      leaseToken: job!.leaseToken!,
+      step: 1,
+      invocationNumber: 1,
+      requestDigest: "objective-storage-provider-request"
+    })
+    await client.settleSessionTurn({
+      sessionId: admitted.submission.turn.sessionId,
+      turnId: admitted.attempt.turnId,
+      attemptId: started.attempt.id,
+      inputId: admitted.attempt.inputId,
+      jobId: admitted.attempt.jobId,
+      workerId: "worker_objective_storage",
+      leaseToken: job!.leaseToken!,
+      outcome: "succeeded",
+      providerInvocationId: invocation.id,
+      assistantMessage: [{
+        type: "text",
+        id: "assistant_objective_storage",
+        text: "Objective attempt complete"
+      }]
+    })
+
+    const reviewRequest = {
+      id: "objectivereview_storage",
+      objectiveId: objective.id,
+      attemptId: admitted.attempt.id,
+      expectedRevision: 4,
+      disposition: "succeeded" as const,
+      reason: "all checks passed",
+      verifications: [{
+        requirementId: "requirement_tests",
+        verifierKind: "script" as const,
+        verifierRef: "storage-test-suite",
+        result: "passed" as const,
+        evidence: [{
+          kind: "runtime_projection" as const,
+          referenceId: "storage-verification-output",
+          digest: "a".repeat(64)
+        }]
+      }],
+      idempotencyKey: "objective-storage-review"
+    }
+    const reviewed = await client.reviewObjectiveAttempt(reviewRequest)
+    await expect(client.reviewObjectiveAttempt(reviewRequest)).resolves.toEqual(reviewed)
+    expect(reviewed.objective).toMatchObject({
       state: "succeeded",
+      revision: 5,
+      reason: { code: "verification_succeeded" },
       closedAt: expect.any(Number)
     })
-    await expect(
-      client.listObjectiveRuns({
-        state: "succeeded",
-        referenceKind: "session",
-        referenceId: "ses_objective_storage"
-      })
-    ).resolves.toEqual([expect.objectContaining({ id: objective.id })])
-    await expect(
-      client.listObjectiveRunOperations({ objectiveId: objective.id })
-    ).resolves.toEqual([
-      expect.objectContaining({ operation: "start" }),
-      expect.objectContaining({ operation: "record_blocked" }),
-      expect.objectContaining({ operation: "start" }),
-      expect.objectContaining({ operation: "mark_succeeded" })
-    ])
-    await expect(
-      client.listObjectiveAttempts({
-        objectiveId: objective.id,
-        state: "succeeded"
-      })
-    ).resolves.toEqual([expect.objectContaining({ id: attempt.id })])
-    await expect(
-      client.listObjectiveVerifications({
-        objectiveId: objective.id,
-        attemptId: attempt.id,
-        state: "passed"
-      })
-    ).resolves.toEqual([expect.objectContaining({ id: verification.id })])
+    await expect(client.listObjectiveAttemptReviews({
+      objectiveId: objective.id,
+      attemptId: admitted.attempt.id
+    })).resolves.toEqual([reviewed.review])
+    await expect(client.listObjectiveVerifications({
+      objectiveId: objective.id,
+      attemptId: admitted.attempt.id,
+      requirementId: "requirement_tests",
+      result: "passed"
+    })).resolves.toEqual(reviewed.verifications)
 
     const events = await client.queryEvents({
       scope: { objectiveId: objective.id },
       limit: 20
     })
-    expect(events.map((event) => event.type)).toEqual([
-      "objective.run.created",
-      "objective.run.operation_recorded",
-      "objective.run.operation_recorded",
-      "objective.run.operation_recorded",
-      "objective.attempt.recorded",
+    expect(events.map((event) => event.type)).toEqual(expect.arrayContaining([
+      "objective.created",
+      "objective.state_changed",
+      "objective.attempt.admitted",
       "objective.verification.recorded",
-      "objective.run.operation_recorded"
-    ])
+      "objective.attempt.reviewed"
+    ]))
     expect(events.every((event) => event.scope.objectiveId === objective.id))
       .toBe(true)
+  })
+
+  it("reconciles objective cancellation only after the running turn settles", async () => {
+    const client = await createClient()
+    await client.createSession({ id: "ses_objective_cancel_storage", kind: "agent" })
+    const objective = await client.createObjective({
+      id: "objective_cancel_storage",
+      sessionId: "ses_objective_cancel_storage",
+      principalId: "agent_objective_storage",
+      objective: "Cancel a running objective safely",
+      successCriteria: [{ id: "done", description: "the task is done" }],
+      verificationPolicy: {
+        requirements: [{
+          id: "verify_done",
+          criterionIds: ["done"],
+          verifierKind: "runtime",
+          verifierRef: "storage-test"
+        }]
+      },
+      stopPolicy: { maxAttempts: 2, maxConsecutiveBlockedAttempts: 1 },
+      idempotencyKey: "objective-cancel-storage-create"
+    })
+    const admitted = await client.admitObjectiveAttempt({
+      objectiveId: objective.id,
+      expectedRevision: 1,
+      trigger: "initial",
+      idempotencyKey: "objective-cancel-storage-admit",
+      turn: {
+        id: "inp_objective_cancel_storage",
+        turnId: "turn_objective_cancel_storage",
+        sessionId: "ses_objective_cancel_storage",
+        principalId: "agent_objective_storage",
+        idempotencyKey: "objective-cancel-storage-turn",
+        content: [{ type: "text", id: "part_cancel_storage", text: "run" }],
+        origin: { kind: "objective", sourceRef: objective.id },
+        jobId: "job_objective_cancel_storage",
+        executionBinding: testTurnBinding("objective_cancel_storage")
+      }
+    })
+    if (admitted.status !== "admitted") throw new Error("objective not admitted")
+    const job = await client.claimJob({
+      workerId: "worker_objective_cancel_storage",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    const started = await client.startSessionTurnAttempt({
+      sessionId: admitted.submission.turn.sessionId,
+      turnId: admitted.attempt.turnId,
+      inputId: admitted.attempt.inputId,
+      jobId: admitted.attempt.jobId,
+      workerId: "worker_objective_cancel_storage",
+      leaseToken: job!.leaseToken!
+    })
+    const requested = await client.requestObjectiveCancel({
+      objectiveId: objective.id,
+      expectedRevision: 2,
+      reason: "user cancelled",
+      idempotencyKey: "objective-cancel-storage-request"
+    })
+    expect(requested.objective).toMatchObject({
+      state: "cancel_requested",
+      revision: 3,
+      activeAttemptId: admitted.attempt.id
+    })
+    expect(requested.turnCancellation?.status).toBe("cancel_requested")
+    await client.settleSessionTurn({
+      sessionId: admitted.submission.turn.sessionId,
+      turnId: admitted.attempt.turnId,
+      attemptId: started.attempt.id,
+      inputId: admitted.attempt.inputId,
+      jobId: admitted.attempt.jobId,
+      workerId: "worker_objective_cancel_storage",
+      leaseToken: job!.leaseToken!,
+      outcome: "cancelled",
+      reason: "user cancelled"
+    })
+    await expect(client.reconcileObjectiveCancellation({
+      objectiveId: objective.id,
+      attemptId: admitted.attempt.id,
+      expectedRevision: 3,
+      idempotencyKey: "objective-cancel-storage-reconcile"
+    })).resolves.toMatchObject({
+      state: "cancelled",
+      revision: 4,
+      reason: { code: "cancelled" },
+      closedAt: expect.any(Number)
+    })
   })
 
   it("persists delegation graph topology through the system-service process", async () => {
@@ -2775,7 +3011,67 @@ setInterval(() => {}, 1000)
     })
   })
 
-  it("persists team conversations participants and turns through system-service", async () => {
+  it("persists Team lead authority with compare-and-set through system-service", async () => {
+    const client = await createClient()
+    const conversation = await client.putTeamConversation({
+      id: "team_storage_lead",
+      principalId: "team_storage_lead_owner",
+      mode: "orchestrated"
+    })
+    expect(conversation).not.toHaveProperty("leadParticipantId")
+    const firstSession = await client.createSession({
+      id: "ses_team_storage_lead_first",
+      kind: "agent"
+    })
+    const first = await client.putTeamParticipant({
+      id: "team_storage_lead_first",
+      conversationId: conversation.id,
+      principalId: "team_storage_lead_first_principal",
+      kind: "agent",
+      agentSessionId: firstSession.id
+    })
+    const secondSession = await client.createSession({
+      id: "ses_team_storage_lead_second",
+      kind: "agent"
+    })
+    const second = await client.putTeamParticipant({
+      id: "team_storage_lead_second",
+      conversationId: conversation.id,
+      principalId: "team_storage_lead_second_principal",
+      kind: "agent",
+      agentSessionId: secondSession.id
+    })
+
+    const assigned = await client.setTeamConversationLead({
+      conversationId: conversation.id,
+      leadParticipantId: first.id
+    })
+    expect(assigned).toMatchObject({ leadParticipantId: first.id })
+    await expect(client.setTeamConversationLead({
+      conversationId: conversation.id,
+      leadParticipantId: first.id
+    })).resolves.toEqual(assigned)
+    await expect(client.setTeamConversationLead({
+      conversationId: conversation.id,
+      leadParticipantId: second.id
+    })).rejects.toThrow(/lead changed/)
+
+    await expect(client.setTeamConversationLead({
+      conversationId: conversation.id,
+      expectedLeadParticipantId: first.id,
+      leadParticipantId: second.id
+    })).resolves.toMatchObject({ leadParticipantId: second.id })
+    await expect(client.getTeamConversation(conversation.id)).resolves.toMatchObject({
+      leadParticipantId: second.id
+    })
+    const cleared = await client.setTeamConversationLead({
+      conversationId: conversation.id,
+      expectedLeadParticipantId: second.id
+    })
+    expect(cleared).not.toHaveProperty("leadParticipantId")
+  })
+
+  it("persists team message routing and delivery ledger through system-service", async () => {
     const client = await createClient()
     const conversation = await client.putTeamConversation({
       principalId: "team_owner_storage",
@@ -2803,21 +3099,26 @@ setInterval(() => {}, 1000)
       role: "requester",
       idempotencyKey: "team-storage-user"
     })
+    const agentSession = await client.createSession({
+      id: "ses_team_storage_agent",
+      kind: "agent"
+    })
     const agent = await client.putTeamParticipant({
       id: "team_storage_agent",
       conversationId: conversation.id,
       principalId: "agent_storage",
       kind: "agent",
+      agentSessionId: agentSession.id,
       displayName: "Agent",
       role: "reviewer",
       metadata: { profile: "coder" }
     })
 
-    const turn = await client.appendTeamTurn({
-      id: "team_storage_turn_one",
+    const message = await client.admitTeamMessage({
+      id: "team_storage_message_one",
       conversationId: conversation.id,
-      speakerParticipantId: user.id,
-      audienceParticipantIds: [agent.id],
+      authorParticipantId: user.id,
+      targets: [{ kind: "participant", participantId: agent.id }],
       kind: "message",
       content: [
         {
@@ -2826,14 +3127,17 @@ setInterval(() => {}, 1000)
           text: "Please review."
         }
       ],
-      metadata: { source: "storage-client-test" }
+      metadata: { source: "storage-client-test" },
+      idempotencyKey: "team-storage-message-one"
     })
-    expect(turn).toMatchObject({
-      id: "team_storage_turn_one",
+    expect(message).toMatchObject({
+      id: "team_storage_message_one",
       conversationId: conversation.id,
-      speakerParticipantId: user.id,
-      audienceParticipantIds: [agent.id],
-      kind: "message"
+      authorParticipantId: user.id,
+      targets: [{ kind: "participant", participantId: agent.id }],
+      kind: "message",
+      state: "admitted",
+      revision: 1
     })
 
     await expect(
@@ -2850,25 +3154,190 @@ setInterval(() => {}, 1000)
       })
     ).resolves.toHaveLength(2)
     await expect(
-      client.listTeamTurns({ conversationId: conversation.id })
+      client.listTeamMessages({ conversationId: conversation.id })
     ).resolves.toMatchObject([
       {
-        id: turn.id,
+        id: message.id,
         content: [{ text: "Please review." }]
       }
     ])
+
+    const routed = await client.routeTeamMessage({
+      id: "team_storage_route_one",
+      messageId: message.id,
+      expectedRevision: 1,
+      mode: "hybrid",
+      outcome: "deliver",
+      actorPrincipalId: "team_owner_storage",
+      reason: "Explicit participant target",
+      idempotencyKey: "team-storage-route-one",
+      deliveries: [{
+        id: "team_storage_delivery_one",
+        targetParticipantId: agent.id,
+        role: "speaker",
+        trigger: "mention"
+      }]
+    })
+    expect(routed).toMatchObject({
+      created: true,
+      message: { id: message.id, state: "routed", revision: 2 },
+      decision: { id: "team_storage_route_one", outcome: "deliver" },
+      deliveries: [{
+        id: "team_storage_delivery_one",
+        state: "queued",
+        targetSessionId: agentSession.id,
+        dispatchJobId: expect.any(String)
+      }],
+      dispatchJobs: [{ kind: "team.delivery", state: "ready" }]
+    })
+    await expect(
+      client.getTeamRoutingDecisionByMessage(message.id)
+    ).resolves.toMatchObject({ id: routed.decision.id })
+    await expect(client.listTeamRoutingDecisions({
+      conversationId: conversation.id
+    })).resolves.toHaveLength(1)
+    await expect(client.listTeamDeliveries({
+      messageId: message.id,
+      state: "queued"
+    })).resolves.toMatchObject([{ id: "team_storage_delivery_one" }])
+
+    const dispatchJob = routed.dispatchJobs[0]
+    if (dispatchJob === undefined) throw new Error("expected a Team dispatch job")
+    const claimedDispatch = await client.claimJob({
+      workerId: "team_storage_materializer",
+      leaseMs: 60_000,
+      kinds: ["team.delivery"]
+    })
+    expect(claimedDispatch).toMatchObject({
+      id: dispatchJob.id,
+      kind: "team.delivery",
+      state: "running"
+    })
+    if (claimedDispatch?.leaseToken === undefined) {
+      throw new Error("claimed Team dispatch job is missing its lease")
+    }
+    await expect(client.completeJob({
+      jobId: claimedDispatch.id,
+      workerId: "team_storage_materializer",
+      leaseToken: claimedDispatch.leaseToken
+    })).rejects.toThrow(/materialize_team_delivery/)
+    await expect(
+      client.getTeamDeliveryMaterializationContext("team_storage_delivery_one")
+    ).resolves.toMatchObject({
+      participant: { id: agent.id, agentSessionId: agentSession.id },
+      message: { id: message.id },
+      delivery: { state: "queued", dispatchJobId: dispatchJob.id },
+      dispatchJob: { id: dispatchJob.id, state: "running" }
+    })
+    const materializeRequest = {
+      deliveryId: "team_storage_delivery_one",
+      dispatchJobId: claimedDispatch.id,
+      workerId: "team_storage_materializer",
+      leaseToken: claimedDispatch.leaseToken,
+      executionBinding: testTurnBinding("team_storage_delivery"),
+      maxSteps: 12,
+      childPriority: 3
+    }
+    const materialized = await client.materializeTeamDelivery(materializeRequest)
+    expect(materialized).toMatchObject({
+      created: true,
+      delivery: {
+        state: "dispatched",
+        targetSessionId: agentSession.id,
+        childInputId: "inp_team_team_storage_delivery_one",
+        childTurnId: "turn_team_team_storage_delivery_one",
+        childTurnJobId: "job_team_turn_team_storage_delivery_one",
+        materializedAt: expect.any(Number)
+      },
+      dispatchJob: { id: dispatchJob.id, state: "succeeded" },
+      submission: {
+        turn: { sessionId: agentSession.id, state: "queued", maxSteps: 12 },
+        job: { kind: "session.turn", state: "ready", priority: 3 }
+      }
+    })
+    await expect(client.materializeTeamDelivery(materializeRequest)).resolves.toMatchObject({
+      created: false,
+      delivery: { id: "team_storage_delivery_one", state: "dispatched" },
+      submission: { turn: { id: materialized.submission.turn.id } }
+    })
+    await expect(client.materializeTeamDelivery({
+      ...materializeRequest,
+      executionBinding: testTurnBinding("team_storage_delivery_changed")
+    })).rejects.toThrow(/replay changed its child plan/)
+
+    await expect(client.requestSessionTurnCancel({
+      sessionId: agentSession.id,
+      turnId: materialized.submission.turn.id,
+      inputId: materialized.submission.admission.inputId,
+      jobId: materialized.submission.job.id,
+      reason: "Storage outcome projection test"
+    })).resolves.toMatchObject({
+      status: "cancelled",
+      turn: { state: "cancelled" },
+      job: { state: "cancelled" }
+    })
+    const cancelledDelivery = (await client.listTeamDeliveries({
+      messageId: message.id
+    }))[0]
+    expect(cancelledDelivery).toMatchObject({
+      id: "team_storage_delivery_one",
+      state: "dispatched",
+      outcomeJobId: expect.any(String)
+    })
+    const outcomeJob = await client.claimJob({
+      workerId: "team_storage_outcome_projector",
+      leaseMs: 60_000,
+      kinds: ["team.delivery.outcome"]
+    })
+    expect(outcomeJob).toMatchObject({
+      id: cancelledDelivery?.outcomeJobId,
+      kind: "team.delivery.outcome",
+      state: "running"
+    })
+    if (outcomeJob?.leaseToken === undefined) {
+      throw new Error("claimed Team outcome job is missing its lease")
+    }
+    const projected = await client.projectTeamDeliveryOutcome({
+      deliveryId: "team_storage_delivery_one",
+      outcomeJobId: outcomeJob.id,
+      workerId: "team_storage_outcome_projector",
+      leaseToken: outcomeJob.leaseToken
+    })
+    expect(projected).toMatchObject({
+      created: true,
+      delivery: {
+        state: "cancelled",
+        outcomeJobId: outcomeJob.id,
+        finishedAt: expect.any(Number)
+      },
+      outcomeJob: { state: "succeeded" },
+      childTurn: { id: materialized.submission.turn.id, state: "cancelled" }
+    })
+    expect(projected.childAssistantMessage).toBeUndefined()
+    expect(projected.replyMessage).toBeUndefined()
+    await expect(client.projectTeamDeliveryOutcome({
+      deliveryId: "team_storage_delivery_one",
+      outcomeJobId: outcomeJob.id,
+      workerId: "team_storage_outcome_projector",
+      leaseToken: outcomeJob.leaseToken
+    })).resolves.toMatchObject({
+      created: false,
+      delivery: { state: "cancelled" }
+    })
 
     await client.updateTeamParticipantState({
       participantId: agent.id,
       state: "muted"
     })
     await expect(
-      client.appendTeamTurn({
+      client.admitTeamMessage({
         conversationId: conversation.id,
-        speakerParticipantId: agent.id,
-        content: [{ type: "text", id: "part_team_muted", text: "Muted." }]
+        authorParticipantId: agent.id,
+        targets: [],
+        content: [{ type: "text", id: "part_team_muted", text: "Muted." }],
+        idempotencyKey: "team-storage-message-muted"
       })
-    ).rejects.toThrow(/speaker must be active/)
+    ).rejects.toThrow(/author must be active/)
 
     await expect(
       client.updateTeamConversationState({
@@ -2883,10 +3352,12 @@ setInterval(() => {}, 1000)
       state: "closed"
     })
     await expect(
-      client.appendTeamTurn({
+      client.admitTeamMessage({
         conversationId: conversation.id,
-        speakerParticipantId: user.id,
-        content: [{ type: "text", id: "part_team_closed", text: "Closed." }]
+        authorParticipantId: user.id,
+        targets: [],
+        content: [{ type: "text", id: "part_team_closed", text: "Closed." }],
+        idempotencyKey: "team-storage-message-closed"
       })
     ).rejects.toThrow(/not open/)
   })
@@ -2922,6 +3393,17 @@ setInterval(() => {}, 1000)
     expect(manifest.capabilities).toContain("channel.deliver")
 
     await expect(
+      client.submitPluginAction({
+        pluginId: "connector.telegram",
+        version: "1.0.0",
+        actionId: "deliver-message",
+        principalId: "principal_channel_storage",
+        payload: {},
+        requiredCapability: "channel.deliver"
+      })
+    ).rejects.toThrow(/install does not exist/)
+
+    await expect(
       client.getPluginManifest({ pluginId: "connector.telegram" })
     ).resolves.toMatchObject({
       id: manifest.id,
@@ -2943,6 +3425,8 @@ setInterval(() => {}, 1000)
       kind: "wanex.plugin.package.trust.v1",
       pluginId: "connector.telegram",
       version: "1.0.0",
+      source: { kind: "local" },
+      install: { rootDir: "/plugins/connector.telegram/1.0.0" },
       decision: { status: "allow" }
     }
     const install = await client.putPluginInstall({
@@ -2979,9 +3463,25 @@ setInterval(() => {}, 1000)
     await expect(
       client.listPluginInstalls({ pluginId: "connector.telegram", state: "installed" })
     ).resolves.toMatchObject([{ id: install.id }])
+    await expect(client.updatePluginInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "installed",
+      state: "installed"
+    })).resolves.toMatchObject({
+      id: install.id,
+      updatedAt: install.updatedAt
+    })
+    await expect(client.updatePluginInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "disabled",
+      state: "removed"
+    })).rejects.toThrow(/state conflict/)
     const disabledInstall = await client.updatePluginInstallState({
       pluginId: "connector.telegram",
       version: "1.0.0",
+      expectedState: "installed",
       state: "disabled"
     })
     expect(disabledInstall).toMatchObject({
@@ -2990,9 +3490,20 @@ setInterval(() => {}, 1000)
     })
     expect(disabledInstall.disabledAt).toEqual(expect.any(Number))
     expect(disabledInstall.removedAt).toBeUndefined()
+    await expect(
+      client.submitPluginAction({
+        pluginId: "connector.telegram",
+        version: "1.0.0",
+        actionId: "deliver-message",
+        principalId: "principal_channel_storage",
+        payload: {},
+        requiredCapability: "channel.deliver"
+      })
+    ).rejects.toThrow(/not installed/)
     const removedInstall = await client.updatePluginInstallState({
       pluginId: "connector.telegram",
       version: "1.0.0",
+      expectedState: "disabled",
       state: "removed"
     })
     expect(removedInstall).toMatchObject({
@@ -3002,9 +3513,20 @@ setInterval(() => {}, 1000)
     expect(removedInstall.disabledAt).toBeUndefined()
     expect(removedInstall.removedAt).toEqual(expect.any(Number))
     await expect(
+      client.submitPluginAction({
+        pluginId: "connector.telegram",
+        version: "1.0.0",
+        actionId: "deliver-message",
+        principalId: "principal_channel_storage",
+        payload: {},
+        requiredCapability: "channel.deliver"
+      })
+    ).rejects.toThrow(/not installed/)
+    await expect(
       client.updatePluginInstallState({
         pluginId: "connector.telegram",
         version: "1.0.0",
+        expectedState: "removed",
         state: "installed"
       })
     ).resolves.toEqual(expect.objectContaining({
@@ -3017,6 +3539,16 @@ setInterval(() => {}, 1000)
     })
     expect(restoredInstall?.disabledAt).toBeUndefined()
     expect(restoredInstall?.removedAt).toBeUndefined()
+    await expect(
+      client.getPluginActionExecutionAdmission({
+        pluginId: "connector.telegram",
+        version: "1.0.0",
+        requiredCapability: "channel.deliver"
+      })
+    ).resolves.toMatchObject({
+      manifest: { id: manifest.id, version: "1.0.0" },
+      install: { id: install.id, state: "installed" }
+    })
 
     const submission = await client.submitPluginAction({
       pluginId: "connector.telegram",
@@ -3041,6 +3573,84 @@ setInterval(() => {}, 1000)
       actionId: "deliver-message",
       requiredCapability: "channel.deliver",
       payload: { text: "hello" }
+    })
+
+    await client.putPluginManifest({
+      pluginId: "connector.telegram",
+      version: "2.0.0",
+      capabilities: manifest.capabilities,
+      idempotencyKey: "plugin-storage-telegram-v2"
+    })
+    await client.putPluginInstall({
+      pluginId: "connector.telegram",
+      version: "2.0.0",
+      layout: {
+        kind: "wanex.plugin.package.layout.v1",
+        pluginId: "connector.telegram",
+        version: "2.0.0"
+      },
+      trust: {
+        kind: "wanex.plugin.package.trust.v1",
+        pluginId: "connector.telegram",
+        version: "2.0.0",
+        source: { kind: "local" },
+        install: { rootDir: "/plugins/connector.telegram/2.0.0" },
+        decision: { status: "deny" }
+      },
+      installRootDir: "/plugins/connector.telegram/2.0.0",
+      idempotencyKey: "plugin-storage-telegram-install-v2"
+    })
+    await expect(
+      client.submitPluginAction({
+        pluginId: "connector.telegram",
+        version: "2.0.0",
+        actionId: "deliver-message",
+        principalId: "principal_channel_storage",
+        payload: {},
+        requiredCapability: "channel.deliver"
+      })
+    ).rejects.toThrow(/trust decision is not allow/)
+    await client.putPluginManifest({
+      pluginId: "connector.telegram",
+      version: "3.0.0",
+      capabilities: manifest.capabilities,
+      idempotencyKey: "plugin-storage-telegram-v3"
+    })
+    await client.putPluginInstall({
+      pluginId: "connector.telegram",
+      version: "3.0.0",
+      layout: {
+        kind: "wanex.plugin.package.layout.v1",
+        pluginId: "connector.telegram",
+        version: "3.0.0"
+      },
+      trust: {
+        kind: "wanex.plugin.package.trust.v1",
+        pluginId: "connector.telegram",
+        version: "3.0.0",
+        source: { kind: "local" },
+        signature: { kind: "test", verified: false },
+        install: { rootDir: "/plugins/connector.telegram/3.0.0" },
+        decision: { status: "allow" }
+      },
+      installRootDir: "/plugins/connector.telegram/3.0.0",
+      idempotencyKey: "plugin-storage-telegram-install-v3"
+    })
+    await expect(
+      client.submitPluginAction({
+        pluginId: "connector.telegram",
+        version: "3.0.0",
+        actionId: "deliver-message",
+        principalId: "principal_channel_storage",
+        payload: {},
+        requiredCapability: "channel.deliver"
+      })
+    ).rejects.toThrow(/signature is not verified/)
+    await client.updatePluginInstallState({
+      pluginId: "connector.telegram",
+      version: "1.0.0",
+      expectedState: "disabled",
+      state: "installed"
     })
 
     const registration = await client.putConnectorRegistration({
@@ -3171,7 +3781,7 @@ setInterval(() => {}, 1000)
         payload: {},
         requiredCapability: "channel.deliver"
       })
-    ).rejects.toThrow(/disabled/)
+    ).rejects.toThrow(/not registered/)
   })
 
   it("persists channel bindings, inbound events, and delivery jobs", async () => {
@@ -3254,11 +3864,11 @@ setInterval(() => {}, 1000)
       client.updateChannelInboundEventState({
         eventId: inbound.id,
         state: "projected",
-        metadata: { projectedTo: "team.turn" }
+        metadata: { projectedTo: "team.message" }
       })
     ).resolves.toMatchObject({
       state: "projected",
-      metadata: { projectedTo: "team.turn" }
+      metadata: { projectedTo: "team.message" }
     })
 
     const delivery = await client.submitChannelDelivery({
@@ -3570,7 +4180,7 @@ async function exerciseMediaGenerationTransport(
   expect(submitted).toMatchObject({
     operation: {
       state: "queued",
-      binding: { modelId: `fake-media-model-${label}` }
+      binding: { model: { id: `fake-media-model-${label}` } }
     },
     job: { kind: "media.generate", state: "ready" }
   })
@@ -3597,6 +4207,144 @@ async function createClient(): Promise<StorageTestStore> {
     storeDir,
     serviceBin
   })
+}
+
+async function seedStorageContextTurns(
+  client: StorageTestStore,
+  sessionId: string,
+  count: number
+): Promise<void> {
+  await client.createSession({ id: sessionId, kind: "agent" })
+  for (let index = 1; index <= count; index += 1) {
+    const suffix = `${sessionId}_${index}`
+    const submitted = await client.submitSessionTurn({
+      id: `inp_${suffix}`,
+      turnId: `turn_${suffix}`,
+      sessionId,
+      principalId: "user_context_storage",
+      idempotencyKey: `idem_${suffix}`,
+      content: [{
+        type: "text",
+        id: `part_${suffix}`,
+        text: `remember context ${index}`
+      }],
+      jobId: `job_turn_${suffix}`,
+      executionBinding: testTurnBinding(suffix)
+    })
+    const workerId = `worker_turn_${suffix}`
+    const job = await client.claimJob({
+      workerId,
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    if (job?.leaseToken === undefined) {
+      throw new Error(`failed to claim seeded context turn ${suffix}`)
+    }
+    const started = await client.startSessionTurnAttempt({
+      sessionId,
+      turnId: submitted.turn.id,
+      inputId: submitted.admission.inputId,
+      jobId: job.id,
+      workerId,
+      leaseToken: job.leaseToken
+    })
+    const invocation = await client.beginProviderInvocation({
+      sessionId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
+      inputId: submitted.admission.inputId,
+      jobId: job.id,
+      workerId,
+      leaseToken: job.leaseToken,
+      step: 1,
+      invocationNumber: 1,
+      requestDigest: digestJson({ sessionId, index })
+    })
+    await client.settleSessionTurn({
+      sessionId,
+      turnId: submitted.turn.id,
+      attemptId: started.attempt.id,
+      inputId: submitted.admission.inputId,
+      jobId: job.id,
+      workerId,
+      leaseToken: job.leaseToken,
+      outcome: "succeeded",
+      providerInvocationId: invocation.id,
+      assistantMessage: [{
+        type: "text",
+        id: `assistant_${suffix}`,
+        text: `context response ${index}`
+      }]
+    })
+  }
+}
+
+async function claimStorageContextJob(
+  client: StorageTestStore,
+  jobId: string,
+  workerId: string,
+  sessionId: string
+): Promise<SchedulerJobRecord> {
+  await client.enqueueJob({
+    id: jobId,
+    kind: "memory.compaction",
+    principalId: "context_storage_worker",
+    payload: { evidence: { sessionId } },
+    maxAttempts: 1
+  })
+  const job = await client.claimJob({
+    workerId,
+    leaseMs: 60_000,
+    kinds: ["memory.compaction"]
+  })
+  if (job?.leaseToken === undefined) {
+    throw new Error(`failed to claim context job ${jobId}`)
+  }
+  return job
+}
+
+function contextEpochRequest(options: {
+  readonly id: string
+  readonly sessionId: string
+  readonly job: SchedulerJobRecord
+  readonly workerId: string
+  readonly messages: readonly SessionMessageRecord[]
+  readonly cutIndex: number
+  readonly previous?: ContextEpochRecord
+  readonly digestSeed: string
+}): BeginContextEpochRequest {
+  const cut = options.messages[options.cutIndex]
+  const retained = options.messages[options.cutIndex + 1]
+  const head = options.messages.at(-1)
+  if (cut === undefined || retained === undefined || head === undefined) {
+    throw new Error("context epoch test boundary is incomplete")
+  }
+  return {
+    id: options.id,
+    sessionId: options.sessionId,
+    jobId: options.job.id,
+    workerId: options.workerId,
+    leaseToken: options.job.leaseToken!,
+    maxProviderAttempts: 2,
+    ...(options.previous === undefined
+      ? {}
+      : {
+          previousEpochId: options.previous.id,
+          previousSummaryDigest: options.previous.summaryDigest
+        }),
+    sourceHeadSequence: head.sequence,
+    sourceHeadMessageId: head.id,
+    cutSequence: cut.sequence,
+    cutMessageId: cut.id,
+    retainedFromSequence: retained.sequence,
+    retainedFromMessageId: retained.id,
+    sourceDigest: options.digestSeed.repeat(64),
+    policy: { algorithm: "semantic-summary", seed: options.digestSeed },
+    policyDigest: options.digestSeed.repeat(64),
+    modelEndpoint: testTurnBinding(options.digestSeed).modelEndpoint,
+    requestDigest: options.digestSeed.repeat(64),
+    tokenEstimateBefore: 300
+  }
 }
 
 async function registerStorageTestConnector(

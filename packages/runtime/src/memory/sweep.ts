@@ -41,16 +41,25 @@ export async function sweepMemoryCompaction(
   const submittedJobs: SchedulerJobRecord[] = []
 
   for (const session of sessions) {
+    const modelEndpoint = await request.resolveModelEndpoint(session.id)
+    if (modelEndpoint === null) {
+      const plan: MemoryCompactionPlan = {
+        sessionId: session.id,
+        decision: "skip",
+        reason: "model_limit_unknown",
+        tokenEstimateBefore: 0,
+        projectedTokenEstimateAfter: 0,
+        tokenSavings: 0
+      }
+      plans.push(plan)
+      skippedPlans.push(plan)
+      continue
+    }
     const plan = await planMemoryCompaction({
       storage: request.storage,
       sessionId: session.id,
+      modelEndpoint,
       ...(request.policy === undefined ? {} : { policy: request.policy }),
-      ...(request.waterlineTokens === undefined
-        ? {}
-        : { waterlineTokens: request.waterlineTokens }),
-      ...(request.minimumTokenSavings === undefined
-        ? {}
-        : { minimumTokenSavings: request.minimumTokenSavings }),
       ...(request.tokenEstimator === undefined
         ? {}
         : { tokenEstimator: request.tokenEstimator })
@@ -60,23 +69,19 @@ export async function sweepMemoryCompaction(
       skippedPlans.push(plan)
       continue
     }
+    if (plan.evidence === undefined) {
+      throw new Error("submitted memory compaction plan is missing frozen evidence")
+    }
     submittedJobs.push(
       await submitMemoryCompactionJob(request.storage, {
         principalId: request.principalId,
-        sessionId: session.id,
-        ...(request.policy === undefined ? {} : { policy: request.policy }),
+        evidence: plan.evidence,
         ...(request.metadata === undefined ? {} : { metadata: request.metadata }),
         ...(request.priority === undefined ? {} : { priority: request.priority }),
-        ...(request.maxAttempts === undefined
-          ? {}
-          : { maxAttempts: request.maxAttempts }),
-        ...(request.retryPolicy === undefined
-          ? {}
-          : { retryPolicy: request.retryPolicy }),
         ...(request.budgetGrantId === undefined
           ? {}
           : { budgetGrantId: request.budgetGrantId }),
-        idempotencyKey: `${idempotencyKeyPrefix}:${session.id}:${plan.policyVersion}`
+        idempotencyKey: `${idempotencyKeyPrefix}:${session.id}:${plan.evidence.sourceDigest}:${plan.evidence.policyDigest}`
       })
     )
   }

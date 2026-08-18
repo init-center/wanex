@@ -14,6 +14,8 @@ import type {
 } from "./types.js"
 import { startTurnControlObserver } from "./turn-control-observer.js"
 import { assertTurnResourcesMatchBinding } from "../../resources/index.js"
+import { createInlineContextCapacityCompactor } from "../../context/capacity/index.js"
+import { SemanticContextCompiler } from "../../context/memory/index.js"
 
 export function createSessionTurnHandler(
   options: SessionTurnHandlerOptions
@@ -52,6 +54,7 @@ export function createSessionTurnHandler(
       sessionId: payload.sessionId,
       turnId: payload.turnId,
       inputId: payload.inputId,
+      ...(input.origin === undefined ? {} : { origin: input.origin }),
       executionBinding: started.turn.executionBinding,
       signal
     })
@@ -79,9 +82,15 @@ export function createSessionTurnHandler(
       ...(options.toolMaxConcurrency === undefined
         ? {}
         : { toolMaxConcurrency: options.toolMaxConcurrency }),
-      ...(agentContext?.contextCompiler === undefined
-        ? {}
-        : { contextCompiler: agentContext.contextCompiler }),
+      contextCompiler:
+        agentContext?.contextCompiler ??
+        new SemanticContextCompiler({ epochStore: options.storage }),
+      compactContext: createInlineContextCapacityCompactor({
+        storage: options.storage,
+        job,
+        modelEndpoint: started.turn.executionBinding.modelEndpoint,
+        provider
+      }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
@@ -98,6 +107,8 @@ export function createSessionTurnHandler(
         leaseToken,
         principalId: input.principalId,
         maxSteps: started.turn.maxSteps,
+        maxOutputTokens:
+          started.turn.executionBinding.completion.maxOutputTokens,
         recovery: started.turn.executionBinding.recovery,
         ...(job.budgetGrantId === undefined
           ? {}
@@ -106,6 +117,12 @@ export function createSessionTurnHandler(
       signal,
       heartbeat
     })
+    if (result.outcome === "suspended") {
+      const suspendedJob = "sessionJob" in result.receipt
+        ? result.receipt.sessionJob
+        : result.receipt.job
+      return workerAcknowledged(suspendedJob)
+    }
     return workerAcknowledged(result.settlement.job, result.error)
     } catch (error) {
       const normalized = error instanceof Error ? error : new Error(String(error))

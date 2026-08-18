@@ -17,6 +17,18 @@ export function expectRecord(
   return value as Record<string, JsonValue>
 }
 
+export function rejectUnknownRecordKeys(
+  record: Readonly<Record<string, JsonValue>>,
+  allowed: ReadonlySet<string>,
+  label: string
+): void {
+  for (const key of Object.keys(record)) {
+    if (!allowed.has(key)) {
+      throw new Error(`${label} contains unsupported field: ${key}`)
+    }
+  }
+}
+
 export function expectString(value: JsonValue | undefined, label: string): string {
   if (typeof value !== "string" || value.length === 0) {
     throw new Error(`${label} must be a non-empty string`)
@@ -97,6 +109,9 @@ export function validatePackageRelativePath(path: string, label: string): void {
   }
   if (isAbsolute(path)) {
     throw new Error(`${label} must be relative`)
+  }
+  if (path.includes("\\") || path.includes(":") || path.includes("\0")) {
+    throw new Error(`${label} must use safe forward-slash segments`)
   }
   const segments = path.split("/")
   if (

@@ -21,6 +21,7 @@ export function fromRpcSessionRecord(value: JsonValue): SessionRecord {
     id: expectString(value.id, "session.id"),
     kind: expectSessionKind(value.kind),
     status: expectSessionStatus(value.status),
+    revision: expectNumber(value.revision, "session.revision"),
     createdAt: expectNumber(value.created_at, "session.created_at"),
     updatedAt: expectNumber(value.updated_at, "session.updated_at")
   }

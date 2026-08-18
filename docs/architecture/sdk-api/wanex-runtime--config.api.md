@@ -26,10 +26,7 @@ export class ConfigHotReloadController {
         readonly limit?: number;
     }): Promise<ConfigPollResult>;
     // (undocumented)
-    refreshKey(key: string, event?: RuntimeEvent): Promise<{
-        readonly reloads: readonly ConfigReloadResult[];
-        readonly errors: readonly ConfigReloadError[];
-    }>;
+    refreshKey(key: string, event?: RuntimeEvent): Promise<ConfigRefreshResult>;
     // (undocumented)
     register(subscription: ConfigReloadSubscription): void;
     // (undocumented)
@@ -57,13 +54,42 @@ export interface ConfigHotReloadControllerOptions {
 // @public (undocumented)
 export interface ConfigPollResult {
     // (undocumented)
+    readonly committed: boolean;
+    // (undocumented)
     readonly cursor?: EventCursor;
     // (undocumented)
     readonly errors: readonly ConfigReloadError[];
     // (undocumented)
+    readonly generation: number;
+    // (undocumented)
     readonly invalidatedKeys: readonly string[];
     // (undocumented)
     readonly reloads: readonly ConfigReloadResult[];
+}
+
+// @public (undocumented)
+export interface ConfigRefreshResult {
+    // (undocumented)
+    readonly committed: boolean;
+    // (undocumented)
+    readonly errors: readonly ConfigReloadError[];
+    // (undocumented)
+    readonly generation: number;
+    // (undocumented)
+    readonly reloads: readonly ConfigReloadResult[];
+}
+
+// @public (undocumented)
+export type ConfigReloadCandidate = ConfigReloadReadyCandidate | ConfigReloadRejectedCandidate;
+
+// @public (undocumented)
+export interface ConfigReloadCandidateResult {
+    // (undocumented)
+    readonly detail?: JsonValue;
+    // (undocumented)
+    readonly reason?: string;
+    // (undocumented)
+    readonly reloaded: boolean;
 }
 
 // @public (undocumented)
@@ -80,32 +106,9 @@ export interface ConfigReloadError {
     // (undocumented)
     readonly key: string;
     // (undocumented)
+    readonly stage: "prepare" | "commit" | "rollback" | "watch";
+    // (undocumented)
     readonly subscriptionId: string;
-}
-
-// @public (undocumented)
-export type ConfigReloadHandler = (context: ConfigReloadHandlerContext) => Promise<ConfigReloadHandlerResult | void> | ConfigReloadHandlerResult | void;
-
-// @public (undocumented)
-export interface ConfigReloadHandlerContext {
-    // (undocumented)
-    readonly config: WanexConfigCore;
-    // (undocumented)
-    readonly event?: RuntimeEvent;
-    // (undocumented)
-    readonly key: string;
-}
-
-// @public (undocumented)
-export interface ConfigReloadHandlerResult {
-    // (undocumented)
-    readonly detail?: JsonValue;
-    // (undocumented)
-    readonly key: string;
-    // (undocumented)
-    readonly reason?: string;
-    // (undocumented)
-    readonly reloaded: boolean;
 }
 
 // @public (undocumented)
@@ -118,13 +121,50 @@ export type ConfigReloadMatcher = {
 };
 
 // @public (undocumented)
+export type ConfigReloadPrepare = (context: ConfigReloadPrepareContext) => Promise<ConfigReloadCandidate> | ConfigReloadCandidate;
+
+// @public (undocumented)
+export interface ConfigReloadPrepareContext {
+    // (undocumented)
+    readonly config: WanexConfigCore;
+    // (undocumented)
+    readonly event?: RuntimeEvent;
+    // (undocumented)
+    readonly key: string;
+}
+
+// @public (undocumented)
+export interface ConfigReloadReadyCandidate {
+    // (undocumented)
+    commit(): Promise<void> | void;
+    // (undocumented)
+    readonly kind: "ready";
+    // (undocumented)
+    readonly result: ConfigReloadCandidateResult;
+    // (undocumented)
+    rollback(): Promise<void> | void;
+}
+
+// @public (undocumented)
+export interface ConfigReloadRejectedCandidate {
+    // (undocumented)
+    readonly kind: "rejected";
+    // (undocumented)
+    readonly result: ConfigReloadCandidateResult;
+}
+
+// @public (undocumented)
 export interface ConfigReloadResult {
     // (undocumented)
     readonly at: number;
     // (undocumented)
+    readonly committed: boolean;
+    // (undocumented)
     readonly detail?: JsonValue;
     // (undocumented)
     readonly eventId?: string;
+    // (undocumented)
+    readonly generation: number;
     // (undocumented)
     readonly key: string;
     // (undocumented)
@@ -142,7 +182,7 @@ export interface ConfigReloadSubscription {
     // (undocumented)
     readonly matcher: ConfigReloadMatcher;
     // (undocumented)
-    readonly reload: ConfigReloadHandler;
+    readonly prepare: ConfigReloadPrepare;
 }
 
 // @public (undocumented)
@@ -198,13 +238,13 @@ type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEvent
 type MessageId = string;
 
 // @public (undocumented)
-type ObjectiveEventType = "objective.run.created" | "objective.run.operation_recorded" | "objective.attempt.recorded" | "objective.verification.recorded";
+type ObjectiveEventType = "objective.created" | "objective.state_changed" | "objective.attempt.admitted" | "objective.attempt.reviewed" | "objective.verification.recorded";
 
 // @public (undocumented)
-type ObjectiveRunId = string;
+type ObjectiveId = string;
 
 // @public (undocumented)
-type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded";
+type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded" | "plan.proposal.execution_bound";
 
 // @public (undocumented)
 type PlanProposalId = string;
@@ -261,7 +301,7 @@ interface RuntimeEventScope {
     // (undocumented)
     readonly messageId?: MessageId;
     // (undocumented)
-    readonly objectiveId?: ObjectiveRunId;
+    readonly objectiveId?: ObjectiveId;
     // (undocumented)
     readonly planProposalId?: PlanProposalId;
     // (undocumented)

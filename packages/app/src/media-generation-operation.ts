@@ -1,5 +1,15 @@
 import type { WanexRuntimeHost } from "@wanex/runtime/host"
 import type {
+  ModelCapabilityRequirement,
+  ModelInputModality
+} from "@wanex/protocol"
+import type { CoreStore } from "@wanex/storage"
+import { resourceInputModality } from "@wanex/runtime/resources"
+import { resolveWanexAppModelCapability } from "./model-capability.js"
+import type {
+  WanexAppModelEndpointExecutionPredicate
+} from "./model-capability.js"
+import type {
   WanexAppCancelMediaGenerationRequest,
   WanexAppCancelMediaGenerationReceipt,
   WanexAppMediaGenerationReadResult,
@@ -10,17 +20,39 @@ import type {
 
 export class WanexAppMediaGenerationOperationController {
   readonly #host: WanexRuntimeHost
+  readonly #storage: CoreStore
+  readonly #isModelEndpointExecutable: WanexAppModelEndpointExecutionPredicate
   #disposed = false
 
-  constructor(options: { readonly host: WanexRuntimeHost }) {
+  constructor(options: {
+    readonly host: WanexRuntimeHost
+    readonly storage: CoreStore
+    readonly isModelEndpointExecutable: WanexAppModelEndpointExecutionPredicate
+  }) {
     this.#host = options.host
+    this.#storage = options.storage
+    this.#isModelEndpointExecutable = options.isModelEndpointExecutable
   }
 
   async submit(
     request: WanexAppSubmitMediaGenerationRequest
   ): Promise<WanexAppMediaGenerationReceipt> {
     this.#assertActive()
-    const submitted = await this.#host.submitMediaGeneration(request)
+    const requirement = await this.#requirementFor(request)
+    const resolution = await resolveWanexAppModelCapability({
+      storage: this.#storage,
+      requirement,
+      isModelEndpointExecutable: this.#isModelEndpointExecutable
+    })
+    if (resolution.kind !== "resolved") {
+      throw new Error(
+        `model capability is not ready: ${requirement.operation} (${resolution.readiness.status})`
+      )
+    }
+    const submitted = await this.#host.submitMediaGeneration({
+      ...request,
+      modelEndpoint: resolution.binding.modelEndpoint
+    })
     return {
       operationId: submitted.operation.id,
       jobId: submitted.operation.jobId,
@@ -92,6 +124,45 @@ export class WanexAppMediaGenerationOperationController {
 
   dispose(): void {
     this.#disposed = true
+  }
+
+  async #requirementFor(
+    request: WanexAppSubmitMediaGenerationRequest
+  ): Promise<ModelCapabilityRequirement> {
+    const expectedOutput =
+      request.operation === "video.generate"
+        ? "video"
+        : request.operation === "audio.synthesize"
+          ? "audio"
+          : "image"
+    if (request.outputModality !== expectedOutput) {
+      throw new Error(`${request.operation} requires ${expectedOutput} output`)
+    }
+    const inputModalities = new Set<ModelInputModality>(["text"])
+    const resourceIds = new Set<string>()
+    for (const resourceId of request.inputResourceIds ?? []) {
+      if (resourceIds.has(resourceId)) {
+        throw new Error(`media generation resource is duplicated: ${resourceId}`)
+      }
+      resourceIds.add(resourceId)
+      const resource = await this.#storage.getResource({ resourceId })
+      if (resource === null || resource.state !== "available") {
+        throw new Error(`media generation resource is not available: ${resourceId}`)
+      }
+      inputModalities.add(resourceInputModality(resource))
+    }
+    if (
+      request.operation === "image.edit" &&
+      !inputModalities.has("image")
+    ) {
+      throw new Error("image.edit requires an image input resource")
+    }
+    return {
+      operation: request.operation,
+      inputModalities: [...inputModalities],
+      outputModalities: [request.outputModality],
+      features: []
+    }
   }
 
   #assertActive(): void {

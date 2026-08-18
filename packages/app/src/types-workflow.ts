@@ -2,10 +2,11 @@ import type {
   JsonValue,
   MessagePart,
   RunControlPolicy,
+  RuntimeAbortSignal,
   SchedulerJobState,
   SessionId,
   SessionInputIntent,
-  SessionInputOriginKind,
+  SessionInputOriginKind
 } from "@wanex/protocol"
 import type {
   WanexAppRouteWorkflowEnvelopeResult,
@@ -30,6 +31,7 @@ export interface WanexAppQueueGuidedFollowUpRequest {
   readonly text: string
   readonly principalId?: string
   readonly inputId?: string
+  readonly turnId?: string
   readonly idempotencyKey?: string
   readonly jobId?: string
   readonly jobIdempotencyKey?: string
@@ -39,7 +41,7 @@ export interface WanexAppQueueGuidedFollowUpRequest {
 export interface WanexAppQueueGuidedFollowUpResult {
   readonly sessionId: SessionId
   readonly activeTurnId: string
-  readonly providerProfileId: string
+  readonly modelEndpointId: string
   readonly input: WanexAppQueuedInputSummary
   readonly job: WanexAppQueuedJobSummary
   readonly receipt: import("./types-conversation-operation.js").WanexAppConversationOperationReceipt
@@ -60,7 +62,7 @@ export interface WanexAppQueuedJobSummary {
   readonly jobId: string
   readonly kind: "session.turn"
   readonly state: SchedulerJobState
-  readonly providerProfileId: string
+  readonly modelEndpointId: string
 }
 
 export interface WanexAppAskSideQueryRequest {
@@ -69,6 +71,8 @@ export interface WanexAppAskSideQueryRequest {
   readonly principalId?: string
   readonly sourceRef?: string
   readonly maxOutputTokens?: number
+  readonly expectedModelEndpointId?: string
+  readonly signal?: RuntimeAbortSignal
 }
 
 export interface WanexAppAskSideQueryResult {
@@ -77,5 +81,5 @@ export interface WanexAppAskSideQueryResult {
   readonly output: readonly MessagePart[]
   readonly telemetry: Readonly<Record<string, JsonValue>>
   readonly persisted: false
-  readonly providerProfileId: string
+  readonly modelEndpointId: string
 }

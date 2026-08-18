@@ -8,15 +8,6 @@ export class EmptyContextCompiler implements ContextCompiler {
     return {
       sessionId: input.sessionId,
       ...(input.epochId === undefined ? {} : { epochId: input.epochId }),
-      policy: {
-        version: "agent-context-runtime-empty",
-        maxInputTokens: 0,
-        recentUserTurns: 0,
-        snipTextOverChars: 0,
-        placeholderTextOverChars: 0,
-        snipHeadChars: 0,
-        snipTailChars: 0
-      },
       messages: [
         ...input.inputs.map((record) => ({
           role: record.inputType === "system" ? "system" as const : "user" as const,
@@ -27,11 +18,9 @@ export class EmptyContextCompiler implements ContextCompiler {
           content: record.content
         }))
       ],
-      replacements: [],
       stats: {
         tokenEstimateBefore: 0,
-        tokenEstimateAfter: 0,
-        replacementCount: 0
+        tokenEstimateAfter: 0
       }
     }
   }

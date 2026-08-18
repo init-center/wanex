@@ -40,11 +40,11 @@ if (writeBaseline) {
       "@wanex/plugin",
       "@wanex/team",
       "@wanex/workspace",
-      "@wanex/product-app",
-      "@wanex/product-app-command-host",
-      "@wanex/product-app-local",
-      "@wanex/product-app-tui",
-      "@wanex/product-app-web"
+      "@wanex/product",
+      "@wanex/plugin-command-host",
+      "@wanex/local-host",
+      "@wanex/tui",
+      "@wanex/web"
     ],
     facades: Object.fromEntries(Object.entries(facades).map(([name, facade]) => [
       name,

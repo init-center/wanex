@@ -13,9 +13,7 @@ export function pluginActionJobPayloadFromJson(
   const record = expectRecord(payload, "plugin.action payload")
   return {
     pluginId: expectString(record.pluginId, "plugin.action.pluginId"),
-    ...(record.version === undefined
-      ? {}
-      : { version: expectString(record.version, "plugin.action.version") }),
+    version: expectString(record.version, "plugin.action.version"),
     actionId: expectString(record.actionId, "plugin.action.actionId"),
     payload: expectJsonValue(record.payload, "plugin.action.payload"),
     ...(record.requiredCapability === undefined

@@ -18,6 +18,7 @@ export async function runProviderCompletion(
     readonly messages: readonly PreparedProviderReplayMessage[]
     readonly signal: RuntimeAbortSignal | undefined
     readonly timeoutMs: number | undefined
+    readonly maxOutputTokens: number
     readonly observe?: (event: ProviderEvent) => void
     readonly checkpoint?: (event: ProviderEvent) => Promise<void>
     readonly tools?: readonly ProviderToolDefinition[]
@@ -33,6 +34,7 @@ export async function runProviderCompletion(
           provider,
           request: {
             messages: request.messages,
+            maxOutputTokens: request.maxOutputTokens,
             ...(signal === undefined ? {} : { signal }),
             ...(request.tools === undefined ? {} : { tools: request.tools }),
             ...(request.toolChoice === undefined
@@ -72,7 +74,7 @@ export async function runProviderCompletion(
         {
           ...protocolProviderError({
             providerId: provider.providerId,
-            modelId: provider.modelId,
+            modelId: provider.model.id,
             message: error instanceof Error ? error.message : String(error)
           }),
           category: name === "WanexTimeoutError" ? "timeout" : "aborted",

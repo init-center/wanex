@@ -3,22 +3,38 @@ import { join } from "node:path"
 import { createWanexApp } from "@wanex/app"
 
 const fixtureRoot = required("WANEX_FIXTURE_ROOT")
+const imageEndpoint = externalImageEndpoint()
 const app = await createWanexApp({
   storage: {
     kind: "local-system-service",
     mode: "persistent",
     storeDir: join(fixtureRoot, "store")
   },
-  providerProfile: {
+  modelEndpoint: {
     id: "external-trusted-app",
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    modelId: "external-app-model"
+    connection: { id: "external-trusted-app", providerId: "fake" },
+    protocol: { id: "fake" },
+    model: {
+      id: "external-app-model",
+      operations: ["conversation"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "builtin",
+        catalogId: "wanex.external-app-model",
+        revision: "1"
+      }
+    }
   },
-  mediaGenerationAdapters: [externalImageAdapter()]
+  mediaGenerationAdapters: [externalImageAdapter(imageEndpoint)]
 })
 
 try {
+  await app.commands.upsertModelEndpoint({
+    modelEndpoint: imageEndpoint,
+    makeActive: false
+  })
   const status = app.status()
   const serializedStatus = JSON.stringify(status)
   assert.equal(serializedStatus.includes(fixtureRoot), false)
@@ -29,7 +45,7 @@ try {
   assert.equal(operation.state, "succeeded")
   assert.equal(operation.result?.assistantText.length > 0, true)
   const mediaReceipt = await app.commands.submitMediaGeneration({
-    providerProfileId: "external-image-profile",
+    operation: "image.generate",
     prompt: "external consumer image",
     outputModality: "image"
   })
@@ -83,15 +99,14 @@ async function waitForMediaTerminal(app, operationId) {
   throw new Error("trusted App media operation did not reach terminal state")
 }
 
-function externalImageAdapter() {
+function externalImageAdapter(imageEndpoint) {
   return {
-    profile: {
-      id: "external-image-profile",
-      adapterId: "external-image-adapter",
-      providerId: "external-image-provider",
-      modelId: "external-image-model",
-      input: ["text"],
-      output: ["image"]
+    protocolId: imageEndpoint.protocol.id,
+    canExecute(modelEndpoint) {
+      return modelEndpoint.protocol.id === imageEndpoint.protocol.id &&
+        modelEndpoint.model.operations.includes("image.generate") &&
+        modelEndpoint.model.inputModalities.includes("text") &&
+        modelEndpoint.model.outputModalities.includes("image")
     },
     async submit() {
       return {
@@ -108,6 +123,29 @@ function externalImageAdapter() {
     },
     async poll() {
       throw new Error("external image adapter does not poll")
+    }
+  }
+}
+
+function externalImageEndpoint() {
+  return {
+    id: "external-image-profile",
+    connection: {
+      id: "external-image-connection",
+      providerId: "external-image-provider"
+    },
+    protocol: { id: "external-image-protocol" },
+    model: {
+      id: "external-image-model",
+      operations: ["image.generate"],
+      inputModalities: ["text"],
+      outputModalities: ["image"],
+      features: [],
+      catalog: {
+        source: "custom",
+        catalogId: "wanex.external-image-model",
+        revision: "1"
+      }
     }
   }
 }

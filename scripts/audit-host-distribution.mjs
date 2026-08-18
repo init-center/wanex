@@ -3,9 +3,9 @@ import { readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
-  ELECTRON_PROOF_SAMPLE_COUNT,
-  summarizeElectronSamples
-} from "./electron-boundary/metrics.mjs"
+  PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT,
+  summarizeProductDesktopSamples
+} from "../apps/desktop/scripts/metrics.mjs"
 import {
   NATIVE_RELEASE_SAMPLE_COUNT,
   summarizeNativeRuntimeSamples
@@ -25,14 +25,18 @@ if (import.meta.main) {
     const budget = await readJson(options.budgetPath)
     const targetBudget = budget?.targets?.[options.targetId]
     const native = await readJson(options.nativeReceiptPath)
-    const electron = targetBudget?.electron === undefined
+    const desktop = targetBudget?.desktop === undefined
       ? undefined
-      : await readJson(options.electronReceiptPath)
+      : await readJson(options.desktopReceiptPath)
+    const tui = targetBudget?.tui === undefined
+      ? undefined
+      : await readJson(options.tuiReceiptPath)
     receipt = auditHostDistributionData({
       targetId: options.targetId,
       budget,
       native,
-      ...(electron === undefined ? {} : { electron })
+      ...(desktop === undefined ? {} : { desktop }),
+      ...(tui === undefined ? {} : { tui })
     })
   } catch (error) {
     receipt = {
@@ -59,9 +63,13 @@ export function parseHostDistributionAuditArgs(args) {
     workspaceRoot,
     "target/distribution/native-runtime-proof.json"
   )
-  let electronReceiptPath = join(
+  let desktopReceiptPath = join(
     workspaceRoot,
-    "target/distribution/electron/electron-boundary-report.json"
+    "target/distribution/product-desktop/product-desktop-report.json"
+  )
+  let tuiReceiptPath = join(
+    workspaceRoot,
+    "target/distribution/tui/installed-proof.json"
   )
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index]
@@ -70,7 +78,8 @@ export function parseHostDistributionAuditArgs(args) {
       "--target",
       "--budget",
       "--native-receipt",
-      "--electron-receipt"
+      "--desktop-receipt",
+      "--tui-receipt"
     ].includes(name)) {
       throw new Error(`unknown host distribution audit argument: ${String(name)}`)
     }
@@ -79,10 +88,17 @@ export function parseHostDistributionAuditArgs(args) {
     if (name === "--target") targetId = value
     if (name === "--budget") budgetPath = resolve(value)
     if (name === "--native-receipt") nativeReceiptPath = resolve(value)
-    if (name === "--electron-receipt") electronReceiptPath = resolve(value)
+    if (name === "--desktop-receipt") desktopReceiptPath = resolve(value)
+    if (name === "--tui-receipt") tuiReceiptPath = resolve(value)
     index += 1
   }
-  return { targetId, budgetPath, nativeReceiptPath, electronReceiptPath }
+  return {
+    targetId,
+    budgetPath,
+    nativeReceiptPath,
+    desktopReceiptPath,
+    tuiReceiptPath
+  }
 }
 
 export function auditHostDistributionData(request) {
@@ -195,121 +211,127 @@ export function auditHostDistributionData(request) {
     }
   }
 
-  if (targetBudget.electron !== undefined) {
-    const electronBudget = requireRecord(targetBudget.electron, "Electron budget")
-    const coldBudget = requireRecord(electronBudget.cold, "Electron cold budget")
-    const warmBudget = requireRecord(electronBudget.warm, "Electron warm budget")
-    const electron = requireRecord(request.electron, "Electron proof receipt")
-    const packaged = requireRecord(electron.packaged, "Electron packaged receipt")
+  if (targetBudget.desktop !== undefined) {
+    const desktopBudget = requireRecord(targetBudget.desktop, "Product Desktop budget")
+    const coldBudget = requireRecord(desktopBudget.cold, "Product Desktop cold budget")
+    const warmBudget = requireRecord(desktopBudget.warm, "Product Desktop warm budget")
+    const desktop = requireRecord(request.desktop, "Product Desktop proof receipt")
+    const packaged = requireRecord(desktop.packaged, "Product Desktop packaged receipt")
     const declaredSummary = requireRecord(
-      electron.summary,
-      "Electron proof summary"
+      desktop.summary,
+      "Product Desktop proof summary"
     )
-    const samples = requireArray(electron.samples, "Electron proof samples")
-    const summary = summarizeElectronSamples(samples)
+    const samples = requireArray(desktop.samples, "Product Desktop proof samples")
+    const summary = summarizeProductDesktopSamples(samples)
     const coldTimings = requireRecord(
       summary.cold.timingsMs,
-      "Electron cold timings"
+      "Product Desktop cold timings"
     )
     const warmMetrics = requireRecord(
       summary.warm.metrics,
-      "Electron warm metrics"
+      "Product Desktop warm metrics"
     )
-    expectEqual(failures, "Electron receipt kind", electron.kind, "wanex.electron-boundary.proof-receipt")
-    expectEqual(failures, "Electron receipt ok", electron.ok, true)
-    expectEqual(failures, "Electron target", `${packaged.platform}-${packaged.arch}`, request.targetId)
+    expectEqual(failures, "Product Desktop receipt kind", desktop.kind, "wanex.product-desktop.proof-receipt")
+    expectEqual(failures, "Product Desktop receipt ok", desktop.ok, true)
+    expectEqual(failures, "Product Desktop target", `${packaged.platform}-${packaged.arch}`, request.targetId)
     expectEqual(
       failures,
-      "Electron sample count",
-      electron.sampleCount,
-      ELECTRON_PROOF_SAMPLE_COUNT
+      "Product Desktop sample count",
+      desktop.sampleCount,
+      PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT
     )
     if (JSON.stringify(declaredSummary) !== JSON.stringify(summary)) {
-      failures.push("Electron declared summary does not match raw samples")
+      failures.push("Product Desktop declared summary does not match raw samples")
     }
-    expectEqual(failures, "Electron EPERM rename exclusion", electron.noEpermRename, true)
-    expectEqual(failures, "Electron process cleanup", electron.noOwnedProcessAfterRun, true)
-    expectEqual(failures, "Electron ASAR entry count", packaged.asarEntryCount, electronBudget.exactAsarEntryCount)
-    expectEqual(failures, "Electron native file count", packaged.nativeFileCount, electronBudget.exactNativeFileCount)
-    expectEqual(failures, "Electron node_modules exclusion", packaged.hasApplicationNodeModules, false)
-    expectEqual(failures, "Electron ASAR unpacked exclusion", packaged.hasAsarUnpacked, false)
-    expectMaximum(failures, "Electron unpacked bytes", packaged.unpackedBytes, electronBudget.maxUnpackedBytes)
-    expectMaximum(failures, "Electron package file count", packaged.fileCount, electronBudget.maxPackageFileCount)
-    expectMaximum(failures, "Electron ASAR bytes", packaged.asarBytes, electronBudget.maxAsarBytes)
-    expectMaximum(failures, "Electron native bytes", packaged.nativeBytes, electronBudget.maxNativeBytes)
+    expectEqual(failures, "Product Desktop EPERM rename exclusion", desktop.noEpermRename, true)
+    expectEqual(failures, "Product Desktop process cleanup", desktop.noOwnedProcessAfterRun, true)
+    expectEqual(failures, "Product Desktop real Product document", desktop.realProductDocument, true)
+    expectEqual(failures, "Product Desktop screenshot evidence", desktop.screenshotsNonBlank, true)
+    expectEqual(failures, "Product Desktop ASAR entry count", packaged.asarEntryCount, desktopBudget.exactAsarEntryCount)
+    expectEqual(failures, "Product Desktop native file count", packaged.nativeFileCount, desktopBudget.exactNativeFileCount)
+    expectEqual(failures, "Product Desktop credential file count", packaged.credentialFileCount, desktopBudget.exactCredentialFileCount)
+    expectEqual(failures, "Product Desktop node_modules exclusion", packaged.hasApplicationNodeModules, false)
+    expectEqual(failures, "Product Desktop ASAR unpacked exclusion", packaged.hasAsarUnpacked, false)
+    expectMaximum(failures, "Product Desktop unpacked bytes", packaged.unpackedBytes, desktopBudget.maxUnpackedBytes)
+    expectMaximum(failures, "Product Desktop package file count", packaged.fileCount, desktopBudget.maxPackageFileCount)
+    expectMaximum(failures, "Product Desktop ASAR bytes", packaged.asarBytes, desktopBudget.maxAsarBytes)
+    expectMaximum(failures, "Product Desktop native bytes", packaged.nativeBytes, desktopBudget.maxNativeBytes)
+    expectMaximum(failures, "Product Desktop credential bytes", packaged.credentialBytes, desktopBudget.maxCredentialBytes)
     expectMaximum(
       failures,
-      "Electron cold interactive total ms",
+      "Product Desktop cold interactive total ms",
       coldTimings.interactiveTotal,
       coldBudget.maxInteractiveTotalMs
     )
     expectMaximum(
       failures,
-      "Electron cold conversation settlement ms",
+      "Product Desktop cold conversation settlement ms",
       coldTimings.conversationSettlement,
       coldBudget.maxConversationSettlementMs
     )
     expectMaximum(
       failures,
-      "Electron cold proof wall time ms",
+      "Product Desktop cold proof wall time ms",
       coldTimings.wallTime,
       coldBudget.maxProofWallTimeMs
     )
     expectMaximum(
       failures,
-      "Electron warm artifact verification maximum ms",
+      "Product Desktop warm artifact verification maximum ms",
       maximum(warmMetrics, "artifactVerification"),
       warmBudget.maxArtifactVerificationMs
     )
     expectMaximum(
       failures,
-      "Electron warm host startup median ms",
+      "Product Desktop warm host startup median ms",
       median(warmMetrics, "hostStartup"),
       warmBudget.maxHostStartupMedianMs
     )
     expectMaximum(
       failures,
-      "Electron warm host startup hard maximum ms",
+      "Product Desktop warm host startup hard maximum ms",
       maximum(warmMetrics, "hostStartup"),
       warmBudget.maxHostStartupHardMs
     )
     expectMaximum(
       failures,
-      "Electron warm shutdown maximum ms",
+      "Product Desktop warm shutdown maximum ms",
       maximum(warmMetrics, "shutdown"),
       warmBudget.maxShutdownMs
     )
     expectMaximum(
       failures,
-      "Electron warm interactive total median ms",
+      "Product Desktop warm interactive total median ms",
       median(warmMetrics, "interactiveTotal"),
       warmBudget.maxInteractiveTotalMedianMs
     )
     expectMaximum(
       failures,
-      "Electron warm interactive total hard maximum ms",
+      "Product Desktop warm interactive total hard maximum ms",
       maximum(warmMetrics, "interactiveTotal"),
       warmBudget.maxInteractiveTotalHardMs
     )
     expectMaximum(
       failures,
-      "Electron warm conversation settlement maximum ms",
+      "Product Desktop warm conversation settlement maximum ms",
       maximum(warmMetrics, "conversationSettlement"),
       warmBudget.maxConversationSettlementMs
     )
     expectMaximum(
       failures,
-      "Electron warm proof wall time maximum ms",
+      "Product Desktop warm proof wall time maximum ms",
       maximum(warmMetrics, "wallTime"),
       warmBudget.maxProofWallTimeMs
     )
-    observed.electron = {
+    observed.desktop = {
       unpackedBytes: packaged.unpackedBytes,
       packageFileCount: packaged.fileCount,
       asarBytes: packaged.asarBytes,
       asarEntryCount: packaged.asarEntryCount,
       nativeBytes: packaged.nativeBytes,
       nativeFileCount: packaged.nativeFileCount,
+      credentialBytes: packaged.credentialBytes,
+      credentialFileCount: packaged.credentialFileCount,
       cold: {
         interactiveTotalMs: coldTimings.interactiveTotal,
         conversationSettlementMs: coldTimings.conversationSettlement,
@@ -330,8 +352,145 @@ export function auditHostDistributionData(request) {
         proofWallTimeMaximumMs: maximum(warmMetrics, "wallTime")
       }
     }
-  } else if (request.electron !== undefined) {
-    failures.push("headless target must not provide an Electron receipt")
+  } else if (request.desktop !== undefined) {
+    failures.push("headless target must not provide a Product Desktop receipt")
+  }
+
+  if (targetBudget.tui !== undefined) {
+    const tuiBudget = requireRecord(targetBudget.tui, "TUI distribution budget")
+    const tui = requireRecord(request.tui, "TUI installed proof receipt")
+    const tuiHost = requireRecord(tui.host, "TUI installed proof host")
+    const distribution = requireRecord(
+      tui.distribution,
+      "TUI installed proof distribution"
+    )
+    const staging = requireRecord(
+      distribution.staging,
+      "TUI distribution staging receipt"
+    )
+    const tarball = requireRecord(
+      distribution.tarball,
+      "TUI distribution tarball receipt"
+    )
+    const installed = requireRecord(
+      tui.installed,
+      "TUI installed proof installation"
+    )
+    const line = requireRecord(tui.line, "TUI installed line proof")
+    const pty = requireRecord(tui.pty, "TUI installed PTY proof")
+    expectEqual(
+      failures,
+      "TUI installed proof receipt kind",
+      tui.kind,
+      "wanex.tui.installed-proof-receipt"
+    )
+    expectEqual(failures, "TUI installed proof ok", tui.ok, true)
+    expectEqual(
+      failures,
+      "TUI installed proof target",
+      `${tuiHost.platform}-${tuiHost.arch}`,
+      request.targetId
+    )
+    expectEqual(
+      failures,
+      "TUI installed proof native target",
+      tui.nativeTarget,
+      request.targetId
+    )
+    expectEqual(
+      failures,
+      "TUI installed proof external project",
+      installed.projectDirOutsideWorkspace,
+      true
+    )
+    expectEqual(
+      failures,
+      "TUI installed proof package lock",
+      installed.packageLockChecked,
+      true
+    )
+    expectEqual(
+      failures,
+      "TUI installed line provider authorization",
+      line.providerAuthorized,
+      true
+    )
+    expectMinimum(
+      failures,
+      "TUI installed registry requests",
+      tui.registryRequests,
+      1
+    )
+    expectEqual(
+      failures,
+      "TUI staging source exclusion",
+      staging.hasSource,
+      false
+    )
+    expectEqual(
+      failures,
+      "TUI staging tests exclusion",
+      staging.hasTests,
+      false
+    )
+    expectEqual(
+      failures,
+      "TUI staging workspace link exclusion",
+      staging.hasWorkspaceLinks,
+      false
+    )
+    expectEqual(
+      failures,
+      "TUI staging node_modules exclusion",
+      staging.hasNodeModules,
+      false
+    )
+    expectMaximum(
+      failures,
+      "TUI staging bytes",
+      staging.bytes,
+      tuiBudget.maxStagingBytes
+    )
+    expectMaximum(
+      failures,
+      "TUI staging file count",
+      staging.fileCount,
+      tuiBudget.maxStagingFileCount
+    )
+    expectMaximum(
+      failures,
+      "TUI tarball bytes",
+      tarball.bytes,
+      tuiBudget.maxTarballBytes
+    )
+    expectMaximum(
+      failures,
+      "TUI tarball file count",
+      tarball.fileCount,
+      tuiBudget.maxTarballFileCount
+    )
+    if (tuiBudget.ptyMode === "required") {
+      expectEqual(failures, "TUI PTY proof mode", pty.mode, "pty")
+      expectEqual(failures, "TUI terminal restoration", pty.terminalRestored, true)
+    } else if (tuiBudget.ptyMode === "line-only") {
+      expectEqual(failures, "TUI PTY proof status", pty.status, "platform_not_run")
+      expectEqual(failures, "TUI PTY proof platform", pty.platform, "win32")
+      expectEqual(failures, "TUI PTY proof reason", pty.reason, "windows distribution proof uses the line-mode contract")
+    } else {
+      failures.push("TUI PTY proof policy is missing or unsupported")
+    }
+    observed.tui = {
+      stagingBytes: staging.bytes,
+      stagingFileCount: staging.fileCount,
+      tarballBytes: tarball.bytes,
+      tarballFileCount: tarball.fileCount,
+      registryRequests: tui.registryRequests,
+      lineMode: line.mode,
+      ptyMode: pty.mode ?? pty.status,
+      terminalRestored: pty.terminalRestored ?? false
+    }
+  } else if (request.tui !== undefined) {
+    failures.push("target without a TUI budget must not provide a TUI receipt")
   }
 
   return {
@@ -365,6 +524,16 @@ function expectMaximum(failures, label, observed, maximum) {
   }
   if (observed > maximum) {
     failures.push(`${label}: observed ${observed}, maximum ${maximum}`)
+  }
+}
+
+function expectMinimum(failures, label, observed, minimum) {
+  if (typeof observed !== "number" || typeof minimum !== "number") {
+    failures.push(`${label}: observed and minimum must be numbers`)
+    return
+  }
+  if (observed < minimum) {
+    failures.push(`${label}: observed ${observed}, minimum ${minimum}`)
   }
 }
 

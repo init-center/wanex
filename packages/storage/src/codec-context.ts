@@ -1,57 +1,97 @@
-import {
-  type ActivateContextEpochRequest,
-  type CloneContextEpochRequest,
-  type ContextEpochPruneReceipt,
-  type ContextEpochRecord,
-  type GetActiveContextEpochRequest,
-  type ListContextEpochsRequest,
-  type ContextReplacementRecord,
-  type JsonValue,
-  type ListContextReplacementsRequest,
-  type PruneContextEpochsRequest,
-  type PutContextEpochRequest,
-  type PutContextReplacementRequest
+import type {
+  ActivateContextEpochRequest,
+  BeginContextEpochRequest,
+  ContextEpochPruneReceipt,
+  ContextEpochRecord,
+  ContextSummaryGenerationState,
+  ContextSummaryUsage,
+  FinishContextEpochGenerationRequest,
+  GetActiveContextEpochRequest,
+  JsonValue,
+  ListContextEpochsRequest,
+  MarkContextEpochDispatchedRequest,
+  MarkContextEpochOutputObservedRequest,
+  PruneContextEpochsRequest
 } from "@wanex/protocol"
-
 import {
-  expectNumber,
   expectBoolean,
+  expectNumber,
   expectString,
   isRecord,
-  messagePartFromJson,
   optionalString,
   toRpcJsonValue,
   toRpcJsonValueFromUnknown,
   withOptionalFields
 } from "./codec-helpers.js"
-import {
-  expectContextEpochState,
-  expectContextReplacementTier
-} from "./codec-context-enums.js"
+import { expectContextEpochState } from "./codec-context-enums.js"
+import { readModelEndpointExecutionBinding } from "./codec-model-evidence.js"
 import type {
   ActivateContextEpochWire,
-  CloneContextEpochWire,
+  BeginContextEpochWire,
+  ContextEpochMutationIdentityWire,
+  FinishContextEpochGenerationWire,
   GetActiveContextEpochWire,
   ListContextEpochsWire,
-  ListContextReplacementsWire,
-  PruneContextEpochsWire,
-  PutContextEpochWire,
-  PutContextReplacementWire
+  MarkContextEpochOutputObservedWire,
+  PruneContextEpochsWire
 } from "./generated/storage-rpc.js"
 
-export function toRpcPutContextEpochRequest(
-  request: PutContextEpochRequest
-): PutContextEpochWire {
+export function toRpcBeginContextEpochRequest(
+  request: BeginContextEpochRequest
+): BeginContextEpochWire {
   return {
-    id: request.id ?? null,
+    id: request.id,
     session_id: request.sessionId,
-    policy_version: request.policyVersion,
-    state: request.state ?? null,
-    token_estimate_before: request.tokenEstimateBefore ?? null,
+    job_id: request.jobId,
+    worker_id: request.workerId,
+    lease_token: request.leaseToken,
+    max_provider_attempts: request.maxProviderAttempts,
+    previous_epoch_id: request.previousEpochId ?? null,
+    previous_summary_digest: request.previousSummaryDigest ?? null,
+    source_head_sequence: request.sourceHeadSequence,
+    source_head_message_id: request.sourceHeadMessageId,
+    cut_sequence: request.cutSequence,
+    cut_message_id: request.cutMessageId,
+    retained_from_sequence: request.retainedFromSequence,
+    retained_from_message_id: request.retainedFromMessageId,
+    source_digest: request.sourceDigest,
+    policy: toRpcJsonValue(request.policy),
+    policy_digest: request.policyDigest,
+    model_endpoint: toRpcJsonValueFromUnknown(request.modelEndpoint),
+    request_digest: request.requestDigest,
+    token_estimate_before: request.tokenEstimateBefore
+  }
+}
+
+export function toRpcMarkContextEpochDispatchedRequest(
+  request: MarkContextEpochDispatchedRequest
+): ContextEpochMutationIdentityWire {
+  return mutationIdentity(request)
+}
+
+export function toRpcMarkContextEpochOutputObservedRequest(
+  request: MarkContextEpochOutputObservedRequest
+): MarkContextEpochOutputObservedWire {
+  return {
+    ...mutationIdentity(request),
+    generation_attempt: request.generationAttempt
+  }
+}
+
+export function toRpcFinishContextEpochGenerationRequest(
+  request: FinishContextEpochGenerationRequest
+): FinishContextEpochGenerationWire {
+  return {
+    ...mutationIdentity(request),
+    generation_attempt: request.generationAttempt,
+    outcome: request.outcome,
+    retryable: request.outcome === "failed_before_output" ? request.retryable : null,
+    summary: request.summary ?? null,
+    summary_digest: request.summaryDigest ?? null,
+    usage: toRpcJsonValueFromUnknown(request.usage ?? null),
+    error: toRpcJsonValue(request.error ?? null),
     token_estimate_after: request.tokenEstimateAfter ?? null,
-    token_savings: request.tokenSavings ?? null,
-    replacement_count: request.replacementCount ?? null,
-    metadata: toRpcJsonValue(request.metadata ?? null)
+    token_savings: request.tokenSavings ?? null
   }
 }
 
@@ -59,17 +99,8 @@ export function toRpcActivateContextEpochRequest(
   request: ActivateContextEpochRequest
 ): ActivateContextEpochWire {
   return {
-    epoch_id: request.epochId
-  }
-}
-
-export function toRpcCloneContextEpochRequest(
-  request: CloneContextEpochRequest
-): CloneContextEpochWire {
-  return {
-    source_epoch_id: request.sourceEpochId,
-    id: request.id ?? null,
-    metadata: toRpcJsonValue(request.metadata ?? null)
+    ...mutationIdentity(request),
+    expected_previous_epoch_id: request.expectedPreviousEpochId ?? null
   }
 }
 
@@ -78,7 +109,6 @@ export function toRpcPruneContextEpochsRequest(
 ): PruneContextEpochsWire {
   return {
     session_id: request.sessionId,
-    policy_version: request.policyVersion,
     keep_last_superseded: request.keepLastSuperseded ?? null,
     older_than_updated_at: request.olderThanUpdatedAt ?? null,
     dry_run: request.dryRun ?? null
@@ -90,7 +120,6 @@ export function toRpcListContextEpochsRequest(
 ): ListContextEpochsWire {
   return {
     session_id: request.sessionId,
-    policy_version: request.policyVersion ?? null,
     state: request.state ?? null
   }
 }
@@ -98,38 +127,7 @@ export function toRpcListContextEpochsRequest(
 export function toRpcGetActiveContextEpochRequest(
   request: GetActiveContextEpochRequest
 ): GetActiveContextEpochWire {
-  return {
-    session_id: request.sessionId,
-    policy_version: request.policyVersion
-  }
-}
-
-export function toRpcPutContextReplacementRequest(
-  request: PutContextReplacementRequest
-): PutContextReplacementWire {
-  return {
-    id: request.id ?? null,
-    epoch_id: request.epochId,
-    session_id: request.sessionId,
-    policy_version: request.policyVersion,
-    message_id: request.messageId ?? null,
-    part_id: request.partId,
-    tier: request.tier,
-    original_token_estimate: request.originalTokenEstimate,
-    replacement_token_estimate: request.replacementTokenEstimate,
-    replacement: toRpcJsonValueFromUnknown(request.replacement),
-    metadata: toRpcJsonValue(request.metadata ?? null)
-  }
-}
-
-export function toRpcListContextReplacementsRequest(
-  request: ListContextReplacementsRequest
-): ListContextReplacementsWire {
-  return {
-    session_id: request.sessionId,
-    policy_version: request.policyVersion ?? null,
-    epoch_id: request.epochId ?? null
-  }
+  return { session_id: request.sessionId }
 }
 
 export function fromRpcContextEpochRecord(value: JsonValue): ContextEpochRecord {
@@ -139,11 +137,49 @@ export function fromRpcContextEpochRecord(value: JsonValue): ContextEpochRecord 
   const record = {
     id: expectString(value.id, "context_epoch.id"),
     sessionId: expectString(value.session_id, "context_epoch.session_id"),
-    policyVersion: expectString(
-      value.policy_version,
-      "context_epoch.policy_version"
-    ),
+    jobId: expectString(value.job_id, "context_epoch.job_id"),
     state: expectContextEpochState(value.state),
+    generationState: expectGenerationState(value.generation_state),
+    generationAttempt: expectNumber(
+      value.generation_attempt,
+      "context_epoch.generation_attempt"
+    ),
+    maxProviderAttempts: expectNumber(
+      value.max_provider_attempts,
+      "context_epoch.max_provider_attempts"
+    ),
+    sourceHeadSequence: expectNumber(
+      value.source_head_sequence,
+      "context_epoch.source_head_sequence"
+    ),
+    sourceHeadMessageId: expectString(
+      value.source_head_message_id,
+      "context_epoch.source_head_message_id"
+    ),
+    cutSequence: expectNumber(value.cut_sequence, "context_epoch.cut_sequence"),
+    cutMessageId: expectString(
+      value.cut_message_id,
+      "context_epoch.cut_message_id"
+    ),
+    retainedFromSequence: expectNumber(
+      value.retained_from_sequence,
+      "context_epoch.retained_from_sequence"
+    ),
+    retainedFromMessageId: expectString(
+      value.retained_from_message_id,
+      "context_epoch.retained_from_message_id"
+    ),
+    sourceDigest: expectString(value.source_digest, "context_epoch.source_digest"),
+    policy: value.policy ?? null,
+    policyDigest: expectString(value.policy_digest, "context_epoch.policy_digest"),
+    modelEndpoint: readModelEndpointExecutionBinding(
+      value.model_endpoint,
+      "context_epoch.model_endpoint"
+    ),
+    requestDigest: expectString(
+      value.request_digest,
+      "context_epoch.request_digest"
+    ),
     tokenEstimateBefore: expectNumber(
       value.token_estimate_before,
       "context_epoch.token_estimate_before"
@@ -152,23 +188,28 @@ export function fromRpcContextEpochRecord(value: JsonValue): ContextEpochRecord 
       value.token_estimate_after,
       "context_epoch.token_estimate_after"
     ),
-    tokenSavings: expectNumber(
-      value.token_savings,
-      "context_epoch.token_savings"
-    ),
-    replacementCount: expectNumber(
-      value.replacement_count,
-      "context_epoch.replacement_count"
-    ),
+    tokenSavings: expectNumber(value.token_savings, "context_epoch.token_savings"),
     createdAt: expectNumber(value.created_at, "context_epoch.created_at"),
     updatedAt: expectNumber(value.updated_at, "context_epoch.updated_at")
   }
   return withOptionalFields(record, {
-    metadata: value.metadata ?? undefined,
-    activatedAt:
-      value.activated_at === null || value.activated_at === undefined
-        ? undefined
-        : expectNumber(value.activated_at, "context_epoch.activated_at")
+    previousEpochId: optionalString(
+      value.previous_epoch_id,
+      "context_epoch.previous_epoch_id"
+    ),
+    previousSummaryDigest: optionalString(
+      value.previous_summary_digest,
+      "context_epoch.previous_summary_digest"
+    ),
+    summary: optionalString(value.summary, "context_epoch.summary"),
+    summaryDigest: optionalString(
+      value.summary_digest,
+      "context_epoch.summary_digest"
+    ),
+    usage: contextSummaryUsage(value.usage),
+    error: value.error ?? undefined,
+    activatedAt: optionalNumber(value.activated_at, "context_epoch.activated_at"),
+    finishedAt: optionalNumber(value.finished_at, "context_epoch.finished_at")
   })
 }
 
@@ -178,64 +219,85 @@ export function fromRpcContextEpochPruneReceipt(
   if (!isRecord(value)) {
     throw new Error("context epoch prune receipt must be an object")
   }
-  const deletedEpochIds = value.deleted_epoch_ids
-  if (!Array.isArray(deletedEpochIds)) {
+  if (!Array.isArray(value.deleted_epoch_ids)) {
     throw new Error("context_epoch_prune.deleted_epoch_ids must be an array")
   }
   return {
     sessionId: expectString(value.session_id, "context_epoch_prune.session_id"),
-    policyVersion: expectString(
-      value.policy_version,
-      "context_epoch_prune.policy_version"
-    ),
     scannedCount: expectNumber(
       value.scanned_count,
       "context_epoch_prune.scanned_count"
     ),
-    deletedEpochIds: deletedEpochIds.map((item) =>
+    deletedEpochIds: value.deleted_epoch_ids.map((item) =>
       expectString(item, "context_epoch_prune.deleted_epoch_ids[]")
-    ),
-    deletedReplacementCount: expectNumber(
-      value.deleted_replacement_count,
-      "context_epoch_prune.deleted_replacement_count"
     ),
     dryRun: expectBoolean(value.dry_run, "context_epoch_prune.dry_run")
   }
 }
 
-export function fromRpcContextReplacementRecord(
-  value: JsonValue
-): ContextReplacementRecord {
-  if (!isRecord(value)) {
-    throw new Error("context replacement must be an object")
+function mutationIdentity(request: {
+  readonly epochId: string
+  readonly jobId: string
+  readonly workerId: string
+  readonly leaseToken: string
+}): ContextEpochMutationIdentityWire {
+  return {
+    epoch_id: request.epochId,
+    job_id: request.jobId,
+    worker_id: request.workerId,
+    lease_token: request.leaseToken
   }
-  const record = {
-    id: expectString(value.id, "context_replacement.id"),
-    epochId: expectString(value.epoch_id, "context_replacement.epoch_id"),
-    sessionId: expectString(value.session_id, "context_replacement.session_id"),
-    policyVersion: expectString(
-      value.policy_version,
-      "context_replacement.policy_version"
-    ),
-    partId: expectString(value.part_id, "context_replacement.part_id"),
-    tier: expectContextReplacementTier(value.tier),
-    originalTokenEstimate: expectNumber(
-      value.original_token_estimate,
-      "context_replacement.original_token_estimate"
-    ),
-    replacementTokenEstimate: expectNumber(
-      value.replacement_token_estimate,
-      "context_replacement.replacement_token_estimate"
-    ),
-    replacement: messagePartFromJson(value.replacement),
-    createdAt: expectNumber(value.created_at, "context_replacement.created_at"),
-    updatedAt: expectNumber(value.updated_at, "context_replacement.updated_at")
+}
+
+function expectGenerationState(value: JsonValue | undefined): ContextSummaryGenerationState {
+  if (
+    value !== "prepared" &&
+    value !== "dispatched" &&
+    value !== "output_observed" &&
+    value !== "succeeded" &&
+    value !== "failed_before_output" &&
+    value !== "ambiguous"
+  ) {
+    throw new Error(`invalid context summary generation state: ${String(value)}`)
   }
-  return withOptionalFields(record, {
-    messageId: optionalString(
-      value.message_id,
-      "context_replacement.message_id"
-    ),
-    metadata: value.metadata ?? undefined
-  })
+  return value
+}
+
+function contextSummaryUsage(value: JsonValue | undefined): ContextSummaryUsage | undefined {
+  if (value === undefined || value === null) return undefined
+  if (!isRecord(value)) throw new Error("context_epoch.usage must be an object")
+  return {
+    ...optionalUsageNumber(value, "inputTokens"),
+    ...optionalUsageNumber(value, "outputTokens"),
+    ...optionalUsageNumber(value, "reasoningTokens"),
+    ...optionalUsageNumber(value, "cacheReadTokens"),
+    ...optionalUsageNumber(value, "cacheWriteTokens"),
+    ...(value.metadata === undefined
+      ? {}
+      : {
+          metadata: isRecord(value.metadata)
+            ? value.metadata
+            : invalidUsageMetadata()
+        })
+  }
+}
+
+function optionalUsageNumber(
+  value: Readonly<Record<string, JsonValue>>,
+  key: keyof Omit<ContextSummaryUsage, "metadata">
+): Partial<ContextSummaryUsage> {
+  if (value[key] === undefined) return {}
+  const parsed = expectNumber(value[key], `context_epoch.usage.${key}`)
+  if (!Number.isSafeInteger(parsed) || parsed < 0) {
+    throw new Error(`context_epoch.usage.${key} must be a non-negative integer`)
+  }
+  return { [key]: parsed }
+}
+
+function invalidUsageMetadata(): never {
+  throw new Error("context_epoch.usage.metadata must be an object")
+}
+
+function optionalNumber(value: JsonValue | undefined, label: string): number | undefined {
+  return value === null || value === undefined ? undefined : expectNumber(value, label)
 }

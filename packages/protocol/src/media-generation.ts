@@ -1,15 +1,25 @@
 import type { PrincipalId, ResourceId } from "./ids.js"
 import type {
-  ProviderInputModality,
-  ProviderOutputModality
+  ModelEndpoint,
+  ModelInputModality,
+  ModelOperation,
+  ModelOutputModality
 } from "./provider.js"
 import type { ResourceInputEvidence, ResourceKind } from "./resource.js"
 import type { JsonValue } from "./json.js"
 import type { SchedulerJobRecord } from "./scheduler.js"
 
 export type MediaGenerationOutputModality = Exclude<
-  ProviderOutputModality,
+  ModelOutputModality,
   "text"
+>
+
+export type MediaGenerationOperation = Extract<
+  ModelOperation,
+  | "image.generate"
+  | "image.edit"
+  | "video.generate"
+  | "audio.synthesize"
 >
 
 export type MediaGenerationOperationState =
@@ -23,16 +33,15 @@ export type MediaGenerationOperationState =
   | "cancelled"
   | "recovery_required"
 
-export interface MediaGenerationProviderProfile {
-  readonly id: string
-  readonly adapterId: string
-  readonly providerId: string
-  readonly modelId: string
-  readonly input: readonly ProviderInputModality[]
-  readonly output: readonly MediaGenerationOutputModality[]
+export type MediaGenerationModelEndpoint = ModelEndpoint & {
+  readonly model: ModelEndpoint["model"] & {
+    readonly inputModalities: readonly ModelInputModality[]
+    readonly outputModalities: readonly MediaGenerationOutputModality[]
+  }
 }
 
 export interface MediaGenerationRequestBinding {
+  readonly operation: MediaGenerationOperation
   readonly prompt: string
   readonly outputModality: MediaGenerationOutputModality
   readonly inputResources: readonly ResourceInputEvidence[]
@@ -40,11 +49,11 @@ export interface MediaGenerationRequestBinding {
 }
 
 export interface MediaGenerationOperationBinding {
-  readonly profileId: string
-  readonly profileDigest: string
-  readonly adapterId: string
-  readonly providerId: string
-  readonly modelId: string
+  readonly endpointId: string
+  readonly endpointDigest: string
+  readonly connection: ModelEndpoint["connection"]
+  readonly protocol: ModelEndpoint["protocol"]
+  readonly model: ModelEndpoint["model"]
   readonly request: MediaGenerationRequestBinding
   readonly requestDigest: string
 }
@@ -91,11 +100,16 @@ export interface MediaGenerationOperationRecord {
   readonly jobId: string
   readonly principalId: PrincipalId
   readonly idempotencyKey: string
+  readonly conversation?: MediaGenerationConversationRelation
   readonly state: MediaGenerationOperationState
   readonly binding: MediaGenerationOperationBinding
   readonly dispatchAttempt: number
   readonly externalOperationId?: string
   readonly providerCheckpoint?: JsonValue
+  readonly pollCount: number
+  readonly consecutivePollFailures: number
+  readonly nextPollAt?: number
+  readonly lastPollError?: JsonValue
   readonly outputReferences: readonly MediaGenerationOutputReferenceRecord[]
   readonly outputResourceIds: readonly ResourceId[]
   readonly progress?: JsonValue
@@ -105,6 +119,14 @@ export interface MediaGenerationOperationRecord {
   readonly createdAt: number
   readonly updatedAt: number
   readonly finishedAt?: number
+}
+
+export interface MediaGenerationConversationRelation {
+  readonly sessionId: string
+  readonly turnId: string
+  readonly sourceMessageId: string
+  readonly toolExecutionId: string
+  readonly toolCallId: string
 }
 
 export interface SubmitMediaGenerationOperationRequest {
@@ -149,18 +171,41 @@ export interface AcceptMediaGenerationOperationRequest {
   readonly providerCheckpoint?: JsonValue
 }
 
-export interface CheckpointMediaGenerationOperationRequest {
+export type MediaGenerationSuspensionOutcome =
+  | "scheduled"
+  | "pending"
+  | "transient_error"
+
+export type MediaGenerationTerminalPollOutcome =
+  | "none"
+  | "completed"
+  | "provider_failure"
+  | "transient_error"
+
+export interface SuspendMediaGenerationOperationRequest {
   readonly operationId: string
   readonly workerId: string
   readonly leaseToken: string
+  readonly nextPollAt: number
+  readonly outcome: MediaGenerationSuspensionOutcome
   readonly providerCheckpoint?: JsonValue
   readonly progress?: JsonValue
+  readonly error?: JsonValue
+}
+
+export type MediaGenerationSuspendAction = "suspended" | "cancel"
+
+export interface MediaGenerationSuspendReceipt {
+  readonly operation: MediaGenerationOperationRecord
+  readonly job: SchedulerJobRecord
+  readonly action: MediaGenerationSuspendAction
 }
 
 export interface RecordMediaGenerationOutputsRequest {
   readonly operationId: string
   readonly workerId: string
   readonly leaseToken: string
+  readonly pollOutcome: MediaGenerationTerminalPollOutcome
   readonly outputReferences: readonly MediaGenerationOutputReferenceRecord[]
   readonly progress?: JsonValue
 }
@@ -169,6 +214,7 @@ export interface CompleteMediaGenerationOperationRequest {
   readonly operationId: string
   readonly workerId: string
   readonly leaseToken: string
+  readonly pollOutcome: MediaGenerationTerminalPollOutcome
   readonly outputResourceIds: readonly ResourceId[]
   readonly result?: JsonValue
 }
@@ -182,6 +228,7 @@ export interface SettleMediaGenerationOperationRequest {
   readonly operationId: string
   readonly workerId: string
   readonly leaseToken: string
+  readonly pollOutcome: MediaGenerationTerminalPollOutcome
   readonly outcome: MediaGenerationTerminalOutcome
   readonly error?: JsonValue
   readonly reason?: string

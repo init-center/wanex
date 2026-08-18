@@ -1,5 +1,6 @@
 import type {
   AppExtensionContributionDomain,
+  AppExtensionCatalogSource,
   AppExtensionDiagnosticCode,
   AppExtensionResolvedSnapshot,
   AppExtensionSourceKind,
@@ -8,11 +9,12 @@ import type {
 } from "@wanex/extension"
 
 export interface WanexAppExtensionOptions {
-  readonly snapshot: AppExtensionResolvedSnapshot
+  readonly source: AppExtensionCatalogSource
 }
 
 export interface WanexAppExtensionStatus {
   readonly configured: boolean
+  readonly revision?: string
   readonly contributionCount: number
   readonly diagnosticCount: number
   readonly byDomain: WanexAppExtensionDomainCounts
@@ -30,6 +32,7 @@ export interface WanexAppExtensionDomainCounts {
 
 export interface WanexAppExtensionReadModel {
   readonly configured: boolean
+  readonly revision?: string
   readonly counts: WanexAppExtensionDomainCounts
   readonly contributions: readonly WanexAppExtensionContributionRow[]
   readonly commands: readonly WanexAppCommandContributionRow[]
@@ -61,6 +64,7 @@ export interface WanexAppCommandContributionRow
   readonly title: string
   readonly aliases: readonly string[]
   readonly category?: string
+  readonly paletteVisibility: "visible" | "hidden"
   readonly handlerRef: string
 }
 
@@ -69,7 +73,7 @@ export interface WanexAppAgentContributionRow
   readonly domain: "agent"
   readonly name: string
   readonly title?: string
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly modelId?: string
   readonly instructionRefs: readonly string[]
   readonly skillRefs: readonly string[]

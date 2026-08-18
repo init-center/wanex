@@ -1,0 +1,31 @@
+{
+  "name": "@wanex/desktop",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./credential-artifact": "./src/credential-artifact.ts",
+    "./lifecycle": "./src/lifecycle.ts",
+    "./window-policy": "./src/window-policy.ts"
+  },
+  "scripts": {
+    "start": "node ./scripts/start.mjs",
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run",
+    "build": "node ./scripts/build.mjs",
+    "package": "node ./scripts/build.mjs --package",
+    "proof": "node ./scripts/proof.mjs"
+  },
+  "dependencies": {
+    "@wanex/local-credential-store": "workspace:*",
+    "@wanex/local-host": "workspace:*",
+    "@wanex/plugin-command-host": "workspace:*"
+  },
+  "devDependencies": {
+    "@electron/asar": "^4.2.1",
+    "@electron/packager": "^20.0.4",
+    "electron": "43.2.0",
+    "esbuild": "0.28.1"
+  }
+}

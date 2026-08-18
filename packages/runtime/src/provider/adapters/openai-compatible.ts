@@ -1,15 +1,11 @@
 import type {
   JsonValue,
   MessagePart,
-  ProviderCapabilities,
+  ModelDescriptor,
   ProviderState,
   ToolCallMessagePart
 } from "@wanex/protocol"
-import {
-  assertProfileCapabilitiesSupported,
-  OPENAI_CHAT_PROVIDER_CAPABILITIES,
-  TEXT_PROVIDER_CAPABILITIES
-} from "../capabilities.js"
+import { assertConversationModelSupported } from "../model-descriptor.js"
 import {
   providerErrorEvent,
   providerStreamFailureEvent
@@ -21,6 +17,7 @@ import {
 } from "../http.js"
 import {
   requirePreparedProviderResource,
+  projectedToolResultText,
   textContent,
   toolCallsToOpenAI
 } from "../replay.js"
@@ -30,7 +27,7 @@ import type {
   ProviderEvent,
   ProviderFinishEvent,
   PreparedProviderResourcePart,
-  ProviderReplayMessage,
+  PreparedProviderReplayMessage,
   ProviderRequest,
   ProviderUsage
 } from "../types.js"
@@ -44,12 +41,10 @@ import {
 
 export interface OpenAICompatibleAdapterOptions {
   readonly providerId: string
-  readonly modelId: string
+  readonly model: ModelDescriptor
   readonly baseUrl: string
   readonly apiKey: string
   readonly fetch?: ProviderFetch
-  readonly reasoningReplay?: "optional" | "required"
-  readonly capabilities?: ProviderCapabilities
 }
 
 interface OpenAIToolStreamState {
@@ -58,33 +53,31 @@ interface OpenAIToolStreamState {
 }
 
 export class OpenAICompatibleAdapter implements ProviderAdapter {
-  readonly kind = "openai-compatible" as const
+  readonly protocol = { id: "openai-chat-completions" } as const
   readonly providerId: string
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
-  protected readonly reasoningReplay: "optional" | "required"
+  readonly model: ModelDescriptor
+  protected readonly reasoningReplay: "optional" | "required" | "forbidden"
   private readonly baseUrl: string
   private readonly apiKey: string
   private readonly fetchImpl: ProviderFetch
 
   constructor(options: OpenAICompatibleAdapterOptions) {
     this.providerId = options.providerId
-    this.modelId = options.modelId
-    this.capabilities = assertProfileCapabilitiesSupported(
-      "openai-compatible",
-      options.capabilities ?? OPENAI_CHAT_PROVIDER_CAPABILITIES
+    this.model = assertConversationModelSupported(
+      this.protocol.id,
+      options.model
     )
     this.baseUrl = options.baseUrl.replace(/\/+$/, "")
     this.apiKey = options.apiKey
     this.fetchImpl = options.fetch ?? globalProviderFetch
-    this.reasoningReplay = options.reasoningReplay ?? "optional"
+    this.reasoningReplay = this.model.behavior?.reasoningReplay ?? "optional"
   }
 
   async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
     if (request.signal?.aborted === true) {
       yield providerErrorEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error: new Error("aborted"),
         phase: "request",
         signalAborted: true
@@ -101,7 +94,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
           "content-type": "application/json"
         },
         body: JSON.stringify({
-          model: this.modelId,
+          model: this.model.id,
           messages: this.buildReplayMessages(request.messages),
           stream: true,
           stream_options: { include_usage: true },
@@ -115,7 +108,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     } catch (error) {
       yield providerErrorEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error,
         phase: "request",
         ...(request.signal === undefined
@@ -129,7 +122,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
       yield await httpProviderError({
         response,
         providerId: this.providerId,
-        modelId: this.modelId
+        modelId: this.model.id
       })
       return
     }
@@ -143,7 +136,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     } catch (error) {
       yield providerStreamFailureEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error,
         ...(request.signal === undefined
           ? {}
@@ -153,9 +146,9 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 
   buildReplayMessages(
-    messages: readonly ProviderReplayMessage[]
+    messages: readonly PreparedProviderReplayMessage[]
   ): JsonValue[] {
-    return messages.map((message) => {
+    return messages.flatMap((message): JsonValue[] => {
       const toolCalls = message.content.filter(
         (part): part is ToolCallMessagePart => part.type === "tool_call"
       )
@@ -163,35 +156,44 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
         (part) => part.type === "tool_result"
       )
       if (message.role === "tool") {
-        return {
-          role: "tool",
-          tool_call_id: toolResults[0]?.toolCallId ?? "unknown",
-          content: JSON.stringify(toolResults.map((part) => part.result))
+        if (toolResults.length !== message.content.length) {
+          throw new Error("OpenAI tool replay message contains a non-tool result part")
         }
+        return toolResults.map((part) => ({
+          role: "tool",
+          tool_call_id: part.toolCallId,
+          content: projectedToolResultText(part.content)
+        }))
       }
-      const reasoningContent = findReasoningContent(
+      const storedReasoningContent = findReasoningContent(
         message.content,
         this.providerId,
-        this.modelId
+        this.model.id
       )
       if (
         this.reasoningReplay === "required" &&
         message.role === "assistant" &&
         toolCalls.length > 0 &&
-        reasoningContent === undefined
+        storedReasoningContent === undefined
       ) {
         throw new MissingRequiredProviderStateError(
           `${this.providerId} assistant tool call requires reasoning state for same-model replay`
         )
       }
-      return {
+      const reasoningContent =
+        message.role === "assistant" &&
+        toolCalls.length > 0 &&
+        this.reasoningReplay !== "forbidden"
+          ? storedReasoningContent
+          : undefined
+      return [{
         role: message.role,
         content: openAIMessageContent(message),
         ...(reasoningContent === undefined
           ? {}
           : { reasoning_content: reasoningContent }),
         ...(toolCalls.length === 0 ? {} : { tool_calls: toolCallsToOpenAI(toolCalls) })
-      }
+      }]
     })
   }
 
@@ -280,7 +282,7 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     if (reasoning.length > 0) {
       const state: ProviderState = {
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         stateKind: "reasoning",
         replayPolicy: this.reasoningReplay,
         payload: { reasoning_content: reasoning }
@@ -298,14 +300,14 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
         message,
         retryable: false,
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         phase: "stream"
       }
     }
   }
 }
 
-function openAIMessageContent(message: ProviderReplayMessage): JsonValue {
+function openAIMessageContent(message: PreparedProviderReplayMessage): JsonValue {
   const resources = message.content.filter((part) => part.type === "resource")
   if (resources.length === 0) {
     return textContent(message.content)
@@ -336,20 +338,6 @@ function openAIMessageContent(message: ProviderReplayMessage): JsonValue {
       }
     }
   })
-}
-
-export class DeepSeekThinkingAdapter extends OpenAICompatibleAdapter {
-  constructor(options: Omit<OpenAICompatibleAdapterOptions, "providerId" | "reasoningReplay">) {
-    super({
-      ...options,
-      providerId: "deepseek",
-      reasoningReplay: "required",
-      capabilities: assertProfileCapabilitiesSupported(
-        "deepseek",
-        options.capabilities ?? TEXT_PROVIDER_CAPABILITIES
-      )
-    })
-  }
 }
 
 export class MissingRequiredProviderStateError extends Error {

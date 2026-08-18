@@ -1,6 +1,20 @@
-import type { AgentContextProfile } from "@wanex/runtime/context"
+import type {
+  AgentContextProfile,
+  PreparedAgentContext
+} from "@wanex/runtime/context"
+import type {
+  ResolveSessionTurnAgentContextRequest
+} from "@wanex/runtime/execution"
+import type {
+  RuntimeHostPrepareExecutionBindingRequest,
+  RuntimeHostPreparedExecutionBinding,
+  RuntimeHostSessionTurnResultSignal
+} from "@wanex/runtime/host"
 import type { BootstrapWanexStorageOptions } from "@wanex/runtime/bootstrap"
-import type { SecretResolverPort } from "@wanex/runtime/secrets"
+import type {
+  SecretResolverPort,
+  SecretStorePort
+} from "@wanex/runtime/secrets"
 import type { WanexAppExtensionOptions, WanexAppExtensionStatus } from "./types-extension.js"
 import type {
   WanexAppAgentCommands
@@ -22,9 +36,11 @@ import type {
   WanexAppLifecycleCommands
 } from "./types-lifecycle.js"
 import type {
-  WanexAppProviderProfileCommands,
-  WanexAppProviderProfileOptions
-} from "./types-provider-profile.js"
+  WanexAppModelEndpointCommands,
+  WanexAppModelEndpointListReadModel,
+  WanexAppModelEndpointOptions
+} from "./types-model-endpoint.js"
+import type { WanexAppModelCapabilityCommands } from "./types-model-capability.js"
 import type { WanexAppResourceCommands } from "./types-resources.js"
 import type {
   WanexAppReadModelCommands
@@ -42,26 +58,75 @@ import type {
   WanexAppWorkflowEnvelopeCommands
 } from "./types-workflow-envelope.js"
 import type { WanexAppMediaGenerationCommands } from "./types-media-generation.js"
+import type { WanexAppSessionLifecycleCommands } from "./types-session-lifecycle.js"
 import type { MediaGenerationAdapter } from "@wanex/runtime/media-generation"
+import type { WanexAppPlanCommands } from "./types-plan.js"
+import type { WanexAppGoalCommands } from "./types-goal.js"
+import type {
+  WanexAppProviderCredentialPolicy,
+  WanexAppProviderMutationCoordinator,
+  WanexAppProviderReplaceRequest
+} from "./provider-mutation.js"
+
+export interface WanexAppTrustedProviderHostOptions {
+  readonly credentialStore: SecretStorePort
+  readonly credentialPolicy: WanexAppProviderCredentialPolicy
+  readonly createRevisionId?: () => string
+  bindMutationCoordinator?(
+    coordinator: WanexAppProviderMutationCoordinator
+  ): void | (() => void)
+  requestInitialReplacement(
+    endpoints: WanexAppModelEndpointListReadModel
+  ): Promise<WanexAppProviderReplaceRequest | undefined>
+}
 
 export interface WanexAppOptions extends BootstrapWanexStorageOptions {
-  readonly providerProfile?: WanexAppProviderProfileOptions
+  readonly modelEndpoint?: WanexAppModelEndpointOptions
   readonly agentContextProfile?: AgentContextProfile
+  readonly runtimeContext?: Pick<
+    PreparedAgentContext,
+    "tools" | "toolPermissionPolicy"
+  >
+  readonly runtimeContextResolver?: WanexAppRuntimeContextResolver
+  readonly observeSessionTurnResult?: (
+    signal: RuntimeHostSessionTurnResultSignal
+  ) => void
   readonly extensions?: WanexAppExtensionOptions
   readonly workerCount?: number
   readonly secretResolver?: SecretResolverPort
+  readonly trustedProviderHost?: WanexAppTrustedProviderHostOptions
   readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
   readonly mediaGenerationWorkerCount?: number
   readonly mediaGenerationMaxOutputBytes?: number
+  readonly mediaGenerationPollInitialDelayMs?: number
+  readonly mediaGenerationPollMaxDelayMs?: number
+  readonly mediaGenerationMaxConsecutivePollFailures?: number
 }
 
 export interface WanexApp {
   readonly commands: WanexAppCommands
   readonly events: WanexAppEvents
+  readonly trustedExecution: WanexAppTrustedExecutionHost
   status(): WanexAppStatus
   start(): void
   stop(): Promise<void>
   dispose(): Promise<void>
+}
+
+export type WanexAppRuntimeContext = Pick<
+  PreparedAgentContext,
+  "tools" | "toolPermissionPolicy"
+>
+
+export type WanexAppRuntimeContextResolver = (
+  request: ResolveSessionTurnAgentContextRequest
+) => Promise<WanexAppRuntimeContext | undefined> | WanexAppRuntimeContext | undefined
+
+export interface WanexAppTrustedExecutionHost {
+  prepareExecutionBinding(
+    request: Omit<RuntimeHostPrepareExecutionBindingRequest, "modelEndpointId">
+  ): Promise<RuntimeHostPreparedExecutionBinding>
+  wake(): void
 }
 
 export interface WanexAppCommands
@@ -71,11 +136,15 @@ export interface WanexAppCommands
     WanexAppDiagnosticsCommands,
     WanexAppExecutionReferenceCommands,
     WanexAppLifecycleCommands,
-    WanexAppProviderProfileCommands,
+    WanexAppModelEndpointCommands,
+    WanexAppModelCapabilityCommands,
+    WanexAppGoalCommands,
+    WanexAppPlanCommands,
     WanexAppResourceCommands,
     WanexAppReadModelCommands,
     WanexAppResultEnvelopeCommands,
     WanexAppScheduleCommands,
+    WanexAppSessionLifecycleCommands,
     WanexAppWorkflowCommands,
     WanexAppWorkflowEnvelopeCommands,
     WanexAppMediaGenerationCommands {}
@@ -84,8 +153,7 @@ export interface WanexAppStatus {
   readonly disposed: boolean
   readonly started: boolean
   readonly workerCount: number
-  readonly providerProfileId: string
-  readonly activeProviderProfileId: string
+  readonly activeModelEndpointId?: string
   readonly agentContext: WanexAppAgentContextStatus
   readonly agentContextMonitor: WanexAppAgentContextMonitorStatus
   readonly extensions: WanexAppExtensionStatus

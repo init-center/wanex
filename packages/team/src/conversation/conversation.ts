@@ -1,5 +1,6 @@
 import type {
   PrincipalId,
+  SetTeamConversationLeadRequest,
   TeamConversationRecord,
   TeamConversationState
 } from "@wanex/protocol"
@@ -58,6 +59,13 @@ export async function updateConversationState(
     conversationId,
     state
   })
+}
+
+export async function setConversationLead(
+  storage: TeamConversationStorage,
+  request: SetTeamConversationLeadRequest
+): Promise<TeamConversationRecord> {
+  return await storage.setTeamConversationLead(request)
 }
 
 export async function requireConversation(

@@ -5,8 +5,8 @@
 ```ts
 
 import { CoreStore } from '@wanex/storage';
+import { ModelEndpointSummary } from '@wanex/runtime/provider';
 import { PluginStore } from '@wanex/storage/plugin';
-import { ProviderProfileSummary } from '@wanex/runtime/provider';
 
 // @public (undocumented)
 export interface AppActivityEntry {
@@ -224,18 +224,6 @@ export interface BaseRuntimeHostRunningLeaseSummary {
 }
 
 // @public (undocumented)
-export interface BaseTeamRoundResult {
-    // (undocumented)
-    readonly conversation: {
-        readonly id: string;
-    };
-    // (undocumented)
-    readonly stopReason: string;
-    // (undocumented)
-    readonly turns: readonly unknown[];
-}
-
-// @public (undocumented)
 export interface BaseWorkspaceApplyConflict {
     // (undocumented)
     readonly conflictingChangeSetId?: string;
@@ -308,8 +296,6 @@ export interface BuildAppDiagnosticsSnapshotInput {
     // (undocumented)
     readonly runtimeHostHealth?: BaseRuntimeHostHealthSnapshot;
     // (undocumented)
-    readonly teamRound?: BaseTeamRoundResult;
-    // (undocumented)
     readonly workspaceApplyPlan?: BaseWorkspaceApplyPlan;
 }
 
@@ -372,8 +358,6 @@ export interface MemoryMaintenanceDiagnosticsOptions {
     // (undocumented)
     readonly now?: number;
     // (undocumented)
-    readonly policyVersion?: string;
-    // (undocumented)
     readonly sessionLimit?: number;
     // (undocumented)
     readonly staleAfterMs?: number;
@@ -413,13 +397,13 @@ export interface MemoryMaintenanceDiagnosticsSummary {
 type MessageId = string;
 
 // @public (undocumented)
-type ObjectiveEventType = "objective.run.created" | "objective.run.operation_recorded" | "objective.attempt.recorded" | "objective.verification.recorded";
+type ObjectiveEventType = "objective.created" | "objective.state_changed" | "objective.attempt.admitted" | "objective.attempt.reviewed" | "objective.verification.recorded";
 
 // @public (undocumented)
-type ObjectiveRunId = string;
+type ObjectiveId = string;
 
 // @public (undocumented)
-type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded";
+type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded" | "plan.proposal.execution_bound";
 
 // @public (undocumented)
 type PlanProposalId = string;
@@ -468,7 +452,7 @@ interface RuntimeEventScope {
     // (undocumented)
     readonly messageId?: MessageId;
     // (undocumented)
-    readonly objectiveId?: ObjectiveRunId;
+    readonly objectiveId?: ObjectiveId;
     // (undocumented)
     readonly planProposalId?: PlanProposalId;
     // (undocumented)
@@ -486,7 +470,7 @@ type RuntimeEventType = KnownRuntimeEventType | (string & {});
 type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
 
 // @public (undocumented)
-type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.round.close" | "plugin.action" | "channel.delivery" | "tool.deferred_result" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
+type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.delivery.outcome" | "plugin.action" | "channel.delivery" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
 
 // @public (undocumented)
 interface SchedulerJobRecord {
@@ -537,7 +521,7 @@ interface SchedulerJobRecord {
 }
 
 // @public (undocumented)
-type SchedulerJobState = "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
+type SchedulerJobState = "pending" | "ready" | "running" | "waiting" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 
 // @public (undocumented)
 type SessionAttemptId = string;
@@ -567,7 +551,7 @@ export interface SupportBundle {
     // (undocumented)
     readonly limits: SupportBundleLimits;
     // (undocumented)
-    readonly providers: readonly SupportBundleProviderProfileSummary[];
+    readonly modelEndpoints: readonly SupportBundleModelEndpointSummary[];
 }
 
 // @public (undocumented)
@@ -597,11 +581,19 @@ export interface SupportBundleMemoryOptions {
     // (undocumented)
     readonly jobLimit?: number;
     // (undocumented)
-    readonly policyVersion?: string;
-    // (undocumented)
     readonly sessionLimit?: number;
     // (undocumented)
     readonly staleAfterMs?: number;
+}
+
+// @public (undocumented)
+export interface SupportBundleModelEndpointSummary {
+    // (undocumented)
+    readonly endpoint?: ModelEndpointSummary;
+    // (undocumented)
+    readonly found: boolean;
+    // (undocumented)
+    readonly id: string;
 }
 
 // @public (undocumented)
@@ -613,23 +605,13 @@ export interface SupportBundleOptions extends Pick<BuildAppDiagnosticsSnapshotIn
     // (undocumented)
     readonly memoryMaintenance?: boolean | SupportBundleMemoryOptions;
     // (undocumented)
-    readonly pluginLimit?: number;
+    readonly modelEndpointIds?: readonly string[];
     // (undocumented)
-    readonly providerProfileIds?: readonly string[];
+    readonly pluginLimit?: number;
     // (undocumented)
     readonly sessionId?: string;
     // (undocumented)
     readonly storage: SupportBundleStore;
-}
-
-// @public (undocumented)
-export interface SupportBundleProviderProfileSummary {
-    // (undocumented)
-    readonly found: boolean;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly profile?: ProviderProfileSummary;
 }
 
 // @public (undocumented)

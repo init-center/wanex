@@ -6,7 +6,15 @@ import type {
 } from "@wanex/protocol"
 import { throwIfAborted } from "./cancellable.js"
 import { readActiveAbortReason } from "../../jobs/active-abort.js"
+import { ContextCapacityError } from "../../context/capacity/index.js"
+import { durableContextCapacityError } from "../../context/capacity/durable-error.js"
+import { ContextEpochRecoveryRequiredError } from "../../memory/executor.js"
 import { isToolCall } from "./replay.js"
+import {
+  ToolBatchApprovalRequiredError,
+  ToolBatchRecoveryRequiredError,
+  ToolBatchSuspendedError
+} from "./tool-execution.js"
 import {
   RecoveryEvidenceError,
   type AgentRunnerExecutionContext
@@ -26,21 +34,30 @@ export async function executeAgentTurn(
     const checkpoint = await recoveryCheckpoint(context, execution)
     step = checkpoint.nextStep
     if (checkpoint.pendingToolBatch !== undefined) {
-      const preRecoveryControl = await context.drainTurnControls(execution, false)
-      if (preRecoveryControl.status !== "continue") {
-        return await settleControlRequest(
-          context,
-          execution,
-          checkpoint.pendingToolBatch.step,
-          preRecoveryControl
-        )
+      const restoreSettledBatch = await isPendingToolBatchSettled(
+        context,
+        execution,
+        checkpoint.pendingToolBatch.message,
+        checkpoint.pendingToolBatch.calls
+      )
+      if (!restoreSettledBatch) {
+        const preRecoveryControl = await context.drainTurnControls(execution, false)
+        if (preRecoveryControl.status !== "continue") {
+          return await settleControlRequest(
+            context,
+            execution,
+            checkpoint.pendingToolBatch.step,
+            preRecoveryControl
+          )
+        }
       }
       await resumeToolBatch(
         context,
         request,
         checkpoint.pendingToolBatch.step,
         checkpoint.pendingToolBatch.message,
-        checkpoint.pendingToolBatch.calls
+        checkpoint.pendingToolBatch.calls,
+        restoreSettledBatch
       )
       const postRecoveryControl = await context.drainTurnControls(execution, true)
       if (postRecoveryControl.status !== "continue") {
@@ -71,7 +88,8 @@ export async function executeAgentTurn(
         replayMessages,
         request.signal,
         execution,
-        step
+        step,
+        request.heartbeat
       )
       const response = completion.response
       await request.heartbeat()
@@ -87,6 +105,19 @@ export async function executeAgentTurn(
       }
 
       const toolCalls = response.parts.filter(isToolCall)
+      if ((response.finish.reason === "tool_calls") !== (toolCalls.length > 0)) {
+        throw new ProviderStreamError({
+          category: "protocol",
+          message:
+            response.finish.reason === "tool_calls"
+              ? "provider finished with tool_calls but emitted no tool call"
+              : `provider emitted a tool call but finished with ${response.finish.reason}`,
+          retryable: false,
+          providerId: context.provider.providerId,
+          modelId: context.provider.model.id,
+          phase: "stream"
+        }, toolCalls.length > 0)
+      }
       if (toolCalls.length === 0) {
         const final = await settleOrContinueAfterFinalProvider(
           context,
@@ -153,6 +184,32 @@ export async function executeAgentTurn(
     throw new Error(`agent turn exceeded maxSteps: ${execution.maxSteps}`)
   } catch (error) {
     const normalized = error instanceof Error ? error : new Error(String(error))
+    if (error instanceof ToolBatchSuspendedError) {
+      return {
+        outcome: "suspended",
+        steps: step,
+        receipt: error.receipt
+      }
+    }
+    if (error instanceof ToolBatchApprovalRequiredError) {
+      return {
+        outcome: "suspended",
+        steps: step,
+        receipt: error.receipt
+      }
+    }
+    if (error instanceof ToolBatchRecoveryRequiredError) {
+      return {
+        outcome: "recovery_required",
+        steps: Math.max(0, step - 1),
+        settlement: {
+          turn: error.recovery.turn,
+          attempt: error.recovery.attempt,
+          job: error.recovery.job
+        },
+        error: normalized
+      }
+    }
     const abortReason = readActiveAbortReason(request.signal)
     if (
       abortReason?.kind === "lease_lost" ||
@@ -164,7 +221,6 @@ export async function executeAgentTurn(
       error instanceof ProviderStreamError && error.detail.outputObserved
     if (
       abortReason !== undefined &&
-      !providerAmbiguous &&
       (abortReason.kind === "cancel" || abortReason.kind === "interrupt")
     ) {
       const control = await context.drainTurnControls(execution, false)
@@ -204,6 +260,7 @@ export async function executeAgentTurn(
     )
     const outcome =
       error instanceof RecoveryEvidenceError ||
+      error instanceof ContextEpochRecoveryRequiredError ||
       providerAmbiguous ||
       openProviderInvocation
         ? "recovery_required"
@@ -211,13 +268,16 @@ export async function executeAgentTurn(
     const settlement = await context.session.settleTurn({
       ...executionIdentity(execution),
       outcome,
-      error: ({
-        name: normalized.name,
-        message: normalized.message,
-        ...(error instanceof ProviderStreamError
-          ? { provider: error.detail }
-          : {})
-      } as unknown as JsonValue),
+      error:
+        error instanceof ContextCapacityError
+          ? durableContextCapacityError(error.detail)
+          : ({
+              name: normalized.name,
+              message: normalized.message,
+              ...(error instanceof ProviderStreamError
+                ? { provider: error.detail }
+                : {})
+            } as unknown as JsonValue),
       reason: normalized.message
     })
     return {
@@ -415,7 +475,8 @@ async function resumeToolBatch(
   request: ExecuteTurnRequest,
   step: number,
   assistantMessage: SessionMessageRecord,
-  calls: readonly ToolCallMessagePart[]
+  calls: readonly ToolCallMessagePart[],
+  restoreSettledBatch: boolean
 ): Promise<void> {
   await request.heartbeat()
   throwIfAborted(request.signal, "agent turn")
@@ -430,7 +491,7 @@ async function resumeToolBatch(
     calls,
     request.execution,
     assistantMessage.id,
-    request.signal
+    restoreSettledBatch ? undefined : request.signal
   )
   const toolMessage = await context.session.appendMessage({
     ...executionIdentity(request.execution),
@@ -441,6 +502,27 @@ async function resumeToolBatch(
   if (toolMessage === null) {
     throw new Error("turn lost its lease before persisting recovered tool results")
   }
+}
+
+async function isPendingToolBatchSettled(
+  context: AgentRunnerExecutionContext,
+  execution: ExecuteTurnRequest["execution"],
+  assistantMessage: SessionMessageRecord,
+  calls: readonly ToolCallMessagePart[]
+): Promise<boolean> {
+  const executions = await context.session.listToolExecutions({
+    turnId: execution.turnId
+  })
+  return calls.every((call) =>
+    executions.some(
+      (candidate) =>
+        candidate.sourceMessageId === assistantMessage.id &&
+        candidate.toolCallId === call.toolCallId &&
+        (candidate.state === "succeeded" || candidate.state === "failed") &&
+        candidate.content !== undefined &&
+        candidate.contentDigest !== undefined
+    )
+  )
 }
 
 function isExactToolBatch(

@@ -6,23 +6,28 @@ import type {
   GetResourceRequest,
   IngestResourceRequest,
   JsonValue,
+  ListResourceProvenanceRequest,
   ListResourcesRequest,
   QueryEventsInput,
   ReadResourceContentRequest,
   ResourceContentChunk,
+  ResourceProvenanceRecord,
   ResourceRecord,
   ResourceTicket,
   ResourceTicketCleanupReceipt,
   ResourceTicketRequest,
+  RecordResourceProvenanceRequest,
   RuntimeEvent
 } from "@wanex/protocol"
 
 import {
   assertArray,
+  expectBoolean,
   fromRpcDoctorReport,
   fromRpcEvent,
   fromRpcFileRecord,
   fromRpcResourceRecord,
+  fromRpcResourceProvenanceRecord,
   fromRpcResourceContentChunk,
   fromRpcResourceTicket,
   fromRpcResourceTicketCleanupReceipt,
@@ -31,6 +36,8 @@ import {
   toRpcIngestResourceRequest,
   toRpcJsonValue,
   toRpcListResourcesRequest,
+  toRpcListResourceProvenanceRequest,
+  toRpcRecordResourceProvenanceRequest,
   toRpcQueryEvents
 } from "./codec.js"
 import { RpcStoreFacetBase } from "./rpc-store-base.js"
@@ -59,6 +66,27 @@ export class RuntimeStoreMethods extends RpcStoreFacetBase {
       key,
       value: toRpcJsonValue(value)
     })
+  }
+
+  async applyConfigMutations(request: {
+    readonly puts: readonly { readonly key: string; readonly value: JsonValue }[]
+    readonly deletes: readonly string[]
+  }): Promise<void> {
+    await this.callRuntime({
+      command: "apply-config-mutations",
+      puts: request.puts.map((entry) => ({
+        key: entry.key,
+        value: toRpcJsonValue(entry.value)
+      })),
+      deletes: [...request.deletes]
+    })
+  }
+
+  async hasLiveSecretReference(secretRef: string): Promise<boolean> {
+    return expectBoolean(await this.callRuntime({
+      command: "has-live-secret-reference",
+      secret_ref: secretRef
+    }), "has-live-secret-reference")
   }
 
   async getConfig(key: string): Promise<JsonValue | null> {
@@ -120,6 +148,27 @@ export class RuntimeStoreMethods extends RpcStoreFacetBase {
     })
     assertArray(value, "resources")
     return value.map(fromRpcResourceRecord)
+  }
+
+  async recordResourceProvenance(
+    request: RecordResourceProvenanceRequest
+  ): Promise<ResourceProvenanceRecord> {
+    const value = await this.callRuntime({
+      command: "record-resource-provenance",
+      request: toRpcRecordResourceProvenanceRequest(request)
+    })
+    return fromRpcResourceProvenanceRecord(value)
+  }
+
+  async listResourceProvenance(
+    request: ListResourceProvenanceRequest
+  ): Promise<ResourceProvenanceRecord[]> {
+    const value = await this.callRuntime({
+      command: "list-resource-provenance",
+      request: toRpcListResourceProvenanceRequest(request)
+    })
+    assertArray(value, "resource provenance")
+    return value.map(fromRpcResourceProvenanceRecord)
   }
 
   async createResourceTicket(

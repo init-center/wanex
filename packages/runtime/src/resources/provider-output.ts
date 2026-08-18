@@ -3,7 +3,6 @@ import type {
   ResourceKind,
   ResourceSource
 } from "@wanex/protocol"
-import { stableResourceLogicalPath } from "./path.js"
 import type {
   ProviderArtifactBase,
   ProviderArtifactOutput
@@ -35,7 +34,6 @@ function commonRequest(
 ): IngestResourceRequest {
   const kind = output.kind ?? kindForMediaType(output.mediaType)
   return {
-    logicalPath: stableResourceLogicalPath(kind, bytes, output.mediaType),
     content: bytes,
     ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
     kind,

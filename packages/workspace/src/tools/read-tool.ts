@@ -6,7 +6,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
-import { createToolRuntimeBinding } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding, jsonToolResultContent } from "@wanex/runtime/tools"
 import { WorkspacePathResolver } from "../path-policy.js"
 import { inputRecord, requiredString } from "./input.js"
 
@@ -26,6 +26,8 @@ export class WorkspaceReadTextTool implements ToolDefinition {
   } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly concurrency = "parallel_safe" as const
+  readonly resultMode = "immediate" as const
   readonly annotations = {
     readOnlyHint: true,
     idempotentHint: true
@@ -56,6 +58,42 @@ export class WorkspaceReadTextTool implements ToolDefinition {
     })
   }
 
+  presentCall(input: JsonValue) {
+    const path = requiredString(inputRecord(input), "path")
+    return {
+      summary: "Read workspace file",
+      details: [{ label: "Path", value: path }]
+    }
+  }
+
+  presentResult(request: {
+    readonly input: JsonValue
+    readonly result: ToolExecutionResult
+  }) {
+    const path = requiredString(inputRecord(request.input), "path")
+    return {
+      summary: request.result.outcome === "succeeded"
+        ? "Workspace file read"
+        : "Workspace file read failed",
+      details: [{ label: "Path", value: path }]
+    }
+  }
+
+  presentFailure(request: {
+    readonly input: JsonValue
+    readonly reason: "exception" | "cancelled" | "timed_out"
+  }) {
+    const path = requiredString(inputRecord(request.input), "path")
+    return {
+      summary: request.reason === "timed_out"
+        ? "Workspace read timed out"
+        : request.reason === "cancelled"
+          ? "Workspace read stopped"
+          : "Workspace file read failed",
+      details: [{ label: "Path", value: path }]
+    }
+  }
+
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
     const path = requiredString(inputRecord(invocation.input), "path")
     const result = await readBoundedText(
@@ -64,12 +102,12 @@ export class WorkspaceReadTextTool implements ToolDefinition {
       this.maxOutputBytes
     )
     return {
+      outcome: "succeeded",
       toolCallId: invocation.toolCallId,
-      result: {
+      content: jsonToolResultContent({
         path,
         ...result
-      } satisfies JsonValue,
-      isError: false
+      } satisfies JsonValue)
     }
   }
 }

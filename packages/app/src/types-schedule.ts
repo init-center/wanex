@@ -2,6 +2,7 @@ import type {
   SchedulerJobState,
   SessionId
 } from "@wanex/protocol"
+import type { WanexAppConversationOperationReceipt } from "./types-conversation-operation.js"
 import type {
   WanexAppClassifierHint
 } from "./types-workflow-envelope.js"
@@ -36,12 +37,8 @@ export interface WanexAppScheduledTickSubmittedResult {
   readonly status: "submitted"
   readonly scheduleId: string
   readonly tickId: string
-  readonly sessionId: SessionId
-  readonly inputId?: string
-  readonly jobId?: string
-  readonly providerProfileId: string
-  readonly assistantText: string
-  readonly jobStatuses: readonly SchedulerJobState[]
+  readonly modelEndpointId: string
+  readonly receipt: WanexAppConversationOperationReceipt
 }
 
 export interface WanexAppScheduledTickSkippedResult {

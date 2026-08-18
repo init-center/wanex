@@ -6,23 +6,23 @@ import {
   type MemoryCompactionRetentionPolicy
 } from "../memory/index.js"
 import type {
-  JsonValue,
+  ModelEndpointExecutionBinding,
   SchedulerJobRecord,
   SessionId
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type { WorkerRunOnceResult } from "../jobs/index.js"
 import type { AgentRunOnceResult } from "../execution/agent-runtime/index.js"
+import { sessionTurnJobIdentity } from "../execution/worker/index.js"
+import type { ProviderAdapter } from "../provider/index.js"
+import type { SecretResolverPort } from "../secrets/index.js"
 
 export interface RuntimeHostMemoryCompactionOptions {
   readonly enabled?: boolean
   readonly workerCount?: number
   readonly policy?: Parameters<typeof planMemoryCompaction>[0]["policy"]
-  readonly waterlineTokens?: number
-  readonly minimumTokenSavings?: number
   readonly principalId?: string
   readonly priority?: number
-  readonly maxAttempts?: number
   readonly retention?: MemoryCompactionRetentionPolicy
 }
 
@@ -53,6 +53,8 @@ export interface CreateMemoryWorkersRequest {
   readonly leaseMs?: number
   readonly heartbeatIntervalMs?: number
   readonly timeoutMs?: number
+  readonly directProvider?: ProviderAdapter
+  readonly secretResolver?: SecretResolverPort
   createWorkerId(index: number): string
 }
 
@@ -91,9 +93,12 @@ export function createRuntimeHostMemoryWorkers(
         ? {}
         : { heartbeatIntervalMs: request.heartbeatIntervalMs }),
       ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs }),
-      ...(request.config?.policy === undefined
+      ...(request.directProvider === undefined
         ? {}
-        : { policy: request.config.policy }),
+        : { directProvider: request.directProvider }),
+      ...(request.secretResolver === undefined
+        ? {}
+        : { secretResolver: request.secretResolver }),
       ...(request.config?.retention === undefined
         ? {}
         : { retention: request.config.retention })
@@ -110,37 +115,34 @@ export async function runMemoryCompactionOnce(request: {
   if (request.config === undefined) {
     return undefined
   }
-  const completedSessionIds = sessionIdsFromCompletedRuns(request.agentResults)
+  const completedTurns = await completedTurnsFromRuns(
+    request.storage,
+    request.agentResults
+  )
   const plans: MemoryCompactionPlan[] = []
   const submittedJobs: SchedulerJobRecord[] = []
-  for (const completed of completedSessionIds) {
+  for (const completed of completedTurns) {
     const plan = await planMemoryCompaction({
       storage: request.storage,
       sessionId: completed.sessionId,
+      modelEndpoint: completed.modelEndpoint,
       ...(request.config.policy === undefined
         ? {}
-        : { policy: request.config.policy }),
-      ...(request.config.waterlineTokens === undefined
-        ? {}
-        : { waterlineTokens: request.config.waterlineTokens }),
-      ...(request.config.minimumTokenSavings === undefined
-        ? {}
-        : { minimumTokenSavings: request.config.minimumTokenSavings })
+        : { policy: request.config.policy })
     })
     plans.push(plan)
     if (plan.decision !== "submit") {
       continue
     }
+    if (plan.evidence === undefined) {
+      throw new Error("submitted memory compaction plan is missing frozen evidence")
+    }
     submittedJobs.push(
       await submitMemoryCompactionJob(request.storage, {
         principalId: request.config.principalId,
-        sessionId: completed.sessionId,
-        ...(request.config.policy === undefined
-          ? {}
-          : { policy: request.config.policy }),
+        evidence: plan.evidence,
         priority: request.config.priority ?? 0,
-        maxAttempts: request.config.maxAttempts ?? 3,
-        idempotencyKey: `memory.compaction:${completed.jobId}:${plan.policyVersion}`
+        idempotencyKey: `memory.compaction:${completed.sessionId}:${plan.evidence.sourceDigest}:${plan.evidence.policyDigest}`
       })
     )
   }
@@ -154,12 +156,18 @@ export async function runMemoryCompactionOnce(request: {
   }
 }
 
-function sessionIdsFromCompletedRuns(
+async function completedTurnsFromRuns(
+  storage: CoreStore,
   results: readonly AgentRunOnceResult[]
-): Array<{ readonly jobId: string; readonly sessionId: SessionId }> {
+): Promise<Array<{
+    readonly jobId: string
+    readonly sessionId: SessionId
+    readonly modelEndpoint: ModelEndpointExecutionBinding
+  }>> {
   const completed: Array<{
     readonly jobId: string
     readonly sessionId: SessionId
+    readonly modelEndpoint: ModelEndpointExecutionBinding
   }> = []
   for (const result of results) {
     if (result.worker.status !== "completed" || result.job === undefined) {
@@ -168,24 +176,28 @@ function sessionIdsFromCompletedRuns(
     if (result.job.kind !== "session.turn") {
       continue
     }
-    const sessionId = sessionIdFromSessionTurnPayload(result.job.payload)
-    if (sessionId === null) {
-      continue
-    }
+    const identity = sessionTurnJobIdentity(result.job)
+    const turn = (await storage.listSessionTurns({ sessionId: identity.sessionId }))
+      .find((candidate) => candidate.id === identity.turnId)
+    if (
+      turn === undefined ||
+      turn.jobId !== result.job.id ||
+      !isTerminalTurnState(turn.state)
+    ) continue
     completed.push({
       jobId: result.job.id,
-      sessionId
+      sessionId: identity.sessionId,
+      modelEndpoint: turn.executionBinding.modelEndpoint
     })
   }
   return completed
 }
 
-function sessionIdFromSessionTurnPayload(payload: JsonValue): SessionId | null {
-  if (payload === null || typeof payload !== "object" || Array.isArray(payload)) {
-    return null
-  }
-  const sessionId = (payload as { readonly sessionId?: unknown }).sessionId
-  return typeof sessionId === "string" && sessionId.length > 0
-    ? sessionId
-    : null
+function isTerminalTurnState(state: string): boolean {
+  return (
+    state === "succeeded" ||
+    state === "failed" ||
+    state === "cancelled" ||
+    state === "interrupted"
+  )
 }

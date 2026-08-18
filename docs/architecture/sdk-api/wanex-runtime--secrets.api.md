@@ -90,9 +90,9 @@ export interface SecretResolveContext {
     // (undocumented)
     readonly credentialId?: string;
     // (undocumented)
-    readonly principalId?: string;
+    readonly modelEndpointId?: string;
     // (undocumented)
-    readonly providerProfileId?: string;
+    readonly principalId?: string;
     // (undocumented)
     readonly signal?: AbortSignal;
 }
@@ -112,6 +112,22 @@ export class SecretResolver implements SecretResolverPort {
 export interface SecretResolverPort {
     // (undocumented)
     resolve(ref: string, context?: SecretResolveContext): Promise<ResolvedSecret>;
+}
+
+// @public
+export interface SecretStorePort extends SecretResolverPort {
+    // (undocumented)
+    delete(ref: string): Promise<void>;
+    // (undocumented)
+    put(request: SecretStorePutRequest): Promise<void>;
+    // (undocumented)
+    readonly scheme: string;
+}
+
+// @public (undocumented)
+export interface SecretStorePutRequest {
+    readonly ref: string;
+    readonly value: string;
 }
 
 // @public (undocumented)

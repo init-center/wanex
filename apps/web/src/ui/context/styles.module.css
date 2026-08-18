@@ -1,0 +1,6 @@
+.context-panel { width: 340px; min-width: 0; min-height: 0; padding: 20px 17px; overflow-y: auto; background: var(--color-overlay); border-left: 1px solid var(--color-glass-edge); box-shadow: inset 1px 0 0 var(--color-glass-highlight); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); }
+.context-panel-header { justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.context-value { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-line); font-size: 11px; }
+.context-value span { color: var(--color-text-muted); }
+.context-value strong { color: var(--color-text-secondary); font-weight: 600; text-align: right; text-transform: capitalize; }
+.context-note { margin-top: 18px; color: var(--color-text-muted); font-size: 10px; line-height: 1.6; }

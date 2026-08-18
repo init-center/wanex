@@ -83,7 +83,7 @@ export async function runTerminalReleasePolicyFixture(
     graphId: graph.id,
     workerId: "eval_terminal_policy_graph_worker",
     jobKindsByNodeKind: {
-      workspace_task: "tool.deferred_result"
+      workspace_task: "workspace.task"
     },
     readyScanLimit: 2,
     materializeLimit: 2
@@ -104,7 +104,7 @@ export async function runTerminalReleasePolicyFixture(
   const claimedFailed = await context.storage.claimJob({
     workerId: "eval_terminal_policy_workspace_worker",
     leaseMs: 60_000,
-    kinds: ["tool.deferred_result"]
+    kinds: ["workspace.task"]
   })
   assert(claimedFailed !== null, "failed source job should be claimable")
   const failed = await context.storage.failJob({
@@ -125,7 +125,7 @@ export async function runTerminalReleasePolicyFixture(
     graphId: graph.id,
     workerId: "eval_terminal_policy_graph_worker",
     jobKindsByNodeKind: {
-      workspace_task: "tool.deferred_result"
+      workspace_task: "workspace.task"
     },
     readyScanLimit: 4,
     materializeLimit: 4
@@ -153,7 +153,7 @@ export async function runTerminalReleasePolicyFixture(
     const claimedCleanup = await context.storage.claimJob({
       workerId: "eval_terminal_policy_cleanup_worker",
       leaseMs: 60_000,
-      kinds: ["tool.deferred_result"]
+      kinds: ["workspace.task"]
     })
     assert(
       claimedCleanup?.id === materialized.job.id,

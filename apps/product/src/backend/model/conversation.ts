@@ -1,0 +1,72 @@
+import type {
+  WanexApp,
+  WanexAppCancelConversationOperationReceipt,
+  WanexAppCancelConversationOperationRequest,
+  WanexAppConversationOperationReadResult,
+  WanexAppConversationOperationReference,
+  WanexAppConversationOperationReceipt,
+  WanexAppConversationOperationState,
+  WanexAppEvents,
+  WanexAppListConversationOperationApprovalsRequest,
+  WanexAppConversationOperationApprovalListResult,
+  WanexAppConversationOperationApprovalReadResult,
+  WanexAppReadConversationOperationApprovalRequest,
+  WanexAppReadConversationOperationRequest,
+  WanexAppResolveConversationOperationApprovalReceipt,
+  WanexAppResolveConversationOperationApprovalRequest,
+  WanexAppResolveConversationOperationRecoveryReceipt,
+  WanexAppResolveConversationOperationRecoveryRequest,
+  WanexAppSteerConversationOperationReceipt,
+  WanexAppSteerConversationOperationRequest,
+  WanexAppSubmitConversationOperationRequest
+} from "@wanex/app"
+
+export type BackendConversationCommands = Pick<
+  WanexApp["commands"],
+  | "submitConversationOperation"
+  | "readConversationOperation"
+  | "cancelConversationOperation"
+  | "steerConversationOperation"
+  | "listConversationOperationApprovals"
+  | "readConversationOperationApproval"
+  | "resolveConversationOperationApproval"
+  | "resolveConversationOperationRecovery"
+>
+
+export type BackendSubmitConversationOperationRequest =
+  WanexAppSubmitConversationOperationRequest
+export type BackendConversationOperationReceipt =
+  WanexAppConversationOperationReceipt
+export type BackendConversationOperationReference =
+  WanexAppConversationOperationReference
+export type BackendConversationOperationState =
+  WanexAppConversationOperationState
+export type BackendReadConversationOperationRequest =
+  WanexAppReadConversationOperationRequest
+export type BackendConversationOperationReadResult =
+  WanexAppConversationOperationReadResult
+export type BackendCancelConversationOperationRequest =
+  WanexAppCancelConversationOperationRequest
+export type BackendCancelConversationOperationReceipt =
+  WanexAppCancelConversationOperationReceipt
+export type BackendSteerConversationOperationRequest =
+  WanexAppSteerConversationOperationRequest
+export type BackendSteerConversationOperationReceipt =
+  WanexAppSteerConversationOperationReceipt
+export type BackendListConversationOperationApprovalsRequest =
+  WanexAppListConversationOperationApprovalsRequest
+export type BackendConversationOperationApprovalListResult =
+  WanexAppConversationOperationApprovalListResult
+export type BackendReadConversationOperationApprovalRequest =
+  WanexAppReadConversationOperationApprovalRequest
+export type BackendConversationOperationApprovalReadResult =
+  WanexAppConversationOperationApprovalReadResult
+export type BackendResolveConversationOperationApprovalRequest =
+  WanexAppResolveConversationOperationApprovalRequest
+export type BackendResolveConversationOperationApprovalReceipt =
+  WanexAppResolveConversationOperationApprovalReceipt
+export type BackendResolveConversationOperationRecoveryRequest =
+  WanexAppResolveConversationOperationRecoveryRequest
+export type BackendResolveConversationOperationRecoveryReceipt =
+  WanexAppResolveConversationOperationRecoveryReceipt
+export type BackendEvents = WanexAppEvents

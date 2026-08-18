@@ -1,63 +1,59 @@
-import type { ProviderReplayMessage } from "../../provider/index.js"
 import type {
   ContextEpochRecord,
-  ContextReplacementRecord as DurableContextReplacementRecord,
   GetActiveContextEpochRequest,
-  ListContextReplacementsRequest,
-  MessagePart,
-  PutContextReplacementRequest,
-  SessionId,
+  JsonValue,
+  ModelEndpointExecutionBinding,
   SessionInputRecord,
-  SessionMessageRecord
+  SessionMessageRecord,
+  SessionTurnRecord
 } from "@wanex/protocol"
+import type {
+  PreparedProviderReplayMessage,
+  ProviderReplayMessage
+} from "../../provider/index.js"
 import type { ContextTokenEstimator } from "./token-estimate.js"
 
-export type ContextReplacementTier = "tier1_snip" | "tier2_placeholder"
+export interface ContextCompactionPolicy {
+  readonly algorithm: "semantic-summary"
+  readonly modelContextWindowTokens: number
+  readonly modelMaxInputTokens?: number
+  readonly waterlineTokens: number
+  readonly keepRecentTokens: number
+  readonly minimumRecentTurns: number
+  readonly maxSummaryOutputTokens: number
+  readonly maxSerializedToolResultChars: number
+  readonly minimumTokenSavings: number
+  readonly maxProviderAttempts: number
+}
 
-export interface ContextMemoryPolicy {
-  readonly version: string
-  readonly maxInputTokens: number
-  readonly recentUserTurns: number
-  readonly snipTextOverChars: number
-  readonly placeholderTextOverChars: number
-  readonly snipHeadChars: number
-  readonly snipTailChars: number
+export interface ContextCompactionPolicyOverrides {
+  readonly reserveInputTokens?: number
+  readonly keepRecentTokens?: number
+  readonly minimumRecentTurns?: number
+  readonly maxSummaryOutputTokens?: number
+  readonly maxSerializedToolResultChars?: number
+  readonly minimumTokenSavings?: number
+  readonly maxProviderAttempts?: number
 }
 
 export interface CompileContextInput {
-  readonly sessionId: SessionId
+  readonly sessionId: string
   readonly epochId?: string
   readonly inputs: readonly SessionInputRecord[]
   readonly messages: readonly SessionMessageRecord[]
-  readonly policy?: Partial<ContextMemoryPolicy>
   readonly tokenEstimator?: ContextTokenEstimator
-}
-
-export interface ContextReplacementRecord {
-  readonly id: string
-  readonly epochId?: string
-  readonly sessionId: SessionId
-  readonly policyVersion: string
-  readonly messageId?: string
-  readonly partId: string
-  readonly tier: ContextReplacementTier
-  readonly originalTokenEstimate: number
-  readonly replacementTokenEstimate: number
-  readonly replacement: MessagePart
 }
 
 export interface ContextCompileStats {
   readonly tokenEstimateBefore: number
   readonly tokenEstimateAfter: number
-  readonly replacementCount: number
+  readonly summarizedThroughSequence?: number
 }
 
 export interface CompiledContext {
-  readonly sessionId: SessionId
+  readonly sessionId: string
   readonly epochId?: string
-  readonly policy: ContextMemoryPolicy
   readonly messages: readonly ProviderReplayMessage[]
-  readonly replacements: readonly ContextReplacementRecord[]
   readonly stats: ContextCompileStats
 }
 
@@ -65,29 +61,89 @@ export interface ContextCompiler {
   compile(input: CompileContextInput): Promise<CompiledContext>
 }
 
-export interface DeterministicContextCompilerOptions {
-  readonly policy?: Partial<ContextMemoryPolicy>
-  readonly replacementStore?: ContextReplacementStore
+export interface SemanticContextCompilerOptions {
+  readonly epochStore: ContextEpochStore
   readonly tokenEstimator?: ContextTokenEstimator
 }
 
-export interface ContextReplacementStore {
+export interface ContextEpochStore {
   getActiveContextEpoch(
     request: GetActiveContextEpochRequest
   ): Promise<ContextEpochRecord | null>
-  listContextReplacements(
-    request: ListContextReplacementsRequest
-  ): Promise<readonly DurableContextReplacementRecord[]>
-  putContextReplacement(
-    request: PutContextReplacementRequest
-  ): Promise<DurableContextReplacementRecord>
 }
 
-export interface ReplaySource {
-  readonly role: ProviderReplayMessage["role"]
-  readonly content: readonly MessagePart[]
-  readonly inputId?: string
-  readonly inputStatus?: SessionInputRecord["status"]
-  readonly messageId?: string
-  readonly createdAt: number
+export type ContextCompactionPlanReason =
+  | "above_waterline"
+  | "below_waterline"
+  | "model_limit_unknown"
+  | "no_compactable_turns"
+  | "unsafe_turn_boundary"
+  | "summary_input_too_large"
+  | "insufficient_savings"
+  | "retained_tail_too_large"
+
+export interface ContextCompactionEvidence {
+  readonly sessionId: string
+  readonly previousEpochId?: string
+  readonly previousSummaryDigest?: string
+  readonly sourceHeadSequence: number
+  readonly sourceHeadMessageId: string
+  readonly cutSequence: number
+  readonly cutMessageId: string
+  readonly retainedFromSequence: number
+  readonly retainedFromMessageId: string
+  readonly sourceDigest: string
+  readonly policy: ContextCompactionPolicy
+  readonly policyDigest: string
+  readonly modelEndpoint: ModelEndpointExecutionBinding
+  readonly requestDigest: string
+  readonly tokenEstimateBefore: number
+  readonly projectedTokenEstimateAfter: number
+}
+
+export interface PreparedContextCompaction {
+  readonly decision: "submit" | "skip"
+  readonly reason: ContextCompactionPlanReason
+  readonly policy?: ContextCompactionPolicy
+  readonly tokenEstimateBefore: number
+  readonly projectedTokenEstimateAfter: number
+  readonly tokenSavings: number
+  readonly evidence?: ContextCompactionEvidence
+  readonly providerMessages?: readonly ProviderReplayMessage[]
+}
+
+export interface PrepareContextCompactionInput {
+  readonly sessionId: string
+  readonly messages: readonly SessionMessageRecord[]
+  readonly turns: readonly SessionTurnRecord[]
+  readonly activeEpoch: ContextEpochRecord | null
+  readonly modelEndpoint: ModelEndpointExecutionBinding
+  readonly policy?: ContextCompactionPolicyOverrides
+  readonly tokenEstimator?: ContextTokenEstimator
+}
+
+export interface ReconstructContextCompactionInput {
+  readonly evidence: ContextCompactionEvidence
+  readonly messages: readonly SessionMessageRecord[]
+  readonly activeEpoch: ContextEpochRecord | null
+  readonly tokenEstimator?: ContextTokenEstimator
+}
+
+export interface SerializedContextSource {
+  readonly text: string
+  readonly sourceDigest: string
+  readonly requestDigest: string
+  readonly providerMessages: readonly PreparedProviderReplayMessage[]
+  readonly tokenEstimate: number
+}
+
+export interface ContextSummaryProviderRequest {
+  readonly messages: readonly PreparedProviderReplayMessage[]
+  readonly maxOutputTokens: number
+  readonly tools?: never
+  readonly toolChoice?: never
+}
+
+export interface ContextCompactionPolicyJson extends Readonly<Record<string, JsonValue>> {
+  readonly algorithm: "semantic-summary"
 }

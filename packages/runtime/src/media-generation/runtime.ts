@@ -1,16 +1,11 @@
-import { createHash, randomUUID } from "node:crypto"
+import { randomUUID } from "node:crypto"
 import type {
-  IngestResourceRequest,
   JsonValue,
   MediaGenerationOperationBinding,
   MediaGenerationOperationRecord,
-  MediaGenerationOutputReferenceRecord,
-  ResourceInputEvidence,
-  ResourceKind
+  ResourceInputEvidence
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
-import { sha256Bytes, stableResourceLogicalPath } from "../resources/index.js"
-import { resourceInputModality } from "../resources/input.js"
 import {
   ActiveExecutionAbortRegistry,
   readActiveAbortReason
@@ -23,27 +18,59 @@ import type {
   MediaGenerationAdapterRequest,
   MediaGenerationMaterializedOutput,
   MediaGenerationProviderOutput,
-  MediaGenerationProviderOutputBase,
   MediaGenerationRuntimeOptions,
   MediaGenerationRunResult,
   SubmitMediaGenerationRequest
 } from "./types.js"
+import {
+  isReferenceOutput,
+  materializedOutputToIngestRequest,
+  referenceToOutput,
+  toOutputReference,
+  toProviderReference
+} from "./output.js"
+import {
+  MediaGenerationAdapterRegistry,
+  prepareMediaGenerationOperationBinding
+} from "./binding.js"
 
 const DEFAULT_MAX_OUTPUT_BYTES = 100 * 1024 * 1024
-const MAX_TRANSIENT_ERRORS = 3
-const POLL_DELAY_MS = 100
+const DEFAULT_POLL_INITIAL_DELAY_MS = 1_000
+const DEFAULT_POLL_MAX_DELAY_MS = 30_000
+const DEFAULT_MAX_CONSECUTIVE_POLL_FAILURES = 3
 
 export class WanexMediaGenerationRuntime {
   readonly runtime: WanexJobRuntime
   readonly storage: CoreStore
-  private readonly adapters: ReadonlyMap<string, MediaGenerationAdapter>
+  private readonly adapters: MediaGenerationAdapterRegistry
   private readonly maxOutputBytes: number
+  private readonly pollInitialDelayMs: number
+  private readonly pollMaxDelayMs: number
+  private readonly maxConsecutivePollFailures: number
   readonly #activeAbortRegistry: ActiveExecutionAbortRegistry
 
   constructor(options: MediaGenerationRuntimeOptions) {
     this.storage = options.storage
-    this.adapters = createAdapterMap(options.adapters)
+    this.adapters = new MediaGenerationAdapterRegistry(options.adapters)
     this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
+    this.pollInitialDelayMs = positiveInteger(
+      options.pollInitialDelayMs ?? DEFAULT_POLL_INITIAL_DELAY_MS,
+      "media generation pollInitialDelayMs"
+    )
+    this.pollMaxDelayMs = positiveInteger(
+      options.pollMaxDelayMs ?? DEFAULT_POLL_MAX_DELAY_MS,
+      "media generation pollMaxDelayMs"
+    )
+    if (this.pollMaxDelayMs < this.pollInitialDelayMs) {
+      throw new Error(
+        "media generation pollMaxDelayMs must be greater than or equal to pollInitialDelayMs"
+      )
+    }
+    this.maxConsecutivePollFailures = positiveInteger(
+      options.maxConsecutivePollFailures ??
+        DEFAULT_MAX_CONSECUTIVE_POLL_FAILURES,
+      "media generation maxConsecutivePollFailures"
+    )
     this.#activeAbortRegistry =
       options.activeAbortRegistry ?? new ActiveExecutionAbortRegistry()
     this.runtime = new WanexJobRuntime({
@@ -63,8 +90,8 @@ export class WanexMediaGenerationRuntime {
   }
 
   async submit(request: SubmitMediaGenerationRequest) {
-    const adapter = this.adapterForProfile(request.providerProfileId)
-    const binding = await this.createBinding(adapter, request)
+    this.adapters.requireExecutionBinding(request.modelEndpoint)
+    const binding = await this.createBinding(request)
     return await this.storage.submitMediaGenerationOperation({
       principalId: request.principalId ?? "wanex-media-user",
       idempotencyKey:
@@ -99,8 +126,14 @@ export class WanexMediaGenerationRuntime {
       return { status: "idle" }
     }
     const operation = await this.operationFromJob(result.job)
+    const status =
+      result.status === "failed"
+        ? "failed"
+        : operation !== null && !isTerminalOperation(operation)
+          ? "suspended"
+          : "completed"
     return {
-      status: result.status === "completed" ? "completed" : "failed",
+      status,
       ...(operation === null ? {} : { operation }),
       ...(result.status === "failed" ? { error: result.error } : {})
     }
@@ -138,7 +171,7 @@ export class WanexMediaGenerationRuntime {
     let adapter: MediaGenerationAdapter | undefined
     try {
       try {
-        adapter = this.adapterForBinding(begun.operation.binding)
+        adapter = this.adapters.requireOperationBinding(begun.operation.binding)
       } catch (error) {
         throw new MediaGenerationBindingMismatchError(
           error instanceof Error ? error.message : String(error)
@@ -160,11 +193,12 @@ export class WanexMediaGenerationRuntime {
             context,
             "failed",
             submitted.error,
-            "provider rejected generation request"
+            "provider rejected generation request",
+            "none"
           )
         }
         if (submitted.status === "accepted") {
-          await this.storage.acceptMediaGenerationOperation({
+          const accepted = await this.storage.acceptMediaGenerationOperation({
             operationId,
             workerId: context.job.leaseOwner ?? "",
             leaseToken: requireLeaseToken(context.job),
@@ -173,17 +207,36 @@ export class WanexMediaGenerationRuntime {
               ? {}
               : { providerCheckpoint: submitted.providerCheckpoint })
           })
-          return await this.pollUntilSettled(adapter, request, context)
+          if (accepted === null) {
+            throw new Error(`media generation acceptance lost: ${operationId}`)
+          }
+          if (accepted.state === "cancel_requested") {
+            return await this.cancelAndAcknowledge(
+              accepted,
+              adapter,
+              request,
+              context
+            )
+          }
+          return await this.suspendAndAcknowledge({
+            operation: accepted,
+            adapter,
+            request,
+            context,
+            outcome: "scheduled",
+            delayMs: this.pollDelayMs(0, submitted.pollAfterMs)
+          })
         }
         return await this.materializeAndComplete(
           adapter,
           request,
           submitted.outputs,
-          context
+          context,
+          "none"
         )
       }
       if (begun.operation.state === "polling") {
-        return await this.pollUntilSettled(adapter, request, context)
+        return await this.pollOnce(adapter, request, context)
       }
       if (begun.operation.state === "materializing") {
         return await this.materializePersistedAndComplete(adapter, request, context)
@@ -196,8 +249,9 @@ export class WanexMediaGenerationRuntime {
           latest ?? begun.operation,
           context,
           "recovery_required",
-          { type: "provider_profile_mismatch", message: error.message },
-          "media generation provider binding is no longer available"
+          { type: "model_endpoint_mismatch", message: error.message },
+          "media generation provider binding is no longer available",
+          "none"
         )
       }
       if (error instanceof MediaGenerationAmbiguousSubmissionError) {
@@ -206,7 +260,8 @@ export class WanexMediaGenerationRuntime {
           context,
           "recovery_required",
           { type: "ambiguous_provider_submission", message: error.message },
-          "provider submission may have been accepted without a durable checkpoint"
+          "provider submission may have been accepted without a durable checkpoint",
+          "none"
         )
       }
       const abort = readActiveAbortReason(context.signal)
@@ -217,7 +272,8 @@ export class WanexMediaGenerationRuntime {
             context,
             "recovery_required",
             { type: "provider_adapter_unavailable" },
-            "cannot cancel provider operation without its bound adapter"
+            "cannot cancel provider operation without its bound adapter",
+            "none"
           )
         }
         return await this.cancelAndAcknowledge(
@@ -228,12 +284,23 @@ export class WanexMediaGenerationRuntime {
         )
       }
       if (abort?.kind === "host_shutdown" || abort?.kind === "timeout") {
+        if (latest?.state === "polling" && adapter !== undefined) {
+          return await this.suspendAndAcknowledge({
+            operation: latest,
+            adapter,
+            request,
+            context,
+            outcome: "scheduled",
+            delayMs: this.pollDelayMs(latest.pollCount)
+          })
+        }
         return await this.settleAndAcknowledge(
           latest ?? begun.operation,
           context,
           "recovery_required",
           { type: abort.kind, message: abort.message },
-          "media generation worker stopped before operation settlement"
+          "media generation worker stopped before operation settlement",
+          "none"
         )
       }
       if (abort !== undefined) {
@@ -244,7 +311,8 @@ export class WanexMediaGenerationRuntime {
         context,
         "failed",
         { type: "runtime_error", message: error instanceof Error ? error.message : String(error) },
-        "media generation worker failed"
+        "media generation worker failed",
+        "none"
       )
     }
   }
@@ -259,82 +327,168 @@ export class WanexMediaGenerationRuntime {
     }
   }
 
-  private async pollUntilSettled(
+  private async pollOnce(
     adapter: MediaGenerationAdapter,
     request: MediaGenerationAdapterRequest,
     context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0]
   ): Promise<WorkerHandlerReturn> {
-    let transientErrors = 0
-    for (;;) {
-      const operation = await this.requireOperation(request.operationId)
-      if (operation.state === "cancel_requested") {
-        return await this.cancelAndAcknowledge(operation, adapter, request, context)
+    const operation = await this.requireOperation(request.operationId)
+    if (operation.state === "cancel_requested") {
+      return await this.cancelAndAcknowledge(operation, adapter, request, context)
+    }
+    if (operation.externalOperationId === undefined) {
+      return await this.settleAndAcknowledge(
+        operation,
+        context,
+        "recovery_required",
+        { type: "missing_provider_checkpoint" },
+        "polling operation has no external provider operation id",
+        "none"
+      )
+    }
+    let result
+    try {
+      result = await adapter.poll({
+        ...request,
+        externalOperationId: operation.externalOperationId,
+        ...(operation.providerCheckpoint === undefined
+          ? {}
+          : { providerCheckpoint: operation.providerCheckpoint })
+      })
+    } catch (error) {
+      if (context.signal.aborted) throw error
+      const consecutiveFailures = operation.consecutivePollFailures + 1
+      const evidence = {
+        type: "provider_poll_error",
+        message: error instanceof Error ? error.message : String(error),
+        consecutiveFailures
       }
-      if (operation.externalOperationId === undefined) {
-        return await this.settleAndAcknowledge(
-          operation,
-          context,
-          "recovery_required",
-          { type: "missing_provider_checkpoint" },
-          "polling operation has no external provider operation id"
-        )
-      }
-      let result
-      try {
-        result = await adapter.poll({
-          ...request,
-          externalOperationId: operation.externalOperationId,
-          ...(operation.providerCheckpoint === undefined
-            ? {}
-            : { providerCheckpoint: operation.providerCheckpoint })
-        })
-        transientErrors = 0
-      } catch (error) {
-        if (context.signal.aborted) throw error
-        transientErrors += 1
-        if (transientErrors >= MAX_TRANSIENT_ERRORS) {
-          return await this.settleAndAcknowledge(
-            operation,
-            context,
-            "failed",
-            { type: "provider_poll_error", message: error instanceof Error ? error.message : String(error) },
-            "provider polling failed repeatedly"
-          )
-        }
-        await delay(POLL_DELAY_MS, context.signal)
-        continue
-      }
-      if (result.status === "pending") {
-        await this.storage.checkpointMediaGenerationOperation({
-          operationId: operation.id,
-          workerId: context.job.leaseOwner ?? "",
-          leaseToken: requireLeaseToken(context.job),
-          ...(result.providerCheckpoint === undefined
-            ? {}
-            : { providerCheckpoint: result.providerCheckpoint }),
-          ...(result.progress === undefined ? {} : { progress: result.progress })
-        })
-        await delay(POLL_DELAY_MS, context.signal)
-        continue
-      }
-      if (result.status === "failed") {
+      if (consecutiveFailures >= this.maxConsecutivePollFailures) {
         return await this.settleAndAcknowledge(
           operation,
           context,
           "failed",
-          result.error,
-          "provider reported generation failure"
+          evidence,
+          "provider polling failed repeatedly",
+          "transient_error"
         )
       }
-      return await this.materializeAndComplete(adapter, request, result.outputs, context)
+      return await this.suspendAndAcknowledge({
+        operation,
+        adapter,
+        request,
+        context,
+        outcome: "transient_error",
+        delayMs: this.pollDelayMs(consecutiveFailures - 1),
+        error: evidence
+      })
     }
+    if (result.status === "pending") {
+      return await this.suspendAndAcknowledge({
+        operation,
+        adapter,
+        request,
+        context,
+        outcome: "pending",
+        delayMs: this.pollDelayMs(operation.pollCount, result.pollAfterMs),
+        ...(result.providerCheckpoint === undefined
+          ? {}
+          : { providerCheckpoint: result.providerCheckpoint }),
+        ...(result.progress === undefined ? {} : { progress: result.progress })
+      })
+    }
+    if (result.status === "failed") {
+      return await this.settleAndAcknowledge(
+        operation,
+        context,
+        "failed",
+        result.error,
+        "provider reported generation failure",
+        "provider_failure"
+      )
+    }
+    try {
+      return await this.materializeAndComplete(
+        adapter,
+        request,
+        result.outputs,
+        context,
+        "completed"
+      )
+    } catch (error) {
+      if (context.signal.aborted) throw error
+      const latest = await this.requireOperation(operation.id)
+      return await this.settleAndAcknowledge(
+        latest,
+        context,
+        "failed",
+        {
+          type: "runtime_error",
+          message: error instanceof Error ? error.message : String(error)
+        },
+        "media generation output materialization failed",
+        latest.state === "polling" ? "completed" : "none"
+      )
+    }
+  }
+
+  private async suspendAndAcknowledge(options: {
+    readonly operation: MediaGenerationOperationRecord
+    readonly adapter: MediaGenerationAdapter
+    readonly request: MediaGenerationAdapterRequest
+    readonly context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0]
+    readonly outcome: import("@wanex/protocol").MediaGenerationSuspensionOutcome
+    readonly delayMs: number
+    readonly providerCheckpoint?: JsonValue
+    readonly progress?: JsonValue
+    readonly error?: JsonValue
+  }): Promise<WorkerHandlerReturn> {
+    const receipt = await this.storage.suspendMediaGenerationOperation({
+      operationId: options.operation.id,
+      workerId: options.context.job.leaseOwner ?? "",
+      leaseToken: requireLeaseToken(options.context.job),
+      nextPollAt: Date.now() + options.delayMs,
+      outcome: options.outcome,
+      ...(options.providerCheckpoint === undefined
+        ? {}
+        : { providerCheckpoint: options.providerCheckpoint }),
+      ...(options.progress === undefined ? {} : { progress: options.progress }),
+      ...(options.error === undefined ? {} : { error: options.error })
+    })
+    if (receipt === null) {
+      throw new Error(
+        `media generation suspension lost: ${options.operation.id}`
+      )
+    }
+    if (receipt.action === "cancel") {
+      return await this.cancelAndAcknowledge(
+        receipt.operation,
+        options.adapter,
+        options.request,
+        options.context
+      )
+    }
+    return workerAcknowledged(receipt.job)
+  }
+
+  private pollDelayMs(exponent: number, providerHintMs?: number): number {
+    const requested = providerHintMs ??
+      this.pollInitialDelayMs * 2 ** Math.min(20, Math.max(0, exponent))
+    if (!Number.isFinite(requested) || requested <= 0) {
+      throw new Error("media generation pollAfterMs must be a positive finite number")
+    }
+    return Math.max(
+      this.pollInitialDelayMs,
+      Math.min(this.pollMaxDelayMs, Math.floor(requested))
+    )
   }
 
   private async materializeAndComplete(
     adapter: MediaGenerationAdapter,
     request: MediaGenerationAdapterRequest,
     outputs: readonly MediaGenerationProviderOutput[],
-    context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0]
+    context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0],
+    pollOutcome: import("@wanex/protocol").MediaGenerationTerminalPollOutcome
   ): Promise<WorkerHandlerReturn> {
     if (outputs.length === 0) throw new Error("provider returned no generated outputs")
     const references = outputs
@@ -345,12 +499,18 @@ export class WanexMediaGenerationRuntime {
         operationId: request.operationId,
         workerId: context.job.leaseOwner ?? "",
         leaseToken: requireLeaseToken(context.job),
+        pollOutcome,
         outputReferences: references
       })
     }
     const operation = await this.requireOperation(request.operationId)
     const resourceIds = await this.materializeOutputs(adapter, request, outputs)
-    return await this.completeAndAcknowledge(operation, context, resourceIds)
+    return await this.completeAndAcknowledge(
+      operation,
+      context,
+      resourceIds,
+      references.length > 0 ? "none" : pollOutcome
+    )
   }
 
   private async materializePersistedAndComplete(
@@ -361,7 +521,7 @@ export class WanexMediaGenerationRuntime {
     const operation = await this.requireOperation(request.operationId)
     const outputs = operation.outputReferences.map((reference) => referenceToOutput(reference))
     const resourceIds = await this.materializeOutputs(adapter, request, outputs)
-    return await this.completeAndAcknowledge(operation, context, resourceIds)
+    return await this.completeAndAcknowledge(operation, context, resourceIds, "none")
   }
 
   private async materializeOutputs(
@@ -380,6 +540,20 @@ export class WanexMediaGenerationRuntime {
       }
       const requestToIngest = materializedOutputToIngestRequest(materialized)
       const resource = await this.storage.ingestResource(requestToIngest)
+      await this.storage.recordResourceProvenance({
+        resource: {
+          resourceId: resource.id,
+          sha256: resource.sha256,
+          sizeBytes: resource.sizeBytes,
+          kind: resource.kind,
+          ...(resource.mediaType === undefined ? {} : { mediaType: resource.mediaType })
+        },
+        cause: {
+          kind: "media_generation",
+          operationId: request.operationId
+        },
+        inputResources: request.binding.request.inputResources
+      })
       resourceIds.push(resource.id)
     }
     return resourceIds
@@ -403,12 +577,14 @@ export class WanexMediaGenerationRuntime {
   private async completeAndAcknowledge(
     operation: MediaGenerationOperationRecord,
     context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0],
-    resourceIds: readonly string[]
+    resourceIds: readonly string[],
+    pollOutcome: import("@wanex/protocol").MediaGenerationTerminalPollOutcome
   ): Promise<WorkerHandlerReturn> {
     const completed = await this.storage.completeMediaGenerationOperation({
       operationId: operation.id,
       workerId: context.job.leaseOwner ?? "",
       leaseToken: requireLeaseToken(context.job),
+      pollOutcome,
       outputResourceIds: resourceIds
     })
     if (completed === null) throw new Error(`media generation completion lost: ${operation.id}`)
@@ -420,12 +596,14 @@ export class WanexMediaGenerationRuntime {
     context: Parameters<NonNullable<Parameters<WanexJobRuntime["register"]>[1]>>[0],
     outcome: "failed" | "recovery_required" | "cancelled",
     error: JsonValue,
-    reason: string
+    reason: string,
+    pollOutcome: import("@wanex/protocol").MediaGenerationTerminalPollOutcome
   ): Promise<WorkerHandlerReturn> {
     const settled = await this.storage.settleMediaGenerationOperation({
       operationId: operation.id,
       workerId: context.job.leaseOwner ?? "",
       leaseToken: requireLeaseToken(context.job),
+      pollOutcome,
       outcome,
       error,
       reason
@@ -455,7 +633,8 @@ export class WanexMediaGenerationRuntime {
             type: "provider_cancel_error",
             message: error instanceof Error ? error.message : String(error)
           },
-          "provider cancellation could not be confirmed"
+          "provider cancellation could not be confirmed",
+          "none"
         )
       }
     }
@@ -464,22 +643,14 @@ export class WanexMediaGenerationRuntime {
       context,
       "cancelled",
       { type: "cancelled", reason: operation.cancelReason ?? "cancelled" },
-      operation.cancelReason ?? "cancelled"
+      operation.cancelReason ?? "cancelled",
+      "none"
     )
   }
 
   private async createBinding(
-    adapter: MediaGenerationAdapter,
     request: SubmitMediaGenerationRequest
   ): Promise<MediaGenerationOperationBinding> {
-    const profile = adapter.profile
-    if (!profile.output.includes(request.outputModality)) {
-      throw new Error(`media generation profile does not support ${request.outputModality} output`)
-    }
-    if (!profile.input.includes("text")) {
-      throw new Error("media generation profile must support text prompt input")
-    }
-    if (request.prompt.trim().length === 0) throw new Error("media generation prompt must not be empty")
     const resources: ResourceInputEvidence[] = []
     const seen = new Set<string>()
     for (const resourceId of request.inputResourceIds ?? []) {
@@ -489,10 +660,6 @@ export class WanexMediaGenerationRuntime {
       if (resource === null || resource.state !== "available") {
         throw new Error(`media generation resource is not available: ${resourceId}`)
       }
-      const modality = resourceInputModality(resource)
-      if (!profile.input.includes(modality)) {
-        throw new Error(`media generation profile does not support ${modality} input`)
-      }
       resources.push({
         resourceId: resource.id,
         sha256: resource.sha256,
@@ -501,39 +668,14 @@ export class WanexMediaGenerationRuntime {
         ...(resource.mediaType === undefined ? {} : { mediaType: resource.mediaType })
       })
     }
-    const profileDigest = digestJson(profile)
-    const requestBinding = {
+    return prepareMediaGenerationOperationBinding({
+      operation: request.operation,
+      modelEndpoint: request.modelEndpoint,
       prompt: request.prompt,
       outputModality: request.outputModality,
       inputResources: resources,
-      options: request.options ?? null
-    } as const
-    return {
-      profileId: profile.id,
-      profileDigest,
-      adapterId: profile.adapterId,
-      providerId: profile.providerId,
-      modelId: profile.modelId,
-      request: requestBinding,
-      requestDigest: digestJson(requestBinding)
-    }
-  }
-
-  private adapterForProfile(profileId: string): MediaGenerationAdapter {
-    const adapter = this.adapters.get(profileId)
-    if (adapter === undefined) throw new Error(`media generation profile not found: ${profileId}`)
-    return adapter
-  }
-
-  private adapterForBinding(binding: MediaGenerationOperationBinding): MediaGenerationAdapter {
-    const adapter = this.adapterForProfile(binding.profileId)
-    if (adapter.profile.adapterId !== binding.adapterId || adapter.profile.modelId !== binding.modelId) {
-      throw new Error("media generation adapter no longer matches frozen binding")
-    }
-    if (digestJson(adapter.profile) !== binding.profileDigest) {
-      throw new Error("media generation provider profile changed after admission")
-    }
-    return adapter
+      ...(request.options === undefined ? {} : { options: request.options })
+    })
   }
 
   private async requireOperation(operationId: string) {
@@ -557,15 +699,6 @@ export class WanexMediaGenerationRuntime {
 class MediaGenerationAmbiguousSubmissionError extends Error {}
 class MediaGenerationBindingMismatchError extends Error {}
 
-function createAdapterMap(adapters: readonly MediaGenerationAdapter[]): ReadonlyMap<string, MediaGenerationAdapter> {
-  const map = new Map<string, MediaGenerationAdapter>()
-  for (const adapter of adapters) {
-    if (map.has(adapter.profile.id)) throw new Error(`duplicate media generation profile: ${adapter.profile.id}`)
-    map.set(adapter.profile.id, adapter)
-  }
-  return map
-}
-
 function operationIdFromPayload(payload: JsonValue): string | null {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) return null
   const value = (payload as Record<string, JsonValue>).operationId
@@ -577,147 +710,18 @@ function requireLeaseToken(job: { readonly leaseToken?: string }): string {
   return job.leaseToken
 }
 
-function isReferenceOutput(output: MediaGenerationProviderOutput): output is Extract<MediaGenerationProviderOutput, { kindOfOutput: "provider_file" | "remote_url" }> {
-  return output.kindOfOutput === "provider_file" || output.kindOfOutput === "remote_url"
-}
-
-function toOutputReference(output: Extract<MediaGenerationProviderOutput, { kindOfOutput: "provider_file" | "remote_url" }>): MediaGenerationOutputReferenceRecord {
-  if (output.kindOfOutput === "provider_file") {
-    return {
-      kindOfReference: "provider_file",
-      provider: output.provider,
-      providerFileId: output.fileId,
-      ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
-      ...(output.kind === undefined ? {} : { kind: output.kind }),
-      ...(output.label === undefined ? {} : { label: output.label }),
-      ...(output.metadata === undefined ? {} : { metadata: output.metadata }),
-      ...(output.width === undefined ? {} : { width: output.width }),
-      ...(output.height === undefined ? {} : { height: output.height }),
-      ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs })
-    }
+function positiveInteger(value: number, label: string): number {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive safe integer`)
   }
-  return {
-    kindOfReference: "remote_url",
-    ...(output.provider === undefined ? {} : { provider: output.provider }),
-    sourceUrl: output.url,
-    ...(output.expiresAt === undefined ? {} : { sourceExpiresAt: output.expiresAt }),
-    ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
-    ...(output.kind === undefined ? {} : { kind: output.kind }),
-    ...(output.label === undefined ? {} : { label: output.label }),
-    ...(output.metadata === undefined ? {} : { metadata: output.metadata }),
-    ...(output.width === undefined ? {} : { width: output.width }),
-    ...(output.height === undefined ? {} : { height: output.height }),
-    ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs })
-  }
+  return value
 }
 
-function toProviderReference(output: Extract<MediaGenerationProviderOutput, { kindOfOutput: "provider_file" | "remote_url" }>) {
-  if (output.kindOfOutput === "provider_file") {
-    return {
-      kindOfReference: "provider_file" as const,
-      provider: output.provider,
-      fileId: output.fileId,
-      ...providerReferenceMetadata(output)
-    }
-  }
-  return {
-    kindOfReference: "remote_url" as const,
-    url: output.url,
-    ...(output.expiresAt === undefined ? {} : { expiresAt: output.expiresAt }),
-    ...providerReferenceMetadata(output)
-  }
-}
-
-function providerReferenceMetadata(output: MediaGenerationProviderOutputBase) {
-  return {
-    ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
-    ...(output.kind === undefined ? {} : { kind: output.kind }),
-    ...(output.label === undefined ? {} : { label: output.label }),
-    ...(output.metadata === undefined ? {} : { metadata: output.metadata }),
-    ...(output.width === undefined ? {} : { width: output.width }),
-    ...(output.height === undefined ? {} : { height: output.height }),
-    ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs })
-  }
-}
-
-function referenceToOutput(reference: MediaGenerationOutputReferenceRecord): MediaGenerationProviderOutput {
-  if (reference.kindOfReference === "provider_file") {
-    if (reference.provider === undefined || reference.providerFileId === undefined) throw new Error("provider file output reference is incomplete")
-    return {
-      kindOfOutput: "provider_file",
-      provider: reference.provider,
-      fileId: reference.providerFileId,
-      ...outputMetadata(reference)
-    }
-  }
-  if (reference.sourceUrl === undefined) throw new Error("remote URL output reference is incomplete")
-  return {
-    kindOfOutput: "remote_url",
-    ...(reference.provider === undefined ? {} : { provider: reference.provider }),
-    url: reference.sourceUrl,
-    ...(reference.sourceExpiresAt === undefined ? {} : { expiresAt: reference.sourceExpiresAt }),
-    ...outputMetadata(reference)
-  }
-}
-
-function outputMetadata(output: MediaGenerationOutputReferenceRecord): Omit<MediaGenerationProviderOutputBase, "bytes"> {
-  return {
-    ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
-    ...(output.kind === undefined ? {} : { kind: output.kind }),
-    ...(output.label === undefined ? {} : { label: output.label }),
-    ...(output.metadata === undefined ? {} : { metadata: output.metadata }),
-    ...(output.width === undefined ? {} : { width: output.width }),
-    ...(output.height === undefined ? {} : { height: output.height }),
-    ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs })
-  }
-}
-
-function materializedOutputToIngestRequest(output: MediaGenerationMaterializedOutput): IngestResourceRequest {
-  const kind = output.kind ?? kindForMediaType(output.mediaType)
-  return {
-    logicalPath: stableResourceLogicalPath(kind, output.bytes, output.mediaType),
-    content: output.bytes,
-    kind,
-    origin: "model_output",
-    ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
-    ...(output.label === undefined ? {} : { label: output.label }),
-    ...(output.metadata === undefined ? {} : { metadata: output.metadata }),
-    ...(output.width === undefined ? {} : { width: output.width }),
-    ...(output.height === undefined ? {} : { height: output.height }),
-    ...(output.durationMs === undefined ? {} : { durationMs: output.durationMs }),
-    expectedSha256: sha256Bytes(output.bytes)
-  }
-}
-
-function kindForMediaType(mediaType: string | undefined): ResourceKind {
-  if (mediaType?.startsWith("image/")) return "image"
-  if (mediaType?.startsWith("video/")) return "video"
-  if (mediaType?.startsWith("audio/")) return "audio"
-  return "artifact"
-}
-
-function digestJson(value: unknown): string {
-  return createHash("sha256").update(stableJson(value)).digest("hex")
-}
-
-function stableJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value)
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
-  return `{${Object.keys(value as Record<string, unknown>).sort().map((key) => `${JSON.stringify(key)}:${stableJson((value as Record<string, unknown>)[key])}`).join(",")}}`
-}
-
-async function delay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) throw new Error("media generation polling aborted")
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort)
-      resolve()
-    }, ms)
-    const onAbort = () => {
-      clearTimeout(timer)
-      signal.removeEventListener("abort", onAbort)
-      reject(new Error("media generation polling aborted"))
-    }
-    signal.addEventListener("abort", onAbort, { once: true })
-  })
+function isTerminalOperation(operation: MediaGenerationOperationRecord): boolean {
+  return (
+    operation.state === "succeeded" ||
+    operation.state === "failed" ||
+    operation.state === "cancelled" ||
+    operation.state === "recovery_required"
+  )
 }

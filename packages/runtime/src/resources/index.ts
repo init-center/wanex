@@ -36,6 +36,7 @@ export { providerOutputToIngestRequest } from "./provider-output.js"
 export {
   admitUserMessage,
   assertTurnResourcesMatchBinding,
+  validateCanonicalUserMessage,
   prepareProviderReplayResources,
   readExactResourceBytes,
   resourceInputModality

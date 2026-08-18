@@ -4,7 +4,7 @@ use crate::{
     AppendSessionMessage, EventScope, Result, SessionMessageRecord, SystemService,
     SystemServiceError,
 };
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, params_from_iter, OptionalExtension};
 use uuid::Uuid;
 
 pub(crate) const SESSION_MESSAGE_SELECT: &str = "SELECT id, session_id, sequence,
@@ -14,16 +14,85 @@ pub(crate) const SESSION_MESSAGE_SELECT: &str = "SELECT id, session_id, sequence
 
 impl SystemService {
     pub fn list_session_messages(&self, session_id: &str) -> Result<Vec<SessionMessageRecord>> {
+        self.list_session_message_window(session_id, None, None)
+    }
+
+    pub fn list_session_message_window(
+        &self,
+        session_id: &str,
+        before_sequence: Option<i64>,
+        limit: Option<i64>,
+    ) -> Result<Vec<SessionMessageRecord>> {
+        validate_message_window(before_sequence, limit)?;
         let conn = self.connect()?;
-        let mut stmt = conn.prepare(&format!(
-            "{SESSION_MESSAGE_SELECT} WHERE session_id = ? ORDER BY sequence ASC"
-        ))?;
-        let rows = stmt.query_map(params![session_id], row_to_session_message)?;
-        let mut messages = Vec::new();
-        for row in rows {
-            messages.push(row?);
+        let mut messages = match (before_sequence, limit) {
+            (None, None) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{SESSION_MESSAGE_SELECT} WHERE session_id = ? ORDER BY sequence ASC"
+                ))?;
+                let rows = stmt.query_map(params![session_id], row_to_session_message)?;
+                collect_rows(rows)?
+            }
+            (Some(before), None) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{SESSION_MESSAGE_SELECT} WHERE session_id = ? AND sequence < ?
+                     ORDER BY sequence ASC"
+                ))?;
+                let rows = stmt.query_map(params![session_id, before], row_to_session_message)?;
+                collect_rows(rows)?
+            }
+            (None, Some(window_limit)) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{SESSION_MESSAGE_SELECT} WHERE session_id = ?
+                     ORDER BY sequence DESC LIMIT ?"
+                ))?;
+                let rows =
+                    stmt.query_map(params![session_id, window_limit], row_to_session_message)?;
+                collect_rows(rows)?
+            }
+            (Some(before), Some(window_limit)) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{SESSION_MESSAGE_SELECT} WHERE session_id = ? AND sequence < ?
+                     ORDER BY sequence DESC LIMIT ?"
+                ))?;
+                let rows = stmt.query_map(
+                    params![session_id, before, window_limit],
+                    row_to_session_message,
+                )?;
+                collect_rows(rows)?
+            }
+        };
+        if limit.is_some() {
+            messages.reverse();
         }
         Ok(messages)
+    }
+
+    pub fn list_session_messages_by_turn_ids(
+        &self,
+        session_id: &str,
+        turn_ids: &[String],
+    ) -> Result<Vec<SessionMessageRecord>> {
+        if turn_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if turn_ids.len() > 1000 || turn_ids.iter().any(|id| id.is_empty()) {
+            return Err(SystemServiceError::InvalidInput(
+                "session message turn id filter must contain 1 to 1000 non-empty ids".to_string(),
+            ));
+        }
+        let placeholders = std::iter::repeat_n("?", turn_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let query = format!(
+            "{SESSION_MESSAGE_SELECT} WHERE session_id = ? AND turn_id IN ({placeholders})
+             ORDER BY sequence ASC"
+        );
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(&query)?;
+        let values = std::iter::once(session_id).chain(turn_ids.iter().map(String::as_str));
+        let rows = stmt.query_map(params_from_iter(values), row_to_session_message)?;
+        collect_rows(rows).map_err(Into::into)
     }
 
     pub fn append_session_message(
@@ -70,6 +139,26 @@ impl SystemService {
         tx.commit()?;
         Ok(Some(message))
     }
+}
+
+fn validate_message_window(before_sequence: Option<i64>, limit: Option<i64>) -> Result<()> {
+    if before_sequence.is_some_and(|value| value < 1) {
+        return Err(SystemServiceError::InvalidInput(
+            "session message before_sequence must be positive".to_string(),
+        ));
+    }
+    if limit.is_some_and(|value| !(1..=1000).contains(&value)) {
+        return Err(SystemServiceError::InvalidInput(
+            "session message limit must be between 1 and 1000".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn collect_rows<T>(
+    rows: rusqlite::MappedRows<'_, impl FnMut(&rusqlite::Row<'_>) -> rusqlite::Result<T>>,
+) -> rusqlite::Result<Vec<T>> {
+    rows.collect()
 }
 
 pub(crate) struct NewSessionMessage<'a> {

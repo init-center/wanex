@@ -1,28 +1,29 @@
 import type {
   AcceptMediaGenerationOperationRequest,
   BeginMediaGenerationOperationRequest,
-  CheckpointMediaGenerationOperationRequest,
   CompleteMediaGenerationOperationRequest,
   GetMediaGenerationOperationRequest,
   ListMediaGenerationOperationsRequest,
   RecordMediaGenerationOutputsRequest,
   RequestMediaGenerationCancelRequest,
   SettleMediaGenerationOperationRequest,
+  SuspendMediaGenerationOperationRequest,
   SubmitMediaGenerationOperationRequest
 } from "@wanex/protocol"
 import {
   fromRpcMediaGenerationBeginReceipt,
   fromRpcMediaGenerationOperation,
   fromRpcMediaGenerationOperationSubmission,
+  fromRpcMediaGenerationSuspendReceipt,
   toRpcAcceptMediaGenerationOperationRequest,
   toRpcBeginMediaGenerationOperationRequest,
-  toRpcCheckpointMediaGenerationOperationRequest,
   toRpcCompleteMediaGenerationOperationRequest,
   toRpcGetMediaGenerationOperationRequest,
   toRpcListMediaGenerationOperationsRequest,
   toRpcRecordMediaGenerationOutputsRequest,
   toRpcRequestMediaGenerationCancelRequest,
   toRpcSettleMediaGenerationOperationRequest,
+  toRpcSuspendMediaGenerationOperationRequest,
   toRpcSubmitMediaGenerationOperationRequest
 } from "./codec-media-generation.js"
 import { assertArray } from "./codec-helpers.js"
@@ -57,12 +58,12 @@ export class MediaGenerationStoreMethods
     return value === null ? null : fromRpcMediaGenerationOperation(value)
   }
 
-  async checkpointMediaGenerationOperation(request: CheckpointMediaGenerationOperationRequest) {
+  async suspendMediaGenerationOperation(request: SuspendMediaGenerationOperationRequest) {
     const value = await this.callMediaGeneration({
-      command: "checkpoint-media-generation",
-      request: toRpcCheckpointMediaGenerationOperationRequest(request)
+      command: "suspend-media-generation",
+      request: toRpcSuspendMediaGenerationOperationRequest(request)
     })
-    return value === null ? null : fromRpcMediaGenerationOperation(value)
+    return value === null ? null : fromRpcMediaGenerationSuspendReceipt(value)
   }
 
   async recordMediaGenerationOutputs(request: RecordMediaGenerationOutputsRequest) {

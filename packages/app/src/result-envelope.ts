@@ -25,9 +25,7 @@ export async function runWanexAppSafeCommand<T>(request: {
   }
 }
 
-export function projectWanexAppSafeError(
-  error: unknown
-): WanexAppSafeError {
+export function projectWanexAppSafeError(error: unknown): WanexAppSafeError {
   const message = error instanceof Error ? error.message : String(error)
   if (message === "app is disposed") {
     return {
@@ -67,7 +65,8 @@ export function projectWanexAppSafeError(
 function isValidationMessage(message: string): boolean {
   return (
     message.endsWith("must not be empty") ||
-    message.startsWith("provider profile not found: ") ||
+    message.startsWith("model endpoint not found: ") ||
+    message.startsWith("active model endpoint changed: ") ||
     message.startsWith("guided follow-up session not found: ") ||
     message.startsWith("objective not found: ") ||
     message.startsWith("plan proposal not found: ") ||

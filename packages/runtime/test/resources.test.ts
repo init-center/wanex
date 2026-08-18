@@ -61,7 +61,8 @@ describe("@wanex/runtime/resources", () => {
       width: 2,
       height: 3
     })
-    expect(record.logicalPath).toBe(
+    expect(record.logicalPath).toMatch(/^resources\/image\/[a-f0-9]{64}$/)
+    expect(record.logicalPath).not.toBe(
       stableResourceLogicalPath("image", bytes, "image/png")
     )
     await expect(
@@ -86,7 +87,8 @@ describe("@wanex/runtime/resources", () => {
     expect(record.kind).toBe("log")
     expect(record.origin).toBe("tool_output")
     expect(record.mediaType).toBe("text/plain")
-    expect(record.logicalPath).toBe(
+    expect(record.logicalPath).toMatch(/^resources\/log\/[a-f0-9]{64}$/)
+    expect(record.logicalPath).not.toBe(
       stableResourceLogicalPath("log", bytes, "text/plain")
     )
     await expect(

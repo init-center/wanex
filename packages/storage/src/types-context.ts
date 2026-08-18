@@ -1,24 +1,29 @@
 import type {
   ActivateContextEpochRequest,
-  CloneContextEpochRequest,
+  BeginContextEpochRequest,
   ContextEpochPruneReceipt,
   ContextEpochRecord,
-  ContextReplacementRecord,
+  FinishContextEpochGenerationRequest,
   GetActiveContextEpochRequest,
   ListContextEpochsRequest,
-  ListContextReplacementsRequest,
-  PruneContextEpochsRequest,
-  PutContextEpochRequest,
-  PutContextReplacementRequest
+  MarkContextEpochDispatchedRequest,
+  MarkContextEpochOutputObservedRequest,
+  PruneContextEpochsRequest
 } from "@wanex/protocol"
 
 export interface ContextStore {
-  putContextEpoch(request: PutContextEpochRequest): Promise<ContextEpochRecord>
+  beginContextEpoch(request: BeginContextEpochRequest): Promise<ContextEpochRecord>
+  markContextEpochDispatched(
+    request: MarkContextEpochDispatchedRequest
+  ): Promise<ContextEpochRecord>
+  markContextEpochOutputObserved(
+    request: MarkContextEpochOutputObservedRequest
+  ): Promise<ContextEpochRecord>
+  finishContextEpochGeneration(
+    request: FinishContextEpochGenerationRequest
+  ): Promise<ContextEpochRecord>
   activateContextEpoch(
     request: ActivateContextEpochRequest
-  ): Promise<ContextEpochRecord>
-  cloneContextEpoch(
-    request: CloneContextEpochRequest
   ): Promise<ContextEpochRecord>
   pruneContextEpochs(
     request: PruneContextEpochsRequest
@@ -29,10 +34,4 @@ export interface ContextStore {
   getActiveContextEpoch(
     request: GetActiveContextEpochRequest
   ): Promise<ContextEpochRecord | null>
-  putContextReplacement(
-    request: PutContextReplacementRequest
-  ): Promise<ContextReplacementRecord>
-  listContextReplacements(
-    request: ListContextReplacementsRequest
-  ): Promise<ContextReplacementRecord[]>
 }

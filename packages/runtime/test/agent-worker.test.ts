@@ -11,17 +11,18 @@ import { registerSessionTurnHandler } from "../src/execution/worker/index.js"
 import { createTurnExecutionBinding } from "../src/execution/turn-binding.js"
 import {
   FakeProviderAdapter,
-  profileToJson,
+  writeModelEndpoint,
   type ProviderRequest
 } from "../src/provider/index.js"
 import { WanexSessionCore } from "../src/sessions/index.js"
 import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
+  jsonToolResultContent,
   RiskBoundToolPolicy,
   ToolRegistry
 } from "../src/tools/index.js"
-import { fakeProfile } from "./durable-turn-test-fixture.js"
+import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -71,7 +72,7 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_turn",
       executionBinding: createTurnExecutionBinding({
-        profile: fakeProfile("worker_turn"),
+        modelEndpoint: fakeModelEndpoint("worker_turn"),
         createdAt: 1
       })
     })
@@ -121,11 +122,339 @@ describe("session.turn worker handler", () => {
     }])
   })
 
+  it("compacts an over-capacity Session inline under its session.turn lease", async () => {
+    const storage = requireTestStore()
+    const session = new WanexSessionCore({ storage })
+    const modelEndpoint = fakeModelEndpoint("worker_inline_capacity")
+    const boundedEndpoint = {
+      ...modelEndpoint,
+      model: {
+        ...modelEndpoint.model,
+        limits: {
+          contextWindowTokens: 800,
+          maxInputTokens: 750,
+          maxOutputTokens: 100
+        }
+      }
+    }
+    const provider = new CountingFakeProvider({
+      model: boundedEndpoint.model,
+      responseText: "## Goal\nInline summary or final answer"
+    })
+    await session.create({ id: "ses_worker_inline_capacity", kind: "agent" })
+    await appendCompletedTurn(session, boundedEndpoint, {
+      sessionId: "ses_worker_inline_capacity",
+      suffix: "inline_old",
+      userText: "old request",
+      assistantText: "old evidence " + "x".repeat(900)
+    })
+    const canonicalBefore = await session.listMessages({
+      sessionId: "ses_worker_inline_capacity"
+    })
+    const submitted = await session.submitTurn({
+      id: "inp_worker_inline_capacity",
+      turnId: "turn_worker_inline_capacity",
+      sessionId: "ses_worker_inline_capacity",
+      principalId: "principal_worker_inline_capacity",
+      idempotencyKey: "idem_worker_inline_capacity",
+      content: [{
+        type: "text",
+        id: "part_worker_inline_capacity",
+        text: "current request " + "y".repeat(2_000)
+      }],
+      jobId: "job_worker_inline_capacity",
+      executionBinding: createTurnExecutionBinding({
+        modelEndpoint: boundedEndpoint,
+        maxOutputTokens: 100,
+        createdAt: 2
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_inline_capacity",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({ status: "completed" })
+
+    expect(provider.requests).toHaveLength(2)
+    expect(provider.requests.map((request) => request.maxOutputTokens)).toEqual([
+      100,
+      100
+    ])
+    expect(provider.requests[0]?.tools).toBeUndefined()
+    expect(provider.requests[0]?.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user"
+    ])
+    expect(JSON.stringify(provider.requests[1]?.messages)).toContain(
+      "Semantic checkpoint through message sequence"
+    )
+    expect(JSON.stringify(provider.requests[1]?.messages)).toContain(
+      "current request"
+    )
+    await expect(storage.getActiveContextEpoch({
+      sessionId: submitted.turn.sessionId
+    })).resolves.toMatchObject({
+      id: "ctxepoch_job_worker_inline_capacity",
+      jobId: "job_worker_inline_capacity",
+      state: "active",
+      cutMessageId: canonicalBefore.at(-1)?.id
+    })
+    const canonicalAfter = await session.listMessages({
+      sessionId: submitted.turn.sessionId
+    })
+    expect(canonicalAfter.slice(0, canonicalBefore.length)).toEqual(canonicalBefore)
+  })
+
+  it("fails before Provider dispatch when the current Turn alone cannot fit", async () => {
+    const storage = requireTestStore()
+    const session = new WanexSessionCore({ storage })
+    const endpoint = fakeModelEndpoint("worker_capacity_failure")
+    const boundedEndpoint = {
+      ...endpoint,
+      model: {
+        ...endpoint.model,
+        limits: { contextWindowTokens: 300, maxOutputTokens: 100 }
+      }
+    }
+    const provider = new CountingFakeProvider({
+      model: boundedEndpoint.model,
+      responseText: "must not dispatch"
+    })
+    await session.create({ id: "ses_worker_capacity_failure", kind: "agent" })
+    await session.submitTurn({
+      id: "inp_worker_capacity_failure",
+      turnId: "turn_worker_capacity_failure",
+      sessionId: "ses_worker_capacity_failure",
+      principalId: "principal_worker_capacity_failure",
+      idempotencyKey: "idem_worker_capacity_failure",
+      content: [{
+        type: "text",
+        id: "part_worker_capacity_failure",
+        text: "z".repeat(1_200)
+      }],
+      jobId: "job_worker_capacity_failure",
+      executionBinding: createTurnExecutionBinding({
+        modelEndpoint: boundedEndpoint,
+        maxOutputTokens: 100,
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_capacity_failure",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "failed",
+      error: { name: "ContextCapacityError" }
+    })
+    expect(provider.calls).toBe(0)
+    await expect(session.listMessages({
+      sessionId: "ses_worker_capacity_failure"
+    })).resolves.toMatchObject([{
+      role: "user",
+      content: [{ text: "z".repeat(1_200) }]
+    }])
+    await expect(session.listTurns({
+      sessionId: "ses_worker_capacity_failure"
+    })).resolves.toMatchObject([{
+      state: "failed",
+      error: {
+        kind: "session_turn.context_capacity_exceeded",
+        capacity: {
+          reasons: ["input_tokens_exceeded"],
+          inputTokens: 304,
+          inputTokenCeiling: 200,
+          inputResources: 0,
+          requestedOutputTokens: 100,
+          compactionAttempted: true
+        }
+      }
+    }])
+  })
+
+  it("rechecks after Tool results and blocks an unchecked second dispatch", async () => {
+    const storage = requireTestStore()
+    const session = new WanexSessionCore({ storage })
+    const endpoint = fakeModelEndpoint("worker_tool_capacity")
+    const boundedEndpoint = {
+      ...endpoint,
+      model: {
+        ...endpoint.model,
+        limits: { contextWindowTokens: 500, maxOutputTokens: 100 }
+      }
+    }
+    const provider = new CountingFakeProvider({
+      model: boundedEndpoint.model,
+      responseText: "must not reach the second dispatch",
+      toolName: "large_result"
+    })
+    const tools = registryWithLargeResult("large_result", 3_000)
+    const toolPermissionPolicy = new AllowAllToolsPolicy()
+    await session.create({ id: "ses_worker_tool_capacity", kind: "agent" })
+    await session.submitTurn({
+      id: "inp_worker_tool_capacity",
+      turnId: "turn_worker_tool_capacity",
+      sessionId: "ses_worker_tool_capacity",
+      principalId: "principal_worker_tool_capacity",
+      idempotencyKey: "idem_worker_tool_capacity",
+      content: [{
+        type: "text",
+        id: "part_worker_tool_capacity",
+        text: "call the tool"
+      }],
+      jobId: "job_worker_tool_capacity",
+      executionBinding: createTurnExecutionBinding({
+        modelEndpoint: boundedEndpoint,
+        agentContext: { tools, toolPermissionPolicy },
+        maxOutputTokens: 100,
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_tool_capacity",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider,
+      agentContext: { tools, toolPermissionPolicy }
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({
+      status: "failed",
+      error: { name: "ContextCapacityError" }
+    })
+    expect(provider.calls).toBe(1)
+    expect((await session.listMessages({
+      sessionId: "ses_worker_tool_capacity"
+    })).map((message) => message.role)).toEqual(["user", "assistant", "tool"])
+  })
+
+  it("compacts old resource-bearing Turns before enforcing maxInputResources", async () => {
+    const storage = requireTestStore()
+    const session = new WanexSessionCore({ storage })
+    const endpoint = fakeModelEndpoint("worker_resource_capacity")
+    const boundedEndpoint = {
+      ...endpoint,
+      model: {
+        ...endpoint.model,
+        inputModalities: ["text", "image"] as const,
+        limits: {
+          contextWindowTokens: 10_000,
+          maxOutputTokens: 100,
+          maxInputResources: 1
+        }
+      }
+    }
+    const provider = new CountingFakeProvider({
+      model: boundedEndpoint.model,
+      responseText: "## Goal\nResource-aware summary or final answer"
+    })
+    const oldResource = await storage.ingestResource({
+      content: Uint8Array.from([1, 2, 3]),
+      mediaType: "image/png",
+      kind: "image",
+      origin: "user_upload"
+    })
+    const currentResource = await storage.ingestResource({
+      content: Uint8Array.from([4, 5, 6]),
+      mediaType: "image/png",
+      kind: "image",
+      origin: "user_upload"
+    })
+    await session.create({ id: "ses_worker_resource_capacity", kind: "agent" })
+    await appendCompletedTurn(session, boundedEndpoint, {
+      sessionId: "ses_worker_resource_capacity",
+      suffix: "resource_old",
+      userText: "remember old image",
+      assistantText: "old image inspected",
+      resource: oldResource
+    })
+    const currentEvidence = resourceEvidence(currentResource)
+    await session.submitTurn({
+      id: "inp_worker_resource_capacity",
+      turnId: "turn_worker_resource_capacity",
+      sessionId: "ses_worker_resource_capacity",
+      principalId: "principal_worker_resource_capacity",
+      idempotencyKey: "idem_worker_resource_capacity",
+      content: [
+        {
+          type: "text",
+          id: "part_worker_resource_capacity",
+          text: "inspect current image"
+        },
+        {
+          type: "resource",
+          id: "resource_worker_resource_capacity",
+          ...currentEvidence
+        }
+      ],
+      jobId: "job_worker_resource_capacity",
+      executionBinding: createTurnExecutionBinding({
+        modelEndpoint: boundedEndpoint,
+        maxOutputTokens: 100,
+        resources: [currentEvidence],
+        createdAt: 2
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_resource_capacity",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider
+    })
+
+    await expect(worker.runOnce()).resolves.toMatchObject({ status: "completed" })
+    expect(provider.requests).toHaveLength(2)
+    expect(provider.requests[0]?.messages.some((message) =>
+      message.content.some((part) => part.type === "resource")
+    )).toBe(false)
+    expect(provider.requests[1]?.messages.reduce(
+      (count, message) =>
+        count + message.content.filter((part) => part.type === "resource").length,
+      0
+    )).toBe(1)
+    await expect(storage.getActiveContextEpoch({
+      sessionId: "ses_worker_resource_capacity"
+    })).resolves.toMatchObject({
+      id: "ctxepoch_job_worker_resource_capacity",
+      state: "active"
+    })
+  })
+
   it("executes the immutable admitted provider binding after profile config changes", async () => {
     const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
     await session.create({ id: "ses_worker_binding", kind: "agent" })
-    const admittedProfile = fakeProfile("binding_original")
+    const admittedEndpoint = fakeModelEndpoint("binding_original")
     const submitted = await session.submitTurn({
       id: "inp_worker_binding",
       turnId: "turn_worker_binding",
@@ -139,14 +468,14 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_binding",
       executionBinding: createTurnExecutionBinding({
-        profile: admittedProfile,
+        modelEndpoint: admittedEndpoint,
         createdAt: 1
       })
     })
-    await storage.putConfig("provider.profile." + admittedProfile.id, profileToJson({
-      ...admittedProfile,
-      modelId: "model_mutated"
-    }))
+    await writeModelEndpoint(storage, {
+      ...admittedEndpoint,
+      model: { ...admittedEndpoint.model, id: "model_mutated" }
+    })
     const worker = new WanexWorker({
       session,
       workerId: "worker_binding",
@@ -185,7 +514,7 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_context",
       executionBinding: createTurnExecutionBinding({
-        profile: fakeProfile("worker_context"),
+        modelEndpoint: fakeModelEndpoint("worker_context"),
         agentContext: { tools: admittedTools },
         createdAt: 1
       })
@@ -224,9 +553,9 @@ describe("session.turn worker handler", () => {
   it("rejects same-descriptor tool implementation drift before provider dispatch", async () => {
     const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
-    const profile = fakeProfile("worker_tool_revision")
+    const modelEndpoint = fakeModelEndpoint("worker_tool_revision")
     const provider = new CountingFakeProvider({
-      modelId: profile.modelId,
+      model: modelEndpoint.model,
       responseText: "must not dispatch"
     })
     let toolCalls = 0
@@ -244,7 +573,7 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_tool_revision",
       executionBinding: createTurnExecutionBinding({
-        profile,
+        modelEndpoint,
         agentContext: {
           tools: registryWithTool("optional_tool", "1")
         },
@@ -280,9 +609,9 @@ describe("session.turn worker handler", () => {
   it("rejects tool configuration drift before dispatch", async () => {
     const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
-    const profile = fakeProfile("worker_tool_configuration")
+    const modelEndpoint = fakeModelEndpoint("worker_tool_configuration")
     const provider = new CountingFakeProvider({
-      modelId: profile.modelId,
+      model: modelEndpoint.model,
       responseText: "must not dispatch"
     })
     await session.create({ id: "ses_worker_tool_configuration", kind: "agent" })
@@ -299,7 +628,7 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_tool_configuration",
       executionBinding: createTurnExecutionBinding({
-        profile,
+        modelEndpoint,
         agentContext: {
           tools: registryWithTool("optional_tool", "1", "configuration-a"),
           toolPermissionPolicy: new AllowAllToolsPolicy()
@@ -334,9 +663,9 @@ describe("session.turn worker handler", () => {
   it("rejects permission-policy drift before dispatch", async () => {
     const storage = requireTestStore()
     const session = new WanexSessionCore({ storage })
-    const profile = fakeProfile("worker_tool_permission")
+    const modelEndpoint = fakeModelEndpoint("worker_tool_permission")
     const provider = new CountingFakeProvider({
-      modelId: profile.modelId,
+      model: modelEndpoint.model,
       responseText: "must not dispatch"
     })
     const tools = registryWithTool("optional_tool")
@@ -354,7 +683,7 @@ describe("session.turn worker handler", () => {
       }],
       jobId: "job_worker_tool_permission",
       executionBinding: createTurnExecutionBinding({
-        profile,
+        modelEndpoint,
         agentContext: {
           tools,
           toolPermissionPolicy: new AllowAllToolsPolicy()
@@ -407,6 +736,8 @@ function registryWithTool(
     inputSchema: { type: "object" },
     risk: "read_only",
     idempotent: true,
+    concurrency: "parallel_safe",
+    resultMode: "immediate",
     runtimeBinding: createToolRuntimeBinding({
       implementationId: `wanex.test.agent-worker.${name}`,
       implementationRevision: revision,
@@ -415,20 +746,146 @@ function registryWithTool(
     async invoke(invocation) {
       onInvoke()
       return {
+        outcome: "succeeded",
         toolCallId: invocation.toolCallId,
-        result: { ok: true },
-        isError: false
+        content: jsonToolResultContent({ ok: true })
       }
     }
   })
   return registry
 }
 
+function registryWithLargeResult(name: string, characters: number): ToolRegistry {
+  const registry = new ToolRegistry()
+  registry.register({
+    name,
+    description: "Returns a deliberately large test result",
+    inputSchema: { type: "object" },
+    risk: "read_only",
+    idempotent: true,
+    concurrency: "parallel_safe",
+    resultMode: "immediate",
+    runtimeBinding: createToolRuntimeBinding({
+      implementationId: `wanex.test.agent-worker.${name}`,
+      implementationRevision: "1",
+      configuration: { characters }
+    }),
+    async invoke(invocation) {
+      return {
+        outcome: "succeeded",
+        toolCallId: invocation.toolCallId,
+        content: jsonToolResultContent({ text: "r".repeat(characters) })
+      }
+    }
+  })
+  return registry
+}
+
+async function appendCompletedTurn(
+  session: WanexSessionCore,
+  modelEndpoint: ReturnType<typeof fakeModelEndpoint>,
+  request: {
+    readonly sessionId: string
+    readonly suffix: string
+    readonly userText: string
+    readonly assistantText: string
+    readonly resource?: Awaited<ReturnType<StorageTestStore["ingestResource"]>>
+  }
+): Promise<void> {
+  const resource =
+    request.resource === undefined ? undefined : resourceEvidence(request.resource)
+  const submitted = await session.submitTurn({
+    id: `inp_${request.suffix}`,
+    turnId: `turn_${request.suffix}`,
+    sessionId: request.sessionId,
+    principalId: `principal_${request.suffix}`,
+    idempotencyKey: `idem_${request.suffix}`,
+    content: [
+      {
+        type: "text",
+        id: `part_${request.suffix}`,
+        text: request.userText
+      },
+      ...(resource === undefined
+        ? []
+        : [{
+            type: "resource" as const,
+            id: `resource_${request.suffix}`,
+            ...resource
+          }])
+    ],
+    jobId: `job_${request.suffix}`,
+    executionBinding: createTurnExecutionBinding({
+      modelEndpoint,
+      maxOutputTokens: 100,
+      ...(resource === undefined ? {} : { resources: [resource] }),
+      createdAt: 1
+    })
+  })
+  const workerId = `worker_${request.suffix}`
+  const job = await session.claimJob({
+    workerId,
+    leaseMs: 60_000,
+    kinds: ["session.turn"]
+  })
+  if (job?.leaseToken === undefined) throw new Error("missing seeded Turn lease")
+  const started = await session.startTurnAttempt({
+    sessionId: request.sessionId,
+    turnId: submitted.turn.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId,
+    leaseToken: job.leaseToken
+  })
+  const invocation = await session.beginProviderInvocation({
+    sessionId: request.sessionId,
+    turnId: submitted.turn.id,
+    attemptId: started.attempt.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId,
+    leaseToken: job.leaseToken,
+    step: 1,
+    invocationNumber: 1,
+    requestDigest: `seed-${request.suffix}`
+  })
+  await session.settleTurn({
+    sessionId: request.sessionId,
+    turnId: submitted.turn.id,
+    attemptId: started.attempt.id,
+    inputId: submitted.admission.inputId,
+    jobId: job.id,
+    workerId,
+    leaseToken: job.leaseToken,
+    outcome: "succeeded",
+    providerInvocationId: invocation.id,
+    assistantMessage: [{
+      type: "text",
+      id: `assistant_${request.suffix}`,
+      text: request.assistantText
+    }]
+  })
+}
+
+function resourceEvidence(
+  resource: Awaited<ReturnType<StorageTestStore["ingestResource"]>>
+) {
+  return {
+    resourceId: resource.id,
+    sha256: resource.sha256,
+    sizeBytes: resource.sizeBytes,
+    kind: resource.kind,
+    ...(resource.mediaType === undefined ? {} : { mediaType: resource.mediaType })
+  }
+}
+
 class CountingFakeProvider extends FakeProviderAdapter {
   calls = 0
+  readonly requests: ProviderRequest[] = []
 
   override async *stream(request: ProviderRequest) {
     this.calls += 1
+    this.requests.push(request)
     yield* super.stream(request)
   }
 }

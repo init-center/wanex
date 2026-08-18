@@ -49,7 +49,7 @@ export function expectChannelProjectionTargetKind(
   const kind = expectString(value, "channel_projection.target_kind")
   if (
     kind !== "session.turn" &&
-    kind !== "team.turn" &&
+    kind !== "team.message" &&
     kind !== "workspace.task" &&
     kind !== "ignored"
   ) {

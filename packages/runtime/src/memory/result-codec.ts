@@ -7,21 +7,18 @@ export function memoryCompactionJobResultToJson(
   return {
     sessionId: result.sessionId,
     epochId: result.epochId,
-    policyVersion: result.policyVersion,
+    cutSequence: result.cutSequence,
+    summaryDigest: result.summaryDigest,
     tokenEstimateBefore: result.tokenEstimateBefore,
     tokenEstimateAfter: result.tokenEstimateAfter,
-    replacementCount: result.replacementCount,
-    replacementIds: [...result.replacementIds],
     ...(result.metadata === undefined ? {} : { metadata: result.metadata }),
     ...(result.prune === undefined
       ? {}
       : {
           prune: {
             sessionId: result.prune.sessionId,
-            policyVersion: result.prune.policyVersion,
             scannedCount: result.prune.scannedCount,
             deletedEpochIds: [...result.prune.deletedEpochIds],
-            deletedReplacementCount: result.prune.deletedReplacementCount,
             dryRun: result.prune.dryRun
           }
         })

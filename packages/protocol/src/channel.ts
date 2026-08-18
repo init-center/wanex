@@ -172,7 +172,7 @@ export interface ChannelDeliveryAcknowledgement {
 
 export type ChannelProjectionTargetKind =
   | "session.turn"
-  | "team.turn"
+  | "team.message"
   | "workspace.task"
   | "ignored"
 
@@ -200,7 +200,6 @@ export interface SessionTurnProjectionTarget {
   readonly inputType?: string
   readonly executionBinding: import("./session.js").SessionTurnExecutionBinding
   readonly maxSteps?: number
-  readonly parentTurnId?: string
   readonly regeneratesTurnId?: string
   readonly jobId?: string
   readonly scheduledAt?: number
@@ -209,14 +208,15 @@ export interface SessionTurnProjectionTarget {
   readonly budgetGrantId?: string
 }
 
-export interface TeamTurnProjectionTarget {
-  readonly kind: "team.turn"
+export interface TeamMessageProjectionTarget {
+  readonly kind: "team.message"
   readonly conversationId: string
-  readonly speakerParticipantId: string
+  readonly authorParticipantId: string
   readonly content: JsonValue
-  readonly turnId?: string
-  readonly audienceParticipantIds?: readonly string[]
-  readonly turnKind?: string
+  readonly messageId?: string
+  readonly parentMessageId?: string
+  readonly messageKind?: string
+  readonly targets?: readonly import("./team.js").TeamTarget[]
   readonly metadata?: JsonValue
 }
 
@@ -247,7 +247,7 @@ export interface IgnoredProjectionTarget {
 
 export type ChannelProjectionTarget =
   | SessionTurnProjectionTarget
-  | TeamTurnProjectionTarget
+  | TeamMessageProjectionTarget
   | WorkspaceTaskProjectionTarget
   | IgnoredProjectionTarget
 

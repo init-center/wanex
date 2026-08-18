@@ -64,6 +64,20 @@ export function validateContribution(
   }
   if (
     contribution.domain === "command" &&
+    contribution.value.paletteVisibility !== "visible" &&
+    contribution.value.paletteVisibility !== "hidden"
+  ) {
+    diagnostics.push({
+      code: "extension.command_palette_visibility_invalid",
+      severity: "error",
+      message: "command paletteVisibility must be visible or hidden",
+      contributionId: contribution.id,
+      domain: contribution.domain,
+      sourceId: contribution.provenance.source.id
+    })
+  }
+  if (
+    contribution.domain === "command" &&
     contribution.value.inputSchema !== undefined
   ) {
     const parsed = parseAppCommandInputSchema(contribution.value.inputSchema)

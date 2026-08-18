@@ -7,6 +7,7 @@ import {
 import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
+  jsonToolResultContent,
   ToolRegistry
 } from "@wanex/runtime/tools"
 import { createEvalScenario } from "./runner.js"
@@ -140,6 +141,8 @@ function optionalTools(revision: string): ToolRegistry {
     inputSchema: { type: "object", additionalProperties: true },
     risk: "read_only",
     idempotent: true,
+    concurrency: "parallel_safe",
+    resultMode: "immediate",
     runtimeBinding: createToolRuntimeBinding({
       implementationId: "wanex.eval.optional-echo",
       implementationRevision: revision,
@@ -147,9 +150,9 @@ function optionalTools(revision: string): ToolRegistry {
     }),
     async invoke(invocation) {
       return {
+        outcome: "succeeded",
         toolCallId: invocation.toolCallId,
-        result: { echoed: invocation.input },
-        isError: false
+        content: jsonToolResultContent({ echoed: invocation.input })
       }
     }
   })

@@ -3,7 +3,9 @@ import {
   auditHostDistributionData,
   parseHostDistributionAuditArgs
 } from "./audit-host-distribution.mjs"
-import { summarizeElectronSamples } from "./electron-boundary/metrics.mjs"
+import {
+  summarizeProductDesktopSamples
+} from "../apps/desktop/scripts/metrics.mjs"
 import { summarizeNativeRuntimeSamples } from "./native-runtime-metrics.mjs"
 
 describe("host distribution budget", () => {
@@ -13,10 +15,13 @@ describe("host distribution budget", () => {
       "--target",
       "linux-x64",
       "--budget",
-      "budget.json"
+      "budget.json",
+      "--tui-receipt",
+      "tui.json"
     ])).toMatchObject({
       targetId: "linux-x64",
-      budgetPath: expect.stringMatching(/budget\.json$/)
+      budgetPath: expect.stringMatching(/budget\.json$/),
+      tuiReceiptPath: expect.stringMatching(/tui\.json$/)
     })
     expect(() => parseHostDistributionAuditArgs(["--unknown"]))
       .toThrow("unknown host distribution audit argument")
@@ -34,96 +39,132 @@ describe("host distribution budget", () => {
     })
   })
 
-  it("reports every native and Electron ceiling violation", () => {
+  it("accepts an installed TUI receipt within its target contract", () => {
+    expect(auditHostDistributionData({
+      targetId: "linux-x64",
+      budget: budgetWithTui(),
+      native: nativeReceipt(),
+      tui: tuiReceipt()
+    })).toMatchObject({
+      ok: true,
+      targetId: "linux-x64",
+      failures: [],
+      observed: {
+        tui: {
+          ptyMode: "pty",
+          terminalRestored: true
+        }
+      }
+    })
+  })
+
+  it("reports TUI closure and authorization violations", () => {
+    const tui = tuiReceipt()
+    tui.distribution.staging.bytes = 101
+    tui.line.providerAuthorized = false
+    const result = auditHostDistributionData({
+      targetId: "linux-x64",
+      budget: budgetWithTui(),
+      native: nativeReceipt(),
+      tui
+    })
+    expect(result.ok).toBe(false)
+    expect(result.failures).toEqual(expect.arrayContaining([
+      expect.stringContaining("TUI staging bytes"),
+      expect.stringContaining("TUI installed line provider authorization")
+    ]))
+  })
+
+  it("reports every native and Product Desktop ceiling violation", () => {
     const native = nativeReceipt()
     native.artifact.bytes = 101
     native.samples.forEach((sample) => {
       sample.timingsMs.total = 101
     })
     native.summary = summarizeNativeRuntimeSamples(native.samples)
-    const electron = electronReceipt()
-    electron.packaged.unpackedBytes = 101
-    electron.packaged.hasApplicationNodeModules = true
-    electron.samples[0].runtime.timingsMs.interactiveTotal = 101
-    electron.summary = summarizeElectronSamples(electron.samples)
+    const desktop = desktopReceipt()
+    desktop.packaged.unpackedBytes = 101
+    desktop.packaged.hasApplicationNodeModules = true
+    desktop.samples[0].runtime.timingsMs.interactiveTotal = 101
+    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: { ...native, target: { id: "darwin-arm64" } },
-      electron
+      desktop
     })
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
       expect.stringContaining("native executable bytes"),
       expect.stringContaining("native total median ms"),
-      expect.stringContaining("Electron unpacked bytes"),
-      expect.stringContaining("Electron node_modules exclusion"),
-      expect.stringContaining("Electron cold interactive total ms")
+      expect.stringContaining("Product Desktop unpacked bytes"),
+      expect.stringContaining("Product Desktop node_modules exclusion"),
+      expect.stringContaining("Product Desktop cold interactive total ms")
     ]))
   })
 
   it("enforces warm median ceilings independently from the cold sample", () => {
-    const electron = electronReceipt()
-    electron.samples.slice(1, 4).forEach((sample) => {
+    const desktop = desktopReceipt()
+    desktop.samples.slice(1, 4).forEach((sample) => {
       sample.runtime.timingsMs.interactiveTotal = 101
     })
-    electron.summary = summarizeElectronSamples(electron.samples)
+    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      electron
+      desktop
     })
     expect(result.failures).toEqual([
-      expect.stringContaining("Electron warm interactive total median ms")
+      expect.stringContaining("Product Desktop warm interactive total median ms")
     ])
   })
 
   it("retains a hard warm ceiling for one pathological sample", () => {
-    const electron = electronReceipt()
-    electron.samples[3].runtime.timingsMs.interactiveTotal = 201
-    electron.summary = summarizeElectronSamples(electron.samples)
+    const desktop = desktopReceipt()
+    desktop.samples[3].runtime.timingsMs.interactiveTotal = 201
+    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      electron
+      desktop
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
-        "Electron warm interactive total hard maximum ms"
+        "Product Desktop warm interactive total hard maximum ms"
       )
     ])
   })
 
   it("bounds asynchronous settlement separately from interactive startup", () => {
-    const electron = electronReceipt()
-    electron.samples[2].runtime.timingsMs.conversationSettlement = 101
-    electron.summary = summarizeElectronSamples(electron.samples)
+    const desktop = desktopReceipt()
+    desktop.samples[2].runtime.timingsMs.conversationSettlement = 101
+    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      electron
+      desktop
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
-        "Electron warm conversation settlement maximum ms"
+        "Product Desktop warm conversation settlement maximum ms"
       )
     ])
   })
 
-  it("rejects a declared Electron summary that differs from raw samples", () => {
-    const electron = electronReceipt()
-    electron.summary.cold.timingsMs.interactiveTotal = 49
+  it("rejects a declared Product Desktop summary that differs from raw samples", () => {
+    const desktop = desktopReceipt()
+    desktop.summary.cold.timingsMs.interactiveTotal = 49
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      electron
+      desktop
     })
     expect(result.failures).toEqual([
-      "Electron declared summary does not match raw samples"
+      "Product Desktop declared summary does not match raw samples"
     ])
   })
 
@@ -177,17 +218,29 @@ describe("host distribution budget", () => {
   })
 })
 
-function budget(electron) {
+function budget(desktop) {
   return {
     kind: "wanex.host-distribution-budget",
     targets: {
       "linux-x64": { native: nativeBudget() },
       "darwin-arm64": {
         native: nativeBudget(),
-        ...(electron ? { electron: electronBudget() } : {})
+        ...(desktop ? { desktop: desktopBudget() } : {})
       }
     }
   }
+}
+
+function budgetWithTui() {
+  const result = budget(false)
+  result.targets["linux-x64"].tui = {
+    maxStagingBytes: 100,
+    maxStagingFileCount: 10,
+    maxTarballBytes: 100,
+    maxTarballFileCount: 10,
+    ptyMode: "required"
+  }
+  return result
 }
 
 function nativeBudget() {
@@ -205,14 +258,16 @@ function nativeBudget() {
   }
 }
 
-function electronBudget() {
+function desktopBudget() {
   return {
     maxUnpackedBytes: 100,
     maxPackageFileCount: 100,
     maxAsarBytes: 100,
-    exactAsarEntryCount: 5,
+    exactAsarEntryCount: 2,
     maxNativeBytes: 100,
     exactNativeFileCount: 2,
+    maxCredentialBytes: 100,
+    exactCredentialFileCount: 2,
     cold: {
       maxInteractiveTotalMs: 100,
       maxConversationSettlementMs: 100,
@@ -262,7 +317,7 @@ function nativeReceipt() {
   }
 }
 
-function electronReceipt() {
+function desktopReceipt() {
   const samples = Array.from({ length: 5 }, (_, index) => ({
     index,
     temperature: index === 0 ? "cold" : "warm",
@@ -283,7 +338,7 @@ function electronReceipt() {
     }
   }))
   return {
-    kind: "wanex.electron-boundary.proof-receipt",
+    kind: "wanex.product-desktop.proof-receipt",
     ok: true,
     packaged: {
       platform: "darwin",
@@ -291,16 +346,56 @@ function electronReceipt() {
       unpackedBytes: 50,
       fileCount: 50,
       asarBytes: 50,
-      asarEntryCount: 5,
+      asarEntryCount: 2,
       nativeBytes: 50,
       nativeFileCount: 2,
+      credentialBytes: 50,
+      credentialFileCount: 2,
       hasApplicationNodeModules: false,
       hasAsarUnpacked: false
     },
     sampleCount: 5,
     samples,
-    summary: summarizeElectronSamples(samples),
+    summary: summarizeProductDesktopSamples(samples),
+    realProductDocument: true,
+    screenshotsNonBlank: true,
     noEpermRename: true,
     noOwnedProcessAfterRun: true
+  }
+}
+
+function tuiReceipt() {
+  return {
+    kind: "wanex.tui.installed-proof-receipt",
+    ok: true,
+    distribution: {
+      staging: {
+        bytes: 50,
+        fileCount: 10,
+        hasSource: false,
+        hasTests: false,
+        hasWorkspaceLinks: false,
+        hasNodeModules: false
+      },
+      tarball: {
+        bytes: 50,
+        fileCount: 10
+      }
+    },
+    host: { platform: "linux", arch: "x64" },
+    installed: {
+      projectDirOutsideWorkspace: true,
+      packageLockChecked: true
+    },
+    line: {
+      mode: "line",
+      providerAuthorized: true
+    },
+    pty: {
+      mode: "pty",
+      terminalRestored: true
+    },
+    registryRequests: 3,
+    nativeTarget: "linux-x64"
   }
 }

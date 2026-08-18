@@ -6,7 +6,7 @@ import {
 } from "./factory.js"
 import type {
   JsonValue,
-  ProviderProfile,
+  ModelEndpoint,
   SessionTurnExecutionBinding
 } from "@wanex/protocol"
 import { createChannelStore, type ChannelStore } from "./channel.js"
@@ -57,42 +57,36 @@ export function createStorageTestStore(
 }
 
 export function createTestTurnExecutionBinding(
-  profile: ProviderProfile = {
-    id: "test-profile",
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    providerId: "fake",
-    modelId: "test-model"
+  endpoint: ModelEndpoint = {
+    id: "test-endpoint",
+    connection: { id: "test-connection", providerId: "fake" },
+    protocol: { id: "fake" },
+    model: {
+      id: "test-model",
+      operations: ["conversation"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "builtin",
+        catalogId: "wanex.test",
+        revision: "1"
+      }
+    }
   }
 ): SessionTurnExecutionBinding {
-  const normalizedProfile = {
-    id: profile.id,
-    kind: profile.kind,
-    providerId: profile.providerId,
-    modelId: profile.modelId,
-    capabilities: profile.capabilities,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.secretRef === undefined ? {} : { secretRef: profile.secretRef }),
-    ...(profile.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: profile.anthropicVersion })
-  }
-  const provider = {
-    profileId: profile.id,
-    profileDigest: digestJson(normalizedProfile),
-    adapterId: profile.kind,
-    providerId: profile.providerId,
-    modelId: profile.modelId,
-    capabilities: profile.capabilities,
-    ...(profile.baseUrl === undefined ? {} : { baseUrl: profile.baseUrl }),
-    ...(profile.secretRef === undefined ? {} : { secretRef: profile.secretRef }),
-    ...(profile.anthropicVersion === undefined
-      ? {}
-      : { anthropicVersion: profile.anthropicVersion })
+  const modelEndpoint = {
+    endpointId: endpoint.id,
+    endpointDigest: digestJson(endpoint),
+    connection: endpoint.connection,
+    protocol: endpoint.protocol,
+    model: endpoint.model
   }
   const unsigned = {
     createdAt: 1,
-    provider,
+    modelEndpoint,
+    completion: { maxOutputTokens: 4_096 },
+    capabilityRoutes: [],
     resources: [],
     recovery: {
       providerMaxAttempts: 1,

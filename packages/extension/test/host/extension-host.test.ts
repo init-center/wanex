@@ -242,6 +242,7 @@ function command(options: {
     value: {
       name: options.id,
       title: options.title,
+      paletteVisibility: "visible",
       handlerRef: `handler.${options.id}`
     },
     provenance: {

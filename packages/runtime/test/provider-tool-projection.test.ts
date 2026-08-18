@@ -6,6 +6,7 @@ import {
   type ProviderFetch,
   type ProviderToolDefinition
 } from "../src/provider/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 const tools: readonly ProviderToolDefinition[] = [
   {
@@ -25,7 +26,7 @@ describe("provider tool projection", () => {
     const bodies: unknown[] = []
     const adapter = new OpenAICompatibleAdapter({
       providerId: "openai",
-      modelId: "model",
+      model: testConversationModel("model"),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: openAIFetch(bodies)
@@ -56,7 +57,8 @@ describe("provider tool projection", () => {
   it("projects required choice and serial control to Anthropic wire fields", async () => {
     const bodies: unknown[] = []
     const adapter = new AnthropicAdapter({
-      modelId: "claude",
+      providerId: "anthropic",
+      model: testConversationModel("claude"),
       baseUrl: "https://api.example/v1",
       apiKey: "secret",
       fetch: anthropicFetch(bodies)

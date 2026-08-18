@@ -1,116 +1,122 @@
-import {
-  type GetObjectiveRunRequest,
-  type ListObjectiveAttemptsRequest,
-  type ListObjectiveRunOperationsRequest,
-  type ListObjectiveRunsRequest,
-  type ListObjectiveVerificationsRequest,
-  type PutObjectiveAttemptRequest,
-  type PutObjectiveRunRequest,
-  type PutObjectiveVerificationRequest,
-  type RecordObjectiveRunOperationRequest
+import type {
+  AdmitObjectiveAttemptRequest,
+  BudgetLimit,
+  CreateObjectiveRequest,
+  ListObjectiveAttemptReviewsRequest,
+  ListObjectiveAttemptsRequest,
+  ListObjectivesRequest,
+  ListObjectiveVerificationsRequest,
+  ObjectiveStopPolicy,
+  ObjectiveVerificationSubmission,
+  PauseObjectiveRequest,
+  ReconcileObjectiveCancellationRequest,
+  RequestObjectiveCancelRequest,
+  ResumeObjectiveRequest,
+  ReviewObjectiveAttemptRequest
 } from "@wanex/protocol"
 
-import {
-  objectiveReferenceToJson
-} from "./codec-objective-reference.js"
-import { objectiveStopPolicyToJson } from "./codec-objective-stop-policy.js"
-import { toRpcJsonValue } from "./codec-common.js"
+import { toRpcJsonValueFromUnknown } from "./codec-common.js"
+import { toRpcSubmitSessionTurnRequest } from "./codec-session-requests.js"
 import type {
+  AdmitObjectiveAttemptWire,
+  ChangeObjectiveStateWire,
+  CreateObjectiveWire,
+  ListObjectiveAttemptReviewsWire,
   ListObjectiveAttemptsWire,
-  ListObjectiveRunOperationsWire,
-  ListObjectiveRunsWire,
+  ListObjectivesWire,
   ListObjectiveVerificationsWire,
-  PutObjectiveAttemptWire,
-  PutObjectiveRunWire,
-  PutObjectiveVerificationWire,
-  RecordObjectiveRunOperationWire
+  ReconcileObjectiveCancellationWire,
+  RequestObjectiveCancelWire,
+  ReviewObjectiveAttemptWire
 } from "./generated/storage-rpc.js"
 
-export function toRpcPutObjectiveRunRequest(
-  request: PutObjectiveRunRequest
-): PutObjectiveRunWire {
+export function toRpcCreateObjectiveRequest(
+  request: CreateObjectiveRequest
+): CreateObjectiveWire {
   return {
     id: request.id ?? null,
+    session_id: request.sessionId,
     principal_id: request.principalId,
     objective: request.objective,
-    scope: request.scope ?? null,
-    constraints: toRpcJsonValue(request.constraints?.slice() ?? null),
-    success_criteria: toRpcJsonValue(request.successCriteria?.slice() ?? null),
-    stop_policy:
-      request.stopPolicy === undefined
-        ? null
-        : toRpcJsonValue(objectiveStopPolicyToJson(request.stopPolicy)),
-    references: toRpcJsonValue(
-      request.references?.map(objectiveReferenceToJson) ?? null
-    ),
-    metadata: toRpcJsonValue(request.metadata ?? null),
-    idempotency_key: request.idempotencyKey ?? null
+    boundaries: toRpcJsonValueFromUnknown(request.boundaries ?? []),
+    constraints: toRpcJsonValueFromUnknown(request.constraints ?? []),
+    success_criteria: toRpcJsonValueFromUnknown(request.successCriteria),
+    verification_policy: toRpcJsonValueFromUnknown(request.verificationPolicy),
+    stop_policy: objectiveStopPolicyToJson(request.stopPolicy),
+    idempotency_key: request.idempotencyKey
   }
 }
 
-export function toRpcGetObjectiveRunRequest(
-  request: GetObjectiveRunRequest
-): { readonly objective_id: string } {
+export function toRpcListObjectivesRequest(
+  request: ListObjectivesRequest
+): ListObjectivesWire {
   return {
-    objective_id: request.objectiveId
-  }
-}
-
-export function toRpcListObjectiveRunsRequest(
-  request: ListObjectiveRunsRequest
-): ListObjectiveRunsWire {
-  return {
+    session_id: request.sessionId ?? null,
     principal_id: request.principalId ?? null,
-    state: request.state ?? null,
-    reference_kind: request.referenceKind ?? null,
-    reference_id: request.referenceId ?? null,
+    states: request.states === undefined ? null : [...request.states],
     limit: request.limit ?? null
   }
 }
 
-export function toRpcRecordObjectiveRunOperationRequest(
-  request: RecordObjectiveRunOperationRequest
-): RecordObjectiveRunOperationWire {
+export function toRpcChangeObjectiveStateRequest(
+  request: PauseObjectiveRequest | ResumeObjectiveRequest
+): ChangeObjectiveStateWire {
   return {
-    id: request.id ?? null,
     objective_id: request.objectiveId,
-    operation: request.operation,
-    actor_id: request.actorId,
+    expected_revision: request.expectedRevision,
     reason: request.reason ?? null,
-    metadata: toRpcJsonValue(request.metadata ?? null)
+    idempotency_key: request.idempotencyKey
   }
 }
 
-export function toRpcListObjectiveRunOperationsRequest(
-  request: ListObjectiveRunOperationsRequest
-): ListObjectiveRunOperationsWire {
+export function toRpcAdmitObjectiveAttemptRequest(
+  request: AdmitObjectiveAttemptRequest
+): AdmitObjectiveAttemptWire {
   return {
-    objective_id: request.objectiveId
+    objective_id: request.objectiveId,
+    expected_revision: request.expectedRevision,
+    trigger: request.trigger,
+    idempotency_key: request.idempotencyKey,
+    turn: toRpcSubmitSessionTurnRequest(request.turn)
   }
 }
 
-export function toRpcPutObjectiveAttemptRequest(
-  request: PutObjectiveAttemptRequest
-): PutObjectiveAttemptWire {
+export function toRpcReviewObjectiveAttemptRequest(
+  request: ReviewObjectiveAttemptRequest
+): ReviewObjectiveAttemptWire {
   return {
     id: request.id ?? null,
     objective_id: request.objectiveId,
-    attempt_number: request.attemptNumber ?? null,
-    state: request.state ?? null,
-    session_id: request.sessionId ?? null,
-    session_input_id: request.sessionInputId ?? null,
-    session_turn_id: request.sessionTurnId ?? null,
-    scheduler_job_id: request.schedulerJobId ?? null,
-    delegation_graph_id: request.delegationGraphId ?? null,
-    plan_proposal_id: request.planProposalId ?? null,
-    workspace_change_proposal_id: request.workspaceChangeProposalId ?? null,
-    summary: request.summary ?? null,
-    result: toRpcJsonValue(request.result ?? null),
-    error: toRpcJsonValue(request.error ?? null),
-    metadata: toRpcJsonValue(request.metadata ?? null),
-    started_at: request.startedAt ?? null,
-    finished_at: request.finishedAt ?? null,
-    idempotency_key: request.idempotencyKey ?? null
+    attempt_id: request.attemptId,
+    expected_revision: request.expectedRevision,
+    disposition: request.disposition,
+    reason: request.reason ?? null,
+    verifications: toRpcJsonValueFromUnknown(
+      request.verifications.map(verificationSubmissionToJson)
+    ),
+    idempotency_key: request.idempotencyKey
+  }
+}
+
+export function toRpcRequestObjectiveCancelRequest(
+  request: RequestObjectiveCancelRequest
+): RequestObjectiveCancelWire {
+  return {
+    objective_id: request.objectiveId,
+    expected_revision: request.expectedRevision,
+    reason: request.reason,
+    idempotency_key: request.idempotencyKey
+  }
+}
+
+export function toRpcReconcileObjectiveCancellationRequest(
+  request: ReconcileObjectiveCancellationRequest
+): ReconcileObjectiveCancellationWire {
+  return {
+    objective_id: request.objectiveId,
+    attempt_id: request.attemptId,
+    expected_revision: request.expectedRevision,
+    idempotency_key: request.idempotencyKey
   }
 }
 
@@ -119,25 +125,17 @@ export function toRpcListObjectiveAttemptsRequest(
 ): ListObjectiveAttemptsWire {
   return {
     objective_id: request.objectiveId,
-    state: request.state ?? null,
     limit: request.limit ?? null
   }
 }
 
-export function toRpcPutObjectiveVerificationRequest(
-  request: PutObjectiveVerificationRequest
-): PutObjectiveVerificationWire {
+export function toRpcListObjectiveAttemptReviewsRequest(
+  request: ListObjectiveAttemptReviewsRequest
+): ListObjectiveAttemptReviewsWire {
   return {
-    id: request.id ?? null,
     objective_id: request.objectiveId,
     attempt_id: request.attemptId ?? null,
-    kind: request.kind,
-    state: request.state,
-    reason: request.reason ?? null,
-    evidence: toRpcJsonValue(request.evidence ?? null),
-    verifier_ref: request.verifierRef ?? null,
-    metadata: toRpcJsonValue(request.metadata ?? null),
-    idempotency_key: request.idempotencyKey ?? null
+    limit: request.limit ?? null
   }
 }
 
@@ -147,7 +145,47 @@ export function toRpcListObjectiveVerificationsRequest(
   return {
     objective_id: request.objectiveId,
     attempt_id: request.attemptId ?? null,
-    state: request.state ?? null,
+    requirement_id: request.requirementId ?? null,
+    result: request.result ?? null,
     limit: request.limit ?? null
+  }
+}
+
+function objectiveStopPolicyToJson(policy: ObjectiveStopPolicy) {
+  return toRpcJsonValueFromUnknown({
+    maxAttempts: policy.maxAttempts,
+    maxConsecutiveBlockedAttempts: policy.maxConsecutiveBlockedAttempts,
+    ...(policy.deadlineAt === undefined ? {} : { deadlineAt: policy.deadlineAt }),
+    ...(policy.budget === undefined
+      ? {}
+      : { budget: objectiveBudgetLimitToJson(policy.budget) })
+  })
+}
+
+function objectiveBudgetLimitToJson(budget: BudgetLimit) {
+  return {
+    ...(budget.tokens === undefined ? {} : { tokens: budget.tokens }),
+    ...(budget.costMicros === undefined ? {} : { costMicros: budget.costMicros }),
+    ...(budget.wallTimeMs === undefined
+      ? {}
+      : { wallTimeMs: budget.wallTimeMs }),
+    ...(budget.toolCalls === undefined ? {} : { toolCalls: budget.toolCalls })
+  }
+}
+
+function verificationSubmissionToJson(
+  verification: ObjectiveVerificationSubmission
+) {
+  return {
+    requirementId: verification.requirementId,
+    verifierKind: verification.verifierKind,
+    verifierRef: verification.verifierRef,
+    result: verification.result,
+    ...(verification.reason === undefined ? {} : { reason: verification.reason }),
+    evidence: verification.evidence.map((evidence) => ({
+      kind: evidence.kind,
+      referenceId: evidence.referenceId,
+      digest: evidence.digest
+    }))
   }
 }

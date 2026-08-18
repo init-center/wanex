@@ -1,4 +1,5 @@
 import { sweepMemoryCompaction } from "@wanex/runtime/memory"
+import type { ModelEndpointExecutionBinding } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 
 export async function memorySweepValue(
@@ -6,9 +7,7 @@ export async function memorySweepValue(
   request: {
     readonly principalId: string
     readonly sessionLimit?: number
-    readonly waterlineTokens?: number
     readonly minimumTokenSavings?: number
-    readonly policyVersion?: string
     readonly idempotencyKeyPrefix?: string
   }
 ): Promise<unknown> {
@@ -22,15 +21,11 @@ export async function memorySweepValue(
         ? {}
         : { limit: request.sessionLimit })
     },
-    ...(request.waterlineTokens === undefined
-      ? {}
-      : { waterlineTokens: request.waterlineTokens }),
+    resolveModelEndpoint: async (sessionId) =>
+      await latestTerminalModelEndpoint(storage, sessionId),
     ...(request.minimumTokenSavings === undefined
       ? {}
-      : { minimumTokenSavings: request.minimumTokenSavings }),
-    ...(request.policyVersion === undefined
-      ? {}
-      : { policy: { version: request.policyVersion } }),
+      : { policy: { minimumTokenSavings: request.minimumTokenSavings } }),
     ...(request.idempotencyKeyPrefix === undefined
       ? {}
       : { idempotencyKeyPrefix: request.idempotencyKeyPrefix })
@@ -43,8 +38,7 @@ export async function memorySweepValue(
       id: job.id,
       kind: job.kind,
       state: job.state,
-      sessionId: sessionIdFromPayload(job.payload),
-      policyVersion: policyVersionFromPayload(job.payload),
+      ...compactionEvidenceSummary(job.payload),
       idempotencyKey: job.idempotencyKey
     })),
     skippedPlans: receipt.skippedPlans,
@@ -53,22 +47,56 @@ export async function memorySweepValue(
   }
 }
 
-function sessionIdFromPayload(payload: unknown): string | undefined {
+function compactionEvidenceSummary(payload: unknown): {
+  readonly sessionId?: string
+  readonly sourceDigest?: string
+  readonly policyDigest?: string
+  readonly cutSequence?: number
+} {
   if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    return undefined
+    return {}
   }
-  const value = (payload as { readonly sessionId?: unknown }).sessionId
-  return typeof value === "string" ? value : undefined
+  const evidence = (payload as { readonly evidence?: unknown }).evidence
+  if (typeof evidence !== "object" || evidence === null || Array.isArray(evidence)) {
+    return {}
+  }
+  const record = evidence as Readonly<Record<string, unknown>>
+  return {
+    ...(typeof record.sessionId === "string"
+      ? { sessionId: record.sessionId }
+      : {}),
+    ...(typeof record.sourceDigest === "string"
+      ? { sourceDigest: record.sourceDigest }
+      : {}),
+    ...(typeof record.policyDigest === "string"
+      ? { policyDigest: record.policyDigest }
+      : {}),
+    ...(typeof record.cutSequence === "number"
+      ? { cutSequence: record.cutSequence }
+      : {})
+  }
 }
 
-function policyVersionFromPayload(payload: unknown): string | undefined {
-  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
-    return undefined
+async function latestTerminalModelEndpoint(
+  storage: CoreStore,
+  sessionId: string
+): Promise<ModelEndpointExecutionBinding | null> {
+  const [messages, turns] = await Promise.all([
+    storage.listSessionMessages({ sessionId }),
+    storage.listSessionTurns({ sessionId })
+  ])
+  const head = messages.reduce(
+    (latest, message) =>
+      latest === undefined || message.sequence > latest.sequence ? message : latest,
+    undefined as (typeof messages)[number] | undefined
+  )
+  if (head === undefined) return null
+  const turn = turns.find((candidate) => candidate.id === head.turnId)
+  if (
+    turn === undefined ||
+    !["succeeded", "failed", "cancelled", "interrupted"].includes(turn.state)
+  ) {
+    return null
   }
-  const policy = (payload as { readonly policy?: unknown }).policy
-  if (typeof policy !== "object" || policy === null || Array.isArray(policy)) {
-    return undefined
-  }
-  const value = (policy as { readonly version?: unknown }).version
-  return typeof value === "string" ? value : undefined
+  return turn.executionBinding.modelEndpoint
 }

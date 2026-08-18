@@ -1,4 +1,9 @@
-import type { ResourceId, ResourceTicketId, PrincipalId } from "./ids.js"
+import type {
+  PrincipalId,
+  ResourceId,
+  ResourceProvenanceId,
+  ResourceTicketId
+} from "./ids.js"
 import type { JsonValue } from "./json.js"
 
 export type ResourceKind =
@@ -75,6 +80,46 @@ export interface ResourceInputEvidence {
   readonly sizeBytes: number
   readonly kind: ResourceKind
   readonly mediaType?: string
+}
+
+export type ResourceProvenanceCause =
+  | ToolExecutionResourceProvenanceCause
+  | MediaGenerationResourceProvenanceCause
+
+export interface ToolExecutionResourceProvenanceCause {
+  readonly kind: "tool_execution"
+  readonly executionId: string
+  readonly sessionId: string
+  readonly turnId: string
+  readonly sourceMessageId: string
+  readonly toolCallId: string
+}
+
+export interface MediaGenerationResourceProvenanceCause {
+  readonly kind: "media_generation"
+  readonly operationId: string
+}
+
+export interface ResourceProvenanceRecord {
+  readonly id: ResourceProvenanceId
+  readonly resource: ResourceInputEvidence
+  readonly cause: ResourceProvenanceCause
+  readonly inputResources: readonly ResourceInputEvidence[]
+  readonly digest: string
+  readonly createdAt: number
+}
+
+export interface RecordResourceProvenanceRequest {
+  readonly resource: ResourceInputEvidence
+  readonly cause: ResourceProvenanceCause
+  readonly inputResources: readonly ResourceInputEvidence[]
+}
+
+export interface ListResourceProvenanceRequest {
+  readonly resourceId?: ResourceId
+  readonly causeKind?: ResourceProvenanceCause["kind"]
+  readonly causeId?: string
+  readonly limit?: number
 }
 
 export interface IngestResourceRequest {

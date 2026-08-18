@@ -1,0 +1,14 @@
+.approval-card { background: var(--color-warning-surface); border: 1px solid var(--color-border-warning-soft); }
+.approval-card > .card-heading > svg { color: var(--color-warning); }
+.approval-item + .approval-item { margin-top: 13px; padding-top: 13px; border-top: 1px solid var(--color-border-warning-soft); }
+.approval-item p { margin: 5px 0 10px; color: var(--color-warning-strong); font-size: 12px; line-height: 18px; }
+.approval-item[aria-busy="true"] { opacity: .7; }
+.approval-details { margin: -2px 0 10px; }
+.approval-details dl { margin: 8px 0 0; padding: 8px 9px; background: var(--color-surface-soft); border: 1px solid var(--color-border-warning-soft); border-radius: 7px; }
+.approval-details dl > div { display: grid; grid-template-columns: minmax(80px, .35fr) minmax(0, 1fr); gap: 10px; padding: 4px 0; font-size: 11px; }
+.approval-details dt { color: var(--color-text-muted); }
+.approval-details dd { min-width: 0; margin: 0; color: var(--color-warning-strong); white-space: pre-wrap; overflow-wrap: anywhere; }
+.inline-actions button { display: inline-flex; align-items: center; gap: 5px; }
+.inline-actions button[data-ui-approval-decision="approve_once"] { color: var(--color-on-accent); background: var(--color-approval-action); border-color: var(--color-approval-action); }
+.inline-actions button[data-ui-approval-decision="approve_once"]:hover:not(:disabled) { background: var(--color-approval-action-hover); border-color: var(--color-approval-action-hover); }
+.inline-actions button:disabled { cursor: wait; }

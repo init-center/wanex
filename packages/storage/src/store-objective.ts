@@ -1,96 +1,121 @@
 import type {
-  GetObjectiveRunRequest,
+  AdmitObjectiveAttemptReceipt,
+  AdmitObjectiveAttemptRequest,
+  CreateObjectiveRequest,
+  GetObjectiveRequest,
+  ListObjectiveAttemptReviewsRequest,
   ListObjectiveAttemptsRequest,
-  ListObjectiveRunOperationsRequest,
-  ListObjectiveRunsRequest,
+  ListObjectivesRequest,
   ListObjectiveVerificationsRequest,
   ObjectiveAttemptRecord,
-  ObjectiveRunOperationRecord,
-  ObjectiveRunRecord,
+  ObjectiveAttemptReviewRecord,
+  ObjectiveRecord,
   ObjectiveVerificationRecord,
-  PutObjectiveAttemptRequest,
-  PutObjectiveRunRequest,
-  PutObjectiveVerificationRequest,
-  RecordObjectiveRunOperationRequest
+  PauseObjectiveRequest,
+  ReconcileObjectiveCancellationRequest,
+  RequestObjectiveCancelReceipt,
+  RequestObjectiveCancelRequest,
+  ResumeObjectiveRequest,
+  ReviewObjectiveAttemptReceipt,
+  ReviewObjectiveAttemptRequest
 } from "@wanex/protocol"
 
 import {
+  fromRpcAdmitObjectiveAttemptReceipt,
   fromRpcObjectiveAttemptRecord,
-  fromRpcObjectiveRunOperationRecord,
-  fromRpcObjectiveRunRecord,
+  fromRpcObjectiveAttemptReviewRecord,
+  fromRpcObjectiveRecord,
   fromRpcObjectiveVerificationRecord,
+  fromRpcRequestObjectiveCancelReceipt,
+  fromRpcReviewObjectiveAttemptReceipt,
+  toRpcAdmitObjectiveAttemptRequest,
+  toRpcChangeObjectiveStateRequest,
+  toRpcCreateObjectiveRequest,
+  toRpcListObjectiveAttemptReviewsRequest,
   toRpcListObjectiveAttemptsRequest,
-  toRpcListObjectiveRunOperationsRequest,
-  toRpcListObjectiveRunsRequest,
+  toRpcListObjectivesRequest,
   toRpcListObjectiveVerificationsRequest,
-  toRpcPutObjectiveAttemptRequest,
-  toRpcPutObjectiveRunRequest,
-  toRpcPutObjectiveVerificationRequest,
-  toRpcRecordObjectiveRunOperationRequest
+  toRpcReconcileObjectiveCancellationRequest,
+  toRpcRequestObjectiveCancelRequest,
+  toRpcReviewObjectiveAttemptRequest
 } from "./codec-objective.js"
 import { assertArray } from "./codec-helpers.js"
-import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { ObjectiveStorageRpcCommand } from "./generated/storage-rpc.js"
+import { RpcStoreFacetBase } from "./rpc-store-base.js"
 
 export class ObjectiveStoreMethods extends RpcStoreFacetBase {
-  async putObjectiveRun(request: PutObjectiveRunRequest): Promise<ObjectiveRunRecord> {
-    const value = await this.callObjective({
-      command: "put-objective-run",
-      request: toRpcPutObjectiveRunRequest(request)
-    })
-    return fromRpcObjectiveRunRecord(value)
+  async createObjective(request: CreateObjectiveRequest): Promise<ObjectiveRecord> {
+    return fromRpcObjectiveRecord(await this.callObjective({
+      command: "create-objective",
+      request: toRpcCreateObjectiveRequest(request)
+    }))
   }
 
-  async getObjectiveRun(
-    request: GetObjectiveRunRequest
-  ): Promise<ObjectiveRunRecord | null> {
+  async getObjective(request: GetObjectiveRequest): Promise<ObjectiveRecord | null> {
     const value = await this.callObjective({
-      command: "get-objective-run",
+      command: "get-objective",
       objective_id: request.objectiveId
     })
-    return value === null ? null : fromRpcObjectiveRunRecord(value)
+    return value === null ? null : fromRpcObjectiveRecord(value)
   }
 
-  async listObjectiveRuns(
-    request: ListObjectiveRunsRequest
-  ): Promise<ObjectiveRunRecord[]> {
+  async listObjectives(request: ListObjectivesRequest): Promise<ObjectiveRecord[]> {
     const value = await this.callObjective({
-      command: "list-objective-runs",
-      request: toRpcListObjectiveRunsRequest(request)
+      command: "list-objectives",
+      request: toRpcListObjectivesRequest(request)
     })
-    assertArray(value, "objective runs")
-    return value.map(fromRpcObjectiveRunRecord)
+    assertArray(value, "objectives")
+    return value.map(fromRpcObjectiveRecord)
   }
 
-  async recordObjectiveRunOperation(
-    request: RecordObjectiveRunOperationRequest
-  ): Promise<ObjectiveRunOperationRecord> {
-    const value = await this.callObjective({
-      command: "record-objective-run-operation",
-      request: toRpcRecordObjectiveRunOperationRequest(request)
-    })
-    return fromRpcObjectiveRunOperationRecord(value)
+  async pauseObjective(request: PauseObjectiveRequest): Promise<ObjectiveRecord> {
+    return fromRpcObjectiveRecord(await this.callObjective({
+      command: "pause-objective",
+      request: toRpcChangeObjectiveStateRequest(request)
+    }))
   }
 
-  async listObjectiveRunOperations(
-    request: ListObjectiveRunOperationsRequest
-  ): Promise<ObjectiveRunOperationRecord[]> {
-    const value = await this.callObjective({
-      command: "list-objective-run-operations",
-      request: toRpcListObjectiveRunOperationsRequest(request)
-    })
-    assertArray(value, "objective run operations")
-    return value.map(fromRpcObjectiveRunOperationRecord)
+  async resumeObjective(request: ResumeObjectiveRequest): Promise<ObjectiveRecord> {
+    return fromRpcObjectiveRecord(await this.callObjective({
+      command: "resume-objective",
+      request: toRpcChangeObjectiveStateRequest(request)
+    }))
   }
 
-  async putObjectiveAttempt(
-    request: PutObjectiveAttemptRequest
-  ): Promise<ObjectiveAttemptRecord> {
-    const value = await this.callObjective({
-      command: "put-objective-attempt",
-      request: toRpcPutObjectiveAttemptRequest(request)
-    })
-    return fromRpcObjectiveAttemptRecord(value)
+  async admitObjectiveAttempt(
+    request: AdmitObjectiveAttemptRequest
+  ): Promise<AdmitObjectiveAttemptReceipt> {
+    return fromRpcAdmitObjectiveAttemptReceipt(await this.callObjective({
+      command: "admit-objective-attempt",
+      request: toRpcAdmitObjectiveAttemptRequest(request)
+    }))
+  }
+
+  async reviewObjectiveAttempt(
+    request: ReviewObjectiveAttemptRequest
+  ): Promise<ReviewObjectiveAttemptReceipt> {
+    return fromRpcReviewObjectiveAttemptReceipt(await this.callObjective({
+      command: "review-objective-attempt",
+      request: toRpcReviewObjectiveAttemptRequest(request)
+    }))
+  }
+
+  async requestObjectiveCancel(
+    request: RequestObjectiveCancelRequest
+  ): Promise<RequestObjectiveCancelReceipt> {
+    return fromRpcRequestObjectiveCancelReceipt(await this.callObjective({
+      command: "request-objective-cancel",
+      request: toRpcRequestObjectiveCancelRequest(request)
+    }))
+  }
+
+  async reconcileObjectiveCancellation(
+    request: ReconcileObjectiveCancellationRequest
+  ): Promise<ObjectiveRecord> {
+    return fromRpcObjectiveRecord(await this.callObjective({
+      command: "reconcile-objective-cancellation",
+      request: toRpcReconcileObjectiveCancellationRequest(request)
+    }))
   }
 
   async listObjectiveAttempts(
@@ -104,14 +129,15 @@ export class ObjectiveStoreMethods extends RpcStoreFacetBase {
     return value.map(fromRpcObjectiveAttemptRecord)
   }
 
-  async putObjectiveVerification(
-    request: PutObjectiveVerificationRequest
-  ): Promise<ObjectiveVerificationRecord> {
+  async listObjectiveAttemptReviews(
+    request: ListObjectiveAttemptReviewsRequest
+  ): Promise<ObjectiveAttemptReviewRecord[]> {
     const value = await this.callObjective({
-      command: "put-objective-verification",
-      request: toRpcPutObjectiveVerificationRequest(request)
+      command: "list-objective-attempt-reviews",
+      request: toRpcListObjectiveAttemptReviewsRequest(request)
     })
-    return fromRpcObjectiveVerificationRecord(value)
+    assertArray(value, "objective attempt reviews")
+    return value.map(fromRpcObjectiveAttemptReviewRecord)
   }
 
   async listObjectiveVerifications(

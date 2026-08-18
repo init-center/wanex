@@ -928,7 +928,7 @@ fn node_state_is_terminal(state: &str) -> bool {
     matches!(state, "succeeded" | "failed" | "cancelled" | "skipped")
 }
 
-fn get_graph_tx(
+pub(crate) fn get_graph_tx(
     tx: &rusqlite::Transaction<'_>,
     graph_id: &str,
 ) -> Result<Option<DelegationGraphRecord>> {
@@ -941,7 +941,7 @@ fn get_graph_tx(
     .map_err(Into::into)
 }
 
-fn get_node_tx(
+pub(crate) fn get_node_tx(
     tx: &rusqlite::Transaction<'_>,
     node_id: &str,
 ) -> Result<Option<DelegationGraphNodeRecord>> {
@@ -954,7 +954,7 @@ fn get_node_tx(
     .map_err(Into::into)
 }
 
-fn get_dependency_tx(
+pub(crate) fn get_dependency_tx(
     tx: &rusqlite::Transaction<'_>,
     dependency_id: &str,
 ) -> Result<DelegationGraphDependencyRecord> {
@@ -1075,7 +1075,7 @@ fn collect_dependencies(
     Ok(records)
 }
 
-fn append_delegation_event_tx(
+pub(crate) fn append_delegation_event_tx(
     tx: &rusqlite::Transaction<'_>,
     event_type: &str,
     payload: &serde_json::Value,

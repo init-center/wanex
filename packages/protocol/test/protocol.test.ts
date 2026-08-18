@@ -3,13 +3,13 @@ import {
   createRuntimeEvent,
   type DelegationGraphState,
   type GetJobRequest,
+  type ObjectiveAttemptReviewRecord,
   type ObjectiveAttemptRecord,
-  type ObjectiveRunOperationKind,
-  type ObjectiveRunRecord,
-  type ObjectiveRunState,
+  type ObjectiveRecord,
+  type ObjectiveState,
   type ObjectiveStopPolicy,
   type ObjectiveVerificationRecord,
-  type ObjectiveVerificationState,
+  type ObjectiveVerificationResult,
   type MaterializeReadyDelegationGraphNodeRequest,
   type ChannelDeliveryAcknowledgement,
   type ChannelBindingRecord,
@@ -23,7 +23,7 @@ import {
   type PluginCapability,
   type SchedulerJobKind,
   type TeamConversationMode,
-  type TeamTurnKind,
+  type TeamMessageKind,
   type WorkspaceChangeProposalOperationKind,
   type WorkspaceChangeProposalState,
   type EphemeralQueryRequest,
@@ -41,12 +41,38 @@ import {
   type SessionTurnControlRecord,
   type SteerSessionTurnRequest,
   isTerminalSessionInputState,
+  normalizeToolActivityPresentation,
+  SESSION_TURN_CONTEXT_CAPACITY_ERROR_KIND,
+  type SessionTurnContextCapacityError,
   WANEX_PROTOCOL_VERSION
 } from "../src/index.js"
 
 describe("@wanex/protocol", () => {
   it("exposes the frozen protocol version", () => {
     expect(WANEX_PROTOCOL_VERSION).toBe(1)
+  })
+
+  it("normalizes bounded UI-neutral Tool activity evidence", () => {
+    expect(normalizeToolActivityPresentation({
+      summary: "Workspace file read",
+      details: [{ label: "Path", value: "src/main.ts" }]
+    })).toEqual({
+      summary: "Workspace file read",
+      details: [{ label: "Path", value: "src/main.ts" }]
+    })
+    expect(() => normalizeToolActivityPresentation({
+      summary: "图".repeat(171)
+    })).toThrow("1 to 512 UTF-8 bytes")
+    expect(() => normalizeToolActivityPresentation({
+      summary: "Unsafe\nsummary"
+    })).toThrow("without control characters")
+    expect(() => normalizeToolActivityPresentation({
+      summary: "Too many details",
+      details: Array.from({ length: 17 }, (_, index) => ({
+        label: "Row",
+        value: String(index)
+      }))
+    })).toThrow("exceeds 16 details")
   })
 
   it("creates runtime events with a stable shape", () => {
@@ -76,6 +102,24 @@ describe("@wanex/protocol", () => {
     expect(isTerminalSessionInputState("promoted")).toBe(false)
   })
 
+  it("exposes the durable Session Turn context-capacity failure", () => {
+    const error: SessionTurnContextCapacityError = {
+      kind: SESSION_TURN_CONTEXT_CAPACITY_ERROR_KIND,
+      message: "request exceeds the selected model capacity",
+      capacity: {
+        reasons: ["input_tokens_exceeded"],
+        inputTokens: 900,
+        inputTokenCeiling: 700,
+        inputResources: 0,
+        requestedOutputTokens: 100,
+        compactionAttempted: true
+      }
+    }
+
+    expect(error.kind).toBe("session_turn.context_capacity_exceeded")
+    expect(error.capacity.inputTokenCeiling).toBe(700)
+  })
+
   it("classifies known runtime event families", () => {
     expect(eventFamily("session.turn.succeeded")).toBe("session")
     expect(eventFamily("scheduler.job.succeeded")).toBe("scheduler")
@@ -89,8 +133,8 @@ describe("@wanex/protocol", () => {
     expect(eventFamily("session.turn.control_applied")).toBe("session")
     expect(eventFamily("session.ephemeral_query.completed")).toBe("session")
     expect(eventFamily("plan.proposal.created")).toBe("plan")
-    expect(eventFamily("objective.run.created")).toBe("objective")
-    expect(eventFamily("objective.attempt.recorded")).toBe("objective")
+    expect(eventFamily("objective.created")).toBe("objective")
+    expect(eventFamily("objective.attempt.admitted")).toBe("objective")
     expect(eventFamily("custom.future.event")).toBe("unknown")
     expect(isKnownRuntimeEventType("scheduler.job.failed")).toBe(true)
     expect(isKnownRuntimeEventType("config.updated")).toBe(true)
@@ -101,6 +145,7 @@ describe("@wanex/protocol", () => {
     expect(isKnownRuntimeEventType("plan.proposal.operation_recorded")).toBe(
       true
     )
+    expect(isKnownRuntimeEventType("plan.proposal.execution_bound")).toBe(true)
     expect(isKnownRuntimeEventType("objective.verification.recorded")).toBe(true)
     expect(isKnownRuntimeEventType("custom.future.event")).toBe(false)
   })
@@ -233,72 +278,94 @@ describe("@wanex/protocol", () => {
   })
 
   it("exposes durable plan proposal contracts", () => {
-    const state: PlanProposalState = "execution_requested"
-    const operation: PlanProposalOperationKind = "mark_executed"
+    const state: PlanProposalState = "approved"
+    const operation: PlanProposalOperationKind = "approve"
     const scope: RuntimeEventScope = {
       planProposalId: "planp_protocol"
     }
     const proposal: PlanProposalRecord = {
       id: "planp_protocol",
       principalId: "agent_protocol",
+      revision: 2,
       title: "Protocol plan",
       summary: "Durable plan proposal",
       steps: [
-        { id: "step_1", title: "Inspect", status: "completed" },
-        { id: "step_2", title: "Implement", status: "pending" }
+        { id: "step_1", title: "Inspect" },
+        { id: "step_2", title: "Implement" }
       ],
       references: [
-        {
-          kind: "session",
-          id: "ses_protocol",
-          role: "source",
-          metadata: { order: 1 }
-        },
         {
           kind: "workspace_change_proposal",
           id: "wcp_protocol",
           role: "related"
         }
       ],
+      source: {
+        sessionId: "ses_protocol",
+        headSequence: 0,
+        analysisInputDigest: "a".repeat(64),
+        planningRequest: [
+          { id: "part_plan_request", type: "text", text: "Plan the work" }
+        ]
+      },
+      generation: {
+        endpointId: "profile_protocol",
+        endpointDigest: "b".repeat(64),
+        protocolId: "fake",
+        providerId: "fake",
+        modelId: "fake-plan",
+        generatedAt: 1,
+        outputDigest: "c".repeat(64),
+        output: [{ id: "part_plan_output", type: "text", text: "{}" }]
+      },
       state,
-      metadata: { source: "protocol-test" },
       createdAt: 1,
       updatedAt: 2
     }
 
-    expect(proposal.state).toBe("execution_requested")
-    expect(proposal.references[0]?.kind).toBe("session")
-    expect(operation).toBe("mark_executed")
+    expect(proposal.state).toBe("approved")
+    expect(proposal.source.sessionId).toBe("ses_protocol")
+    expect(operation).toBe("approve")
     expect(scope.planProposalId).toBe(proposal.id)
   })
 
-  it("exposes durable objective run contracts without execution policy", () => {
-    const state: ObjectiveRunState = "running"
-    const operation: ObjectiveRunOperationKind = "mark_succeeded"
-    const verificationState: ObjectiveVerificationState = "passed"
+  it("exposes session-bound objective policy without duplicating execution state", () => {
+    const state: ObjectiveState = "active"
+    const verificationResult: ObjectiveVerificationResult = "passed"
     const stopPolicy: ObjectiveStopPolicy = {
       maxAttempts: 5,
-      maxElapsedMs: 3_600_000,
-      repeatedBlockThreshold: 3,
-      requireVerification: true
+      deadlineAt: 3_600_000,
+      maxConsecutiveBlockedAttempts: 3,
+      budget: { tokens: 10_000 }
     }
     const scope: RuntimeEventScope = {
       objectiveId: "objective_protocol"
     }
-    const objective: ObjectiveRunRecord = {
+    const objective: ObjectiveRecord = {
       id: "objective_protocol",
+      sessionId: "ses_objective_protocol",
       principalId: "agent_protocol",
       objective: "Make the release gate pass",
-      scope: "packages/protocol",
+      boundaries: ["packages/protocol"],
       constraints: ["do not add CLI behavior"],
-      successCriteria: ["protocol tests pass"],
-      stopPolicy,
-      references: [
-        { kind: "session", id: "ses_objective_protocol", role: "source" },
-        { kind: "plan_proposal", id: "planp_protocol", role: "approved_plan" }
+      successCriteria: [
+        { id: "protocol-tests", description: "protocol tests pass" }
       ],
+      verificationPolicy: {
+        requirements: [
+          {
+            id: "verify-protocol-tests",
+            criterionIds: ["protocol-tests"],
+            verifierKind: "runtime",
+            verifierRef: "wanex.protocol-test-verifier"
+          }
+        ]
+      },
+      stopPolicy,
+      revision: 1,
       state,
-      metadata: { source: "protocol-test" },
+      reason: { code: "created" },
+      activeAttemptId: "objectiveatt_protocol",
       createdAt: 1,
       updatedAt: 2
     }
@@ -306,35 +373,45 @@ describe("@wanex/protocol", () => {
       id: "objectiveatt_protocol",
       objectiveId: objective.id,
       attemptNumber: 1,
-      state: "succeeded",
-      sessionId: "ses_objective_protocol",
-      sessionTurnId: "turn_objective_protocol",
-      schedulerJobId: "job_objective_protocol",
-      summary: "Implemented protocol contract",
-      createdAt: 3,
-      updatedAt: 4,
-      startedAt: 3,
-      finishedAt: 4
+      inputId: "input_objective_protocol",
+      turnId: "turn_objective_protocol",
+      jobId: "job_objective_protocol",
+      executionBindingDigest: "a".repeat(64),
+      trigger: "initial",
+      idempotencyKey: "objective-attempt:protocol",
+      boundAt: 3
     }
     const verification: ObjectiveVerificationRecord = {
       id: "objectivever_protocol",
       objectiveId: objective.id,
       attemptId: attempt.id,
-      kind: "runtime",
-      state: verificationState,
-      evidence: { command: "pnpm --filter @wanex/protocol test -- --run" },
+      requirementId: "verify-protocol-tests",
+      verifierKind: "runtime",
+      verifierRef: "wanex.protocol-test-verifier",
+      result: verificationResult,
+      evidence: [
+        {
+          kind: "runtime_projection",
+          referenceId: "protocol:test",
+          digest: "b".repeat(64)
+        }
+      ],
+      createdAt: 5
+    }
+    const review: ObjectiveAttemptReviewRecord = {
+      id: "objectivereview_protocol",
+      objectiveId: objective.id,
+      attemptId: attempt.id,
+      disposition: "succeeded",
       createdAt: 5
     }
 
-    expect(objective.state).toBe("running")
-    expect(objective.stopPolicy?.requireVerification).toBe(true)
-    expect(objective.references.map((reference) => reference.kind)).toEqual([
-      "session",
-      "plan_proposal"
-    ])
-    expect(operation).toBe("mark_succeeded")
-    expect(attempt.schedulerJobId).toBe("job_objective_protocol")
-    expect(verification.state).toBe("passed")
+    expect(objective.state).toBe("active")
+    expect(objective.stopPolicy.maxAttempts).toBe(5)
+    expect(objective.verificationPolicy.requirements).toHaveLength(1)
+    expect(attempt.jobId).toBe("job_objective_protocol")
+    expect(verification.result).toBe("passed")
+    expect(review.disposition).toBe("succeeded")
     expect(scope.objectiveId).toBe(objective.id)
   })
 
@@ -353,11 +430,15 @@ describe("@wanex/protocol", () => {
   })
 
   it("exposes team conversation modes and turn kinds", () => {
-    const mode: TeamConversationMode = "hybrid"
-    const turn: TeamTurnKind = "message"
+    const modes: TeamConversationMode[] = [
+      "orchestrated",
+      "peer",
+      "hybrid"
+    ]
+    const message: TeamMessageKind = "message"
 
-    expect(mode).toBe("hybrid")
-    expect(turn).toBe("message")
+    expect(modes).toEqual(["orchestrated", "peer", "hybrid"])
+    expect(message).toBe("message")
   })
 
   it("exposes plugin capabilities for connector-style adapters", () => {

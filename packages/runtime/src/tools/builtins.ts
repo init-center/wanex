@@ -4,6 +4,7 @@ import type {
   ToolInvocation
 } from "./types.js"
 import { createToolRuntimeBinding } from "./evidence.js"
+import { jsonToolResultContent } from "./parts.js"
 
 export class EchoTool implements ToolDefinition {
   readonly name = "echo"
@@ -14,6 +15,8 @@ export class EchoTool implements ToolDefinition {
   } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly concurrency = "parallel_safe" as const
+  readonly resultMode = "immediate" as const
   readonly annotations = { readOnlyHint: true, idempotentHint: true } as const
   readonly runtimeBinding = createToolRuntimeBinding({
     implementationId: "wanex.runtime.tool.echo",
@@ -22,9 +25,9 @@ export class EchoTool implements ToolDefinition {
 
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
     return {
+      outcome: "succeeded",
       toolCallId: invocation.toolCallId,
-      result: { echo: invocation.input },
-      isError: false
+      content: jsonToolResultContent({ echo: invocation.input })
     }
   }
 }

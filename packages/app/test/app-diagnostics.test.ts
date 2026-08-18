@@ -3,11 +3,21 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
+import { writeModelEndpoint } from "@wanex/runtime/provider"
+import type {
+  ProviderAdapter,
+  ProviderEvent,
+  PreparedProviderReplayMessage,
+  ProviderRequest
+} from "@wanex/runtime/provider"
+import type { JsonValue } from "@wanex/protocol"
+import { WanexRuntimeHost } from "@wanex/runtime/host"
 import {
   buildAppDiagnosticsSnapshot,
   buildSupportBundle,
   getMemoryMaintenanceDiagnosticsSnapshot
 } from "../src/diagnostics/index.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -33,7 +43,7 @@ describe("@wanex/app/diagnostics", () => {
   it("builds sorted base diagnostics without runtime composition dependencies", () => {
     const snapshot = buildAppDiagnosticsSnapshot({
       now: 100,
-      config: [{ key: "provider.profile.default", updatedAt: 22 }],
+      config: [{ key: "runtime.setting.default", updatedAt: 22 }],
       jobs: [
         {
           id: "job_failed",
@@ -62,7 +72,7 @@ describe("@wanex/app/diagnostics", () => {
             sessionId: "ses_memory"
           },
           result: {
-            replacementCount: 2
+            summaryDigest: "a".repeat(64)
           },
           scheduledAt: 1,
           priority: 0,
@@ -435,25 +445,10 @@ describe("@wanex/app/diagnostics", () => {
 
   it("builds read-only memory maintenance diagnostics from storage state", async () => {
     const storage = await createStorage()
-    await storage.createSession({
-      id: "ses_memory_with_epoch",
-      kind: "agent"
-    })
+    await seedActiveContextEpoch(storage, "ses_memory_with_epoch")
     await storage.createSession({
       id: "ses_memory_without_epoch",
       kind: "agent"
-    })
-    await storage.putContextEpoch({
-      id: "ctxepoch_memory_diagnostics",
-      sessionId: "ses_memory_with_epoch",
-      policyVersion: "memory-policy",
-      tokenEstimateBefore: 100,
-      tokenEstimateAfter: 30,
-      tokenSavings: 70,
-      replacementCount: 2
-    })
-    await storage.activateContextEpoch({
-      epochId: "ctxepoch_memory_diagnostics"
     })
     await storage.enqueueJob({
       id: "job_memory_backlog",
@@ -471,8 +466,7 @@ describe("@wanex/app/diagnostics", () => {
     const snapshot = await getMemoryMaintenanceDiagnosticsSnapshot({
       storage,
       now: Date.now() + 10_000,
-      staleAfterMs: 0,
-      policyVersion: "memory-policy"
+      staleAfterMs: 0
     })
     const afterJobs = await storage.listJobs({
       kind: "memory.compaction",
@@ -493,15 +487,14 @@ describe("@wanex/app/diagnostics", () => {
 
   it("builds a redacted read-only support bundle", async () => {
     const storage = await createStorage()
-    await storage.putConfig("provider.profile.deepseek", {
-      id: "deepseek",
-      kind: "openai-compatible",
-      capabilities: { input: ["text"], output: ["text"] },
+    await writeModelEndpoint(storage, appTestModelEndpoint({
+      endpointId: "deepseek",
+      protocolId: "openai-chat-completions",
       providerId: "deepseek",
       modelId: "deepseek-chat",
       baseUrl: "https://api.deepseek.com/v1",
       secretRef: "env://DEEPSEEK_API_KEY"
-    })
+    }))
     await storage.createSession({
       id: "ses_support_bundle",
       kind: "agent"
@@ -522,7 +515,7 @@ describe("@wanex/app/diagnostics", () => {
 
     const bundle = await buildSupportBundle({
       storage,
-      providerProfileIds: ["deepseek", "missing"],
+      modelEndpointIds: ["deepseek", "missing"],
       sessionId: "ses_support_bundle",
       eventLimit: 20,
       jobLimit: 20,
@@ -536,13 +529,13 @@ describe("@wanex/app/diagnostics", () => {
 
     expect(bundle.generatedAt).toBe(1_000)
     expect(bundle.doctor).toMatchObject({
-      schemaVersion: 1
+      schemaVersion: 14
     })
-    expect(bundle.providers).toEqual([
+    expect(bundle.modelEndpoints).toEqual([
       expect.objectContaining({
         id: "deepseek",
         found: true,
-        profile: expect.objectContaining({
+        endpoint: expect.objectContaining({
           id: "deepseek",
           credentialConfigured: true
         })
@@ -671,4 +664,80 @@ async function createStorage(): Promise<StorageTestStore> {
   })
   clients.push(storage)
   return storage
+}
+
+async function seedActiveContextEpoch(
+  storage: StorageTestStore,
+  sessionId: string
+): Promise<void> {
+  const host = new WanexRuntimeHost({
+    storage,
+    workerCount: 1,
+    provider: new DiagnosticsMemoryProvider(),
+    memoryCompaction: {
+      enabled: true,
+      workerCount: 1,
+      policy: {
+        reserveInputTokens: 1_000,
+        keepRecentTokens: 100,
+        minimumRecentTurns: 1,
+        maxSummaryOutputTokens: 100,
+        minimumTokenSavings: 1
+      }
+    }
+  })
+  try {
+    for (const text of ["memory first", "memory second", "memory third"]) {
+      await host.submitUserTurn({
+        sessionId,
+        content: [{ type: "text", text }]
+      })
+      await host.runOnce()
+    }
+    const active = await storage.getActiveContextEpoch({ sessionId })
+    if (active === null) throw new Error("expected active diagnostic context epoch")
+  } finally {
+    await host.dispose()
+  }
+}
+
+class DiagnosticsMemoryProvider implements ProviderAdapter {
+  readonly protocol = { id: "fake" } as const
+  readonly providerId = "fake"
+  readonly model = {
+    id: "diagnostics-memory-model",
+    operations: ["conversation"],
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    features: [],
+    limits: { contextWindowTokens: 2_500, maxOutputTokens: 100 },
+    catalog: {
+      source: "custom",
+      catalogId: "test.diagnostics-memory-model",
+      revision: "1"
+    }
+  } as const
+
+  async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    const isSummary = request.messages[0]?.content.some(
+      (part) => part.type === "text" && part.text.includes("semantic checkpoint")
+    ) === true
+    yield {
+      type: "text_delta",
+      partId: "diagnostics_memory_text",
+      delta: isSummary
+        ? "## Goal\nDiagnostic semantic checkpoint"
+        : "diagnostic memory response ".repeat(80)
+    }
+    yield { type: "finish", reason: "stop" }
+  }
+
+  buildReplayMessages(
+    messages: readonly PreparedProviderReplayMessage[]
+  ): JsonValue[] {
+    return messages.map((message) => ({
+      role: message.role,
+      content: message.content as unknown as JsonValue
+    }))
+  }
 }

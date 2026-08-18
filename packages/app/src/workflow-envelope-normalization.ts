@@ -47,21 +47,29 @@ export function normalizeWanexAppWorkflowEnvelope(
       if (request.scheduleId.length === 0 || request.tickId.length === 0) {
         return invalidEnvelope("scheduled envelope requires scheduleId and tickId")
       }
-      return normalizeAgentEnvelope(request, {
-        origin: {
-          kind: "scheduler",
-          sourceRef: request.scheduleId,
-          ...metadataField(
-            compactMetadata({
-              scheduleId: request.scheduleId,
-              tickId: request.tickId,
-              nonOverlap: request.nonOverlap,
-              ...classifierMetadata(request.classifier)
-            })
-          )
-        },
-        intent: "normal"
-      })
+      return {
+        kind: "normalized",
+        envelope: {
+          text: request.text,
+          ...(request.sessionId === undefined
+            ? {}
+            : { sessionId: request.sessionId }),
+          scheduledTick: {
+            scheduleId: request.scheduleId,
+            tickId: request.tickId,
+            text: request.text,
+            ...(request.sessionId === undefined
+              ? {}
+              : { sessionId: request.sessionId }),
+            ...(request.nonOverlap === undefined
+              ? {}
+              : { nonOverlap: request.nonOverlap }),
+            ...(request.classifier === undefined
+              ? {}
+              : { classifier: request.classifier })
+          }
+        }
+      }
     case "channel":
       if (request.connectorId.length === 0 || request.eventId.length === 0) {
         return invalidEnvelope("channel envelope requires connectorId and eventId")

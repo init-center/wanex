@@ -1,49 +1,49 @@
 import {
-  createProductAppBackendCommandPort,
-  createProductAppBackendApp,
-  PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS
-} from "@wanex/product-app/backend"
+  createBackendCommandPort,
+  createBackendApp,
+  BACKEND_COMMAND_PORT_COMMANDS
+} from "@wanex/product/backend"
 import { createEvalScenario } from "../runner.js"
 import {
   createConversationSettlementFixture
-} from "../product-app/conversation-helpers.js"
-import { assert } from "../scenario-utils.js"
+} from "../product/conversation-helpers.js"
+import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
 import { isRecord } from "./helpers.js"
 
-export const productAppBackendCommandPortScenario = createEvalScenario({
+export const backendCommandPortScenario = createEvalScenario({
   id: "product.skeleton-command-port-contract",
-  title: "Product App Backend exposes a reusable safe command port",
+  title: "application backend exposes a reusable safe command port",
   tags: ["product-path", "command-port"],
   async run(context) {
     const storage = await createConversationSettlementFixture({
       serviceBin: context.serviceBin,
-      prefix: "wanex-eval-product-app-backend-command-port-"
+      prefix: "wanex-eval-product-backend-command-port-"
     })
-    const app = await createProductAppBackendApp({
+    const app = await createBackendApp({
       storage: storage.storage,
-      providerProfile: {
-        id: "eval-product-port",
-        modelId: "eval-product-port-model"
-      }
+      modelEndpoint: evalFakeModelEndpoint(
+        "eval-product-port",
+        "eval-product-port-model"
+      )
     })
-    const port = createProductAppBackendCommandPort(app)
+    const port = createBackendCommandPort(app)
 
     try {
       const capabilities = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductCapabilities
+        command: BACKEND_COMMAND_PORT_COMMANDS.readProductCapabilities
       })
       const commands = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductCommands
+        command: BACKEND_COMMAND_PORT_COMMANDS.readProductCommands
       })
       const explanation = await port.dispatch({
         command:
-          PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.explainProductCommandContribution,
+          BACKEND_COMMAND_PORT_COMMANDS.explainProductCommandContribution,
         input: {
           commandId: "product.agent.submit"
         }
       })
       const preview = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.previewProductCommandInvocation,
+        command: BACKEND_COMMAND_PORT_COMMANDS.previewProductCommandInvocation,
         input: {
           commandId: "product.agent.submit",
           input: {
@@ -52,13 +52,13 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         }
       })
       const route = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.routeInput,
+        command: BACKEND_COMMAND_PORT_COMMANDS.routeInput,
         input: {
           text: "/status"
         }
       })
       const run = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.executeProductCommand,
+        command: BACKEND_COMMAND_PORT_COMMANDS.executeProductCommand,
         input: {
           commandId: "product.agent.submit",
           input: {
@@ -79,7 +79,7 @@ export const productAppBackendCommandPortScenario = createEvalScenario({
         }
       })
       const invalid = await port.dispatch({
-        command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.routeInput,
+        command: BACKEND_COMMAND_PORT_COMMANDS.routeInput,
         input: {
           text: "/missing"
         }

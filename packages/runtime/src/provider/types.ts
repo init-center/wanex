@@ -1,21 +1,23 @@
 import type {
   JsonValue,
   MessagePart,
-  ProviderCapabilities,
-  ProviderProfileKind,
+  ModelDescriptor,
+  ProviderProtocolDescriptor,
   ProviderState,
   ResourceMessagePart,
-  RuntimeAbortSignal
+  RuntimeAbortSignal,
+  ToolResultContentPart,
+  ToolResultMessagePart,
+  ToolResultResourceContentPart
 } from "@wanex/protocol"
 
 export interface ProviderAdapter {
-  readonly kind: ProviderProfileKind
+  readonly protocol: ProviderProtocolDescriptor
   readonly providerId: string
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
+  readonly model: ModelDescriptor
   stream(request: ProviderRequest): AsyncIterable<ProviderEvent>
   buildReplayMessages(
-    messages: readonly ProviderReplayMessage[]
+    messages: readonly PreparedProviderReplayMessage[]
   ): JsonValue[]
 }
 
@@ -51,11 +53,26 @@ export interface PreparedProviderReplayMessage {
 }
 
 export type PreparedProviderReplayPart =
-  | Exclude<MessagePart, ResourceMessagePart>
+  | Exclude<MessagePart, ResourceMessagePart | ToolResultMessagePart>
   | PreparedProviderResourcePart
+  | PreparedProviderToolResultPart
 
 export interface PreparedProviderResourcePart extends ResourceMessagePart {
   readonly bytes: Uint8Array
+}
+
+export interface PreparedProviderToolResultPart
+  extends Omit<ToolResultMessagePart, "content"> {
+  readonly content: readonly PreparedProviderToolResultContentPart[]
+}
+
+export type PreparedProviderToolResultContentPart =
+  | Exclude<ToolResultContentPart, ToolResultResourceContentPart>
+  | PreparedProviderToolResultResourcePart
+
+export interface PreparedProviderToolResultResourcePart
+  extends ToolResultResourceContentPart {
+  readonly bytes?: Uint8Array
 }
 
 export type ProviderEvent =
@@ -162,11 +179,16 @@ export interface ProviderError {
 }
 
 export interface ProviderTurnResult {
-  readonly parts: readonly MessagePart[]
+  readonly parts: readonly ProviderOutputMessagePart[]
   readonly providerState: readonly ProviderState[]
   readonly usage?: ProviderUsage
   readonly finish: ProviderFinishEvent
 }
+
+export type ProviderOutputMessagePart = Extract<
+  MessagePart,
+  { readonly type: "text" | "reasoning" | "tool_call" }
+>
 
 export interface ProviderRunEvent {
   readonly sessionId: string

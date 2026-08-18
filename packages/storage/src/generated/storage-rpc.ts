@@ -26,6 +26,8 @@ export type RuntimeStorageRpcCommand =
   | AppendEventCommand
   | QueryEventsCommand
   | PutConfigCommand
+  | ApplyConfigMutationsCommand
+  | HasLiveSecretReferenceCommand
   | GetConfigCommand
   | WriteAtomicFileCommand
   | IngestResourceCommand
@@ -34,6 +36,8 @@ export type RuntimeStorageRpcCommand =
   | ListResourcesCommand
   | CreateResourceTicketCommand
   | CleanupExpiredResourceTicketsCommand
+  | RecordResourceProvenanceCommand
+  | ListResourceProvenanceCommand
   | DoctorCommand;
 export type NullableString = string | null;
 export type JsonValue =
@@ -56,10 +60,17 @@ export type ResourceOriginWire =
 export type NullableResourceSourceWire = ResourceSourceWire | null;
 export type NullableResourceStateWire = ResourceStateWire | null;
 export type ResourceStateWire = "pending" | "fetching" | "available" | "failed" | "expired" | "deleted";
+export type ResourceProvenanceCauseWire =
+  ToolExecutionResourceProvenanceCauseWire | MediaGenerationResourceProvenanceCauseWire;
+export type NullableResourceProvenanceCauseKindWire = ResourceProvenanceCauseKindWire | null;
+export type ResourceProvenanceCauseKindWire = "tool_execution" | "media_generation";
 export type SessionsStorageRpcCommand =
   | CreateSessionCommand
   | GetSessionCommand
   | ListSessionsCommand
+  | RenameSessionCommand
+  | ArchiveSessionCommand
+  | RestoreSessionCommand
   | AdmitSessionInputCommand
   | SubmitSessionTurnCommand
   | StartSessionTurnAttemptCommand
@@ -96,10 +107,14 @@ export type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | nu
 export type SessionTurnControlKindWire = "interrupt" | "steer";
 export type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
 export type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+export type NullableSessionInputStateWire = SessionInputStateWire | null;
+export type SessionInputStateWire =
+  "admitted" | "control_pending" | "promoted" | "completed" | "failed" | "cancelled" | "rejected";
 export type NullableSessionTurnStateWire = SessionTurnStateWire | null;
 export type SessionTurnStateWire =
   | "queued"
   | "running"
+  | "waiting"
   | "cancel_requested"
   | "succeeded"
   | "failed"
@@ -107,18 +122,18 @@ export type SessionTurnStateWire =
   | "interrupted"
   | "recovery_required";
 export type ContextStorageRpcCommand =
-  | PutContextEpochCommand
+  | BeginContextEpochCommand
+  | MarkContextEpochDispatchedCommand
+  | MarkContextEpochOutputObservedCommand
+  | FinishContextEpochGenerationCommand
   | ActivateContextEpochCommand
-  | CloneContextEpochCommand
   | PruneContextEpochsCommand
   | ListContextEpochsCommand
-  | GetActiveContextEpochCommand
-  | PutContextReplacementCommand
-  | ListContextReplacementsCommand;
-export type NullableContextEpochStateWire = ContextEpochStateWire | null;
-export type ContextEpochStateWire = "building" | "active" | "superseded";
+  | GetActiveContextEpochCommand;
+export type ContextEpochGenerationOutcomeWire = "succeeded" | "failed_before_output" | "ambiguous";
 export type NullableBoolean = boolean | null;
-export type ContextReplacementTierWire = "tier1_snip" | "tier2_placeholder";
+export type NullableContextEpochStateWire = ContextEpochStateWire | null;
+export type ContextEpochStateWire = "building" | "active" | "superseded" | "failed";
 export type SchedulerStorageRpcCommand =
   | ReserveBudgetCommand
   | CommitBudgetCommand
@@ -134,17 +149,17 @@ export type SchedulerStorageRpcCommand =
   | CancelJobCommand
   | GetJobCommand
   | ListJobsCommand;
-export type BudgetScopeKindWire = "session" | "turn" | "team_round" | "plugin" | "principal" | "provider_model";
+export type BudgetScopeKindWire =
+  "session" | "turn" | "objective" | "team_round" | "plugin" | "principal" | "provider_model";
 export type NullableBudgetWindowKindWire = BudgetWindowKindWire | null;
 export type BudgetWindowKindWire = "run" | "session" | "day" | "month";
 export type SchedulerJobKindWire =
   | "session.turn"
   | "workspace.task"
   | "team.delivery"
-  | "team.round.close"
+  | "team.delivery.outcome"
   | "plugin.action"
   | "channel.delivery"
-  | "tool.deferred_result"
   | "gateway.delivery"
   | "memory.compaction"
   | "resource.cleanup"
@@ -157,18 +172,33 @@ export type NullableSchedulerJobKindsWire = SchedulerJobKindsWire | null;
 export type SchedulerJobKindsWire = SchedulerJobKindWire[];
 export type NullableSchedulerJobStateWire = SchedulerJobStateWire | null;
 export type SchedulerJobStateWire =
-  "pending" | "ready" | "running" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
+  "pending" | "ready" | "running" | "waiting" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
 export type NullableSchedulerJobKindWire = SchedulerJobKindWire | null;
 export type ToolsStorageRpcCommand =
   | BeginToolExecutionCommand
+  | DeferToolExecutionCommand
   | FinishToolExecutionCommand
+  | RequireToolExecutionRecoveryCommand
+  | ResolveToolExecutionRecoveryCommand
+  | ResolveToolExecutionApprovalCommand
   | GetToolExecutionCommand
+  | GetToolExecutionByCallCommand
   | ListToolExecutionsCommand
+  | ListToolActivitiesCommand
   | ListToolExecutionAttemptsCommand;
+export type NullableToolActivityEvidenceWire = ToolActivityEvidenceWire | null;
+export type DeferredToolOperationWire = DeferredMediaGenerationOperationWire | DeferredTeamDelegationOperationWire;
+export type NullableToolResultContentWire = [ToolResultContentPartWire, ...ToolResultContentPartWire[]] | null;
+export type ToolResultContentPartWire =
+  ToolResultTextContentPartWire | ToolResultJsonContentPartWire | ToolResultResourceContentPartWire;
+export type ToolExecutionRecoveryDecisionWire = "confirm_succeeded" | "confirm_failed" | "retry" | "abandon_turn";
+export type ToolExecutionApprovalDecisionWire = "approve_once" | "deny";
 export type NullableToolExecutionStateWire = ToolExecutionStateWire | null;
 export type ToolExecutionStateWire =
   | "running"
+  | "waiting"
   | "retry_ready"
+  | "approved"
   | "denied"
   | "approval_required"
   | "succeeded"
@@ -196,57 +226,45 @@ export type WorkspaceChangeProposalStateWire =
 export type WorkspaceChangeProposalOperationWire =
   "approve" | "reject" | "withdraw" | "request_apply" | "mark_applied" | "mark_apply_failed";
 export type PlanStorageRpcCommand =
-  | PutPlanProposalCommand
+  | CreatePlanProposalCommand
   | GetPlanProposalCommand
   | ListPlanProposalsCommand
   | RecordPlanProposalOperationCommand
+  | ExecuteApprovedPlanCommand
   | ListPlanProposalOperationsCommand;
-export type NullablePlanProposalStateWire = PlanProposalStateWire | null;
-export type PlanProposalStateWire =
-  "open" | "approved" | "rejected" | "withdrawn" | "execution_requested" | "executed" | "execution_failed";
-export type NullablePlanReferenceKindWire = PlanReferenceKindWire | null;
 export type PlanReferenceKindWire =
-  | "session"
-  | "session_input"
-  | "session_turn"
-  | "scheduler_job"
   | "workspace_change_proposal"
   | "delegation_graph"
   | "delegation_graph_node"
   | "team_conversation"
   | "resource"
   | "context_epoch";
-export type PlanProposalOperationWire =
-  "approve" | "reject" | "withdraw" | "request_execution" | "mark_executed" | "mark_execution_failed";
+export type NullablePlanProposalStateWire = PlanProposalStateWire | null;
+export type PlanProposalStateWire = "open" | "approved" | "rejected" | "withdrawn";
+export type NullablePlanReferenceKindWire = PlanReferenceKindWire | null;
+export type PlanProposalOperationWire = "revise" | "approve" | "reject" | "withdraw";
+export type NullablePlanProposalContentWire = PlanProposalContentWire | null;
 export type ObjectiveStorageRpcCommand =
-  | PutObjectiveRunCommand
-  | GetObjectiveRunCommand
-  | ListObjectiveRunsCommand
-  | RecordObjectiveRunOperationCommand
-  | ListObjectiveRunOperationsCommand
-  | PutObjectiveAttemptCommand
+  | CreateObjectiveCommand
+  | GetObjectiveCommand
+  | ListObjectivesCommand
+  | PauseObjectiveCommand
+  | ResumeObjectiveCommand
+  | AdmitObjectiveAttemptCommand
+  | ReviewObjectiveAttemptCommand
+  | RequestObjectiveCancelCommand
+  | ReconcileObjectiveCancellationCommand
   | ListObjectiveAttemptsCommand
-  | PutObjectiveVerificationCommand
+  | ListObjectiveAttemptReviewsCommand
   | ListObjectiveVerificationsCommand;
-export type NullableObjectiveRunStateWire = ObjectiveRunStateWire | null;
-export type ObjectiveRunStateWire = "open" | "running" | "blocked" | "succeeded" | "failed" | "cancelled";
-export type NullableObjectiveReferenceKindWire = ObjectiveReferenceKindWire | null;
-export type ObjectiveReferenceKindWire =
-  | "session"
-  | "session_input"
-  | "session_turn"
-  | "scheduler_job"
-  | "plan_proposal"
-  | "workspace_change_proposal"
-  | "delegation_graph"
-  | "resource"
-  | "context_epoch";
-export type ObjectiveRunOperationWire = "start" | "record_blocked" | "mark_succeeded" | "mark_failed" | "cancel";
-export type NullableObjectiveAttemptStateWire = ObjectiveAttemptStateWire | null;
-export type ObjectiveAttemptStateWire = "planned" | "running" | "succeeded" | "failed" | "blocked" | "cancelled";
-export type ObjectiveVerificationKindWire = "script" | "model" | "human" | "runtime";
-export type ObjectiveVerificationStateWire = "passed" | "failed" | "inconclusive" | "blocked";
-export type NullableObjectiveVerificationStateWire = ObjectiveVerificationStateWire | null;
+export type NullableObjectiveStatesWire = ObjectiveStatesWire | null;
+export type ObjectiveStateWire =
+  "active" | "paused" | "blocked" | "limit_reached" | "succeeded" | "failed" | "cancel_requested" | "cancelled";
+export type ObjectiveStatesWire = ObjectiveStateWire[];
+export type ObjectiveAttemptTriggerWire = "initial" | "automatic_continuation" | "user_resume";
+export type ObjectiveAttemptDispositionWire = "continue" | "blocked" | "succeeded" | "failed";
+export type NullableObjectiveVerificationResultWire = ObjectiveVerificationResultWire | null;
+export type ObjectiveVerificationResultWire = "passed" | "failed" | "inconclusive" | "blocked";
 export type DelegationStorageRpcCommand =
   | PutDelegationGraphCommand
   | GetDelegationGraphCommand
@@ -274,31 +292,65 @@ export type TeamStorageRpcCommand =
   | GetTeamConversationCommand
   | ListTeamConversationsCommand
   | UpdateTeamConversationStateCommand
+  | SetTeamConversationLeadCommand
   | PutTeamParticipantCommand
   | ListTeamParticipantsCommand
   | UpdateTeamParticipantStateCommand
-  | AppendTeamTurnCommand
-  | ListTeamTurnsCommand;
+  | AdmitTeamMessageCommand
+  | GetTeamMessageCommand
+  | ListTeamMessagesCommand
+  | RouteTeamMessageCommand
+  | GetTeamRoutingDecisionByMessageCommand
+  | ListTeamRoutingDecisionsCommand
+  | ListTeamDeliveriesCommand
+  | GetTeamDiscussionRoundCommand
+  | ListTeamDiscussionRoundsCommand
+  | GetTeamDelegationOperationCommand
+  | GetTeamDelegationOperationByToolExecutionCommand
+  | ListTeamDelegationTasksCommand
+  | ReadTeamConversationPageCommand
+  | GetTeamDeliveryMaterializationContextCommand
+  | MaterializeTeamDeliveryCommand
+  | FailTeamDeliveryMaterializationCommand
+  | ProjectTeamDeliveryOutcomeCommand;
 export type NullableTeamConversationModeWire = TeamConversationModeWire | null;
-export type TeamConversationModeWire = "tl" | "free" | "hybrid";
+export type TeamConversationModeWire = "orchestrated" | "peer" | "hybrid";
 export type NullableTeamConversationStateWire = TeamConversationStateWire | null;
 export type TeamConversationStateWire = "open" | "paused" | "closed" | "cancelled";
 export type TeamParticipantKindWire = "user" | "agent" | "tool" | "system";
 export type NullableTeamParticipantStateWire = TeamParticipantStateWire | null;
 export type TeamParticipantStateWire = "active" | "muted" | "left";
-export type NullableTeamAudienceParticipantIdsWire = TeamAudienceParticipantIdsWire | null;
-export type TeamAudienceParticipantIdsWire = string[];
-export type NullableTeamTurnKindWire = TeamTurnKindWire | null;
-export type TeamTurnKindWire = "message" | "decision" | "handoff" | "system";
+export type NullableTeamMessageKindWire = TeamMessageKindWire | null;
+export type TeamMessageKindWire = "message" | "decision" | "handoff" | "system";
+export type TeamTargetKindWire = "participant" | "lead" | "all";
+/**
+ * @maxItems 64
+ */
+export type TeamTargetsWire = TeamTargetWire[];
+export type NullableTeamMessageStateWire = TeamMessageStateWire | null;
+export type TeamMessageStateWire = "admitted" | "routed" | "visible" | "blocked" | "superseded";
+export type TeamRoutingOutcomeWire = "deliver" | "blocked";
+export type TeamDeliveryRoleWire = "speaker" | "observer" | "summarizer";
+export type TeamDeliveryTriggerWire = "direct" | "mention" | "lead" | "round" | "delegation";
+/**
+ * @maxItems 64
+ */
+export type RouteTeamDeliveriesWire = RouteTeamDeliveryWire[];
+export type NullableTeamDeliveryStateWire = TeamDeliveryStateWire | null;
+export type TeamDeliveryStateWire = "queued" | "dispatched" | "responded" | "passed" | "failed" | "cancelled";
+export type NullableTeamDiscussionRoundStateWire = TeamDiscussionRoundStateWire | null;
+export type TeamDiscussionRoundStateWire = "open" | "closed";
 export type PluginStorageRpcCommand =
   | PutPluginManifestCommand
   | GetPluginManifestCommand
   | ListPluginManifestsCommand
   | PutPluginInstallCommand
+  | ActivatePluginInstallCommand
   | GetPluginInstallCommand
   | ListPluginInstallsCommand
   | UpdatePluginInstallStateCommand
   | UpdatePluginManifestStateCommand
+  | GetPluginActionExecutionAdmissionCommand
   | SubmitPluginActionCommand;
 export type PluginCapabilityWire =
   | "resource.read"
@@ -357,18 +409,20 @@ export type ChannelBindingStateWire = "active" | "revoked";
 export type NullableChannelInboundEventStateWire = ChannelInboundEventStateWire | null;
 export type ChannelInboundEventStateWire = "received" | "projected" | "ignored" | "failed";
 export type NullableChannelProjectionTargetKindWire = ChannelProjectionTargetKindWire | null;
-export type ChannelProjectionTargetKindWire = "session.turn" | "team.turn" | "workspace.task" | "ignored";
+export type ChannelProjectionTargetKindWire = "session.turn" | "team.message" | "workspace.task" | "ignored";
 export type MediaGenerationStorageRpcCommand =
   | SubmitMediaGenerationCommand
   | BeginMediaGenerationCommand
   | AcceptMediaGenerationCommand
-  | CheckpointMediaGenerationCommand
+  | SuspendMediaGenerationCommand
   | RecordMediaGenerationOutputsCommand
   | CompleteMediaGenerationCommand
   | SettleMediaGenerationCommand
   | RequestMediaGenerationCancelCommand
   | GetMediaGenerationCommand
   | ListMediaGenerationCommand;
+export type MediaGenerationSuspensionOutcomeWire = "scheduled" | "pending" | "transient_error";
+export type MediaGenerationTerminalPollOutcomeWire = "none" | "completed" | "provider_failure" | "transient_error";
 export type NullableMediaGenerationOperationStateWire = MediaGenerationOperationStateWire | null;
 export type MediaGenerationOperationStateWire =
   | "queued"
@@ -407,6 +461,8 @@ export type StorageRpcServiceErrorCode =
   | "io"
   | "json"
   | "invalid_input"
+  | "not_found"
+  | "conflict"
   | "sha256_mismatch"
   | "budget_denied"
   | "invalid_job_request"
@@ -457,6 +513,25 @@ export interface PutConfigCommand {
   command: "put-config";
   key: string;
   value: JsonValue;
+}
+export interface ApplyConfigMutationsCommand {
+  command: "apply-config-mutations";
+  /**
+   * @maxItems 64
+   */
+  puts: ConfigPutWire[];
+  /**
+   * @maxItems 64
+   */
+  deletes: string[];
+}
+export interface ConfigPutWire {
+  key: string;
+  value: JsonValue;
+}
+export interface HasLiveSecretReferenceCommand {
+  command: "has-live-secret-reference";
+  secret_ref: string;
 }
 export interface GetConfigCommand {
   command: "get-config";
@@ -530,6 +605,47 @@ export interface CleanupExpiredResourceTicketsWire {
   now_ms: NullableInteger;
   limit: NullableUnsigned32;
 }
+export interface RecordResourceProvenanceCommand {
+  command: "record-resource-provenance";
+  request: RecordResourceProvenanceWire;
+}
+export interface RecordResourceProvenanceWire {
+  resource: ResourceInputEvidenceWire;
+  cause: ResourceProvenanceCauseWire;
+  /**
+   * @maxItems 64
+   */
+  input_resources: ResourceInputEvidenceWire[];
+}
+export interface ResourceInputEvidenceWire {
+  resource_id: string;
+  sha256: string;
+  size_bytes: number;
+  kind: ResourceKindWire;
+  media_type: NullableString;
+}
+export interface ToolExecutionResourceProvenanceCauseWire {
+  kind: "tool_execution";
+  execution_id: string;
+  session_id: string;
+  turn_id: string;
+  source_message_id: string;
+  tool_call_id: string;
+}
+export interface MediaGenerationResourceProvenanceCauseWire {
+  kind: "media_generation";
+  operation_id: string;
+}
+export interface ListResourceProvenanceCommand {
+  command: "list-resource-provenance";
+  request: ListResourceProvenanceWire;
+}
+export interface ListResourceProvenanceWire {
+  resource_id: NullableString;
+  cause_kind: NullableResourceProvenanceCauseKindWire;
+  cause_id: NullableString;
+  limit: NullableUnsigned32;
+}
 export interface DoctorCommand {
   command: "doctor";
 }
@@ -553,6 +669,27 @@ export interface ListSessionsWire {
   updated_before: NullableInteger;
   updated_after: NullableInteger;
   limit: NullableUnsigned32;
+}
+export interface RenameSessionCommand {
+  command: "rename-session";
+  request: RenameSessionWire;
+}
+export interface RenameSessionWire {
+  session_id: string;
+  title: string;
+  expected_revision: number;
+}
+export interface ArchiveSessionCommand {
+  command: "archive-session";
+  request: SessionStateTransitionWire;
+}
+export interface SessionStateTransitionWire {
+  session_id: string;
+  expected_revision: number;
+}
+export interface RestoreSessionCommand {
+  command: "restore-session";
+  request: SessionStateTransitionWire;
 }
 export interface AdmitSessionInputCommand {
   command: "admit-session-input";
@@ -594,7 +731,6 @@ export interface SubmitSessionTurnWire {
   job_idempotency_key: NullableString;
   execution_binding: JsonValue;
   max_steps: NullableInteger;
-  parent_turn_id: NullableString;
   regenerates_turn_id: NullableString;
   scheduled_at: NullableInteger;
   not_before: NullableInteger;
@@ -758,15 +894,21 @@ export interface ApplySessionTurnControlWire {
 export interface ListSessionInputsCommand {
   command: "list-session-inputs";
   session_id: string;
+  status: NullableSessionInputStateWire;
+  limit: number | null;
 }
 export interface ListSessionMessagesCommand {
   command: "list-session-messages";
   session_id: string;
+  before_sequence: number | null;
+  limit: number | null;
+  turn_ids: string[] | null;
 }
 export interface ListSessionTurnsCommand {
   command: "list-session-turns";
   session_id: string;
   state: NullableSessionTurnStateWire;
+  turn_ids: string[] | null;
 }
 export interface ListSessionAttemptsCommand {
   command: "list-session-attempts";
@@ -786,20 +928,71 @@ export interface AppendSessionMessageCommand {
   content: MessagePartsWire;
   provider_state: JsonValue;
 }
-export interface PutContextEpochCommand {
-  command: "put-context-epoch";
-  request: PutContextEpochWire;
+export interface BeginContextEpochCommand {
+  command: "begin-context-epoch";
+  request: BeginContextEpochWire;
 }
-export interface PutContextEpochWire {
-  id: NullableString;
+export interface BeginContextEpochWire {
+  id: string;
   session_id: string;
-  policy_version: string;
-  state: NullableContextEpochStateWire;
-  token_estimate_before: NullableInteger;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  max_provider_attempts: number;
+  previous_epoch_id: NullableString;
+  previous_summary_digest: NullableString;
+  source_head_sequence: number;
+  source_head_message_id: string;
+  cut_sequence: number;
+  cut_message_id: string;
+  retained_from_sequence: number;
+  retained_from_message_id: string;
+  source_digest: string;
+  policy: JsonValue;
+  policy_digest: string;
+  model_endpoint: JsonValue;
+  request_digest: string;
+  token_estimate_before: number;
+}
+export interface MarkContextEpochDispatchedCommand {
+  command: "mark-context-epoch-dispatched";
+  request: ContextEpochMutationIdentityWire;
+}
+export interface ContextEpochMutationIdentityWire {
+  epoch_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+}
+export interface MarkContextEpochOutputObservedCommand {
+  command: "mark-context-epoch-output-observed";
+  request: MarkContextEpochOutputObservedWire;
+}
+export interface MarkContextEpochOutputObservedWire {
+  epoch_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  generation_attempt: number;
+}
+export interface FinishContextEpochGenerationCommand {
+  command: "finish-context-epoch-generation";
+  request: FinishContextEpochGenerationWire;
+}
+export interface FinishContextEpochGenerationWire {
+  epoch_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  generation_attempt: number;
+  outcome: ContextEpochGenerationOutcomeWire;
+  retryable: NullableBoolean;
+  summary: NullableString;
+  summary_digest: NullableString;
+  usage: JsonValue;
+  error: JsonValue;
   token_estimate_after: NullableInteger;
   token_savings: NullableInteger;
-  replacement_count: NullableInteger;
-  metadata: JsonValue;
 }
 export interface ActivateContextEpochCommand {
   command: "activate-context-epoch";
@@ -807,15 +1000,10 @@ export interface ActivateContextEpochCommand {
 }
 export interface ActivateContextEpochWire {
   epoch_id: string;
-}
-export interface CloneContextEpochCommand {
-  command: "clone-context-epoch";
-  request: CloneContextEpochWire;
-}
-export interface CloneContextEpochWire {
-  source_epoch_id: string;
-  id: NullableString;
-  metadata: JsonValue;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  expected_previous_epoch_id: NullableString;
 }
 export interface PruneContextEpochsCommand {
   command: "prune-context-epochs";
@@ -823,7 +1011,6 @@ export interface PruneContextEpochsCommand {
 }
 export interface PruneContextEpochsWire {
   session_id: string;
-  policy_version: string;
   keep_last_superseded: NullableInteger;
   older_than_updated_at: NullableInteger;
   dry_run: NullableBoolean;
@@ -834,7 +1021,6 @@ export interface ListContextEpochsCommand {
 }
 export interface ListContextEpochsWire {
   session_id: string;
-  policy_version: NullableString;
   state: NullableContextEpochStateWire;
 }
 export interface GetActiveContextEpochCommand {
@@ -843,33 +1029,6 @@ export interface GetActiveContextEpochCommand {
 }
 export interface GetActiveContextEpochWire {
   session_id: string;
-  policy_version: string;
-}
-export interface PutContextReplacementCommand {
-  command: "put-context-replacement";
-  request: PutContextReplacementWire;
-}
-export interface PutContextReplacementWire {
-  id: NullableString;
-  epoch_id: string;
-  session_id: string;
-  policy_version: string;
-  message_id: NullableString;
-  part_id: string;
-  tier: ContextReplacementTierWire;
-  original_token_estimate: number;
-  replacement_token_estimate: number;
-  replacement: JsonValue;
-  metadata: JsonValue;
-}
-export interface ListContextReplacementsCommand {
-  command: "list-context-replacements";
-  request: ListContextReplacementsWire;
-}
-export interface ListContextReplacementsWire {
-  session_id: string;
-  policy_version: NullableString;
-  epoch_id: NullableString;
 }
 export interface ReserveBudgetCommand {
   command: "reserve-budget";
@@ -1030,8 +1189,288 @@ export interface BeginToolExecutionWire {
   input: JsonValue;
   descriptor: JsonValue;
   permission: JsonValue;
+  activity: NullableToolActivityEvidenceWire;
   state: "running" | "denied" | "approval_required";
   idempotency_key: string;
+}
+export interface ToolActivityEvidenceWire {
+  call: ToolActivityPresentationWire;
+  result: ToolActivityPresentationWire | null;
+}
+export interface ToolActivityPresentationWire {
+  summary: string;
+  details:
+    | []
+    | [ToolActivityPresentationDetailWire]
+    | [ToolActivityPresentationDetailWire, ToolActivityPresentationDetailWire]
+    | [ToolActivityPresentationDetailWire, ToolActivityPresentationDetailWire, ToolActivityPresentationDetailWire]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | [
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire,
+        ToolActivityPresentationDetailWire
+      ]
+    | null;
+}
+export interface ToolActivityPresentationDetailWire {
+  label: string;
+  value: string;
+}
+export interface DeferToolExecutionCommand {
+  command: "defer-tool-execution";
+  request: DeferToolExecutionWire;
+}
+export interface DeferToolExecutionWire {
+  session_id: string;
+  turn_id: string;
+  session_attempt_id: string;
+  input_id: string;
+  source_message_id: string;
+  session_job_id: string;
+  worker_id: string;
+  lease_token: string;
+  tool_execution_id: string;
+  tool_invocation_attempt_id: string;
+  tool_call_id: string;
+  operation: DeferredToolOperationWire;
+}
+export interface DeferredMediaGenerationOperationWire {
+  kind: "media_generation";
+  binding: JsonValue;
+  priority: NullableInteger;
+}
+export interface DeferredTeamDelegationOperationWire {
+  kind: "team_delegation";
+  operation_id: string;
+  conversation_id: string;
+  source_delivery_id: string;
+  lead_participant_id: string;
+  graph_id: string;
+  /**
+   * @minItems 1
+   * @maxItems 8
+   */
+  tasks:
+    | [DeferredTeamDelegationTaskWire]
+    | [DeferredTeamDelegationTaskWire, DeferredTeamDelegationTaskWire]
+    | [DeferredTeamDelegationTaskWire, DeferredTeamDelegationTaskWire, DeferredTeamDelegationTaskWire]
+    | [
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire
+      ]
+    | [
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire
+      ]
+    | [
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire
+      ]
+    | [
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire
+      ]
+    | [
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire,
+        DeferredTeamDelegationTaskWire
+      ];
+}
+export interface DeferredTeamDelegationTaskWire {
+  id: string;
+  graph_node_id: string;
+  target_participant_id: string;
+  target_session_id: string;
+  prompt: string;
+  /**
+   * @maxItems 7
+   */
+  depends_on_task_ids:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string];
+  child_input_id: string;
+  child_turn_id: string;
+  child_job_id: string;
+  input_idempotency_key: string;
+  job_idempotency_key: string;
+  execution_binding: JsonValue;
+  max_steps: NullableInteger;
+  priority: NullableInteger;
 }
 export interface FinishToolExecutionCommand {
   command: "finish-tool-execution";
@@ -1048,13 +1487,83 @@ export interface FinishToolExecutionWire {
   execution_id: string;
   invocation_attempt_id: string;
   state: "succeeded" | "failed" | "cancelled";
-  result: JsonValue;
+  content: NullableToolResultContentWire;
+  content_digest: NullableString;
   is_error: NullableBoolean;
+  result_presentation: ToolActivityPresentationWire | null;
   error: JsonValue;
+}
+export interface ToolResultTextContentPartWire {
+  type: "text";
+  text: string;
+}
+export interface ToolResultJsonContentPartWire {
+  type: "json";
+  value: JsonValue;
+}
+export interface ToolResultResourceContentPartWire {
+  type: "resource";
+  resource_id: string;
+  sha256: string;
+  size_bytes: number;
+  kind: ResourceKindWire;
+  media_type: NullableString;
+}
+export interface RequireToolExecutionRecoveryCommand {
+  command: "require-tool-execution-recovery";
+  request: RequireToolExecutionRecoveryWire;
+}
+export interface RequireToolExecutionRecoveryWire {
+  session_id: string;
+  turn_id: string;
+  session_attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  execution_id: string;
+  invocation_attempt_id: string;
+  evidence: JsonValue;
+}
+export interface ResolveToolExecutionRecoveryCommand {
+  command: "resolve-tool-execution-recovery";
+  request: ResolveToolExecutionRecoveryWire;
+}
+export interface ResolveToolExecutionRecoveryWire {
+  execution_id: string;
+  expected_recovery_revision: number;
+  decision: ToolExecutionRecoveryDecisionWire;
+  principal_id: string;
+  reason: string;
+  idempotency_key: string;
+  content: NullableToolResultContentWire;
+  content_digest: NullableString;
+  error: JsonValue;
+}
+export interface ResolveToolExecutionApprovalCommand {
+  command: "resolve-tool-execution-approval";
+  request: ResolveToolExecutionApprovalWire;
+}
+export interface ResolveToolExecutionApprovalWire {
+  execution_id: string;
+  expected_approval_revision: number;
+  decision: ToolExecutionApprovalDecisionWire;
+  principal_id: string;
+  reason: string;
+  idempotency_key: string;
 }
 export interface GetToolExecutionCommand {
   command: "get-tool-execution";
   execution_id: string;
+}
+export interface GetToolExecutionByCallCommand {
+  command: "get-tool-execution-by-call";
+  request: GetToolExecutionByCallWire;
+}
+export interface GetToolExecutionByCallWire {
+  turn_id: string;
+  source_message_id: string;
+  tool_call_id: string;
 }
 export interface ListToolExecutionsCommand {
   command: "list-tool-executions";
@@ -1065,6 +1574,18 @@ export interface ListToolExecutionsWire {
   turn_id: NullableString;
   state: NullableToolExecutionStateWire;
   limit: NullableInteger;
+}
+export interface ListToolActivitiesCommand {
+  command: "list-tool-activities";
+  request: ListToolActivitiesWire;
+}
+export interface ListToolActivitiesWire {
+  session_id: string;
+  /**
+   * @minItems 1
+   * @maxItems 200
+   */
+  source_message_ids: [string, ...string[]];
 }
 export interface ListToolExecutionAttemptsCommand {
   command: "list-tool-execution-attempts";
@@ -1159,19 +1680,60 @@ export interface ListWorkspaceChangeProposalOperationsCommand {
 export interface ListWorkspaceChangeProposalOperationsWire {
   proposal_id: string;
 }
-export interface PutPlanProposalCommand {
-  command: "put-plan-proposal";
-  request: PutPlanProposalWire;
+export interface CreatePlanProposalCommand {
+  command: "create-plan-proposal";
+  request: CreatePlanProposalWire;
 }
-export interface PutPlanProposalWire {
+export interface CreatePlanProposalWire {
   id: NullableString;
   principal_id: string;
-  title: NullableString;
-  summary: NullableString;
-  steps: JsonValue;
-  references: JsonValue;
+  source: PlanProposalSourceWire;
+  generation: PlanProposalGenerationWire;
+  content: PlanProposalContentWire;
+  idempotency_key: string;
+}
+export interface PlanProposalSourceWire {
+  session_id: string;
+  head_sequence: number;
+  head_message_id: NullableString;
+  head_turn_id: NullableString;
+  analysis_input_digest: string;
+  planning_request: JsonValue;
+}
+export interface PlanProposalGenerationWire {
+  endpoint_id: string;
+  endpoint_digest: string;
+  protocol_id: string;
+  provider_id: string;
+  model_id: string;
+  generated_at: number;
+  output_digest: string;
+  output: JsonValue;
+}
+export interface PlanProposalContentWire {
+  title: string;
+  summary: string;
+  /**
+   * @minItems 1
+   * @maxItems 256
+   */
+  steps: [PlanProposalStepWire, ...PlanProposalStepWire[]];
+  /**
+   * @maxItems 256
+   */
+  references: PlanProposalReferenceWire[];
+}
+export interface PlanProposalStepWire {
+  id: string;
+  title: string;
+  detail: NullableString;
   metadata: JsonValue;
-  idempotency_key: NullableString;
+}
+export interface PlanProposalReferenceWire {
+  kind: PlanReferenceKindWire;
+  reference_id: string;
+  role: NullableString;
+  metadata: JsonValue;
 }
 export interface GetPlanProposalCommand {
   command: "get-plan-proposal";
@@ -1183,6 +1745,7 @@ export interface ListPlanProposalsCommand {
 }
 export interface ListPlanProposalsWire {
   principal_id: NullableString;
+  source_session_id: NullableString;
   state: NullablePlanProposalStateWire;
   reference_kind: NullablePlanReferenceKindWire;
   reference_id: NullableString;
@@ -1196,9 +1759,22 @@ export interface RecordPlanProposalOperationWire {
   id: NullableString;
   proposal_id: string;
   operation: PlanProposalOperationWire;
+  expected_revision: number;
+  actor_kind: "human";
   actor_id: string;
+  content: NullablePlanProposalContentWire;
   reason: NullableString;
-  metadata: JsonValue;
+  idempotency_key: string;
+}
+export interface ExecuteApprovedPlanCommand {
+  command: "execute-approved-plan";
+  request: ExecuteApprovedPlanWire;
+}
+export interface ExecuteApprovedPlanWire {
+  proposal_id: string;
+  expected_revision: number;
+  idempotency_key: string;
+  turn: SubmitSessionTurnWire;
 }
 export interface ListPlanProposalOperationsCommand {
   command: "list-plan-proposal-operations";
@@ -1207,79 +1783,94 @@ export interface ListPlanProposalOperationsCommand {
 export interface ListPlanProposalOperationsWire {
   proposal_id: string;
 }
-export interface PutObjectiveRunCommand {
-  command: "put-objective-run";
-  request: PutObjectiveRunWire;
+export interface CreateObjectiveCommand {
+  command: "create-objective";
+  request: CreateObjectiveWire;
 }
-export interface PutObjectiveRunWire {
+export interface CreateObjectiveWire {
   id: NullableString;
+  session_id: string;
   principal_id: string;
   objective: string;
-  scope: NullableString;
+  boundaries: JsonValue;
   constraints: JsonValue;
   success_criteria: JsonValue;
+  verification_policy: JsonValue;
   stop_policy: JsonValue;
-  references: JsonValue;
-  metadata: JsonValue;
-  idempotency_key: NullableString;
+  idempotency_key: string;
 }
-export interface GetObjectiveRunCommand {
-  command: "get-objective-run";
+export interface GetObjectiveCommand {
+  command: "get-objective";
   objective_id: string;
 }
-export interface ListObjectiveRunsCommand {
-  command: "list-objective-runs";
-  request: ListObjectiveRunsWire;
+export interface ListObjectivesCommand {
+  command: "list-objectives";
+  request: ListObjectivesWire;
 }
-export interface ListObjectiveRunsWire {
+export interface ListObjectivesWire {
+  session_id: NullableString;
   principal_id: NullableString;
-  state: NullableObjectiveRunStateWire;
-  reference_kind: NullableObjectiveReferenceKindWire;
-  reference_id: NullableString;
+  states: NullableObjectiveStatesWire;
   limit: NullableInteger;
 }
-export interface RecordObjectiveRunOperationCommand {
-  command: "record-objective-run-operation";
-  request: RecordObjectiveRunOperationWire;
+export interface PauseObjectiveCommand {
+  command: "pause-objective";
+  request: ChangeObjectiveStateWire;
 }
-export interface RecordObjectiveRunOperationWire {
-  id: NullableString;
+export interface ChangeObjectiveStateWire {
   objective_id: string;
-  operation: ObjectiveRunOperationWire;
-  actor_id: string;
+  expected_revision: number;
   reason: NullableString;
-  metadata: JsonValue;
+  idempotency_key: string;
 }
-export interface ListObjectiveRunOperationsCommand {
-  command: "list-objective-run-operations";
-  request: ListObjectiveRunOperationsWire;
+export interface ResumeObjectiveCommand {
+  command: "resume-objective";
+  request: ChangeObjectiveStateWire;
 }
-export interface ListObjectiveRunOperationsWire {
+export interface AdmitObjectiveAttemptCommand {
+  command: "admit-objective-attempt";
+  request: AdmitObjectiveAttemptWire;
+}
+export interface AdmitObjectiveAttemptWire {
   objective_id: string;
+  expected_revision: number;
+  trigger: ObjectiveAttemptTriggerWire;
+  idempotency_key: string;
+  turn: SubmitSessionTurnWire;
 }
-export interface PutObjectiveAttemptCommand {
-  command: "put-objective-attempt";
-  request: PutObjectiveAttemptWire;
+export interface ReviewObjectiveAttemptCommand {
+  command: "review-objective-attempt";
+  request: ReviewObjectiveAttemptWire;
 }
-export interface PutObjectiveAttemptWire {
+export interface ReviewObjectiveAttemptWire {
   id: NullableString;
   objective_id: string;
-  attempt_number: NullableInteger;
-  state: NullableObjectiveAttemptStateWire;
-  session_id: NullableString;
-  session_input_id: NullableString;
-  session_turn_id: NullableString;
-  scheduler_job_id: NullableString;
-  delegation_graph_id: NullableString;
-  plan_proposal_id: NullableString;
-  workspace_change_proposal_id: NullableString;
-  summary: NullableString;
-  result: JsonValue;
-  error: JsonValue;
-  metadata: JsonValue;
-  started_at: NullableInteger;
-  finished_at: NullableInteger;
-  idempotency_key: NullableString;
+  attempt_id: string;
+  expected_revision: number;
+  disposition: ObjectiveAttemptDispositionWire;
+  reason: NullableString;
+  verifications: JsonValue;
+  idempotency_key: string;
+}
+export interface RequestObjectiveCancelCommand {
+  command: "request-objective-cancel";
+  request: RequestObjectiveCancelWire;
+}
+export interface RequestObjectiveCancelWire {
+  objective_id: string;
+  expected_revision: number;
+  reason: string;
+  idempotency_key: string;
+}
+export interface ReconcileObjectiveCancellationCommand {
+  command: "reconcile-objective-cancellation";
+  request: ReconcileObjectiveCancellationWire;
+}
+export interface ReconcileObjectiveCancellationWire {
+  objective_id: string;
+  attempt_id: string;
+  expected_revision: number;
+  idempotency_key: string;
 }
 export interface ListObjectiveAttemptsCommand {
   command: "list-objective-attempts";
@@ -1287,24 +1878,16 @@ export interface ListObjectiveAttemptsCommand {
 }
 export interface ListObjectiveAttemptsWire {
   objective_id: string;
-  state: NullableObjectiveAttemptStateWire;
   limit: NullableInteger;
 }
-export interface PutObjectiveVerificationCommand {
-  command: "put-objective-verification";
-  request: PutObjectiveVerificationWire;
+export interface ListObjectiveAttemptReviewsCommand {
+  command: "list-objective-attempt-reviews";
+  request: ListObjectiveAttemptReviewsWire;
 }
-export interface PutObjectiveVerificationWire {
-  id: NullableString;
+export interface ListObjectiveAttemptReviewsWire {
   objective_id: string;
   attempt_id: NullableString;
-  kind: ObjectiveVerificationKindWire;
-  state: ObjectiveVerificationStateWire;
-  reason: NullableString;
-  evidence: JsonValue;
-  verifier_ref: NullableString;
-  metadata: JsonValue;
-  idempotency_key: NullableString;
+  limit: NullableInteger;
 }
 export interface ListObjectiveVerificationsCommand {
   command: "list-objective-verifications";
@@ -1313,7 +1896,8 @@ export interface ListObjectiveVerificationsCommand {
 export interface ListObjectiveVerificationsWire {
   objective_id: string;
   attempt_id: NullableString;
-  state: NullableObjectiveVerificationStateWire;
+  requirement_id: NullableString;
+  result: NullableObjectiveVerificationResultWire;
   limit: NullableInteger;
 }
 export interface PutDelegationGraphCommand {
@@ -1473,6 +2057,15 @@ export interface UpdateTeamConversationStateWire {
   conversation_id: string;
   state: TeamConversationStateWire;
 }
+export interface SetTeamConversationLeadCommand {
+  command: "set-team-conversation-lead";
+  request: SetTeamConversationLeadWire;
+}
+export interface SetTeamConversationLeadWire {
+  conversation_id: string;
+  expected_lead_participant_id: NullableString;
+  lead_participant_id: NullableString;
+}
 export interface PutTeamParticipantCommand {
   command: "put-team-participant";
   request: PutTeamParticipantWire;
@@ -1484,6 +2077,7 @@ export interface PutTeamParticipantWire {
   kind: TeamParticipantKindWire;
   display_name: NullableString;
   role: NullableString;
+  agent_session_id: NullableString;
   metadata: JsonValue;
   idempotency_key: NullableString;
 }
@@ -1503,28 +2097,162 @@ export interface UpdateTeamParticipantStateWire {
   participant_id: string;
   state: TeamParticipantStateWire;
 }
-export interface AppendTeamTurnCommand {
-  command: "append-team-turn";
-  request: AppendTeamTurnWire;
+export interface AdmitTeamMessageCommand {
+  command: "admit-team-message";
+  request: AdmitTeamMessageWire;
 }
-export interface AppendTeamTurnWire {
+export interface AdmitTeamMessageWire {
   id: NullableString;
   conversation_id: string;
-  speaker_participant_id: string;
-  audience_participant_ids: NullableTeamAudienceParticipantIdsWire;
-  kind: NullableTeamTurnKindWire;
+  author_participant_id: string;
+  parent_message_id: NullableString;
+  kind: NullableTeamMessageKindWire;
+  targets: TeamTargetsWire;
   content: MessagePartsWire;
   metadata: JsonValue;
+  idempotency_key: string;
 }
-export interface ListTeamTurnsCommand {
-  command: "list-team-turns";
-  request: ListTeamTurnsWire;
+export interface TeamTargetWire {
+  kind: TeamTargetKindWire;
+  participant_id: NullableString;
 }
-export interface ListTeamTurnsWire {
+export interface GetTeamMessageCommand {
+  command: "get-team-message";
+  message_id: string;
+}
+export interface ListTeamMessagesCommand {
+  command: "list-team-messages";
+  request: ListTeamMessagesWire;
+}
+export interface ListTeamMessagesWire {
   conversation_id: string;
+  state: NullableTeamMessageStateWire;
   after_created_at: NullableInteger;
-  after_turn_id: NullableString;
+  after_message_id: NullableString;
   limit: NullableInteger;
+}
+export interface RouteTeamMessageCommand {
+  command: "route-team-message";
+  request: RouteTeamMessageWire;
+}
+export interface RouteTeamMessageWire {
+  id: NullableString;
+  message_id: string;
+  expected_revision: number;
+  expected_lead_participant_id: NullableString;
+  mode: TeamConversationModeWire;
+  outcome: TeamRoutingOutcomeWire;
+  actor_principal_id: string;
+  reason: string;
+  metadata: JsonValue;
+  idempotency_key: string;
+  deliveries: RouteTeamDeliveriesWire;
+}
+export interface RouteTeamDeliveryWire {
+  id: NullableString;
+  target_participant_id: string;
+  role: TeamDeliveryRoleWire;
+  trigger: TeamDeliveryTriggerWire;
+  budget_grant_id: NullableString;
+}
+export interface GetTeamRoutingDecisionByMessageCommand {
+  command: "get-team-routing-decision-by-message";
+  message_id: string;
+}
+export interface ListTeamRoutingDecisionsCommand {
+  command: "list-team-routing-decisions";
+  request: ListTeamRoutingDecisionsWire;
+}
+export interface ListTeamRoutingDecisionsWire {
+  conversation_id: NullableString;
+  message_id: NullableString;
+  limit: NullableInteger;
+}
+export interface ListTeamDeliveriesCommand {
+  command: "list-team-deliveries";
+  request: ListTeamDeliveriesWire;
+}
+export interface ListTeamDeliveriesWire {
+  conversation_id: NullableString;
+  message_id: NullableString;
+  routing_decision_id: NullableString;
+  state: NullableTeamDeliveryStateWire;
+  limit: NullableInteger;
+}
+export interface GetTeamDiscussionRoundCommand {
+  command: "get-team-discussion-round";
+  round_id: string;
+}
+export interface ListTeamDiscussionRoundsCommand {
+  command: "list-team-discussion-rounds";
+  request: ListTeamDiscussionRoundsWire;
+}
+export interface ListTeamDiscussionRoundsWire {
+  conversation_id: string;
+  state: NullableTeamDiscussionRoundStateWire;
+  after_created_at: NullableInteger;
+  after_round_id: NullableString;
+  limit: NullableInteger;
+}
+export interface GetTeamDelegationOperationCommand {
+  command: "get-team-delegation-operation";
+  operation_id: string;
+}
+export interface GetTeamDelegationOperationByToolExecutionCommand {
+  command: "get-team-delegation-operation-by-tool-execution";
+  tool_execution_id: string;
+}
+export interface ListTeamDelegationTasksCommand {
+  command: "list-team-delegation-tasks";
+  operation_id: string;
+}
+export interface ReadTeamConversationPageCommand {
+  command: "read-team-conversation-page";
+  request: ReadTeamConversationPageWire;
+}
+export interface ReadTeamConversationPageWire {
+  conversation_id: string;
+  before_created_at: NullableInteger;
+  before_message_id: NullableString;
+  limit: NullableInteger;
+}
+export interface GetTeamDeliveryMaterializationContextCommand {
+  command: "get-team-delivery-materialization-context";
+  delivery_id: string;
+}
+export interface MaterializeTeamDeliveryCommand {
+  command: "materialize-team-delivery";
+  request: MaterializeTeamDeliveryWire;
+}
+export interface MaterializeTeamDeliveryWire {
+  delivery_id: string;
+  dispatch_job_id: string;
+  worker_id: string;
+  lease_token: string;
+  execution_binding: JsonValue;
+  max_steps: NullableInteger;
+  child_priority: NullableInteger;
+}
+export interface FailTeamDeliveryMaterializationCommand {
+  command: "fail-team-delivery-materialization";
+  request: FailTeamDeliveryMaterializationWire;
+}
+export interface FailTeamDeliveryMaterializationWire {
+  delivery_id: string;
+  dispatch_job_id: string;
+  worker_id: string;
+  lease_token: string;
+  error: JsonValue;
+}
+export interface ProjectTeamDeliveryOutcomeCommand {
+  command: "project-team-delivery-outcome";
+  request: ProjectTeamDeliveryOutcomeWire;
+}
+export interface ProjectTeamDeliveryOutcomeWire {
+  delivery_id: string;
+  outcome_job_id: string;
+  worker_id: string;
+  lease_token: string;
 }
 export interface PutPluginManifestCommand {
   command: "put-plugin-manifest";
@@ -1571,6 +2299,14 @@ export interface PutPluginInstallWire {
   metadata: JsonValue;
   idempotency_key: NullableString;
 }
+export interface ActivatePluginInstallCommand {
+  command: "activate-plugin-install";
+  request: ActivatePluginInstallWire;
+}
+export interface ActivatePluginInstallWire {
+  manifest: PutPluginManifestWire;
+  install: PutPluginInstallWire;
+}
 export interface GetPluginInstallCommand {
   command: "get-plugin-install";
   request: GetPluginInstallWire;
@@ -1594,7 +2330,8 @@ export interface UpdatePluginInstallStateCommand {
 }
 export interface UpdatePluginInstallStateWire {
   plugin_id: string;
-  version: NullableString;
+  version: string;
+  expected_state: PluginInstallStateWire;
   state: PluginInstallStateWire;
 }
 export interface UpdatePluginManifestStateCommand {
@@ -1603,8 +2340,17 @@ export interface UpdatePluginManifestStateCommand {
 }
 export interface UpdatePluginManifestStateWire {
   plugin_id: string;
-  version: NullableString;
+  version: string;
   state: PluginManifestStateWire;
+}
+export interface GetPluginActionExecutionAdmissionCommand {
+  command: "get-plugin-action-execution-admission";
+  request: GetPluginActionExecutionAdmissionWire;
+}
+export interface GetPluginActionExecutionAdmissionWire {
+  plugin_id: string;
+  version: string;
+  required_capability: PluginCapabilityWire;
 }
 export interface SubmitPluginActionCommand {
   command: "submit-plugin-action";
@@ -1612,7 +2358,7 @@ export interface SubmitPluginActionCommand {
 }
 export interface SubmitPluginActionWire {
   plugin_id: string;
-  version: NullableString;
+  version: string;
   action_id: string;
   principal_id: string;
   payload: JsonValue;
@@ -1903,16 +2649,19 @@ export interface MediaGenerationAcceptWire {
   external_operation_id: string;
   provider_checkpoint: JsonValue;
 }
-export interface CheckpointMediaGenerationCommand {
-  command: "checkpoint-media-generation";
-  request: MediaGenerationCheckpointWire;
+export interface SuspendMediaGenerationCommand {
+  command: "suspend-media-generation";
+  request: MediaGenerationSuspendWire;
 }
-export interface MediaGenerationCheckpointWire {
+export interface MediaGenerationSuspendWire {
   operation_id: string;
   worker_id: string;
   lease_token: string;
+  next_poll_at: number;
+  outcome: MediaGenerationSuspensionOutcomeWire;
   provider_checkpoint: JsonValue;
   progress: JsonValue;
+  error: JsonValue;
 }
 export interface RecordMediaGenerationOutputsCommand {
   command: "record-media-generation-outputs";
@@ -1922,6 +2671,7 @@ export interface MediaGenerationOutputsWire {
   operation_id: string;
   worker_id: string;
   lease_token: string;
+  poll_outcome: MediaGenerationTerminalPollOutcomeWire;
   output_references: JsonValue[];
   progress: JsonValue;
 }
@@ -1933,6 +2683,7 @@ export interface MediaGenerationCompleteWire {
   operation_id: string;
   worker_id: string;
   lease_token: string;
+  poll_outcome: MediaGenerationTerminalPollOutcomeWire;
   output_resource_ids: string[];
   result: JsonValue;
 }
@@ -1944,6 +2695,7 @@ export interface MediaGenerationSettleWire {
   operation_id: string;
   worker_id: string;
   lease_token: string;
+  poll_outcome: MediaGenerationTerminalPollOutcomeWire;
   outcome: "failed" | "cancelled" | "recovery_required";
   error: JsonValue;
   reason: NullableString;
@@ -1996,4 +2748,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "7e55719f548e777b833bf5b42c94998ffe3151dd94a83cc63979680c11fd7c66" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "09088670e08b3a2f17b2b7981306157f308d1655e6041fd743ca4df7c173dd48" as const

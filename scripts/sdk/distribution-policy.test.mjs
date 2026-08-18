@@ -19,7 +19,17 @@ describe("SDK distribution policy", () => {
     expect(policy.packages.reduce(
       (total, packageInfo) => total + packageInfo.entries.length,
       0
-    )).toBe(29)
+    )).toBe(30)
+    expect(
+      policy.packages
+        .find((item) => item.name === "@wanex/app")
+        ?.entries.map((entry) => entry.exportPath)
+    ).toContain("./provider-mutation")
+    expect(
+      policy.packages
+        .find((item) => item.name === "@wanex/runtime")
+        ?.entries.map((entry) => entry.exportPath)
+    ).toContain("./media-generation/openai-images")
     expect(policy.sourcePreviewPackages).toEqual([
       "@wanex/connector",
       "@wanex/mcp",

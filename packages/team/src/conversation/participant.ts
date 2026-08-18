@@ -18,6 +18,9 @@ export async function addParticipant(
       ? {}
       : { displayName: request.displayName }),
     ...(request.role === undefined ? {} : { role: request.role }),
+    ...(request.agentSessionId === undefined
+      ? {}
+      : { agentSessionId: request.agentSessionId }),
     ...(request.metadata === undefined ? {} : { metadata: request.metadata }),
     ...(request.idempotencyKey === undefined
       ? {}

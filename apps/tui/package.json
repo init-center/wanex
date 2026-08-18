@@ -1,0 +1,39 @@
+{
+  "name": "@wanex/tui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "src",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./full-screen": "./src/full-screen/index.ts"
+  },
+  "bin": {
+    "wanex-tui": "./src/cli/main.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs",
+    "build:distribution": "node ./scripts/distribution.mjs",
+    "start": "tsx ./src/cli/main.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-tui": "0.83.0",
+    "@wanex/app": "workspace:*",
+    "@wanex/extension": "workspace:*",
+    "@wanex/local-host": "workspace:*",
+    "@wanex/local-credential-store": "workspace:*",
+    "@wanex/product": "workspace:*",
+    "@wanex/protocol": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "strip-ansi": "7.2.0"
+  },
+  "devDependencies": {
+    "@wanex/storage": "workspace:*",
+    "@xterm/headless": "5.5.0"
+  }
+}

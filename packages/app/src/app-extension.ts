@@ -1,4 +1,4 @@
-import type { AppExtensionResolvedSnapshot } from "@wanex/extension"
+import type { AppExtensionCatalogSource } from "@wanex/extension"
 import type { PreparedAgentContext } from "@wanex/runtime/context"
 import { prepareWanexAppExtensionAgentContext } from "./app-extension-context.js"
 import {
@@ -11,7 +11,6 @@ import type {
 } from "./types-extension.js"
 
 export interface WanexAppExtensionContributionManager {
-  snapshot(): AppExtensionResolvedSnapshot | undefined
   status(): WanexAppExtensionStatus
   readModel(): WanexAppExtensionReadModel
   prepareAgentContext(
@@ -20,22 +19,22 @@ export interface WanexAppExtensionContributionManager {
 }
 
 export function createWanexAppExtensionContributionManager(
-  snapshot: AppExtensionResolvedSnapshot | undefined
+  source: AppExtensionCatalogSource | undefined
 ): WanexAppExtensionContributionManager {
   return {
-    snapshot() {
-      return snapshot
-    },
     status() {
-      return extensionStatus(snapshot)
+      return extensionStatus(source?.current())
     },
     readModel() {
-      return projectWanexAppExtensionReadModel(snapshot)
+      return projectWanexAppExtensionReadModel(source?.current())
     },
     async prepareAgentContext(base) {
+      const generation = source?.current()
       return prepareWanexAppExtensionAgentContext({
         ...(base === undefined ? {} : { base }),
-        ...(snapshot === undefined ? {} : { snapshot })
+        ...(generation === undefined
+          ? {}
+          : { snapshot: generation.snapshot })
       })
     }
   }

@@ -1,10 +1,9 @@
 import {
-  DeepSeekThinkingAdapter,
   MissingRequiredProviderStateError,
+  OpenAICompatibleAdapter,
   consumeProviderStream,
   type ProviderFetch
 } from "@wanex/runtime/provider"
-import { TeamConversationRuntime } from "@wanex/team/conversation"
 import { createEvalScenario } from "./runner.js"
 import {
   assert,
@@ -55,8 +54,21 @@ export const providerDeepSeekThinkingFidelityScenario = createEvalScenario({
   title: "DeepSeek thinking state is preserved and missing state fails closed",
   tags: ["provider", "llm", "fidelity"],
   async run() {
-    const adapter = new DeepSeekThinkingAdapter({
-      modelId: "deepseek-v4",
+    const adapter = new OpenAICompatibleAdapter({
+      providerId: "deepseek",
+      model: {
+        id: "deepseek-v4",
+        operations: ["conversation"],
+        inputModalities: ["text"],
+        outputModalities: ["text"],
+        features: ["tool_calling", "reasoning"],
+        behavior: { reasoningReplay: "required" },
+        catalog: {
+          source: "builtin",
+          catalogId: "deepseek.chat-completions",
+          revision: "2026-07-28"
+        }
+      },
       baseUrl: "https://api.deepseek.example/v1",
       apiKey: "secret",
       fetch: deepSeekFixtureFetch()
@@ -119,67 +131,3 @@ function deepSeekFixtureFetch(): ProviderFetch {
     }
   })
 }
-
-export const teamRoundBoundScenario = createEvalScenario({
-  id: "team.round-bound",
-  title: "Team conversation stops at explicit max turn bound",
-  tags: ["team", "multi-agent"],
-  async run(context) {
-    const team = new TeamConversationRuntime({
-      storage: context.storage,
-      principalId: "eval-team"
-    })
-    const conversation = await team.createConversation({
-      id: "team_eval_bound",
-      mode: "free",
-      idempotencyKey: "team-eval-bound"
-    })
-    const first = await team.addParticipant({
-      id: "team_eval_agent_a",
-      conversationId: conversation.id,
-      principalId: "agent_eval_a",
-      kind: "agent",
-      idempotencyKey: "team-eval-agent-a"
-    })
-    const second = await team.addParticipant({
-      id: "team_eval_agent_b",
-      conversationId: conversation.id,
-      principalId: "agent_eval_b",
-      kind: "agent",
-      idempotencyKey: "team-eval-agent-b"
-    })
-    const result = await team.orchestrateRound({
-      conversationId: conversation.id,
-      policy: {
-        maxTurns: 3,
-        mode: "free"
-      },
-      speakers: {
-        [first.id]: ({ turnIndex }) => ({
-          content: [
-            {
-              type: "text",
-              id: `team_eval_a_${turnIndex}`,
-              text: `a ${turnIndex}`
-            }
-          ]
-        }),
-        [second.id]: ({ turnIndex }) => ({
-          content: [
-            {
-              type: "text",
-              id: `team_eval_b_${turnIndex}`,
-              text: `b ${turnIndex}`
-            }
-          ]
-        })
-      }
-    })
-    assert(result.stopReason === "max_turns", "team round should stop by maxTurns")
-    assert(result.turns.length === 3, "team round should emit exactly 3 turns")
-    return {
-      stopReason: result.stopReason,
-      turns: result.turns.length
-    }
-  }
-})

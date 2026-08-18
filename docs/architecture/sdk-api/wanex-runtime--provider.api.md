@@ -7,24 +7,19 @@
 import { CoreStore } from '@wanex/storage';
 
 // @public (undocumented)
-export const ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES: {
-    readonly input: readonly ["text", "image", "document"];
-    readonly output: readonly ["text"];
-};
-
-// @public (undocumented)
 export class AnthropicAdapter implements ProviderAdapter {
     constructor(options: AnthropicAdapterOptions);
     // (undocumented)
-    buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+    readonly model: ModelDescriptor;
     // (undocumented)
-    readonly kind: "anthropic";
+    readonly protocol: {
+        readonly id: "anthropic-messages";
+        readonly version: string;
+    };
     // (undocumented)
-    readonly modelId: string;
-    // (undocumented)
-    readonly providerId = "anthropic";
+    readonly providerId: string;
     // (undocumented)
     stream(request: ProviderRequest): AsyncIterable<ProviderEvent>;
 }
@@ -32,21 +27,30 @@ export class AnthropicAdapter implements ProviderAdapter {
 // @public (undocumented)
 export interface AnthropicAdapterOptions {
     // (undocumented)
-    readonly anthropicVersion?: string;
-    // (undocumented)
     readonly apiKey: string;
     // (undocumented)
     readonly baseUrl: string;
     // (undocumented)
-    readonly capabilities?: ProviderCapabilities;
-    // (undocumented)
     readonly fetch?: ProviderFetch;
     // (undocumented)
-    readonly modelId: string;
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocolVersion?: string;
+    // (undocumented)
+    readonly providerId: string;
 }
 
 // @public (undocumented)
-export function assertProfileCapabilitiesSupported(kind: ProviderProfileKind, capabilities: ProviderCapabilities): ProviderCapabilities;
+export function assertConversationModelSupported(protocolId: string, descriptor: ModelDescriptor): ModelDescriptor;
+
+// @public (undocumented)
+export function assertModelSupportsCapability(descriptor: ModelDescriptor, requirement: ModelCapabilityRequirement): ModelDescriptor;
+
+// @public (undocumented)
+export function canonicalJson(value: unknown): string;
+
+// @public (undocumented)
+type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
 export function consumeProviderStream(options: {
@@ -57,27 +61,26 @@ export function consumeProviderStream(options: {
 }): Promise<ProviderTurnResult>;
 
 // @public (undocumented)
-export class DeepSeekThinkingAdapter extends OpenAICompatibleAdapter {
-    constructor(options: Omit<OpenAICompatibleAdapterOptions, "providerId" | "reasoningReplay">);
-}
+export function createModelCapabilityRouteExecutionBinding(options: {
+    readonly requirement: ModelCapabilityRequirement;
+    readonly source: CapabilityRouteSource;
+    readonly modelEndpoint: ModelEndpoint;
+}): ModelCapabilityRouteExecutionBinding;
 
 // @public (undocumented)
-export const FAKE_PROVIDER_CAPABILITIES: {
-    readonly input: readonly ProviderInputModality[];
-    readonly output: readonly ["text"];
-};
+export function fakeModelDescriptor(modelId?: string): ModelDescriptor;
 
 // @public (undocumented)
 export class FakeProviderAdapter implements ProviderAdapter {
     constructor(options: FakeProviderAdapterOptions);
     // (undocumented)
-    buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+    readonly model: ModelDescriptor;
     // (undocumented)
-    readonly kind: "fake";
-    // (undocumented)
-    readonly modelId: string;
+    readonly protocol: {
+        readonly id: "fake";
+    };
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
@@ -87,9 +90,7 @@ export class FakeProviderAdapter implements ProviderAdapter {
 // @public (undocumented)
 export interface FakeProviderAdapterOptions {
     // (undocumented)
-    readonly capabilities?: ProviderCapabilities;
-    // (undocumented)
-    readonly modelId?: string;
+    readonly model?: ModelDescriptor;
     // (undocumented)
     readonly providerId?: string;
     // (undocumented)
@@ -103,6 +104,9 @@ export function fakeTextPart(text: string): TextMessagePart;
 
 // @public (undocumented)
 export function fakeToolCallPart(toolName: string): ToolCallMessagePart;
+
+// @public (undocumented)
+export function findModelCapabilityRouteExecutionBinding(bindings: readonly ModelCapabilityRouteExecutionBinding[], requirement: ModelCapabilityRequirement): ModelCapabilityRouteExecutionBinding | undefined;
 
 // @public (undocumented)
 export function globalProviderFetch(input: string, init: Parameters<ProviderFetch>[1]): Promise<ProviderFetchResponse>;
@@ -147,29 +151,181 @@ export class MissingRequiredProviderStateError extends Error {
 }
 
 // @public (undocumented)
-export function normalizeProviderCapabilities(capabilities: ProviderCapabilities): ProviderCapabilities;
+interface ModelBehavior {
+    // (undocumented)
+    readonly reasoningReplay?: "optional" | "required" | "forbidden";
+}
 
 // @public (undocumented)
-export const OPENAI_CHAT_PROVIDER_CAPABILITIES: {
-    readonly input: readonly ["text", "image"];
-    readonly output: readonly ["text"];
-};
+interface ModelCapabilityRequirement {
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly operation: ModelOperation;
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+export function modelCapabilityRequirementKey(requirement: ModelCapabilityRequirement): string;
+
+// @public (undocumented)
+interface ModelCapabilityRouteExecutionBinding {
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly requirement: ModelCapabilityRequirement;
+    // (undocumented)
+    readonly source: CapabilityRouteSource;
+}
+
+// @public (undocumented)
+interface ModelCatalogProvenance {
+    // (undocumented)
+    readonly catalogId: string;
+    // (undocumented)
+    readonly revision: string;
+    // (undocumented)
+    readonly source: "builtin" | "provider" | "custom";
+}
+
+// @public (undocumented)
+interface ModelDescriptor {
+    // (undocumented)
+    readonly behavior?: ModelBehavior;
+    // (undocumented)
+    readonly catalog: ModelCatalogProvenance;
+    // (undocumented)
+    readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly inputModalities: readonly ModelInputModality[];
+    // (undocumented)
+    readonly limits?: ModelLimits;
+    // (undocumented)
+    readonly operations: readonly ModelOperation[];
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
+}
+
+// @public (undocumented)
+interface ModelEndpoint {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+export function modelEndpointConfigKey(endpointId: string): string;
+
+// @public (undocumented)
+export function modelEndpointDigest(endpoint: ModelEndpoint): string;
+
+// @public (undocumented)
+interface ModelEndpointExecutionBinding {
+    // (undocumented)
+    readonly connection: ProviderConnection;
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly endpointId: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+export function modelEndpointExecutionBinding(endpoint: ModelEndpoint): ModelEndpointExecutionBinding;
+
+// @public (undocumented)
+export function modelEndpointFromExecutionBinding(binding: ModelEndpointExecutionBinding): ModelEndpoint;
+
+// @public (undocumented)
+export function modelEndpointFromJson(value: JsonValue): ModelEndpoint;
+
+// @public (undocumented)
+export interface ModelEndpointSummary {
+    // (undocumented)
+    readonly connection: Omit<ProviderConnection, "secretRef">;
+    // (undocumented)
+    readonly credentialConfigured: boolean;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly protocol: ProviderProtocolDescriptor;
+}
+
+// @public (undocumented)
+export function modelEndpointToJson(endpoint: ModelEndpoint): JsonValue;
+
+// @public (undocumented)
+type ModelFeature = "tool_calling" | "parallel_tool_calls" | "reasoning";
+
+// @public (undocumented)
+type ModelInputModality = "text" | "image" | "audio" | "video" | "document";
+
+// @public (undocumented)
+interface ModelLimits {
+    // (undocumented)
+    readonly contextWindowTokens?: number;
+    // (undocumented)
+    readonly maxInputResources?: number;
+    // (undocumented)
+    readonly maxInputTokens?: number;
+    // (undocumented)
+    readonly maxOutputTokens?: number;
+}
+
+// @public (undocumented)
+type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+type ModelOutputModality = "text" | "image" | "audio" | "video";
+
+// @public (undocumented)
+export function modelSupportsCapability(descriptor: ModelDescriptor, requirement: ModelCapabilityRequirement): boolean;
+
+// @public (undocumented)
+export function normalizeModelCapabilityRequirement(requirement: ModelCapabilityRequirement): ModelCapabilityRequirement;
+
+// @public (undocumented)
+export function normalizeModelCapabilityRouteExecutionBinding(binding: ModelCapabilityRouteExecutionBinding): ModelCapabilityRouteExecutionBinding;
+
+// @public (undocumented)
+export function normalizeModelCapabilityRouteExecutionBindings(bindings: readonly ModelCapabilityRouteExecutionBinding[]): readonly ModelCapabilityRouteExecutionBinding[];
+
+// @public (undocumented)
+export function normalizeModelDescriptor(descriptor: ModelDescriptor): ModelDescriptor;
+
+// @public (undocumented)
+export function normalizeModelEndpoint(endpoint: ModelEndpoint): ModelEndpoint;
 
 // @public (undocumented)
 export class OpenAICompatibleAdapter implements ProviderAdapter {
     constructor(options: OpenAICompatibleAdapterOptions);
     // (undocumented)
-    buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+    readonly model: ModelDescriptor;
     // (undocumented)
-    readonly kind: "openai-compatible";
-    // (undocumented)
-    readonly modelId: string;
+    readonly protocol: {
+        readonly id: "openai-chat-completions";
+    };
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
-    protected readonly reasoningReplay: "optional" | "required";
+    protected readonly reasoningReplay: "optional" | "required" | "forbidden";
     // (undocumented)
     stream(request: ProviderRequest): AsyncIterable<ProviderEvent>;
 }
@@ -181,15 +337,11 @@ export interface OpenAICompatibleAdapterOptions {
     // (undocumented)
     readonly baseUrl: string;
     // (undocumented)
-    readonly capabilities?: ProviderCapabilities;
-    // (undocumented)
     readonly fetch?: ProviderFetch;
     // (undocumented)
-    readonly modelId: string;
+    readonly model: ModelDescriptor;
     // (undocumented)
     readonly providerId: string;
-    // (undocumented)
-    readonly reasoningReplay?: "optional" | "required";
 }
 
 // @public (undocumented)
@@ -201,7 +353,7 @@ export interface PreparedProviderReplayMessage {
 }
 
 // @public (undocumented)
-export type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart> | PreparedProviderResourcePart;
+export type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart | ToolResultMessagePart> | PreparedProviderResourcePart | PreparedProviderToolResultPart;
 
 // @public (undocumented)
 export interface PreparedProviderResourcePart extends ResourceMessagePart {
@@ -210,7 +362,22 @@ export interface PreparedProviderResourcePart extends ResourceMessagePart {
 }
 
 // @public (undocumented)
-export function profileToJson(profile: ProviderProfile): JsonValue;
+export type PreparedProviderToolResultContentPart = Exclude<ToolResultContentPart, ToolResultResourceContentPart> | PreparedProviderToolResultResourcePart;
+
+// @public (undocumented)
+export interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePart, "content"> {
+    // (undocumented)
+    readonly content: readonly PreparedProviderToolResultContentPart[];
+}
+
+// @public (undocumented)
+export interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
+    // (undocumented)
+    readonly bytes?: Uint8Array;
+}
+
+// @public (undocumented)
+export function projectedToolResultText(content: readonly ToolResultContentPart[]): string;
 
 // @public (undocumented)
 export function protocolProviderError(options: {
@@ -222,13 +389,11 @@ export function protocolProviderError(options: {
 // @public (undocumented)
 export interface ProviderAdapter {
     // (undocumented)
-    buildReplayMessages(messages: readonly ProviderReplayMessage[]): JsonValue[];
+    buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+    readonly model: ModelDescriptor;
     // (undocumented)
-    readonly kind: ProviderProfileKind;
-    // (undocumented)
-    readonly modelId: string;
+    readonly protocol: ProviderProtocolDescriptor;
     // (undocumented)
     readonly providerId: string;
     // (undocumented)
@@ -236,15 +401,16 @@ export interface ProviderAdapter {
 }
 
 // @public (undocumented)
-interface ProviderCapabilities {
+interface ProviderConnection {
     // (undocumented)
-    readonly input: readonly ProviderInputModality[];
+    readonly baseUrl?: string;
     // (undocumented)
-    readonly output: readonly ProviderOutputModality[];
+    readonly id: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly secretRef?: string;
 }
-
-// @public (undocumented)
-export function providerConfigKey(profileId: string): string;
 
 // @public (undocumented)
 export interface ProviderError {
@@ -333,58 +499,19 @@ export interface ProviderFinishEvent {
 }
 
 // @public (undocumented)
-export function providerFromProfile(profile: ProviderProfile, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
+export function providerFromModelEndpoint(endpoint: ModelEndpoint, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
 
 // @public (undocumented)
-type ProviderInputModality = "text" | "image" | "audio" | "video" | "document";
+export type ProviderOutputMessagePart = Extract<MessagePart, {
+    readonly type: "text" | "reasoning" | "tool_call";
+}>;
 
 // @public (undocumented)
-type ProviderOutputModality = "text" | "image" | "audio" | "video";
-
-// @public (undocumented)
-interface ProviderProfile {
-    // (undocumented)
-    readonly anthropicVersion?: string;
-    // (undocumented)
-    readonly baseUrl?: string;
-    // (undocumented)
-    readonly capabilities: ProviderCapabilities;
+interface ProviderProtocolDescriptor {
     // (undocumented)
     readonly id: string;
     // (undocumented)
-    readonly kind: ProviderProfileKind;
-    // (undocumented)
-    readonly modelId: string;
-    // (undocumented)
-    readonly providerId: string;
-    // (undocumented)
-    readonly secretRef?: string;
-}
-
-// @public (undocumented)
-export function providerProfileFromJson(value: JsonValue): ProviderProfile;
-
-// @public (undocumented)
-type ProviderProfileKind = "fake" | "openai-compatible" | "anthropic" | "deepseek";
-
-// @public (undocumented)
-export interface ProviderProfileSummary {
-    // (undocumented)
-    readonly anthropicVersion?: string;
-    // (undocumented)
-    readonly baseUrl?: string;
-    // (undocumented)
-    readonly capabilities: ProviderProfile["capabilities"];
-    // (undocumented)
-    readonly credentialConfigured: boolean;
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    readonly kind: ProviderProfile["kind"];
-    // (undocumented)
-    readonly modelId: string;
-    // (undocumented)
-    readonly providerId: string;
+    readonly version?: string;
 }
 
 // @public (undocumented)
@@ -547,7 +674,7 @@ export interface ProviderTurnResult {
     // (undocumented)
     readonly finish: ProviderFinishEvent;
     // (undocumented)
-    readonly parts: readonly MessagePart[];
+    readonly parts: readonly ProviderOutputMessagePart[];
     // (undocumented)
     readonly providerState: readonly ProviderState[];
     // (undocumented)
@@ -579,7 +706,7 @@ export interface ProviderUsageEvent {
 }
 
 // @public (undocumented)
-export function readProviderProfile(storage: CoreStore, profileId: string): Promise<ProviderProfile | null>;
+export function readModelEndpoint(storage: CoreStore, endpointId: string): Promise<ModelEndpoint | null>;
 
 // @public (undocumented)
 interface ReasoningMessagePart extends MessagePartBase {
@@ -592,10 +719,15 @@ interface ReasoningMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
+export function requireModelEndpoint(storage: CoreStore, endpointId: string): Promise<ModelEndpoint>;
+
+// @public (undocumented)
 export function requirePreparedProviderResource(part: ResourceMessagePart): PreparedProviderResourcePart;
 
 // @public (undocumented)
-export function requireProviderProfile(storage: CoreStore, profileId: string): Promise<ProviderProfile>;
+export function requirePreparedToolResultResource(part: ToolResultResourceContentPart): PreparedProviderToolResultResourcePart & {
+    readonly bytes: Uint8Array;
+};
 
 // @public (undocumented)
 interface ResolvedSecret {
@@ -614,7 +746,7 @@ interface ResolvedSecret {
 }
 
 // @public (undocumented)
-export function resolveProviderProfile(storage: CoreStore, profileId: string, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
+export function resolveModelEndpoint(storage: CoreStore, endpointId: string, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
 
 // @public (undocumented)
 type ResourceId = string;
@@ -661,7 +793,7 @@ interface RuntimeAbortSignal {
 }
 
 // @public (undocumented)
-export function sameProviderCapabilities(left: ProviderCapabilities, right: ProviderCapabilities): boolean;
+export function sameModelDescriptor(left: ModelDescriptor, right: ModelDescriptor): boolean;
 
 // @public (undocumented)
 interface SecretResolveContext {
@@ -670,9 +802,9 @@ interface SecretResolveContext {
     // (undocumented)
     readonly credentialId?: string;
     // (undocumented)
-    readonly principalId?: string;
+    readonly modelEndpointId?: string;
     // (undocumented)
-    readonly providerProfileId?: string;
+    readonly principalId?: string;
     // (undocumented)
     readonly signal?: AbortSignal;
 }
@@ -684,16 +816,7 @@ interface SecretResolverPort {
 }
 
 // @public (undocumented)
-export function summarizeProviderProfile(profile: ProviderProfile): ProviderProfileSummary;
-
-// @public (undocumented)
-export function supportedCapabilitiesForKind(kind: ProviderProfileKind): ProviderCapabilities;
-
-// @public (undocumented)
-export const TEXT_PROVIDER_CAPABILITIES: {
-    readonly input: readonly ["text"];
-    readonly output: readonly ["text"];
-};
+export function summarizeModelEndpoint(endpoint: ModelEndpoint): ModelEndpointSummary;
 
 // @public (undocumented)
 export function textContent(parts: readonly MessagePart[]): string;
@@ -722,11 +845,24 @@ interface ToolCallMessagePart extends MessagePartBase {
 export function toolCallsToOpenAI(toolCalls: readonly ToolCallMessagePart[]): readonly JsonValue[];
 
 // @public (undocumented)
+type ToolResultContentPart = ToolResultTextContentPart | ToolResultJsonContentPart | ToolResultResourceContentPart;
+
+// @public (undocumented)
+interface ToolResultJsonContentPart {
+    // (undocumented)
+    readonly type: "json";
+    // (undocumented)
+    readonly value: JsonValue;
+}
+
+// @public (undocumented)
 interface ToolResultMessagePart extends MessagePartBase {
     // (undocumented)
-    readonly isError: boolean;
+    readonly content: readonly ToolResultContentPart[];
     // (undocumented)
-    readonly result: JsonValue;
+    readonly contentDigest: string;
+    // (undocumented)
+    readonly isError: boolean;
     // (undocumented)
     readonly toolCallId: string;
     // (undocumented)
@@ -734,7 +870,31 @@ interface ToolResultMessagePart extends MessagePartBase {
 }
 
 // @public (undocumented)
-export function writeProviderProfile(storage: CoreStore, profile: ProviderProfile): Promise<void>;
+interface ToolResultResourceContentPart extends ResourceInputEvidence {
+    // (undocumented)
+    readonly type: "resource";
+}
+
+// @public (undocumented)
+export function toolResultResourceDescriptor(part: ToolResultResourceContentPart): {
+    sizeBytes: number;
+    sha256: string;
+    mediaType?: string;
+    type: "resource";
+    resourceId: string;
+    kind: ResourceKind;
+};
+
+// @public (undocumented)
+interface ToolResultTextContentPart {
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly type: "text";
+}
+
+// @public (undocumented)
+export function writeModelEndpoint(storage: CoreStore, endpoint: ModelEndpoint): Promise<void>;
 
 // (No @packageDocumentation comment for this package)
 

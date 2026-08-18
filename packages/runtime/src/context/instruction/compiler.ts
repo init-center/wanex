@@ -36,21 +36,10 @@ export class InstructionContextCompiler implements ContextCompiler {
     return {
       sessionId: input.sessionId,
       ...(input.epochId === undefined ? {} : { epochId: input.epochId }),
-      policy: {
-        version: "instruction-runtime-only",
-        maxInputTokens: 0,
-        recentUserTurns: 0,
-        snipTextOverChars: 0,
-        placeholderTextOverChars: 0,
-        snipHeadChars: 0,
-        snipTailChars: 0
-      },
       messages: replayMessages(nextInput),
-      replacements: [],
       stats: {
         tokenEstimateBefore: 0,
-        tokenEstimateAfter: 0,
-        replacementCount: 0
+        tokenEstimateAfter: 0
       }
     }
   }

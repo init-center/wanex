@@ -11,5 +11,5 @@ target/
 .env.*
 !.env.example
 
-# Local Product App visual/demo state.
-apps/product-app-local/.wanex-product-app-local-visual/
+# Local visual-proof state.
+apps/local-host/.wanex-*-visual/

@@ -1,0 +1,36 @@
+{
+  "name": "@wanex/local-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./application": "./src/application/index.ts",
+    "./desktop-host": "./src/desktop/index.ts",
+    "./system-service": "./src/native/system-service.ts",
+    "./web-host": "./src/web-host/index.ts"
+  },
+  "bin": {
+    "wanex-local-host": "./src/cli/main.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs",
+    "start": "tsx ./src/cli/main.ts",
+    "demo:web": "tsx ./src/dev/main.ts",
+    "test:demo:web": "node ../../scripts/run-package-test.mjs demo --maxWorkers=1"
+  },
+  "dependencies": {
+    "@wanex/app": "workspace:*",
+    "@wanex/local-credential-store": "workspace:*",
+    "@wanex/product": "workspace:*",
+    "@wanex/web": "workspace:*",
+    "@wanex/protocol": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "@wanex/storage": "workspace:*",
+    "@wanex/team": "workspace:*"
+  },
+  "devDependencies": {
+    "happy-dom": "20.11.1"
+  }
+}

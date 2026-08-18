@@ -14,67 +14,86 @@ const packageScopedSourceImportAllowlist = new Map([
         ])
       ],
       [
-        "@wanex/product-app",
+        "@wanex/product",
         new Set([
           "packages/eval-harness/src/product-capability/command-port-scenario.ts",
           "packages/eval-harness/src/product-capability/json-mapping-scenario.ts",
           "packages/eval-harness/src/product-capability/readiness-scenario.ts",
-          "packages/eval-harness/src/product-app-backend-backend-shell-scenarios.ts",
-          "packages/eval-harness/src/product-app-backend-diagnostics-detail-scenarios.ts",
-          "packages/eval-harness/src/product-app-backend-integration-contract-scenarios.ts",
-          "packages/eval-harness/src/product-app-backend-overview-scenarios.ts",
-          "packages/eval-harness/src/product-app-backend-workbench-scenarios.ts",
-          "packages/eval-harness/src/product-app/host-endpoint-scenario.ts",
-          "packages/eval-harness/src/product-app/plugin-action-scenario.ts",
-          "packages/eval-harness/src/product-app/conversation-helpers.ts",
-          "packages/eval-harness/src/product-app/conversation-lifecycle-scenario.ts",
-          "packages/eval-harness/src/product-app/surface-client-scenario.ts",
-          "packages/eval-harness/src/product-app/surface-message-transport-scenario.ts",
-          "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product-app/web-surface-scenario.ts",
-          "packages/eval-harness/src/product-app-scenarios.ts",
-          "packages/eval-harness/src/product-app-tui/host-message-transport-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/line-session-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/surface-scenario.ts",
-          "packages/eval-harness/src/product-app/declarative-input-scenario.ts",
+          "packages/eval-harness/src/product-backend-shell-scenarios.ts",
+          "packages/eval-harness/src/product-backend-diagnostics-scenarios.ts",
+          "packages/eval-harness/src/product-backend-integration-scenarios.ts",
+          "packages/eval-harness/src/product-backend-overview-scenarios.ts",
+          "packages/eval-harness/src/product-backend-workbench-scenarios.ts",
+          "packages/eval-harness/src/product/host-endpoint-scenario.ts",
+          "packages/eval-harness/src/product/plugin-command-product.ts",
+          "packages/eval-harness/src/product/plugin-action-scenario.ts",
+          "packages/eval-harness/src/product/conversation-helpers.ts",
+          "packages/eval-harness/src/product/conversation-lifecycle-scenario.ts",
+          "packages/eval-harness/src/product/guided-follow-up-scenario.ts",
+          "packages/eval-harness/src/product/goal-journey-scenario.ts",
+          "packages/eval-harness/src/product/long-session-continuity-scenario.ts",
+          "packages/eval-harness/src/product/plan-journey-scenario.ts",
+          "packages/eval-harness/src/product/recovery-review-scenario.ts",
+          "packages/eval-harness/src/product/same-turn-steering-scenario.ts",
+          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/product/side-query-scenario.ts",
+          "packages/eval-harness/src/product/surface-client-scenario.ts",
+          "packages/eval-harness/src/product/surface-message-transport-scenario.ts",
+          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/product/web-surface-scenario.ts",
+          "packages/eval-harness/src/product-scenarios.ts",
+          "packages/eval-harness/src/tui/host-message-transport-scenario.ts",
+          "packages/eval-harness/src/tui/line-session-scenario.ts",
+          "packages/eval-harness/src/tui/surface-scenario.ts",
+          "packages/eval-harness/src/product/declarative-input-scenario.ts",
           "packages/eval-harness/src/tui-product/controller-path-scenario.ts",
           "packages/eval-harness/src/tui-product/helpers.ts"
         ])
       ],
       [
-        "@wanex/product-app-web",
+        "@wanex/web",
         new Set([
-          "packages/eval-harness/src/product-app/conversation-lifecycle-scenario.ts",
-          "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product-app/web-surface-scenario.ts",
-          "packages/eval-harness/src/product-app/declarative-input-scenario.ts"
+          "packages/eval-harness/src/product/conversation-lifecycle-scenario.ts",
+          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/product/goal-journey-scenario.ts",
+          "packages/eval-harness/src/product/guided-follow-up-scenario.ts",
+          "packages/eval-harness/src/product/long-session-continuity-scenario.ts",
+          "packages/eval-harness/src/product/recovery-review-scenario.ts",
+          "packages/eval-harness/src/product/same-turn-steering-scenario.ts",
+          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/product/web-surface-scenario.ts",
+          "packages/eval-harness/src/product/declarative-input-scenario.ts"
         ])
       ],
       [
-        "@wanex/product-app-local",
+        "@wanex/local-host",
         new Set([
-          "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product-app/local-desktop-host-scenario.ts",
-          "packages/eval-harness/src/product-app/local-host-scenario.ts",
-          "packages/eval-harness/src/product-app/web-surface-scenario.ts"
+          "packages/eval-harness/src/product/capability-setup-continuation-scenario.ts",
+          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/product/local-desktop-host-scenario.ts",
+          "packages/eval-harness/src/product/local-host-scenario.ts",
+          "packages/eval-harness/src/product/web-surface-scenario.ts"
         ])
       ],
       [
-        "@wanex/product-app-command-host",
+        "@wanex/plugin-command-host",
         new Set([
-          "packages/eval-harness/src/product-app/plugin-action-scenario.ts",
-          "packages/eval-harness/src/product-app/declarative-input-scenario.ts"
+          "packages/eval-harness/src/product/plugin-command-product.ts",
+          "packages/eval-harness/src/product/plugin-action-scenario.ts",
+          "packages/eval-harness/src/product/declarative-input-scenario.ts"
         ])
       ],
       [
-        "@wanex/product-app-tui",
+        "@wanex/tui",
         new Set([
-          "packages/eval-harness/src/product-app/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/cli-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/host-message-transport-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/line-session-scenario.ts",
-          "packages/eval-harness/src/product-app-tui/surface-scenario.ts",
-          "packages/eval-harness/src/product-app/declarative-input-scenario.ts",
+          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/product/goal-journey-scenario.ts",
+          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/tui/cli-scenario.ts",
+          "packages/eval-harness/src/tui/host-message-transport-scenario.ts",
+          "packages/eval-harness/src/tui/line-session-scenario.ts",
+          "packages/eval-harness/src/tui/surface-scenario.ts",
+          "packages/eval-harness/src/product/declarative-input-scenario.ts",
           "packages/eval-harness/src/tui-product/controller-path-scenario.ts",
           "packages/eval-harness/src/tui-product/helpers.ts"
         ])

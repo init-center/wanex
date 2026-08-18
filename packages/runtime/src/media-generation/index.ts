@@ -1,4 +1,9 @@
 export { WanexMediaGenerationRuntime } from "./runtime.js"
+export {
+  MediaGenerationAdapterRegistry,
+  prepareMediaGenerationOperationBinding,
+  type PrepareMediaGenerationOperationBindingRequest
+} from "./binding.js"
 export type {
   MediaGenerationAdapter,
   MediaGenerationAdapterRequest,

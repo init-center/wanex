@@ -1,85 +1,292 @@
-use crate::rows::{row_to_context_epoch, row_to_context_replacement};
+use crate::rows::row_to_context_epoch;
 use crate::{
-    ActivateContextEpoch, CloneContextEpoch, ContextEpochPruneReceipt, ContextEpochRecord,
-    ContextReplacementRecord, GetActiveContextEpoch, ListContextEpochs, ListContextReplacements,
-    PruneContextEpochs, PutContextEpoch, PutContextReplacement, Result, SystemService,
-    SystemServiceError,
+    ActivateContextEpoch, BeginContextEpoch, ContextEpochMutationIdentity,
+    ContextEpochPruneReceipt, ContextEpochRecord, FinishContextEpochGeneration,
+    GetActiveContextEpoch, ListContextEpochs, MarkContextEpochOutputObserved, PruneContextEpochs,
+    Result, SystemService, SystemServiceError,
 };
 use rusqlite::{params, OptionalExtension};
-use serde_json::json;
-use uuid::Uuid;
 
 const CONTEXT_EPOCH_SELECT: &str = "SELECT
-    id, session_id, policy_version, state,
-    token_estimate_before, token_estimate_after, token_savings, replacement_count,
-    metadata_json, created_at, activated_at, updated_at
+    id, session_id, job_id, state, generation_state, generation_attempt,
+    max_provider_attempts, previous_epoch_id, previous_summary_digest,
+    source_head_sequence, source_head_message_id, cut_sequence, cut_message_id,
+    retained_from_sequence, retained_from_message_id, source_digest,
+    policy_json, policy_digest, model_endpoint_json, request_digest,
+    summary, summary_digest, usage_json, error_json,
+    token_estimate_before, token_estimate_after, token_savings,
+    created_at, activated_at, finished_at, updated_at
  FROM context_epoch";
 
-const CONTEXT_REPLACEMENT_SELECT: &str = "SELECT
-    id, epoch_id, session_id, policy_version, message_id, part_id, tier,
-    original_token_estimate, replacement_token_estimate,
-    replacement_json, metadata_json, created_at, updated_at
- FROM context_replacement";
-
 impl SystemService {
-    pub fn put_context_epoch(&self, request: &PutContextEpoch) -> Result<ContextEpochRecord> {
-        validate_put_context_epoch(request)?;
+    pub fn begin_context_epoch(&self, request: &BeginContextEpoch) -> Result<ContextEpochRecord> {
+        validate_begin_context_epoch(request)?;
         let now = crate::util::now_ms();
-        let id = request
-            .id
-            .clone()
-            .unwrap_or_else(|| format!("ctxepoch_{}", Uuid::now_v7()));
-        let metadata_json = request
-            .metadata
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()?;
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
-        if let Some(existing) = get_context_epoch_optional_tx(&tx, &id)? {
-            if existing.session_id != request.session_id
-                || existing.policy_version != request.policy_version
-            {
-                return Err(SystemServiceError::Invariant(
-                    "context epoch id already belongs to a different session or policy".to_string(),
-                ));
-            }
-            if existing.state != "building" {
-                return Err(SystemServiceError::Invariant(format!(
-                    "context epoch cannot be updated after leaving building state: {}",
-                    existing.state
-                )));
-            }
+        assert_job_lease_tx(
+            &tx,
+            &request.job_id,
+            &request.worker_id,
+            &request.lease_token,
+            &request.session_id,
+            now,
+        )?;
+        if let Some(existing) = get_context_epoch_optional_tx(&tx, &request.id)? {
+            assert_existing_epoch_matches(&existing, request)?;
+            tx.commit()?;
+            return Ok(existing);
         }
+        assert_expected_active_epoch_tx(
+            &tx,
+            &request.session_id,
+            request.previous_epoch_id.as_deref(),
+        )?;
+        validate_source_boundaries_tx(&tx, request)?;
         tx.execute(
             "INSERT INTO context_epoch (
-                id, session_id, policy_version, state,
-                token_estimate_before, token_estimate_after, token_savings, replacement_count,
-                metadata_json, created_at, activated_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(id) DO UPDATE SET
-                token_estimate_before = excluded.token_estimate_before,
-                token_estimate_after = excluded.token_estimate_after,
-                token_savings = excluded.token_savings,
-                replacement_count = excluded.replacement_count,
-                metadata_json = excluded.metadata_json,
-                updated_at = excluded.updated_at",
+                id, session_id, job_id, state, generation_state, generation_attempt,
+                max_provider_attempts, previous_epoch_id, previous_summary_digest,
+                source_head_sequence, source_head_message_id, cut_sequence, cut_message_id,
+                retained_from_sequence, retained_from_message_id, source_digest,
+                policy_json, policy_digest, model_endpoint_json, request_digest,
+                summary, summary_digest, usage_json, error_json,
+                token_estimate_before, token_estimate_after, token_savings,
+                created_at, activated_at, finished_at, updated_at
+             ) VALUES (
+                ?, ?, ?, 'building', 'prepared', 0,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                NULL, NULL, NULL, NULL, ?, 0, 0, ?, NULL, NULL, ?
+             )",
             params![
-                id,
+                request.id,
                 request.session_id,
-                request.policy_version,
-                "building",
-                request.token_estimate_before.unwrap_or(0),
-                request.token_estimate_after.unwrap_or(0),
-                request.token_savings.unwrap_or(0),
-                request.replacement_count.unwrap_or(0),
-                metadata_json,
+                request.job_id,
+                request.max_provider_attempts,
+                request.previous_epoch_id,
+                request.previous_summary_digest,
+                request.source_head_sequence,
+                request.source_head_message_id,
+                request.cut_sequence,
+                request.cut_message_id,
+                request.retained_from_sequence,
+                request.retained_from_message_id,
+                request.source_digest,
+                serde_json::to_string(&request.policy)?,
+                request.policy_digest,
+                serde_json::to_string(&request.model_endpoint)?,
+                request.request_digest,
+                request.token_estimate_before,
                 now,
-                None::<i64>,
                 now,
             ],
         )?;
-        let record = get_context_epoch_tx(&tx, &id)?;
+        let record = get_context_epoch_tx(&tx, &request.id)?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn mark_context_epoch_dispatched(
+        &self,
+        request: &ContextEpochMutationIdentity,
+    ) -> Result<ContextEpochRecord> {
+        validate_mutation_identity(request)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
+        assert_job_lease_tx(
+            &tx,
+            &request.job_id,
+            &request.worker_id,
+            &request.lease_token,
+            &epoch.session_id,
+            now,
+        )?;
+        assert_epoch_job(&epoch, &request.job_id)?;
+        if epoch.state != "building"
+            || !matches!(
+                epoch.generation_state.as_str(),
+                "prepared" | "failed_before_output"
+            )
+            || epoch.generation_attempt >= epoch.max_provider_attempts
+        {
+            return Err(SystemServiceError::Invariant(format!(
+                "context epoch cannot dispatch from {}/{} at attempt {} of {}",
+                epoch.state,
+                epoch.generation_state,
+                epoch.generation_attempt,
+                epoch.max_provider_attempts
+            )));
+        }
+        tx.execute(
+            "UPDATE context_epoch
+             SET generation_state = 'dispatched', generation_attempt = generation_attempt + 1,
+                 error_json = NULL, updated_at = ?
+             WHERE id = ?",
+            params![now, request.epoch_id],
+        )?;
+        let record = get_context_epoch_tx(&tx, &request.epoch_id)?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn mark_context_epoch_output_observed(
+        &self,
+        request: &MarkContextEpochOutputObserved,
+    ) -> Result<ContextEpochRecord> {
+        validate_output_observed(request)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
+        assert_job_lease_tx(
+            &tx,
+            &request.job_id,
+            &request.worker_id,
+            &request.lease_token,
+            &epoch.session_id,
+            now,
+        )?;
+        assert_epoch_job(&epoch, &request.job_id)?;
+        assert_generation_attempt(&epoch, request.generation_attempt)?;
+        match epoch.generation_state.as_str() {
+            "output_observed" => {}
+            "dispatched" => {
+                tx.execute(
+                    "UPDATE context_epoch
+                     SET generation_state = 'output_observed', updated_at = ?
+                     WHERE id = ?",
+                    params![now, request.epoch_id],
+                )?;
+            }
+            state => {
+                return Err(SystemServiceError::Invariant(format!(
+                    "context epoch cannot observe output from generation state: {state}"
+                )));
+            }
+        }
+        let record = get_context_epoch_tx(&tx, &request.epoch_id)?;
+        tx.commit()?;
+        Ok(record)
+    }
+
+    pub fn finish_context_epoch_generation(
+        &self,
+        request: &FinishContextEpochGeneration,
+    ) -> Result<ContextEpochRecord> {
+        validate_finish_generation(request)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_write_transaction(&mut conn)?;
+        let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
+        assert_job_lease_tx(
+            &tx,
+            &request.job_id,
+            &request.worker_id,
+            &request.lease_token,
+            &epoch.session_id,
+            now,
+        )?;
+        assert_epoch_job(&epoch, &request.job_id)?;
+        assert_generation_attempt(&epoch, request.generation_attempt)?;
+        if epoch.state != "building" {
+            return Err(SystemServiceError::Invariant(
+                "only a building context epoch can finish generation".to_string(),
+            ));
+        }
+        match request.outcome.as_str() {
+            "succeeded" => {
+                if epoch.generation_state != "output_observed" {
+                    return Err(SystemServiceError::Invariant(
+                        "successful context summary requires observed output".to_string(),
+                    ));
+                }
+                let summary = request.summary.as_deref().unwrap_or_default();
+                let digest = request.summary_digest.as_deref().unwrap_or_default();
+                if crate::util::hex_sha256(summary.as_bytes()) != digest {
+                    return Err(SystemServiceError::Invariant(
+                        "context summary digest does not match summary".to_string(),
+                    ));
+                }
+                tx.execute(
+                    "UPDATE context_epoch
+                     SET generation_state = 'succeeded', summary = ?, summary_digest = ?,
+                         usage_json = ?, error_json = NULL,
+                         token_estimate_after = ?, token_savings = ?,
+                         finished_at = ?, updated_at = ?
+                     WHERE id = ?",
+                    params![
+                        summary,
+                        digest,
+                        request
+                            .usage
+                            .as_ref()
+                            .map(serde_json::to_string)
+                            .transpose()?,
+                        request.token_estimate_after,
+                        request.token_savings,
+                        now,
+                        now,
+                        request.epoch_id,
+                    ],
+                )?;
+            }
+            "failed_before_output" => {
+                if epoch.generation_state != "dispatched" {
+                    return Err(SystemServiceError::Invariant(
+                        "failed-before-output requires a dispatched context summary".to_string(),
+                    ));
+                }
+                let terminal = !request.retryable.unwrap_or(false)
+                    || epoch.generation_attempt >= epoch.max_provider_attempts;
+                tx.execute(
+                    "UPDATE context_epoch
+                     SET state = ?, generation_state = 'failed_before_output',
+                         error_json = ?, finished_at = ?, updated_at = ?
+                     WHERE id = ?",
+                    params![
+                        if terminal { "failed" } else { "building" },
+                        request
+                            .error
+                            .as_ref()
+                            .map(serde_json::to_string)
+                            .transpose()?,
+                        if terminal { Some(now) } else { None },
+                        now,
+                        request.epoch_id,
+                    ],
+                )?;
+            }
+            "ambiguous" => {
+                if !matches!(
+                    epoch.generation_state.as_str(),
+                    "dispatched" | "output_observed"
+                ) {
+                    return Err(SystemServiceError::Invariant(
+                        "ambiguous context summary requires a dispatched attempt".to_string(),
+                    ));
+                }
+                tx.execute(
+                    "UPDATE context_epoch
+                     SET state = 'failed', generation_state = 'ambiguous',
+                         error_json = ?, finished_at = ?, updated_at = ?
+                     WHERE id = ?",
+                    params![
+                        request
+                            .error
+                            .as_ref()
+                            .map(serde_json::to_string)
+                            .transpose()?,
+                        now,
+                        now,
+                        request.epoch_id,
+                    ],
+                )?;
+            }
+            _ => unreachable!(),
+        }
+        let record = get_context_epoch_tx(&tx, &request.epoch_id)?;
         tx.commit()?;
         Ok(record)
     }
@@ -88,33 +295,44 @@ impl SystemService {
         &self,
         request: &ActivateContextEpoch,
     ) -> Result<ContextEpochRecord> {
-        if request.epoch_id.is_empty() {
-            return Err(SystemServiceError::Invariant(
-                "context epoch id must not be empty".to_string(),
-            ));
-        }
+        validate_activate_context_epoch(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
-        match epoch.state.as_str() {
-            "building" | "active" => {}
-            "superseded" => {
-                return Err(SystemServiceError::Invariant(
-                    "superseded context epoch cannot be reactivated".to_string(),
-                ));
-            }
-            state => {
-                return Err(SystemServiceError::Invariant(format!(
-                    "invalid context epoch state: {state}"
-                )));
-            }
+        assert_job_lease_tx(
+            &tx,
+            &request.job_id,
+            &request.worker_id,
+            &request.lease_token,
+            &epoch.session_id,
+            now,
+        )?;
+        assert_epoch_job(&epoch, &request.job_id)?;
+        if epoch.state == "active" {
+            tx.commit()?;
+            return Ok(epoch);
         }
+        if epoch.state != "building" || epoch.generation_state != "succeeded" {
+            return Err(SystemServiceError::Invariant(
+                "context epoch must have a succeeded summary before activation".to_string(),
+            ));
+        }
+        if epoch.previous_epoch_id != request.expected_previous_epoch_id {
+            return Err(SystemServiceError::Invariant(
+                "context epoch expected previous identity does not match its source".to_string(),
+            ));
+        }
+        assert_expected_active_epoch_tx(
+            &tx,
+            &epoch.session_id,
+            request.expected_previous_epoch_id.as_deref(),
+        )?;
         tx.execute(
             "UPDATE context_epoch
              SET state = 'superseded', updated_at = ?
-             WHERE session_id = ? AND policy_version = ? AND state = 'active' AND id <> ?",
-            params![now, epoch.session_id, epoch.policy_version, epoch.id],
+             WHERE session_id = ? AND state = 'active' AND id <> ?",
+            params![now, epoch.session_id, epoch.id],
         )?;
         tx.execute(
             "UPDATE context_epoch
@@ -127,148 +345,39 @@ impl SystemService {
         Ok(record)
     }
 
-    pub fn clone_context_epoch(&self, request: &CloneContextEpoch) -> Result<ContextEpochRecord> {
-        validate_clone_context_epoch(request)?;
-        let now = crate::util::now_ms();
-        let mut conn = self.connect()?;
-        let tx = crate::db::begin_write_transaction(&mut conn)?;
-        let source = get_context_epoch_tx(&tx, &request.source_epoch_id)?;
-        if source.state == "building" {
-            return Err(SystemServiceError::Invariant(
-                "building context epoch cannot be cloned for recovery".to_string(),
-            ));
-        }
-        let id = request
-            .id
-            .clone()
-            .unwrap_or_else(|| format!("ctxepoch_clone_{}", Uuid::now_v7()));
-        if get_context_epoch_optional_tx(&tx, &id)?.is_some() {
-            return Err(SystemServiceError::Invariant(
-                "target context epoch already exists".to_string(),
-            ));
-        }
-        let metadata = request
-            .metadata
-            .clone()
-            .unwrap_or_else(|| json!({ "cloned_from_epoch_id": source.id }));
-        let metadata_json = serde_json::to_string(&metadata)?;
-        tx.execute(
-            "INSERT INTO context_epoch (
-                id, session_id, policy_version, state,
-                token_estimate_before, token_estimate_after, token_savings, replacement_count,
-                metadata_json, created_at, activated_at, updated_at
-             ) VALUES (?, ?, ?, 'building', ?, ?, ?, ?, ?, ?, NULL, ?)",
-            params![
-                id,
-                source.session_id,
-                source.policy_version,
-                source.token_estimate_before,
-                source.token_estimate_after,
-                source.token_savings,
-                source.replacement_count,
-                metadata_json,
-                now,
-                now,
-            ],
-        )?;
-
-        let source_replacements = list_context_replacements_tx(
-            &tx,
-            &source.session_id,
-            Some(&source.policy_version),
-            Some(&source.id),
-        )?;
-        for replacement in source_replacements {
-            let replacement_json = serde_json::to_string(&replacement.replacement)?;
-            let metadata_json = replacement
-                .metadata
-                .as_ref()
-                .map(serde_json::to_string)
-                .transpose()?;
-            tx.execute(
-                "INSERT INTO context_replacement (
-                    id, epoch_id, session_id, policy_version, message_id, part_id, tier,
-                    original_token_estimate, replacement_token_estimate,
-                    replacement_json, metadata_json, created_at, updated_at
-                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                params![
-                    cloned_replacement_id(&id, &replacement.id),
-                    id,
-                    source.session_id,
-                    source.policy_version,
-                    replacement.message_id,
-                    replacement.part_id,
-                    replacement.tier,
-                    replacement.original_token_estimate,
-                    replacement.replacement_token_estimate,
-                    replacement_json,
-                    metadata_json,
-                    now,
-                    now,
-                ],
-            )?;
-        }
-
-        let record = get_context_epoch_tx(&tx, &id)?;
-        tx.commit()?;
-        Ok(record)
-    }
-
     pub fn prune_context_epochs(
         &self,
         request: &PruneContextEpochs,
     ) -> Result<ContextEpochPruneReceipt> {
         validate_prune_context_epochs(request)?;
         let dry_run = request.dry_run.unwrap_or(false);
-        let keep_last_superseded = request.keep_last_superseded.unwrap_or(0) as usize;
+        let keep = request.keep_last_superseded.unwrap_or(0) as usize;
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
-        let superseded = list_context_epochs_tx(
-            &tx,
-            &request.session_id,
-            Some(&request.policy_version),
-            Some("superseded"),
-        )?;
+        let mut superseded = list_context_epochs_tx(&tx, &request.session_id, Some("superseded"))?;
         let scanned_count = superseded.len() as i64;
-        let mut ordered = superseded;
-        ordered.sort_by(|left, right| {
+        superseded.sort_by(|left, right| {
             right
                 .updated_at
                 .cmp(&left.updated_at)
                 .then_with(|| right.id.cmp(&left.id))
         });
-        let deleted_epoch_ids: Vec<String> = ordered
+        let deleted_epoch_ids: Vec<String> = superseded
             .into_iter()
             .enumerate()
             .filter_map(|(index, epoch)| {
-                if index < keep_last_superseded {
+                if index < keep {
                     return None;
                 }
-                if let Some(cutoff) = request.older_than_updated_at {
-                    if epoch.updated_at >= cutoff {
-                        return None;
-                    }
+                if request
+                    .older_than_updated_at
+                    .is_some_and(|cutoff| epoch.updated_at >= cutoff)
+                {
+                    return None;
                 }
                 Some(epoch.id)
             })
             .collect();
-
-        let mut deleted_replacement_count = 0;
-        for epoch_id in &deleted_epoch_ids {
-            let count = if dry_run {
-                tx.query_row(
-                    "SELECT COUNT(*) FROM context_replacement WHERE epoch_id = ?",
-                    params![epoch_id],
-                    |row| row.get::<_, i64>(0),
-                )? as usize
-            } else {
-                tx.execute(
-                    "DELETE FROM context_replacement WHERE epoch_id = ?",
-                    params![epoch_id],
-                )?
-            };
-            deleted_replacement_count += count as i64;
-        }
         if !dry_run {
             for epoch_id in &deleted_epoch_ids {
                 tx.execute(
@@ -280,10 +389,8 @@ impl SystemService {
         tx.commit()?;
         Ok(ContextEpochPruneReceipt {
             session_id: request.session_id.clone(),
-            policy_version: request.policy_version.clone(),
             scanned_count,
             deleted_epoch_ids,
-            deleted_replacement_count,
             dry_run,
         })
     }
@@ -297,331 +404,442 @@ impl SystemService {
                 "context epoch session_id must not be empty".to_string(),
             ));
         }
+        if let Some(state) = request.state.as_deref() {
+            validate_epoch_state(state)?;
+        }
         let conn = self.connect()?;
-        list_context_epochs_conn(
-            &conn,
-            &request.session_id,
-            request.policy_version.as_deref(),
-            request.state.as_deref(),
-        )
+        list_context_epochs_conn(&conn, &request.session_id, request.state.as_deref())
     }
 
     pub fn get_active_context_epoch(
         &self,
         request: &GetActiveContextEpoch,
     ) -> Result<Option<ContextEpochRecord>> {
-        if request.session_id.is_empty() || request.policy_version.is_empty() {
-            return Err(SystemServiceError::Invariant(
-                "active context epoch session_id and policy_version must not be empty".to_string(),
-            ));
-        }
-        let conn = self.connect()?;
-        conn.query_row(
-            &format!(
-                "{CONTEXT_EPOCH_SELECT}
-                 WHERE session_id = ? AND policy_version = ? AND state = 'active'"
-            ),
-            params![request.session_id, request.policy_version],
-            row_to_context_epoch,
-        )
-        .optional()
-        .map_err(Into::into)
-    }
-
-    pub fn put_context_replacement(
-        &self,
-        request: &PutContextReplacement,
-    ) -> Result<ContextReplacementRecord> {
-        validate_put_context_replacement(request)?;
-        let now = crate::util::now_ms();
-        let id = request
-            .id
-            .clone()
-            .unwrap_or_else(|| format!("ctxrep_{}", Uuid::now_v7()));
-        let replacement_json = serde_json::to_string(&request.replacement)?;
-        let metadata_json = request
-            .metadata
-            .as_ref()
-            .map(serde_json::to_string)
-            .transpose()?;
-        let mut conn = self.connect()?;
-        let tx = crate::db::begin_write_transaction(&mut conn)?;
-        let epoch = get_context_epoch_tx(&tx, &request.epoch_id)?;
-        if epoch.session_id != request.session_id || epoch.policy_version != request.policy_version
-        {
-            return Err(SystemServiceError::Invariant(
-                "context replacement epoch does not match session or policy".to_string(),
-            ));
-        }
-        if epoch.state != "building" {
-            return Err(SystemServiceError::Invariant(format!(
-                "context replacement can only be written to a building epoch: {}",
-                epoch.state
-            )));
-        }
-        tx.execute(
-            "INSERT INTO context_replacement (
-                id, epoch_id, session_id, policy_version, message_id, part_id, tier,
-                original_token_estimate, replacement_token_estimate,
-                replacement_json, metadata_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-             ON CONFLICT(epoch_id, part_id) DO UPDATE SET
-                session_id = excluded.session_id,
-                policy_version = excluded.policy_version,
-                message_id = excluded.message_id,
-                tier = excluded.tier,
-                original_token_estimate = excluded.original_token_estimate,
-                replacement_token_estimate = excluded.replacement_token_estimate,
-                replacement_json = excluded.replacement_json,
-                metadata_json = excluded.metadata_json,
-                updated_at = excluded.updated_at",
-            params![
-                id,
-                request.epoch_id,
-                request.session_id,
-                request.policy_version,
-                request.message_id,
-                request.part_id,
-                request.tier,
-                request.original_token_estimate,
-                request.replacement_token_estimate,
-                replacement_json,
-                metadata_json,
-                now,
-                now,
-            ],
-        )?;
-        let record = get_context_replacement_tx(&tx, &request.epoch_id, &request.part_id)?;
-        tx.commit()?;
-        Ok(record)
-    }
-
-    pub fn list_context_replacements(
-        &self,
-        request: &ListContextReplacements,
-    ) -> Result<Vec<ContextReplacementRecord>> {
         if request.session_id.is_empty() {
             return Err(SystemServiceError::Invariant(
-                "context replacement session_id must not be empty".to_string(),
+                "active context epoch session_id must not be empty".to_string(),
             ));
         }
         let conn = self.connect()?;
-        list_context_replacements_conn(
-            &conn,
-            &request.session_id,
-            request.policy_version.as_deref(),
-            request.epoch_id.as_deref(),
-        )
+        get_active_context_epoch_conn(&conn, &request.session_id)
     }
 }
 
 fn list_context_epochs_conn(
     conn: &rusqlite::Connection,
     session_id: &str,
-    policy_version: Option<&str>,
     state: Option<&str>,
 ) -> Result<Vec<ContextEpochRecord>> {
-    match (policy_version, state) {
-        (Some(policy_version), Some(state)) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_EPOCH_SELECT}
-                 WHERE session_id = ? AND policy_version = ? AND state = ?
-                 ORDER BY updated_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(
-                params![session_id, policy_version, state],
-                row_to_context_epoch,
-            )?;
-            collect_context_epochs(rows)
-        }
-        (Some(policy_version), None) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_EPOCH_SELECT}
-                 WHERE session_id = ? AND policy_version = ?
-                 ORDER BY updated_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(params![session_id, policy_version], row_to_context_epoch)?;
-            collect_context_epochs(rows)
-        }
-        (None, Some(state)) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_EPOCH_SELECT}
-                 WHERE session_id = ? AND state = ?
-                 ORDER BY updated_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(params![session_id, state], row_to_context_epoch)?;
-            collect_context_epochs(rows)
-        }
-        (None, None) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_EPOCH_SELECT}
-                 WHERE session_id = ?
-                 ORDER BY updated_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(params![session_id], row_to_context_epoch)?;
-            collect_context_epochs(rows)
-        }
-    }
+    let (sql, state_value) = if let Some(state) = state {
+        (
+            format!(
+                "{CONTEXT_EPOCH_SELECT} WHERE session_id = ? AND state = ?
+                 ORDER BY created_at ASC, id ASC"
+            ),
+            Some(state),
+        )
+    } else {
+        (
+            format!(
+                "{CONTEXT_EPOCH_SELECT} WHERE session_id = ?
+                 ORDER BY created_at ASC, id ASC"
+            ),
+            None,
+        )
+    };
+    let mut stmt = conn.prepare(&sql)?;
+    let rows = if let Some(state) = state_value {
+        stmt.query_map(params![session_id, state], row_to_context_epoch)?
+    } else {
+        stmt.query_map(params![session_id], row_to_context_epoch)?
+    };
+    collect_context_epochs(rows)
 }
 
-fn list_context_replacements_conn(
+fn get_active_context_epoch_conn(
     conn: &rusqlite::Connection,
     session_id: &str,
-    policy_version: Option<&str>,
-    epoch_id: Option<&str>,
-) -> Result<Vec<ContextReplacementRecord>> {
-    match (policy_version, epoch_id) {
-        (Some(policy_version), Some(epoch_id)) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_REPLACEMENT_SELECT}
-                 WHERE session_id = ? AND policy_version = ? AND epoch_id = ?
-                 ORDER BY created_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(
-                params![session_id, policy_version, epoch_id],
-                row_to_context_replacement,
-            )?;
-            collect_context_replacements(rows)
-        }
-        (Some(policy_version), None) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_REPLACEMENT_SELECT}
-                 WHERE session_id = ? AND policy_version = ?
-                 ORDER BY created_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(
-                params![session_id, policy_version],
-                row_to_context_replacement,
-            )?;
-            collect_context_replacements(rows)
-        }
-        (None, Some(epoch_id)) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_REPLACEMENT_SELECT}
-                 WHERE session_id = ? AND epoch_id = ?
-                 ORDER BY created_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(params![session_id, epoch_id], row_to_context_replacement)?;
-            collect_context_replacements(rows)
-        }
-        (None, None) => {
-            let mut stmt = conn.prepare(&format!(
-                "{CONTEXT_REPLACEMENT_SELECT}
-                 WHERE session_id = ?
-                 ORDER BY created_at ASC, id ASC"
-            ))?;
-            let rows = stmt.query_map(params![session_id], row_to_context_replacement)?;
-            collect_context_replacements(rows)
-        }
-    }
+) -> Result<Option<ContextEpochRecord>> {
+    conn.query_row(
+        &format!("{CONTEXT_EPOCH_SELECT} WHERE session_id = ? AND state = 'active'"),
+        params![session_id],
+        row_to_context_epoch,
+    )
+    .optional()
+    .map_err(Into::into)
 }
 
-fn validate_put_context_epoch(request: &PutContextEpoch) -> Result<()> {
-    if request.session_id.is_empty() {
-        return Err(SystemServiceError::Invariant(
-            "context epoch session_id must not be empty".to_string(),
-        ));
-    }
-    if request.policy_version.is_empty() {
-        return Err(SystemServiceError::Invariant(
-            "context epoch policy_version must not be empty".to_string(),
-        ));
-    }
-    if let Some(state) = &request.state {
-        validate_epoch_state(state)?;
-        if state != "building" {
-            return Err(SystemServiceError::Invariant(
-                "put_context_epoch only accepts building state; use activate_context_epoch for activation"
-                    .to_string(),
-            ));
-        }
-    }
-    if request.id.as_deref() == Some("") {
-        return Err(SystemServiceError::Invariant(
-            "context epoch id must not be empty".to_string(),
-        ));
-    }
+fn validate_begin_context_epoch(request: &BeginContextEpoch) -> Result<()> {
     for (name, value) in [
-        ("token_estimate_before", request.token_estimate_before),
-        ("token_estimate_after", request.token_estimate_after),
-        ("token_savings", request.token_savings),
-        ("replacement_count", request.replacement_count),
+        ("id", request.id.as_str()),
+        ("session_id", request.session_id.as_str()),
+        ("job_id", request.job_id.as_str()),
+        ("worker_id", request.worker_id.as_str()),
+        ("lease_token", request.lease_token.as_str()),
+        (
+            "source_head_message_id",
+            request.source_head_message_id.as_str(),
+        ),
+        ("cut_message_id", request.cut_message_id.as_str()),
+        (
+            "retained_from_message_id",
+            request.retained_from_message_id.as_str(),
+        ),
+        ("source_digest", request.source_digest.as_str()),
+        ("policy_digest", request.policy_digest.as_str()),
+        ("request_digest", request.request_digest.as_str()),
     ] {
-        if value.unwrap_or(0) < 0 {
+        if value.is_empty() {
             return Err(SystemServiceError::Invariant(format!(
-                "context epoch {name} must be non-negative"
+                "context epoch {name} must not be empty"
             )));
         }
     }
+    for (name, value) in [
+        ("source_digest", &request.source_digest),
+        ("policy_digest", &request.policy_digest),
+        ("request_digest", &request.request_digest),
+    ] {
+        validate_sha256(value, name)?;
+    }
+    if request.max_provider_attempts <= 0
+        || request.source_head_sequence <= 0
+        || request.cut_sequence <= 0
+        || request.retained_from_sequence <= request.cut_sequence
+        || request.source_head_sequence < request.retained_from_sequence
+        || request.token_estimate_before < 0
+    {
+        return Err(SystemServiceError::Invariant(
+            "context epoch numeric source and attempt evidence is invalid".to_string(),
+        ));
+    }
+    match (
+        request.previous_epoch_id.as_deref(),
+        request.previous_summary_digest.as_deref(),
+    ) {
+        (None, None) => {}
+        (Some(id), Some(digest)) if !id.is_empty() => {
+            validate_sha256(digest, "previous_summary_digest")?
+        }
+        _ => {
+            return Err(SystemServiceError::Invariant(
+                "previous context epoch id and summary digest must appear together".to_string(),
+            ));
+        }
+    }
     Ok(())
 }
 
-fn validate_clone_context_epoch(request: &CloneContextEpoch) -> Result<()> {
-    if request.source_epoch_id.is_empty() {
+fn validate_mutation_identity(request: &ContextEpochMutationIdentity) -> Result<()> {
+    if request.epoch_id.is_empty()
+        || request.job_id.is_empty()
+        || request.worker_id.is_empty()
+        || request.lease_token.is_empty()
+    {
         return Err(SystemServiceError::Invariant(
-            "source context epoch id must not be empty".to_string(),
-        ));
-    }
-    if request.id.as_deref() == Some("") {
-        return Err(SystemServiceError::Invariant(
-            "target context epoch id must not be empty".to_string(),
+            "context epoch mutation identity must not be empty".to_string(),
         ));
     }
     Ok(())
+}
+
+fn validate_output_observed(request: &MarkContextEpochOutputObserved) -> Result<()> {
+    validate_mutation_identity(&ContextEpochMutationIdentity {
+        epoch_id: request.epoch_id.clone(),
+        job_id: request.job_id.clone(),
+        worker_id: request.worker_id.clone(),
+        lease_token: request.lease_token.clone(),
+    })?;
+    if request.generation_attempt <= 0 {
+        return Err(SystemServiceError::Invariant(
+            "context epoch generation attempt must be positive".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_finish_generation(request: &FinishContextEpochGeneration) -> Result<()> {
+    validate_output_observed(&MarkContextEpochOutputObserved {
+        epoch_id: request.epoch_id.clone(),
+        job_id: request.job_id.clone(),
+        worker_id: request.worker_id.clone(),
+        lease_token: request.lease_token.clone(),
+        generation_attempt: request.generation_attempt,
+    })?;
+    if !matches!(
+        request.outcome.as_str(),
+        "succeeded" | "failed_before_output" | "ambiguous"
+    ) {
+        return Err(SystemServiceError::Invariant(
+            "invalid context epoch generation outcome".to_string(),
+        ));
+    }
+    if request.outcome == "succeeded" {
+        if request.retryable.is_some() {
+            return Err(SystemServiceError::Invariant(
+                "successful context summary must not carry retryability".to_string(),
+            ));
+        }
+        if request
+            .summary
+            .as_deref()
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+            || request
+                .summary_digest
+                .as_deref()
+                .unwrap_or_default()
+                .is_empty()
+            || request.token_estimate_after.is_none()
+            || request.token_savings.is_none()
+            || request.token_estimate_after.is_some_and(|value| value < 0)
+            || request.token_savings.is_some_and(|value| value < 0)
+        {
+            return Err(SystemServiceError::Invariant(
+                "successful context summary evidence is incomplete".to_string(),
+            ));
+        }
+    } else if request.summary.is_some()
+        || request.summary_digest.is_some()
+        || request.token_estimate_after.is_some()
+        || request.token_savings.is_some()
+    {
+        return Err(SystemServiceError::Invariant(
+            "failed context summary must not carry successful output evidence".to_string(),
+        ));
+    }
+    if request.outcome == "failed_before_output" && request.retryable.is_none() {
+        return Err(SystemServiceError::Invariant(
+            "failed-before-output context summary requires retryability".to_string(),
+        ));
+    }
+    if request.outcome == "ambiguous" && request.retryable.is_some() {
+        return Err(SystemServiceError::Invariant(
+            "ambiguous context summary must not carry retryability".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_activate_context_epoch(request: &ActivateContextEpoch) -> Result<()> {
+    validate_mutation_identity(&ContextEpochMutationIdentity {
+        epoch_id: request.epoch_id.clone(),
+        job_id: request.job_id.clone(),
+        worker_id: request.worker_id.clone(),
+        lease_token: request.lease_token.clone(),
+    })
 }
 
 fn validate_prune_context_epochs(request: &PruneContextEpochs) -> Result<()> {
-    if request.session_id.is_empty() || request.policy_version.is_empty() {
+    if request.session_id.is_empty() || request.keep_last_superseded.unwrap_or(0) < 0 {
         return Err(SystemServiceError::Invariant(
-            "context epoch prune session_id and policy_version must not be empty".to_string(),
-        ));
-    }
-    if request.keep_last_superseded.unwrap_or(0) < 0 {
-        return Err(SystemServiceError::Invariant(
-            "context epoch prune keep_last_superseded must be non-negative".to_string(),
+            "context epoch prune request is invalid".to_string(),
         ));
     }
     Ok(())
 }
 
 fn validate_epoch_state(state: &str) -> Result<()> {
-    match state {
-        "building" | "active" | "superseded" => Ok(()),
-        _ => Err(SystemServiceError::Invariant(format!(
+    if matches!(state, "building" | "active" | "superseded" | "failed") {
+        Ok(())
+    } else {
+        Err(SystemServiceError::Invariant(format!(
             "invalid context epoch state: {state}"
-        ))),
+        )))
     }
 }
 
-fn validate_put_context_replacement(request: &PutContextReplacement) -> Result<()> {
-    if request.epoch_id.is_empty() {
+fn validate_sha256(value: &str, name: &str) -> Result<()> {
+    if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(SystemServiceError::Invariant(format!(
+            "context epoch {name} must be a sha256 digest"
+        )));
+    }
+    Ok(())
+}
+
+fn assert_job_lease_tx(
+    tx: &rusqlite::Transaction<'_>,
+    job_id: &str,
+    worker_id: &str,
+    lease_token: &str,
+    session_id: &str,
+    now: i64,
+) -> Result<()> {
+    let job = tx
+        .query_row(
+            "SELECT kind, payload_json FROM scheduler_job
+         WHERE id = ? AND state = 'running' AND lease_owner = ?
+           AND lease_token = ? AND lease_expires_at > ?",
+            params![job_id, worker_id, lease_token, now],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    let Some((kind, payload_json)) = job else {
         return Err(SystemServiceError::Invariant(
-            "context replacement epoch_id must not be empty".to_string(),
+            "context epoch mutation lost its scheduler job lease".to_string(),
+        ));
+    };
+    let payload: serde_json::Value = serde_json::from_str(&payload_json)?;
+    let bound_session_id = match kind.as_str() {
+        "session.turn" => payload.get("sessionId").and_then(serde_json::Value::as_str),
+        "memory.compaction" => payload
+            .get("evidence")
+            .and_then(|evidence| evidence.get("sessionId"))
+            .and_then(serde_json::Value::as_str),
+        _ => None,
+    };
+    if bound_session_id != Some(session_id) {
+        return Err(SystemServiceError::Invariant(
+            "context epoch mutation job is not authorized for its session".to_string(),
         ));
     }
-    if request.session_id.is_empty() {
+    Ok(())
+}
+
+fn validate_source_boundaries_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &BeginContextEpoch,
+) -> Result<()> {
+    for (message_id, sequence, label) in [
+        (
+            request.source_head_message_id.as_str(),
+            request.source_head_sequence,
+            "source head",
+        ),
+        (request.cut_message_id.as_str(), request.cut_sequence, "cut"),
+        (
+            request.retained_from_message_id.as_str(),
+            request.retained_from_sequence,
+            "retained head",
+        ),
+    ] {
+        let found = tx
+            .query_row(
+                "SELECT sequence FROM session_message WHERE id = ? AND session_id = ?",
+                params![message_id, request.session_id],
+                |row| row.get::<_, i64>(0),
+            )
+            .optional()?;
+        if found != Some(sequence) {
+            return Err(SystemServiceError::Invariant(format!(
+                "context epoch {label} message evidence does not match canonical history"
+            )));
+        }
+    }
+    let next = tx
+        .query_row(
+            "SELECT sequence, id FROM session_message
+             WHERE session_id = ? AND sequence > ? ORDER BY sequence ASC LIMIT 1",
+            params![request.session_id, request.cut_sequence],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    if next
+        != Some((
+            request.retained_from_sequence,
+            request.retained_from_message_id.clone(),
+        ))
+    {
         return Err(SystemServiceError::Invariant(
-            "context replacement session_id must not be empty".to_string(),
+            "context epoch retained head is not the first message after its cut".to_string(),
         ));
     }
-    if request.policy_version.is_empty() {
+    let cut_turn_state: String = tx.query_row(
+        "SELECT turn.state FROM session_turn turn
+         JOIN session_message message ON message.turn_id = turn.id
+         WHERE message.id = ? AND turn.session_id = ?",
+        params![request.cut_message_id, request.session_id],
+        |row| row.get(0),
+    )?;
+    if !matches!(
+        cut_turn_state.as_str(),
+        "succeeded" | "failed" | "cancelled" | "interrupted"
+    ) {
         return Err(SystemServiceError::Invariant(
-            "context replacement policy_version must not be empty".to_string(),
+            "context epoch cut must end a terminal turn".to_string(),
         ));
     }
-    if request.part_id.is_empty() {
+    let later_same_turn: i64 = tx.query_row(
+        "SELECT COUNT(*) FROM session_message later
+         WHERE later.turn_id = (SELECT turn_id FROM session_message WHERE id = ?)
+           AND later.sequence > ?",
+        params![request.cut_message_id, request.cut_sequence],
+        |row| row.get(0),
+    )?;
+    if later_same_turn != 0 {
         return Err(SystemServiceError::Invariant(
-            "context replacement part_id must not be empty".to_string(),
+            "context epoch cut splits a canonical turn".to_string(),
         ));
     }
-    if request.tier.is_empty() {
+    Ok(())
+}
+
+fn assert_expected_active_epoch_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    expected: Option<&str>,
+) -> Result<()> {
+    if let Some(epoch_id) = expected {
+        let previous = get_context_epoch_tx(tx, epoch_id)?;
+        if previous.session_id != session_id {
+            return Err(SystemServiceError::Invariant(
+                "previous context epoch belongs to another session".to_string(),
+            ));
+        }
+    }
+    let active = get_active_context_epoch_conn(tx, session_id)?;
+    if active.as_ref().map(|epoch| epoch.id.as_str()) != expected {
         return Err(SystemServiceError::Invariant(
-            "context replacement tier must not be empty".to_string(),
+            "active context epoch changed before mutation".to_string(),
         ));
     }
-    if request.original_token_estimate < 0 || request.replacement_token_estimate < 0 {
+    Ok(())
+}
+
+fn assert_existing_epoch_matches(
+    existing: &ContextEpochRecord,
+    request: &BeginContextEpoch,
+) -> Result<()> {
+    let matches = existing.session_id == request.session_id
+        && existing.job_id == request.job_id
+        && existing.max_provider_attempts == request.max_provider_attempts
+        && existing.previous_epoch_id == request.previous_epoch_id
+        && existing.previous_summary_digest == request.previous_summary_digest
+        && existing.source_head_sequence == request.source_head_sequence
+        && existing.source_head_message_id == request.source_head_message_id
+        && existing.cut_sequence == request.cut_sequence
+        && existing.cut_message_id == request.cut_message_id
+        && existing.retained_from_sequence == request.retained_from_sequence
+        && existing.retained_from_message_id == request.retained_from_message_id
+        && existing.source_digest == request.source_digest
+        && existing.policy == request.policy
+        && existing.policy_digest == request.policy_digest
+        && existing.model_endpoint == request.model_endpoint
+        && existing.request_digest == request.request_digest
+        && existing.token_estimate_before == request.token_estimate_before;
+    if !matches {
         return Err(SystemServiceError::Invariant(
-            "context replacement token estimates must be non-negative".to_string(),
+            "context epoch id already has different immutable evidence".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn assert_epoch_job(epoch: &ContextEpochRecord, job_id: &str) -> Result<()> {
+    if epoch.job_id != job_id {
+        return Err(SystemServiceError::Invariant(
+            "context epoch belongs to another scheduler job".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn assert_generation_attempt(epoch: &ContextEpochRecord, attempt: i64) -> Result<()> {
+    if epoch.generation_attempt != attempt {
+        return Err(SystemServiceError::Invariant(
+            "context epoch generation attempt is stale".to_string(),
         ));
     }
     Ok(())
@@ -639,15 +857,6 @@ fn get_context_epoch_tx(
     .map_err(Into::into)
 }
 
-fn list_context_epochs_tx(
-    tx: &rusqlite::Transaction<'_>,
-    session_id: &str,
-    policy_version: Option<&str>,
-    state: Option<&str>,
-) -> Result<Vec<ContextEpochRecord>> {
-    list_context_epochs_conn(tx, session_id, policy_version, state)
-}
-
 fn get_context_epoch_optional_tx(
     tx: &rusqlite::Transaction<'_>,
     epoch_id: &str,
@@ -661,32 +870,12 @@ fn get_context_epoch_optional_tx(
     .map_err(Into::into)
 }
 
-fn list_context_replacements_tx(
+fn list_context_epochs_tx(
     tx: &rusqlite::Transaction<'_>,
     session_id: &str,
-    policy_version: Option<&str>,
-    epoch_id: Option<&str>,
-) -> Result<Vec<ContextReplacementRecord>> {
-    list_context_replacements_conn(tx, session_id, policy_version, epoch_id)
-}
-
-fn get_context_replacement_tx(
-    tx: &rusqlite::Transaction<'_>,
-    epoch_id: &str,
-    part_id: &str,
-) -> Result<ContextReplacementRecord> {
-    tx.query_row(
-        &format!("{CONTEXT_REPLACEMENT_SELECT} WHERE epoch_id = ? AND part_id = ?"),
-        params![epoch_id, part_id],
-        row_to_context_replacement,
-    )
-    .map_err(Into::into)
-}
-
-fn cloned_replacement_id(target_epoch_id: &str, source_replacement_id: &str) -> String {
-    let hash =
-        crate::util::hex_sha256(format!("{target_epoch_id}:{source_replacement_id}").as_bytes());
-    format!("ctxrep_clone_{}", &hash[..16])
+    state: Option<&str>,
+) -> Result<Vec<ContextEpochRecord>> {
+    list_context_epochs_conn(tx, session_id, state)
 }
 
 fn collect_context_epochs(
@@ -697,14 +886,4 @@ fn collect_context_epochs(
         epochs.push(row?);
     }
     Ok(epochs)
-}
-
-fn collect_context_replacements(
-    rows: impl Iterator<Item = rusqlite::Result<ContextReplacementRecord>>,
-) -> Result<Vec<ContextReplacementRecord>> {
-    let mut replacements = Vec::new();
-    for row in rows {
-        replacements.push(row?);
-    }
-    Ok(replacements)
 }

@@ -1,21 +1,29 @@
 import { randomUUID } from "node:crypto"
-import { runEphemeralSideQuery } from "../core/index.js"
+import {
+  runEphemeralSideQuery,
+  type RunEphemeralSideQueryRequest
+} from "../core/index.js"
 import { createTurnExecutionBinding } from "../turn-binding.js"
 import { registerSessionTurnHandler } from "../worker/index.js"
 import type { PreparedAgentContext } from "../../context/agent/index.js"
 import type { ContextCompiler } from "../../context/memory/index.js"
+import { SemanticContextCompiler } from "../../context/memory/index.js"
 import {
+  assertConversationModelSupported,
   FakeProviderAdapter,
-  requireProviderProfile,
-  resolveProviderProfile,
+  requireModelEndpoint,
+  resolveModelEndpoint,
   type ProviderAdapter
 } from "../../provider/index.js"
 import type {
-  EphemeralQueryRequest,
   EphemeralQueryResult,
-  ProviderProfile
+  ModelEndpoint,
+  UserMessageInputPart
 } from "@wanex/protocol"
-import { admitUserMessage } from "../../resources/index.js"
+import {
+  admitUserMessage,
+  validateCanonicalUserMessage
+} from "../../resources/index.js"
 import {
   WanexJobRuntime,
   type RuntimeWorkerLoop,
@@ -23,6 +31,9 @@ import {
 } from "../../jobs/index.js"
 import type {
   AgentRunOnceResult,
+  PrepareSessionTurnExecutionBindingRequest,
+  PreparedSessionTurnExecutionBinding,
+  PreparedUserTurn,
   SubmitAndRunUserTurnResult,
   SubmitUserTurnRequest,
   SubmitUserTurnResult,
@@ -30,6 +41,8 @@ import type {
 } from "./types.js"
 
 const DEFAULT_LEASE_MS = 60_000
+const MAX_DERIVED_SESSION_TITLE_CHARACTERS = 200
+const FALLBACK_SESSION_TITLE = "Resource conversation"
 
 export class WanexAgentRuntime {
   readonly runtime: WanexJobRuntime
@@ -38,7 +51,7 @@ export class WanexAgentRuntime {
   readonly events: WanexJobRuntime["events"]
   readonly config: WanexJobRuntime["config"]
 
-  private readonly defaultProviderProfileId: string | undefined
+  private readonly defaultModelEndpointId: string | undefined
   private readonly directProvider: ProviderAdapter | undefined
   private readonly secretResolver: WanexAgentRuntimeOptions["secretResolver"]
   private readonly contextCompiler: ContextCompiler | undefined
@@ -61,7 +74,9 @@ export class WanexAgentRuntime {
       ...(options.heartbeatIntervalMs === undefined
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
-      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+      ...(options.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: options.timeoutMs }),
       kinds: ["session.turn"],
       ...(options.activeAbortRegistry === undefined
         ? {}
@@ -71,15 +86,20 @@ export class WanexAgentRuntime {
     this.session = this.runtime.session
     this.events = this.runtime.events
     this.config = this.runtime.config
-    this.defaultProviderProfileId = options.providerProfileId
+    this.defaultModelEndpointId = options.modelEndpointId
     this.directProvider = directProvider
     this.secretResolver = options.secretResolver
     this.contextCompiler =
-      options.agentContext?.contextCompiler ?? options.contextCompiler
+      options.agentContext?.contextCompiler ??
+      options.contextCompiler ??
+      new SemanticContextCompiler({ epochStore: options.storage })
     this.timeoutMs = options.timeoutMs
-    this.resolveAgentContext = options.resolveAgentContext
+    this.resolveAgentContext = withDefaultContextCompilerResolver(
+      options.resolveAgentContext,
+      this.contextCompiler
+    )
     this.recovery = options.recovery
-    this.staticAgentContext = staticAgentContext(options)
+    this.staticAgentContext = staticAgentContext(options, this.contextCompiler)
 
     registerSessionTurnHandler({
       worker: this.runtime.worker,
@@ -92,13 +112,15 @@ export class WanexAgentRuntime {
       ...(this.staticAgentContext === undefined
         ? {}
         : { agentContext: this.staticAgentContext }),
-      ...(options.resolveAgentContext === undefined
+      ...(this.resolveAgentContext === undefined
         ? {}
-        : { resolveAgentContext: options.resolveAgentContext }),
+        : { resolveAgentContext: this.resolveAgentContext }),
       ...(options.toolMaxConcurrency === undefined
         ? {}
         : { toolMaxConcurrency: options.toolMaxConcurrency }),
-      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+      ...(options.timeoutMs === undefined
+        ? {}
+        : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
         : { observeProviderEvent: options.observeProviderEvent })
@@ -106,13 +128,16 @@ export class WanexAgentRuntime {
   }
 
   async runEphemeralQuery(
-    request: EphemeralQueryRequest
+    request: RunEphemeralSideQueryRequest
   ): Promise<EphemeralQueryResult> {
-    const provider = await this.resolveEphemeralProvider(request.providerProfileId)
+    const { modelEndpoint, provider } = await this.resolveEphemeralExecution(
+      request.modelEndpointId
+    )
     return await runEphemeralSideQuery(
       {
         session: this.session,
         provider,
+        modelEndpoint,
         ...(this.contextCompiler === undefined
           ? {}
           : { contextCompiler: this.contextCompiler }),
@@ -125,9 +150,28 @@ export class WanexAgentRuntime {
   async submitUserTurn(
     request: SubmitUserTurnRequest
   ): Promise<SubmitUserTurnResult> {
-    const profile = await this.resolveAdmissionProfile(request.providerProfileId)
-    const admitted = await admitUserMessage(this.storage, profile, request.content)
-    const title = request.title ?? defaultTurnTitle(request.content)
+    const prepared = await this.prepareUserTurn(request)
+    const receipt = await this.session.submitTurn(prepared.request)
+    return {
+      session: prepared.session,
+      inputId: prepared.inputId,
+      turnId: receipt.turn.id,
+      receipt
+    }
+  }
+
+  async prepareUserTurn(
+    request: SubmitUserTurnRequest
+  ): Promise<PreparedUserTurn> {
+    const modelEndpoint = await this.resolveAdmissionModelEndpoint(
+      request.modelEndpointId
+    )
+    const admitted = await admitUserMessage(
+      this.storage,
+      modelEndpoint,
+      request.content
+    )
+    const title = request.title ?? deriveAutomaticSessionTitle(request.content)
     const session =
       request.sessionId === undefined
         ? await this.session.create({
@@ -148,15 +192,19 @@ export class WanexAgentRuntime {
         sessionId: session.id,
         turnId,
         inputId,
+        ...(request.origin === undefined ? {} : { origin: request.origin }),
         signal: new AbortController().signal
       })) ?? this.staticAgentContext
     const executionBinding = createTurnExecutionBinding({
-      profile,
+      modelEndpoint,
+      ...(request.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: request.maxOutputTokens }),
       resources: admitted.resources,
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
       ...(agentContext === undefined ? {} : { agentContext })
     })
-    const receipt = await this.session.submitTurn({
+    const submissionRequest = {
       id: inputId,
       turnId,
       sessionId: session.id,
@@ -181,14 +229,41 @@ export class WanexAgentRuntime {
         ? {}
         : { budgetGrantId: request.budgetGrantId }),
       ...(request.maxSteps === undefined ? {} : { maxSteps: request.maxSteps }),
-      ...(request.parentTurnId === undefined
-        ? {}
-        : { parentTurnId: request.parentTurnId }),
       ...(request.regeneratesTurnId === undefined
         ? {}
         : { regeneratesTurnId: request.regeneratesTurnId })
+    }
+    return { session, inputId, turnId, request: submissionRequest }
+  }
+
+  async prepareExecutionBinding(
+    request: PrepareSessionTurnExecutionBindingRequest
+  ): Promise<PreparedSessionTurnExecutionBinding> {
+    const modelEndpoint = await this.resolveAdmissionModelEndpoint(
+      request.modelEndpointId
+    )
+    const resources = await validateCanonicalUserMessage(
+      this.storage,
+      modelEndpoint,
+      request.content
+    )
+    const agentContext =
+      (await this.resolveAgentContext?.({
+        sessionId: request.sessionId,
+        turnId: request.turnId,
+        inputId: request.inputId,
+        ...(request.origin === undefined ? {} : { origin: request.origin }),
+        signal: new AbortController().signal
+      })) ?? this.staticAgentContext
+    return createTurnExecutionBinding({
+      modelEndpoint,
+      resources,
+      ...(request.maxOutputTokens === undefined
+        ? {}
+        : { maxOutputTokens: request.maxOutputTokens }),
+      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+      ...(agentContext === undefined ? {} : { agentContext })
     })
-    return { session, inputId, turnId: receipt.turn.id, receipt }
   }
 
   async runOnce(): Promise<AgentRunOnceResult> {
@@ -218,35 +293,51 @@ export class WanexAgentRuntime {
     await this.runtime.stop()
   }
 
-  private async resolveAdmissionProfile(
-    providerProfileId: string | undefined
-  ): Promise<ProviderProfile> {
-    const profileId = providerProfileId ?? this.defaultProviderProfileId
-    if (profileId !== undefined) {
-      return await requireProviderProfile(this.storage, profileId)
-    }
-    if (this.directProvider !== undefined) {
-      return directProviderProfile(this.directProvider)
-    }
-    throw new Error("session turn submission requires a provider profile")
-  }
-
-  private async resolveEphemeralProvider(
-    providerProfileId: string | undefined
-  ): Promise<ProviderAdapter> {
-    const profileId = providerProfileId ?? this.defaultProviderProfileId
-    if (profileId !== undefined) {
-      return await resolveProviderProfile(
-        this.storage,
-        profileId,
-        this.secretResolver
+  private async resolveAdmissionModelEndpoint(
+    modelEndpointId: string | undefined
+  ): Promise<ModelEndpoint> {
+    const endpointId = modelEndpointId ?? this.defaultModelEndpointId
+    if (endpointId !== undefined) {
+      return requireConversationModelEndpoint(
+        await requireModelEndpoint(this.storage, endpointId)
       )
     }
     if (this.directProvider !== undefined) {
-      return this.directProvider
+      return directModelEndpoint(this.directProvider)
     }
-    throw new Error("ephemeral query requires providerProfileId")
+    throw new Error("session turn submission requires a model endpoint")
   }
+
+  private async resolveEphemeralExecution(
+    modelEndpointId: string | undefined
+  ): Promise<{ readonly modelEndpoint: ModelEndpoint; readonly provider: ProviderAdapter }> {
+    const endpointId = modelEndpointId ?? this.defaultModelEndpointId
+    if (endpointId !== undefined) {
+      const modelEndpoint = requireConversationModelEndpoint(
+        await requireModelEndpoint(this.storage, endpointId)
+      )
+      const provider = await resolveModelEndpoint(
+        this.storage,
+        endpointId,
+        this.secretResolver
+      )
+      return { modelEndpoint, provider }
+    }
+    if (this.directProvider !== undefined) {
+      return {
+        modelEndpoint: directModelEndpoint(this.directProvider),
+        provider: this.directProvider
+      }
+    }
+    throw new Error("ephemeral query requires modelEndpointId")
+  }
+}
+
+function requireConversationModelEndpoint(
+  endpoint: ModelEndpoint
+): ModelEndpoint {
+  assertConversationModelSupported(endpoint.protocol.id, endpoint.model)
+  return endpoint
 }
 
 type WanexRuntimeOptionsStorage = ConstructorParameters<
@@ -254,8 +345,9 @@ type WanexRuntimeOptionsStorage = ConstructorParameters<
 >[0]["storage"]
 
 function staticAgentContext(
-  options: WanexAgentRuntimeOptions
-): PreparedAgentContext | undefined {
+  options: WanexAgentRuntimeOptions,
+  defaultContextCompiler: ContextCompiler
+): PreparedAgentContext {
   if (options.agentContext !== undefined) {
     if (
       options.contextCompiler !== undefined ||
@@ -266,19 +358,14 @@ function staticAgentContext(
         "agentContext cannot be combined with contextCompiler, tools, or toolPermissionPolicy"
       )
     }
-    return options.agentContext
-  }
-  if (
-    options.contextCompiler === undefined &&
-    options.tools === undefined &&
-    options.toolPermissionPolicy === undefined
-  ) {
-    return undefined
+    return {
+      ...options.agentContext,
+      contextCompiler:
+        options.agentContext.contextCompiler ?? defaultContextCompiler
+    }
   }
   return {
-    ...(options.contextCompiler === undefined
-      ? {}
-      : { contextCompiler: options.contextCompiler }),
+    contextCompiler: options.contextCompiler ?? defaultContextCompiler,
     ...(options.tools === undefined ? {} : { tools: options.tools }),
     ...(options.toolPermissionPolicy === undefined
       ? {}
@@ -286,16 +373,108 @@ function staticAgentContext(
   }
 }
 
-function directProviderProfile(provider: ProviderAdapter): ProviderProfile {
-  return {
-    id: `direct:${provider.providerId}:${provider.modelId}`,
-    kind: provider.kind,
-    providerId: provider.providerId,
-    modelId: provider.modelId,
-    capabilities: provider.capabilities
+function withDefaultContextCompilerResolver(
+  resolver: WanexAgentRuntimeOptions["resolveAgentContext"],
+  defaultContextCompiler: ContextCompiler
+): WanexAgentRuntimeOptions["resolveAgentContext"] {
+  if (resolver === undefined) return undefined
+  return async (request) => {
+    const resolved = await resolver(request)
+    if (resolved === undefined) return undefined
+    return {
+      ...resolved,
+      contextCompiler: resolved.contextCompiler ?? defaultContextCompiler
+    }
   }
 }
 
-function defaultTurnTitle(content: SubmitUserTurnRequest["content"]): string {
-  return content.find((part) => part.type === "text")?.text ?? "Resource conversation"
+function directModelEndpoint(provider: ProviderAdapter): ModelEndpoint {
+  const connectionId = `direct:${provider.providerId}`
+  return {
+    id: `${connectionId}:${provider.model.id}`,
+    connection: {
+      id: connectionId,
+      providerId: provider.providerId
+    },
+    protocol: provider.protocol,
+    model: provider.model
+  }
+}
+
+function deriveAutomaticSessionTitle(
+  content: readonly UserMessageInputPart[]
+): string {
+  const text = content.find((part) => part.type === "text")?.text
+  if (text === undefined) return FALLBACK_SESSION_TITLE
+
+  let fence: { readonly marker: "`" | "~"; readonly length: number } | undefined
+  for (const line of text.split(/\r\n?|\n/)) {
+    const trimmed = line.trim()
+    const fenceMarker = parseFenceMarker(trimmed)
+    if (fence !== undefined) {
+      if (
+        fenceMarker?.marker === fence.marker &&
+        fenceMarker.length >= fence.length &&
+        fenceMarker.rest.length === 0
+      ) {
+        fence = undefined
+        continue
+      }
+      const title = boundTitle(collapseWhitespace(trimmed))
+      if (title.length > 0) return title
+      continue
+    }
+    if (fenceMarker !== undefined) {
+      fence = fenceMarker
+      continue
+    }
+
+    const title = boundTitle(
+      collapseWhitespace(stripLeadingMarkdownBlockSyntax(trimmed))
+    )
+    if (title.length > 0) return title
+  }
+
+  return FALLBACK_SESSION_TITLE
+}
+
+function parseFenceMarker(
+  line: string
+):
+  | {
+      readonly marker: "`" | "~"
+      readonly length: number
+      readonly rest: string
+    }
+  | undefined {
+  const match = /^(`{3,}|~{3,})(.*)$/.exec(line)
+  if (match === null) return undefined
+  const token = match[1]
+  if (token === undefined) return undefined
+  return {
+    marker: token[0] as "`" | "~",
+    length: token.length,
+    rest: match[2]?.trim() ?? ""
+  }
+}
+
+function stripLeadingMarkdownBlockSyntax(line: string): string {
+  let result = line
+  while (/^>\s?/.test(result)) {
+    result = result.replace(/^>\s?/, "")
+  }
+  result = result.replace(/^#{1,6}(?:[ \t]+|$)/, "")
+  result = result.replace(/^(?:[-+*]|\d{1,9}[.)])[ \t]+/, "")
+  result = result.replace(/^\[[ xX]\][ \t]+/, "")
+  return result.trim()
+}
+
+function collapseWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ")
+}
+
+function boundTitle(value: string): string {
+  return Array.from(value)
+    .slice(0, MAX_DERIVED_SESSION_TITLE_CHARACTERS)
+    .join("")
 }

@@ -1,73 +1,85 @@
 import type {
   ActivateContextEpochRequest,
-  CloneContextEpochRequest,
+  BeginContextEpochRequest,
   ContextEpochPruneReceipt,
   ContextEpochRecord,
-  ContextReplacementRecord,
+  FinishContextEpochGenerationRequest,
   GetActiveContextEpochRequest,
   ListContextEpochsRequest,
-  ListContextReplacementsRequest,
-  PruneContextEpochsRequest,
-  PutContextEpochRequest,
-  PutContextReplacementRequest
+  MarkContextEpochDispatchedRequest,
+  MarkContextEpochOutputObservedRequest,
+  PruneContextEpochsRequest
 } from "@wanex/protocol"
 
 import {
   assertArray,
   fromRpcContextEpochPruneReceipt,
   fromRpcContextEpochRecord,
-  fromRpcContextReplacementRecord,
   toRpcActivateContextEpochRequest,
-  toRpcCloneContextEpochRequest,
+  toRpcBeginContextEpochRequest,
+  toRpcFinishContextEpochGenerationRequest,
   toRpcGetActiveContextEpochRequest,
   toRpcListContextEpochsRequest,
-  toRpcListContextReplacementsRequest,
-  toRpcPruneContextEpochsRequest,
-  toRpcPutContextEpochRequest,
-  toRpcPutContextReplacementRequest
+  toRpcMarkContextEpochDispatchedRequest,
+  toRpcMarkContextEpochOutputObservedRequest,
+  toRpcPruneContextEpochsRequest
 } from "./codec.js"
 import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { ContextStorageRpcCommand } from "./generated/storage-rpc.js"
 
 export class ContextStoreMethods extends RpcStoreFacetBase {
-  async putContextEpoch(
-    request: PutContextEpochRequest
+  async beginContextEpoch(
+    request: BeginContextEpochRequest
   ): Promise<ContextEpochRecord> {
-    const value = await this.callContext({
-      command: "put-context-epoch",
-      request: toRpcPutContextEpochRequest(request)
-    })
-    return fromRpcContextEpochRecord(value)
+    return fromRpcContextEpochRecord(await this.callContext({
+      command: "begin-context-epoch",
+      request: toRpcBeginContextEpochRequest(request)
+    }))
+  }
+
+  async markContextEpochDispatched(
+    request: MarkContextEpochDispatchedRequest
+  ): Promise<ContextEpochRecord> {
+    return fromRpcContextEpochRecord(await this.callContext({
+      command: "mark-context-epoch-dispatched",
+      request: toRpcMarkContextEpochDispatchedRequest(request)
+    }))
+  }
+
+  async markContextEpochOutputObserved(
+    request: MarkContextEpochOutputObservedRequest
+  ): Promise<ContextEpochRecord> {
+    return fromRpcContextEpochRecord(await this.callContext({
+      command: "mark-context-epoch-output-observed",
+      request: toRpcMarkContextEpochOutputObservedRequest(request)
+    }))
+  }
+
+  async finishContextEpochGeneration(
+    request: FinishContextEpochGenerationRequest
+  ): Promise<ContextEpochRecord> {
+    return fromRpcContextEpochRecord(await this.callContext({
+      command: "finish-context-epoch-generation",
+      request: toRpcFinishContextEpochGenerationRequest(request)
+    }))
   }
 
   async activateContextEpoch(
     request: ActivateContextEpochRequest
   ): Promise<ContextEpochRecord> {
-    const value = await this.callContext({
+    return fromRpcContextEpochRecord(await this.callContext({
       command: "activate-context-epoch",
       request: toRpcActivateContextEpochRequest(request)
-    })
-    return fromRpcContextEpochRecord(value)
-  }
-
-  async cloneContextEpoch(
-    request: CloneContextEpochRequest
-  ): Promise<ContextEpochRecord> {
-    const value = await this.callContext({
-      command: "clone-context-epoch",
-      request: toRpcCloneContextEpochRequest(request)
-    })
-    return fromRpcContextEpochRecord(value)
+    }))
   }
 
   async pruneContextEpochs(
     request: PruneContextEpochsRequest
   ): Promise<ContextEpochPruneReceipt> {
-    const value = await this.callContext({
+    return fromRpcContextEpochPruneReceipt(await this.callContext({
       command: "prune-context-epochs",
       request: toRpcPruneContextEpochsRequest(request)
-    })
-    return fromRpcContextEpochPruneReceipt(value)
+    }))
   }
 
   async listContextEpochs(
@@ -89,27 +101,6 @@ export class ContextStoreMethods extends RpcStoreFacetBase {
       request: toRpcGetActiveContextEpochRequest(request)
     })
     return value === null ? null : fromRpcContextEpochRecord(value)
-  }
-
-  async putContextReplacement(
-    request: PutContextReplacementRequest
-  ): Promise<ContextReplacementRecord> {
-    const value = await this.callContext({
-      command: "put-context-replacement",
-      request: toRpcPutContextReplacementRequest(request)
-    })
-    return fromRpcContextReplacementRecord(value)
-  }
-
-  async listContextReplacements(
-    request: ListContextReplacementsRequest
-  ): Promise<ContextReplacementRecord[]> {
-    const value = await this.callContext({
-      command: "list-context-replacements",
-      request: toRpcListContextReplacementsRequest(request)
-    })
-    assertArray(value, "context replacements")
-    return value.map(fromRpcContextReplacementRecord)
   }
 
   private callContext(request: ContextStorageRpcCommand) {

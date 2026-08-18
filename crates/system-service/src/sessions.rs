@@ -1,16 +1,17 @@
 use crate::event_store::append_event_tx;
 use crate::rows::{row_to_session, row_to_session_input, row_to_session_turn};
 use crate::{
-    AdmissionReceipt, AdmitSessionInput, EnqueueJob, EventScope, ListSessions, Result, RetryPolicy,
-    SchedulerJobKind, SessionInputRecord, SessionRecord, SessionTurnRecord, SubmitSessionTurn,
-    SubmitSessionTurnReceipt, SystemService, SystemServiceError,
+    AdmissionReceipt, AdmitSessionInput, EnqueueJob, EventScope, ListSessions, RenameSession,
+    Result, RetryPolicy, SchedulerJobKind, SessionInputRecord, SessionRecord,
+    SessionStateTransition, SessionTurnRecord, SubmitSessionTurn, SubmitSessionTurnReceipt,
+    SystemService, SystemServiceError,
 };
 use rusqlite::{params, params_from_iter, types::Value as SqlValue, OptionalExtension};
 use uuid::Uuid;
 
 pub(crate) const SESSION_TURN_SELECT: &str = "SELECT id, session_id, primary_input_id,
     job_id, state, execution_binding_json, execution_binding_digest, max_steps,
-    current_attempt_id, parent_turn_id, regenerates_turn_id, cancel_requested_at,
+    current_attempt_id, regenerates_turn_id, cancel_requested_at,
     cancel_reason, result_json, error_json, created_at, updated_at, finished_at
     FROM session_turn";
 
@@ -25,12 +26,14 @@ impl SystemService {
         let id = id
             .map(ToOwned::to_owned)
             .unwrap_or_else(|| format!("ses_{}", Uuid::now_v7()));
+        let title = title.map(normalize_session_title).transpose()?;
         let kind = kind.unwrap_or("chat");
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         tx.execute(
-            "INSERT INTO session (id, title, kind, status, created_at, updated_at, archived_at)
-             VALUES (?, ?, ?, 'active', ?, ?, NULL)",
+            "INSERT INTO session (
+                id, title, kind, status, revision, created_at, updated_at, archived_at
+             ) VALUES (?, ?, ?, 'active', 1, ?, ?, NULL)",
             params![id, title, kind, now, now],
         )?;
         append_event_tx(
@@ -44,7 +47,8 @@ impl SystemService {
             &serde_json::json!({
                 "sessionId": id,
                 "kind": kind,
-                "status": "active"
+                "status": "active",
+                "revision": 1
             }),
             now,
         )?;
@@ -56,7 +60,7 @@ impl SystemService {
     pub fn get_session(&self, id: &str) -> Result<Option<SessionRecord>> {
         let conn = self.connect()?;
         conn.query_row(
-            "SELECT id, title, kind, status, created_at, updated_at, archived_at
+            "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
              FROM session WHERE id = ?",
             params![id],
             row_to_session,
@@ -95,13 +99,123 @@ impl SystemService {
             format!(" WHERE {}", clauses.join(" AND "))
         };
         let sql = format!(
-            "SELECT id, title, kind, status, created_at, updated_at, archived_at
+            "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
              FROM session{where_clause}
              ORDER BY updated_at DESC, id ASC LIMIT ?"
         );
         let mut stmt = conn.prepare(&sql)?;
         let rows = stmt.query_map(params_from_iter(values), row_to_session)?;
         collect_rows(rows)
+    }
+
+    pub fn rename_session(&self, request: &RenameSession) -> Result<SessionRecord> {
+        validate_session_revision(&request.session_id, request.expected_revision)?;
+        let title = normalize_session_title(&request.title)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let current = require_session_tx(&tx, &request.session_id)?;
+        require_session_revision(&current, request.expected_revision)?;
+        let updated = tx.execute(
+            "UPDATE session
+             SET title = ?, revision = revision + 1, updated_at = ?
+             WHERE id = ? AND revision = ?",
+            params![title, now, request.session_id, request.expected_revision],
+        )?;
+        if updated != 1 {
+            return Err(session_revision_conflict(
+                &request.session_id,
+                request.expected_revision,
+            ));
+        }
+        append_event_tx(
+            &tx,
+            &format!("evt_{}", Uuid::now_v7()),
+            "session.renamed",
+            &EventScope {
+                session_id: Some(request.session_id.clone()),
+                ..EventScope::default()
+            },
+            &serde_json::json!({
+                "sessionId": request.session_id,
+                "title": title,
+                "revision": request.expected_revision + 1
+            }),
+            now,
+        )?;
+        let session = require_session_tx(&tx, &request.session_id)?;
+        tx.commit()?;
+        Ok(session)
+    }
+
+    pub fn archive_session(&self, request: &SessionStateTransition) -> Result<SessionRecord> {
+        validate_session_revision(&request.session_id, request.expected_revision)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let current = require_session_tx(&tx, &request.session_id)?;
+        require_session_revision(&current, request.expected_revision)?;
+        if current.status != "active" {
+            return Err(SystemServiceError::Conflict(format!(
+                "session is not active: {}",
+                request.session_id
+            )));
+        }
+        if session_has_unfinished_work_tx(&tx, &request.session_id)? {
+            return Err(SystemServiceError::Conflict(format!(
+                "session has unfinished work: {}",
+                request.session_id
+            )));
+        }
+        let updated = tx.execute(
+            "UPDATE session
+             SET status = 'archived', revision = revision + 1,
+                 updated_at = ?, archived_at = ?
+             WHERE id = ? AND status = 'active' AND revision = ?",
+            params![now, now, request.session_id, request.expected_revision],
+        )?;
+        if updated != 1 {
+            return Err(session_revision_conflict(
+                &request.session_id,
+                request.expected_revision,
+            ));
+        }
+        append_session_state_event_tx(&tx, request, "session.archived", "archived", now)?;
+        let session = require_session_tx(&tx, &request.session_id)?;
+        tx.commit()?;
+        Ok(session)
+    }
+
+    pub fn restore_session(&self, request: &SessionStateTransition) -> Result<SessionRecord> {
+        validate_session_revision(&request.session_id, request.expected_revision)?;
+        let now = crate::util::now_ms();
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let current = require_session_tx(&tx, &request.session_id)?;
+        require_session_revision(&current, request.expected_revision)?;
+        if current.status != "archived" {
+            return Err(SystemServiceError::Conflict(format!(
+                "session is not archived: {}",
+                request.session_id
+            )));
+        }
+        let updated = tx.execute(
+            "UPDATE session
+             SET status = 'active', revision = revision + 1,
+                 updated_at = ?, archived_at = NULL
+             WHERE id = ? AND status = 'archived' AND revision = ?",
+            params![now, request.session_id, request.expected_revision],
+        )?;
+        if updated != 1 {
+            return Err(session_revision_conflict(
+                &request.session_id,
+                request.expected_revision,
+            ));
+        }
+        append_session_state_event_tx(&tx, request, "session.restored", "active", now)?;
+        let session = require_session_tx(&tx, &request.session_id)?;
+        tx.commit()?;
+        Ok(session)
     }
 
     pub fn admit_session_input(&self, request: &AdmitSessionInput) -> Result<AdmissionReceipt> {
@@ -120,8 +234,16 @@ impl SystemService {
             .transpose()?;
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
+        if let Some(existing) =
+            find_input_by_idempotency_tx(&tx, &request.session_id, &request.idempotency_key)?
+        {
+            ensure_matching_input(&existing, request, input_type, intent)?;
+            tx.commit()?;
+            return Ok(admission_receipt(&existing));
+        }
+        require_active_session_tx(&tx, &request.session_id)?;
         tx.execute(
-            "INSERT OR IGNORE INTO session_input (
+            "INSERT INTO session_input (
                 id, session_id, principal_id, idempotency_key, input_type,
                 content_json, origin_json, intent, run_control_policy,
                 expected_turn_id, status, created_at, updated_at
@@ -142,9 +264,8 @@ impl SystemService {
         let existing =
             get_input_by_idempotency_tx(&tx, &request.session_id, &request.idempotency_key)?;
         ensure_matching_input(&existing, request, input_type, intent)?;
-        if existing.id == input_id {
-            append_input_admitted_event_tx(&tx, &existing, now)?;
-        }
+        append_input_admitted_event_tx(&tx, &existing, now)?;
+        touch_session_activity_tx(&tx, &request.session_id, now)?;
         tx.commit()?;
         Ok(admission_receipt(&existing))
     }
@@ -163,17 +284,83 @@ impl SystemService {
     }
 
     pub fn list_session_inputs(&self, session_id: &str) -> Result<Vec<SessionInputRecord>> {
+        self.list_session_input_window(session_id, None, None)
+    }
+
+    pub fn list_session_input_window(
+        &self,
+        session_id: &str,
+        status: Option<&str>,
+        limit: Option<i64>,
+    ) -> Result<Vec<SessionInputRecord>> {
+        if status.is_some_and(|value| {
+            !matches!(
+                value,
+                "admitted"
+                    | "control_pending"
+                    | "promoted"
+                    | "completed"
+                    | "failed"
+                    | "cancelled"
+                    | "rejected"
+            )
+        }) {
+            return Err(SystemServiceError::InvalidInput(
+                "invalid session input status".to_string(),
+            ));
+        }
+        if limit.is_some_and(|value| !(1..=1000).contains(&value)) {
+            return Err(SystemServiceError::InvalidInput(
+                "session input limit must be between 1 and 1000".to_string(),
+            ));
+        }
         let conn = self.connect()?;
-        let mut stmt = conn.prepare(
-            "SELECT id, session_id, principal_id, idempotency_key, input_type,
-                    content_json, origin_json, intent, run_control_policy,
-                    expected_turn_id, status, created_at, updated_at
-             FROM session_input
-             WHERE session_id = ?
-             ORDER BY created_at ASC, id ASC",
-        )?;
-        let rows = stmt.query_map(params![session_id], row_to_session_input)?;
-        collect_rows(rows)
+        let select = "SELECT id, session_id, principal_id, idempotency_key, input_type,
+                             content_json, origin_json, intent, run_control_policy,
+                             expected_turn_id, status, created_at, updated_at
+                      FROM session_input";
+        let mut inputs = match (status, limit) {
+            (None, None) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{select} WHERE session_id = ? ORDER BY created_at ASC, id ASC"
+                ))?;
+                let rows = stmt.query_map(params![session_id], row_to_session_input)?;
+                collect_rows(rows)?
+            }
+            (Some(input_status), None) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{select} WHERE session_id = ? AND status = ?
+                     ORDER BY created_at ASC, id ASC"
+                ))?;
+                let rows =
+                    stmt.query_map(params![session_id, input_status], row_to_session_input)?;
+                collect_rows(rows)?
+            }
+            (None, Some(window_limit)) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{select} WHERE session_id = ?
+                     ORDER BY created_at DESC, id DESC LIMIT ?"
+                ))?;
+                let rows =
+                    stmt.query_map(params![session_id, window_limit], row_to_session_input)?;
+                collect_rows(rows)?
+            }
+            (Some(input_status), Some(window_limit)) => {
+                let mut stmt = conn.prepare(&format!(
+                    "{select} WHERE session_id = ? AND status = ?
+                     ORDER BY created_at DESC, id DESC LIMIT ?"
+                ))?;
+                let rows = stmt.query_map(
+                    params![session_id, input_status, window_limit],
+                    row_to_session_input,
+                )?;
+                collect_rows(rows)?
+            }
+        };
+        if limit.is_some() {
+            inputs.reverse();
+        }
+        Ok(inputs)
     }
 }
 
@@ -219,6 +406,9 @@ pub(crate) fn submit_session_turn_tx(
             job,
         });
     }
+
+    require_active_session_tx(tx, &request.session_id)?;
+    require_follow_up_head_tx(tx, request, intent)?;
 
     tx.execute(
         "INSERT INTO session_input (
@@ -282,10 +472,10 @@ pub(crate) fn submit_session_turn_tx(
         "INSERT INTO session_turn (
             id, session_id, primary_input_id, job_id, state,
             execution_binding_json, execution_binding_digest, max_steps,
-            current_attempt_id, parent_turn_id, regenerates_turn_id,
+            current_attempt_id, regenerates_turn_id,
             cancel_requested_at, cancel_reason, result_json, error_json,
             created_at, updated_at, finished_at
-         ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, NULL, ?, ?, NULL, NULL,
+         ) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?, NULL, ?, NULL, NULL,
                    NULL, NULL, ?, ?, NULL)",
         params![
             turn_id,
@@ -295,12 +485,12 @@ pub(crate) fn submit_session_turn_tx(
             serde_json::to_string(&request.execution_binding)?,
             binding_digest,
             request.max_steps.unwrap_or(32),
-            request.parent_turn_id,
             request.regenerates_turn_id,
             now,
             now
         ],
     )?;
+    touch_session_activity_tx(tx, &request.session_id, now)?;
     append_event_tx(
         tx,
         &format!("evt_{}", Uuid::now_v7()),
@@ -482,14 +672,16 @@ fn ensure_matching_submit_input(
     Ok(())
 }
 
-fn execution_binding_digest(binding: &serde_json::Value) -> Result<String> {
+pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<String> {
     let object = binding.as_object().ok_or_else(|| {
         SystemServiceError::InvalidJobRequest("execution_binding must be an object".to_string())
     })?;
     let allowed_binding_keys = [
         "digest",
         "createdAt",
-        "provider",
+        "modelEndpoint",
+        "completion",
+        "capabilityRoutes",
         "resources",
         "recovery",
         "contextSnapshot",
@@ -516,15 +708,33 @@ fn execution_binding_digest(binding: &serde_json::Value) -> Result<String> {
     }
     let digest = binding_string(object, "digest")?;
     validate_sha256(digest, "execution_binding.digest")?;
-    let provider = object
-        .get("provider")
+    let model_endpoint = object
+        .get("modelEndpoint")
         .and_then(serde_json::Value::as_object)
         .ok_or_else(|| {
             SystemServiceError::InvalidJobRequest(
-                "execution_binding.provider must be an object".to_string(),
+                "execution_binding.modelEndpoint must be an object".to_string(),
             )
         })?;
-    validate_provider_binding(provider)?;
+    validate_model_endpoint_binding(model_endpoint)?;
+    let completion = object
+        .get("completion")
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(
+                "execution_binding.completion must be an object".to_string(),
+            )
+        })?;
+    validate_completion_binding(completion)?;
+    let capability_routes = object
+        .get("capabilityRoutes")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(
+                "execution_binding.capabilityRoutes must be an array".to_string(),
+            )
+        })?;
+    validate_capability_route_bindings(capability_routes)?;
     let resources = object
         .get("resources")
         .and_then(serde_json::Value::as_array)
@@ -557,6 +767,26 @@ fn execution_binding_digest(binding: &serde_json::Value) -> Result<String> {
     Ok(digest.to_string())
 }
 
+fn validate_completion_binding(
+    completion: &serde_json::Map<String, serde_json::Value>,
+) -> Result<()> {
+    require_exact_keys(
+        completion,
+        &["maxOutputTokens"],
+        "execution_binding.completion",
+    )?;
+    if completion
+        .get("maxOutputTokens")
+        .and_then(serde_json::Value::as_i64)
+        .is_none_or(|value| value <= 0)
+    {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "execution_binding.completion.maxOutputTokens must be a positive integer".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_recovery_binding(recovery: &serde_json::Map<String, serde_json::Value>) -> Result<()> {
     let allowed_keys = ["providerMaxAttempts", "idempotentToolMaxAttempts"];
     if recovery
@@ -582,164 +812,526 @@ fn validate_recovery_binding(recovery: &serde_json::Map<String, serde_json::Valu
     Ok(())
 }
 
-fn validate_provider_binding(provider: &serde_json::Map<String, serde_json::Value>) -> Result<()> {
-    let allowed_provider_keys = [
-        "profileId",
-        "profileDigest",
-        "adapterId",
-        "providerId",
-        "modelId",
-        "capabilities",
-        "baseUrl",
-        "secretRef",
-        "anthropicVersion",
-        "requestConfig",
-    ];
-    if provider
-        .keys()
-        .any(|key| !allowed_provider_keys.contains(&key.as_str()))
+fn validate_model_endpoint_binding(
+    endpoint: &serde_json::Map<String, serde_json::Value>,
+) -> Result<()> {
+    validate_model_endpoint_binding_for_usage(endpoint, true)
+}
+
+pub(crate) fn validate_capability_model_endpoint_binding(
+    endpoint: &serde_json::Map<String, serde_json::Value>,
+) -> Result<()> {
+    validate_model_endpoint_binding_for_usage(endpoint, false)
+}
+
+fn validate_model_endpoint_binding_for_usage(
+    endpoint: &serde_json::Map<String, serde_json::Value>,
+    require_conversation: bool,
+) -> Result<()> {
+    require_exact_keys(
+        endpoint,
+        &[
+            "endpointId",
+            "endpointDigest",
+            "connection",
+            "protocol",
+            "model",
+        ],
+        "execution_binding.modelEndpoint",
+    )?;
+    let endpoint_id = binding_string(endpoint, "endpointId")?;
+    let endpoint_digest = binding_string(endpoint, "endpointDigest")?;
+    validate_sha256(
+        endpoint_digest,
+        "execution_binding.modelEndpoint.endpointDigest",
+    )?;
+    let connection = binding_object(endpoint, "connection", "modelEndpoint")?;
+    require_allowed_keys(
+        connection,
+        &["id", "providerId", "baseUrl", "secretRef"],
+        2,
+        "execution_binding.modelEndpoint.connection",
+    )?;
+    for key in ["id", "providerId"] {
+        binding_string(connection, key)?;
+    }
+    for key in ["baseUrl", "secretRef"] {
+        validate_optional_binding_string(connection, key, "modelEndpoint.connection")?;
+    }
+    let protocol = binding_object(endpoint, "protocol", "modelEndpoint")?;
+    require_allowed_keys(
+        protocol,
+        &["id", "version"],
+        1,
+        "execution_binding.modelEndpoint.protocol",
+    )?;
+    binding_string(protocol, "id")?;
+    validate_optional_binding_string(protocol, "version", "modelEndpoint.protocol")?;
+    let model = binding_object(endpoint, "model", "modelEndpoint")?;
+    validate_model_descriptor(model, require_conversation)?;
+
+    let mut normalized_endpoint = serde_json::Map::new();
+    normalized_endpoint.insert(
+        "id".to_string(),
+        serde_json::Value::String(endpoint_id.to_string()),
+    );
+    for key in ["connection", "protocol", "model"] {
+        normalized_endpoint.insert(
+            key.to_string(),
+            endpoint
+                .get(key)
+                .expect("required endpoint field was validated")
+                .clone(),
+        );
+    }
+    let actual = crate::util::hex_sha256(
+        serde_json::to_string(&serde_json::Value::Object(normalized_endpoint))?.as_bytes(),
+    );
+    if actual != endpoint_digest {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "execution_binding.modelEndpoint.endpointDigest does not match its content".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_model_descriptor(
+    model: &serde_json::Map<String, serde_json::Value>,
+    require_conversation: bool,
+) -> Result<()> {
+    require_allowed_keys(
+        model,
+        &[
+            "id",
+            "operations",
+            "inputModalities",
+            "outputModalities",
+            "features",
+            "limits",
+            "behavior",
+            "catalog",
+        ],
+        6,
+        "execution_binding.modelEndpoint.model",
+    )?;
+    binding_string(model, "id")?;
+    let operations = descriptor_strings(
+        model,
+        "operations",
+        &[
+            "conversation",
+            "image.generate",
+            "image.edit",
+            "video.generate",
+            "audio.transcribe",
+            "audio.synthesize",
+        ],
+        false,
+    )?;
+    let inputs = descriptor_strings(
+        model,
+        "inputModalities",
+        &["text", "image", "audio", "video", "document"],
+        false,
+    )?;
+    let outputs = descriptor_strings(
+        model,
+        "outputModalities",
+        &["text", "image", "audio", "video"],
+        false,
+    )?;
+    let features = descriptor_strings(
+        model,
+        "features",
+        &["tool_calling", "parallel_tool_calls", "reasoning"],
+        true,
+    )?;
+    if require_conversation
+        && (!operations.iter().any(|value| value == "conversation")
+            || !inputs.iter().any(|value| value == "text")
+            || !outputs.iter().any(|value| value == "text"))
     {
         return Err(SystemServiceError::InvalidJobRequest(
-            "execution_binding.provider contains an unknown field".to_string(),
+            "turn model descriptor requires conversation with text input and output".to_string(),
         ));
     }
-    let profile_digest = binding_string(provider, "profileDigest")?;
-    validate_sha256(profile_digest, "execution_binding.provider.profileDigest")?;
-    let adapter_id = binding_string(provider, "adapterId")?;
-    if !matches!(
-        adapter_id,
-        "fake" | "openai-compatible" | "anthropic" | "deepseek"
-    ) {
+    if features.iter().any(|value| value == "parallel_tool_calls")
+        && !features.iter().any(|value| value == "tool_calling")
+    {
         return Err(SystemServiceError::InvalidJobRequest(
-            "execution_binding.provider.adapterId is invalid".to_string(),
+            "parallel_tool_calls requires tool_calling".to_string(),
         ));
     }
-    let capabilities = provider
-        .get("capabilities")
+    validate_model_limits(model.get("limits"))?;
+    validate_model_behavior(model.get("behavior"), &features)?;
+    let catalog = model
+        .get("catalog")
         .and_then(serde_json::Value::as_object)
         .ok_or_else(|| {
             SystemServiceError::InvalidJobRequest(
-                "execution_binding.provider.capabilities must be an object".to_string(),
+                "execution_binding.modelEndpoint.model.catalog must be an object".to_string(),
             )
         })?;
-    validate_provider_capabilities(adapter_id, capabilities)?;
-
-    let mut profile = serde_json::Map::new();
-    profile.insert(
-        "id".to_string(),
-        serde_json::Value::String(binding_string(provider, "profileId")?.to_string()),
-    );
-    profile.insert(
-        "kind".to_string(),
-        serde_json::Value::String(adapter_id.to_string()),
-    );
-    for key in ["providerId", "modelId"] {
-        profile.insert(
-            key.to_string(),
-            serde_json::Value::String(binding_string(provider, key)?.to_string()),
-        );
+    require_exact_keys(
+        catalog,
+        &["source", "catalogId", "revision"],
+        "execution_binding.modelEndpoint.model.catalog",
+    )?;
+    let source = binding_string(catalog, "source")?;
+    if !matches!(source, "builtin" | "provider" | "custom") {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "model catalog source is invalid".to_string(),
+        ));
     }
-    profile.insert(
-        "capabilities".to_string(),
-        serde_json::Value::Object(capabilities.clone()),
-    );
-    for key in ["baseUrl", "secretRef", "anthropicVersion"] {
-        if let Some(value) = provider.get(key) {
-            let value = value
-                .as_str()
-                .filter(|value| !value.is_empty())
-                .ok_or_else(|| {
-                    SystemServiceError::InvalidJobRequest(format!(
-                        "execution_binding.provider.{key} must be a non-empty string"
-                    ))
-                })?;
-            profile.insert(
-                key.to_string(),
-                serde_json::Value::String(value.to_string()),
-            );
+    binding_string(catalog, "catalogId")?;
+    binding_string(catalog, "revision")?;
+    Ok(())
+}
+
+fn validate_capability_route_bindings(routes: &[serde_json::Value]) -> Result<()> {
+    if routes.len() > 64 {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "execution_binding.capabilityRoutes exceeds 64 entries".to_string(),
+        ));
+    }
+    let mut keys = std::collections::HashSet::new();
+    let mut previous_key: Option<String> = None;
+    for route in routes {
+        let route = route.as_object().ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(
+                "execution_binding.capabilityRoutes must contain objects".to_string(),
+            )
+        })?;
+        require_exact_keys(
+            route,
+            &["requirement", "source", "modelEndpoint"],
+            "execution_binding.capabilityRoutes[]",
+        )?;
+        let source = binding_string(route, "source")?;
+        if !matches!(source, "configured" | "single_candidate") {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "capability route source is invalid".to_string(),
+            ));
         }
-    }
-    let actual = crate::util::hex_sha256(
-        serde_json::to_string(&serde_json::Value::Object(profile))?.as_bytes(),
-    );
-    if actual != profile_digest {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "execution_binding.provider.profileDigest does not match its content".to_string(),
-        ));
+        let requirement = binding_object(route, "requirement", "capabilityRoutes[]")?;
+        require_exact_keys(
+            requirement,
+            &[
+                "operation",
+                "inputModalities",
+                "outputModalities",
+                "features",
+            ],
+            "execution_binding.capabilityRoutes[].requirement",
+        )?;
+        let operation = binding_string(requirement, "operation")?;
+        if operation == "conversation"
+            || ![
+                "image.generate",
+                "image.edit",
+                "video.generate",
+                "audio.transcribe",
+                "audio.synthesize",
+            ]
+            .contains(&operation)
+        {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "capability route operation is invalid".to_string(),
+            ));
+        }
+        let inputs = capability_requirement_values(
+            requirement,
+            "inputModalities",
+            &["text", "image", "audio", "video", "document"],
+        )?;
+        let outputs = capability_requirement_values(
+            requirement,
+            "outputModalities",
+            &["text", "image", "audio", "video"],
+        )?;
+        let features = capability_requirement_values(
+            requirement,
+            "features",
+            &["tool_calling", "parallel_tool_calls", "reasoning"],
+        )?;
+        let endpoint = binding_object(route, "modelEndpoint", "capabilityRoutes[]")?;
+        validate_capability_model_endpoint_binding(endpoint)?;
+        validate_endpoint_supports_requirement(endpoint, operation, &inputs, &outputs, &features)?;
+
+        let key = serde_json::to_string(&serde_json::Value::Object(requirement.clone()))?;
+        if !keys.insert(key.clone()) {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "execution_binding.capabilityRoutes contains a duplicate requirement".to_string(),
+            ));
+        }
+        if previous_key
+            .as_ref()
+            .is_some_and(|previous| previous >= &key)
+        {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "execution_binding.capabilityRoutes must use canonical order".to_string(),
+            ));
+        }
+        previous_key = Some(key);
     }
     Ok(())
 }
 
-fn validate_provider_capabilities(
-    adapter_id: &str,
-    capabilities: &serde_json::Map<String, serde_json::Value>,
-) -> Result<()> {
-    if capabilities.len() != 2
-        || !capabilities.contains_key("input")
-        || !capabilities.contains_key("output")
-    {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "execution_binding.provider.capabilities contains missing or unknown fields"
-                .to_string(),
-        ));
-    }
-    let inputs = capability_strings(capabilities, "input")?;
-    let outputs = capability_strings(capabilities, "output")?;
-    if !inputs.iter().any(|value| value == "text") || !outputs.iter().any(|value| value == "text") {
-        return Err(SystemServiceError::InvalidJobRequest(
-            "conversational provider capabilities require text input and output".to_string(),
-        ));
-    }
-    let supported_inputs: &[&str] = match adapter_id {
-        "fake" => &["text", "image", "audio", "video", "document"],
-        "openai-compatible" => &["text", "image"],
-        "anthropic" => &["text", "image", "document"],
-        "deepseek" => &["text"],
-        _ => unreachable!("adapter id was validated above"),
-    };
-    if inputs
-        .iter()
-        .any(|value| !supported_inputs.contains(&value.as_str()))
-        || outputs.iter().any(|value| value != "text")
-    {
-        return Err(SystemServiceError::InvalidJobRequest(format!(
-            "execution_binding.provider.capabilities are not supported by {adapter_id}"
-        )));
-    }
-    Ok(())
-}
-
-fn capability_strings(
-    capabilities: &serde_json::Map<String, serde_json::Value>,
+fn capability_requirement_values(
+    requirement: &serde_json::Map<String, serde_json::Value>,
     key: &str,
+    allowed: &[&str],
 ) -> Result<Vec<String>> {
-    let values = capabilities
+    let values = requirement
         .get(key)
         .and_then(serde_json::Value::as_array)
-        .filter(|values| !values.is_empty())
         .ok_or_else(|| {
             SystemServiceError::InvalidJobRequest(format!(
-                "execution_binding.provider.capabilities.{key} must be a non-empty array"
+                "execution_binding capability requirement {key} must be an array"
             ))
         })?;
     let mut result = Vec::with_capacity(values.len());
+    let mut previous_index: Option<usize> = None;
     for value in values {
         let value = value.as_str().ok_or_else(|| {
             SystemServiceError::InvalidJobRequest(format!(
-                "execution_binding.provider.capabilities.{key} must contain strings"
+                "execution_binding capability requirement {key} must contain strings"
             ))
         })?;
-        if result.iter().any(|existing| existing == value) {
+        let index = allowed
+            .iter()
+            .position(|candidate| candidate == &value)
+            .ok_or_else(|| {
+                SystemServiceError::InvalidJobRequest(format!(
+                    "execution_binding capability requirement {key} contains an invalid value"
+                ))
+            })?;
+        if previous_index.is_some_and(|previous| previous >= index) {
             return Err(SystemServiceError::InvalidJobRequest(format!(
-                "execution_binding.provider.capabilities.{key} contains a duplicate"
+                "execution_binding capability requirement {key} must use canonical order"
             )));
         }
+        previous_index = Some(index);
         result.push(value.to_string());
     }
     Ok(result)
 }
 
-fn validate_resource_bindings(resources: &[serde_json::Value]) -> Result<()> {
+pub(crate) fn validate_endpoint_supports_requirement(
+    endpoint: &serde_json::Map<String, serde_json::Value>,
+    operation: &str,
+    inputs: &[String],
+    outputs: &[String],
+    features: &[String],
+) -> Result<()> {
+    let model = binding_object(endpoint, "model", "capabilityRoutes[].modelEndpoint")?;
+    if !model_values_contain(model, "operations", operation) {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "capability route endpoint does not satisfy its requirement".to_string(),
+        ));
+    }
+    for (key, required) in [
+        ("inputModalities", inputs),
+        ("outputModalities", outputs),
+        ("features", features),
+    ] {
+        let supported = model
+            .get(key)
+            .and_then(serde_json::Value::as_array)
+            .expect("validated model descriptor field");
+        if required.iter().any(|required| {
+            !supported
+                .iter()
+                .any(|value| value.as_str() == Some(required.as_str()))
+        }) {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "capability route endpoint does not satisfy its requirement".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn model_values_contain(
+    model: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    required: &str,
+) -> bool {
+    model
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|supported| {
+            supported
+                .iter()
+                .any(|value| value.as_str() == Some(required))
+        })
+}
+
+fn descriptor_strings(
+    model: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    allowed: &[&str],
+    allow_empty: bool,
+) -> Result<Vec<String>> {
+    let values = model
+        .get(key)
+        .and_then(serde_json::Value::as_array)
+        .filter(|values| allow_empty || !values.is_empty())
+        .ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.modelEndpoint.model.{key} must be an array"
+            ))
+        })?;
+    let mut result = Vec::with_capacity(values.len());
+    let mut previous_index: Option<usize> = None;
+    for value in values {
+        let value = value.as_str().ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.modelEndpoint.model.{key} must contain strings"
+            ))
+        })?;
+        let index = allowed
+            .iter()
+            .position(|candidate| candidate == &value)
+            .ok_or_else(|| {
+                SystemServiceError::InvalidJobRequest(format!(
+                    "execution_binding.modelEndpoint.model.{key} contains an invalid value"
+                ))
+            })?;
+        if previous_index.is_some_and(|previous| previous >= index) {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.modelEndpoint.model.{key} must use canonical order"
+            )));
+        }
+        previous_index = Some(index);
+        result.push(value.to_string());
+    }
+    Ok(result)
+}
+
+fn validate_model_limits(value: Option<&serde_json::Value>) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let limits = value.as_object().ok_or_else(|| {
+        SystemServiceError::InvalidJobRequest("model limits must be an object".to_string())
+    })?;
+    require_allowed_keys(
+        limits,
+        &[
+            "contextWindowTokens",
+            "maxInputTokens",
+            "maxOutputTokens",
+            "maxInputResources",
+        ],
+        0,
+        "execution_binding.modelEndpoint.model.limits",
+    )?;
+    for (key, value) in limits {
+        if value.as_i64().is_none_or(|value| value <= 0) {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "model limit {key} must be a positive integer"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_model_behavior(value: Option<&serde_json::Value>, features: &[String]) -> Result<()> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let behavior = value.as_object().ok_or_else(|| {
+        SystemServiceError::InvalidJobRequest("model behavior must be an object".to_string())
+    })?;
+    require_allowed_keys(
+        behavior,
+        &["reasoningReplay"],
+        0,
+        "execution_binding.modelEndpoint.model.behavior",
+    )?;
+    if let Some(replay) = behavior.get("reasoningReplay") {
+        let replay = replay.as_str().ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(
+                "model reasoningReplay must be a string".to_string(),
+            )
+        })?;
+        if !matches!(replay, "optional" | "required" | "forbidden") {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "model reasoningReplay is invalid".to_string(),
+            ));
+        }
+        if !features.iter().any(|value| value == "reasoning") {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "model reasoningReplay requires reasoning".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn binding_object<'a>(
+    object: &'a serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    owner: &str,
+) -> Result<&'a serde_json::Map<String, serde_json::Value>> {
+    object
+        .get(key)
+        .and_then(serde_json::Value::as_object)
+        .ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.{owner}.{key} must be an object"
+            ))
+        })
+}
+
+fn validate_optional_binding_string(
+    object: &serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    owner: &str,
+) -> Result<()> {
+    if object.contains_key(key) {
+        object
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| {
+                SystemServiceError::InvalidJobRequest(format!(
+                    "execution_binding.{owner}.{key} must be a non-empty string"
+                ))
+            })?;
+    }
+    Ok(())
+}
+
+fn require_exact_keys(
+    object: &serde_json::Map<String, serde_json::Value>,
+    allowed: &[&str],
+    owner: &str,
+) -> Result<()> {
+    if object.len() != allowed.len() || object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(SystemServiceError::InvalidJobRequest(format!(
+            "{owner} contains missing or unknown fields"
+        )));
+    }
+    Ok(())
+}
+
+fn require_allowed_keys(
+    object: &serde_json::Map<String, serde_json::Value>,
+    allowed: &[&str],
+    minimum: usize,
+    owner: &str,
+) -> Result<()> {
+    if object.len() < minimum || object.keys().any(|key| !allowed.contains(&key.as_str())) {
+        return Err(SystemServiceError::InvalidJobRequest(format!(
+            "{owner} contains missing or unknown fields"
+        )));
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_resource_bindings(resources: &[serde_json::Value]) -> Result<()> {
     let mut resource_ids = std::collections::HashSet::new();
     for resource in resources {
         let object = resource.as_object().ok_or_else(|| {
@@ -818,7 +1410,7 @@ fn binding_string<'a>(
         })
 }
 
-fn validate_sha256(value: &str, label: &str) -> Result<()> {
+pub(crate) fn validate_sha256(value: &str, label: &str) -> Result<()> {
     if value.len() != 64
         || !value
             .bytes()
@@ -829,6 +1421,135 @@ fn validate_sha256(value: &str, label: &str) -> Result<()> {
         )));
     }
     Ok(())
+}
+
+fn normalize_session_title(title: &str) -> Result<String> {
+    let normalized = title.trim();
+    if normalized.is_empty() {
+        return Err(SystemServiceError::InvalidInput(
+            "session title must not be empty".to_string(),
+        ));
+    }
+    if normalized.chars().count() > 200 {
+        return Err(SystemServiceError::InvalidInput(
+            "session title must not exceed 200 characters".to_string(),
+        ));
+    }
+    Ok(normalized.to_string())
+}
+
+fn validate_session_revision(session_id: &str, expected_revision: i64) -> Result<()> {
+    if session_id.is_empty() {
+        return Err(SystemServiceError::InvalidInput(
+            "session_id must not be empty".to_string(),
+        ));
+    }
+    if expected_revision <= 0 {
+        return Err(SystemServiceError::InvalidInput(
+            "expected_revision must be positive".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn require_session_tx(tx: &rusqlite::Transaction<'_>, session_id: &str) -> Result<SessionRecord> {
+    tx.query_row(
+        "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
+         FROM session WHERE id = ?",
+        params![session_id],
+        row_to_session,
+    )
+    .optional()?
+    .ok_or_else(|| SystemServiceError::NotFound(format!("session does not exist: {session_id}")))
+}
+
+fn require_active_session_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+) -> Result<SessionRecord> {
+    let session = require_session_tx(tx, session_id)?;
+    if session.status != "active" {
+        return Err(SystemServiceError::Conflict(format!(
+            "session is archived: {session_id}"
+        )));
+    }
+    Ok(session)
+}
+
+fn require_session_revision(session: &SessionRecord, expected_revision: i64) -> Result<()> {
+    if session.revision != expected_revision {
+        return Err(session_revision_conflict(&session.id, expected_revision));
+    }
+    Ok(())
+}
+
+fn session_revision_conflict(session_id: &str, expected_revision: i64) -> SystemServiceError {
+    SystemServiceError::Conflict(format!(
+        "session revision changed: {session_id} expected {expected_revision}"
+    ))
+}
+
+pub(crate) fn session_has_unfinished_work_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+) -> Result<bool> {
+    let unfinished: i64 = tx.query_row(
+        "SELECT
+           EXISTS(
+             SELECT 1 FROM session_input
+             WHERE session_id = ?
+               AND status IN ('admitted', 'control_pending', 'promoted')
+           )
+           OR EXISTS(
+             SELECT 1 FROM session_turn
+             WHERE session_id = ?
+               AND state IN ('queued', 'running', 'cancel_requested')
+           )",
+        params![session_id, session_id],
+        |row| row.get(0),
+    )?;
+    Ok(unfinished != 0)
+}
+
+fn touch_session_activity_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    now: i64,
+) -> Result<()> {
+    let updated = tx.execute(
+        "UPDATE session SET updated_at = ? WHERE id = ? AND status = 'active'",
+        params![now, session_id],
+    )?;
+    if updated != 1 {
+        return Err(SystemServiceError::Conflict(format!(
+            "session is not active: {session_id}"
+        )));
+    }
+    Ok(())
+}
+
+fn append_session_state_event_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &SessionStateTransition,
+    event_type: &str,
+    status: &str,
+    now: i64,
+) -> Result<()> {
+    append_event_tx(
+        tx,
+        &format!("evt_{}", Uuid::now_v7()),
+        event_type,
+        &EventScope {
+            session_id: Some(request.session_id.clone()),
+            ..EventScope::default()
+        },
+        &serde_json::json!({
+            "sessionId": request.session_id,
+            "status": status,
+            "revision": request.expected_revision + 1
+        }),
+        now,
+    )
 }
 
 fn validate_submit_session_turn(request: &SubmitSessionTurn) -> Result<()> {
@@ -842,7 +1563,68 @@ fn validate_submit_session_turn(request: &SubmitSessionTurn) -> Result<()> {
             "max_steps must be positive".to_string(),
         ));
     }
+    validate_turn_admission_policy(request)?;
     execution_binding_digest(&request.execution_binding)?;
+    Ok(())
+}
+
+fn validate_turn_admission_policy(request: &SubmitSessionTurn) -> Result<()> {
+    let intent = request.intent.as_deref().unwrap_or("normal");
+    match (
+        intent,
+        request.run_control_policy.as_deref(),
+        request.expected_turn_id.as_deref(),
+    ) {
+        ("normal", None, None) => Ok(()),
+        ("follow_up", Some("queue_after_current"), Some(expected_turn_id))
+            if !expected_turn_id.is_empty() =>
+        {
+            Ok(())
+        }
+        ("follow_up", _, _) => Err(SystemServiceError::InvalidJobRequest(
+            "follow_up requires queue_after_current and a non-empty expected_turn_id".to_string(),
+        )),
+        _ => Err(SystemServiceError::InvalidJobRequest(
+            "session turn admission supports only normal or follow_up intent with matching policy"
+                .to_string(),
+        )),
+    }
+}
+
+fn require_follow_up_head_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &SubmitSessionTurn,
+    intent: &str,
+) -> Result<()> {
+    if intent != "follow_up" {
+        return Ok(());
+    }
+    let expected_turn_id = request.expected_turn_id.as_deref().ok_or_else(|| {
+        SystemServiceError::Invariant("validated follow_up is missing expected_turn_id".to_string())
+    })?;
+    let head: Option<String> = tx
+        .query_row(
+            "SELECT id
+             FROM session_turn
+             WHERE session_id = ?
+               AND state IN ('queued', 'running', 'cancel_requested')
+             ORDER BY CASE
+                        WHEN state IN ('running', 'cancel_requested') THEN 0
+                        ELSE 1
+                      END,
+                      created_at ASC,
+                      id ASC
+             LIMIT 1",
+            params![request.session_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if head.as_deref() != Some(expected_turn_id) {
+        return Err(SystemServiceError::Conflict(format!(
+            "follow_up expected turn is not the current session head: {} expected {}",
+            request.session_id, expected_turn_id
+        )));
+    }
     Ok(())
 }
 

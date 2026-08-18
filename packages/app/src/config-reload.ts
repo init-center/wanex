@@ -3,20 +3,21 @@ import {
   type ConfigHotReloadControllerOptions,
   type ConfigPollResult,
   type ConfigReloadError,
-  type ConfigReloadHandler,
-  type ConfigReloadHandlerContext,
-  type ConfigReloadHandlerResult,
+  type ConfigReloadCandidate,
+  type ConfigReloadCandidateResult,
   type ConfigReloadMatcher,
+  type ConfigReloadPrepare,
+  type ConfigReloadPrepareContext,
   type ConfigReloadResult,
   type ConfigReloadSubscription,
   type ConfigWatchOptions
 } from "@wanex/runtime/config"
 
 export type WanexAppConfigReloadMatcher = ConfigReloadMatcher
-export type WanexAppConfigReloadHandlerContext =
-  ConfigReloadHandlerContext
-export type WanexAppConfigReloadHandlerResult = ConfigReloadHandlerResult
-export type WanexAppConfigReloadHandler = ConfigReloadHandler
+export type WanexAppConfigReloadPrepareContext = ConfigReloadPrepareContext
+export type WanexAppConfigReloadCandidateResult = ConfigReloadCandidateResult
+export type WanexAppConfigReloadCandidate = ConfigReloadCandidate
+export type WanexAppConfigReloadPrepare = ConfigReloadPrepare
 export type WanexAppConfigReloadSubscription = ConfigReloadSubscription
 export type WanexAppConfigReloadResult = ConfigReloadResult
 export type WanexAppConfigReloadError = ConfigReloadError

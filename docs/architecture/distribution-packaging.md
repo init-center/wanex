@@ -42,9 +42,9 @@ explicit binary because they intentionally expose the process boundary.
 The first-release native target matrix is intentionally closed:
 
 - `linux-x64` / `x86_64-unknown-linux-gnu` for headless Runtime/SDK;
-- `darwin-arm64` / `aarch64-apple-darwin` for headless and Electron;
-- `darwin-x64` / `x86_64-apple-darwin` for headless and Electron;
-- `win32-x64` / `x86_64-pc-windows-msvc` for headless and Electron.
+- `darwin-arm64` / `aarch64-apple-darwin` for headless and Product Desktop;
+- `darwin-x64` / `x86_64-apple-darwin` for headless and Product Desktop;
+- `win32-x64` / `x86_64-pc-windows-msvc` for headless and Product Desktop.
 
 Linux arm64 and Windows arm64 are not inferred or cross-selected. A declared
 target becomes supported only after its own native runner stages and executes
@@ -73,7 +73,7 @@ pipeline.
   closure;
 - packlist audits exclude tests, fixtures, caches, stores, and bundles;
 - packed external consumers prove export maps and dependency closure;
-- Windows/Electron validation must measure unpacked size and startup with the
+- Windows/Product Desktop validation must measure unpacked size and startup with the
   actual packaged system-service artifact.
 
 The native staging directory contains exactly `runtime-artifacts.json` plus one
@@ -82,14 +82,18 @@ the public Runtime bootstrap, executes a real turn, verifies immutable hashes,
 disposes twice, and checks process cleanup. It must never copy workspace
 `node_modules` beside the native artifact.
 
-Desktop packaging contains one dependency-free application ASAR and an
-external `native` directory with the same manifest/executable bytes. There is
-no application `node_modules` directory and no `app.asar.unpacked` tree.
+Product Desktop packaging contains one dependency-free application ASAR with
+only `main.cjs` and `package.json`. External `native` and `credentials`
+directories contain byte-identical manifested System Service and current-target
+keyring artifacts. There is no application `node_modules`, preload, renderer
+fixture, or `app.asar.unpacked` tree. The packaged main verifies target,
+containment, regular-file identity, size, and SHA-256 before loading either
+native boundary.
 
 `docs/architecture/host-distribution-budget.json` owns executable/package
-bytes, exact ASAR/native file counts, native cold lifecycle maxima, and
-separate Electron cold/warm ceilings. Electron interactivity ends after the
-renderer has read its initial state, applied hot configuration, and admitted a
+bytes, exact ASAR/native/credential file counts, native cold lifecycle maxima,
+and separate Product Desktop cold/warm ceilings. Desktop interactivity ends
+after the real Product document is loaded and the visible composer admits a
 conversation without waiting for the asynchronous agent turn. Conversation
 settlement and complete proof wall time are reported and bounded separately.
 Static Runtime/App bundle bytes and input closure remain solely in the facade
@@ -105,7 +109,7 @@ and do not claim a host-cache reset. Native performance gates use both a median
 ceiling and a hard maximum: sustained regressions fail the median, while one
 pathological launch still cannot exceed the hard physical boundary.
 
-The Electron proof has a different fixed contract: exactly one cold launch
+The Product Desktop proof has a different fixed contract: exactly one cold launch
 followed by four warm launches. It reports the cold timing directly and the
 warm median, maximum, and raw timings. The cold sample uses hard ceilings.
 Warm host startup and interactive total use both median and hard ceilings;
@@ -113,19 +117,20 @@ bounded artifact verification, shutdown, settlement, and proof wall continue
 to use maxima. Neither short sample set can establish a meaningful p95, and no
 sample is trimmed or excluded from correctness.
 
-Electron proof wall timing stops when the packaged process exits. Receipt
+Product Desktop proof wall timing stops when the packaged process exits. Receipt
 parsing and the mandatory process-table audit occur afterward and remain fatal
 correctness checks, but their cost is excluded from both interactivity and
-proof wall performance. The renderer uses one request at a time with bounded
-100-500ms observation backoff while waiting for the canonical terminal turn.
+proof wall performance. Product streaming remains event-driven; the proof's
+in-page observer checks the rendered DOM at a bounded 50ms interval until the
+new user and assistant rows are both visible.
 Each target owns its own cold and warm values; do not average heterogeneous
 runner classes or refresh a failed ceiling without reviewing the artifact
 closure, raw samples, and receipt history.
 
-| Target | Native executable | Native total median/hard; wall median/hard | Electron unpacked/files | Electron cold interactive/settlement/proof wall | Electron warm interactive median/hard; settlement/proof wall max |
+| Target | Native executable | Native total median/hard; wall median/hard | Desktop unpacked/files | Desktop cold interactive/settlement/proof wall | Desktop warm interactive median/hard; settlement/proof wall max |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `linux-x64` | 10,800,000 B | 1,250/4,000; 2,000/5,000 ms | n/a | n/a | n/a |
-| `darwin-arm64` | 9,600,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 20,000 ms | 1,500/5,000; 15,500/20,000 ms |
+| `darwin-arm64` | 10,800,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 20,000 ms | 1,500/5,000; 15,500/20,000 ms |
 | `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 25,000 ms | 3,500/8,000; 15,500/22,000 ms |
 | `win32-x64` | 9,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 90 | 3,000 / 15,500 / 20,000 ms | 2,500/5,000; 15,500/20,000 ms |
 
@@ -143,7 +148,7 @@ pnpm audit:facade-footprint
 pnpm audit:package-packlist
 pnpm stage:native -- --target darwin-arm64
 pnpm proof:native-runtime
-pnpm proof:electron-boundary
+pnpm proof:desktop
 pnpm audit:host-distribution -- --target darwin-arm64
 pnpm release:sdk
 pnpm release:native -- --target darwin-arm64
@@ -151,7 +156,7 @@ pnpm proof:sdk-consumers -- --native-target darwin-arm64 \
   --native-package-report target/sdk/native/darwin-arm64/report.json
 ```
 
-Run native and Electron measurements before the external npm consumer proof.
+Run native and Product Desktop measurements before the external npm consumer proof.
 The latter deliberately starts the packaged service several times and must not
 contaminate cold/warm distribution evidence.
 

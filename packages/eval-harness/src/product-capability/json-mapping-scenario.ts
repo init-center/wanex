@@ -1,23 +1,23 @@
 import { rm } from "node:fs/promises"
 import {
-  createProductAppBackendCommandPort,
-  createProductAppBackendCommandPortJsonMapper,
-  createProductAppBackendApp,
-  PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS
-} from "@wanex/product-app/backend"
+  createBackendCommandPort,
+  createBackendCommandPortJsonMapper,
+  createBackendApp,
+  BACKEND_COMMAND_PORT_COMMANDS
+} from "@wanex/product/backend"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 import { createProductCapabilityStoreDir, isRecord } from "./helpers.js"
 
-export const productAppBackendJsonMappingScenario = createEvalScenario({
+export const backendJsonMappingScenario = createEvalScenario({
   id: "product.skeleton-json-mapping-contract",
-  title: "Product App Backend JSON mapping dispatches safely without a transport",
+  title: "application backend JSON mapping dispatches safely without a transport",
   tags: ["product-path", "command-port", "json"],
   async run(context) {
     const storeDir = await createProductCapabilityStoreDir(
       "wanex-eval-product-json-"
     )
-    const app = await createProductAppBackendApp({
+    const app = await createBackendApp({
       storage: {
         kind: "local-system-service",
         storeDir
@@ -26,8 +26,8 @@ export const productAppBackendJsonMappingScenario = createEvalScenario({
         explicitPath: context.serviceBin
       }
     })
-    const mapper = createProductAppBackendCommandPortJsonMapper(
-      createProductAppBackendCommandPort(app)
+    const mapper = createBackendCommandPortJsonMapper(
+      createBackendCommandPort(app)
     )
 
     try {
@@ -41,16 +41,16 @@ export const productAppBackendJsonMappingScenario = createEvalScenario({
 })
 
 async function runJsonMappingAssertions(
-  mapper: ReturnType<typeof createProductAppBackendCommandPortJsonMapper>
+  mapper: ReturnType<typeof createBackendCommandPortJsonMapper>
 ): Promise<Record<string, string | boolean>> {
   const capabilities = await mapper.dispatchJson(
     JSON.stringify({
-      command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.readProductCapabilities
+      command: BACKEND_COMMAND_PORT_COMMANDS.readProductCapabilities
     })
   )
   const route = await mapper.dispatchJson(
     JSON.stringify({
-      command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.routeInput,
+      command: BACKEND_COMMAND_PORT_COMMANDS.routeInput,
       input: {
         text: "/status"
       }
@@ -71,7 +71,7 @@ async function runJsonMappingAssertions(
   )
   const invalidPayload = await mapper.dispatchJson(
     JSON.stringify({
-      command: PRODUCT_APP_BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
+      command: BACKEND_COMMAND_PORT_COMMANDS.submitConversationOperation,
       input: {
         sessionId: "ses_eval_json_missing_text"
       }

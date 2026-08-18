@@ -7,10 +7,10 @@ export function createWanexAppConversationOperationCommands(
   return {
     async submitConversationOperation(request) {
       context.assertActive()
-      const providerProfileId = await context.refreshActiveProviderProfileId()
+      const modelEndpointId = await context.refreshActiveModelEndpointId()
       return await context.conversationOperations.submit({
         request,
-        providerProfileId
+        modelEndpointId
       })
     },
     async readConversationOperation(request) {
@@ -28,6 +28,22 @@ export function createWanexAppConversationOperationCommands(
     async steerConversationOperation(request) {
       context.assertActive()
       return await context.conversationOperations.steer(request)
+    },
+    async resolveConversationOperationRecovery(request) {
+      context.assertActive()
+      return await context.conversationOperations.resolveRecovery(request)
+    },
+    async listConversationOperationApprovals(request) {
+      context.assertActive()
+      return await context.conversationOperations.listApprovals(request)
+    },
+    async readConversationOperationApproval(request) {
+      context.assertActive()
+      return await context.conversationOperations.readApproval(request)
+    },
+    async resolveConversationOperationApproval(request) {
+      context.assertActive()
+      return await context.conversationOperations.resolveApproval(request)
     }
   }
 }

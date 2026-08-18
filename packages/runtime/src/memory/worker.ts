@@ -18,9 +18,14 @@ export function createMemoryCompactionWorker(
       : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
   })
-    registerMemoryCompactionJobHandler(worker, {
+  registerMemoryCompactionJobHandler(worker, {
     storage: options.storage,
-    ...(options.policy === undefined ? {} : { policy: options.policy }),
+    ...(options.directProvider === undefined
+      ? {}
+      : { directProvider: options.directProvider }),
+    ...(options.secretResolver === undefined
+      ? {}
+      : { secretResolver: options.secretResolver }),
     ...(options.tokenEstimator === undefined
       ? {}
       : { tokenEstimator: options.tokenEstimator }),

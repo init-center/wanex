@@ -70,13 +70,13 @@ export interface ListPluginManifestsRequest {
 
 export interface UpdatePluginManifestStateRequest {
   readonly pluginId: string
-  readonly version?: string
+  readonly version: string
   readonly state: PluginManifestState
 }
 
 export interface SubmitPluginActionRequest {
   readonly pluginId: string
-  readonly version?: string
+  readonly version: string
   readonly actionId: string
   readonly principalId: PrincipalId
   readonly payload: JsonValue
@@ -122,6 +122,16 @@ export interface PutPluginInstallRequest {
   readonly idempotencyKey?: string
 }
 
+export interface ActivatePluginInstallRequest {
+  readonly manifest: PutPluginManifestRequest
+  readonly install: PutPluginInstallRequest
+}
+
+export interface PluginInstallActivation {
+  readonly manifest: PluginManifestRecord
+  readonly install: PluginInstallRecord
+}
+
 export interface GetPluginInstallRequest {
   readonly pluginId: string
   readonly version?: string
@@ -135,8 +145,20 @@ export interface ListPluginInstallsRequest {
 
 export interface UpdatePluginInstallStateRequest {
   readonly pluginId: string
-  readonly version?: string
+  readonly version: string
+  readonly expectedState: PluginInstallState
   readonly state: PluginInstallState
+}
+
+export interface GetPluginActionExecutionAdmissionRequest {
+  readonly pluginId: string
+  readonly version: string
+  readonly requiredCapability: PluginCapability
+}
+
+export interface PluginActionExecutionAdmission {
+  readonly manifest: PluginManifestRecord
+  readonly install: PluginInstallRecord
 }
 
 export interface ConnectorRegistrationRecord {

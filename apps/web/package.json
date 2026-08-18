@@ -1,0 +1,31 @@
+{
+  "name": "@wanex/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./host": "./src/application/host.ts",
+    "./client": "./src/client/index.ts",
+    "./generated/client-script": "./src/generated/client-script.ts",
+    "./generated/stylesheet": "./src/generated/stylesheet.ts"
+  },
+  "scripts": {
+    "build:browser": "node ./scripts/build-browser.mjs",
+    "check": "node ./scripts/build-browser.mjs --check && tsc --noEmit && tsc -p tsconfig.test.json",
+    "test": "node ../../scripts/run-package-test.mjs"
+  },
+  "dependencies": {
+    "@wanex/product": "workspace:*",
+    "lucide-react": "1.28.0",
+    "micromark": "4.0.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "esbuild": "0.28.1",
+    "happy-dom": "20.11.1"
+  }
+}

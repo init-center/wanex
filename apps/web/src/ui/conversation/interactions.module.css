@@ -1,0 +1,19 @@
+.context-card, .capability-card { margin: 12px 0 18px; padding: 13px; border-radius: 8px; }
+.context-card { background: var(--color-warning-surface); border: 1px solid var(--color-border-warning-soft); }
+.card-heading { justify-content: space-between; gap: 12px; margin-bottom: 9px; }
+.card-heading h2, .context-panel h2, .settings-panel h2 { margin: 2px 0 0; color: var(--color-text); font-size: 14px; line-height: 20px; }
+.eyebrow { color: var(--color-accent); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+.context-card .eyebrow { color: var(--color-warning); }
+.inline-actions { flex-wrap: wrap; gap: 7px; }
+.inline-actions button { min-height: 30px; font-size: 11px; }
+.capability-card { background: var(--color-warning-surface-strong); border: 1px solid var(--color-border-warning); }
+.capability-card h2 { margin: 2px 0 0; font-size: 13px; }
+.capability-card ul { display: flex; flex-direction: column; gap: 5px; margin: 10px 0; padding: 0; color: var(--color-warning-strong); list-style: none; font-size: 11px; }
+.capability-card li { display: flex; align-items: flex-start; gap: 7px; }
+.capability-status { width: 7px; height: 7px; flex: 0 0 auto; margin-top: 5px; border-radius: 50%; background: var(--color-warning); }
+.capability-status.is-ready { background: var(--color-success); }
+.capability-status.is-unconfigured, .capability-status.is-selection_required { background: var(--color-danger); }
+.capability-form { display: flex; align-items: flex-end; gap: 8px; }
+.capability-form label { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; color: var(--color-warning-strong); font-size: 11px; }
+.capability-form input { min-height: 34px; padding: 6px 9px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border-warning); border-radius: 7px; }
+.capability-form button { min-height: 34px; display: inline-flex; align-items: center; gap: 5px; padding: 0 10px; color: var(--color-warning-strong); background: var(--color-warning-button); border: 1px solid var(--color-border-warning); border-radius: 7px; font-size: 11px; }

@@ -4,7 +4,7 @@ import type {
   ToolExecutionResult,
   ToolInvocation
 } from "@wanex/runtime/tools"
-import { createToolRuntimeBinding } from "@wanex/runtime/tools"
+import { createToolRuntimeBinding, jsonToolResultContent } from "@wanex/runtime/tools"
 import type { ChangeSet, FileChange } from "../changesets/index.js"
 import type { WorkspaceRuntime } from "../runtime.js"
 import { inputRecord, optionalString, requiredString } from "./input.js"
@@ -43,6 +43,8 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
   } as const
   readonly risk = "mutating" as const
   readonly idempotent = false
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "immediate" as const
   readonly annotations = {
     destructiveHint: true,
     openWorldHint: false
@@ -78,6 +80,50 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     })
   }
 
+  presentCall(input: JsonValue) {
+    const changeSet = parseChangeSet(input, this.maxFiles, this.maxBytes)
+    return changeSetPresentation(
+      `Apply ${changeSet.changes.length} workspace ${changeSet.changes.length === 1 ? "change" : "changes"}`,
+      changeSet
+    )
+  }
+
+  presentResult(request: {
+    readonly input: JsonValue
+    readonly result: ToolExecutionResult
+  }) {
+    const changeSet = parseChangeSet(
+      request.input,
+      this.maxFiles,
+      this.maxBytes
+    )
+    return changeSetPresentation(
+      request.result.outcome === "succeeded"
+        ? "Workspace changes applied"
+        : "Workspace changes failed",
+      changeSet
+    )
+  }
+
+  presentFailure(request: {
+    readonly input: JsonValue
+    readonly reason: "exception" | "cancelled" | "timed_out"
+  }) {
+    const changeSet = parseChangeSet(
+      request.input,
+      this.maxFiles,
+      this.maxBytes
+    )
+    return changeSetPresentation(
+      request.reason === "timed_out"
+        ? "Workspace changes timed out"
+        : request.reason === "cancelled"
+          ? "Workspace changes stopped"
+          : "Workspace changes failed",
+      changeSet
+    )
+  }
+
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
     const changeSet = parseChangeSet(
       invocation.input,
@@ -89,8 +135,9 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
       principalId: invocation.principalId
     })
     return {
+      outcome: "succeeded",
       toolCallId: invocation.toolCallId,
-      result: {
+      content: jsonToolResultContent({
         changeSetId: applied.changeSet.id,
         state: applied.changeSet.currentState,
         operationId: applied.operation.id,
@@ -108,9 +155,26 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
           currentSha256: conflict.currentSha256 ?? null,
           expectedSha256: conflict.expectedSha256 ?? null
         }))
-      } satisfies JsonValue,
-      isError: false
+      } satisfies JsonValue)
     }
+  }
+}
+
+function changeSetPresentation(
+  summary: string,
+  changeSet: ChangeSet
+) {
+  const paths = changeSet.changes
+    .slice(0, 3)
+    .map((change) => change.path.slice(0, 80))
+  const omitted = changeSet.changes.length - paths.length
+  const pathSummary = `${paths.join(", ")}${omitted === 0 ? "" : `, +${omitted} more`}`
+  return {
+    summary,
+    details: [
+      { label: "Files", value: String(changeSet.changes.length) },
+      { label: "Paths", value: pathSummary }
+    ]
   }
 }
 

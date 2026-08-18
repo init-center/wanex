@@ -64,6 +64,7 @@ function terminalNodeStateForJob(
     case "pending":
     case "ready":
     case "running":
+    case "waiting":
     case "retry_scheduled":
       return null
     default: {

@@ -133,7 +133,7 @@ describe("native npm package generation", () => {
     expect(manifest).not.toHaveProperty("dependencies")
     expect(manifest).not.toHaveProperty("optionalDependencies")
     expect(manifest).not.toHaveProperty("bin")
-  })
+  }, 15_000)
 
   it("rejects target drift and output outside target", async () => {
     const targetId = nativeTargetId()

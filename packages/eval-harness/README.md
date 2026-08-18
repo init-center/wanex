@@ -14,8 +14,8 @@ either of them.
 
 The built-in regression suite covers app composition, config hot reload,
 explicit single-agent instruction/skill context composition, App Command Runtime
-CLI/command-port/JSON/backend-shell/overview/TUI surface, Product App Web,
-Product App Local, TUI CLI, and TUI line-session command
+CLI/command-port/JSON/backend-shell/overview/TUI surface, Web application,
+local application, TUI CLI, and TUI line-session command
 discovery/selector/detail/bounded-diagnostics contracts, plugins, connector
 product contracts, TUI contribution/controller dispatch, memory compaction,
 resources, workspace proposal flows, provider fidelity, team bounds, A2UI
@@ -29,8 +29,8 @@ execution.
 The harness validates product contracts through reviewed public entries and
 deterministic fixtures. It does not count as a real consumer and cannot retain
 an otherwise unjustified package. Product backend scenarios use
-`@wanex/product-app/backend`; ordinary App scenarios use `@wanex/app`; local
-Product App Web lifecycle scenarios use `@wanex/product-app-local`.
+`@wanex/product/backend`; ordinary App scenarios use `@wanex/app`; local
+Web application lifecycle scenarios use `@wanex/local-host`.
 
 Generic product-contract scenarios should not import leaf examples. Use public
 runtime packages, deterministic adapters, and fixtures instead.

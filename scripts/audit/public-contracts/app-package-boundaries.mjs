@@ -1,16 +1,18 @@
 export const upperAppPackages = [
-  "@wanex/product-app",
-  "@wanex/product-app-command-host",
-  "@wanex/product-app-local",
-  "@wanex/product-app-web",
-  "@wanex/product-app-tui"
+  "@wanex/product",
+  "@wanex/plugin-command-host",
+  "@wanex/desktop",
+  "@wanex/local-host",
+  "@wanex/web",
+  "@wanex/tui"
 ]
 
 export function isAppPackage(packageName) {
   return packageName === "@wanex/cli" ||
-    packageName === "@wanex/product-app" ||
-    packageName === "@wanex/product-app-command-host" ||
-    packageName === "@wanex/product-app-local" ||
-    packageName === "@wanex/product-app-web" ||
-    packageName === "@wanex/product-app-tui"
+    packageName === "@wanex/product" ||
+    packageName === "@wanex/plugin-command-host" ||
+    packageName === "@wanex/desktop" ||
+    packageName === "@wanex/local-host" ||
+    packageName === "@wanex/web" ||
+    packageName === "@wanex/tui"
 }

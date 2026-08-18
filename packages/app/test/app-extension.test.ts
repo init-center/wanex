@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  createAppExtensionCatalog,
+  createStaticAppExtensionCatalogSource,
   resolveAppExtensionContributions,
   type AppAgentContribution,
   type AppCommandContribution,
@@ -11,10 +13,14 @@ import {
   type AppToolContribution
 } from "@wanex/extension"
 import {
+  createWanexAppExtensionContributionManager,
   createWanexApp,
   prepareWanexAppExtensionAgentContext
 } from "../src/internal-index.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
+
+const fakeModelEndpoint = appTestModelEndpoint()
 
 describe("@wanex/app extension contributions", () => {
   it("projects resolved instruction and skill contributions into agent context", async () => {
@@ -27,19 +33,23 @@ describe("@wanex/app extension contributions", () => {
       artifacts: {
         explicitPath: serviceBin
       },
+      modelEndpoint: fakeModelEndpoint,
       extensions: {
-        snapshot: resolveAppExtensionContributions([
-          instructionContribution({
-            id: "instruction.project",
-            text: "Use extension instructions."
-          }),
-          skillContribution({
-            id: "skill.review",
-            name: "review-code",
-            description: "Review code changes.",
-            body: "FULL CONTRIBUTED SKILL BODY"
-          })
-        ])
+        source: createStaticAppExtensionCatalogSource({
+          revision: "app-extension-context-v1",
+          snapshot: resolveAppExtensionContributions([
+            instructionContribution({
+              id: "instruction.project",
+              text: "Use extension instructions."
+            }),
+            skillContribution({
+              id: "skill.review",
+              name: "review-code",
+              description: "Review code changes.",
+              body: "FULL CONTRIBUTED SKILL BODY"
+            })
+          ])
+        })
       }
     })
 
@@ -62,6 +72,7 @@ describe("@wanex/app extension contributions", () => {
       expect(JSON.stringify(result)).not.toContain("FULL CONTRIBUTED SKILL BODY")
       expect(app.status().extensions).toMatchObject({
         configured: true,
+        revision: "app-extension-context-v1",
         contributionCount: 2,
         diagnosticCount: 0,
         byDomain: {
@@ -134,13 +145,17 @@ describe("@wanex/app extension contributions", () => {
         explicitPath: serviceBin
       },
       extensions: {
-        snapshot
+        source: createStaticAppExtensionCatalogSource({
+          revision: "app-extension-read-model-v1",
+          snapshot
+        })
       }
     })
 
     try {
       await expect(app.commands.readExtensionContributions()).resolves.toMatchObject({
         configured: true,
+        revision: "app-extension-read-model-v1",
         counts: {
           command: 1,
           agent: 1,
@@ -189,6 +204,82 @@ describe("@wanex/app extension contributions", () => {
             handlerRef: "hook.start.handler"
           }
         ]
+      })
+    } finally {
+      await app.dispose()
+    }
+  })
+
+  it("captures the current catalog once for each agent context admission", async () => {
+    const storeDir = await createStoreDir()
+    const catalog = createAppExtensionCatalog({
+      revision: "context-generation-a",
+      snapshot: resolveAppExtensionContributions([
+        instructionContribution({
+          id: "instruction.dynamic",
+          text: "First generation."
+        })
+      ])
+    })
+    let currentCalls = 0
+    const source = {
+      current() {
+        currentCalls += 1
+        return catalog.source.current()
+      },
+      subscribe: catalog.source.subscribe
+    }
+    const manager = createWanexAppExtensionContributionManager(source)
+    await manager.prepareAgentContext()
+    expect(currentCalls).toBe(1)
+    const app = await createWanexApp({
+      storage: {
+        kind: "local-system-service",
+        storeDir
+      },
+      artifacts: {
+        explicitPath: serviceBin
+      },
+      modelEndpoint: fakeModelEndpoint,
+      extensions: { source: catalog.source }
+    })
+
+    try {
+      const first = await app.commands.runAgentTurn({
+        content: [{ type: "text", text: "first generation" }],
+        sessionId: "ses_wanex_app_extension_generation_a"
+      })
+      expect(first.context).toMatchObject({
+        instructionSources: 1,
+        skillNames: []
+      })
+
+      catalog.publish({
+        revision: "context-generation-b",
+        snapshot: resolveAppExtensionContributions([
+          instructionContribution({
+            id: "instruction.dynamic",
+            text: "Second generation."
+          }),
+          skillContribution({
+            id: "skill.dynamic",
+            name: "dynamic-skill",
+            description: "A dynamically published skill.",
+            body: "DYNAMIC SKILL BODY"
+          })
+        ])
+      })
+      const second = await app.commands.runAgentTurn({
+        content: [{ type: "text", text: "second generation" }],
+        sessionId: "ses_wanex_app_extension_generation_b"
+      })
+      expect(second.context).toMatchObject({
+        instructionSources: 1,
+        skillNames: ["dynamic-skill"]
+      })
+      expect(app.status().extensions).toMatchObject({
+        revision: "context-generation-b",
+        contributionCount: 2
       })
     } finally {
       await app.dispose()
@@ -266,6 +357,7 @@ function commandContribution(options: {
       name: "plan",
       title: "Plan",
       aliases: options.aliases,
+      paletteVisibility: "visible",
       handlerRef: options.handlerRef
     },
     provenance: provenance("plugin", "plugin.commands")

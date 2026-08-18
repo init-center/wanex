@@ -1,6 +1,6 @@
 import type { CoreStore } from "@wanex/storage"
 import type {
-  ProviderCapabilities,
+  ModelEndpoint,
   SchedulerJobRecord,
   SchedulerJobState,
   SessionMessageRecord,
@@ -9,7 +9,8 @@ import type {
 } from "@wanex/protocol"
 import {
   FakeProviderAdapter,
-  writeProviderProfile
+  normalizeModelEndpoint,
+  writeModelEndpoint
 } from "./provider/index.js"
 import { bootstrapWanexStorage } from "./bootstrap/index.js"
 import { WanexRuntimeHost } from "./host/host.js"
@@ -20,7 +21,6 @@ import type {
   WanexRuntimeOperationReference,
   WanexRuntimeOperationState,
   WanexRuntimeOptions,
-  WanexRuntimeProviderOptions,
   WanexRuntimeReadOperationResult,
   WanexRuntimeRunOnceResult,
   WanexRuntimeRunResult,
@@ -29,49 +29,36 @@ import type {
   WanexRuntimeWorkerResultStatus
 } from "./types.js"
 
-const defaultProviderId = "wanex-runtime-default"
-
 export async function createWanexRuntime(
   options: WanexRuntimeOptions
 ): Promise<WanexRuntime> {
-  const provider = normalizeProvider(options.provider)
-  validateProviderRuntimeOptions(provider, options.secretResolver !== undefined)
+  const modelEndpoint = normalizeModelEndpoint(options.modelEndpoint)
+  validateModelEndpointRuntimeOptions(
+    modelEndpoint,
+    options.secretResolver !== undefined
+  )
   const storage = await bootstrapWanexStorage({
     storage: options.storage,
     ...(options.artifacts === undefined ? {} : { artifacts: options.artifacts })
   })
 
   try {
-    await writeProviderProfile(storage.storage, {
-      id: provider.id,
-      kind: provider.kind,
-      providerId: provider.providerId,
-      modelId: provider.modelId,
-      capabilities: provider.capabilities,
-      ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-      ...(provider.secretRef === undefined
-        ? {}
-        : { secretRef: provider.secretRef }),
-      ...(provider.anthropicVersion === undefined
-        ? {}
-        : { anthropicVersion: provider.anthropicVersion })
-    })
+    await writeModelEndpoint(storage.storage, modelEndpoint)
 
     const host = new WanexRuntimeHost({
       storage: storage.storage,
       workerCount: options.workerCount ?? 1,
-      providerProfileId: provider.id,
+      modelEndpointId: modelEndpoint.id,
       ...(options.secretResolver === undefined
         ? {}
         : { secretResolver: options.secretResolver }),
-      ...(provider.responseText === undefined
+      ...(options.fakeResponseText === undefined
         ? {}
         : {
             provider: new FakeProviderAdapter({
-              providerId: provider.providerId,
-              modelId: provider.modelId,
-              responseText: provider.responseText,
-              capabilities: provider.capabilities
+              providerId: modelEndpoint.connection.providerId,
+              model: modelEndpoint.model,
+              responseText: options.fakeResponseText
             })
           }),
       ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
@@ -105,9 +92,10 @@ export async function createWanexRuntime(
           disposed,
           started: status.started,
           workerCount: status.workerCount,
-          providerProfileId: provider.id,
-          providerKind: provider.kind,
-          modelId: provider.modelId
+          modelEndpointId: modelEndpoint.id,
+          protocolId: modelEndpoint.protocol.id,
+          providerId: modelEndpoint.connection.providerId,
+          modelId: modelEndpoint.model.id
         }
       },
       health(now): WanexRuntimeHealth {
@@ -210,85 +198,19 @@ export async function createWanexRuntime(
   }
 }
 
-interface NormalizedProvider {
-  readonly id: string
-  readonly kind: "fake" | "openai-compatible" | "anthropic" | "deepseek"
-  readonly providerId: string
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
-  readonly baseUrl?: string
-  readonly secretRef?: string
-  readonly anthropicVersion?: string
-  readonly responseText?: string
-}
-
-function normalizeProvider(
-  provider: WanexRuntimeProviderOptions | undefined
-): NormalizedProvider {
-  if (provider === undefined) {
-    return {
-      id: defaultProviderId,
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
-      providerId: "fake",
-      modelId: "wanex-runtime-model",
-      responseText: "Wanex runtime response"
-    }
-  }
-  if (provider.kind === "fake" || provider.kind === undefined) {
-    return {
-      id: provider.id ?? defaultProviderId,
-      kind: "fake",
-      providerId: provider.providerId ?? "fake",
-      modelId: provider.modelId ?? "wanex-runtime-model",
-      capabilities: provider.capabilities ?? {
-        input: ["text"],
-        output: ["text"]
-      },
-      responseText: provider.responseText ?? "Wanex runtime response"
-    }
-  }
-  if (
-    provider.kind === "openai-compatible" ||
-    provider.kind === "anthropic" ||
-    provider.kind === "deepseek"
-  ) {
-    return {
-      id: provider.id ?? defaultProviderId,
-      kind: provider.kind,
-      providerId: provider.providerId ?? provider.kind,
-      modelId: provider.modelId,
-      capabilities: provider.capabilities,
-      ...(provider.baseUrl === undefined ? {} : { baseUrl: provider.baseUrl }),
-      ...(provider.secretRef === undefined
-        ? {}
-        : { secretRef: provider.secretRef }),
-      ...(provider.anthropicVersion === undefined
-        ? {}
-        : { anthropicVersion: provider.anthropicVersion })
-    }
-  }
-  throw new Error(`unsupported runtime provider: ${String(provider.kind)}`)
-}
-
-function validateProviderRuntimeOptions(
-  provider: NormalizedProvider,
+function validateModelEndpointRuntimeOptions(
+  endpoint: ModelEndpoint,
   secretResolverConfigured: boolean
 ): void {
-  if (provider.kind === "fake") return
-  if (provider.baseUrl === undefined || provider.baseUrl.length === 0) {
-    throw new Error(`${provider.kind} provider requires baseUrl`)
+  if (endpoint.protocol.id === "fake") return
+  if (endpoint.connection.baseUrl === undefined) {
+    throw new Error(`${endpoint.protocol.id} model endpoint requires baseUrl`)
   }
-  if (provider.secretRef === undefined || provider.secretRef.length === 0) {
-    throw new Error(`${provider.kind} provider requires secretRef`)
-  }
-  if (!/^[A-Za-z][A-Za-z0-9+.-]*:/.test(provider.secretRef)) {
-    throw new Error(
-      `${provider.kind} provider secretRef must include a URI scheme`
-    )
+  if (endpoint.connection.secretRef === undefined) {
+    throw new Error(`${endpoint.protocol.id} model endpoint requires secretRef`)
   }
   if (!secretResolverConfigured) {
-    throw new Error(`${provider.kind} provider requires secret resolver`)
+    throw new Error(`${endpoint.protocol.id} model endpoint requires secret resolver`)
   }
 }
 
@@ -375,6 +297,7 @@ function runtimeOperationState(
     case "queued":
       return "queued"
     case "running":
+    case "waiting":
     case "cancel_requested":
     case "succeeded":
     case "failed":
@@ -389,6 +312,7 @@ function runtimeOperationState(
     case "retry_scheduled":
       return "queued"
     case "running":
+    case "waiting":
     case "succeeded":
     case "failed":
     case "cancelled":

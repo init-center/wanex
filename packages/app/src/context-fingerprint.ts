@@ -29,6 +29,7 @@ export function preparedWanexAppAgentContextFingerprint(
         bodyHash: source.bodyHash,
         byteLength: source.byteLength
       })) ?? [],
+    skillObservationComplete: prepared.skillSnapshot?.complete ?? true,
     skillDiagnostics:
       prepared.skillSnapshot?.diagnostics.map((diagnostic) => ({
         code: diagnostic.code,

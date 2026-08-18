@@ -28,7 +28,7 @@ export interface RegisterPluginManifestRequest {
 
 export interface SubmitPluginActionRequest {
   readonly pluginId: string
-  readonly version?: string
+  readonly version: string
   readonly actionId: string
   readonly principalId: PrincipalId
   readonly payload: JsonValue
@@ -43,7 +43,7 @@ export interface SubmitPluginActionRequest {
   readonly budgetGrantId?: string
 }
 
-export interface RegisterPluginInstallPlanRequest {
+export interface ActivatePluginInstallPlanRequest {
   readonly plan: PluginInstallPlan | JsonValue
   readonly manifestId?: string
   readonly manifestIdempotencyKey?: string
@@ -51,7 +51,7 @@ export interface RegisterPluginInstallPlanRequest {
   readonly installIdempotencyKey?: string
 }
 
-export interface RegisterPluginInstallPlanResult {
+export interface ActivatePluginInstallPlanResult {
   readonly manifest: PluginManifestRecord
   readonly install: PluginInstallRecord
   readonly trust: PluginPackageTrustRecord

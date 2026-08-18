@@ -1,0 +1,40 @@
+.composer-dock { width: min(var(--size-content), 100%); flex: 0 0 auto; margin: 0 auto; padding: 0 28px 18px; }
+.main.is-empty .composer-dock { padding-bottom: 18px; }
+.turn-actions { justify-content: flex-end; gap: 7px; margin-bottom: 9px; }
+.secondary-action { min-height: 30px; color: var(--color-text-secondary); background: var(--color-surface-translucent); font-size: 11px; }
+.secondary-action:hover:not(:disabled) { color: var(--color-text); background: var(--color-surface); }
+.composer-surface { position: relative; width: min(100%, 720px); margin: 0 auto; padding: 11px 13px 9px; background: var(--color-glass); border: 1px solid var(--color-glass-edge); border-radius: 14px; box-shadow: var(--shadow-soft), inset 0 1px 0 var(--color-glass-highlight), inset 0 -1px 0 var(--color-glass-shadow); backdrop-filter: blur(28px) saturate(140%); -webkit-backdrop-filter: blur(28px) saturate(140%); }
+.composer-surface:focus-within { border-color: var(--color-line-accent); box-shadow: var(--shadow-soft), 0 0 0 3px rgb(91 95 199 / 8%), inset 0 1px 0 var(--color-glass-highlight), inset 0 -1px 0 var(--color-glass-shadow); }
+.composer { min-width: 0; display: flex; align-items: flex-end; gap: 8px; }
+.composer textarea { min-width: 0; min-height: var(--size-composer-textarea); max-height: 180px; flex: 1; resize: none; padding: 7px 8px 5px; color: var(--color-text); background: transparent; border: 0; outline: 0; font-size: 15px; line-height: 1.55; }
+.composer textarea::placeholder { color: var(--color-placeholder); }
+.composer textarea:disabled { opacity: .62; }
+.send-button { width: 34px; height: 34px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; color: var(--color-on-accent); background: var(--color-accent); border: 0; border-radius: 9px; box-shadow: 0 5px 13px var(--color-accent-shadow); transition: transform 140ms ease, background 140ms ease, opacity 140ms ease; }
+.send-button:hover:not(:disabled) { background: var(--color-accent-hover); transform: translateY(-1px); }
+.send-button:disabled { opacity: .34; box-shadow: none; }
+.attachment-tray { display: flex; gap: 8px; margin: 0 0 8px; padding: 0; overflow-x: auto; list-style: none; }
+.attachment { min-width: 192px; max-width: 280px; display: grid; grid-template-columns: 40px minmax(0, 1fr) 30px; align-items: center; gap: 8px; padding: 7px; background: var(--color-surface-translucent); border: 1px solid var(--color-line); border-radius: 8px; }
+.attachment .resource-preview { width: 40px; height: 40px; object-fit: cover; }
+.attachment .resource-preview-failed { width: 40px; height: 40px; padding: 0; }
+.attachment button.resource-preview-failed > span, .attachment button.resource-preview-failed > svg:first-child { display: none; }
+.attachment span.resource-preview-failed > span { display: none; }
+.attachment-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.attachment-copy strong, .attachment-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.attachment-copy strong { color: var(--color-text-strong); font-size: 11px; }
+.attachment-copy small { color: var(--color-text-muted); font-size: 9px; }
+.attachment .icon-button { width: 28px; height: 28px; }
+.composer-meta { min-width: 0; min-height: 34px; gap: 7px; margin-top: 7px; padding-top: 9px; border-top: 1px solid var(--color-line-muted); }
+.model-picker { min-width: 0; max-width: 300px; height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 7px; color: var(--color-text-secondary); background: var(--color-control-hover); border: 1px solid transparent; border-radius: 7px; }
+.model-picker:focus-within { color: var(--color-text); background: var(--color-surface); border-color: var(--color-line-accent); }
+.model-picker select { min-width: 0; max-width: 250px; padding: 0 18px 0 0; color: inherit; background: transparent; border: 0; outline: 0; font-size: 11px; text-overflow: ellipsis; }
+.attachment-button { position: relative; width: 28px; height: 28px; flex: 0 0 auto; display: inline-grid; place-items: center; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 7px; cursor: pointer; }
+.attachment-button:hover { color: var(--color-text); background: var(--color-control-hover); border-color: var(--color-line); }
+.attachment-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.attachment-button:has(input:disabled) { cursor: not-allowed; opacity: .38; }
+.workflows-button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 7px; font-size: 11px; }
+.workflows-button:hover:not(:disabled) { color: var(--color-text); background: var(--color-control-hover); border-color: var(--color-line); }
+.composer-hint { display: none; }
+.mode-switch { display: flex; gap: 5px; margin: 0 0 7px; }
+.mode-switch button { min-height: 27px; padding: 0 9px; color: var(--color-text-secondary); background: var(--color-surface-soft); border-color: transparent; font-size: 10px; }
+.mode-switch button.is-active { color: var(--color-accent-strong); background: var(--color-accent-soft); border-color: var(--color-line-accent); }
+.mode-switch button:disabled { opacity: .42; }

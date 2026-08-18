@@ -25,9 +25,9 @@ export function createRuntimeHostAgentWorkers(
       storage: request.storage,
       activeAbortRegistry: request.activeAbortRegistry,
       workerId: `runtime_host_worker_${index}_${randomUUID()}`,
-      ...(request.providerProfileId === undefined
+      ...(request.modelEndpointId === undefined
         ? {}
-        : { providerProfileId: request.providerProfileId }),
+        : { modelEndpointId: request.modelEndpointId }),
       ...(request.secretResolver === undefined
         ? {}
         : { secretResolver: request.secretResolver }),
@@ -104,7 +104,19 @@ export function createRuntimeHostMediaGenerationWorkers(
         : { timeoutMs: request.timeoutMs }),
       ...(request.mediaGenerationMaxOutputBytes === undefined
         ? {}
-        : { maxOutputBytes: request.mediaGenerationMaxOutputBytes })
+        : { maxOutputBytes: request.mediaGenerationMaxOutputBytes }),
+      ...(request.mediaGenerationPollInitialDelayMs === undefined
+        ? {}
+        : { pollInitialDelayMs: request.mediaGenerationPollInitialDelayMs }),
+      ...(request.mediaGenerationPollMaxDelayMs === undefined
+        ? {}
+        : { pollMaxDelayMs: request.mediaGenerationPollMaxDelayMs }),
+      ...(request.mediaGenerationMaxConsecutivePollFailures === undefined
+        ? {}
+        : {
+            maxConsecutivePollFailures:
+              request.mediaGenerationMaxConsecutivePollFailures
+          })
     })
   )
 }

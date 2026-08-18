@@ -11,11 +11,16 @@ one Runtime Host worker pool, restartable processing, and final disposal.
 Renderers call a product-owned IPC/API projection. They never receive storage
 clients, store paths, binary paths, provider secrets, or Runtime Host handles.
 
+Trusted hosts with persistent Provider management import the explicit
+`@wanex/app/provider-mutation` subpath. It is intentionally absent from the
+root facade and must never be forwarded through a Product Surface or renderer
+bridge. One-shot first-use setup is injected through App construction instead.
+
 ## Use when
 
 - a product backend needs a gateway-free local or remote Wanex owner;
 - a product needs durable submit/read/cancel/interrupt/steer operations;
-- provider profiles, context, diagnostics, schedules, or workflows belong to a
+- model endpoints, context, diagnostics, schedules, or workflows belong to a
   trusted application lifecycle;
 - multiple sessions should run through one configurable worker pool.
 
@@ -35,7 +40,7 @@ const app = await createWanexApp({
     kind: "local-profile",
     rootDir: "/trusted/product/data"
   },
-  providerProfile,
+  modelEndpoint,
   workerCount: 2
 })
 
@@ -61,12 +66,20 @@ The root exposes the real App Host contract:
 
 - privacy-safe lifecycle, provider, context, and extension status;
 - durable conversation operation commands and bounded read models;
-- provider profile commands whose selection affects future admission only;
+- model endpoint commands whose selection affects future admission only;
 - context, diagnostics, schedules, workflows, and safe command envelopes;
 - restartable `start()/stop()` and terminal idempotent `dispose()`.
 
+Connected conversation and media endpoints that share one Provider connection
+can be replaced exactly with `replaceConnectedModelEndpoints(...)` or removed
+with `removeModelEndpointConnection(...)`. App validates the complete final
+graph and commits endpoint payloads, omitted-endpoint deletion, endpoint index,
+active selection, and capability-route cleanup in one System Service config
+transaction. Single-endpoint and sibling commands retain explicit incremental
+semantics; App does not expose secret references in their read models.
+
 An admitted turn stores an immutable execution binding. Switching provider
-profiles cannot change queued or running work. Regeneration is a new input,
+endpoints cannot change queued or running work. Regeneration is a new input,
 turn, job, and binding with `regeneratesTurnId`; it is not a retry.
 
 Optional diagnostics and plan/objective workflow implementations remain explicit

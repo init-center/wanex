@@ -1,9 +1,13 @@
 import {
+  type ActivatePluginInstallRequest,
+  type GetPluginActionExecutionAdmissionRequest,
   type GetPluginInstallRequest,
   type GetPluginManifestRequest,
   type ListPluginInstallsRequest,
   type ListPluginManifestsRequest,
   type PluginActionSubmission,
+  type PluginActionExecutionAdmission,
+  type PluginInstallActivation,
   type PluginInstallRecord,
   type PluginManifestRecord,
   type PutPluginInstallRequest,
@@ -15,12 +19,16 @@ import {
 
 import {
   fromRpcPluginActionSubmission,
+  fromRpcPluginActionExecutionAdmission,
+  fromRpcPluginInstallActivation,
   fromRpcPluginInstallRecord,
   fromRpcPluginManifestRecord,
   toRpcGetPluginInstallRequest,
+  toRpcGetPluginActionExecutionAdmissionRequest,
   toRpcGetPluginManifestRequest,
   toRpcListPluginInstallsRequest,
   toRpcListPluginManifestsRequest,
+  toRpcActivatePluginInstallRequest,
   toRpcPutPluginInstallRequest,
   toRpcPutPluginManifestRequest,
   toRpcSubmitPluginActionRequest,
@@ -73,6 +81,16 @@ export class PluginStoreMethods extends RpcStoreFacetBase {
     return fromRpcPluginInstallRecord(value)
   }
 
+  async activatePluginInstall(
+    request: ActivatePluginInstallRequest
+  ): Promise<PluginInstallActivation> {
+    const value = await this.callPlugin({
+      command: "activate-plugin-install",
+      request: toRpcActivatePluginInstallRequest(request)
+    })
+    return fromRpcPluginInstallActivation(value)
+  }
+
   async getPluginInstall(
     request: GetPluginInstallRequest
   ): Promise<PluginInstallRecord | null> {
@@ -122,6 +140,16 @@ export class PluginStoreMethods extends RpcStoreFacetBase {
       request: toRpcSubmitPluginActionRequest(request)
     })
     return fromRpcPluginActionSubmission(value)
+  }
+
+  async getPluginActionExecutionAdmission(
+    request: GetPluginActionExecutionAdmissionRequest
+  ): Promise<PluginActionExecutionAdmission> {
+    const value = await this.callPlugin({
+      command: "get-plugin-action-execution-admission",
+      request: toRpcGetPluginActionExecutionAdmissionRequest(request)
+    })
+    return fromRpcPluginActionExecutionAdmission(value)
   }
 
   private callPlugin(request: PluginStorageRpcCommand) {

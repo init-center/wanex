@@ -6,7 +6,10 @@ import { doctorValue } from "./commands/doctor.js"
 import { eventsValue } from "./commands/events.js"
 import { helpValue } from "./commands/help.js"
 import { memorySweepValue } from "./commands/memory.js"
-import { providerGetValue, providerSetValue } from "./commands/provider.js"
+import {
+  modelEndpointGetValue,
+  modelEndpointSetValue
+} from "./commands/model-endpoint.js"
 import { runValue } from "./commands/run.js"
 import { sideQueryValue } from "./commands/side-query.js"
 import { supportBundleValue } from "./commands/support-bundle.js"
@@ -65,11 +68,11 @@ export async function main(
       if (command.name === "support-bundle") {
         return ok(await supportBundleValue(storage, command))
       }
-      if (command.name === "provider-set") {
-        return ok(await providerSetValue(storage, command.profile))
+      if (command.name === "model-endpoint-set") {
+        return ok(await modelEndpointSetValue(storage, command.modelEndpoint))
       }
-      if (command.name === "provider-get") {
-        return ok(await providerGetValue(storage, command.profileId))
+      if (command.name === "model-endpoint-get") {
+        return ok(await modelEndpointGetValue(storage, command.endpointId))
       }
       if (command.name === "memory-sweep") {
         return ok(await memorySweepValue(storage, command))

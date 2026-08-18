@@ -16,7 +16,7 @@ export async function runValue(
   request: {
     readonly text: string
     readonly sessionId?: string
-    readonly providerId?: string
+    readonly modelEndpointId: string
     readonly timeoutMs?: number
     readonly maxSteps?: number
     readonly context?: CliAgentContextOptions
@@ -31,9 +31,7 @@ export async function runValue(
     workerId: `cli_agent_worker_${randomUUID()}`,
     leaseMs: DEFAULT_LEASE_MS,
     secretResolver,
-    ...(request.providerId === undefined
-      ? { fakeResponseText: `Fake response: ${request.text}` }
-      : { providerProfileId: request.providerId }),
+    modelEndpointId: request.modelEndpointId,
     ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs }),
     agentContext: preparedContext
   })
@@ -67,7 +65,7 @@ export async function runValue(
         : result.run.worker.status === "idle"
           ? "idle"
           : "failed",
-    providerId: request.providerId ?? "fake",
+    modelEndpointId: request.modelEndpointId,
     assistantText,
     messages,
     ...(request.context === undefined
@@ -100,7 +98,7 @@ function contextSummary(
       ? {}
       : {
           skills: {
-            status: prepared.skillSnapshot.status,
+            complete: prepared.skillSnapshot.complete,
             sources: prepared.skillSnapshot.sources.map((source) => ({
               scope: source.scope,
               name: source.name,

@@ -1,4 +1,5 @@
 import type {
+  MessageId,
   PrincipalId,
   SessionAttemptId,
   SessionId,
@@ -13,6 +14,8 @@ export type SessionInputOriginKind =
   | "scheduler"
   | "connector"
   | "agent"
+  | "plan"
+  | "objective"
   | "system"
   | (string & {})
 
@@ -151,7 +154,7 @@ export interface EphemeralQueryRequest {
   readonly principalId?: PrincipalId
   readonly contextSnapshotId?: string
   readonly question: readonly MessagePart[]
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly origin?: SessionInputOrigin
   readonly toolPolicy?: EphemeralQueryToolPolicy
   readonly memoryPolicy?: EphemeralQueryMemoryPolicy
@@ -162,5 +165,29 @@ export interface EphemeralQueryRequest {
 
 export interface EphemeralQueryResult {
   readonly output: readonly MessagePart[]
+  readonly evidence: EphemeralQueryEvidence
   readonly telemetry?: Readonly<Record<string, JsonValue>>
+}
+
+export interface EphemeralQueryEvidence {
+  readonly source?: EphemeralQuerySourceEvidence
+  readonly provider: EphemeralQueryProviderEvidence
+  readonly inputDigest: string
+  readonly outputDigest: string
+  readonly completedAt: number
+}
+
+export interface EphemeralQuerySourceEvidence {
+  readonly sessionId: SessionId
+  readonly headSequence: number
+  readonly headMessageId?: MessageId
+  readonly headTurnId?: SessionTurnId
+}
+
+export interface EphemeralQueryProviderEvidence {
+  readonly endpointId: string
+  readonly endpointDigest: string
+  readonly protocolId: string
+  readonly providerId: string
+  readonly modelId: string
 }

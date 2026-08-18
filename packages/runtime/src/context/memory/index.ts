@@ -1,21 +1,34 @@
 export const WANEX_RUNTIME_CONTEXT_MEMORY = "wanex-runtime-context-memory" as const
 
-export { DeterministicContextCompiler } from "./compiler.js"
-export { DEFAULT_POLICY, mergePolicy } from "./policy.js"
+export { SemanticContextCompiler } from "./compiler.js"
+export { resolveContextCompactionPolicy } from "./policy.js"
+export { contextDigest, contextTextDigest, stableContextJson } from "./digest.js"
+export {
+  prepareContextCompaction,
+  reconstructContextCompaction,
+  validateActiveEpoch
+} from "./sources.js"
+export { serializeContextSource } from "./serialization.js"
 export {
   DEFAULT_CONTEXT_TOKEN_ESTIMATOR,
   estimatePartTokens,
-  estimatePartsTokens
+  estimatePartsTokens,
+  estimateMessagesTokens
 } from "./token-estimate.js"
 export type { ContextTokenEstimator } from "./token-estimate.js"
 export type {
   CompileContextInput,
   CompiledContext,
-  ContextCompiler,
+  ContextCompactionEvidence,
+  ContextCompactionPlanReason,
+  ContextCompactionPolicy,
+  ContextCompactionPolicyOverrides,
   ContextCompileStats,
-  ContextMemoryPolicy,
-  ContextReplacementRecord,
-  ContextReplacementStore,
-  ContextReplacementTier,
-  DeterministicContextCompilerOptions
+  ContextCompiler,
+  ContextEpochStore,
+  PreparedContextCompaction,
+  PrepareContextCompactionInput,
+  ReconstructContextCompactionInput,
+  SemanticContextCompilerOptions,
+  SerializedContextSource
 } from "./types.js"

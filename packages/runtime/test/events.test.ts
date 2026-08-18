@@ -67,7 +67,7 @@ describe("@wanex/runtime internal events", () => {
       id: "evt_config",
       type: "config.updated",
       scope: {},
-      payload: { key: "provider.profile.default", updatedAt: 3 },
+      payload: { key: "runtime.setting.default", updatedAt: 3 },
       occurredAt: 3
     })
     const unknownEvent = createRuntimeEvent({
@@ -116,7 +116,7 @@ describe("@wanex/runtime internal events", () => {
       )
     }
 
-    const first = await events.pollOnce({
+    const first = await events.reconcile({
       scope: { sessionId: "ses_poll" },
       limit: 2
     })
@@ -132,7 +132,7 @@ describe("@wanex/runtime internal events", () => {
       throw new Error("expected first poll cursor")
     }
 
-    const second = await events.pollOnce({
+    const second = await events.reconcile({
       scope: { sessionId: "ses_poll" },
       cursor: first.cursor,
       limit: 2

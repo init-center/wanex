@@ -7,7 +7,7 @@ import {
   type PreparedAgentContext
 } from "@wanex/runtime/context"
 import type {
-  WanexAppConfigReloadHandlerResult,
+  WanexAppConfigReloadCandidateResult,
   WanexAppConfigReloadSubscription
 } from "./config-reload.js"
 import { preparedWanexAppAgentContextFingerprint } from "./context-fingerprint.js"
@@ -61,12 +61,26 @@ export async function createWanexAppAgentContextProfileManager(
     revision = 1
   }
 
-  const reload = async (): Promise<WanexAppConfigReloadHandlerResult> => {
+  const prepare: WanexAppConfigReloadSubscription["prepare"] = async () => {
     const value = await options.app.config.require(
       WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
     )
     const nextProfile = agentContextProfileFromJson(value)
     const nextPrepared = await prepareProfile(nextProfile)
+    if (nextPrepared.skillSnapshot?.complete === false) {
+      return {
+        kind: "rejected",
+        result: {
+          reloaded: false,
+          reason: "skill_observation_incomplete",
+          detail: incompleteSkillObservationDetail({
+            revision,
+            current: currentPrepared,
+            candidate: nextPrepared
+          })
+        }
+      }
+    }
     const nextFingerprint =
       preparedWanexAppAgentContextFingerprint(nextPrepared)
     const reloaded =
@@ -74,21 +88,36 @@ export async function createWanexAppAgentContextProfileManager(
       JSON.stringify(agentContextProfileToJson(currentProfile)) !==
         JSON.stringify(agentContextProfileToJson(nextProfile)) ||
       currentFingerprint !== nextFingerprint
-    currentProfile = nextProfile
-    currentPrepared = nextPrepared
-    currentFingerprint = nextFingerprint
-    if (reloaded) {
-      revision += 1
+    const previous = {
+      profile: currentProfile,
+      prepared: currentPrepared,
+      fingerprint: currentFingerprint,
+      revision
     }
+    const nextRevision = reloaded ? revision + 1 : revision
     const detail = statusDetail({
-      revision,
-      prepared: currentPrepared
+      revision: nextRevision,
+      prepared: nextPrepared
     })
     return {
-      key: WANEX_APP_AGENT_CONTEXT_PROFILE_KEY,
-      reloaded,
-      ...(reloaded ? {} : { reason: "unchanged" }),
-      detail
+      kind: "ready",
+      result: {
+        reloaded,
+        ...(reloaded ? {} : { reason: "unchanged" }),
+        detail
+      },
+      commit() {
+        currentProfile = nextProfile
+        currentPrepared = nextPrepared
+        currentFingerprint = nextFingerprint
+        revision = nextRevision
+      },
+      rollback() {
+        currentProfile = previous.profile
+        currentPrepared = previous.prepared
+        currentFingerprint = previous.fingerprint
+        revision = previous.revision
+      }
     }
   }
 
@@ -103,7 +132,7 @@ export async function createWanexAppAgentContextProfileManager(
       kind: "exact",
       key: WANEX_APP_AGENT_CONTEXT_PROFILE_KEY
     },
-    reload
+    prepare
   }
   options.app.registerConfigReload(subscription)
 
@@ -139,7 +168,9 @@ export function summarizeWanexAppPreparedAgentContext(
   return {
     instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
     skillNames:
-      prepared.skillSnapshot?.sources.map((source) => source.name) ?? [],
+      prepared.skillSnapshot?.complete === true
+        ? prepared.skillSnapshot.sources.map((source) => source.name)
+        : [],
     diagnostics: [
       ...(prepared.instructionSnapshot?.diagnostics.map(
         (diagnostic) => diagnostic.code
@@ -149,6 +180,31 @@ export function summarizeWanexAppPreparedAgentContext(
       ) ?? [])
     ],
     activationToolRegistered: prepared.tools !== undefined
+  }
+}
+
+function incompleteSkillObservationDetail(options: {
+  readonly revision: number
+  readonly current: PreparedAgentContext | undefined
+  readonly candidate: PreparedAgentContext
+}): NonNullable<WanexAppConfigReloadCandidateResult["detail"]> {
+  const retained =
+    options.current === undefined
+      ? {
+          instructionSources: 0,
+          skillNames: [],
+          diagnostics: [],
+          activationToolRegistered: false
+        }
+      : summarizeWanexAppPreparedAgentContext(options.current)
+  return {
+    revision: options.revision,
+    retained: options.current !== undefined,
+    ...retained,
+    candidateDiagnostics:
+      options.candidate.skillSnapshot?.diagnostics.map(
+        (diagnostic) => diagnostic.code
+      ) ?? []
   }
 }
 
@@ -177,7 +233,7 @@ async function normalizeRefreshResult(
 function statusDetail(options: {
   readonly revision: number
   readonly prepared: PreparedAgentContext
-}): NonNullable<WanexAppConfigReloadHandlerResult["detail"]> {
+}): NonNullable<WanexAppConfigReloadCandidateResult["detail"]> {
   return {
     revision: options.revision,
     ...summarizeWanexAppPreparedAgentContext(options.prepared)

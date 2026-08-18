@@ -3,6 +3,7 @@ import type { PrincipalId } from "./ids.js"
 export type BudgetScopeKind =
   | "session"
   | "turn"
+  | "objective"
   | "team_round"
   | "plugin"
   | "principal"

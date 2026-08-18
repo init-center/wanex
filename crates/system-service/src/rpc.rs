@@ -14,42 +14,50 @@ use std::io::{self, BufRead, Read, Write};
 use std::path::PathBuf;
 use std::sync::OnceLock;
 use wanex_system_service::{
-    AcceptMediaGenerationOperation, ActivateContextEpoch, AdmitSessionInput, AppendSessionMessage,
-    AppendTeamTurn, ApplySessionTurnControl, AttachDelegationGraphNodeJob,
+    AcceptMediaGenerationOperation, ActivateContextEpoch, ActivatePluginInstall,
+    AdmitObjectiveAttempt, AdmitSessionInput, AdmitTeamMessage, AppendSessionMessage,
+    ApplySessionTurnControl, AttachDelegationGraphNodeJob, BeginContextEpoch,
     BeginMediaGenerationOperation, BeginProviderInvocation, BeginToolExecution, CancelJob,
-    CheckpointMediaGenerationOperation, ClaimJob, CleanupExpiredResourceTickets, CloneContextEpoch,
-    CommitBudget, CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
-    EnqueueJob, FailChannelDelivery, FailJob, FinishConnectorSession, FinishProviderInvocation,
+    ChangeObjectiveState, ClaimJob, CleanupExpiredResourceTickets, CommitBudget,
+    CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
+    ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal, DeferToolExecution,
+    EnqueueJob, ExecuteApprovedPlan, FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization,
+    FinishConnectorSession, FinishContextEpochGeneration, FinishProviderInvocation,
     FinishToolExecution, GetActiveContextEpoch, GetDelegationGraphNode, GetJob,
-    GetMediaGenerationOperation, GetPluginInstall, GetPluginManifest, HeartbeatConnectorSession,
-    HeartbeatJob, IngestChannelInboundEvent, IngestResource, InterruptSessionTurn,
-    ListChannelBindings, ListChannelInboundEvents, ListChannelProjections,
-    ListConnectorCredentials, ListConnectorRegistrations, ListConnectorSessions, ListContextEpochs,
-    ListContextReplacements, ListDelegationGraphDependencies, ListDelegationGraphNodes,
-    ListDelegationGraphs, ListJobs, ListMediaGenerationOperations, ListObjectiveAttempts,
-    ListObjectiveRunOperations, ListObjectiveRuns, ListObjectiveVerifications,
-    ListPlanProposalOperations, ListPlanProposals, ListPluginInstalls, ListPluginManifests,
-    ListProviderInvocations, ListReadyDelegationGraphNodes, ListResources, ListSessionAttempts,
+    GetMediaGenerationOperation, GetPluginActionExecutionAdmission, GetPluginInstall,
+    GetPluginManifest, GetToolExecutionByCall, HeartbeatConnectorSession, HeartbeatJob,
+    IngestChannelInboundEvent, IngestResource, InterruptSessionTurn, ListChannelBindings,
+    ListChannelInboundEvents, ListChannelProjections, ListConnectorCredentials,
+    ListConnectorRegistrations, ListConnectorSessions, ListContextEpochs,
+    ListDelegationGraphDependencies, ListDelegationGraphNodes, ListDelegationGraphs, ListJobs,
+    ListMediaGenerationOperations, ListObjectiveAttemptReviews, ListObjectiveAttempts,
+    ListObjectiveVerifications, ListObjectives, ListPlanProposalOperations, ListPlanProposals,
+    ListPluginInstalls, ListPluginManifests, ListProviderInvocations,
+    ListReadyDelegationGraphNodes, ListResourceProvenance, ListResources, ListSessionAttempts,
     ListSessionTurnControls, ListSessionTurns, ListSessions, ListTeamConversations,
-    ListTeamParticipants, ListTeamTurns, ListToolExecutionAttempts, ListToolExecutions,
+    ListTeamDeliveries, ListTeamDiscussionRounds, ListTeamMessages, ListTeamParticipants,
+    ListTeamRoutingDecisions, ListToolActivities, ListToolExecutionAttempts, ListToolExecutions,
     ListWorkspaceChangeOperations, ListWorkspaceChangeProposalOperations,
-    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, MarkProviderInvocationOutput,
-    MaterializeReadyDelegationGraphNode, ProjectChannelInboundEvent, PruneContextEpochs,
-    PutChannelBinding, PutConnectorCredential, PutConnectorRegistration, PutContextEpoch,
-    PutContextReplacement, PutDelegationGraph, PutDelegationGraphDependency,
-    PutDelegationGraphNode, PutObjectiveAttempt, PutObjectiveRun, PutObjectiveVerification,
-    PutPlanProposal, PutPluginInstall, PutPluginManifest, PutTeamConversation, PutTeamParticipant,
-    PutWorkspaceChangeProposal, PutWorkspaceChangeSet, QueryEvents, RecordBudgetUsage,
-    RecordMediaGenerationOutputs, RecordObjectiveRunOperation, RecordPlanProposalOperation,
-    RecordWorkspaceChangeOperation, RecordWorkspaceChangeProposalOperation,
-    RequestMediaGenerationCancel, RequestSessionTurnCancel, ReserveBudget, ResourceCapability,
-    RevokeChannelBinding, RevokeConnectorCredential, RuntimeEvent, SettleMediaGenerationOperation,
-    SettleSessionTurn, StartConnectorSession, StartSessionTurnAttempt, SteerSessionTurn,
-    SubmitChannelDelivery, SubmitMediaGenerationOperation, SubmitPluginAction, SubmitSessionTurn,
-    SystemService, SystemServiceError, UpdateChannelInboundEventState,
-    UpdateConnectorRegistrationState, UpdateDelegationGraphNodeState, UpdateDelegationGraphState,
-    UpdatePluginInstallState, UpdatePluginManifestState, UpdateTeamConversationState,
-    UpdateTeamParticipantState,
+    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, MarkContextEpochOutputObserved,
+    MarkProviderInvocationOutput, MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery,
+    ProjectChannelInboundEvent, ProjectTeamDeliveryOutcome, PruneContextEpochs, PutChannelBinding,
+    PutConnectorCredential, PutConnectorRegistration, PutDelegationGraph,
+    PutDelegationGraphDependency, PutDelegationGraphNode, PutPluginInstall, PutPluginManifest,
+    PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal, PutWorkspaceChangeSet,
+    QueryEvents, ReadTeamConversationPage, ReconcileObjectiveCancellation, RecordBudgetUsage,
+    RecordMediaGenerationOutputs, RecordPlanProposalOperation, RecordResourceProvenance,
+    RecordWorkspaceChangeOperation, RecordWorkspaceChangeProposalOperation, RenameSession,
+    RequestMediaGenerationCancel, RequestObjectiveCancel, RequestSessionTurnCancel,
+    RequireToolExecutionRecovery, ReserveBudget, ResolveToolExecutionApproval,
+    ResolveToolExecutionRecovery, ResourceCapability, ReviewObjectiveAttempt, RevokeChannelBinding,
+    RevokeConnectorCredential, RouteTeamMessage, RuntimeEvent, SessionStateTransition,
+    SetTeamConversationLead, SettleMediaGenerationOperation, SettleSessionTurn,
+    StartConnectorSession, StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
+    SubmitMediaGenerationOperation, SubmitPluginAction, SubmitSessionTurn,
+    SuspendMediaGenerationOperation, SystemService, SystemServiceError,
+    UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
+    UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
+    UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
 };
 
 const STORAGE_RPC_VERSION: i64 = 1;
@@ -458,6 +466,26 @@ fn handle_runtime_request(
             service.put_config(&command.key, &value)?;
             Ok(Value::Null)
         }
+        RuntimeStorageRpcCommand::ApplyConfigMutationsCommand(command) => {
+            let puts = command
+                .puts
+                .into_iter()
+                .map(|entry| {
+                    let value: Value = project_wire(entry.value)?;
+                    Ok((String::from(entry.key), value))
+                })
+                .collect::<Result<Vec<_>, SystemServiceError>>()?;
+            let deletes = command
+                .deletes
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>();
+            service.apply_config_mutations(&puts, &deletes)?;
+            Ok(Value::Null)
+        }
+        RuntimeStorageRpcCommand::HasLiveSecretReferenceCommand(command) => Ok(Value::Bool(
+            service.has_live_secret_reference(&String::from(command.secret_ref))?,
+        )),
         RuntimeStorageRpcCommand::GetConfigCommand(command) => {
             serde_json::to_value(service.get_config(&command.key)?).map_err(Into::into)
         }
@@ -530,6 +558,14 @@ fn handle_runtime_request(
             serde_json::to_value(service.cleanup_expired_resource_tickets(&request)?)
                 .map_err(Into::into)
         }
+        RuntimeStorageRpcCommand::RecordResourceProvenanceCommand(command) => {
+            let request: RecordResourceProvenance = project_wire(command.request)?;
+            serde_json::to_value(service.record_resource_provenance(&request)?).map_err(Into::into)
+        }
+        RuntimeStorageRpcCommand::ListResourceProvenanceCommand(command) => {
+            let request: ListResourceProvenance = project_wire(command.request)?;
+            serde_json::to_value(service.list_resource_provenance(&request)?).map_err(Into::into)
+        }
         RuntimeStorageRpcCommand::DoctorCommand(_) => {
             serde_json::to_value(service.doctor()?).map_err(Into::into)
         }
@@ -553,9 +589,9 @@ fn handle_media_generation_request(
             let request: AcceptMediaGenerationOperation = project_wire(command.request)?;
             serde_json::to_value(service.accept_media_generation(&request)?).map_err(Into::into)
         }
-        MediaGenerationStorageRpcCommand::CheckpointMediaGenerationCommand(command) => {
-            let request: CheckpointMediaGenerationOperation = project_wire(command.request)?;
-            serde_json::to_value(service.checkpoint_media_generation(&request)?).map_err(Into::into)
+        MediaGenerationStorageRpcCommand::SuspendMediaGenerationCommand(command) => {
+            let request: SuspendMediaGenerationOperation = project_wire(command.request)?;
+            serde_json::to_value(service.suspend_media_generation(&request)?).map_err(Into::into)
         }
         MediaGenerationStorageRpcCommand::RecordMediaGenerationOutputsCommand(command) => {
             let request: RecordMediaGenerationOutputs = project_wire(command.request)?;
@@ -608,6 +644,18 @@ fn handle_sessions_request(
         SessionsStorageRpcCommand::ListSessionsCommand(command) => {
             let request: ListSessions = project_wire(command.request)?;
             serde_json::to_value(service.list_sessions(&request)?).map_err(Into::into)
+        }
+        SessionsStorageRpcCommand::RenameSessionCommand(command) => {
+            let request: RenameSession = project_wire(command.request)?;
+            serde_json::to_value(service.rename_session(&request)?).map_err(Into::into)
+        }
+        SessionsStorageRpcCommand::ArchiveSessionCommand(command) => {
+            let request: SessionStateTransition = project_wire(command.request)?;
+            serde_json::to_value(service.archive_session(&request)?).map_err(Into::into)
+        }
+        SessionsStorageRpcCommand::RestoreSessionCommand(command) => {
+            let request: SessionStateTransition = project_wire(command.request)?;
+            serde_json::to_value(service.restore_session(&request)?).map_err(Into::into)
         }
         SessionsStorageRpcCommand::AdmitSessionInputCommand(command) => {
             let request = AdmitSessionInput {
@@ -672,19 +720,63 @@ fn handle_sessions_request(
             serde_json::to_value(service.apply_session_turn_control(&request)?).map_err(Into::into)
         }
         SessionsStorageRpcCommand::ListSessionInputsCommand(command) => {
-            serde_json::to_value(service.list_session_inputs(&command.session_id)?)
-                .map_err(Into::into)
+            let status = command.status.0.map(|value| value.to_string());
+            let limit = optional_positive_i64(command.limit, "session input limit")?;
+            serde_json::to_value(service.list_session_input_window(
+                &command.session_id,
+                status.as_deref(),
+                limit,
+            )?)
+            .map_err(Into::into)
         }
         SessionsStorageRpcCommand::ListSessionMessagesCommand(command) => {
-            serde_json::to_value(service.list_session_messages(&command.session_id)?)
-                .map_err(Into::into)
+            if command.turn_ids.is_some()
+                && (command.before_sequence.is_some() || command.limit.is_some())
+            {
+                return Err(SystemServiceError::InvalidInput(
+                    "session message turn_ids and window filters are mutually exclusive"
+                        .to_string(),
+                ));
+            }
+            if let Some(turn_ids) = command.turn_ids {
+                let turn_ids = turn_ids.into_iter().map(Into::into).collect::<Vec<_>>();
+                return serde_json::to_value(
+                    service.list_session_messages_by_turn_ids(&command.session_id, &turn_ids)?,
+                )
+                .map_err(Into::into);
+            }
+            let before_sequence =
+                optional_positive_i64(command.before_sequence, "session message before_sequence")?;
+            let limit = optional_positive_i64(command.limit, "session message limit")?;
+            serde_json::to_value(service.list_session_message_window(
+                &command.session_id,
+                before_sequence,
+                limit,
+            )?)
+            .map_err(Into::into)
         }
         SessionsStorageRpcCommand::ListSessionTurnsCommand(command) => {
-            let request = ListSessionTurns {
-                session_id: command.session_id,
-                state: command.state.0.map(|state| state.to_string()),
-            };
-            serde_json::to_value(service.list_session_turns(&request)?).map_err(Into::into)
+            if command.state.0.is_some() && command.turn_ids.is_some() {
+                return Err(SystemServiceError::InvalidInput(
+                    "session turn state and turn_ids filters are mutually exclusive".to_string(),
+                ));
+            }
+            match command.turn_ids {
+                Some(turn_ids) => {
+                    let turn_ids = turn_ids.into_iter().map(Into::into).collect::<Vec<_>>();
+                    serde_json::to_value(
+                        service.list_session_turns_by_ids(&command.session_id, &turn_ids)?,
+                    )
+                    .map_err(Into::into)
+                }
+                None => {
+                    let request = ListSessionTurns {
+                        session_id: command.session_id,
+                        state: command.state.0.map(|state| state.to_string()),
+                    };
+                    serde_json::to_value(service.list_session_turns(&request)?).map_err(Into::into)
+                }
+            }
         }
         SessionsStorageRpcCommand::ListSessionAttemptsCommand(command) => {
             let request = ListSessionAttempts {
@@ -716,17 +808,28 @@ fn handle_context_request(
     request: ContextStorageRpcCommand,
 ) -> Result<Value, SystemServiceError> {
     match request {
-        ContextStorageRpcCommand::PutContextEpochCommand(command) => {
-            let request: PutContextEpoch = project_wire(command.request)?;
-            serde_json::to_value(service.put_context_epoch(&request)?).map_err(Into::into)
+        ContextStorageRpcCommand::BeginContextEpochCommand(command) => {
+            let request: BeginContextEpoch = project_wire(command.request)?;
+            serde_json::to_value(service.begin_context_epoch(&request)?).map_err(Into::into)
+        }
+        ContextStorageRpcCommand::MarkContextEpochDispatchedCommand(command) => {
+            let request: ContextEpochMutationIdentity = project_wire(command.request)?;
+            serde_json::to_value(service.mark_context_epoch_dispatched(&request)?)
+                .map_err(Into::into)
+        }
+        ContextStorageRpcCommand::MarkContextEpochOutputObservedCommand(command) => {
+            let request: MarkContextEpochOutputObserved = project_wire(command.request)?;
+            serde_json::to_value(service.mark_context_epoch_output_observed(&request)?)
+                .map_err(Into::into)
+        }
+        ContextStorageRpcCommand::FinishContextEpochGenerationCommand(command) => {
+            let request: FinishContextEpochGeneration = project_wire(command.request)?;
+            serde_json::to_value(service.finish_context_epoch_generation(&request)?)
+                .map_err(Into::into)
         }
         ContextStorageRpcCommand::ActivateContextEpochCommand(command) => {
             let request: ActivateContextEpoch = project_wire(command.request)?;
             serde_json::to_value(service.activate_context_epoch(&request)?).map_err(Into::into)
-        }
-        ContextStorageRpcCommand::CloneContextEpochCommand(command) => {
-            let request: CloneContextEpoch = project_wire(command.request)?;
-            serde_json::to_value(service.clone_context_epoch(&request)?).map_err(Into::into)
         }
         ContextStorageRpcCommand::PruneContextEpochsCommand(command) => {
             let request: PruneContextEpochs = project_wire(command.request)?;
@@ -739,14 +842,6 @@ fn handle_context_request(
         ContextStorageRpcCommand::GetActiveContextEpochCommand(command) => {
             let request: GetActiveContextEpoch = project_wire(command.request)?;
             serde_json::to_value(service.get_active_context_epoch(&request)?).map_err(Into::into)
-        }
-        ContextStorageRpcCommand::PutContextReplacementCommand(command) => {
-            let request: PutContextReplacement = project_wire(command.request)?;
-            serde_json::to_value(service.put_context_replacement(&request)?).map_err(Into::into)
-        }
-        ContextStorageRpcCommand::ListContextReplacementsCommand(command) => {
-            let request: ListContextReplacements = project_wire(command.request)?;
-            serde_json::to_value(service.list_context_replacements(&request)?).map_err(Into::into)
         }
     }
 }
@@ -821,17 +916,44 @@ fn handle_tools_request(
             let request: BeginToolExecution = project_wire(command.request)?;
             serde_json::to_value(service.begin_tool_execution(&request)?).map_err(Into::into)
         }
+        ToolsStorageRpcCommand::DeferToolExecutionCommand(command) => {
+            let request: DeferToolExecution = project_wire(command.request)?;
+            serde_json::to_value(service.defer_tool_execution(&request)?).map_err(Into::into)
+        }
         ToolsStorageRpcCommand::FinishToolExecutionCommand(command) => {
             let request: FinishToolExecution = project_wire(command.request)?;
             serde_json::to_value(service.finish_tool_execution(&request)?).map_err(Into::into)
+        }
+        ToolsStorageRpcCommand::RequireToolExecutionRecoveryCommand(command) => {
+            let request: RequireToolExecutionRecovery = project_wire(command.request)?;
+            serde_json::to_value(service.require_tool_execution_recovery(&request)?)
+                .map_err(Into::into)
+        }
+        ToolsStorageRpcCommand::ResolveToolExecutionRecoveryCommand(command) => {
+            let request: ResolveToolExecutionRecovery = project_wire(command.request)?;
+            serde_json::to_value(service.resolve_tool_execution_recovery(&request)?)
+                .map_err(Into::into)
+        }
+        ToolsStorageRpcCommand::ResolveToolExecutionApprovalCommand(command) => {
+            let request: ResolveToolExecutionApproval = project_wire(command.request)?;
+            serde_json::to_value(service.resolve_tool_execution_approval(&request)?)
+                .map_err(Into::into)
         }
         ToolsStorageRpcCommand::GetToolExecutionCommand(command) => {
             serde_json::to_value(service.get_tool_execution(&command.execution_id)?)
                 .map_err(Into::into)
         }
+        ToolsStorageRpcCommand::GetToolExecutionByCallCommand(command) => {
+            let request: GetToolExecutionByCall = project_wire(command.request)?;
+            serde_json::to_value(service.get_tool_execution_by_call(&request)?).map_err(Into::into)
+        }
         ToolsStorageRpcCommand::ListToolExecutionsCommand(command) => {
             let request: ListToolExecutions = project_wire(command.request)?;
             serde_json::to_value(service.list_tool_executions(&request)?).map_err(Into::into)
+        }
+        ToolsStorageRpcCommand::ListToolActivitiesCommand(command) => {
+            let request: ListToolActivities = project_wire(command.request)?;
+            serde_json::to_value(service.list_tool_activities(&request)?).map_err(Into::into)
         }
         ToolsStorageRpcCommand::ListToolExecutionAttemptsCommand(command) => {
             let request: ListToolExecutionAttempts = project_wire(command.request)?;
@@ -900,9 +1022,9 @@ fn handle_plan_request(
     request: PlanStorageRpcCommand,
 ) -> Result<Value, SystemServiceError> {
     match request {
-        PlanStorageRpcCommand::PutPlanProposalCommand(command) => {
-            let request: PutPlanProposal = project_wire(command.request)?;
-            serde_json::to_value(service.put_plan_proposal(&request)?).map_err(Into::into)
+        PlanStorageRpcCommand::CreatePlanProposalCommand(command) => {
+            let request: CreatePlanProposal = project_wire(command.request)?;
+            serde_json::to_value(service.create_plan_proposal(&request)?).map_err(Into::into)
         }
         PlanStorageRpcCommand::GetPlanProposalCommand(command) => {
             serde_json::to_value(service.get_plan_proposal(&command.proposal_id)?)
@@ -917,6 +1039,10 @@ fn handle_plan_request(
             serde_json::to_value(service.record_plan_proposal_operation(&request)?)
                 .map_err(Into::into)
         }
+        PlanStorageRpcCommand::ExecuteApprovedPlanCommand(command) => {
+            let request: ExecuteApprovedPlan = project_wire(command.request)?;
+            serde_json::to_value(service.execute_approved_plan(&request)?).map_err(Into::into)
+        }
         PlanStorageRpcCommand::ListPlanProposalOperationsCommand(command) => {
             let request: ListPlanProposalOperations = project_wire(command.request)?;
             serde_json::to_value(service.list_plan_proposal_operations(&request)?)
@@ -930,39 +1056,50 @@ fn handle_objective_request(
     request: ObjectiveStorageRpcCommand,
 ) -> Result<Value, SystemServiceError> {
     match request {
-        ObjectiveStorageRpcCommand::PutObjectiveRunCommand(command) => {
-            let request: PutObjectiveRun = project_wire(command.request)?;
-            serde_json::to_value(service.put_objective_run(&request)?).map_err(Into::into)
+        ObjectiveStorageRpcCommand::CreateObjectiveCommand(command) => {
+            let request: CreateObjective = project_wire(command.request)?;
+            serde_json::to_value(service.create_objective(&request)?).map_err(Into::into)
         }
-        ObjectiveStorageRpcCommand::GetObjectiveRunCommand(command) => {
-            serde_json::to_value(service.get_objective_run(&command.objective_id)?)
+        ObjectiveStorageRpcCommand::GetObjectiveCommand(command) => {
+            serde_json::to_value(service.get_objective(&command.objective_id)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::ListObjectivesCommand(command) => {
+            let request: ListObjectives = project_wire(command.request)?;
+            serde_json::to_value(service.list_objectives(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::PauseObjectiveCommand(command) => {
+            let request: ChangeObjectiveState = project_wire(command.request)?;
+            serde_json::to_value(service.pause_objective(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::ResumeObjectiveCommand(command) => {
+            let request: ChangeObjectiveState = project_wire(command.request)?;
+            serde_json::to_value(service.resume_objective(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::AdmitObjectiveAttemptCommand(command) => {
+            let request: AdmitObjectiveAttempt = project_wire(command.request)?;
+            serde_json::to_value(service.admit_objective_attempt(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::ReviewObjectiveAttemptCommand(command) => {
+            let request: ReviewObjectiveAttempt = project_wire(command.request)?;
+            serde_json::to_value(service.review_objective_attempt(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::RequestObjectiveCancelCommand(command) => {
+            let request: RequestObjectiveCancel = project_wire(command.request)?;
+            serde_json::to_value(service.request_objective_cancel(&request)?).map_err(Into::into)
+        }
+        ObjectiveStorageRpcCommand::ReconcileObjectiveCancellationCommand(command) => {
+            let request: ReconcileObjectiveCancellation = project_wire(command.request)?;
+            serde_json::to_value(service.reconcile_objective_cancellation(&request)?)
                 .map_err(Into::into)
-        }
-        ObjectiveStorageRpcCommand::ListObjectiveRunsCommand(command) => {
-            let request: ListObjectiveRuns = project_wire(command.request)?;
-            serde_json::to_value(service.list_objective_runs(&request)?).map_err(Into::into)
-        }
-        ObjectiveStorageRpcCommand::RecordObjectiveRunOperationCommand(command) => {
-            let request: RecordObjectiveRunOperation = project_wire(command.request)?;
-            serde_json::to_value(service.record_objective_run_operation(&request)?)
-                .map_err(Into::into)
-        }
-        ObjectiveStorageRpcCommand::ListObjectiveRunOperationsCommand(command) => {
-            let request: ListObjectiveRunOperations = project_wire(command.request)?;
-            serde_json::to_value(service.list_objective_run_operations(&request)?)
-                .map_err(Into::into)
-        }
-        ObjectiveStorageRpcCommand::PutObjectiveAttemptCommand(command) => {
-            let request: PutObjectiveAttempt = project_wire(command.request)?;
-            serde_json::to_value(service.put_objective_attempt(&request)?).map_err(Into::into)
         }
         ObjectiveStorageRpcCommand::ListObjectiveAttemptsCommand(command) => {
             let request: ListObjectiveAttempts = project_wire(command.request)?;
             serde_json::to_value(service.list_objective_attempts(&request)?).map_err(Into::into)
         }
-        ObjectiveStorageRpcCommand::PutObjectiveVerificationCommand(command) => {
-            let request: PutObjectiveVerification = project_wire(command.request)?;
-            serde_json::to_value(service.put_objective_verification(&request)?).map_err(Into::into)
+        ObjectiveStorageRpcCommand::ListObjectiveAttemptReviewsCommand(command) => {
+            let request: ListObjectiveAttemptReviews = project_wire(command.request)?;
+            serde_json::to_value(service.list_objective_attempt_reviews(&request)?)
+                .map_err(Into::into)
         }
         ObjectiveStorageRpcCommand::ListObjectiveVerificationsCommand(command) => {
             let request: ListObjectiveVerifications = project_wire(command.request)?;
@@ -1061,6 +1198,10 @@ fn handle_team_request(
             serde_json::to_value(service.update_team_conversation_state(&request)?)
                 .map_err(Into::into)
         }
+        TeamStorageRpcCommand::SetTeamConversationLeadCommand(command) => {
+            let request: SetTeamConversationLead = project_wire(command.request)?;
+            serde_json::to_value(service.set_team_conversation_lead(&request)?).map_err(Into::into)
+        }
         TeamStorageRpcCommand::PutTeamParticipantCommand(command) => {
             let request: PutTeamParticipant = project_wire(command.request)?;
             serde_json::to_value(service.put_team_participant(&request)?).map_err(Into::into)
@@ -1074,13 +1215,79 @@ fn handle_team_request(
             serde_json::to_value(service.update_team_participant_state(&request)?)
                 .map_err(Into::into)
         }
-        TeamStorageRpcCommand::AppendTeamTurnCommand(command) => {
-            let request: AppendTeamTurn = project_wire(command.request)?;
-            serde_json::to_value(service.append_team_turn(&request)?).map_err(Into::into)
+        TeamStorageRpcCommand::AdmitTeamMessageCommand(command) => {
+            let request: AdmitTeamMessage = project_wire(command.request)?;
+            serde_json::to_value(service.admit_team_message(&request)?).map_err(Into::into)
         }
-        TeamStorageRpcCommand::ListTeamTurnsCommand(command) => {
-            let request: ListTeamTurns = project_wire(command.request)?;
-            serde_json::to_value(service.list_team_turns(&request)?).map_err(Into::into)
+        TeamStorageRpcCommand::GetTeamMessageCommand(command) => {
+            serde_json::to_value(service.get_team_message(&command.message_id)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ListTeamMessagesCommand(command) => {
+            let request: ListTeamMessages = project_wire(command.request)?;
+            serde_json::to_value(service.list_team_messages(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::RouteTeamMessageCommand(command) => {
+            let request: RouteTeamMessage = project_wire(command.request)?;
+            serde_json::to_value(service.route_team_message(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::GetTeamRoutingDecisionByMessageCommand(command) => {
+            serde_json::to_value(service.get_team_routing_decision_by_message(&command.message_id)?)
+                .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ListTeamRoutingDecisionsCommand(command) => {
+            let request: ListTeamRoutingDecisions = project_wire(command.request)?;
+            serde_json::to_value(service.list_team_routing_decisions(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ListTeamDeliveriesCommand(command) => {
+            let request: ListTeamDeliveries = project_wire(command.request)?;
+            serde_json::to_value(service.list_team_deliveries(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::GetTeamDiscussionRoundCommand(command) => {
+            serde_json::to_value(service.get_team_discussion_round(&command.round_id)?)
+                .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::GetTeamDelegationOperationCommand(command) => {
+            serde_json::to_value(service.get_team_delegation_operation(&command.operation_id)?)
+                .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::GetTeamDelegationOperationByToolExecutionCommand(command) => {
+            serde_json::to_value(
+                service
+                    .get_team_delegation_operation_by_tool_execution(&command.tool_execution_id)?,
+            )
+            .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ListTeamDelegationTasksCommand(command) => {
+            serde_json::to_value(service.list_team_delegation_tasks(&command.operation_id)?)
+                .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ListTeamDiscussionRoundsCommand(command) => {
+            let request: ListTeamDiscussionRounds = project_wire(command.request)?;
+            serde_json::to_value(service.list_team_discussion_rounds(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ReadTeamConversationPageCommand(command) => {
+            let request: ReadTeamConversationPage = project_wire(command.request)?;
+            serde_json::to_value(service.read_team_conversation_page(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::GetTeamDeliveryMaterializationContextCommand(command) => {
+            serde_json::to_value(
+                service.get_team_delivery_materialization_context(&command.delivery_id)?,
+            )
+            .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::MaterializeTeamDeliveryCommand(command) => {
+            let request: MaterializeTeamDelivery = project_wire(command.request)?;
+            serde_json::to_value(service.materialize_team_delivery(&request)?).map_err(Into::into)
+        }
+        TeamStorageRpcCommand::FailTeamDeliveryMaterializationCommand(command) => {
+            let request: FailTeamDeliveryMaterialization = project_wire(command.request)?;
+            serde_json::to_value(service.fail_team_delivery_materialization(&request)?)
+                .map_err(Into::into)
+        }
+        TeamStorageRpcCommand::ProjectTeamDeliveryOutcomeCommand(command) => {
+            let request: ProjectTeamDeliveryOutcome = project_wire(command.request)?;
+            serde_json::to_value(service.project_team_delivery_outcome(&request)?)
+                .map_err(Into::into)
         }
     }
 }
@@ -1106,6 +1313,10 @@ fn handle_plugin_request(
             let request: PutPluginInstall = project_wire(command.request)?;
             serde_json::to_value(service.put_plugin_install(&request)?).map_err(Into::into)
         }
+        PluginStorageRpcCommand::ActivatePluginInstallCommand(command) => {
+            let request: ActivatePluginInstall = project_wire(command.request)?;
+            serde_json::to_value(service.activate_plugin_install(&request)?).map_err(Into::into)
+        }
         PluginStorageRpcCommand::GetPluginInstallCommand(command) => {
             let request: GetPluginInstall = project_wire(command.request)?;
             serde_json::to_value(service.get_plugin_install(&request)?).map_err(Into::into)
@@ -1121,6 +1332,11 @@ fn handle_plugin_request(
         PluginStorageRpcCommand::UpdatePluginManifestStateCommand(command) => {
             let request: UpdatePluginManifestState = project_wire(command.request)?;
             serde_json::to_value(service.update_plugin_manifest_state(&request)?)
+                .map_err(Into::into)
+        }
+        PluginStorageRpcCommand::GetPluginActionExecutionAdmissionCommand(command) => {
+            let request: GetPluginActionExecutionAdmission = project_wire(command.request)?;
+            serde_json::to_value(service.get_plugin_action_execution_admission(&request)?)
                 .map_err(Into::into)
         }
         PluginStorageRpcCommand::SubmitPluginActionCommand(command) => {
@@ -1482,7 +1698,7 @@ fn schema_shape_matches(value: &Value, schema: &Value, root_schema: &Value) -> b
             .pointer(pointer)
             .is_some_and(|target| schema_shape_matches(value, target, root_schema));
     }
-    match schema.get("type").and_then(Value::as_str) {
+    let type_matches = match schema.get("type").and_then(Value::as_str) {
         Some("null") => value.is_null(),
         Some("object") => value.is_object(),
         Some("array") => value.is_array(),
@@ -1490,7 +1706,37 @@ fn schema_shape_matches(value: &Value, schema: &Value, root_schema: &Value) -> b
         Some("integer") | Some("number") => value.is_number(),
         Some("boolean") => value.is_boolean(),
         _ => true,
+    };
+    if !type_matches {
+        return false;
     }
+    if let (Some(object), Some(properties)) = (
+        value.as_object(),
+        schema.get("properties").and_then(Value::as_object),
+    ) {
+        for (field, field_schema) in properties {
+            let Some(field_value) = object.get(field) else {
+                continue;
+            };
+            let resolved = if let Some(reference) = field_schema.get("$ref").and_then(Value::as_str)
+            {
+                reference
+                    .strip_prefix('#')
+                    .and_then(|pointer| root_schema.pointer(pointer))
+                    .unwrap_or(field_schema)
+            } else {
+                field_schema
+            };
+            if resolved
+                .get("enum")
+                .and_then(Value::as_array)
+                .is_some_and(|values| !values.contains(field_value))
+            {
+                return false;
+            }
+        }
+    }
+    true
 }
 
 fn error_code(error: &SystemServiceError) -> &'static str {
@@ -1500,9 +1746,24 @@ fn error_code(error: &SystemServiceError) -> &'static str {
         SystemServiceError::Json(_) => "json",
         SystemServiceError::InvalidLogicalPath(_) => "invalid_input",
         SystemServiceError::InvalidInput(_) => "invalid_input",
+        SystemServiceError::NotFound(_) => "not_found",
+        SystemServiceError::Conflict(_) => "conflict",
         SystemServiceError::Sha256Mismatch { .. } => "sha256_mismatch",
         SystemServiceError::BudgetDenied { .. } => "budget_denied",
         SystemServiceError::InvalidJobRequest(_) => "invalid_job_request",
         SystemServiceError::Invariant(_) => "invariant",
     }
+}
+
+fn optional_positive_i64(
+    value: Option<std::num::NonZeroU64>,
+    field: &str,
+) -> Result<Option<i64>, SystemServiceError> {
+    value
+        .map(|value| {
+            i64::try_from(value.get()).map_err(|_| {
+                SystemServiceError::InvalidInput(format!("{field} exceeds supported range"))
+            })
+        })
+        .transpose()
 }

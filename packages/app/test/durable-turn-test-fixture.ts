@@ -1,5 +1,5 @@
 import type {
-  ProviderProfile,
+  ModelEndpoint,
   SubmitSessionTurnRequest,
   SubmitSessionTurnReceipt
 } from "@wanex/protocol"
@@ -7,26 +7,21 @@ import {
   createTestTurnExecutionBinding,
   type StorageTestStore
 } from "@wanex/storage/testing"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
 
 type TestTurnRequest = Omit<SubmitSessionTurnRequest, "executionBinding"> & {
-  readonly profile?: ProviderProfile
+  readonly modelEndpoint?: ModelEndpoint
 }
 
 export async function submitTestTurn(
   storage: StorageTestStore,
   request: TestTurnRequest
 ): Promise<SubmitSessionTurnReceipt> {
-  const profile = request.profile ?? {
-    id: "wanex-app-fake",
-    kind: "fake",
-    capabilities: { input: ["text"], output: ["text"] },
-    providerId: "fake",
-    modelId: "wanex-app-model"
-  }
-  const { profile: _profile, ...submission } = request
+  const modelEndpoint = request.modelEndpoint ?? appTestModelEndpoint()
+  const { modelEndpoint: _modelEndpoint, ...submission } = request
   return await storage.submitSessionTurn({
     ...submission,
-    executionBinding: createTestTurnExecutionBinding(profile)
+    executionBinding: createTestTurnExecutionBinding(modelEndpoint)
   })
 }
 

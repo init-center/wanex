@@ -1,0 +1,97 @@
+.overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; }
+.overlay-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; background: var(--color-backdrop); border: 0; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.settings-panel { position: relative; z-index: 1; width: min(720px, calc(100vw - 48px)); max-height: min(760px, calc(100vh - 48px)); padding: 22px 24px 24px; overflow-y: auto; background: var(--color-overlay); border: 1px solid var(--color-overlay-line); border-radius: 12px; box-shadow: var(--shadow-float); backdrop-filter: blur(26px) saturate(135%); -webkit-backdrop-filter: blur(26px) saturate(135%); }
+.settings-panel .context-panel-header { position: sticky; top: -22px; z-index: 2; margin: -22px -24px 18px; padding: 20px 24px 14px; background: var(--color-overlay-solid); border-bottom: 1px solid var(--color-line); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
+.settings-section { padding: 2px 0; }
+.settings-section + .settings-section { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--color-line); }
+.appearance-section { display: flex; flex-direction: column; gap: 10px; }
+.preference-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 14px; color: var(--color-text-secondary); font-size: 11px; }
+.segmented-control { min-width: 0; display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 8px; }
+.segmented-control button { min-height: 30px; flex: 1 1 auto; padding: 0 10px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 6px; font-size: 11px; }
+.segmented-control button:hover:not(:disabled), .segmented-control button[aria-pressed="true"] { color: var(--color-text); background: var(--color-surface); border-color: var(--color-line); box-shadow: var(--shadow-control); }
+.segmented-control button[aria-pressed="true"] { color: var(--color-accent-strong); }
+.segmented-control button:disabled { cursor: default; }
+.settings-heading, .settings-heading > div { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.provider-list { display: flex; flex-direction: column; gap: 7px; margin: 12px 0; padding: 0; list-style: none; }
+.provider-list li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 10px 11px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 8px; }
+.provider-list li > span { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.provider-list small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 10px; }
+.provider-list em { padding: 2px 6px; color: var(--color-success); background: var(--color-success-soft); border-radius: 5px; font-size: 9px; font-style: normal; }
+.provider-list li > div { display: flex; gap: 4px; }
+.provider-list button { min-height: 28px; display: inline-grid; place-items: center; padding: 0 8px; color: var(--color-text-secondary); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: 7px; font-size: 10px; }
+.settings-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 16px; padding: 16px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 8px; }
+.settings-form label:not(.checkbox) { min-width: 0; display: flex; flex-direction: column; gap: 5px; color: var(--color-text-secondary); font-size: 11px; }
+.settings-form input, .settings-form select { width: 100%; min-height: var(--size-control); padding: 6px 9px; color: var(--color-text); background: var(--color-control); border: 1px solid var(--color-line-strong); border-radius: 7px; }
+.field-hint { color: var(--color-text-muted); font-size: 10px; font-weight: 400; line-height: 15px; }
+.settings-form .checkbox input { width: 16px; min-width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--color-accent); border-radius: 4px; }
+.settings-form .checkbox, .settings-form .inline-actions, .settings-advanced { grid-column: 1 / -1; }
+.checkbox { display: flex; align-items: center; gap: 7px; color: var(--color-text-secondary); font-size: 11px; }
+.settings-advanced { padding-top: 2px; border-top: 1px solid var(--color-line); }
+.settings-advanced summary { width: fit-content; padding: 10px 0 2px; color: var(--color-text-secondary); cursor: pointer; font-size: 11px; font-weight: 620; }
+.settings-advanced summary::marker { color: var(--color-text-muted); }
+.advanced-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding-top: 10px; }
+.advanced-fields .checkbox { grid-column: auto; }
+.settings-form .inline-actions button[type="submit"] { color: var(--color-on-accent); background: var(--color-accent); border-color: var(--color-accent); }
+.success { color: var(--color-success); font-size: 11px; }
+.settings-loading { margin: 12px 0; color: var(--color-text-muted); font-size: 11px; }
+.settings-error { margin: 12px 0 0; padding: 9px 10px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-danger-line); border-radius: 7px; font-size: 11px; line-height: 17px; }
+.extensions-section { display: flex; flex-direction: column; gap: 10px; }
+.extension-add { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: 7px; font-size: 11px; font-weight: 620; }
+.extension-empty { margin: 2px 0 0; }
+.extension-list { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.extension-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px 12px; padding: 11px 12px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 8px; }
+.extension-summary { min-width: 0; }
+.extension-summary > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; }
+.extension-summary strong { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.extension-summary span { color: var(--color-text-muted); font-size: 10px; }
+.extension-summary em, .extension-removed { padding: 2px 6px; color: var(--color-text-secondary); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 5px; font-size: 9px; font-style: normal; }
+.extension-summary em[data-state="loaded"] { color: var(--color-success); background: var(--color-success-soft); border-color: transparent; }
+.extension-summary em[data-state="attention_required"] { color: var(--color-danger); background: var(--color-danger-soft); border-color: var(--color-danger-line); }
+.extension-summary p { margin: 5px 0 2px; overflow-wrap: anywhere; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+.extension-summary small { color: var(--color-text-muted); font-size: 9px; }
+.extension-controls { display: flex; align-items: center; gap: 5px; }
+.extension-toggle { position: relative; width: 32px; height: 20px; display: inline-flex; flex: 0 0 auto; }
+.extension-toggle input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.extension-toggle span { width: 32px; height: 20px; display: block; background: var(--color-line-strong); border: 1px solid var(--color-line-strong); border-radius: 10px; cursor: pointer; transition: background 140ms ease, border-color 140ms ease; }
+.extension-toggle span::after { content: ""; width: 14px; height: 14px; display: block; margin: 2px; background: var(--color-surface); border-radius: 50%; box-shadow: var(--shadow-control); transition: transform 140ms ease; }
+.extension-toggle input:checked + span { background: var(--color-accent); border-color: var(--color-accent); }
+.extension-toggle input:checked + span::after { transform: translateX(12px); }
+.extension-toggle input:focus-visible + span { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.extension-toggle input:disabled + span { cursor: default; opacity: .55; }
+.danger-icon { color: var(--color-danger); }
+.extension-diagnostic { grid-column: 1 / -1; margin: 0; padding: 7px 8px; color: var(--color-danger); background: var(--color-danger-soft); border-radius: 6px; font-size: 10px; line-height: 15px; }
+.extension-attention { display: flex; align-items: flex-start; gap: 8px; padding: 10px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-danger-line); border-radius: 7px; font-size: 11px; line-height: 17px; }
+.extension-attention svg { flex: 0 0 auto; margin-top: 1px; }
+.settings-subdialog-layer { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: var(--color-backdrop); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+.extension-review, .extension-remove-dialog { width: min(560px, calc(100vw - 48px)); max-height: min(680px, calc(100vh - 48px)); overflow-y: auto; padding: 20px; color: var(--color-text); background: var(--color-overlay); border: 1px solid var(--color-overlay-line); border-radius: 10px; box-shadow: var(--shadow-float); backdrop-filter: blur(28px) saturate(135%); -webkit-backdrop-filter: blur(28px) saturate(135%); }
+.extension-review > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.extension-review h3, .extension-remove-dialog h3 { margin: 3px 0 0; font-size: 17px; line-height: 23px; }
+.extension-review header p, .extension-remove-dialog > p { margin: 4px 0 0; color: var(--color-text-muted); font-size: 10px; line-height: 16px; overflow-wrap: anywhere; }
+.extension-warning { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; padding: 11px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-danger-line); border-radius: 8px; }
+.extension-warning svg { flex: 0 0 auto; margin-top: 1px; }
+.extension-warning strong { font-size: 11px; }
+.extension-warning p { margin: 2px 0 0; color: var(--color-text-secondary); font-size: 10px; line-height: 15px; }
+.extension-evidence { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 14px 0 0; }
+.extension-evidence > div { min-width: 0; padding: 9px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 7px; }
+.extension-evidence dt { color: var(--color-text-muted); font-size: 9px; }
+.extension-evidence dd { margin: 3px 0 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; }
+.extension-review-list { margin-top: 14px; }
+.extension-review-list h4 { margin: 0 0 6px; color: var(--color-text-secondary); font-size: 10px; }
+.extension-review-list p, .extension-review-list ul { margin: 0; color: var(--color-text-muted); font-size: 10px; line-height: 16px; }
+.extension-review-list ul { display: flex; flex-wrap: wrap; gap: 5px; padding: 0; list-style: none; }
+.extension-review-list li { max-width: 100%; padding: 3px 7px; overflow-wrap: anywhere; color: var(--color-text-secondary); background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 5px; }
+.extension-review footer, .extension-remove-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--color-line); }
+.extension-review footer button, .extension-remove-dialog footer button { min-height: 34px; padding: 0 12px; border-radius: 7px; }
+.extension-remove-dialog { width: min(420px, calc(100vw - 48px)); }
+.danger-action { color: var(--color-on-accent); background: var(--color-danger); border-color: var(--color-danger); }
+@media (max-width: 560px) {
+  .preference-row { grid-template-columns: 1fr; align-items: stretch; gap: 6px; }
+  .segmented-control { width: 100%; }
+  .settings-subdialog-layer { padding: 12px; }
+  .extension-review, .extension-remove-dialog { width: calc(100vw - 24px); max-height: calc(100vh - 24px); padding: 16px; }
+  .extension-row { grid-template-columns: minmax(0, 1fr); }
+  .extension-controls { justify-content: flex-end; }
+  .extension-evidence { grid-template-columns: 1fr; }
+  .extension-review footer, .extension-remove-dialog footer { flex-wrap: wrap; }
+  .extension-review footer button, .extension-remove-dialog footer button { flex: 1 1 140px; }
+}

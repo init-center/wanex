@@ -1,11 +1,7 @@
 import type {
   JsonValue,
-  ProviderCapabilities,
-  ProviderExecutionBinding,
-  ProviderInputModality,
-  ProviderOutputModality,
+  ModelCapabilityRouteExecutionBinding,
   RequestSessionTurnCancelReceipt,
-  ResourceInputEvidence,
   SessionAttemptRecord,
   SessionTurnExecutionBinding,
   SessionTurnRecoveryBinding,
@@ -17,13 +13,21 @@ import {
   expectArray,
   expectJsonField,
   expectNumber,
-  expectResourceKind,
   expectString,
   isRecord,
   optionalNumber,
   optionalString,
   withOptionalFields
 } from "./codec-helpers.js"
+import {
+  assertModelSupportsRequirement,
+  digestJson,
+  expectSha256,
+  readModelCapabilityRequirement,
+  readModelEndpointExecutionBinding,
+  readResourceInputEvidenceList,
+  requireExactKeys
+} from "./codec-model-evidence.js"
 import { fromRpcSchedulerJobRecord } from "./codec-scheduler.js"
 import { fromRpcSessionMessageRecord } from "./codec-session-message-records.js"
 
@@ -59,7 +63,6 @@ export function fromRpcSessionTurnRecord(value: JsonValue): SessionTurnRecord {
         value.current_attempt_id,
         "turn.current_attempt_id"
       ),
-      parentTurnId: optionalString(value.parent_turn_id, "turn.parent_turn_id"),
       regeneratesTurnId: optionalString(
         value.regenerates_turn_id,
         "turn.regenerates_turn_id"
@@ -161,8 +164,17 @@ export function fromRpcRequestSessionTurnCancelReceipt(
   ) {
     throw new Error(`invalid session turn cancel status: ${status}`)
   }
+  const cascadeJobIds = expectArray(
+    value.cascade_job_ids,
+    "turn_cancel.cascade_job_ids"
+  )
   return withOptionalFields(
-    { status },
+    {
+      status,
+      cascadeJobIds: cascadeJobIds.map((jobId) =>
+        expectString(jobId, "turn_cancel.cascade_job_ids[]")
+      )
+    },
     {
       turn:
         value.turn === null || value.turn === undefined
@@ -176,18 +188,55 @@ export function fromRpcRequestSessionTurnCancelReceipt(
   ) as RequestSessionTurnCancelReceipt
 }
 
-function readExecutionBinding(value: JsonValue | undefined): SessionTurnExecutionBinding {
+export function readExecutionBinding(value: JsonValue | undefined): SessionTurnExecutionBinding {
   if (!isRecord(value)) {
     throw new Error("turn.execution_binding must be an object")
   }
-  const provider = readProviderBinding(value.provider)
-  const resources = readResourceInputEvidenceList(value.resources)
+  requireExactKeys(
+    value,
+    [
+      "digest",
+      "createdAt",
+      "modelEndpoint",
+      "completion",
+      "capabilityRoutes",
+      "resources",
+      "recovery",
+      ...("contextSnapshot" in value ? ["contextSnapshot"] : []),
+      ...("toolSnapshot" in value ? ["toolSnapshot"] : []),
+      ...("permissionSnapshot" in value ? ["permissionSnapshot"] : []),
+      ...("environmentSnapshot" in value ? ["environmentSnapshot"] : [])
+    ],
+    "execution_binding"
+  )
+  const modelEndpoint = readModelEndpointExecutionBinding(
+    value.modelEndpoint,
+    "execution_binding.modelEndpoint"
+  )
+  if (
+    !modelEndpoint.model.operations.includes("conversation") ||
+    !modelEndpoint.model.inputModalities.includes("text") ||
+    !modelEndpoint.model.outputModalities.includes("text")
+  ) {
+    throw new Error(
+      "execution_binding.modelEndpoint must support text conversation"
+    )
+  }
+  const capabilityRoutes = readCapabilityRoutes(value.capabilityRoutes)
+  const completion = readCompletionBinding(value.completion)
+  const resources = readResourceInputEvidenceList(
+    value.resources,
+    "execution_binding.resources"
+  )
   const recovery = readRecoveryBinding(value.recovery)
-  return withOptionalFields(
+  const digest = expectSha256(value.digest, "execution_binding.digest")
+  const binding = withOptionalFields(
     {
-      digest: expectString(value.digest, "execution_binding.digest"),
+      digest,
       createdAt: expectNumber(value.createdAt, "execution_binding.createdAt"),
-      provider,
+      modelEndpoint,
+      completion,
+      capabilityRoutes,
       resources,
       recovery
     },
@@ -198,6 +247,30 @@ function readExecutionBinding(value: JsonValue | undefined): SessionTurnExecutio
       environmentSnapshot: value.environmentSnapshot
     }
   ) as SessionTurnExecutionBinding
+  const { digest: _digest, ...unsigned } = binding
+  if (digestJson(unsigned) !== digest) {
+    throw new Error("execution_binding.digest does not match its content")
+  }
+  return binding
+}
+
+function readCompletionBinding(
+  value: JsonValue | undefined
+): SessionTurnExecutionBinding["completion"] {
+  if (!isRecord(value)) {
+    throw new Error("execution_binding.completion must be an object")
+  }
+  requireExactKeys(value, ["maxOutputTokens"], "execution_binding.completion")
+  const maxOutputTokens = expectNumber(
+    value.maxOutputTokens,
+    "execution_binding.completion.maxOutputTokens"
+  )
+  if (!Number.isSafeInteger(maxOutputTokens) || maxOutputTokens <= 0) {
+    throw new Error(
+      "execution_binding.completion.maxOutputTokens must be a positive safe integer"
+    )
+  }
+  return { maxOutputTokens }
 }
 
 function readRecoveryBinding(value: JsonValue | undefined): SessionTurnRecoveryBinding {
@@ -223,142 +296,52 @@ function readRecoveryBinding(value: JsonValue | undefined): SessionTurnRecoveryB
   return { providerMaxAttempts, idempotentToolMaxAttempts }
 }
 
-function readProviderBinding(value: JsonValue | undefined): ProviderExecutionBinding {
-  if (!isRecord(value)) {
-    throw new Error("execution_binding.provider must be an object")
-  }
-  return withOptionalFields(
-    {
-      profileId: expectString(value.profileId, "binding.provider.profileId"),
-      profileDigest: expectString(
-        value.profileDigest,
-        "binding.provider.profileDigest"
-      ),
-      adapterId: expectString(
-        value.adapterId,
-        "binding.provider.adapterId"
-      ) as ProviderExecutionBinding["adapterId"],
-      providerId: expectString(value.providerId, "binding.provider.providerId"),
-      modelId: expectString(value.modelId, "binding.provider.modelId"),
-      capabilities: readProviderCapabilities(value.capabilities)
-    },
-    {
-      baseUrl: optionalString(value.baseUrl, "binding.provider.baseUrl"),
-      secretRef: optionalString(value.secretRef, "binding.provider.secretRef"),
-      anthropicVersion: optionalString(
-        value.anthropicVersion,
-        "binding.provider.anthropicVersion"
-      ),
-      requestConfig:
-        value.requestConfig === undefined
-          ? undefined
-          : (value.requestConfig as Readonly<Record<string, JsonValue>>)
-    }
-  ) as ProviderExecutionBinding
-}
-
-const PROVIDER_INPUT_MODALITIES = [
-  "text",
-  "image",
-  "audio",
-  "video",
-  "document"
-] as const satisfies readonly ProviderInputModality[]
-
-const PROVIDER_OUTPUT_MODALITIES = [
-  "text",
-  "image",
-  "audio",
-  "video"
-] as const satisfies readonly ProviderOutputModality[]
-
-function readProviderCapabilities(
+function readCapabilityRoutes(
   value: JsonValue | undefined
-): ProviderCapabilities {
-  if (!isRecord(value)) {
-    throw new Error("binding.provider.capabilities must be an object")
+): readonly ModelCapabilityRouteExecutionBinding[] {
+  const entries = expectArray(value, "execution_binding.capabilityRoutes")
+  if (entries.length > 64) {
+    throw new Error("execution_binding.capabilityRoutes exceeds 64 entries")
   }
-  const input = readModalities(
-    value.input,
-    PROVIDER_INPUT_MODALITIES,
-    "binding.provider.capabilities.input"
-  )
-  const output = readModalities(
-    value.output,
-    PROVIDER_OUTPUT_MODALITIES,
-    "binding.provider.capabilities.output"
-  )
-  if (!input.includes("text") || !output.includes("text")) {
-    throw new Error("conversational provider capabilities require text input and output")
-  }
-  return { input, output }
-}
-
-function readModalities<T extends string>(
-  value: JsonValue | undefined,
-  allowed: readonly T[],
-  name: string
-): readonly T[] {
-  const values = expectArray(value, name)
-  if (values.length === 0) {
-    throw new Error(`${name} must not be empty`)
-  }
-  const modalities = values.map((item, index) => {
-    const modality = expectString(item, `${name}.${index}`)
-    if (!allowed.includes(modality as T)) {
-      throw new Error(`invalid ${name} modality: ${modality}`)
+  const keys = new Set<string>()
+  let previousKey: string | undefined
+  return entries.map((entry, index) => {
+    const label = `execution_binding.capabilityRoutes.${index}`
+    if (!isRecord(entry)) {
+      throw new Error(`${label} must be an object`)
     }
-    return modality as T
+    requireExactKeys(
+      entry,
+      ["requirement", "source", "modelEndpoint"],
+      label
+    )
+    const requirement = readModelCapabilityRequirement(
+      entry.requirement,
+      `${label}.requirement`
+    )
+    if (requirement.operation === "conversation") {
+      throw new Error(`${label}.requirement.operation must not be conversation`)
+    }
+    const source = expectString(entry.source, `${label}.source`)
+    if (source !== "configured" && source !== "single_candidate") {
+      throw new Error(`invalid ${label}.source: ${source}`)
+    }
+    const modelEndpoint = readModelEndpointExecutionBinding(
+      entry.modelEndpoint,
+      `${label}.modelEndpoint`
+    )
+    assertModelSupportsRequirement(modelEndpoint.model, requirement, label)
+    const key = JSON.stringify(requirement)
+    if (keys.has(key)) {
+      throw new Error(`duplicate execution binding capability route: ${key}`)
+    }
+    if (previousKey !== undefined && previousKey.localeCompare(key) >= 0) {
+      throw new Error("execution_binding.capabilityRoutes must use canonical order")
+    }
+    keys.add(key)
+    previousKey = key
+    return { requirement, source, modelEndpoint }
   })
-  if (new Set(modalities).size !== modalities.length) {
-    throw new Error(`${name} must not contain duplicates`)
-  }
-  return modalities
-}
-
-function readResourceInputEvidenceList(
-  value: JsonValue | undefined
-): readonly ResourceInputEvidence[] {
-  const values = expectArray(value, "execution_binding.resources")
-  const resources = values.map((item, index) =>
-    readResourceInputEvidence(item, index)
-  )
-  const resourceIds = resources.map((resource) => resource.resourceId)
-  if (new Set(resourceIds).size !== resourceIds.length) {
-    throw new Error("execution_binding.resources must not contain duplicate resource ids")
-  }
-  return resources
-}
-
-function readResourceInputEvidence(
-  value: JsonValue,
-  index: number
-): ResourceInputEvidence {
-  const name = `execution_binding.resources.${index}`
-  if (!isRecord(value)) {
-    throw new Error(`${name} must be an object`)
-  }
-  const sha256 = expectString(value.sha256, `${name}.sha256`)
-  if (!/^[a-f0-9]{64}$/.test(sha256)) {
-    throw new Error(`${name}.sha256 must be a lowercase SHA-256 digest`)
-  }
-  const sizeBytes = expectNumber(value.sizeBytes, `${name}.sizeBytes`)
-  if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) {
-    throw new Error(`${name}.sizeBytes must be a positive integer`)
-  }
-  const mediaType = optionalString(value.mediaType, `${name}.mediaType`)
-  if (mediaType !== undefined && mediaType.length === 0) {
-    throw new Error(`${name}.mediaType must not be empty`)
-  }
-  return withOptionalFields(
-    {
-      resourceId: expectString(value.resourceId, `${name}.resourceId`),
-      sha256,
-      sizeBytes,
-      kind: expectResourceKind(value.kind, `${name}.kind`)
-    },
-    { mediaType }
-  )
 }
 
 function expectTurnState(value: JsonValue | undefined): SessionTurnRecord["state"] {
@@ -366,6 +349,7 @@ function expectTurnState(value: JsonValue | undefined): SessionTurnRecord["state
   if (
     state !== "queued" &&
     state !== "running" &&
+    state !== "waiting" &&
     state !== "cancel_requested" &&
     state !== "succeeded" &&
     state !== "failed" &&
@@ -384,6 +368,7 @@ function expectAttemptState(
   const state = expectString(value, "attempt.state")
   if (
     state !== "running" &&
+    state !== "suspended" &&
     state !== "succeeded" &&
     state !== "failed" &&
     state !== "cancelled" &&

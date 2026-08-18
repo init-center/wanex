@@ -18,9 +18,14 @@ const JOB_SELECT: &str = "SELECT id, kind, state, principal_id, payload_json,
 
 impl SystemService {
     pub fn enqueue_job(&self, request: &EnqueueJob) -> Result<SchedulerJobRecord> {
-        if request.kind == crate::SchedulerJobKind::SessionTurn {
+        if matches!(
+            request.kind,
+            crate::SchedulerJobKind::SessionTurn
+                | crate::SchedulerJobKind::TeamDelivery
+                | crate::SchedulerJobKind::TeamDeliveryOutcome
+        ) {
             return Err(SystemServiceError::InvalidJobRequest(
-                "session.turn jobs must be created by submit_session_turn".to_string(),
+                "domain-owned jobs must be created by their specialized transaction".to_string(),
             ));
         }
         validate_enqueue(request)?;
@@ -157,6 +162,12 @@ impl SystemService {
             tx.commit()?;
             return Ok(None);
         };
+        if existing.kind == "session.turn" {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "session.turn jobs must be cancelled through request_session_turn_cancel"
+                    .to_string(),
+            ));
+        }
         if is_terminal(&existing.state) {
             tx.commit()?;
             return Ok(Some(existing));
@@ -194,6 +205,21 @@ impl SystemService {
         )?;
         if let Some(grant_id) = &existing.budget_grant_id {
             commit_budget_grant_tx(&tx, grant_id, now)?;
+        }
+        if existing.kind == "team.delivery" {
+            crate::team::sync_team_delivery_cancelled_tx(
+                &tx,
+                &request.job_id,
+                &request.reason,
+                now,
+            )?;
+        } else if existing.kind == "team.delivery.outcome" {
+            crate::team::sync_team_delivery_outcome_cancelled_tx(
+                &tx,
+                &request.job_id,
+                &request.reason,
+                now,
+            )?;
         }
         let job = get_job_tx(&tx, &request.job_id)?;
         tx.commit()?;
@@ -323,10 +349,58 @@ pub(crate) fn complete_job_tx(
     request: &CompleteJob,
     now: i64,
 ) -> Result<Option<SchedulerJobRecord>> {
+    complete_job_tx_internal(tx, request, now, None)
+}
+
+pub(crate) fn complete_team_delivery_job_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &CompleteJob,
+    now: i64,
+) -> Result<Option<SchedulerJobRecord>> {
+    complete_job_tx_internal(tx, request, now, Some("team.delivery"))
+}
+
+pub(crate) fn complete_team_delivery_outcome_job_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &CompleteJob,
+    now: i64,
+) -> Result<Option<SchedulerJobRecord>> {
+    complete_job_tx_internal(tx, request, now, Some("team.delivery.outcome"))
+}
+
+fn complete_job_tx_internal(
+    tx: &rusqlite::Transaction<'_>,
+    request: &CompleteJob,
+    now: i64,
+    specialized_kind: Option<&str>,
+) -> Result<Option<SchedulerJobRecord>> {
     let existing = get_optional_job_tx(tx, &request.job_id)?;
     let Some(existing) = existing else {
         return Ok(None);
     };
+    if let Some(expected_kind) = specialized_kind {
+        if existing.kind != expected_kind {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "specialized job completion requires kind {expected_kind}"
+            )));
+        }
+    } else {
+        let message = match existing.kind.as_str() {
+            "session.turn" => Some(
+                "session.turn jobs must be completed through settle_session_turn",
+            ),
+            "team.delivery" => Some(
+                "team.delivery jobs must be completed through materialize_team_delivery",
+            ),
+            "team.delivery.outcome" => Some(
+                "team.delivery.outcome jobs must be completed through project_team_delivery_outcome",
+            ),
+            _ => None,
+        };
+        if let Some(message) = message {
+            return Err(SystemServiceError::InvalidJobRequest(message.to_string()));
+        }
+    }
     if existing.state == "succeeded" {
         return Ok(Some(existing));
     }
@@ -461,7 +535,25 @@ pub(crate) fn fail_job_tx(
             commit_budget_grant_tx(tx, grant_id, now)?;
         }
     }
-    get_optional_job_tx(tx, &request.job_id)
+    let updated_job = get_optional_job_tx(tx, &request.job_id)?;
+    if job.kind == "team.delivery" {
+        let updated_job = updated_job.as_ref().ok_or_else(|| {
+            SystemServiceError::Invariant(format!(
+                "failed team delivery job disappeared: {}",
+                request.job_id
+            ))
+        })?;
+        crate::team::sync_team_delivery_failure_tx(tx, updated_job, &request.error, now)?;
+    } else if job.kind == "team.delivery.outcome" {
+        let updated_job = updated_job.as_ref().ok_or_else(|| {
+            SystemServiceError::Invariant(format!(
+                "failed team outcome job disappeared: {}",
+                request.job_id
+            ))
+        })?;
+        crate::team::sync_team_delivery_outcome_failure_tx(tx, updated_job, &request.error, now)?;
+    }
+    Ok(updated_job)
 }
 
 pub(crate) struct SessionTurnJobSettlement<'a> {
@@ -529,7 +621,10 @@ pub(crate) fn settle_job_without_retry_tx(
     if let Some(grant_id) = &existing.budget_grant_id {
         commit_budget_grant_tx(tx, grant_id, now)?;
     }
-    get_job_tx(tx, settlement.job_id)
+    let job = get_job_tx(tx, settlement.job_id)?;
+    crate::team::enqueue_team_delivery_outcome_tx(tx, &job, now)?;
+    crate::team::settle_team_delegation_child_tx(tx, &job, now)?;
+    Ok(job)
 }
 
 pub(crate) fn cancel_unstarted_job_tx(
@@ -561,7 +656,10 @@ pub(crate) fn cancel_unstarted_job_tx(
     if let Some(grant_id) = &existing.budget_grant_id {
         commit_budget_grant_tx(tx, grant_id, now)?;
     }
-    get_job_tx(tx, job_id)
+    let job = get_job_tx(tx, job_id)?;
+    crate::team::enqueue_team_delivery_outcome_tx(tx, &job, now)?;
+    crate::team::settle_team_delegation_child_tx(tx, &job, now)?;
+    Ok(job)
 }
 
 fn validate_enqueue(request: &EnqueueJob) -> Result<()> {

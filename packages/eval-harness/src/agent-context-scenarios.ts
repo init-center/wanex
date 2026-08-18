@@ -92,7 +92,7 @@ export const agentStarterContextContractScenario = createEvalScenario({
         )
         assert(toolResult?.type === "tool_result", "skill activation should run")
         assert(!toolResult.isError, "skill activation should succeed")
-        const serializedToolResult = JSON.stringify(toolResult.result)
+        const serializedToolResult = JSON.stringify(toolResult.content)
         assert(
           serializedToolResult.includes("Full skill body used only after activation."),
           "skill activation should return full skill body lazily"
@@ -105,8 +105,9 @@ export const agentStarterContextContractScenario = createEvalScenario({
           instructionSources:
             preparedContext.instructionSnapshot?.sources.length ?? 0,
           skillNames:
-            preparedContext.skillSnapshot?.sources.map((source) => source.name) ??
-            [],
+            preparedContext.skillSnapshot?.complete === true
+              ? preparedContext.skillSnapshot.sources.map((source) => source.name)
+              : [],
           ambientHasSkillBody: replayText.includes(
             "Full skill body used only after activation."
           ),
@@ -166,10 +167,16 @@ function assistantTextFromMessages(
 }
 
 class SkillActivatingProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "eval-agent-context"
-  readonly modelId = "eval-agent-context-model"
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly model = {
+    id: "eval-agent-context-model",
+    operations: ["conversation"],
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    features: ["tool_calling"],
+    catalog: { source: "builtin", catalogId: "eval.agent-context", revision: "1" }
+  } as const
   readonly responseText: string
   firstMessages: readonly ProviderReplayMessage[] = []
   calls = 0

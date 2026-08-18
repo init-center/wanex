@@ -1,6 +1,6 @@
 import type {
   MessageId,
-  ObjectiveRunId,
+  ObjectiveId,
   PlanProposalId,
   ResourceId,
   RuntimeEventId,
@@ -20,7 +20,7 @@ export interface RuntimeEventScope {
   readonly messageId?: MessageId
   readonly resourceId?: ResourceId
   readonly planProposalId?: PlanProposalId
-  readonly objectiveId?: ObjectiveRunId
+  readonly objectiveId?: ObjectiveId
 }
 
 export interface RuntimeEvent {
@@ -79,11 +79,13 @@ export type ContextEventType =
 export type PlanEventType =
   | "plan.proposal.created"
   | "plan.proposal.operation_recorded"
+  | "plan.proposal.execution_bound"
 
 export type ObjectiveEventType =
-  | "objective.run.created"
-  | "objective.run.operation_recorded"
-  | "objective.attempt.recorded"
+  | "objective.created"
+  | "objective.state_changed"
+  | "objective.attempt.admitted"
+  | "objective.attempt.reviewed"
   | "objective.verification.recorded"
 
 export type KnownRuntimeEventType =

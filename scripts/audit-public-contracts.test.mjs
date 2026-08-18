@@ -4,6 +4,7 @@ import { promisify } from "node:util"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, it } from "vitest"
+import { findManifestDependencyViolations } from "./audit/public-contracts/manifest-dependency-policy.mjs"
 import { normalizeRepositoryPath } from "./audit/repository-path.mjs"
 
 const execFileAsync = promisify(execFile)
@@ -121,9 +122,9 @@ export type LegacyAuditState = "pending"
   it("rejects lower package source imports of upper app packages", async () => {
     await writeFile(
       upperAppImportFixturePath,
-      `import { createProductApp } from "@wanex/product-app"
+      `import { create } from "@wanex/product"
 
-export const auditUpperAppImportFixture = createProductApp
+export const auditUpperAppImportFixture = create
 `,
       "utf8"
     )
@@ -155,7 +156,7 @@ export const auditUpperAppImportFixture = createProductApp
             ".": "./src/index.ts"
           },
           dependencies: {
-            "@wanex/product-app": "workspace:*"
+            "@wanex/product": "workspace:*"
           }
         },
         null,
@@ -194,6 +195,13 @@ export const auditUpperAppImportFixture = createProductApp
         })
       ])
     )
+  })
+
+  it("allows the TUI executable host to consume the local Product host", () => {
+    expect(findManifestDependencyViolations({
+      name: "@wanex/tui",
+      dependencies: { "@wanex/local-host": "workspace:*" }
+    })).toEqual([])
   })
 
 })

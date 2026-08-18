@@ -38,7 +38,7 @@ export async function runRetryPolicyFixture(
     nodeId: retrySource.id,
     workerId: "eval_retry_policy_graph_worker",
     jobId: "job_eval_retry_policy_source",
-    jobKind: "tool.deferred_result",
+    jobKind: "workspace.task",
     priority: 100,
     maxAttempts: 2,
     retryPolicy: {
@@ -50,7 +50,7 @@ export async function runRetryPolicyFixture(
   const retryClaimed = await context.storage.claimJob({
     workerId: "eval_retry_policy_workspace_worker",
     leaseMs: 60_000,
-    kinds: ["tool.deferred_result"]
+    kinds: ["workspace.task"]
   })
   assert(
     retryClaimed?.id === retryMaterialized.job.id,
@@ -70,7 +70,7 @@ export async function runRetryPolicyFixture(
     graphId: retryGraph.id,
     workerId: "eval_retry_policy_graph_worker",
     jobKindsByNodeKind: {
-      workspace_task: "tool.deferred_result"
+      workspace_task: "workspace.task"
     },
     readyScanLimit: 1,
     materializeLimit: 1
@@ -96,7 +96,7 @@ export async function runRetryPolicyFixture(
     graphId: retryGraph.id,
     workerId: "eval_retry_policy_graph_worker",
     jobKindsByNodeKind: {
-      workspace_task: "tool.deferred_result"
+      workspace_task: "workspace.task"
     },
     readyScanLimit: 1,
     materializeLimit: 0

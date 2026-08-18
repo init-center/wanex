@@ -70,7 +70,7 @@ export async function discoverSkillSnapshot(
       }
     }
     return {
-      status: "available",
+      complete: true,
       sources,
       diagnostics
     }
@@ -95,7 +95,7 @@ export async function discoverSkillSnapshot(
   }
 
   return {
-    status: "available",
+    complete: true,
     sources,
     diagnostics
   }

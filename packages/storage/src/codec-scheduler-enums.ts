@@ -43,10 +43,9 @@ export function expectSchedulerJobKind(value: unknown): SchedulerJobKind {
     kind !== "session.turn" &&
     kind !== "workspace.task" &&
     kind !== "team.delivery" &&
-    kind !== "team.round.close" &&
+    kind !== "team.delivery.outcome" &&
     kind !== "plugin.action" &&
     kind !== "channel.delivery" &&
-    kind !== "tool.deferred_result" &&
     kind !== "gateway.delivery" &&
     kind !== "memory.compaction" &&
     kind !== "resource.cleanup" &&
@@ -66,6 +65,7 @@ export function expectSchedulerJobState(value: unknown): SchedulerJobState {
     state !== "pending" &&
     state !== "ready" &&
     state !== "running" &&
+    state !== "waiting" &&
     state !== "succeeded" &&
     state !== "retry_scheduled" &&
     state !== "failed" &&

@@ -1,5 +1,4 @@
 import type {
-  MessagePart,
   ProviderState,
   ReasoningMessagePart,
   TextMessagePart,
@@ -11,6 +10,7 @@ import type {
   ProviderError,
   ProviderEvent,
   ProviderRequest,
+  ProviderOutputMessagePart,
   ProviderTurnResult,
   ProviderUsage
 } from "./types.js"
@@ -31,7 +31,7 @@ export async function consumeProviderStream(options: {
 }): Promise<ProviderTurnResult> {
   const assembler = new ProviderTurnAssembler(
     options.provider.providerId,
-    options.provider.modelId
+    options.provider.model.id
   )
   let terminal: ProviderEvent | undefined
 
@@ -58,7 +58,7 @@ export async function consumeProviderStream(options: {
     throw new ProviderStreamError(
       protocolProviderError({
         providerId: options.provider.providerId,
-        modelId: options.provider.modelId,
+        modelId: options.provider.model.id,
         message: `provider stream threw instead of emitting an error event: ${errorMessage(error)}`
       }),
       assembler.outputObserved
@@ -167,7 +167,7 @@ class ProviderTurnAssembler {
       this.fail("provider stream ended without a terminal event")
     }
 
-    const parts = this.partOrder.map((partId): MessagePart => {
+    const parts = this.partOrder.map((partId): ProviderOutputMessagePart => {
       if (partId.startsWith("tool:")) {
         const tool = this.tools.get(partId.slice(5))
         if (tool === undefined || !tool.ended) {
@@ -201,6 +201,15 @@ class ProviderTurnAssembler {
         ...(providerState === undefined ? {} : { providerState })
       } satisfies ReasoningMessagePart
     })
+
+    const hasToolCalls = parts.some((part) => part.type === "tool_call")
+    if ((this.finish.reason === "tool_calls") !== hasToolCalls) {
+      this.fail(
+        this.finish.reason === "tool_calls"
+          ? "provider finished with tool_calls but emitted no tool call"
+          : `provider emitted a tool call but finished with ${this.finish.reason}`
+      )
+    }
 
     return {
       parts,

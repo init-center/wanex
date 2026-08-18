@@ -3,32 +3,28 @@ import type {
   PluginManifestRecord
 } from "@wanex/protocol"
 import type { PluginRuntimeStore } from "./storage.js"
+import {
+  assertPluginInstallExecutable,
+  pluginPackageTrustRecordFromJson
+} from "./codec.js"
 import type { PluginSandboxPolicy } from "./types.js"
 
-export async function requireExecutableManifest(
+export async function requireExecutablePluginManifest(
   storage: PluginRuntimeStore,
   request: {
     readonly pluginId: string
-    readonly version?: string
+    readonly version: string
     readonly capability: PluginCapability
   }
 ): Promise<PluginManifestRecord> {
-  const manifest = await storage.getPluginManifest({
+  const admission = await storage.getPluginActionExecutionAdmission({
     pluginId: request.pluginId,
-    ...(request.version === undefined ? {} : { version: request.version })
+    version: request.version,
+    requiredCapability: request.capability
   })
-  if (manifest === null) {
-    throw new Error(`plugin manifest not found: ${request.pluginId}`)
-  }
-  if (manifest.state !== "registered") {
-    throw new Error(`plugin manifest is not registered: ${request.pluginId}`)
-  }
-  if (!manifest.capabilities.includes(request.capability)) {
-    throw new Error(
-      `plugin capability not declared: ${request.pluginId} requires ${request.capability}`
-    )
-  }
-  return manifest
+  const trust = pluginPackageTrustRecordFromJson(admission.install.trust)
+  assertPluginInstallExecutable(admission.manifest, admission.install, trust)
+  return admission.manifest
 }
 
 export function defaultPluginSandboxPolicy(

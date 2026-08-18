@@ -4,8 +4,18 @@ import {
   EnvSecretProvider,
   SecretResolver
 } from "@wanex/runtime/secrets"
+import {
+  AllowAllToolsPolicy,
+  createToolRuntimeBinding,
+  ToolRegistry,
+  type ToolDefinition,
+  type ToolPermissionDecision,
+  type ToolPermissionPolicy,
+  type ToolPermissionRequest
+} from "@wanex/runtime/tools"
 import { createWanexApp } from "../src/internal-index.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
 
 const secretRef = "env://WANEX_APP_OPERATION_PROVIDER_KEY"
 const secretValue = "wanex-app-operation-secret"
@@ -108,7 +118,7 @@ describe("@wanex/app durable conversation operations", () => {
         })
       })
 
-      expect(observed).toHaveLength(1)
+      expect(observed).toHaveLength(2)
       expect(observed[0]).toMatchObject({
         kind: "wanex-app.conversation.assistant-text-delta",
         sequence: 1,
@@ -123,9 +133,21 @@ describe("@wanex/app durable conversation operations", () => {
         text: answer.slice(0, 16_384),
         truncated: true
       })
-      expect(JSON.stringify(observed[0])).not.toContain("openai-compatible")
-      expect(JSON.stringify(observed[0])).not.toContain(secretRef)
-      expect(JSON.stringify(observed[0])).not.toContain(secretValue)
+      expect(observed[1]).toEqual({
+        kind: "wanex-app.conversation.operation-invalidated",
+        sequence: 2,
+        at: expect.any(Number),
+        reference: {
+          sessionId: receipt.sessionId,
+          inputId: receipt.inputId,
+          turnId: receipt.turnId,
+          jobId: receipt.jobId
+        },
+        cause: "execution_completed"
+      })
+      expect(JSON.stringify(observed)).not.toContain("openai-compatible")
+      expect(JSON.stringify(observed)).not.toContain(secretRef)
+      expect(JSON.stringify(observed)).not.toContain(secretValue)
 
       unsubscribe()
       const second = await app.commands.submitConversationOperation({
@@ -140,7 +162,7 @@ describe("@wanex/app durable conversation operations", () => {
           operation: { state: "succeeded" }
         })
       })
-      expect(observed).toHaveLength(1)
+      expect(observed).toHaveLength(2)
     } finally {
       unsubscribe()
       await app.dispose()
@@ -343,6 +365,32 @@ describe("@wanex/app durable conversation operations", () => {
       })
       expect(calls).toBe(1)
 
+      await expect(
+        app.commands.readConversationOperation(receipt)
+      ).resolves.toMatchObject({
+        kind: "found",
+        operation: {
+          state: "running",
+          activeAttemptId: running.activeAttemptId,
+          steering: {
+            truncated: false,
+            pending: [
+              {
+                attemptId: running.activeAttemptId,
+                idempotencyKey: "app-operation-steer",
+                content: [
+                  {
+                    type: "text",
+                    id: "part_app_operation_steer",
+                    text: "adjust app direction"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      })
+
       releaseProvider.resolve()
       await eventually(async () => {
         await expect(
@@ -363,6 +411,11 @@ describe("@wanex/app durable conversation operations", () => {
           }
         })
       })
+      const settled = await app.commands.readConversationOperation(receipt)
+      expect(settled.kind).toBe("found")
+      if (settled.kind === "found") {
+        expect(settled.operation).not.toHaveProperty("steering")
+      }
       expect(calls).toBe(2)
     } finally {
       releaseProvider.resolve()
@@ -470,7 +523,8 @@ describe("@wanex/app durable conversation operations", () => {
         kind: "local-system-service",
         storeDir
       },
-      artifacts: { explicitPath: serviceBin }
+      artifacts: { explicitPath: serviceBin },
+      modelEndpoint: appTestModelEndpoint()
     })
 
     try {
@@ -519,7 +573,8 @@ describe("@wanex/app durable conversation operations", () => {
     } as const
     const first = await createWanexApp({
       storage: { kind: "local-system-service", storeDir },
-      artifacts: { explicitPath: serviceBin }
+      artifacts: { explicitPath: serviceBin },
+      modelEndpoint: appTestModelEndpoint()
     })
     await first.stop()
     const receipt = await first.commands.submitConversationOperation(request)
@@ -584,13 +639,11 @@ describe("@wanex/app durable conversation operations", () => {
     const app = await createWanexApp({
       storage: { kind: "local-system-service", storeDir },
       artifacts: { explicitPath: serviceBin },
-      providerProfile: {
-        id: "app-resource-input",
-        kind: "fake",
-        capabilities: { input: ["text", "image"], output: ["text"] },
-        providerId: "fake",
-        modelId: "app-resource-model"
-      }
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "app-resource-input",
+        modelId: "app-resource-model",
+        inputModalities: ["text", "image"]
+      })
     })
 
     try {
@@ -627,6 +680,322 @@ describe("@wanex/app durable conversation operations", () => {
       })
       expect(JSON.stringify(completed.operation)).not.toContain("logicalPath")
       expect(JSON.stringify(completed.operation)).not.toContain("bytes")
+    } finally {
+      await app.dispose()
+    }
+  })
+
+  it("projects bounded ambiguous tool evidence and confirms it without reinvoking the tool", async () => {
+    const storeDir = await createStoreDir()
+    let providerCalls = 0
+    let toolCalls = 0
+    vi.stubGlobal("fetch", async () => {
+      providerCalls += 1
+      return providerCalls === 1
+        ? openAIToolCallResponse(
+            "ambiguous_remote",
+            "call_app_recovery",
+            { remoteSecret: "must-not-be-projected" }
+          )
+        : openAIResponse("recovered assistant response")
+    })
+    const tools = new ToolRegistry()
+    tools.register({
+      name: "ambiguous_remote",
+      description: "Lose the response after a remote operation was dispatched.",
+      inputSchema: { type: "object", additionalProperties: true },
+      risk: "external",
+      idempotent: false,
+      concurrency: "exclusive",
+      resultMode: "immediate",
+      annotations: { title: "Ambiguous remote operation" },
+      runtimeBinding: createToolRuntimeBinding({
+        implementationId: "wanex.test.app.ambiguous-remote",
+        implementationRevision: "1"
+      }),
+      async invoke(invocation) {
+        toolCalls += 1
+        expect(invocation.input).toEqual({
+          remoteSecret: "must-not-be-projected"
+        })
+        return {
+          outcome: "ambiguous",
+          toolCallId: invocation.toolCallId,
+          message: "remote response was lost after dispatch",
+          reconciliationRef: "remote-operation-app-1"
+        }
+      }
+    } satisfies ToolDefinition)
+    const app = await createRealProviderApp(
+      storeDir,
+      { WANEX_APP_OPERATION_PROVIDER_KEY: secretValue },
+      {
+        runtimeContext: {
+          tools,
+          toolPermissionPolicy: new AllowAllToolsPolicy()
+        }
+      }
+    )
+
+    try {
+      const receipt = await app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "reconcile remote operation" }],
+        sessionId: "ses_app_recovery_review"
+      })
+      const recovery = await eventually(async () => {
+        const result = await app.commands.readConversationOperation(receipt)
+        expect(result).toMatchObject({
+          kind: "found",
+          operation: {
+            state: "recovery_required",
+            recovery: {
+              items: [
+                {
+                  tool: {
+                    name: "ambiguous_remote",
+                    title: "Ambiguous remote operation",
+                    risk: "external",
+                    idempotent: false
+                  },
+                  evidence: {
+                    message: "remote response was lost after dispatch",
+                    reconciliationRef: "remote-operation-app-1"
+                  },
+                  attemptCount: 1,
+                  availableDecisions: [
+                    "confirm_succeeded",
+                    "confirm_failed",
+                    "abandon_turn"
+                  ]
+                }
+              ]
+            }
+          }
+        })
+        return result
+      })
+      const serialized = JSON.stringify(recovery)
+      expect(serialized).not.toContain("must-not-be-projected")
+      expect(providerCalls).toBe(1)
+      expect(toolCalls).toBe(1)
+
+      if (recovery.kind !== "found" || recovery.operation.recovery === undefined) {
+        throw new Error("expected App recovery review")
+      }
+      const item = recovery.operation.recovery.items[0]
+      if (item === undefined) throw new Error("expected App recovery item")
+      await expect(
+        app.commands.resolveConversationOperationRecovery({
+          ...receipt,
+          executionId: item.executionId,
+          expectedRecoveryRevision: item.recoveryRevision,
+          decision: "confirm_succeeded",
+          reason: "verified in the remote operation log",
+          content: [{
+            type: "json",
+            value: { remoteOperationId: "remote-operation-app-1" }
+          }]
+        })
+      ).resolves.toMatchObject({
+        decision: "confirm_succeeded",
+        action: "turn_requeued"
+      })
+
+      await eventually(async () => {
+        await expect(
+          app.commands.readConversationOperation(receipt)
+        ).resolves.toMatchObject({
+          kind: "found",
+          operation: {
+            state: "succeeded",
+            result: {
+              assistantText: expect.stringContaining(
+                "recovered assistant response"
+              )
+            }
+          }
+        })
+      })
+      expect(providerCalls).toBe(2)
+      expect(toolCalls).toBe(1)
+    } finally {
+      await app.dispose()
+    }
+  })
+
+  it("projects and resolves a bounded durable Tool approval without exposing raw input", async () => {
+    const storeDir = await createStoreDir()
+    let providerCalls = 0
+    let toolCalls = 0
+    vi.stubGlobal("fetch", async () => {
+      providerCalls += 1
+      return providerCalls === 1
+        ? openAIToolCallResponse(
+            "approval_remote",
+            "call_app_approval",
+            { secretArgument: "must-not-be-projected" }
+          )
+        : openAIResponse("approved assistant response")
+    })
+    const tools = new ToolRegistry()
+    tools.register({
+      name: "approval_remote",
+      description: "Perform one externally visible action after review.",
+      inputSchema: {
+        type: "object",
+        properties: { secretArgument: { type: "string" } },
+        required: ["secretArgument"],
+        additionalProperties: false
+      },
+      risk: "external",
+      idempotent: false,
+      concurrency: "exclusive",
+      resultMode: "immediate",
+      annotations: { title: "External approval action" },
+      runtimeBinding: createToolRuntimeBinding({
+        implementationId: "wanex.test.app.approval-remote",
+        implementationRevision: "1"
+      }),
+      async invoke(invocation) {
+        toolCalls += 1
+        expect(invocation.input).toEqual({
+          secretArgument: "must-not-be-projected"
+        })
+        return {
+          outcome: "succeeded",
+          toolCallId: invocation.toolCallId,
+          content: [{ type: "json", value: { accepted: true } }]
+        }
+      }
+    } satisfies ToolDefinition)
+    const policy = new AppApprovalRequiredPolicy()
+    const app = await createRealProviderApp(
+      storeDir,
+      { WANEX_APP_OPERATION_PROVIDER_KEY: secretValue },
+      { runtimeContext: { tools, toolPermissionPolicy: policy } }
+    )
+    const observed: Array<
+      Parameters<Parameters<typeof app.events.subscribeConversationEvents>[0]>[0]
+    > = []
+    app.events.subscribeConversationEvents((event) => observed.push(event))
+
+    try {
+      const receipt = await app.commands.submitConversationOperation({
+        content: [{ type: "text", text: "perform the reviewed action" }],
+        sessionId: "ses_app_tool_approval",
+        principalId: "principal_app_tool_approval"
+      })
+      const waiting = await eventually(async () => {
+        const result = await app.commands.readConversationOperation(receipt)
+        expect(result).toMatchObject({
+          kind: "found",
+          operation: {
+            state: "waiting",
+            approvals: {
+              truncated: false,
+              items: [{
+                approvalRevision: 0,
+                tool: {
+                  name: "approval_remote",
+                  title: "External approval action",
+                  risk: "external",
+                  idempotent: false
+                },
+                presentation: {
+                  summary: "Approve the external test action",
+                  summaryTruncated: false,
+                  details: [{
+                    label: "Destination",
+                    value: "Configured external test service",
+                    labelTruncated: false,
+                    valueTruncated: false
+                  }],
+                  detailsTruncated: false
+                },
+                attemptCount: 0,
+                availableDecisions: ["approve_once", "deny"]
+              }]
+            }
+          }
+        })
+        return result
+      })
+      if (waiting.kind !== "found" || waiting.operation.approvals === undefined) {
+        throw new Error("expected App Tool approval review")
+      }
+      const approval = waiting.operation.approvals.items[0]
+      if (approval === undefined) throw new Error("expected App Tool approval item")
+      expect(providerCalls).toBe(1)
+      expect(toolCalls).toBe(0)
+      expect(policy.calls).toBe(1)
+      const serialized = JSON.stringify(waiting)
+      expect(serialized).not.toContain("must-not-be-projected")
+      expect(serialized).not.toContain("inputSchema")
+      expect(serialized).not.toContain("app-policy:private-reference")
+      expect(serialized).not.toContain("leaseToken")
+
+      await expect(
+        app.commands.listConversationOperationApprovals(receipt)
+      ).resolves.toMatchObject({
+        kind: "found",
+        approvals: { items: [{ executionId: approval.executionId }] }
+      })
+      await expect(app.commands.readConversationOperationApproval({
+        ...receipt,
+        executionId: approval.executionId
+      })).resolves.toMatchObject({
+        kind: "found",
+        approval: { executionId: approval.executionId }
+      })
+      await expect(app.commands.readConversationOperationApproval({
+        ...receipt,
+        executionId: "toolx_missing"
+      })).resolves.toMatchObject({
+        kind: "missing",
+        executionId: "toolx_missing"
+      })
+
+      const decision = {
+        ...receipt,
+        executionId: approval.executionId,
+        expectedApprovalRevision: approval.approvalRevision,
+        decision: "approve_once" as const,
+        reason: "reviewed bounded App presentation",
+        idempotencyKey: "app:tool-approval:approve"
+      }
+      const resolved = await app.commands.resolveConversationOperationApproval(decision)
+      expect(resolved).toMatchObject({
+        executionId: approval.executionId,
+        decision: "approve_once",
+        action: "turn_requeued",
+        approvalRevision: 1
+      })
+      await expect(
+        app.commands.resolveConversationOperationApproval(decision)
+      ).resolves.toEqual(resolved)
+
+      await eventually(async () => {
+        await expect(
+          app.commands.readConversationOperation(receipt)
+        ).resolves.toMatchObject({
+          kind: "found",
+          operation: {
+            state: "succeeded",
+            result: {
+              assistantText: expect.stringContaining("approved assistant response")
+            }
+          }
+        })
+      })
+      expect(providerCalls).toBe(2)
+      expect(toolCalls).toBe(1)
+      expect(policy.calls).toBe(1)
+      expect(observed.filter((event) =>
+        event.kind === "wanex-app.conversation.operation-invalidated"
+      ).map((event) => event.cause)).toEqual([
+        "execution_suspended",
+        "execution_completed"
+      ])
     } finally {
       await app.dispose()
     }
@@ -685,7 +1054,7 @@ describe("@wanex/app durable conversation operations", () => {
     try {
       await app.dispose()
       await expect(storage.core.doctor()).resolves.toMatchObject({
-        schemaVersion: 1
+        schemaVersion: 14
       })
     } finally {
       await app.dispose()
@@ -699,6 +1068,10 @@ async function createRealProviderApp(
   env: Readonly<Record<string, string | undefined>>,
   options: {
     readonly workerCount?: number
+    readonly runtimeContext?: {
+      readonly tools: ToolRegistry
+      readonly toolPermissionPolicy: ToolPermissionPolicy
+    }
   } = {}
 ) {
   return await createWanexApp({
@@ -707,20 +1080,51 @@ async function createRealProviderApp(
       storeDir
     },
     artifacts: { explicitPath: serviceBin },
-    providerProfile: {
-      id: "app-operation-real-provider",
-      kind: "openai-compatible",
-      capabilities: { input: ["text"], output: ["text"] },
+    modelEndpoint: appTestModelEndpoint({
+      endpointId: "app-operation-real-provider",
+      protocolId: "openai-chat-completions",
       providerId: "openai-compatible",
       modelId: "app-operation-model",
       baseUrl: "https://provider.example.test/v1",
       secretRef
-    },
+    }),
     secretResolver: new SecretResolver([new EnvSecretProvider(env)]),
     ...(options.workerCount === undefined
       ? {}
-      : { workerCount: options.workerCount })
+      : { workerCount: options.workerCount }),
+    ...(options.runtimeContext === undefined
+      ? {}
+      : { runtimeContext: options.runtimeContext })
   })
+}
+
+class AppApprovalRequiredPolicy implements ToolPermissionPolicy {
+  calls = 0
+
+  snapshot() {
+    return createToolRuntimeBinding({
+      implementationId: "wanex.test.app.approval-policy",
+      implementationRevision: "1"
+    })
+  }
+
+  async authorize(
+    _request: ToolPermissionRequest
+  ): Promise<ToolPermissionDecision> {
+    this.calls += 1
+    return {
+      status: "approval_required",
+      reason: "trusted_app_review_required",
+      presentation: {
+        summary: "Approve the external test action",
+        details: [{
+          label: "Destination",
+          value: "Configured external test service"
+        }]
+      },
+      authorizationRef: "app-policy:private-reference"
+    }
+  }
 }
 
 function openAIResponse(text: string) {
@@ -731,6 +1135,39 @@ function openAIResponse(text: string) {
     body: (async function* () {
       yield `data: ${JSON.stringify({
         choices: [{ delta: { content: text }, finish_reason: "stop" }]
+      })}\n\n`
+      yield "data: [DONE]\n\n"
+    })(),
+    async text() {
+      return ""
+    }
+  }
+}
+
+function openAIToolCallResponse(
+  toolName: string,
+  toolCallId: string,
+  input: Record<string, unknown>
+) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: "OK",
+    body: (async function* () {
+      yield `data: ${JSON.stringify({
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: toolCallId,
+              function: {
+                name: toolName,
+                arguments: JSON.stringify(input)
+              }
+            }]
+          },
+          finish_reason: "tool_calls"
+        }]
       })}\n\n`
       yield "data: [DONE]\n\n"
     })(),

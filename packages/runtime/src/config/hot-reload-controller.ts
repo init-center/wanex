@@ -17,6 +17,8 @@ import {
 import type {
   ConfigHotReloadControllerOptions,
   ConfigPollResult,
+  ConfigRefreshResult,
+  ConfigReloadReadyCandidate,
   ConfigReloadError,
   ConfigReloadResult,
   ConfigReloadSubscription,
@@ -29,6 +31,8 @@ export class ConfigHotReloadController {
   private readonly onReload: ((result: ConfigReloadResult) => void) | undefined
   private readonly onError: ((error: ConfigReloadError) => void) | undefined
   private readonly label: string
+  private generation = 0
+  private refreshQueue: Promise<void> = Promise.resolve()
 
   constructor(options: ConfigHotReloadControllerOptions) {
     this.config =
@@ -58,44 +62,133 @@ export class ConfigHotReloadController {
     return this.subscriptions.delete(subscriptionId)
   }
 
-  async refreshKey(
+  refreshKey(
     key: string,
     event?: RuntimeEvent
-  ): Promise<{
-    readonly reloads: readonly ConfigReloadResult[]
-    readonly errors: readonly ConfigReloadError[]
-  }> {
+  ): Promise<ConfigRefreshResult> {
     assertConfigReloadKey(key, this.label)
+    const operation = this.refreshQueue.then(
+      async () => await this.performRefresh(key, event)
+    )
+    this.refreshQueue = operation.then(
+      () => undefined,
+      () => undefined
+    )
+    return operation
+  }
+
+  private async performRefresh(
+    key: string,
+    event?: RuntimeEvent
+  ): Promise<ConfigRefreshResult> {
     this.config.deleteLocal(key)
-    const reloads: ConfigReloadResult[] = []
+    const subscriptions = this.matchingSubscriptions(key)
+    if (subscriptions.length === 0) {
+      return {
+        generation: this.generation,
+        committed: true,
+        reloads: [],
+        errors: []
+      }
+    }
+
+    const prepared: Array<{
+      readonly subscription: ConfigReloadSubscription
+      readonly candidate: ConfigReloadReadyCandidate
+    }> = []
     const errors: ConfigReloadError[] = []
-    for (const subscription of this.matchingSubscriptions(key)) {
+    for (const subscription of subscriptions) {
       try {
-        const handlerResult = await subscription.reload({
+        const candidate = await subscription.prepare({
           key,
           config: this.config,
           ...(event === undefined ? {} : { event })
         })
-        const normalized = normalizeConfigReloadResult({
-          key,
-          subscriptionId: subscription.id,
-          ...(event === undefined ? {} : { event }),
-          result: handlerResult
-        })
-        reloads.push(normalized)
-        this.onReload?.(normalized)
+        if (candidate.kind === "rejected") {
+          await this.rollbackPrepared(key, event, prepared, errors)
+          const rejected = normalizeConfigReloadResult({
+            key,
+            subscriptionId: subscription.id,
+            generation: this.generation,
+            committed: false,
+            ...(event === undefined ? {} : { event }),
+            result: candidate.result
+          })
+          this.onReload?.(rejected)
+          return {
+            generation: this.generation,
+            committed: false,
+            reloads: [rejected],
+            errors
+          }
+        }
+        prepared.push({ subscription, candidate })
       } catch (error) {
-        const normalized = normalizeConfigReloadError({
+        this.recordError(errors, {
           key,
           subscriptionId: subscription.id,
-          ...(event === undefined ? {} : { event }),
+          stage: "prepare",
+          event,
           error
         })
-        errors.push(normalized)
-        this.onError?.(normalized)
+        await this.rollbackPrepared(key, event, prepared, errors)
+        return {
+          generation: this.generation,
+          committed: false,
+          reloads: [],
+          errors
+        }
       }
     }
-    return { reloads, errors }
+
+    const committed: typeof prepared = []
+    for (const entry of prepared) {
+      try {
+        await entry.candidate.commit()
+        committed.push(entry)
+      } catch (error) {
+        this.recordError(errors, {
+          key,
+          subscriptionId: entry.subscription.id,
+          stage: "commit",
+          event,
+          error
+        })
+        await this.rollbackPrepared(
+          key,
+          event,
+          [...committed, entry],
+          errors
+        )
+        return {
+          generation: this.generation,
+          committed: false,
+          reloads: [],
+          errors
+        }
+      }
+    }
+
+    this.generation += 1
+    const reloads = prepared.map(({ subscription, candidate }) =>
+      normalizeConfigReloadResult({
+        key,
+        subscriptionId: subscription.id,
+        generation: this.generation,
+        committed: true,
+        ...(event === undefined ? {} : { event }),
+        result: candidate.result
+      })
+    )
+    for (const result of reloads) {
+      this.onReload?.(result)
+    }
+    return {
+      generation: this.generation,
+      committed: true,
+      reloads,
+      errors
+    }
   }
 
   async pollOnce(
@@ -108,16 +201,20 @@ export class ConfigHotReloadController {
       await this.config.pollInvalidationsOnce(request)
     const reloads: ConfigReloadResult[] = []
     const errors: ConfigReloadError[] = []
+    let committed = true
     for (const event of polled.events) {
       const payload = configUpdatedPayload(event)
       if (payload === null) {
         continue
       }
       const result = await this.refreshKey(payload.key, event)
+      committed &&= result.committed
       reloads.push(...result.reloads)
       errors.push(...result.errors)
     }
     return {
+      generation: this.generation,
+      committed,
       invalidatedKeys: polled.invalidatedKeys,
       reloads,
       errors,
@@ -147,6 +244,7 @@ export class ConfigHotReloadController {
         const normalized = normalizeConfigReloadError({
           key: "*",
           subscriptionId: "*",
+          stage: "watch",
           error
         })
         this.onError?.(normalized)
@@ -161,5 +259,50 @@ export class ConfigHotReloadController {
     return [...this.subscriptions.values()].filter((subscription) =>
       matchesConfigReloadMatcher(subscription.matcher, key)
     )
+  }
+
+  private async rollbackPrepared(
+    key: string,
+    event: RuntimeEvent | undefined,
+    prepared: readonly {
+      readonly subscription: ConfigReloadSubscription
+      readonly candidate: ConfigReloadReadyCandidate
+    }[],
+    errors: ConfigReloadError[]
+  ): Promise<void> {
+    for (const entry of [...prepared].reverse()) {
+      try {
+        await entry.candidate.rollback()
+      } catch (error) {
+        this.recordError(errors, {
+          key,
+          subscriptionId: entry.subscription.id,
+          stage: "rollback",
+          event,
+          error
+        })
+      }
+    }
+  }
+
+  private recordError(
+    errors: ConfigReloadError[],
+    options: {
+      readonly key: string
+      readonly subscriptionId: string
+      readonly stage: ConfigReloadError["stage"]
+      readonly event: RuntimeEvent | undefined
+      readonly error: unknown
+    }
+  ): void {
+    const normalized = normalizeConfigReloadError({
+      key: options.key,
+      subscriptionId: options.subscriptionId,
+      stage: options.stage,
+      ...(options.event === undefined ? {} : { event: options.event }),
+      error: options.error
+    })
+    errors.push(normalized)
+    this.onError?.(normalized)
   }
 }

@@ -78,12 +78,25 @@ function epochDetail(epoch: ContextEpochRecord): { readonly [key: string]: JsonV
   return {
     epochId: epoch.id,
     sessionId: epoch.sessionId,
-    policyVersion: epoch.policyVersion,
+    jobId: epoch.jobId,
     state: epoch.state,
+    generationState: epoch.generationState,
+    generationAttempt: epoch.generationAttempt,
+    maxProviderAttempts: epoch.maxProviderAttempts,
+    cutSequence: epoch.cutSequence,
+    cutMessageId: epoch.cutMessageId,
+    retainedFromSequence: epoch.retainedFromSequence,
+    retainedFromMessageId: epoch.retainedFromMessageId,
+    sourceDigest: epoch.sourceDigest,
+    policyDigest: epoch.policyDigest,
+    endpointDigest: epoch.modelEndpoint.endpointDigest,
+    requestDigest: epoch.requestDigest,
+    ...(epoch.summaryDigest === undefined
+      ? {}
+      : { summaryDigest: epoch.summaryDigest }),
     tokenEstimateBefore: epoch.tokenEstimateBefore,
     tokenEstimateAfter: epoch.tokenEstimateAfter,
     tokenSavings: epoch.tokenSavings,
-    replacementCount: epoch.replacementCount,
     updatedAt: epoch.updatedAt,
     ...(epoch.activatedAt === undefined ? {} : { activatedAt: epoch.activatedAt })
   }

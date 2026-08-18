@@ -1,6 +1,7 @@
 import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
+  ArchiveSessionRequest,
   AppendSessionMessageRequest,
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
@@ -14,14 +15,18 @@ import type {
   CleanupExpiredResourceTicketsRequest,
   CommitBudgetRequest,
   CompleteJobRequest,
+  DeferToolExecutionReceipt,
+  DeferToolExecutionRequest,
   CreateSessionRequest,
   EnqueueJobRequest,
   FailJobRequest,
-  FinishToolExecutionRequest,
-  GetResourceRequest,
+    FinishToolExecutionRequest,
+    GetResourceRequest,
+    IngestResourceRequest,
   FinishProviderInvocationReceipt,
   FinishProviderInvocationRequest,
   HeartbeatJobRequest,
+  GetToolExecutionByCallRequest,
   InterruptSessionTurnReceipt,
   InterruptSessionTurnRequest,
   ListProviderInvocationsRequest,
@@ -32,7 +37,9 @@ import type {
   ListSessionTurnControlsRequest,
   ListSessionTurnsRequest,
   ListSessionsRequest,
+  ListToolActivitiesRequest,
   ListToolExecutionAttemptsRequest,
+  ListToolExecutionsRequest,
   MarkProviderInvocationOutputRequest,
   ProviderInvocationRecord,
   ReadResourceContentRequest,
@@ -40,10 +47,20 @@ import type {
   RecordBudgetUsageRequest,
   RequestSessionTurnCancelReceipt,
   RequestSessionTurnCancelRequest,
+  RenameSessionRequest,
+  RequireToolExecutionRecoveryReceipt,
+  RequireToolExecutionRecoveryRequest,
+  ResolveToolExecutionApprovalReceipt,
+  ResolveToolExecutionApprovalRequest,
+  ResolveToolExecutionRecoveryReceipt,
+  ResolveToolExecutionRecoveryRequest,
+  RestoreSessionRequest,
   ReserveBudgetRequest,
   ResourceTicketCleanupReceipt,
-  ResourceContentChunk,
-  ResourceRecord,
+    ResourceContentChunk,
+    ResourceProvenanceRecord,
+    ResourceRecord,
+    RecordResourceProvenanceRequest,
   SchedulerJobRecord,
   SessionAttemptRecord,
   SessionInputRecord,
@@ -60,6 +77,7 @@ import type {
   SubmitSessionTurnReceipt,
   SubmitSessionTurnRequest,
   ToolExecutionAttemptRecord,
+  ToolActivityRecord,
   ToolExecutionRecord
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
@@ -102,6 +120,18 @@ export class WanexSessionCore {
 
   async list(request: ListSessionsRequest = {}): Promise<SessionRecord[]> {
     return await this.session.list(request)
+  }
+
+  async rename(request: RenameSessionRequest): Promise<SessionRecord> {
+    return await this.session.rename(request)
+  }
+
+  async archive(request: ArchiveSessionRequest): Promise<SessionRecord> {
+    return await this.session.archive(request)
+  }
+
+  async restore(request: RestoreSessionRequest): Promise<SessionRecord> {
+    return await this.session.restore(request)
   }
 
   async admit(request: AdmitSessionInputRequest): Promise<AdmissionReceipt> {
@@ -218,12 +248,50 @@ export class WanexSessionCore {
     return await this.storage.finishToolExecution(request)
   }
 
+  async requireToolExecutionRecovery(
+    request: RequireToolExecutionRecoveryRequest
+  ): Promise<RequireToolExecutionRecoveryReceipt | null> {
+    return await this.storage.requireToolExecutionRecovery(request)
+  }
+
+  async resolveToolExecutionRecovery(
+    request: ResolveToolExecutionRecoveryRequest
+  ): Promise<ResolveToolExecutionRecoveryReceipt> {
+    return await this.storage.resolveToolExecutionRecovery(request)
+  }
+
+  async resolveToolExecutionApproval(
+    request: ResolveToolExecutionApprovalRequest
+  ): Promise<ResolveToolExecutionApprovalReceipt> {
+    return await this.storage.resolveToolExecutionApproval(request)
+  }
+
   async getToolExecution(executionId: string): Promise<ToolExecutionRecord | null> {
     return await this.storage.getToolExecution(executionId)
   }
 
-  async listToolExecutions(): Promise<ToolExecutionRecord[]> {
-    return await this.storage.listToolExecutions({})
+  async getToolExecutionByCall(
+    request: GetToolExecutionByCallRequest
+  ): Promise<ToolExecutionRecord | null> {
+    return await this.storage.getToolExecutionByCall(request)
+  }
+
+  async listToolExecutions(
+    request: ListToolExecutionsRequest = {}
+  ): Promise<ToolExecutionRecord[]> {
+    return await this.storage.listToolExecutions(request)
+  }
+
+  async listToolActivities(
+    request: ListToolActivitiesRequest
+  ): Promise<ToolActivityRecord[]> {
+    return await this.storage.listToolActivities(request)
+  }
+
+  async deferToolExecution(
+    request: DeferToolExecutionRequest
+  ): Promise<DeferToolExecutionReceipt> {
+    return await this.storage.deferToolExecution(request)
   }
 
   async listToolExecutionAttempts(
@@ -240,6 +308,16 @@ export class WanexSessionCore {
 
   async getResource(request: GetResourceRequest): Promise<ResourceRecord | null> {
     return await this.storage.getResource(request)
+  }
+
+  async ingestResource(request: IngestResourceRequest): Promise<ResourceRecord> {
+    return await this.storage.ingestResource(request)
+  }
+
+  async recordResourceProvenance(
+    request: RecordResourceProvenanceRequest
+  ): Promise<ResourceProvenanceRecord> {
+    return await this.storage.recordResourceProvenance(request)
   }
 
   async readResourceContent(

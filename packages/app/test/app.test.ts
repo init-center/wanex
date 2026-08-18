@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { WanexRuntimeHost } from "@wanex/runtime/host"
+import { jsonToolResultContent, toolResultPart } from "@wanex/runtime/tools"
 import { createStorageTestStore } from "@wanex/storage/testing"
 import {
   createWanexApp,
@@ -8,6 +9,9 @@ import {
 } from "../src/internal-index.js"
 import { startTestTurn, submitTestTurn } from "./durable-turn-test-fixture.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
+
+const fakeModelEndpoint = appTestModelEndpoint()
 
 describe("@wanex/app", () => {
   it("runs the reusable App Host smoke path end to end", async () => {
@@ -21,10 +25,10 @@ describe("@wanex/app", () => {
       artifacts: {
         explicitPath: serviceBin
       },
-      providerProfile: {
-        id: "wanex-app-test-profile",
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "wanex-app-test-endpoint",
         modelId: "wanex-app-test-model"
-      },
+      }),
       text: "shell smoke"
     })
 
@@ -36,11 +40,16 @@ describe("@wanex/app", () => {
     })
     expect(result.diagnostics.generatedAt).toBe(3_456)
     expect(result.provider).toEqual({
-      id: "wanex-app-test-profile",
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
-      providerId: "fake",
-      modelId: "wanex-app-test-model",
+      id: "wanex-app-test-endpoint",
+      connection: {
+        id: "connection_wanex-app-test-endpoint",
+        providerId: "fake"
+      },
+      protocol: { id: "fake" },
+      model: appTestModelEndpoint({
+        endpointId: "wanex-app-test-endpoint",
+        modelId: "wanex-app-test-model"
+      }).model,
       credentialConfigured: false,
       active: true
     })
@@ -72,7 +81,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     const host = new WanexRuntimeHost({
       storageConfig: {
@@ -121,7 +131,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     const host = new WanexRuntimeHost({
       storageConfig: {
@@ -170,7 +181,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     const storage = createStorageTestStore({
       kind: "local-system-service",
@@ -184,8 +196,7 @@ describe("@wanex/app", () => {
         disposed: false,
         started: true,
         workerCount: 1,
-        providerProfileId: "wanex-app-fake",
-        activeProviderProfileId: "wanex-app-fake",
+        activeModelEndpointId: "wanex-app-fake",
         agentContext: {
           configured: false,
           revision: 0
@@ -258,10 +269,70 @@ describe("@wanex/app", () => {
         app.commands.readDiagnostics()
       ).rejects.toThrow("app is disposed")
       await expect(
-        app.commands.readActiveProviderProfile()
+        app.commands.readActiveModelEndpoint()
       ).rejects.toThrow("app is disposed")
     } finally {
       await storage.dispose()
+      await app.dispose()
+    }
+  })
+
+  it("projects revision-fenced session lifecycle through App commands", async () => {
+    const storeDir = await createStoreDir()
+    const app = await createWanexApp({
+      storage: { kind: "local-system-service", storeDir },
+      artifacts: { explicitPath: serviceBin }
+    })
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
+    })
+    try {
+      await storage.createSession({
+        id: "ses_app_lifecycle",
+        title: "App lifecycle",
+        kind: "chat"
+      })
+      await expect(
+        app.commands.readSession({ sessionId: "ses_app_lifecycle" })
+      ).resolves.toEqual({
+        kind: "wanex-app.session.found",
+        session: expect.objectContaining({
+          sessionId: "ses_app_lifecycle",
+          title: "App lifecycle",
+          status: "active",
+          revision: 1
+        })
+      })
+
+      const renamed = await app.commands.renameSession({
+        sessionId: "ses_app_lifecycle",
+        title: "Renamed in App",
+        expectedRevision: 1
+      })
+      expect(renamed).toMatchObject({
+        title: "Renamed in App",
+        revision: 2
+      })
+      const archived = await app.commands.archiveSession({
+        sessionId: "ses_app_lifecycle",
+        expectedRevision: renamed.revision
+      })
+      expect(archived).toMatchObject({ status: "archived", revision: 3 })
+      const restored = await app.commands.restoreSession({
+        sessionId: "ses_app_lifecycle",
+        expectedRevision: archived.revision
+      })
+      expect(restored).toMatchObject({ status: "active", revision: 4 })
+      await expect(
+        app.commands.readSession({ sessionId: "ses_app_lifecycle_missing" })
+      ).resolves.toEqual({
+        kind: "wanex-app.session.missing",
+        sessionId: "ses_app_lifecycle_missing"
+      })
+    } finally {
       await app.dispose()
     }
   })
@@ -276,7 +347,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
 
     try {
@@ -329,10 +401,10 @@ describe("@wanex/app", () => {
       artifacts: {
         explicitPath: serviceBin
       },
-      providerProfile: {
-        id: "wanex-app-transcript-profile",
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "wanex-app-transcript-endpoint",
         modelId: "wanex-app-transcript-model"
-      }
+      })
     })
 
     try {
@@ -383,6 +455,73 @@ describe("@wanex/app", () => {
     }
   })
 
+  it("keeps failed pre-promotion user input visible in the bounded transcript", async () => {
+    const storeDir = await createStoreDir()
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
+    })
+    try {
+      await storage.createSession({
+        id: "ses_wanex_app_failed_input",
+        kind: "agent"
+      })
+      const submitted = await submitTestTurn(storage, {
+        id: "inp_wanex_app_failed_input",
+        turnId: "turn_wanex_app_failed_input",
+        sessionId: "ses_wanex_app_failed_input",
+        principalId: "user_wanex_app_failed_input",
+        idempotencyKey: "idem_wanex_app_failed_input",
+        content: [{
+          type: "text",
+          id: "part_wanex_app_failed_input",
+          text: "keep this failed question visible"
+        }],
+        jobId: "job_wanex_app_failed_input"
+      })
+      const claimed = await storage.claimJob({
+        workerId: "worker_wanex_app_failed_input",
+        leaseMs: 60_000,
+        kinds: ["session.turn"]
+      })
+      if (claimed?.leaseToken === undefined) {
+        throw new Error("expected claimed failed-input job")
+      }
+      await storage.failJob({
+        jobId: submitted.job.id,
+        workerId: "worker_wanex_app_failed_input",
+        leaseToken: claimed.leaseToken,
+        error: { message: "provider unavailable before promotion" }
+      })
+    } finally {
+      await storage.dispose()
+    }
+
+    const app = await createWanexApp({
+      storage: { kind: "local-system-service", storeDir },
+      artifacts: { explicitPath: serviceBin },
+      modelEndpoint: fakeModelEndpoint
+    })
+    try {
+      const transcript = await app.commands.readSessionTranscript({
+        sessionId: "ses_wanex_app_failed_input"
+      })
+      expect(transcript.rows).toEqual([
+        expect.objectContaining({
+          id: "input:inp_wanex_app_failed_input",
+          kind: "input",
+          role: "user",
+          status: "failed",
+          text: "keep this failed question visible"
+        })
+      ])
+    } finally {
+      await app.dispose()
+    }
+  })
+
 
   it("summarizes rich transcript parts without exposing provider replay content", async () => {
     const storeDir = await createStoreDir()
@@ -393,7 +532,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
     await app.stop()
     const storage = createStorageTestStore({
@@ -441,7 +581,7 @@ describe("@wanex/app", () => {
         invocationNumber: 1,
         requestDigest: "wanex-app-rich-checkpoint"
       })
-      await storage.finishProviderInvocation({
+      const checkpointReceipt = await storage.finishProviderInvocation({
         sessionId: active.submitted.turn.sessionId,
         turnId: active.submitted.turn.id,
         attemptId: active.started.attempt.id,
@@ -463,6 +603,67 @@ describe("@wanex/app", () => {
           }
         ]
       })
+      const sourceMessage = checkpointReceipt?.assistantMessage
+      if (sourceMessage === undefined) {
+        throw new Error("expected durable Tool source message")
+      }
+      const begunTool = await storage.beginToolExecution({
+        sessionId: active.submitted.turn.sessionId,
+        turnId: active.submitted.turn.id,
+        attemptId: active.started.attempt.id,
+        inputId: active.submitted.admission.inputId,
+        sourceMessageId: sourceMessage.id,
+        jobId: active.submitted.job.id,
+        workerId: active.workerId,
+        leaseToken: active.leaseToken,
+        principalId: "wanex-app-user",
+        toolCallId: "tool_1",
+        toolName: "read_file",
+        input: { path: "/private/file" },
+        descriptor: {
+          name: "read_file",
+          risk: "read_only",
+          idempotent: true,
+          concurrency: "parallel_safe",
+          resultMode: "immediate"
+        },
+        permission: { status: "allow", reason: "test" },
+        activity: {
+          call: {
+            summary: "Read workspace file",
+            details: [{ label: "Path", value: "src/public-file.ts" }]
+          }
+        },
+        state: "running",
+        idempotencyKey: "wanex-app-rich-tool-execution"
+      })
+      if (begunTool.invocationAttempt === undefined) {
+        throw new Error("expected durable Tool invocation attempt")
+      }
+      const projectedToolResult = toolResultPart(
+        "tool_1",
+        jsonToolResultContent({ secret: "not projected" }),
+        false
+      )
+      await storage.finishToolExecution({
+        sessionId: active.submitted.turn.sessionId,
+        turnId: active.submitted.turn.id,
+        sessionAttemptId: active.started.attempt.id,
+        inputId: active.submitted.admission.inputId,
+        jobId: active.submitted.job.id,
+        workerId: active.workerId,
+        leaseToken: active.leaseToken,
+        executionId: begunTool.execution.id,
+        invocationAttemptId: begunTool.invocationAttempt.id,
+        state: "succeeded",
+        content: projectedToolResult.content,
+        contentDigest: projectedToolResult.contentDigest,
+        isError: false,
+        resultPresentation: {
+          summary: "Workspace file read",
+          details: [{ label: "Status", value: "Succeeded" }]
+        }
+      })
       await storage.appendSessionMessage({
         sessionId: active.submitted.turn.sessionId,
         turnId: active.submitted.turn.id,
@@ -473,17 +674,7 @@ describe("@wanex/app", () => {
         leaseToken: active.leaseToken,
         idempotencyKey: "wanex-app-rich-tool-result",
         role: "tool",
-        content: [
-          {
-            id: "tool_result",
-            type: "tool_result",
-            toolCallId: "tool_1",
-            result: {
-              secret: "not projected"
-            },
-            isError: false
-          }
-        ]
+        content: [projectedToolResult]
       })
       const finalInvocation = await storage.beginProviderInvocation({
         sessionId: active.submitted.turn.sessionId,
@@ -564,7 +755,18 @@ describe("@wanex/app", () => {
         parts: [{
           type: "tool_call",
           toolCallId: "tool_1",
-          toolName: "read_file"
+          toolName: "read_file",
+          executionState: "succeeded",
+          activity: {
+            call: {
+              summary: "Read workspace file",
+              details: [{ label: "Path", value: "src/public-file.ts" }]
+            },
+            result: {
+              summary: "Workspace file read",
+              details: [{ label: "Status", value: "Succeeded" }]
+            }
+          }
         }]
       })
       expect(tool).toMatchObject({
@@ -624,7 +826,8 @@ describe("@wanex/app", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
 
     try {
@@ -704,8 +907,30 @@ describe("@wanex/app", () => {
         sha256: resource.sha256
       })
       expect(read).not.toHaveProperty("content")
+      const chunk = await app.commands.readResourceContent({
+        resourceId: resource.id,
+        expectedSha256: resource.sha256,
+        offset: 0,
+        limit: 2
+      })
+      expect(chunk).toEqual({
+        resourceId: resource.id,
+        sha256: resource.sha256,
+        totalSizeBytes: content.byteLength,
+        offset: 0,
+        content: new Uint8Array([1, 2]),
+        eof: false
+      })
       await expect(
         app.commands.readResource({ resourceId: "res_missing_app_resource" })
+      ).resolves.toBeNull()
+      await expect(
+        app.commands.readResourceContent({
+          resourceId: "res_missing_app_resource",
+          expectedSha256: resource.sha256,
+          offset: 0,
+          limit: 1
+        })
       ).resolves.toBeNull()
     } finally {
       await app.dispose()

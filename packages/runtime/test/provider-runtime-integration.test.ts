@@ -14,6 +14,7 @@ import type {
   ProviderRequest,
   ProviderReplayMessage
 } from "../src/provider/index.js"
+import { testConversationModel } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -126,10 +127,9 @@ async function createStore() {
 }
 
 class TextProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "text-provider"
-  readonly modelId = "text-model"
+  readonly model = testConversationModel("text-model")
 
   constructor(private readonly text: string) {}
 
@@ -144,10 +144,9 @@ class TextProvider implements ProviderAdapter {
 }
 
 class RequestErrorProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "request-error"
-  readonly modelId = "request-error-model"
+  readonly model = testConversationModel("request-error-model")
 
   async *stream(_request: ProviderRequest): AsyncIterable<ProviderEvent> {
     yield {
@@ -157,7 +156,7 @@ class RequestErrorProvider implements ProviderAdapter {
         message: "invalid credential",
         retryable: false,
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         phase: "request"
       }
     }

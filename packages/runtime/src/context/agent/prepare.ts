@@ -33,28 +33,30 @@ export async function prepareAgentContext(
 
   if (options.skills !== undefined) {
     skillSnapshot = await discoverSkillSnapshot(options.skills)
-    compiler = new SkillContextCompiler({
-      snapshot: skillSnapshot,
-      ...(compiler === undefined ? {} : { downstream: compiler })
-    })
-    if (options.skills.registerActivationTool === true) {
-      tools ??= new ToolRegistry()
-      tools.register(
-        new SkillActivationTool({
-          snapshot: skillSnapshot,
-          ...(options.skills.fs === undefined ? {} : { fs: options.skills.fs }),
-          ...(options.skills.activationTool?.maxIndexedFiles === undefined
-            ? {}
-            : { maxIndexedFiles: options.skills.activationTool.maxIndexedFiles }),
-          ...(options.skills.activationTool?.supportingDirectories === undefined
-            ? {}
-            : {
-                supportingDirectories:
-                  options.skills.activationTool.supportingDirectories
-              })
-        })
-      )
-      toolPermissionPolicy ??= new RiskBoundToolPolicy(["read_only"])
+    if (skillSnapshot.complete) {
+      compiler = new SkillContextCompiler({
+        snapshot: skillSnapshot,
+        ...(compiler === undefined ? {} : { downstream: compiler })
+      })
+      if (options.skills.registerActivationTool === true) {
+        tools ??= new ToolRegistry()
+        tools.register(
+          new SkillActivationTool({
+            snapshot: skillSnapshot,
+            ...(options.skills.fs === undefined ? {} : { fs: options.skills.fs }),
+            ...(options.skills.activationTool?.maxIndexedFiles === undefined
+              ? {}
+              : { maxIndexedFiles: options.skills.activationTool.maxIndexedFiles }),
+            ...(options.skills.activationTool?.supportingDirectories === undefined
+              ? {}
+              : {
+                  supportingDirectories:
+                    options.skills.activationTool.supportingDirectories
+                })
+          })
+        )
+        toolPermissionPolicy ??= new RiskBoundToolPolicy(["read_only"])
+      }
     }
   }
 

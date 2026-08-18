@@ -7,6 +7,7 @@ import {
   AllowAllToolsPolicy,
   RiskBoundToolPolicy,
   ToolRegistry,
+  type ToolExecutionRequest,
   type ToolPermissionPolicy
 } from "@wanex/runtime/tools"
 import { WorkspaceRuntime } from "@wanex/workspace"
@@ -144,9 +145,9 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       permissionPolicy: new AllowAllToolsPolicy()
     })
     assert(approved.invoked, "approved command should invoke the execution host")
-    assert(!approved.result.isError, "approved command should succeed")
+    assert(!completedToolResult(approved).isError, "approved command should succeed")
     const approvedStdout = jsonString(
-      jsonRecord(jsonRecord(approved.result.result).stdout).text
+      jsonRecord(completedToolJson(approved).stdout).text
     )
     assert(
       approvedStdout === "wanex-controlled",
@@ -162,7 +163,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       input: applyInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
-    assert(!applied.result.isError, "changeset tool should apply")
+    assert(!completedToolResult(applied).isError, "changeset tool should apply")
     assert(
       await readFile(targetPath, "utf8") === "after\n",
       "changeset tool should update the file"
@@ -197,9 +198,13 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       input: programDeniedInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
-    assert(programDenied.result.isError, "unapproved program should fail closed")
     assert(
-      jsonRecord(programDenied.result.result).error === "program_not_allowed",
+      completedToolResult(programDenied).isError,
+      "unapproved program should fail closed"
+    )
+    assert(
+      completedToolJson(programDenied).error ===
+        "program_not_allowed",
       "program allowlist should own executable selection"
     )
 
@@ -212,7 +217,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       input: pathEscapeInput,
       permissionPolicy: new AllowAllToolsPolicy()
     })
-    assert(escaped.result.isError, "path escape should fail closed")
+    assert(completedToolResult(escaped).isError, "path escape should fail closed")
 
     const cancellationChecked = process.platform !== "win32"
       ? await cancelProcessTree({
@@ -285,8 +290,11 @@ async function cancelProcessTree(options: {
   controller.abort()
   const cancelled = await execution
   assert(cancelled.invoked, "parent cancellation should stop an invoked tool call")
-  assert(cancelled.result.isError, "parent cancellation should return a tool error")
-  const cancellationResult = jsonRecord(cancelled.result.result)
+  assert(
+    completedToolResult(cancelled).isError,
+    "parent cancellation should return a tool error"
+  )
+  const cancellationResult = completedToolJson(cancelled)
   assert(
     cancellationResult.termination === "cancelled" &&
       cancellationResult.cleanup === "completed",
@@ -310,7 +318,7 @@ interface ToolIdentity {
 
 async function executeTool(options: {
   readonly registry: ToolRegistry
-  readonly storage: import("@wanex/storage").ToolExecutionStore
+  readonly storage: ToolExecutionRequest["storage"]
   readonly identity: ToolIdentity
   readonly toolCallId: string
   readonly toolName: string
@@ -332,6 +340,27 @@ async function executeTool(options: {
     permissionPolicy: options.permissionPolicy,
     ...(options.signal === undefined ? {} : { signal: options.signal })
   })
+}
+
+function completedToolResult(
+  outcome: Awaited<ReturnType<typeof executeTool>>
+): Extract<Awaited<ReturnType<typeof executeTool>>, { readonly state: "completed" }>["result"] {
+  assert(
+    outcome.state === "completed",
+    "controlled workspace fixture must not continue after tool recovery is required"
+  )
+  return outcome.result
+}
+
+function completedToolJson(
+  outcome: Awaited<ReturnType<typeof executeTool>>
+): Record<string, JsonValue> {
+  const content = completedToolResult(outcome).content
+  assert(
+    content.length === 1 && content[0]?.type === "json",
+    "controlled workspace Tool should return one JSON content part"
+  )
+  return jsonRecord(content[0].value)
 }
 
 function toolCallPart(

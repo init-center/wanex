@@ -8,8 +8,6 @@ export type {
   WanexRuntimeOperationReference,
   WanexRuntimeOperationState,
   WanexRuntimeOptions,
-  WanexRuntimeProviderOptions,
-  WanexRuntimeProviderProfileKind,
   WanexRuntimeReadOperationRequest,
   WanexRuntimeReadOperationResult,
   WanexRuntimeRunOnceResult,

@@ -3,17 +3,22 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { setTimeout as delay } from "node:timers/promises"
 import { afterEach, describe, expect, it } from "vitest"
-import { DeterministicContextCompiler } from "../src/context/memory/index.js"
+import type {
+  CompileContextInput,
+  CompiledContext,
+  ContextCompiler
+} from "../src/context/memory/index.js"
 import {
   FakeProviderAdapter,
   type ProviderRequest,
   type ProviderReplayMessage
 } from "@wanex/runtime/provider"
-import type { TextMessagePart } from "@wanex/protocol"
-import { writeProviderProfile } from "@wanex/runtime/provider"
+import type { ModelEndpoint, TextMessagePart } from "@wanex/protocol"
+import { writeModelEndpoint } from "@wanex/runtime/provider"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WanexAgentRuntime } from "../src/execution/agent-runtime/index.js"
 import type { WorkerRunOnceResult } from "../src/jobs/index.js"
+import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -41,19 +46,13 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/host agent runtime", () => {
-  it("submits and runs a provider-profile agent turn", async () => {
+  it("submits and runs a model-endpoint agent turn", async () => {
     const storage = await createTestStore()
-    await writeProviderProfile(storage, {
-      id: "fake-default",
-      kind: "fake",
-      capabilities: { input: ["text"], output: ["text"] },
-      providerId: "fake",
-      modelId: "fake-model"
-    })
+    await writeModelEndpoint(storage, fakeModelEndpoint("default"))
     const runtime = new WanexAgentRuntime({
       storage,
       workerId: "agent_runtime_profile",
-      providerProfileId: "fake-default"
+      modelEndpointId: "endpoint_default"
     })
 
     try {
@@ -63,17 +62,18 @@ describe("@wanex/runtime/host agent runtime", () => {
         inputId: "inp_agent_runtime_profile"
       })
 
-      expect(result.receipt.turn.executionBinding.provider).toMatchObject({
-        profileId: "fake-default",
-        providerId: "fake",
-        modelId: "fake-model"
+      expect(result.receipt.turn.executionBinding.modelEndpoint).toMatchObject({
+        endpointId: "endpoint_default",
+        protocol: { id: "fake" },
+        connection: { providerId: "fake" },
+        model: { id: "model_default" }
       })
       expect(result.run.worker.status).toBe("completed")
       expect(result.messages[1]?.content).toEqual([
         {
           type: "text",
           id: "text_0",
-          text: "Fake response from fake-model"
+          text: "Fake response from model_default"
         }
       ])
     } finally {
@@ -102,6 +102,106 @@ describe("@wanex/runtime/host agent runtime", () => {
           text: "fake runtime response"
         }
       ])
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("derives one bounded navigation line without truncating input", async () => {
+    const storage = await createTestStore()
+    const runtime = new WanexAgentRuntime({
+      storage,
+      workerId: "agent_runtime_derived_title",
+      fakeResponseText: "unused"
+    })
+    const firstLine = `# ${"long title value ".repeat(30)}`
+    const text = `  ${firstLine}\nfull input tail  `
+
+    try {
+      const submitted = await runtime.submitUserTurn({
+        content: [{ type: "text", text }],
+        sessionId: "ses_agent_runtime_derived_title"
+      })
+      const expectedTitle = Array.from(firstLine.replace(/^# /, "").trim())
+        .slice(0, 200)
+        .join("")
+
+      expect(submitted.session.title).toBe(expectedTitle)
+      expect(Array.from(submitted.session.title ?? "")).toHaveLength(200)
+      await expect(runtime.session.listInputs({
+        sessionId: submitted.session.id
+      })).resolves.toEqual([
+        expect.objectContaining({
+          content: [expect.objectContaining({ type: "text", text })]
+        })
+      ])
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("preserves an explicit session title exactly", async () => {
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_explicit_title",
+      fakeResponseText: "unused"
+    })
+    const title = "# Exact user title"
+
+    try {
+      const submitted = await runtime.submitUserTurn({
+        content: [{ type: "text", text: "# Automatically derived title" }],
+        sessionId: "ses_agent_runtime_explicit_title",
+        title
+      })
+
+      expect(submitted.session.title).toBe(title)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("derives deterministic navigation identity across message forms", async () => {
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_title_forms",
+      fakeResponseText: "unused"
+    })
+    const cases = [
+      ["plain", "  First line  \nsecond line", "First line"],
+      ["heading", "# Product conversation\nbody", "Product conversation"],
+      ["quote", "> > Quoted request\nbody", "Quoted request"],
+      ["unordered", "- List request\nbody", "List request"],
+      ["ordered", "12. Ordered request\nbody", "Ordered request"],
+      ["task", "- [x] Checked request\nbody", "Checked request"],
+      ["tilde-fence", "~~~ts\nconst value = 1\n~~~", "const value = 1"],
+      ["code-syntax", "```text\n# code comment\n```", "# code comment"],
+      ["empty-heading", "#   \nUseful next line", "Useful next line"],
+      ["literal-hash", "#not-a-heading\nbody", "#not-a-heading"],
+      [
+        "desktop-proof",
+        "# Wanex desktop product proof\n\n```text\nstructured timeline\n```",
+        "Wanex desktop product proof"
+      ],
+      ["no-useful-text", " \n```text\n\n```", "Resource conversation"]
+    ] as const
+
+    try {
+      for (const [id, text, expectedTitle] of cases) {
+        const submitted = await runtime.submitUserTurn({
+          content: [{ type: "text", text }],
+          sessionId: `ses_agent_runtime_title_${id}`
+        })
+        expect(submitted.session.title, id).toBe(expectedTitle)
+      }
+
+      const unicode = await runtime.submitUserTurn({
+        content: [{ type: "text", text: `  ${"标题🙂 ".repeat(80)}\nignored` }],
+        sessionId: "ses_agent_runtime_title_unicode"
+      })
+      expect(Array.from(unicode.session.title ?? "").length).toBeLessThanOrEqual(200)
+      expect(Array.from(unicode.session.title ?? "").length).toBeGreaterThan(0)
+      expect(unicode.session.title?.endsWith("\ud83d")).toBe(false)
     } finally {
       await runtime.stop()
     }
@@ -136,6 +236,21 @@ describe("@wanex/runtime/host agent runtime", () => {
         replayMessageCount: 2,
         outputPartCount: 1
       })
+      expect(result.evidence).toMatchObject({
+        source: {
+          sessionId: "ses_agent_runtime_ephemeral",
+          headSequence: 2
+        },
+        provider: {
+          endpointId: "direct:fake:fake-model",
+          protocolId: "fake",
+          providerId: "fake",
+          modelId: "fake-model"
+        }
+      })
+      expect(result.evidence.inputDigest).toMatch(/^[0-9a-f]{64}$/)
+      expect(result.evidence.outputDigest).toMatch(/^[0-9a-f]{64}$/)
+      expect(result.evidence.provider.endpointDigest).toMatch(/^[0-9a-f]{64}$/)
       await expect(
         runtime.session.listInputs({ sessionId: "ses_agent_runtime_ephemeral" })
       ).resolves.toHaveLength(1)
@@ -219,7 +334,7 @@ describe("@wanex/runtime/host agent runtime", () => {
     }
   })
 
-  it("rejects admission when a provider profile is missing", async () => {
+  it("rejects admission when a model endpoint is missing", async () => {
     const runtime = new WanexAgentRuntime({
       storage: await createTestStore(),
       workerId: "agent_runtime_missing_profile"
@@ -229,10 +344,36 @@ describe("@wanex/runtime/host agent runtime", () => {
       await expect(runtime.submitUserTurn({
         content: [{ type: "text", text: "missing" }],
         sessionId: "ses_agent_runtime_missing",
-        providerProfileId: "missing-profile"
-      })).rejects.toThrow("provider profile not found: missing-profile")
+        modelEndpointId: "missing-profile"
+      })).rejects.toThrow("model endpoint not found: missing-profile")
       await expect(runtime.session.listTurns({
         sessionId: "ses_agent_runtime_missing"
+      })).resolves.toEqual([])
+      await expect(runtime.session.listJobs({
+        kind: "session.turn",
+        limit: 20
+      })).resolves.toEqual([])
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("rejects a media-only endpoint before durable turn admission", async () => {
+    const storage = await createTestStore()
+    await writeModelEndpoint(storage, mediaOnlyModelEndpoint("media-only"))
+    const runtime = new WanexAgentRuntime({
+      storage,
+      workerId: "agent_runtime_media_only"
+    })
+
+    try {
+      await expect(runtime.submitUserTurn({
+        content: [{ type: "text", text: "must not persist" }],
+        sessionId: "ses_agent_runtime_media_only",
+        modelEndpointId: "endpoint_media-only"
+      })).rejects.toThrow("openai-images model must support conversation")
+      await expect(runtime.session.listTurns({
+        sessionId: "ses_agent_runtime_media_only"
       })).resolves.toEqual([])
       await expect(runtime.session.listJobs({
         kind: "session.turn",
@@ -249,13 +390,7 @@ describe("@wanex/runtime/host agent runtime", () => {
       storage: await createTestStore(),
       workerId: "agent_runtime_context",
       provider,
-      contextCompiler: new DeterministicContextCompiler({
-        policy: {
-          recentUserTurns: 1,
-          snipTextOverChars: 20,
-          placeholderTextOverChars: 60
-        }
-      })
+      contextCompiler: new MarkerContextCompiler()
     })
     try {
       await runtime.submitAndRunUserTurn({
@@ -275,7 +410,7 @@ describe("@wanex/runtime/host agent runtime", () => {
         .filter((part) => part.type === "text")
         .map((part) => part.text)
         .join("\n")
-      expect(replayText).toContain("[compacted")
+      expect(replayText).toContain("injected-context-marker")
       expect(replayText).toContain("new runtime request")
     } finally {
       await runtime.stop()
@@ -304,6 +439,29 @@ describe("@wanex/runtime/host agent runtime", () => {
   })
 })
 
+function mediaOnlyModelEndpoint(suffix: string): ModelEndpoint {
+  return {
+    id: `endpoint_${suffix}`,
+    connection: {
+      id: `connection_${suffix}`,
+      providerId: "openai"
+    },
+    protocol: { id: "openai-images" },
+    model: {
+      id: `model_${suffix}`,
+      operations: ["image.generate"],
+      inputModalities: ["text"],
+      outputModalities: ["image"],
+      features: [],
+      catalog: {
+        source: "custom",
+        catalogId: `test.${suffix}`,
+        revision: "1"
+      }
+    }
+  }
+}
+
 async function createTestStore(): Promise<StorageTestStore> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-agent-runtime-"))
   tempDirs.push(storeDir)
@@ -325,6 +483,33 @@ class RecordingProvider extends FakeProviderAdapter {
   override async *stream(request: ProviderRequest) {
     this.lastMessages = request.messages
     yield* super.stream(request)
+  }
+}
+
+class MarkerContextCompiler implements ContextCompiler {
+  async compile(input: CompileContextInput): Promise<CompiledContext> {
+    const messages = [
+      {
+        role: "system" as const,
+        content: [{
+          type: "text" as const,
+          id: "injected_context_marker",
+          text: "injected-context-marker"
+        }]
+      },
+      ...input.messages.map((message) => ({
+        role: message.role,
+        content: message.content
+      }))
+    ]
+    return {
+      sessionId: input.sessionId,
+      messages,
+      stats: {
+        tokenEstimateBefore: 0,
+        tokenEstimateAfter: 0
+      }
+    }
   }
 }
 

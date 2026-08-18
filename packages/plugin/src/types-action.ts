@@ -24,21 +24,21 @@ export type PluginActionHandler = (
 
 export interface PluginActionHandlerDefinition {
   readonly capability: PluginCapability
-  readonly version?: string
+  readonly version: string
   readonly sandbox?: PluginSandboxAccessRequest
   readonly handler: PluginActionHandler
 }
 
 export interface PluginActionDescriptor {
   readonly capability: PluginCapability
-  readonly version?: string
+  readonly version: string
   readonly sandbox?: PluginSandboxAccessRequest
 }
 
 export interface ResolvePluginActionRequest {
   readonly pluginId: string
   readonly actionId: string
-  readonly version?: string
+  readonly version: string
 }
 
 export interface ExecutePluginActionRequest {
@@ -119,7 +119,7 @@ export interface PluginActionJobHandlerOptions {
 
 export interface PluginActionJobPayload {
   readonly pluginId: string
-  readonly version?: string
+  readonly version: string
   readonly actionId: string
   readonly payload: JsonValue
   readonly requiredCapability?: PluginCapability

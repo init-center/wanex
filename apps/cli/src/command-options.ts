@@ -21,7 +21,7 @@ export function parseCommandOptions(
 ): ParsedGlobalOptions {
   const globalRuntime = createGlobalRuntimeParseState(env)
   let sessionId: string | undefined
-  let providerId: string | undefined
+  let modelEndpointId: string | undefined
   let limit: number | undefined
   let timeoutMs: number | undefined
   let maxSteps: number | undefined
@@ -30,7 +30,7 @@ export function parseCommandOptions(
   const diagnosticsOptions: Record<string, string> = {}
   const supportOptions: Record<string, string> = {}
   const memoryOptions: Record<string, string> = {}
-  const providerOptions: Record<string, string> = {}
+  const modelEndpointOptions: Record<string, string> = {}
   const positionals: string[] = []
 
   for (let index = 0; index < args.length; index += 1) {
@@ -42,10 +42,6 @@ export function parseCommandOptions(
     }
     if (arg === "--session") {
       sessionId = requireValue(args, (index += 1), "--session")
-      continue
-    }
-    if (arg === "--provider") {
-      providerId = requireValue(args, (index += 1), "--provider")
       continue
     }
     if (arg === "--limit") {
@@ -96,36 +92,45 @@ export function parseCommandOptions(
       supportOptions[arg.slice(2)] = value
       continue
     }
-    if (
-      arg === "--provider-profile" ||
-      arg === "--event-limit" ||
-      arg === "--job-limit"
-    ) {
+    if (arg === "--model-endpoint") {
+      const value = requireValue(args, (index += 1), arg)
+      modelEndpointId = value
+      supportOptions["model-endpoint"] = value
+      continue
+    }
+    if (arg === "--event-limit" || arg === "--job-limit") {
       supportOptions[arg.slice(2)] = requireValue(args, (index += 1), arg)
       continue
     }
     if (
-      arg === "--kind" ||
+      arg === "--protocol" ||
+      arg === "--connection-id" ||
       arg === "--provider-id" ||
       arg === "--model" ||
+      arg === "--operations" ||
       arg === "--input-modalities" ||
       arg === "--output-modalities" ||
+      arg === "--features" ||
+      arg === "--reasoning-replay" ||
+      arg === "--model-context-window-tokens" ||
+      arg === "--model-max-input-tokens" ||
+      arg === "--model-max-output-tokens" ||
+      arg === "--model-max-input-resources" ||
       arg === "--base-url" ||
       arg === "--secret-ref"
     ) {
-      providerOptions[arg.slice(2)] = requireValue(args, (index += 1), arg)
+      modelEndpointOptions[arg.slice(2)] = requireValue(args, (index += 1), arg)
       continue
     }
     if (
       arg === "--principal" ||
-      arg === "--waterline-tokens" ||
       arg === "--minimum-token-savings" ||
       arg === "--idempotency-prefix"
     ) {
       memoryOptions[arg.slice(2)] = requireValue(args, (index += 1), arg)
       continue
     }
-    if (arg === "--session-limit" || arg === "--policy-version") {
+    if (arg === "--session-limit") {
       const value = requireValue(args, (index += 1), arg)
       diagnosticsOptions[arg.slice(2)] = value
       memoryOptions[arg.slice(2)] = value
@@ -148,9 +153,9 @@ export function parseCommandOptions(
     diagnosticsOptions,
     supportOptions,
     memoryOptions,
-    providerOptions,
+    modelEndpointOptions,
     ...(sessionId === undefined ? {} : { sessionId }),
-    ...(providerId === undefined ? {} : { providerId }),
+    ...(modelEndpointId === undefined ? {} : { modelEndpointId }),
     ...(limit === undefined ? {} : { limit }),
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(maxSteps === undefined ? {} : { maxSteps }),

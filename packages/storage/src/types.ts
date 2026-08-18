@@ -14,7 +14,11 @@ export interface CoreStore
     ToolExecutionStore {}
 
 export type { ContextStore } from "./types-context.js"
-export type { RuntimeStore } from "./types-runtime-core.js"
+export type {
+  ConfigMutationRequest,
+  ConfigPut,
+  RuntimeStore
+} from "./types-runtime-core.js"
 export type { MediaGenerationStore } from "./types-media-generation.js"
 export type { SchedulerStore } from "./types-scheduler.js"
 export type { SessionStore } from "./types-session.js"

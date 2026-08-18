@@ -5,7 +5,7 @@ Product-neutral Wanex runtime facade.
 ## Entry Contract
 
 Use this package for durable single-agent admission and worker execution without
-assembling storage bootstrap, provider profiles, agent runtime, or runtime host
+assembling storage bootstrap, model endpoints, agent runtime, or runtime host
 packages directly.
 
 ## Use when
@@ -66,6 +66,14 @@ digest is created with `createToolRuntimeBinding()` from secret-free semantic
 configuration. Provider-visible definitions come from `registry.list()`.
 Admission/recovery evidence comes from `registry.snapshot()`, and any drift is
 rejected before provider dispatch rather than silently using a new handler.
+
+When the first admitted Turn creates a Session without an explicit title,
+Runtime derives one deterministic navigation line from the first meaningful
+line of the first text part. Leading Markdown block markers are omitted only
+from this automatic metadata, code-fence contents remain literal, and the
+existing 200-code-point bound is Unicode-safe. The canonical input is never
+normalized or truncated. Explicit titles and later revision-fenced renames do
+not pass through automatic derivation.
 
 ## Minimal Use
 

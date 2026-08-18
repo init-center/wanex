@@ -15,7 +15,7 @@ const serviceBin = join(
 )
 const cliEntry = join(import.meta.dirname, "../src/index.ts")
 const tsxBin = join(import.meta.dirname, "../../../node_modules/tsx/dist/cli.mjs")
-const expectedSchemaVersion = 1
+const expectedSchemaVersion = 10
 const CLI_EXEC_TIMEOUT_MS = 30_000
 const tempDirs: string[] = []
 
@@ -99,7 +99,7 @@ describe("@wanex/cli", () => {
     expect(JSON.stringify(value)).not.toContain("pnpm")
   })
 
-  it("runs one fake-provider agent turn and persists the reply", async () => {
+  it("runs with an explicit fake model endpoint and persists the reply", async () => {
     const storeDir = await createStoreDir()
     const result = await runCli(["run", "hello", "wanex"], storeDir)
 
@@ -108,7 +108,7 @@ describe("@wanex/cli", () => {
     expect(value.command).toBe("run")
     expect(value.status).toBe("completed")
     expect(typeof value.jobId).toBe("string")
-    expect(value.assistantText).toBe("Fake response: hello wanex")
+    expect(value.assistantText).toBe("Fake response from wanex-cli-test-model")
     expect(typeof value.sessionId).toBe("string")
     expect(Array.isArray(value.messages)).toBe(true)
   })
@@ -144,7 +144,7 @@ describe("@wanex/cli", () => {
     expect(value.command).toBe("side-query")
     expect(value.sessionId).toBe("ses_cli_side_query")
     expect(value.persisted).toBe(false)
-    expect(value.outputText).toBe("Fake side response: quick aside")
+    expect(value.outputText).toBe("Fake response from wanex-cli-test-model")
     expect(telemetry.replayMessageCount).toBe(2)
     expect(telemetry.outputPartCount).toBe(1)
     await expect(
@@ -158,15 +158,15 @@ describe("@wanex/cli", () => {
     )
   })
 
-  it("stores provider credential refs and omits them from CLI output", async () => {
+  it("stores endpoint credential refs and omits them from CLI output", async () => {
     const storeDir = await createStoreDir()
     const set = await runCli(
       [
-        "provider",
+        "model-endpoint",
         "set",
         "deepseek",
-        "--kind",
-        "openai-compatible",
+        "--protocol",
+        "openai-chat-completions",
         "--provider-id",
         "deepseek",
         "--model",
@@ -182,38 +182,43 @@ describe("@wanex/cli", () => {
       ],
       storeDir
     )
-    const get = await runCli(["provider", "get", "deepseek"], storeDir)
+    const get = await runCli(["model-endpoint", "get", "deepseek"], storeDir)
 
-    expect(expectRecord(set.value).profile).toMatchObject({
+    expect(expectRecord(set.value).modelEndpoint).toMatchObject({
       credentialConfigured: true
     })
-    expect(expectRecord(get.value).profile).toMatchObject({
+    expect(expectRecord(get.value).modelEndpoint).toMatchObject({
       id: "deepseek",
-      kind: "openai-compatible",
-      capabilities: { input: ["text", "image"], output: ["text"] },
-      providerId: "deepseek",
-      modelId: "deepseek-chat",
+      connection: expect.objectContaining({ providerId: "deepseek" }),
+      protocol: { id: "openai-chat-completions" },
+      model: expect.objectContaining({
+        id: "deepseek-chat",
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"]
+      }),
       credentialConfigured: true
     })
     expect(JSON.stringify(set.value)).not.toContain("secretRef")
     expect(JSON.stringify(get.value)).not.toContain("secretRef")
   })
 
-  it("isolates provider profiles by local store profile", async () => {
+  it("isolates model endpoints by local store profile", async () => {
     const storeRoot = await createStoreDir()
     const set = await runCliWithEnv(
       [
-        "provider",
+        "model-endpoint",
         "set",
         "deepseek",
         "--store-profile",
         "work",
-        "--kind",
-        "openai-compatible",
+        "--protocol",
+        "openai-chat-completions",
         "--provider-id",
         "deepseek",
         "--model",
         "deepseek-chat",
+        "--base-url",
+        "https://api.deepseek.com/v1",
         "--secret-ref",
         "env://DEEPSEEK_API_KEY"
       ],
@@ -222,36 +227,36 @@ describe("@wanex/cli", () => {
       }
     )
     const personal = await runCliWithEnv(
-      ["provider", "get", "deepseek", "--store-profile", "personal"],
+      ["model-endpoint", "get", "deepseek", "--store-profile", "personal"],
       {
         WANEX_STORE_ROOT: storeRoot
       }
     )
     const work = await runCliWithEnv(
-      ["provider", "get", "deepseek", "--store-profile", "work"],
+      ["model-endpoint", "get", "deepseek", "--store-profile", "work"],
       {
         WANEX_STORE_ROOT: storeRoot
       }
     )
 
-    expect(expectRecord(set.value).profile).toMatchObject({
+    expect(expectRecord(set.value).modelEndpoint).toMatchObject({
       credentialConfigured: true
     })
-    expect(expectRecord(personal.value).profile).toBeNull()
-    expect(expectRecord(work.value).profile).toMatchObject({
+    expect(expectRecord(personal.value).modelEndpoint).toBeNull()
+    expect(expectRecord(work.value).modelEndpoint).toMatchObject({
       id: "deepseek",
       credentialConfigured: true
     })
   })
 
-  it("runs with a configured fake provider profile", async () => {
+  it("runs with a configured fake model endpoint", async () => {
     const storeDir = await createStoreDir()
     await runCli(
       [
-        "provider",
+        "model-endpoint",
         "set",
         "local",
-        "--kind",
+        "--protocol",
         "fake",
         "--provider-id",
         "fake",
@@ -262,12 +267,12 @@ describe("@wanex/cli", () => {
     )
 
     const result = await runCli(
-      ["run", "hello", "--provider", "local"],
+      ["run", "hello", "--model-endpoint", "local"],
       storeDir
     )
     const value = expectRecord(result.value)
 
-    expect(value.providerId).toBe("local")
+    expect(value.modelEndpointId).toBe("local")
     expect(typeof value.jobId).toBe("string")
     expect(value.assistantText).toBe("Fake response from fake-profile")
   })
@@ -310,7 +315,7 @@ describe("@wanex/cli", () => {
     const instructions = expectRecord(context.instructions)
     const skills = expectRecord(context.skills)
 
-    expect(value.assistantText).toBe("Fake response: context turn")
+    expect(value.assistantText).toBe("Fake response from wanex-cli-test-model")
     expect(instructions.status).toBe("available")
     expect(instructions.sources).toEqual([
       expect.objectContaining({
@@ -319,7 +324,7 @@ describe("@wanex/cli", () => {
         target: "AGENTS.md"
       })
     ])
-    expect(skills.status).toBe("available")
+    expect(skills.complete).toBe(true)
     expect(skills.activationToolRegistered).toBe(true)
     expect(skills.sources).toEqual([
       expect.objectContaining({
@@ -412,21 +417,29 @@ describe("@wanex/cli", () => {
 
   it("submits explicit memory maintenance sweep jobs without running workers", async () => {
     const storeDir = await createStoreDir()
+    const providerId = "cli-memory-fake"
+    await configureFakeProvider(
+      storeDir,
+      providerId,
+      "memory-token ".repeat(900)
+    )
     await runCli(
       [
         "run",
         "memory ".repeat(900),
         "--session",
-        "ses_cli_memory_sweep"
+        "ses_cli_memory_sweep",
+        "--model-endpoint",
+        providerId
       ],
       storeDir
     )
     await runCli(
-      ["run", "second turn", "--session", "ses_cli_memory_sweep"],
+      ["run", "second turn", "--session", "ses_cli_memory_sweep", "--model-endpoint", providerId],
       storeDir
     )
     await runCli(
-      ["run", "third turn", "--session", "ses_cli_memory_sweep"],
+      ["run", "third turn", "--session", "ses_cli_memory_sweep", "--model-endpoint", providerId],
       storeDir
     )
 
@@ -434,12 +447,8 @@ describe("@wanex/cli", () => {
       [
         "memory",
         "sweep",
-        "--waterline-tokens",
-        "1",
         "--minimum-token-savings",
         "1",
-        "--policy-version",
-        "cli-memory-v1",
         "--idempotency-prefix",
         "cli-memory-sweep"
       ],
@@ -459,8 +468,11 @@ describe("@wanex/cli", () => {
         kind: "memory.compaction",
         state: "ready",
         sessionId: "ses_cli_memory_sweep",
-        policyVersion: "cli-memory-v1",
-        idempotencyKey: "cli-memory-sweep:ses_cli_memory_sweep:cli-memory-v1"
+        sourceDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+        policyDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+        idempotencyKey: expect.stringMatching(
+          /^cli-memory-sweep:ses_cli_memory_sweep:[a-f0-9]{64}:[a-f0-9]{64}$/
+        )
       })
     ])
 
@@ -468,12 +480,8 @@ describe("@wanex/cli", () => {
       [
         "memory",
         "sweep",
-        "--waterline-tokens",
-        "1",
         "--minimum-token-savings",
         "1",
-        "--policy-version",
-        "cli-memory-v1",
         "--idempotency-prefix",
         "cli-memory-sweep"
       ],
@@ -485,33 +493,37 @@ describe("@wanex/cli", () => {
 
   it("projects diagnostics through the app facade without running workers", async () => {
     const storeDir = await createStoreDir()
+    const providerId = "cli-diagnostics-fake"
+    await configureFakeProvider(
+      storeDir,
+      providerId,
+      "diagnostics-token ".repeat(900)
+    )
     await runCli(
       [
         "run",
         "diagnostics ".repeat(900),
         "--session",
-        "ses_cli_diagnostics"
+        "ses_cli_diagnostics",
+        "--model-endpoint",
+        providerId
       ],
       storeDir
     )
     await runCli(
-      ["run", "second turn", "--session", "ses_cli_diagnostics"],
+      ["run", "second turn", "--session", "ses_cli_diagnostics", "--model-endpoint", providerId],
       storeDir
     )
     await runCli(
-      ["run", "third turn", "--session", "ses_cli_diagnostics"],
+      ["run", "third turn", "--session", "ses_cli_diagnostics", "--model-endpoint", providerId],
       storeDir
     )
     await runCli(
       [
         "memory",
         "sweep",
-        "--waterline-tokens",
-        "1",
         "--minimum-token-savings",
         "1",
-        "--policy-version",
-        "cli-diagnostics-memory",
         "--idempotency-prefix",
         "cli-diagnostics-memory"
       ],
@@ -522,8 +534,6 @@ describe("@wanex/cli", () => {
       [
         "diagnostics",
         "--memory-maintenance",
-        "--policy-version",
-        "cli-diagnostics-memory",
         "--stale-after-ms",
         "1",
         "--limit",
@@ -556,15 +566,17 @@ describe("@wanex/cli", () => {
     const storeDir = await createStoreDir()
     await runCli(
       [
-        "provider",
+        "model-endpoint",
         "set",
         "support",
-        "--kind",
-        "openai-compatible",
+        "--protocol",
+        "openai-chat-completions",
         "--provider-id",
         "deepseek",
         "--model",
         "deepseek-chat",
+        "--base-url",
+        "https://api.deepseek.com/v1",
         "--secret-ref",
         "env://SUPPORT_API_KEY"
       ],
@@ -578,7 +590,7 @@ describe("@wanex/cli", () => {
     const result = await runCli(
       [
         "support-bundle",
-        "--provider-profile",
+        "--model-endpoint",
         "support",
         "--session",
         "ses_cli_support_bundle",
@@ -591,20 +603,20 @@ describe("@wanex/cli", () => {
       storeDir
     )
     const value = expectRecord(result.value)
-    const providers = value.providers
+    const modelEndpoints = value.modelEndpoints
     const serialized = JSON.stringify(value)
 
     expect(value.command).toBe("support-bundle")
     expect(serialized).not.toContain("SUPPORT_API_KEY")
-    expect(Array.isArray(providers)).toBe(true)
-    if (!Array.isArray(providers)) {
-      throw new Error("expected providers array")
+    expect(Array.isArray(modelEndpoints)).toBe(true)
+    if (!Array.isArray(modelEndpoints)) {
+      throw new Error("expected model endpoints array")
     }
-    expect(providers).toEqual([
+    expect(modelEndpoints).toEqual([
       expect.objectContaining({
         id: "support",
         found: true,
-        profile: expect.objectContaining({
+        endpoint: expect.objectContaining({
           credentialConfigured: true
         })
       })
@@ -628,13 +640,24 @@ describe("@wanex/cli", () => {
     expect(expectRecord(first.value).sessionId).toBe("ses_cli_reuse")
     const secondValue = expectRecord(second.value)
     expect(secondValue.sessionId).toBe("ses_cli_reuse")
-    expect(secondValue.assistantText).toBe("Fake response: second")
+    expect(secondValue.assistantText).toBe("Fake response from wanex-cli-test-model")
   })
 
   it("returns a structured error for invalid usage", async () => {
     const storeDir = await createStoreDir()
     await expect(runCli(["run"], storeDir)).rejects.toMatchObject({
       stderr: expect.stringContaining("run requires text")
+    })
+  })
+
+  it("requires an explicit model endpoint for execution commands", async () => {
+    const storeDir = await createStoreDir()
+    await expect(
+      runCliWithEnv(["run", "provider required"], {
+        WANEX_STORE_DIR: storeDir
+      })
+    ).rejects.toMatchObject({
+      stderr: expect.stringContaining("run requires --model-endpoint")
     })
   })
 
@@ -650,7 +673,7 @@ describe("@wanex/cli", () => {
   })
 
   it("parses run timeout guard options", () => {
-    const parsed = parseCommand(["run", "hello", "--timeout-ms", "250"], {
+    const parsed = parseCommand(["run", "hello", "--model-endpoint", "local", "--timeout-ms", "250"], {
       HOME: "/tmp/home"
     })
 
@@ -660,7 +683,7 @@ describe("@wanex/cli", () => {
       timeoutMs: 250
     })
     expect(() =>
-      parseCommand(["run", "hello", "--timeout-ms", "0"], {
+      parseCommand(["run", "hello", "--model-endpoint", "local", "--timeout-ms", "0"], {
         HOME: "/tmp/home"
       })
     ).toThrow("--timeout-ms must be a positive integer")
@@ -671,6 +694,8 @@ describe("@wanex/cli", () => {
       [
         "run",
         "hello",
+        "--model-endpoint",
+        "local",
         "--max-steps",
         "4",
         "--instructions-cwd",
@@ -764,12 +789,8 @@ describe("@wanex/cli", () => {
         "maintainer",
         "--session-limit",
         "5",
-        "--waterline-tokens",
-        "100",
         "--minimum-token-savings",
         "10",
-        "--policy-version",
-        "cli-policy",
         "--idempotency-prefix",
         "cli-sweep"
       ],
@@ -782,9 +803,7 @@ describe("@wanex/cli", () => {
       name: "memory-sweep",
       principalId: "maintainer",
       sessionLimit: 5,
-      waterlineTokens: 100,
       minimumTokenSavings: 10,
-      policyVersion: "cli-policy",
       idempotencyKeyPrefix: "cli-sweep"
     })
     expect(() =>
@@ -802,8 +821,6 @@ describe("@wanex/cli", () => {
         "--memory-maintenance",
         "--stale-after-ms",
         "1000",
-        "--policy-version",
-        "diag-policy",
         "--session-limit",
         "3",
         "--limit",
@@ -821,7 +838,6 @@ describe("@wanex/cli", () => {
       includeConfigReloads: true,
       memoryMaintenance: true,
       staleAfterMs: 1000,
-      policyVersion: "diag-policy",
       sessionLimit: 3,
       jobLimit: 7,
       pluginLimit: 2
@@ -837,7 +853,7 @@ describe("@wanex/cli", () => {
     const parsed = parseCommand(
       [
         "support-bundle",
-        "--provider-profile",
+        "--model-endpoint",
         "local,deepseek",
         "--session",
         "ses_support",
@@ -848,8 +864,6 @@ describe("@wanex/cli", () => {
         "--plugin-limit",
         "5",
         "--memory-maintenance",
-        "--policy-version",
-        "support-policy",
         "--session-limit",
         "6"
       ],
@@ -860,13 +874,12 @@ describe("@wanex/cli", () => {
 
     expect(parsed).toMatchObject({
       name: "support-bundle",
-      providerProfileIds: ["local", "deepseek"],
+      modelEndpointIds: ["local", "deepseek"],
       sessionId: "ses_support",
       eventLimit: 3,
       jobLimit: 4,
       pluginLimit: 5,
       memoryMaintenance: true,
-      policyVersion: "support-policy",
       sessionLimit: 6
     })
     expect(() =>
@@ -884,7 +897,7 @@ describe("@wanex/cli", () => {
         "side",
         "--session",
         "ses_side",
-        "--provider",
+        "--model-endpoint",
         "local",
         "--timeout-ms",
         "250",
@@ -900,7 +913,7 @@ describe("@wanex/cli", () => {
       name: "side-query",
       text: "hello side",
       sessionId: "ses_side",
-      providerId: "local",
+      modelEndpointId: "local",
       timeoutMs: 250,
       maxOutputTokens: 32
     })
@@ -922,9 +935,61 @@ async function runCli(
   args: readonly string[],
   storeDir: string
 ): Promise<Record<string, JsonValue>> {
-  return await runCliWithEnv(args, {
-    WANEX_STORE_DIR: storeDir
-  })
+  const command = args[0]
+  const needsModelEndpoint =
+    (command === "run" || command === "side-query") &&
+    !args.includes("--model-endpoint")
+  if (needsModelEndpoint) {
+    await runCliWithEnv(
+      [
+        "model-endpoint",
+        "set",
+        "cli-test-fake",
+        "--protocol",
+        "fake",
+        "--provider-id",
+        "fake",
+        "--model",
+        "wanex-cli-test-model"
+      ],
+      { WANEX_STORE_DIR: storeDir }
+    )
+  }
+  return await runCliWithEnv(
+    needsModelEndpoint
+      ? [...args, "--model-endpoint", "cli-test-fake"]
+      : args,
+    {
+      WANEX_STORE_DIR: storeDir
+    }
+  )
+}
+
+async function configureFakeProvider(
+  storeDir: string,
+  id: string,
+  modelId: string
+): Promise<void> {
+  await runCliWithEnv(
+    [
+      "model-endpoint",
+      "set",
+      id,
+      "--protocol",
+      "fake",
+      "--provider-id",
+      "fake",
+      "--model",
+      modelId,
+      "--model-context-window-tokens",
+      "12000",
+      "--model-max-input-tokens",
+      "12000",
+      "--model-max-output-tokens",
+      "500"
+    ],
+    { WANEX_STORE_DIR: storeDir }
+  )
 }
 
 function createTestStore(storeDir: string): StorageTestStore {

@@ -1,6 +1,7 @@
 import type {
   ToolExecutionResult
 } from "../../tools/index.js"
+import { jsonToolResultContent } from "../../tools/parts.js"
 import type {
   ActivateSkillInput,
   SkillActivationToolError,
@@ -23,9 +24,9 @@ export function skillActivationToolErrorResult(
   error: SkillActivationToolError
 ): ToolExecutionResult {
   return {
+    outcome: "failed",
     toolCallId,
-    result: skillActivationToolErrorToJson(error),
-    isError: true
+    content: jsonToolResultContent(skillActivationToolErrorToJson(error))
   }
 }
 

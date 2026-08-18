@@ -347,7 +347,6 @@ fn cli_runs_durable_turn_flow() {
                 "job_idempotency_key": "job:idem_cli_phase2",
                 "execution_binding": test_execution_binding("cli_phase2"),
                 "max_steps": 4,
-                "parent_turn_id": null,
                 "regenerates_turn_id": null,
                 "scheduled_at": null,
                 "not_before": null,
@@ -616,24 +615,38 @@ fn wire_request(request: Value) -> Value {
 }
 
 fn test_execution_binding(label: &str) -> Value {
-    let profile = json!({
-        "id": format!("profile_{label}"),
-        "kind": "fake",
-        "providerId": "fake",
-        "modelId": format!("model_{label}"),
-        "capabilities": { "input": ["text"], "output": ["text"] }
+    let endpoint = json!({
+        "id": format!("endpoint_{label}"),
+        "connection": {
+            "id": format!("connection_{label}"),
+            "providerId": "fake"
+        },
+        "protocol": { "id": "fake" },
+        "model": {
+            "id": format!("model_{label}"),
+            "operations": ["conversation"],
+            "inputModalities": ["text"],
+            "outputModalities": ["text"],
+            "features": [],
+            "catalog": {
+                "source": "custom",
+                "catalogId": format!("test.model_{label}"),
+                "revision": "1"
+            }
+        }
     });
-    let profile_digest = sha256_json(&profile);
+    let endpoint_digest = sha256_json(&endpoint);
     let mut binding = json!({
         "createdAt": 1,
-        "provider": {
-            "profileId": format!("profile_{label}"),
-            "profileDigest": profile_digest,
-            "adapterId": "fake",
-            "providerId": "fake",
-            "modelId": format!("model_{label}"),
-            "capabilities": { "input": ["text"], "output": ["text"] }
+        "modelEndpoint": {
+            "endpointId": format!("endpoint_{label}"),
+            "endpointDigest": endpoint_digest,
+            "connection": endpoint["connection"].clone(),
+            "protocol": endpoint["protocol"].clone(),
+            "model": endpoint["model"].clone()
         },
+        "completion": { "maxOutputTokens": 4096 },
+        "capabilityRoutes": [],
         "resources": [],
         "recovery": {
             "providerMaxAttempts": 2,

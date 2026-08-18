@@ -1,6 +1,7 @@
 import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
+  ArchiveSessionRequest,
   AppendSessionMessageRequest,
   BeginProviderInvocationRequest,
   CreateSessionRequest,
@@ -16,6 +17,8 @@ import type {
   ProviderInvocationRecord,
   RequestSessionTurnCancelReceipt,
   RequestSessionTurnCancelRequest,
+  RenameSessionRequest,
+  RestoreSessionRequest,
   SessionAttemptRecord,
   SessionInputRecord,
   SessionMessageRecord,
@@ -46,6 +49,18 @@ export class SessionCommands {
 
   async list(request: ListSessionsRequest = {}): Promise<SessionRecord[]> {
     return await this.storage.listSessions(request)
+  }
+
+  async rename(request: RenameSessionRequest): Promise<SessionRecord> {
+    return await this.storage.renameSession(request)
+  }
+
+  async archive(request: ArchiveSessionRequest): Promise<SessionRecord> {
+    return await this.storage.archiveSession(request)
+  }
+
+  async restore(request: RestoreSessionRequest): Promise<SessionRecord> {
+    return await this.storage.restoreSession(request)
   }
 
   async admit(request: AdmitSessionInputRequest): Promise<AdmissionReceipt> {

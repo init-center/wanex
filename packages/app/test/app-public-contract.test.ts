@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { createWanexApp } from "../src/index.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
 
 describe("@wanex/app public App Host", () => {
   it("owns durable commands, configurable workers, restart, and final disposal", async () => {
@@ -11,12 +12,10 @@ describe("@wanex/app public App Host", () => {
         storeDir
       },
       artifacts: { explicitPath: serviceBin },
-      providerProfile: {
-        id: "public-app-test",
-        kind: "fake",
-        capabilities: { input: ["text"], output: ["text"] },
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "public-app-test",
         modelId: "public-app-model"
-      },
+      }),
       workerCount: 2
     })
 
@@ -25,10 +24,10 @@ describe("@wanex/app public App Host", () => {
         disposed: false,
         started: true,
         workerCount: 2,
-        providerProfileId: "public-app-test",
-        activeProviderProfileId: "public-app-test"
+        activeModelEndpointId: "public-app-test"
       })
       expect(app.events.subscribeConversationEvents).toBeTypeOf("function")
+      expect(app.events.subscribeGoalEvents).toBeTypeOf("function")
 
       await app.stop()
       expect(app.status()).toMatchObject({

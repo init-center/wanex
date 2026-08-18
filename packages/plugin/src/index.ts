@@ -1,6 +1,6 @@
 export * from "./actions.js"
 export * from "./codec.js"
-export * from "./installer.js"
+export * from "./local-package/index.js"
 export * from "./runtime.js"
 export * from "./sandbox.js"
 export * from "./types.js"

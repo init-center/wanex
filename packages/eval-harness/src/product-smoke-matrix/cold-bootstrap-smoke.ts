@@ -31,7 +31,7 @@ export async function runColdBootstrapSmoke(
           runtime.storage,
           createPluginStore(runtime.transport)
         ),
-        providerProfileIds: [],
+        modelEndpointIds: [],
         eventLimit: 5,
         jobLimit: 5,
         pluginLimit: 5,

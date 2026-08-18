@@ -426,6 +426,7 @@ function command(id: string, inputSchema: unknown): AppCommandContribution {
     value: {
       name: id,
       title: id,
+      paletteVisibility: "visible",
       handlerRef: `handler.${id}`,
       inputSchema: inputSchema as AppCommandInputSchema
     },

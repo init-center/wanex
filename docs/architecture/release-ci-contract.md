@@ -55,11 +55,11 @@ pnpm test:toolchain-doctor
 pnpm test:native-artifact
 pnpm test:native-runtime-proof
 pnpm test:host-distribution-budget
-pnpm check:electron-boundary
-pnpm test:electron-boundary
-pnpm test:product-app-web-demo
-pnpm test:product-app-local-smoke-script
-pnpm test:product-app-tui-demo-script
+pnpm check:desktop
+pnpm test:desktop
+pnpm test:web-demo
+pnpm test:local-host-smoke-script
+pnpm test:tui-script
 pnpm test:verify-script
 pnpm test:runner
 pnpm test:public-contract-audit
@@ -108,7 +108,7 @@ round bounds, A2UI projection, remote storage control-plane isolation,
 runtime-host execution over remote HTTP storage, worker failure isolation,
 delegation through runtime-host, and delegation graph step advancement continue
 to work through an executable product path, not only through package-local
-tests. It also covers the direct Product App Local lifecycle and desktop-host
+tests. It also covers the direct Local Host lifecycle and desktop-host
 subpath so the first local upper Web product entry remains executable through
 its public package contract.
 The remote Runtime Host path uses two independent host owners, eight combined
@@ -152,7 +152,7 @@ principle: default App and cold/headless product paths stay free of optional
 plugin loading, npm plugin dependencies, connector adapters, and renderer
 closure. `@wanex/extension` remains dependency-free. Plugin execution is owned
 by `@wanex/plugin` and projected into product commands only by
-`@wanex/product-app-command-host`.
+`@wanex/plugin-command-host`.
 The package packlist audit prevents package defaults from including tests,
 fixtures, runtime stores, runtime logs, JSONL debug streams, or generated
 support bundles. It also enforces the current source-first manifest policy:
@@ -189,7 +189,7 @@ Each distribution matrix job additionally runs:
 ```bash
 pnpm stage:native -- --target <target>
 pnpm proof:native-runtime
-pnpm proof:electron-boundary # desktop targets only
+pnpm proof:desktop # desktop targets only
 pnpm audit:host-distribution -- --target <target>
 pnpm release:sdk
 pnpm release:native -- --target <target>
@@ -197,14 +197,14 @@ pnpm proof:sdk-consumers -- --native-target <target> \
   --native-package-report target/sdk/native/<target>/report.json
 ```
 
-Native and Electron lifecycle/performance proofs run before the npm external
+Native and Product Desktop lifecycle/performance proofs run before the npm external
 consumer journey. The external journey starts the System Service repeatedly
 and therefore must not warm host caches or perturb the fixed cold/warm
 measurement cohorts. Package generation and installation then consume the
 already audited immutable native artifact without changing it.
 
 The job uploads the target-native npm tarball and portable report beside the
-existing native/Electron receipts.
+existing native/Product Desktop receipts.
 
 The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or
@@ -222,8 +222,8 @@ Use the individual commands when narrowing a failure:
 ```bash
 pnpm doctor:toolchain
 pnpm test:toolchain-doctor
-pnpm test:product-app-web-demo
-pnpm test:product-app-local-smoke-script
+pnpm test:web-demo
+pnpm test:local-host-smoke-script
 pnpm test:verify-script
 pnpm test:runner
 pnpm test:public-contract-audit
@@ -255,28 +255,28 @@ For focused iteration, prefer package-local checks plus the structure audit
 before running a full gate:
 
 ```bash
-pnpm --filter @wanex/product-app-local check
-pnpm --filter @wanex/product-app-local test -- web-host
+pnpm --filter @wanex/local-host check
+pnpm --filter @wanex/local-host test -- web-host
 pnpm audit:structure
 ```
 
 For a bounded local product-path check that avoids the full workspace gate:
 
 ```bash
-pnpm --silent smoke:product-app-local
+pnpm --silent smoke:local-host
 ```
 
-This command starts Product App Local through a temporary profile root outside
+This command starts Local Host through a temporary profile root outside
 the workspace, verifies the local Web document, layout action, workbench start
 action, and product privacy boundary, prints one JSON result to stdout, closes
 the host, and exits. Use the `--silent` pnpm form when stdout must be directly
 parseable as JSON. It is useful during local product iteration, but it does not
 replace `pnpm verify` at release, handoff, or CI boundaries.
 
-For a focused Product App feedback check across Web and TUI:
+For a focused application feedback check across Web and TUI:
 
 ```bash
-pnpm smoke:product-app-feedback
+pnpm smoke:product-feedback
 ```
 
 This command reuses the `product.app-feedback-matrix-contract` eval scenario. It
@@ -289,9 +289,9 @@ eval suite in `pnpm verify`.
 For a temporary-store TUI demo from the workspace root:
 
 ```bash
-pnpm demo:product-app-tui
-pnpm demo:product-app-tui:json
-pnpm demo:product-app-tui:interactive
+pnpm demo:tui
+pnpm demo:tui:json
+pnpm demo:tui:interactive
 ```
 
 The runner injects `WANEX_STORE_DIR` and `WANEX_SYSTEM_SERVICE_BIN` for the TUI
@@ -329,11 +329,17 @@ Electron workflow. Complete `pnpm verify` runs natively on:
 - Windows Server 2025 x64.
 
 Only after all verify jobs pass does the native distribution matrix stage an
-explicit target and execute `pnpm proof:native-runtime`.
+explicit target and execute `pnpm proof:native-runtime`. The same matrix also
+builds and installs the TUI distribution with `pnpm proof:tui` on every target.
+The TUI proof writes both its package receipt and an installed-consumer receipt;
+the latter is required by the host distribution audit.
 macOS arm64/x64 and Windows x64 also execute the existing Electron production
 boundary with its fixed one-cold/four-warm sample contract.
-`pnpm audit:host-distribution` enforces the reviewed target budget, and
-structured receipts upload even when budget enforcement fails.
+`pnpm audit:host-distribution` enforces the reviewed native, TUI, and Desktop
+target budgets, and structured receipts upload even when budget enforcement
+fails. The TUI contract requires a real PTY proof on POSIX targets; Windows
+currently has an explicit line-mode-only contract because the repository does
+not ship a second native PTY harness just for CI.
 
 Cross-compilation does not qualify a target. Windows-specific atomic replace
 and process-tree code must compile and execute on the Windows runner, and each

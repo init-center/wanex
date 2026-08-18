@@ -1,6 +1,7 @@
 import type {
   AdmissionReceipt,
   AdmitSessionInputRequest,
+  ArchiveSessionRequest,
   AppendSessionMessageRequest,
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
@@ -21,6 +22,8 @@ import type {
   ProviderInvocationRecord,
   RequestSessionTurnCancelReceipt,
   RequestSessionTurnCancelRequest,
+  RenameSessionRequest,
+  RestoreSessionRequest,
   SessionAttemptRecord,
   SessionInputRecord,
   SessionMessageRecord,
@@ -41,6 +44,9 @@ export interface SessionStore {
   createSession(request: CreateSessionRequest): Promise<SessionRecord>
   getSession(id: string): Promise<SessionRecord | null>
   listSessions(request: ListSessionsRequest): Promise<SessionRecord[]>
+  renameSession(request: RenameSessionRequest): Promise<SessionRecord>
+  archiveSession(request: ArchiveSessionRequest): Promise<SessionRecord>
+  restoreSession(request: RestoreSessionRequest): Promise<SessionRecord>
   admitSessionInput(request: AdmitSessionInputRequest): Promise<AdmissionReceipt>
   submitSessionTurn(
     request: SubmitSessionTurnRequest

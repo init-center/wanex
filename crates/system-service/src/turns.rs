@@ -10,7 +10,7 @@ use crate::{
     SessionTurnRecord, SettleSessionTurn, SettleSessionTurnReceipt, StartSessionTurnAttempt,
     StartSessionTurnAttemptReceipt, SystemService, SystemServiceError,
 };
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, params_from_iter, OptionalExtension};
 use uuid::Uuid;
 
 const SESSION_ATTEMPT_SELECT: &str = "SELECT id, session_id, turn_id, input_id,
@@ -87,6 +87,33 @@ impl SystemService {
         Ok(rows)
     }
 
+    pub fn list_session_turns_by_ids(
+        &self,
+        session_id: &str,
+        turn_ids: &[String],
+    ) -> Result<Vec<SessionTurnRecord>> {
+        if turn_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        if turn_ids.len() > 1000 || turn_ids.iter().any(|id| id.is_empty()) {
+            return Err(SystemServiceError::InvalidInput(
+                "session turn id window must contain 1 to 1000 non-empty ids".to_string(),
+            ));
+        }
+        let placeholders = std::iter::repeat_n("?", turn_ids.len())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let query = format!(
+            "{SESSION_TURN_SELECT} WHERE session_id = ? AND id IN ({placeholders})
+             ORDER BY created_at ASC, id ASC"
+        );
+        let conn = self.connect()?;
+        let mut stmt = conn.prepare(&query)?;
+        let values = std::iter::once(session_id).chain(turn_ids.iter().map(String::as_str));
+        let rows = stmt.query_map(params_from_iter(values), row_to_session_turn)?;
+        collect_rows(rows)
+    }
+
     pub fn list_session_attempts(
         &self,
         request: &ListSessionAttempts,
@@ -129,9 +156,10 @@ pub(crate) fn start_session_turn_attempt_tx(
         });
     }
 
-    if turn.state != "queued" {
+    let resuming_cancel = turn.state == "cancel_requested" && turn.current_attempt_id.is_none();
+    if turn.state != "queued" && !resuming_cancel {
         return Err(SystemServiceError::Invariant(format!(
-            "session turn is not queued: {}",
+            "session turn cannot start a physical attempt: {}",
             turn.state
         )));
     }
@@ -189,12 +217,21 @@ pub(crate) fn start_session_turn_attempt_tx(
             now
         ],
     )?;
-    let updated_turn = tx.execute(
-        "UPDATE session_turn
-         SET state = 'running', current_attempt_id = ?, updated_at = ?
-         WHERE id = ? AND state = 'queued'",
-        params![attempt_id, now, request.turn_id],
-    )?;
+    let updated_turn = if resuming_cancel {
+        tx.execute(
+            "UPDATE session_turn
+             SET current_attempt_id = ?, updated_at = ?
+             WHERE id = ? AND state = 'cancel_requested' AND current_attempt_id IS NULL",
+            params![attempt_id, now, request.turn_id],
+        )?
+    } else {
+        tx.execute(
+            "UPDATE session_turn
+             SET state = 'running', current_attempt_id = ?, updated_at = ?
+             WHERE id = ? AND state = 'queued' AND current_attempt_id IS NULL",
+            params![attempt_id, now, request.turn_id],
+        )?
+    };
     let updated_input = if is_recovery {
         1
     } else {
@@ -256,7 +293,7 @@ pub(crate) fn start_session_turn_attempt_tx(
             "jobId": request.job_id,
             "workerId": request.worker_id,
             "recovered": is_recovery,
-            "state": "running"
+            "state": if resuming_cancel { "cancel_requested" } else { "running" }
         }),
         now,
     )?;
@@ -289,11 +326,8 @@ pub(crate) fn settle_session_turn_tx(
         }
         let attempt = get_attempt_tx(tx, &request.attempt_id)?;
         let job = crate::scheduler::get_job_tx(tx, &request.job_id)?;
-        let assistant_message = find_message_by_idempotency_tx(
-            tx,
-            &request.session_id,
-            &terminal_message_key(&request.turn_id),
-        )?;
+        let assistant_message =
+            get_terminal_assistant_message_tx(tx, &request.session_id, &request.turn_id)?;
         return Ok(SettleSessionTurnReceipt {
             turn,
             attempt,
@@ -518,6 +552,7 @@ pub(crate) fn request_session_turn_cancel_tx(
             status: "missing".to_string(),
             turn: None,
             job: None,
+            cascade_job_ids: Vec::new(),
         });
     };
     ensure_exact_turn_identity(
@@ -531,18 +566,79 @@ pub(crate) fn request_session_turn_cancel_tx(
             status: "already_terminal".to_string(),
             job: Some(crate::scheduler::get_job_tx(tx, &request.job_id)?),
             turn: Some(turn),
+            cascade_job_ids: Vec::new(),
+        });
+    }
+
+    if turn.state == "waiting" {
+        let approval_execution_id = pending_tool_approval_identity_tx(tx, &turn.id)?;
+        let linked_media = linked_media_identity_tx(tx, &turn.id)?;
+        let linked_team = crate::team::find_waiting_team_delegation_operation_tx(tx, &turn.id)?;
+        let owner_count = usize::from(approval_execution_id.is_some())
+            + usize::from(linked_media.is_some())
+            + usize::from(linked_team.is_some());
+        if owner_count != 1 {
+            return Err(SystemServiceError::Invariant(format!(
+                "waiting session turn must have exactly one durable suspension owner, found {owner_count}"
+            )));
+        }
+        let updated_turn = tx.execute(
+            "UPDATE session_turn
+             SET state = 'cancel_requested', cancel_requested_at = COALESCE(cancel_requested_at, ?),
+                 cancel_reason = COALESCE(cancel_reason, ?), updated_at = ?
+             WHERE id = ? AND state = 'waiting' AND current_attempt_id IS NULL",
+            params![now, request.reason, now, request.turn_id],
+        )?;
+        if updated_turn != 1 {
+            return Err(SystemServiceError::Invariant(
+                "waiting session turn lost its cancellation claim".to_string(),
+            ));
+        }
+        let cancel_requested_turn = get_turn_tx(tx, &request.turn_id)?;
+        let cascade_job_ids = if let Some(execution_id) = approval_execution_id {
+            request_pending_tool_approval_cancel_tx(
+                tx,
+                &turn,
+                &execution_id,
+                &request.reason,
+                now,
+            )?;
+            Vec::new()
+        } else if linked_media.is_some() {
+            let (_operation_id, job_id) =
+                request_linked_media_cancel_tx(tx, &turn, &request.reason, now)?;
+            vec![job_id]
+        } else {
+            crate::team::request_team_delegation_cancel_tx(
+                tx,
+                &cancel_requested_turn,
+                &request.reason,
+                now,
+            )?
+            .ok_or_else(|| {
+                SystemServiceError::Invariant(
+                    "waiting session turn lost its Team delegation owner".to_string(),
+                )
+            })?
+        };
+        append_cancel_event_tx(tx, request, "cancel_requested", now)?;
+        return Ok(RequestSessionTurnCancelReceipt {
+            status: "cancel_requested".to_string(),
+            turn: Some(get_turn_tx(tx, &request.turn_id)?),
+            job: Some(crate::scheduler::get_job_tx(tx, &request.job_id)?),
+            cascade_job_ids,
         });
     }
 
     if turn.state == "queued" {
-        let attempt_exists: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM session_attempt WHERE turn_id = ?)",
+        let active_attempt_exists: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM session_attempt WHERE turn_id = ? AND state = 'running')",
             params![request.turn_id],
             |row| row.get(0),
         )?;
-        if attempt_exists {
+        if turn.current_attempt_id.is_some() || active_attempt_exists {
             return Err(SystemServiceError::Invariant(
-                "queued turn already has a physical attempt".to_string(),
+                "queued turn unexpectedly has an active physical attempt".to_string(),
             ));
         }
         tx.execute(
@@ -564,13 +660,32 @@ pub(crate) fn request_session_turn_cancel_tx(
             status: "cancelled".to_string(),
             turn: Some(get_turn_tx(tx, &request.turn_id)?),
             job: Some(job),
+            cascade_job_ids: Vec::new(),
         });
     }
     if turn.state == "cancel_requested" {
+        let linked = linked_media_identity_tx(tx, &turn.id)?;
+        let linked_team = crate::team::find_waiting_team_delegation_operation_tx(tx, &turn.id)?;
+        if linked.is_some() && linked_team.is_some() {
+            return Err(SystemServiceError::Invariant(
+                "cancel-requested Turn has multiple deferred owners".to_string(),
+            ));
+        }
+        let cascade_job_ids = if linked.is_some() {
+            let (_operation_id, job_id) =
+                request_linked_media_cancel_tx(tx, &turn, &request.reason, now)?;
+            vec![job_id]
+        } else if linked_team.is_some() {
+            crate::team::request_team_delegation_cancel_tx(tx, &turn, &request.reason, now)?
+                .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         return Ok(RequestSessionTurnCancelReceipt {
             status: "cancel_requested".to_string(),
             job: Some(crate::scheduler::get_job_tx(tx, &request.job_id)?),
             turn: Some(turn),
+            cascade_job_ids,
         });
     }
 
@@ -592,7 +707,177 @@ pub(crate) fn request_session_turn_cancel_tx(
         status: "cancel_requested".to_string(),
         turn: Some(get_turn_tx(tx, &request.turn_id)?),
         job: Some(crate::scheduler::get_job_tx(tx, &request.job_id)?),
+        cascade_job_ids: Vec::new(),
     })
+}
+
+fn pending_tool_approval_identity_tx(
+    tx: &rusqlite::Transaction<'_>,
+    turn_id: &str,
+) -> Result<Option<String>> {
+    let mut stmt = tx.prepare(
+        "SELECT id FROM tool_execution
+         WHERE turn_id = ? AND state = 'approval_required'
+         ORDER BY created_at ASC, id ASC LIMIT 2",
+    )?;
+    let rows = stmt.query_map(params![turn_id], |row| row.get::<_, String>(0))?;
+    let executions = rows.collect::<rusqlite::Result<Vec<_>>>()?;
+    if executions.len() > 1 {
+        return Err(SystemServiceError::Invariant(
+            "waiting session turn has multiple pending Tool approvals".to_string(),
+        ));
+    }
+    Ok(executions.into_iter().next())
+}
+
+fn request_pending_tool_approval_cancel_tx(
+    tx: &rusqlite::Transaction<'_>,
+    turn: &SessionTurnRecord,
+    execution_id: &str,
+    reason: &str,
+    now: i64,
+) -> Result<()> {
+    let error = serde_json::json!({
+        "reason": "turn_cancelled_while_awaiting_approval",
+        "message": reason
+    });
+    let updated_tool = tx.execute(
+        "UPDATE tool_execution
+         SET state = 'cancelled', approval_revision = approval_revision + 1,
+             error_json = ?, updated_at = ?, finished_at = ?
+         WHERE id = ? AND turn_id = ? AND state = 'approval_required'
+           AND current_invocation_attempt_id IS NULL",
+        params![
+            serde_json::to_string(&error)?,
+            now,
+            now,
+            execution_id,
+            turn.id
+        ],
+    )?;
+    let updated_job = tx.execute(
+        "UPDATE scheduler_job
+         SET state = 'ready', not_before = NULL, lease_owner = NULL,
+             lease_token = NULL, lease_expires_at = NULL, updated_at = ?,
+             finished_at = NULL
+         WHERE id = ? AND kind = 'session.turn' AND state = 'waiting'
+           AND lease_owner IS NULL AND lease_token IS NULL",
+        params![now, turn.job_id],
+    )?;
+    if updated_tool != 1 || updated_job != 1 {
+        return Err(SystemServiceError::Invariant(
+            "Tool approval cancellation lost its waiting execution or Job".to_string(),
+        ));
+    }
+    let scope = EventScope {
+        session_id: Some(turn.session_id.clone()),
+        turn_id: Some(turn.id.clone()),
+        input_id: Some(turn.primary_input_id.clone()),
+        ..EventScope::default()
+    };
+    append_event_tx(
+        tx,
+        &format!("evt_{}", Uuid::now_v7()),
+        "tool.execution.cancelled",
+        &scope,
+        &serde_json::json!({
+            "executionId": execution_id,
+            "jobId": turn.job_id,
+            "reason": "turn_cancelled_while_awaiting_approval"
+        }),
+        now,
+    )?;
+    crate::scheduler::append_scheduler_event_tx(
+        tx,
+        "scheduler.job.woken",
+        &turn.job_id,
+        &serde_json::json!({
+            "turnId": turn.id,
+            "executionId": execution_id,
+            "reason": "tool_approval_cancelled"
+        }),
+        now,
+    )
+}
+
+fn linked_media_identity_tx(
+    tx: &rusqlite::Transaction<'_>,
+    turn_id: &str,
+) -> Result<Option<(String, String)>> {
+    tx.query_row(
+        "SELECT id, job_id FROM media_generation_operation
+         WHERE turn_id = ?
+           AND state NOT IN ('succeeded', 'failed', 'cancelled', 'recovery_required')",
+        params![turn_id],
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    )
+    .optional()
+    .map_err(Into::into)
+}
+
+fn request_linked_media_cancel_tx(
+    tx: &rusqlite::Transaction<'_>,
+    turn: &SessionTurnRecord,
+    reason: &str,
+    now: i64,
+) -> Result<(String, String)> {
+    let (operation_id, job_id, operation_state): (String, String, String) = tx
+        .query_row(
+            "SELECT id, job_id, state FROM media_generation_operation WHERE turn_id = ?",
+            params![turn.id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()?
+        .ok_or_else(|| {
+            SystemServiceError::Invariant(
+                "waiting session turn has no linked media operation".to_string(),
+            )
+        })?;
+    if matches!(
+        operation_state.as_str(),
+        "succeeded" | "failed" | "cancelled" | "recovery_required"
+    ) {
+        return Err(SystemServiceError::Invariant(
+            "waiting session turn points to terminal media generation".to_string(),
+        ));
+    }
+    let updated = tx.execute(
+        "UPDATE media_generation_operation
+         SET state = 'cancel_requested', cancel_requested_at = COALESCE(cancel_requested_at, ?),
+             cancel_reason = COALESCE(cancel_reason, ?), next_poll_at = NULL, updated_at = ?
+         WHERE id = ? AND state NOT IN ('succeeded', 'failed', 'cancelled', 'recovery_required')",
+        params![now, reason, now, operation_id],
+    )?;
+    if updated != 1 {
+        return Err(SystemServiceError::Invariant(
+            "waiting session cancellation lost its media operation".to_string(),
+        ));
+    }
+    tx.execute(
+        "UPDATE scheduler_job SET state = 'ready', not_before = NULL, updated_at = ?
+         WHERE id = ? AND kind = 'media.generate'
+           AND state IN ('pending', 'ready', 'retry_scheduled')",
+        params![now, job_id],
+    )?;
+    append_event_tx(
+        tx,
+        &format!("evt_{}", Uuid::now_v7()),
+        "media_generation.cancel_requested",
+        &EventScope {
+            session_id: Some(turn.session_id.clone()),
+            turn_id: Some(turn.id.clone()),
+            input_id: Some(turn.primary_input_id.clone()),
+            ..EventScope::default()
+        },
+        &serde_json::json!({
+            "operationId": operation_id,
+            "jobId": job_id,
+            "reason": reason,
+            "source": "session_turn_cancel"
+        }),
+        now,
+    )?;
+    Ok((operation_id, job_id))
 }
 
 pub(crate) fn fail_session_turn_job_tx(
@@ -629,8 +914,11 @@ pub(crate) fn fail_session_turn_job_tx(
             &job,
             &turn,
             &attempt,
-            "worker_reported_failure_after_promotion",
-            Some(&request.error),
+            SessionTurnRecoveryRequirement {
+                reason: "worker_reported_failure_after_promotion",
+                cause: Some(&request.error),
+                retain_budget: false,
+            },
             now,
         )?;
         return Ok(Some(crate::scheduler::get_job_tx(tx, &request.job_id)?));
@@ -758,9 +1046,18 @@ pub(crate) fn reconcile_expired_session_turn_job_tx(
         RecoveryClassification::Safe { retry_tool_ids } => {
             requeue_session_turn_tx(tx, job, &turn, &attempt, &retry_tool_ids, now)
         }
-        RecoveryClassification::Required { reason } => {
-            require_session_turn_recovery_tx(tx, job, &turn, &attempt, &reason, None, now)
-        }
+        RecoveryClassification::Required { reason } => require_session_turn_recovery_tx(
+            tx,
+            job,
+            &turn,
+            &attempt,
+            SessionTurnRecoveryRequirement {
+                reason: &reason,
+                cause: None,
+                retain_budget: false,
+            },
+            now,
+        ),
     }
 }
 
@@ -1018,22 +1315,27 @@ fn requeue_session_turn_tx(
     )
 }
 
-fn require_session_turn_recovery_tx(
+pub(crate) struct SessionTurnRecoveryRequirement<'a> {
+    pub(crate) reason: &'a str,
+    pub(crate) cause: Option<&'a serde_json::Value>,
+    pub(crate) retain_budget: bool,
+}
+
+pub(crate) fn require_session_turn_recovery_tx(
     tx: &rusqlite::Transaction<'_>,
     job: &SchedulerJobRecord,
     turn: &SessionTurnRecord,
     attempt: &SessionAttemptRecord,
-    reason: &str,
-    cause: Option<&serde_json::Value>,
+    requirement: SessionTurnRecoveryRequirement<'_>,
     now: i64,
 ) -> Result<()> {
     let mut error = serde_json::json!({
-        "type": "recovery_required_after_owner_loss",
-        "reason": reason,
+        "type": "session_turn_recovery_required",
+        "reason": requirement.reason,
         "jobId": job.id,
         "attemptId": attempt.id
     });
-    if let Some(cause) = cause {
+    if let Some(cause) = requirement.cause {
         error["cause"] = cause.clone();
     }
     let error_json = serde_json::to_string(&error)?;
@@ -1112,9 +1414,13 @@ fn require_session_turn_recovery_tx(
         now,
     )?;
     crate::scheduler::append_scheduler_event_tx(tx, "scheduler.job.failed", &job.id, &error, now)?;
-    if let Some(grant_id) = &job.budget_grant_id {
-        crate::budget::commit_budget_grant_tx(tx, grant_id, now)?;
+    if !requirement.retain_budget {
+        if let Some(grant_id) = &job.budget_grant_id {
+            crate::budget::commit_budget_grant_tx(tx, grant_id, now)?;
+        }
     }
+    let terminal_job = crate::scheduler::get_job_tx(tx, &job.id)?;
+    crate::team::settle_team_delegation_child_tx(tx, &terminal_job, now)?;
     Ok(())
 }
 
@@ -1211,7 +1517,7 @@ fn ensure_exact_turn_identity(
     Ok(())
 }
 
-fn get_attempt_tx(
+pub(crate) fn get_attempt_tx(
     tx: &rusqlite::Transaction<'_>,
     attempt_id: &str,
 ) -> Result<SessionAttemptRecord> {
@@ -1313,7 +1619,15 @@ fn terminal_message_key(turn_id: &str) -> String {
     format!("session.turn.terminal:{turn_id}")
 }
 
-fn is_terminal_turn_state(state: &str) -> bool {
+pub(crate) fn get_terminal_assistant_message_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    turn_id: &str,
+) -> Result<Option<crate::SessionMessageRecord>> {
+    find_message_by_idempotency_tx(tx, session_id, &terminal_message_key(turn_id))
+}
+
+pub(crate) fn is_terminal_turn_state(state: &str) -> bool {
     matches!(
         state,
         "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required"

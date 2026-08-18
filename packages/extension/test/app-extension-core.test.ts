@@ -14,6 +14,26 @@ import type {
 } from "../src/index.js"
 
 describe("@wanex/extension", () => {
+  it("fails closed when a command omits explicit palette visibility", () => {
+    const malformed = command({
+      id: "command.missing-visibility",
+      sourceKind: "plugin",
+      title: "Missing visibility"
+    })
+    delete (malformed.value as { paletteVisibility?: unknown }).paletteVisibility
+
+    const snapshot = resolveAppExtensionContributions([malformed])
+
+    expect(snapshot.byDomain.command.all).toEqual([])
+    expect(snapshot.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "extension.command_palette_visibility_invalid",
+        severity: "error",
+        contributionId: "command.missing-visibility"
+      })
+    ])
+  })
+
   it("exports the frozen app contribution domains and default source order", () => {
     expect(APP_EXTENSION_DOMAINS).toEqual([
       "instruction",
@@ -262,6 +282,7 @@ function command(options: {
       name: options.id,
       title: options.title,
       ...(options.aliases === undefined ? {} : { aliases: options.aliases }),
+      paletteVisibility: "visible",
       handlerRef: `handler.${options.id}`
     },
     provenance: provenance({

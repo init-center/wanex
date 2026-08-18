@@ -1,4 +1,4 @@
-import type { ProviderProfile } from "@wanex/protocol"
+import type { ModelEndpoint } from "@wanex/protocol"
 import type { PrepareAgentContextOptions } from "@wanex/runtime/context"
 
 export interface CliEnvironment {
@@ -42,23 +42,21 @@ export type ParsedCommand =
       readonly limit?: number
     }
   | {
-      readonly name: "provider-get"
+      readonly name: "model-endpoint-get"
       readonly options: GlobalOptions
-      readonly profileId: string
+      readonly endpointId: string
     }
   | {
-      readonly name: "provider-set"
+      readonly name: "model-endpoint-set"
       readonly options: GlobalOptions
-      readonly profile: ProviderProfile
+      readonly modelEndpoint: ModelEndpoint
     }
   | {
       readonly name: "memory-sweep"
       readonly options: GlobalOptions
       readonly principalId: string
       readonly sessionLimit?: number
-      readonly waterlineTokens?: number
       readonly minimumTokenSavings?: number
-      readonly policyVersion?: string
       readonly idempotencyKeyPrefix?: string
     }
   | {
@@ -67,7 +65,6 @@ export type ParsedCommand =
       readonly includeConfigReloads?: boolean
       readonly memoryMaintenance?: boolean
       readonly staleAfterMs?: number
-      readonly policyVersion?: string
       readonly sessionLimit?: number
       readonly jobLimit?: number
       readonly pluginLimit?: number
@@ -75,14 +72,13 @@ export type ParsedCommand =
   | {
       readonly name: "support-bundle"
       readonly options: GlobalOptions
-      readonly providerProfileIds?: readonly string[]
+      readonly modelEndpointIds?: readonly string[]
       readonly sessionId?: string
       readonly eventLimit?: number
       readonly jobLimit?: number
       readonly pluginLimit?: number
       readonly memoryMaintenance?: boolean
       readonly staleAfterMs?: number
-      readonly policyVersion?: string
       readonly sessionLimit?: number
     }
   | {
@@ -90,7 +86,7 @@ export type ParsedCommand =
       readonly options: GlobalOptions
       readonly text: string
       readonly sessionId?: string
-      readonly providerId?: string
+      readonly modelEndpointId: string
       readonly timeoutMs?: number
       readonly maxSteps?: number
       readonly context?: CliAgentContextOptions
@@ -100,7 +96,7 @@ export type ParsedCommand =
       readonly options: GlobalOptions
       readonly text: string
       readonly sessionId?: string
-      readonly providerId?: string
+      readonly modelEndpointId: string
       readonly timeoutMs?: number
       readonly maxOutputTokens?: number
     }

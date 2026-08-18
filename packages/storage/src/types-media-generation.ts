@@ -2,15 +2,16 @@ import type {
   AcceptMediaGenerationOperationRequest,
   BeginMediaGenerationOperationRequest,
   CompleteMediaGenerationOperationRequest,
-  CheckpointMediaGenerationOperationRequest,
   GetMediaGenerationOperationRequest,
   ListMediaGenerationOperationsRequest,
   MediaGenerationBeginReceipt,
   MediaGenerationOperationRecord,
   MediaGenerationOperationSubmission,
+  MediaGenerationSuspendReceipt,
   RecordMediaGenerationOutputsRequest,
   RequestMediaGenerationCancelRequest,
   SettleMediaGenerationOperationRequest,
+  SuspendMediaGenerationOperationRequest,
   SubmitMediaGenerationOperationRequest
 } from "@wanex/protocol"
 
@@ -24,9 +25,9 @@ export interface MediaGenerationStore {
   acceptMediaGenerationOperation(
     request: AcceptMediaGenerationOperationRequest
   ): Promise<MediaGenerationOperationRecord | null>
-  checkpointMediaGenerationOperation(
-    request: CheckpointMediaGenerationOperationRequest
-  ): Promise<MediaGenerationOperationRecord | null>
+  suspendMediaGenerationOperation(
+    request: SuspendMediaGenerationOperationRequest
+  ): Promise<MediaGenerationSuspendReceipt | null>
   recordMediaGenerationOutputs(
     request: RecordMediaGenerationOutputsRequest
   ): Promise<MediaGenerationOperationRecord | null>

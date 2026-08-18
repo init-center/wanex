@@ -23,6 +23,12 @@ const tools = [
     description: "Wait for cancellation.",
     inputSchema: { type: "object", additionalProperties: true },
     annotations: { readOnlyHint: true, idempotentHint: true }
+  },
+  {
+    name: "media",
+    description: "Return embedded MCP media.",
+    inputSchema: { type: "object", additionalProperties: false },
+    annotations: { readOnlyHint: true, idempotentHint: true }
   }
 ]
 
@@ -45,6 +51,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       content: [{ type: "text", text: "fixture failure" }],
       structuredContent: { error: "fixture_failure" },
       isError: true
+    }
+  }
+  if (request.params.name === "media") {
+    return {
+      content: [
+        { type: "image", data: "AQID", mimeType: "image/png" },
+        {
+          type: "resource",
+          resource: {
+            uri: "wanex://fixture/blob",
+            blob: "BAUG",
+            mimeType: "application/octet-stream"
+          }
+        }
+      ],
+      isError: false
     }
   }
   const value = { echo: request.params.arguments ?? {} }

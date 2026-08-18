@@ -5,7 +5,7 @@ import type {
 import type { ProviderEventObserver } from "./provider/index.js"
 import type { SecretResolverPort } from "./secrets/index.js"
 import type {
-  ProviderCapabilities,
+  ModelEndpoint,
   UserMessageInputPart
 } from "@wanex/protocol"
 
@@ -36,32 +36,6 @@ export type WanexRuntimeStorageConfig =
       readonly handle: Pick<StorageHandle, "core" | "transport">
     }
 
-export type WanexRuntimeProviderProfileKind =
-  | "fake"
-  | "openai-compatible"
-  | "anthropic"
-  | "deepseek"
-
-export type WanexRuntimeProviderOptions =
-  | {
-      readonly kind?: "fake"
-      readonly id?: string
-      readonly providerId?: string
-      readonly modelId?: string
-      readonly responseText?: string
-      readonly capabilities?: ProviderCapabilities
-    }
-  | {
-      readonly kind: "openai-compatible" | "anthropic" | "deepseek"
-      readonly id?: string
-      readonly providerId?: string
-      readonly modelId: string
-      readonly baseUrl?: string
-      readonly secretRef?: string
-      readonly anthropicVersion?: string
-      readonly capabilities: ProviderCapabilities
-    }
-
 export interface WanexRuntimeOptions {
   readonly storage: WanexRuntimeStorageConfig
   readonly artifacts?: {
@@ -72,7 +46,8 @@ export interface WanexRuntimeOptions {
     readonly manifest?: unknown
     readonly artifactDir?: string
   }
-  readonly provider?: WanexRuntimeProviderOptions
+  readonly modelEndpoint: ModelEndpoint
+  readonly fakeResponseText?: string
   readonly secretResolver?: SecretResolverPort
   readonly workerCount?: number
   readonly leaseMs?: number
@@ -109,6 +84,7 @@ export interface WanexRuntimeReadOperationRequest
 export type WanexRuntimeOperationState =
   | "queued"
   | "running"
+  | "waiting"
   | "cancel_requested"
   | "succeeded"
   | "failed"
@@ -170,8 +146,9 @@ export interface WanexRuntimeStatus {
   readonly disposed: boolean
   readonly started: boolean
   readonly workerCount: number
-  readonly providerProfileId: string
-  readonly providerKind: WanexRuntimeProviderProfileKind
+  readonly modelEndpointId: string
+  readonly protocolId: string
+  readonly providerId: string
   readonly modelId: string
 }
 

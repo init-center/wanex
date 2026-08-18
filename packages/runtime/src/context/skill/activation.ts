@@ -21,6 +21,7 @@ import {
 import type {
   SkillActivationOptions
 } from "./types.js"
+import { jsonToolResultContent } from "../../tools/parts.js"
 
 export {
   SKILL_ACTIVATION_TOOL_NAME
@@ -43,6 +44,8 @@ export class SkillActivationTool implements ToolDefinition {
   } as const
   readonly risk = "read_only" as const
   readonly idempotent = true
+  readonly concurrency = "parallel_safe" as const
+  readonly resultMode = "immediate" as const
   readonly annotations = { readOnlyHint: true, idempotentHint: true } as const
   readonly runtimeBinding
 
@@ -55,7 +58,7 @@ export class SkillActivationTool implements ToolDefinition {
       implementationRevision: "1",
       configuration: {
         snapshot: {
-          status: options.snapshot.status,
+          complete: options.snapshot.complete,
           sources: options.snapshot.sources.map((source) => ({
             id: source.id,
             path: source.path,
@@ -87,16 +90,16 @@ export class SkillActivationTool implements ToolDefinition {
     }
 
     return {
+      outcome: "succeeded",
       toolCallId: invocation.toolCallId,
-      result: skillActivationToolResultToJson({
+      content: jsonToolResultContent(skillActivationToolResultToJson({
         name: result.name,
         directory: result.directory,
         path: result.path,
         output: formatSkillActivationResult(result),
         provenance: result.provenance,
         supportingFiles: result.supportingFiles
-      }),
-      isError: false
+      }))
     }
   }
 }

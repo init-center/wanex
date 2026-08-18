@@ -1,11 +1,14 @@
 import type { ContextCompiler } from "../../context/memory/index.js"
+import type { ContextCapacityCompactor } from "../../context/capacity/index.js"
 import type {
   ProviderAdapter,
   ProviderEventObserver
 } from "../../provider/index.js"
 import type {
+  DeferToolExecutionReceipt,
   RuntimeAbortSignal,
-  SettleSessionTurnReceipt
+  SettleSessionTurnReceipt,
+  ToolExecutionApprovalSuspensionReceipt
 } from "@wanex/protocol"
 import type { WanexSessionCore } from "../../sessions/index.js"
 import type {
@@ -20,6 +23,7 @@ export interface WanexAgentRunnerOptions {
   readonly toolPermissionPolicy?: ToolPermissionPolicy
   readonly toolMaxConcurrency?: number
   readonly contextCompiler?: ContextCompiler
+  readonly compactContext?: ContextCapacityCompactor
   readonly timeoutMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
 }
@@ -34,6 +38,7 @@ export interface ActiveTurnAttempt {
   readonly leaseToken: string
   readonly principalId: string
   readonly maxSteps: number
+  readonly maxOutputTokens: number
   readonly recovery: import("@wanex/protocol").SessionTurnRecoveryBinding
   readonly budgetGrantId?: string
 }
@@ -44,7 +49,11 @@ export interface ExecuteTurnRequest {
   heartbeat(): Promise<void>
 }
 
-export interface ExecuteTurnResult {
+export type ExecuteTurnResult =
+  | ExecuteTurnSettlementResult
+  | ExecuteTurnSuspendedResult
+
+export interface ExecuteTurnSettlementResult {
   readonly outcome:
     | "succeeded"
     | "failed"
@@ -54,4 +63,12 @@ export interface ExecuteTurnResult {
   readonly steps: number
   readonly settlement: SettleSessionTurnReceipt
   readonly error?: Error
+}
+
+export interface ExecuteTurnSuspendedResult {
+  readonly outcome: "suspended"
+  readonly steps: number
+  readonly receipt:
+    | DeferToolExecutionReceipt
+    | ToolExecutionApprovalSuspensionReceipt
 }

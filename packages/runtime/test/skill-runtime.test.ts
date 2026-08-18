@@ -5,11 +5,13 @@ import type {
   CompiledContext,
   ContextCompiler
 } from "../src/context/memory/index.js"
+import { prepareAgentContext } from "../src/context/agent/index.js"
 import type {
   SkillDirEntry,
   SkillFileStat,
   SkillFileSystem
 } from "../src/context/skill/index.js"
+import { unavailableToolResources } from "./tool-invocation-fixture.js"
 import {
   activateSkill,
   discoverSkillSnapshot,
@@ -62,7 +64,7 @@ describe("../src/context/skill/index.js", () => {
       })
     })
 
-    expect(snapshot.status).toBe("available")
+    expect(snapshot.complete).toBe(true)
     expect(snapshot.diagnostics).toEqual([])
     expect(snapshot.sources.map((source) => [source.scope, source.name])).toEqual([
       ["global", "review-pr"],
@@ -96,7 +98,7 @@ describe("../src/context/skill/index.js", () => {
       })
     })
 
-    expect(snapshot.status).toBe("available")
+    expect(snapshot.complete).toBe(true)
     expect(snapshot.sources.map((source) => source.name)).toEqual(["global-skill"])
     expect(snapshot.diagnostics).toEqual([
       expect.objectContaining({
@@ -131,7 +133,7 @@ describe("../src/context/skill/index.js", () => {
       })
     })
 
-    expect(snapshot.status).toBe("available")
+    expect(snapshot.complete).toBe(true)
     expect(snapshot.sources.map((source) => source.name)).toEqual(["good-skill"])
     expect(snapshot.diagnostics).toEqual([
       expect.objectContaining({
@@ -161,7 +163,7 @@ describe("../src/context/skill/index.js", () => {
       })
     })
 
-    expect(snapshot.status).toBe("available")
+    expect(snapshot.complete).toBe(true)
     expect(snapshot.sources).toEqual([])
     expect(snapshot.diagnostics).toEqual([
       expect.objectContaining({
@@ -339,11 +341,68 @@ describe("../src/context/skill/index.js", () => {
         fs: memoryFs({})
       })
     ).resolves.toMatchObject({
-      status: "unavailable",
+      complete: false,
       diagnostics: [
         expect.objectContaining({ code: "skill.invalid_options" })
       ]
     })
+  })
+
+  it("keeps partial sources diagnostic-only when discovery is incomplete", async () => {
+    const fs = memoryFs({
+      [skillFile(globalSkillsDir, "global-skill", "SKILL.md")]: skillMd({
+        name: "global-skill",
+        description: "Global skill.",
+        body: "Global body"
+      }),
+      [skillFile(projectSkillsDir, "project-skill", "SKILL.md")]: skillMd({
+        name: "project-skill",
+        description: "Project skill.",
+        body: "Project body"
+      })
+    })
+    const readDir = fs.readDir.bind(fs)
+    fs.readDir = async (path) => {
+      if (normalize(path) === normalize(projectSkillsDir)) {
+        throw new Error("temporary project skill read failure")
+      }
+      return await readDir(path)
+    }
+
+    const snapshot = await discoverSkillSnapshot({
+      cwd: projectRoot,
+      projectRoot,
+      globalSkillDirs: [globalSkillsDir],
+      trust: { projectSkills: "trusted" },
+      fs
+    })
+
+    expect(snapshot).toMatchObject({
+      complete: false,
+      sources: [{ name: "global-skill" }],
+      diagnostics: [
+        expect.objectContaining({
+          code: "skill.source_unavailable",
+          path: projectSkillsDir
+        })
+      ]
+    })
+    expect(renderSkillSnapshot({ snapshot })).toBe("")
+    expect(skillSnapshotToSystemPart(snapshot)).toBeNull()
+
+    const prepared = await prepareAgentContext({
+      skills: {
+        cwd: projectRoot,
+        projectRoot,
+        globalSkillDirs: [globalSkillsDir],
+        trust: { projectSkills: "trusted" },
+        registerActivationTool: true,
+        fs
+      }
+    })
+    expect(prepared.skillSnapshot?.complete).toBe(false)
+    expect(prepared.contextCompiler).toBeUndefined()
+    expect(prepared.tools).toBeUndefined()
   })
 
   it("activates one skill lazily with full content and bounded supporting file index", async () => {
@@ -414,24 +473,30 @@ describe("../src/context/skill/index.js", () => {
       ...toolIdentity("call_skill")
     })
 
-    expect(result.isError).toBe(false)
-    expect(result.result).toMatchObject({
-      name: "write-tests",
-      output: expect.stringContaining("<skill_content name=\"write-tests\">"),
-      provenance: {
-        scope: "project",
-        hash: snapshot.sources[0]?.hash,
-        bodyHash: snapshot.sources[0]?.bodyHash,
-        mtimeMs: 1
+    expect(result.outcome).toBe("succeeded")
+    if (result.outcome === "ambiguous" || result.outcome === "deferred") {
+      throw new Error("unexpected non-immediate result")
+    }
+    expect(result.content).toMatchObject([{
+      type: "json",
+      value: {
+        name: "write-tests",
+        output: expect.stringContaining("<skill_content name=\"write-tests\">"),
+        provenance: {
+          scope: "project",
+          hash: snapshot.sources[0]?.hash,
+          bodyHash: snapshot.sources[0]?.bodyHash,
+          mtimeMs: 1
+        }
       }
-    })
-    expect(JSON.stringify(result.result)).toContain("Full skill body")
+    }])
+    expect(JSON.stringify(result.content)).toContain("Full skill body")
   })
 
   it("fails skill activation closed for invalid input and missing skills", async () => {
     const tool = new SkillActivationTool({
       snapshot: {
-        status: "available",
+        complete: true,
         sources: [],
         diagnostics: []
       },
@@ -446,8 +511,8 @@ describe("../src/context/skill/index.js", () => {
         ...toolIdentity("call_invalid")
       })
     ).resolves.toMatchObject({
-      isError: true,
-      result: { error: "invalid_input" }
+      outcome: "failed",
+      content: [{ value: { error: "invalid_input" } }]
     })
 
     await expect(
@@ -458,8 +523,8 @@ describe("../src/context/skill/index.js", () => {
         ...toolIdentity("call_missing")
       })
     ).resolves.toMatchObject({
-      isError: true,
-      result: { error: "skill_not_found", skillName: "missing-skill" }
+      outcome: "failed",
+      content: [{ value: { error: "skill_not_found", skillName: "missing-skill" } }]
     })
   })
 
@@ -537,7 +602,8 @@ function toolIdentity(toolCallId: string) {
     inputId: "input",
     turnId: "turn",
     attemptId: "attempt",
-    idempotencyKey: `tool:turn:${toolCallId}`
+    idempotencyKey: `tool:turn:${toolCallId}`,
+    resources: unavailableToolResources
   }
 }
 
@@ -549,24 +615,13 @@ class RecordingCompiler implements ContextCompiler {
     return {
       sessionId: input.sessionId,
       ...(input.epochId === undefined ? {} : { epochId: input.epochId }),
-      policy: {
-        version: "recording",
-        maxInputTokens: 0,
-        recentUserTurns: 0,
-        snipTextOverChars: 0,
-        placeholderTextOverChars: 0,
-        snipHeadChars: 0,
-        snipTailChars: 0
-      },
       messages: input.inputs.map((record) => ({
         role: record.inputType === "system" ? "system" : "user",
         content: record.content
       })),
-      replacements: [],
       stats: {
         tokenEstimateBefore: 0,
-        tokenEstimateAfter: 0,
-        replacementCount: 0
+        tokenEstimateAfter: 0
       }
     }
   }

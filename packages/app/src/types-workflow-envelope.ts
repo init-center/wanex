@@ -4,14 +4,18 @@ import type {
   SessionInputOrigin
 } from "@wanex/protocol"
 import type {
-  WanexAppRunAgentTurnResult
-} from "./types-agent.js"
+  WanexAppConversationOperationReceipt
+} from "./types-conversation-operation.js"
 import type {
   WanexAppAskSideQueryRequest,
   WanexAppAskSideQueryResult,
   WanexAppQueueGuidedFollowUpRequest,
   WanexAppQueueGuidedFollowUpResult
 } from "./types-workflow.js"
+import type {
+  WanexAppScheduledTickResult,
+  WanexAppSubmitScheduledTickRequest
+} from "./types-schedule.js"
 
 export type WanexAppWorkflowEnvelope =
   | WanexAppInteractiveWorkflowEnvelope
@@ -79,6 +83,7 @@ export interface WanexAppNormalizedWorkflowEnvelope {
   readonly text: string
   readonly sessionId?: SessionId
   readonly agent?: WanexAppNormalizedWorkflowAgentInput
+  readonly scheduledTick?: WanexAppSubmitScheduledTickRequest
   readonly guidedFollowUp?: WanexAppQueueGuidedFollowUpRequest
   readonly sideQuery?: WanexAppAskSideQueryRequest
 }
@@ -86,8 +91,6 @@ export interface WanexAppNormalizedWorkflowEnvelope {
 export interface WanexAppNormalizedWorkflowAgentInput {
   readonly origin: SessionInputOrigin
   readonly intent?: Extract<SessionInputIntent, "normal">
-  readonly runControlPolicy?: never
-  readonly expectedTurnId?: never
 }
 
 export type WanexAppWorkflowEnvelopeNormalizationResult =
@@ -101,14 +104,21 @@ export interface WanexAppWorkflowEnvelopeNormalizedResult {
 
 export type WanexAppRouteWorkflowEnvelopeResult =
   | WanexAppRouteWorkflowEnvelopeAgentResult
+  | WanexAppRouteWorkflowEnvelopeScheduledResult
   | WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult
   | WanexAppRouteWorkflowEnvelopeSideQueryResult
   | WanexAppRouteWorkflowEnvelopeErrorResult
 
 export interface WanexAppRouteWorkflowEnvelopeAgentResult {
   readonly kind: "agent"
-  readonly command: "runAgentTurn"
-  readonly result: WanexAppRunAgentTurnResult
+  readonly command: "submitConversationOperation"
+  readonly result: WanexAppConversationOperationReceipt
+}
+
+export interface WanexAppRouteWorkflowEnvelopeScheduledResult {
+  readonly kind: "scheduled"
+  readonly command: "submitScheduledTick"
+  readonly result: WanexAppScheduledTickResult
 }
 
 export interface WanexAppRouteWorkflowEnvelopeGuidedFollowUpResult {

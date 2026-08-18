@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 import type {
+  PreparedUserTurn,
   SubmitUserTurnRequest,
   SubmitUserTurnResult
 } from "../execution/agent-runtime/index.js"
@@ -43,15 +44,19 @@ import type {
   RuntimeHostHealthSnapshotRequest,
   RuntimeHostJobSummaryRequest,
   RuntimeHostRunOnceResult,
+  RuntimeHostSessionTurnResultObserver,
   RuntimeHostStatus,
   RuntimeHostMediaGenerationRequest,
   RuntimeHostSubmitMediaGenerationResult,
+  RuntimeHostPrepareExecutionBindingRequest,
+  RuntimeHostPreparedExecutionBinding,
   WanexRuntimeHostOptions
 } from "./types.js"
 import {
   createRuntimeHostAgentWorkers,
   createRuntimeHostMediaGenerationWorkers
 } from "./worker-factory.js"
+import { observeRuntimeHostSessionTurnResult } from "./session-turn-result.js"
 
 export type {
   RuntimeHostMemoryCompactionOptions,
@@ -74,6 +79,7 @@ export class WanexRuntimeHost {
   private readonly loopLifecycle: RuntimeHostLoopLifecycle
   private readonly memoryCompaction: RuntimeHostMemoryCompactionConfig | undefined
   private readonly storageHandle: StorageHandle | undefined
+  private readonly observeSessionTurnResult: RuntimeHostSessionTurnResultObserver | undefined
   private started = false
   private disposed = false
   private stopPromise: Promise<void> | undefined
@@ -87,13 +93,19 @@ export class WanexRuntimeHost {
       this.storageHandle = createStorageHandle(options.storageConfig)
       this.storage = this.storageHandle.core
     }
+    this.observeSessionTurnResult = options.observeSessionTurnResult
     this.loopLifecycle = new RuntimeHostLoopLifecycle({
       ...(options.idleIntervalMs === undefined
         ? {}
         : { idleIntervalMs: options.idleIntervalMs }),
       ...(options.errorIntervalMs === undefined
         ? {}
-        : { errorIntervalMs: options.errorIntervalMs })
+        : { errorIntervalMs: options.errorIntervalMs }),
+      onAgentResult: (result) =>
+        observeRuntimeHostSessionTurnResult(
+          result,
+          this.observeSessionTurnResult
+        )
     })
     this.memoryCompaction = normalizeMemoryCompactionOptions(
       options.memoryCompaction
@@ -105,9 +117,9 @@ export class WanexRuntimeHost {
       ...(options.workerCount === undefined
         ? {}
         : { workerCount: options.workerCount }),
-      ...(options.providerProfileId === undefined
+      ...(options.modelEndpointId === undefined
         ? {}
-        : { providerProfileId: options.providerProfileId }),
+        : { modelEndpointId: options.modelEndpointId }),
       ...(options.secretResolver === undefined
         ? {}
         : { secretResolver: options.secretResolver }),
@@ -155,6 +167,24 @@ export class WanexRuntimeHost {
       ...(options.mediaGenerationMaxOutputBytes === undefined
         ? {}
         : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
+      ...(options.mediaGenerationPollInitialDelayMs === undefined
+        ? {}
+        : {
+            mediaGenerationPollInitialDelayMs:
+              options.mediaGenerationPollInitialDelayMs
+          }),
+      ...(options.mediaGenerationPollMaxDelayMs === undefined
+        ? {}
+        : {
+            mediaGenerationPollMaxDelayMs:
+              options.mediaGenerationPollMaxDelayMs
+          }),
+      ...(options.mediaGenerationMaxConsecutivePollFailures === undefined
+        ? {}
+        : {
+            mediaGenerationMaxConsecutivePollFailures:
+              options.mediaGenerationMaxConsecutivePollFailures
+          }),
       ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
       ...(options.heartbeatIntervalMs === undefined
         ? {}
@@ -169,6 +199,12 @@ export class WanexRuntimeHost {
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+      ...(options.provider === undefined
+        ? {}
+        : { directProvider: options.provider }),
+      ...(options.secretResolver === undefined
+        ? {}
+        : { secretResolver: options.secretResolver }),
       createWorkerId: (index) =>
         `runtime_host_memory_worker_${index}_${randomUUID()}`
     })
@@ -209,6 +245,12 @@ export class WanexRuntimeHost {
     return submitted
   }
 
+  async prepareUserTurn(
+    request: SubmitUserTurnRequest
+  ): Promise<PreparedUserTurn> {
+    return await this.workers[0]!.prepareUserTurn(request)
+  }
+
   async requestSessionTurnCancel(
     request: RequestSessionTurnCancelRequest
   ): Promise<RequestSessionTurnCancelReceipt> {
@@ -218,6 +260,13 @@ export class WanexRuntimeHost {
         { jobId: request.jobId },
         { kind: "cancel", message: request.reason }
       )
+      for (const jobId of receipt.cascadeJobIds) {
+        this.#activeAbortRegistry.abort(
+          { jobId },
+          { kind: "cancel", message: request.reason }
+        )
+      }
+      this.wake()
     }
     return receipt
   }
@@ -254,6 +303,12 @@ export class WanexRuntimeHost {
     const submitted = await worker.submit(request)
     this.wake()
     return submitted
+  }
+
+  async prepareExecutionBinding(
+    request: RuntimeHostPrepareExecutionBindingRequest
+  ): Promise<RuntimeHostPreparedExecutionBinding> {
+    return await this.workers[0]!.prepareExecutionBinding(request)
   }
 
   async getMediaGenerationOperation(
@@ -309,6 +364,12 @@ export class WanexRuntimeHost {
     const results = await Promise.all(
       this.workers.map(async (worker) => await worker.runOnce())
     )
+    for (const result of results) {
+      observeRuntimeHostSessionTurnResult(
+        result.worker,
+        this.observeSessionTurnResult
+      )
+    }
     const mediaGeneration = await Promise.all(
       this.mediaGenerationWorkers.map(async (worker) => await worker.runOnce())
     )

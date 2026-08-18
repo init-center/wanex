@@ -16,11 +16,11 @@ export interface WanexEventCoreOptions {
   readonly storage: RuntimeStore
 }
 
-export interface PollEventsRequest extends QueryEventsInput {
+export interface ReconcileEventsRequest extends QueryEventsInput {
   readonly cursor?: EventCursor
 }
 
-export interface PollEventsResult {
+export interface ReconcileEventsResult {
   readonly events: readonly RuntimeEvent[]
   readonly cursor?: EventCursor
 }
@@ -36,7 +36,7 @@ export class WanexEventCore {
     return await this.storage.queryEvents(request)
   }
 
-  async pollOnce(request: PollEventsRequest): Promise<PollEventsResult> {
+  async reconcile(request: ReconcileEventsRequest): Promise<ReconcileEventsResult> {
     const cursor = request.cursor ?? request.after
     const events = await this.storage.queryEvents({
       ...request,

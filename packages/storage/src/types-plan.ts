@@ -1,15 +1,19 @@
 import type {
+  CreatePlanProposalRequest,
+  ExecuteApprovedPlanReceipt,
+  ExecuteApprovedPlanRequest,
   GetPlanProposalRequest,
   ListPlanProposalOperationsRequest,
   ListPlanProposalsRequest,
   PlanProposalOperationRecord,
   PlanProposalRecord,
-  PutPlanProposalRequest,
   RecordPlanProposalOperationRequest
 } from "@wanex/protocol"
 
 export interface PlanStore {
-  putPlanProposal(request: PutPlanProposalRequest): Promise<PlanProposalRecord>
+  createPlanProposal(
+    request: CreatePlanProposalRequest
+  ): Promise<PlanProposalRecord>
   getPlanProposal(
     request: GetPlanProposalRequest
   ): Promise<PlanProposalRecord | null>
@@ -19,6 +23,9 @@ export interface PlanStore {
   recordPlanProposalOperation(
     request: RecordPlanProposalOperationRequest
   ): Promise<PlanProposalOperationRecord>
+  executeApprovedPlan(
+    request: ExecuteApprovedPlanRequest
+  ): Promise<ExecuteApprovedPlanReceipt>
   listPlanProposalOperations(
     request: ListPlanProposalOperationsRequest
   ): Promise<PlanProposalOperationRecord[]>

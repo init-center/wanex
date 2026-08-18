@@ -5,6 +5,7 @@ import type {
   ProviderEventObserver
 } from "../../provider/index.js"
 import type {
+  MessagePart,
   SchedulerJobRecord,
   RunControlPolicy,
   SessionId,
@@ -12,7 +13,9 @@ import type {
   SessionInputOrigin,
   SessionMessageRecord,
   SessionRecord,
+  SubmitSessionTurnRequest,
   SubmitSessionTurnReceipt,
+  SessionTurnExecutionBinding,
   SessionTurnRecoveryBinding,
   UserMessageInputPart
 } from "@wanex/protocol"
@@ -38,7 +41,7 @@ export interface WanexAgentRuntimeOptions {
   readonly toolMaxConcurrency?: number
   readonly contextCompiler?: ContextCompiler
   readonly agentContext?: PreparedAgentContext
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly secretResolver?: SecretResolverPort
   readonly provider?: ProviderAdapter
   readonly fakeResponseText?: string
@@ -59,9 +62,9 @@ export interface SubmitUserTurnRequest {
   readonly jobId?: string
   readonly jobIdempotencyKey?: string
   readonly budgetGrantId?: string
-  readonly providerProfileId?: string
+  readonly modelEndpointId?: string
   readonly maxSteps?: number
-  readonly parentTurnId?: string
+  readonly maxOutputTokens?: number
   readonly regeneratesTurnId?: string
   readonly origin?: SessionInputOrigin
   readonly intent?: SessionInputIntent
@@ -75,6 +78,25 @@ export interface SubmitUserTurnResult {
   readonly turnId: string
   readonly receipt: SubmitSessionTurnReceipt
 }
+
+export interface PreparedUserTurn {
+  readonly session: SessionRecord
+  readonly inputId: string
+  readonly turnId: string
+  readonly request: SubmitSessionTurnRequest
+}
+
+export interface PrepareSessionTurnExecutionBindingRequest {
+  readonly sessionId: SessionId
+  readonly inputId: string
+  readonly turnId: string
+  readonly content: readonly MessagePart[]
+  readonly origin?: SessionInputOrigin
+  readonly modelEndpointId?: string
+  readonly maxOutputTokens?: number
+}
+
+export type PreparedSessionTurnExecutionBinding = SessionTurnExecutionBinding
 
 export interface AgentRunOnceResult {
   readonly worker: WorkerRunOnceResult

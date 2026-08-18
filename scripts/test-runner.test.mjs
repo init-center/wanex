@@ -28,11 +28,11 @@ describe("workspace test runner", () => {
         }
       },
       {
-        name: "Product App Local package tests",
+        name: "Local Host package tests",
         command: "pnpm",
         args: [
           "--filter",
-          "@wanex/product-app-local",
+          "@wanex/local-host",
           "test",
           "--maxWorkers=1"
         ],
@@ -48,7 +48,7 @@ describe("workspace test runner", () => {
           "--filter",
           "!@wanex/runtime",
           "--filter",
-          "!@wanex/product-app-local",
+          "!@wanex/local-host",
           "--if-present",
           "--workspace-concurrency=2",
           "test",
@@ -75,7 +75,7 @@ describe("workspace test runner", () => {
     ])
     expect(steps[2].args).toEqual([
       "--filter",
-      "@wanex/product-app-local",
+      "@wanex/local-host",
       "test",
       "--maxWorkers=1",
       "--runInBand"
@@ -85,7 +85,7 @@ describe("workspace test runner", () => {
       "--filter",
       "!@wanex/runtime",
       "--filter",
-      "!@wanex/product-app-local",
+      "!@wanex/local-host",
       "--if-present",
       "--workspace-concurrency=2",
       "test",
@@ -126,7 +126,7 @@ describe("workspace test runner", () => {
     ])
     expect(steps[2].args).toEqual([
       "--filter",
-      "@wanex/product-app-local",
+      "@wanex/local-host",
       "test",
       "--maxWorkers",
       "3"
@@ -136,7 +136,7 @@ describe("workspace test runner", () => {
       "--filter",
       "!@wanex/runtime",
       "--filter",
-      "!@wanex/product-app-local",
+      "!@wanex/local-host",
       "--if-present",
       "--workspace-concurrency=2",
       "test",

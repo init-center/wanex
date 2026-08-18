@@ -4,10 +4,7 @@ import type {
   WanexAppAskSideQueryRequest,
   WanexAppAskSideQueryResult
 } from "./types-workflow.js"
-import {
-  defaultPrincipalId,
-  normalizeOptionalRef
-} from "./workflow-shared.js"
+import { defaultPrincipalId, normalizeOptionalRef } from "./workflow-shared.js"
 
 const defaultSideQuerySourceRef = "side-query"
 
@@ -15,7 +12,7 @@ export async function askWanexAppSideQuery(
   runtime: BootstrappedWanexAppRuntime,
   options: {
     readonly request: WanexAppAskSideQueryRequest
-    readonly providerProfileId: string
+    readonly modelEndpointId: string
   }
 ): Promise<WanexAppAskSideQueryResult> {
   const question = normalizeQuestion(options.request.question)
@@ -23,7 +20,7 @@ export async function askWanexAppSideQuery(
     normalizeOptionalRef(options.request.sourceRef) ?? defaultSideQuerySourceRef
   const host = runtime.app.createRuntimeHost({
     workerCount: 1,
-    providerProfileId: options.providerProfileId
+    modelEndpointId: options.modelEndpointId
   })
 
   try {
@@ -32,7 +29,7 @@ export async function askWanexAppSideQuery(
         ? {}
         : { sessionId: options.request.sessionId }),
       principalId: options.request.principalId ?? defaultPrincipalId,
-      providerProfileId: options.providerProfileId,
+      modelEndpointId: options.modelEndpointId,
       question,
       origin: {
         kind: "interactive",
@@ -41,6 +38,9 @@ export async function askWanexAppSideQuery(
       toolPolicy: "none",
       memoryPolicy: "exclude",
       persistence: "none",
+      ...(options.request.signal === undefined
+        ? {}
+        : { signal: options.request.signal }),
       ...(options.request.maxOutputTokens === undefined
         ? {}
         : { maxOutputTokens: options.request.maxOutputTokens })
@@ -53,7 +53,7 @@ export async function askWanexAppSideQuery(
       output: result.output,
       telemetry: result.telemetry ?? {},
       persisted: false,
-      providerProfileId: options.providerProfileId
+      modelEndpointId: options.modelEndpointId
     }
   } finally {
     await host.stop()

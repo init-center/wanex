@@ -347,10 +347,16 @@ function assertStatuses(
 }
 
 class MultiOwnerProbeProvider implements ProviderAdapter {
-  readonly kind = "fake" as const
-  readonly capabilities = { input: ["text"], output: ["text"] } as const
+  readonly protocol = { id: "fake" } as const
   readonly providerId = "remote-multi-owner-probe"
-  readonly modelId = "remote-multi-owner-probe-model"
+  readonly model = {
+    id: "remote-multi-owner-probe-model",
+    operations: ["conversation"],
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    features: [],
+    catalog: { source: "builtin", catalogId: "eval.remote-owner", revision: "1" }
+  } as const
 
   constructor(
     private readonly owner: RemoteHostOwner,
@@ -373,7 +379,7 @@ class MultiOwnerProbeProvider implements ProviderAdapter {
             message: "remote owner cancelled provider",
             retryable: false,
             providerId: this.providerId,
-            modelId: this.modelId,
+            modelId: this.model.id,
             phase: "request"
           }
         }
@@ -387,7 +393,7 @@ class MultiOwnerProbeProvider implements ProviderAdapter {
             message: "planned host A provider failure",
             retryable: false,
             providerId: this.providerId,
-            modelId: this.modelId,
+            modelId: this.model.id,
             phase: "request"
           }
         }

@@ -1,14 +1,11 @@
 import type {
   JsonValue,
   MessagePart,
-  ProviderCapabilities,
+  ModelDescriptor,
   ProviderState,
   ToolCallMessagePart
 } from "@wanex/protocol"
-import {
-  ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES,
-  assertProfileCapabilitiesSupported
-} from "../capabilities.js"
+import { assertConversationModelSupported } from "../model-descriptor.js"
 import {
   providerErrorEvent,
   providerStreamFailureEvent
@@ -18,14 +15,21 @@ import {
   httpProviderError,
   type ProviderFetch
 } from "../http.js"
-import { requirePreparedProviderResource, textContent } from "../replay.js"
+import {
+  canonicalJson,
+  requirePreparedProviderResource,
+  requirePreparedToolResultResource,
+  textContent,
+  toolResultResourceDescriptor
+} from "../replay.js"
 import { parseServerSentEvents } from "../sse.js"
 import type {
   ProviderAdapter,
   ProviderEvent,
   ProviderFinishEvent,
   PreparedProviderResourcePart,
-  ProviderReplayMessage,
+  PreparedProviderReplayMessage,
+  PreparedProviderToolResultContentPart,
   ProviderRequest,
   ProviderUsage
 } from "../types.js"
@@ -37,12 +41,12 @@ import {
 } from "../utils.js"
 
 export interface AnthropicAdapterOptions {
-  readonly modelId: string
+  readonly providerId: string
+  readonly model: ModelDescriptor
   readonly baseUrl: string
   readonly apiKey: string
-  readonly anthropicVersion?: string
+  readonly protocolVersion?: string
   readonly fetch?: ProviderFetch
-  readonly capabilities?: ProviderCapabilities
 }
 
 interface AnthropicBlock {
@@ -55,24 +59,24 @@ interface AnthropicBlock {
 }
 
 export class AnthropicAdapter implements ProviderAdapter {
-  readonly kind = "anthropic" as const
-  readonly providerId = "anthropic"
-  readonly modelId: string
-  readonly capabilities: ProviderCapabilities
+  readonly protocol: { readonly id: "anthropic-messages"; readonly version: string }
+  readonly providerId: string
+  readonly model: ModelDescriptor
   private readonly baseUrl: string
   private readonly apiKey: string
   private readonly version: string
   private readonly fetchImpl: ProviderFetch
 
   constructor(options: AnthropicAdapterOptions) {
-    this.modelId = options.modelId
-    this.capabilities = assertProfileCapabilitiesSupported(
-      "anthropic",
-      options.capabilities ?? ANTHROPIC_MESSAGES_PROVIDER_CAPABILITIES
+    this.providerId = options.providerId
+    this.model = assertConversationModelSupported(
+      "anthropic-messages",
+      options.model
     )
     this.baseUrl = options.baseUrl.replace(/\/+$/, "")
     this.apiKey = options.apiKey
-    this.version = options.anthropicVersion ?? "2023-06-01"
+    this.version = options.protocolVersion ?? "2023-06-01"
+    this.protocol = { id: "anthropic-messages", version: this.version }
     this.fetchImpl = options.fetch ?? globalProviderFetch
   }
 
@@ -80,7 +84,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     if (request.signal?.aborted === true) {
       yield providerErrorEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error: new Error("aborted"),
         phase: "request",
         signalAborted: true
@@ -97,7 +101,7 @@ export class AnthropicAdapter implements ProviderAdapter {
           "content-type": "application/json"
         },
         body: JSON.stringify({
-          model: this.modelId,
+          model: this.model.id,
           messages: this.buildReplayMessages(request.messages),
           ...anthropicSystemField(request.messages),
           ...anthropicToolRequestFields(request),
@@ -109,7 +113,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     } catch (error) {
       yield providerErrorEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error,
         phase: "request",
         ...(request.signal === undefined
@@ -122,7 +126,7 @@ export class AnthropicAdapter implements ProviderAdapter {
       yield await httpProviderError({
         response,
         providerId: this.providerId,
-        modelId: this.modelId
+        modelId: this.model.id
       })
       return
     }
@@ -135,7 +139,7 @@ export class AnthropicAdapter implements ProviderAdapter {
     } catch (error) {
       yield providerStreamFailureEvent({
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         error,
         ...(request.signal === undefined
           ? {}
@@ -145,7 +149,7 @@ export class AnthropicAdapter implements ProviderAdapter {
   }
 
   buildReplayMessages(
-    messages: readonly ProviderReplayMessage[]
+    messages: readonly PreparedProviderReplayMessage[]
   ): JsonValue[] {
     return messages.flatMap((message): JsonValue[] => {
       if (message.role === "system") {
@@ -154,10 +158,13 @@ export class AnthropicAdapter implements ProviderAdapter {
       if (message.role === "assistant") {
         return [{
           role: "assistant",
-          content: anthropicAssistantContent(message.content, this.modelId)
+          content: anthropicAssistantContent(message.content, this.model.id)
         }]
       }
       if (message.role === "tool") {
+        if (message.content.some((part) => part.type !== "tool_result")) {
+          throw new Error("Anthropic tool replay message contains a non-tool result part")
+        }
         return [{
           role: "user",
           content: message.content
@@ -165,7 +172,7 @@ export class AnthropicAdapter implements ProviderAdapter {
             .map((part) => ({
               type: "tool_result",
               tool_use_id: part.toolCallId,
-              content: JSON.stringify(part.result),
+              content: anthropicToolResultContent(part.content),
               is_error: part.isError
             }))
         }]
@@ -198,7 +205,7 @@ export class AnthropicAdapter implements ProviderAdapter {
             message: optionalString(detail.message, "Anthropic error message") ?? "Anthropic stream error",
             retryable: errorType === "overloaded_error",
             providerId: this.providerId,
-            modelId: this.modelId,
+            modelId: this.model.id,
             phase: "stream",
             ...(errorType === undefined ? {} : { providerCode: errorType })
           }
@@ -283,7 +290,7 @@ export class AnthropicAdapter implements ProviderAdapter {
         } else if (block.type === "thinking") {
           const state: ProviderState = {
             providerId: this.providerId,
-            modelId: this.modelId,
+            modelId: this.model.id,
             stateKind: "thinking",
             replayPolicy: block.signature.length > 0 ? "required" : "optional",
             payload: {
@@ -331,14 +338,59 @@ export class AnthropicAdapter implements ProviderAdapter {
         message,
         retryable: false,
         providerId: this.providerId,
-        modelId: this.modelId,
+        modelId: this.model.id,
         phase: "stream"
       }
     }
   }
 }
 
-function anthropicUserContent(message: ProviderReplayMessage): JsonValue {
+function anthropicToolResultContent(
+  content: readonly PreparedProviderToolResultContentPart[]
+): JsonValue[] {
+  return content.map((part): JsonValue => {
+    if (part.type === "text") return { type: "text", text: part.text }
+    if (part.type === "json") {
+      return { type: "text", text: canonicalJson(part.value) }
+    }
+    if (
+      part.kind === "image" &&
+      isAnthropicImageType(part.mediaType) &&
+      part.bytes instanceof Uint8Array
+    ) {
+      const prepared = requirePreparedToolResultResource(part)
+      return {
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: prepared.mediaType!,
+          data: Buffer.from(prepared.bytes).toString("base64")
+        }
+      }
+    }
+    if (
+      part.kind === "document" &&
+      part.mediaType === "application/pdf" &&
+      part.bytes instanceof Uint8Array
+    ) {
+      const prepared = requirePreparedToolResultResource(part)
+      return {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: Buffer.from(prepared.bytes).toString("base64")
+        }
+      }
+    }
+    return {
+      type: "text",
+      text: canonicalJson(toolResultResourceDescriptor(part))
+    }
+  })
+}
+
+function anthropicUserContent(message: PreparedProviderReplayMessage): JsonValue {
   const resources = message.content.filter((part) => part.type === "resource")
   if (resources.length === 0) {
     return textContent(message.content)
@@ -392,7 +444,7 @@ function isAnthropicImageType(mediaType: string | undefined): boolean {
 }
 
 function anthropicSystemField(
-  messages: readonly ProviderReplayMessage[]
+  messages: readonly PreparedProviderReplayMessage[]
 ) {
   const system = messages
     .filter((message) => message.role === "system")

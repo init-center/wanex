@@ -1,9 +1,12 @@
 import type {
   ApplySessionTurnControlRequest,
+  ArchiveSessionRequest,
   InterruptSessionTurnRequest,
   ListSessionTurnControlsRequest,
   ListSessionsRequest,
   RequestSessionTurnCancelRequest,
+  RenameSessionRequest,
+  RestoreSessionRequest,
   SettleSessionTurnRequest,
   StartSessionTurnAttemptRequest,
   SteerSessionTurnRequest,
@@ -21,8 +24,10 @@ import type {
   InterruptSessionTurnWire,
   ListSessionTurnControlsWire,
   ListSessionsWire,
+  RenameSessionWire,
   RequestSessionTurnCancelWire,
   SettleSessionTurnWire,
+  SessionStateTransitionWire,
   StartSessionTurnAttemptWire,
   SteerSessionTurnWire,
   SubmitSessionTurnWire
@@ -37,6 +42,38 @@ export function toRpcListSessionsRequest(
     updated_before: request.updatedBefore ?? null,
     updated_after: request.updatedAfter ?? null,
     limit: request.limit ?? null
+  }
+}
+
+export function toRpcRenameSessionRequest(
+  request: RenameSessionRequest
+): RenameSessionWire {
+  return {
+    session_id: request.sessionId,
+    title: request.title,
+    expected_revision: request.expectedRevision
+  }
+}
+
+export function toRpcArchiveSessionRequest(
+  request: ArchiveSessionRequest
+): SessionStateTransitionWire {
+  return toRpcSessionStateTransitionRequest(request)
+}
+
+export function toRpcRestoreSessionRequest(
+  request: RestoreSessionRequest
+): SessionStateTransitionWire {
+  return toRpcSessionStateTransitionRequest(request)
+}
+
+function toRpcSessionStateTransitionRequest(request: {
+  readonly sessionId: string
+  readonly expectedRevision: number
+}): SessionStateTransitionWire {
+  return {
+    session_id: request.sessionId,
+    expected_revision: request.expectedRevision
   }
 }
 
@@ -59,7 +96,6 @@ export function toRpcSubmitSessionTurnRequest(
     job_idempotency_key: request.jobIdempotencyKey ?? null,
     execution_binding: toRpcJsonValueFromUnknown(request.executionBinding),
     max_steps: request.maxSteps ?? null,
-    parent_turn_id: request.parentTurnId ?? null,
     regenerates_turn_id: request.regeneratesTurnId ?? null,
     scheduled_at: request.scheduledAt ?? null,
     not_before: request.notBefore ?? null,

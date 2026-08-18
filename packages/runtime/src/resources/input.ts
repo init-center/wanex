@@ -1,24 +1,33 @@
 import { createHash } from "node:crypto"
 import type {
   MessagePart,
-  ProviderCapabilities,
-  ProviderInputModality,
-  ProviderProfile,
+  ModelEndpoint,
+  ModelInputModality,
+  ProviderProtocolDescriptor,
   ResourceInputEvidence,
   ResourceMessagePart,
   ResourceRecord,
+  ToolResultContentPart,
+  ToolResultMessagePart,
   UserMessageInputPart
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type {
   PreparedProviderResourcePart,
   PreparedProviderReplayMessage,
+  PreparedProviderReplayPart,
+  PreparedProviderToolResultContentPart,
+  PreparedProviderToolResultPart,
   ProviderReplayMessage
 } from "../provider/types.js"
+import {
+  normalizeToolResultContent,
+  toolResultContentDigest
+} from "../tools/parts.js"
 
 const RESOURCE_CHUNK_BYTES = 256 * 1024
 const MAX_RESOURCE_BYTES = 25 * 1024 * 1024
-const MAX_TURN_RESOURCE_BYTES = 50 * 1024 * 1024
+const MAX_PROVIDER_REPLAY_RESOURCE_BYTES = 50 * 1024 * 1024
 
 export interface AdmittedUserMessage {
   readonly content: readonly MessagePart[]
@@ -27,7 +36,7 @@ export interface AdmittedUserMessage {
 
 export async function admitUserMessage(
   storage: Pick<CoreStore, "getResource">,
-  profile: ProviderProfile,
+  endpoint: ModelEndpoint,
   input: readonly UserMessageInputPart[]
 ): Promise<AdmittedUserMessage> {
   if (input.length === 0) {
@@ -56,29 +65,63 @@ export async function admitUserMessage(
     if (resource === null) {
       throw new Error(`agent runtime resource not found: ${part.resourceId}`)
     }
-    assertResourceAvailable(resource)
-    const modality = resourceInputModality(resource)
-    if (!profile.capabilities.input.includes(modality)) {
-      throw new Error(
-        `provider ${profile.id} does not support ${modality} input for resource ${resource.id}`
-      )
-    }
-    if (resource.sizeBytes > MAX_RESOURCE_BYTES) {
-      throw new Error(
-        `resource ${resource.id} exceeds the ${MAX_RESOURCE_BYTES} byte input limit`
-      )
-    }
-    totalResourceBytes += resource.sizeBytes
-    if (totalResourceBytes > MAX_TURN_RESOURCE_BYTES) {
-      throw new Error(
-        `turn resources exceed the ${MAX_TURN_RESOURCE_BYTES} byte input limit`
-      )
-    }
     const evidence = resourceEvidence(resource)
+    totalResourceBytes = validateResourceForEndpoint(
+      endpoint,
+      resource,
+      evidence,
+      totalResourceBytes
+    )
     resources.push(evidence)
     content.push({ type: "resource", id: `user_resource_${index}`, ...evidence })
   }
+  assertResourceCount(endpoint, resources.length)
   return { content, resources }
+}
+
+export async function validateCanonicalUserMessage(
+  storage: Pick<CoreStore, "getResource">,
+  endpoint: ModelEndpoint,
+  content: readonly MessagePart[]
+): Promise<readonly ResourceInputEvidence[]> {
+  if (content.length === 0) {
+    throw new Error("canonical user message content must not be empty")
+  }
+  const resources: ResourceInputEvidence[] = []
+  const resourceIds = new Set<string>()
+  let totalResourceBytes = 0
+  for (const [index, part] of content.entries()) {
+    if (part.visibility === "internal" || part.visibility === "provider_replay_only") {
+      throw new Error(`canonical user message part ${index} must be public`)
+    }
+    if (part.type === "text") {
+      if (part.text.length === 0) {
+        throw new Error(`canonical user message text part ${index} must not be empty`)
+      }
+      continue
+    }
+    if (part.type !== "resource") {
+      throw new Error("canonical user message supports only text and resource parts")
+    }
+    const evidence = resourcePartEvidence(part)
+    if (resourceIds.has(evidence.resourceId)) {
+      throw new Error(`canonical user message resource is duplicated: ${evidence.resourceId}`)
+    }
+    resourceIds.add(evidence.resourceId)
+    const resource = await storage.getResource({ resourceId: evidence.resourceId })
+    if (resource === null) {
+      throw new Error(`canonical user message resource not found: ${evidence.resourceId}`)
+    }
+    totalResourceBytes = validateResourceForEndpoint(
+      endpoint,
+      resource,
+      evidence,
+      totalResourceBytes
+    )
+    resources.push(evidence)
+  }
+  assertResourceCount(endpoint, resources.length)
+  return resources
 }
 
 export function assertTurnResourcesMatchBinding(
@@ -111,30 +154,151 @@ function sameResourceEvidence(
 
 export async function prepareProviderReplayResources(
   storage: Pick<CoreStore, "getResource" | "readResourceContent">,
-  capabilities: ProviderCapabilities,
+  provider: {
+    readonly protocol: ProviderProtocolDescriptor
+    readonly inputModalities: readonly ModelInputModality[]
+  },
   messages: readonly ProviderReplayMessage[]
 ): Promise<PreparedProviderReplayMessage[]> {
-  return await Promise.all(
-    messages.map(async (message) => ({
-      role: message.role,
-      content: await Promise.all(
-        message.content.map(async (part) => {
-          if (part.type !== "resource") return part
-          if (message.role !== "user") {
-            throw new Error("provider resource input is only valid in user messages")
-          }
-          const modality = resourceInputModality(part)
-          if (!capabilities.input.includes(modality)) {
-            throw new Error(
-              `provider does not support ${modality} input for resource ${part.resourceId}`
-            )
-          }
-          const bytes = await readExactResourceBytes(storage, part)
-          return { ...part, bytes } satisfies PreparedProviderResourcePart
-        })
-      )
-    }))
+  let totalResourceBytes = 0
+  const preparedMessages: PreparedProviderReplayMessage[] = []
+  for (const message of messages) {
+    const content: PreparedProviderReplayPart[] = []
+    for (const part of message.content) {
+      if (part.type === "resource") {
+        if (message.role !== "user") {
+          throw new Error("provider resource input is only valid in user messages")
+        }
+        assertProviderSupportsResource(provider.inputModalities, part)
+        totalResourceBytes = addReplayResourceBytes(totalResourceBytes, part)
+        const bytes = await readExactResourceBytes(storage, part)
+        content.push({ ...part, bytes } satisfies PreparedProviderResourcePart)
+        continue
+      }
+      if (part.type === "tool_result") {
+        if (message.role !== "tool") {
+          throw new Error("provider tool result is only valid in tool messages")
+        }
+        const prepared = await prepareToolResult(
+          storage,
+          provider,
+          part,
+          totalResourceBytes
+        )
+        totalResourceBytes = prepared.totalResourceBytes
+        content.push(prepared.part)
+        continue
+      }
+      content.push(part)
+    }
+    preparedMessages.push({ role: message.role, content })
+  }
+  return preparedMessages
+}
+
+async function prepareToolResult(
+  storage: Pick<CoreStore, "getResource" | "readResourceContent">,
+  provider: {
+    readonly protocol: ProviderProtocolDescriptor
+    readonly inputModalities: readonly ModelInputModality[]
+  },
+  part: ToolResultMessagePart,
+  initialResourceBytes: number
+): Promise<{
+  readonly part: PreparedProviderToolResultPart
+  readonly totalResourceBytes: number
+}> {
+  const normalized = normalizeToolResultContent(part.content)
+  if (toolResultContentDigest(normalized) !== part.contentDigest) {
+    throw new Error(`tool result content digest mismatch: ${part.toolCallId}`)
+  }
+  let totalResourceBytes = initialResourceBytes
+  const content: PreparedProviderToolResultContentPart[] = []
+  for (const item of normalized) {
+    if (item.type !== "resource") {
+      content.push(item)
+      continue
+    }
+    totalResourceBytes = addReplayResourceBytes(totalResourceBytes, item)
+    await assertExactResourceEvidence(storage, item)
+    if (!usesNativeToolResultResource(provider, item)) {
+      content.push(item)
+      continue
+    }
+    const bytes = await readExactResourceBytes(storage, item)
+    content.push({ ...item, bytes })
+  }
+  return {
+    part: { ...part, content },
+    totalResourceBytes
+  }
+}
+
+function assertProviderSupportsResource(
+  inputModalities: readonly ModelInputModality[],
+  resource: ResourceInputEvidence
+): void {
+  const modality = resourceInputModality(resource)
+  if (!inputModalities.includes(modality)) {
+    throw new Error(
+      `provider does not support ${modality} input for resource ${resource.resourceId}`
+    )
+  }
+}
+
+function addReplayResourceBytes(
+  total: number,
+  resource: ResourceInputEvidence
+): number {
+  if (!Number.isSafeInteger(resource.sizeBytes) || resource.sizeBytes <= 0) {
+    throw new Error(`resource has invalid size: ${resource.resourceId}`)
+  }
+  if (resource.sizeBytes > MAX_RESOURCE_BYTES) {
+    throw new Error(
+      `resource ${resource.resourceId} exceeds the ${MAX_RESOURCE_BYTES} byte input limit`
+    )
+  }
+  const next = total + resource.sizeBytes
+  if (next > MAX_PROVIDER_REPLAY_RESOURCE_BYTES) {
+    throw new Error(
+      `provider replay resources exceed the ${MAX_PROVIDER_REPLAY_RESOURCE_BYTES} byte input limit`
+    )
+  }
+  return next
+}
+
+function usesNativeToolResultResource(
+  provider: {
+    readonly protocol: ProviderProtocolDescriptor
+    readonly inputModalities: readonly ModelInputModality[]
+  },
+  resource: ResourceInputEvidence
+): boolean {
+  if (provider.protocol.id !== "anthropic-messages") return false
+  const modality = resourceInputModality(resource)
+  if (!provider.inputModalities.includes(modality)) return false
+  return (
+    (resource.kind === "image" && isAnthropicImageType(resource.mediaType)) ||
+    (resource.kind === "document" && resource.mediaType === "application/pdf")
   )
+}
+
+function isAnthropicImageType(mediaType: string | undefined): boolean {
+  return mediaType === "image/jpeg" ||
+    mediaType === "image/png" ||
+    mediaType === "image/gif" ||
+    mediaType === "image/webp"
+}
+
+async function assertExactResourceEvidence(
+  storage: Pick<CoreStore, "getResource">,
+  evidence: ResourceInputEvidence
+): Promise<void> {
+  const resource = await storage.getResource({ resourceId: evidence.resourceId })
+  if (resource === null) {
+    throw new Error(`resource not found while preparing provider input: ${evidence.resourceId}`)
+  }
+  assertResourceMatchesEvidence(resource, evidence)
 }
 
 export async function readExactResourceBytes(
@@ -184,7 +348,7 @@ export async function readExactResourceBytes(
 
 export function resourceInputModality(
   resource: Pick<ResourceRecord, "kind" | "mediaType"> | ResourceInputEvidence
-): ProviderInputModality {
+): ModelInputModality {
   if (resource.kind === "image") return "image"
   if (resource.kind === "audio") return "audio"
   if (resource.kind === "video") return "video"
@@ -225,6 +389,42 @@ function assertResourceMatchesEvidence(
     resource.mediaType !== evidence.mediaType
   ) {
     throw new Error(`resource metadata changed: ${evidence.resourceId}`)
+  }
+}
+
+function validateResourceForEndpoint(
+  endpoint: ModelEndpoint,
+  resource: ResourceRecord,
+  evidence: ResourceInputEvidence,
+  totalResourceBytes: number
+): number {
+  assertResourceMatchesEvidence(resource, evidence)
+  const modality = resourceInputModality(resource)
+  if (!endpoint.model.inputModalities.includes(modality)) {
+    throw new Error(
+      `model endpoint ${endpoint.id} does not support ${modality} input for resource ${resource.id}`
+    )
+  }
+  if (resource.sizeBytes > MAX_RESOURCE_BYTES) {
+    throw new Error(
+      `resource ${resource.id} exceeds the ${MAX_RESOURCE_BYTES} byte input limit`
+    )
+  }
+  const nextTotal = totalResourceBytes + resource.sizeBytes
+  if (nextTotal > MAX_PROVIDER_REPLAY_RESOURCE_BYTES) {
+    throw new Error(
+      `turn resources exceed the ${MAX_PROVIDER_REPLAY_RESOURCE_BYTES} byte input limit`
+    )
+  }
+  return nextTotal
+}
+
+function assertResourceCount(endpoint: ModelEndpoint, count: number): void {
+  const maxInputResources = endpoint.model.limits?.maxInputResources
+  if (maxInputResources !== undefined && count > maxInputResources) {
+    throw new Error(
+      `model endpoint ${endpoint.id} accepts at most ${maxInputResources} input resources`
+    )
   }
 }
 

@@ -1,6 +1,5 @@
 export * from "./types-action.js"
 export * from "./types-constants.js"
-export * from "./types-installer.js"
 export * from "./types-package.js"
 export * from "./types-runtime.js"
 export * from "./types-sandbox.js"

@@ -10,7 +10,7 @@ export async function sideQueryValue(
   request: {
     readonly text: string
     readonly sessionId?: string
-    readonly providerId?: string
+    readonly modelEndpointId: string
     readonly timeoutMs?: number
     readonly maxOutputTokens?: number
   },
@@ -20,18 +20,14 @@ export async function sideQueryValue(
     storage,
     leaseMs: DEFAULT_LEASE_MS,
     secretResolver,
-    ...(request.providerId === undefined
-      ? { fakeResponseText: `Fake side response: ${request.text}` }
-      : { providerProfileId: request.providerId }),
+    modelEndpointId: request.modelEndpointId,
     ...(request.timeoutMs === undefined ? {} : { timeoutMs: request.timeoutMs })
   })
 
   try {
     const result = await runtime.runEphemeralQuery({
       ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
-      ...(request.providerId === undefined
-        ? {}
-        : { providerProfileId: request.providerId }),
+      modelEndpointId: request.modelEndpointId,
       question: [{ type: "text", id: "side_query", text: request.text }],
       ...(request.maxOutputTokens === undefined
         ? {}
@@ -40,10 +36,11 @@ export async function sideQueryValue(
     return {
       command: "side-query",
       ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
-      providerId: request.providerId ?? "fake",
+      modelEndpointId: request.modelEndpointId,
       persisted: false,
       outputText: textFromParts(result.output),
       output: result.output,
+      evidence: result.evidence,
       telemetry: result.telemetry
     }
   } finally {

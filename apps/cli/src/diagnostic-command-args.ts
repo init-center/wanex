@@ -32,9 +32,6 @@ export function parseDiagnosticsCommand(
             "--stale-after-ms"
           )
         }),
-    ...(globals.diagnosticsOptions["policy-version"] === undefined
-      ? {}
-      : { policyVersion: globals.diagnosticsOptions["policy-version"] }),
     ...(globals.diagnosticsOptions["session-limit"] === undefined
       ? {}
       : {
@@ -62,11 +59,11 @@ export function parseSupportBundleCommand(
   return {
     name: "support-bundle",
     options: globals.options,
-    ...(globals.supportOptions["provider-profile"] === undefined
+    ...(globals.supportOptions["model-endpoint"] === undefined
       ? {}
       : {
-          providerProfileIds:
-            globals.supportOptions["provider-profile"].split(",").filter(Boolean)
+          modelEndpointIds:
+            globals.supportOptions["model-endpoint"].split(",").filter(Boolean)
         }),
     ...(globals.sessionId === undefined ? {} : { sessionId: globals.sessionId }),
     ...(globals.supportOptions["event-limit"] === undefined
@@ -107,9 +104,6 @@ export function parseSupportBundleCommand(
             "--stale-after-ms"
           )
         }),
-    ...(globals.supportOptions["policy-version"] === undefined
-      ? {}
-      : { policyVersion: globals.supportOptions["policy-version"] }),
     ...(globals.supportOptions["session-limit"] === undefined
       ? {}
       : {

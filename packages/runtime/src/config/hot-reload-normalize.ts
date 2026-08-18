@@ -1,26 +1,30 @@
 import type { JsonValue, RuntimeEvent } from "@wanex/protocol"
 import type {
+  ConfigReloadCandidateResult,
   ConfigReloadError,
-  ConfigReloadHandlerResult,
   ConfigReloadResult
 } from "./hot-reload-types.js"
 
 export function normalizeConfigReloadResult(options: {
   readonly key: string
   readonly subscriptionId: string
+  readonly generation: number
+  readonly committed: boolean
   readonly event?: RuntimeEvent
-  readonly result: ConfigReloadHandlerResult | void
+  readonly result: ConfigReloadCandidateResult
 }): ConfigReloadResult {
   return {
     key: options.key,
     subscriptionId: options.subscriptionId,
-    reloaded: options.result?.reloaded ?? true,
+    reloaded: options.result.reloaded,
+    generation: options.generation,
+    committed: options.committed,
     at: Date.now(),
     ...(options.event === undefined ? {} : { eventId: options.event.id }),
-    ...(options.result?.reason === undefined
+    ...(options.result.reason === undefined
       ? {}
       : { reason: options.result.reason }),
-    ...(options.result?.detail === undefined
+    ...(options.result.detail === undefined
       ? {}
       : { detail: sanitizeJson(options.result.detail) })
   }
@@ -29,6 +33,7 @@ export function normalizeConfigReloadResult(options: {
 export function normalizeConfigReloadError(options: {
   readonly key: string
   readonly subscriptionId: string
+  readonly stage: ConfigReloadError["stage"]
   readonly event?: RuntimeEvent
   readonly error: unknown
 }): ConfigReloadError {
@@ -39,6 +44,7 @@ export function normalizeConfigReloadError(options: {
   return {
     key: options.key,
     subscriptionId: options.subscriptionId,
+    stage: options.stage,
     error: {
       name: error.name,
       message: error.message

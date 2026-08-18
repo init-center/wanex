@@ -1,4 +1,4 @@
-import { stdin, stdout, stderr, env, exit } from "node:process"
+import { stdin, stdout, stderr, env, exit, cwd } from "node:process"
 import { setTimeout as delay } from "node:timers/promises"
 
 const protocol = "wanex.plugin.host.v1"
@@ -46,6 +46,7 @@ stdin.on("end", async () => {
         pluginId: message.request.pluginId,
         actionId: message.request.actionId,
         capability: message.request.capability,
+        cwd: cwd(),
         payload: message.request.payload
       }
     })}\n`

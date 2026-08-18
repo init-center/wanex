@@ -10,7 +10,7 @@ export async function runWanexAppAgentTurn(
   conversationOperations: WanexAppConversationOperationController,
   options: {
     readonly request: WanexAppRunAgentTurnRequest
-    readonly providerProfileId: string
+    readonly modelEndpointId: string
     readonly preparedAgentContext?: PreparedAgentContext
   }
 ): Promise<WanexAppRunAgentTurnResult> {
@@ -19,7 +19,7 @@ export async function runWanexAppAgentTurn(
   }
   const receipt = await conversationOperations.submit({
     request: options.request,
-    providerProfileId: options.providerProfileId
+    modelEndpointId: options.modelEndpointId
   })
   const completed = await conversationOperations.waitForTerminal(receipt)
   if (completed.operation.state !== "succeeded") {
@@ -45,7 +45,9 @@ function agentContextSummary(
   return {
     instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
     skillNames:
-      prepared.skillSnapshot?.sources.map((source) => source.name) ?? [],
+      prepared.skillSnapshot?.complete === true
+        ? prepared.skillSnapshot.sources.map((source) => source.name)
+        : [],
     diagnostics: [
       ...(prepared.instructionSnapshot?.diagnostics.map(
         (diagnostic) => diagnostic.code

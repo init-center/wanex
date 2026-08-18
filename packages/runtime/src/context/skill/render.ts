@@ -7,6 +7,9 @@ import type {
 } from "./types.js"
 
 export function renderSkillSnapshot(options: RenderSkillSnapshotOptions): string {
+  if (!options.snapshot.complete) {
+    return ""
+  }
   const sources = sortedSources(options.snapshot)
   if (sources.length === 0) {
     return ""

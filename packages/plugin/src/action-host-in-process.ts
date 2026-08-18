@@ -19,6 +19,9 @@ export function createInProcessPluginActionHost(options: {
       if (definition === undefined) {
         return undefined
       }
+      if (definition.version !== request.version) {
+        return undefined
+      }
       return pluginActionDescriptorFromDefinition(definition)
     },
     async execute(request) {
@@ -30,6 +33,11 @@ export function createInProcessPluginActionHost(options: {
       if (definition === undefined) {
         throw new Error(
           `plugin action handler not registered: ${request.manifest.pluginId}/${request.actionId}`
+        )
+      }
+      if (definition.version !== request.manifest.version) {
+        throw new Error(
+          `plugin action host version mismatch: ${definition.version} != ${request.manifest.version}`
         )
       }
       if (definition.capability !== request.capability) {
@@ -82,7 +90,7 @@ function pluginActionDescriptorFromDefinition(
 ): PluginActionDescriptor {
   return {
     capability: definition.capability,
-    ...(definition.version === undefined ? {} : { version: definition.version }),
+    version: definition.version,
     ...(definition.sandbox === undefined ? {} : { sandbox: definition.sandbox })
   }
 }

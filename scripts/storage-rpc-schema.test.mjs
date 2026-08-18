@@ -114,7 +114,14 @@ describe("storage RPC canonical schema", () => {
   })
 
   it("accepts every media generation command and rejects open operation fields", () => {
-    for (const [index, request] of mediaGenerationRequests().entries()) {
+    const requests = mediaGenerationRequests()
+    const schemaCommands = schema.$defs.MediaGenerationStorageRpcCommand.oneOf.map(
+      ({ $ref }) => schema.$defs[$ref.split("/").at(-1)].properties.command.enum[0]
+    )
+    expect(requests.map(({ command }) => command).sort()).toEqual(
+      schemaCommands.sort()
+    )
+    for (const [index, request] of requests.entries()) {
       expect(
         validateWireEnvelope({
           storage_rpc_version: 1,
@@ -191,28 +198,44 @@ describe("storage RPC canonical schema", () => {
         JSON.stringify(validateWireEnvelope.errors)
       ).toBe(true)
     }
-    const putEpoch = contextRequests()[0]
-    const { metadata: _metadata, ...missingMetadata } = putEpoch.request
+    const beginEpoch = contextRequests()[0]
+    const { request_digest: _requestDigest, ...missingRequestDigest } =
+      beginEpoch.request
     expect(
       validateWireEnvelope({
         storage_rpc_version: 1,
-        request_id: "rpc_context_missing_metadata",
+        request_id: "rpc_context_missing_request_digest",
         request: {
-          ...putEpoch,
-          request: missingMetadata
+          ...beginEpoch,
+          request: missingRequestDigest
         }
       })
     ).toBe(false)
+    const activateEpoch = contextRequests()[4]
     expect(
       validateWireEnvelope({
         storage_rpc_version: 1,
         request_id: "rpc_context_open_request",
         request: {
-          command: "activate-context-epoch",
-          request: { epoch_id: "ctx_schema", extra: true }
+          ...activateEpoch,
+          request: { ...activateEpoch.request, extra: true }
         }
       })
     ).toBe(false)
+    for (const command of [
+      "put-context-epoch",
+      "clone-context-epoch",
+      "put-context-replacement",
+      "list-context-replacements"
+    ]) {
+      expect(
+        validateWireEnvelope({
+          storage_rpc_version: 1,
+          request_id: `rpc_context_removed_${command}`,
+          request: { command }
+        })
+      ).toBe(false)
+    }
   })
 
   it("accepts every scheduler command and rejects nested scheduler drift", () => {
@@ -260,7 +283,14 @@ describe("storage RPC canonical schema", () => {
   })
 
   it("accepts every tools command and rejects open tool records", () => {
-    for (const [index, request] of toolsRequests().entries()) {
+    const requests = toolsRequests()
+    const schemaCommands = schema.$defs.ToolsStorageRpcCommand.oneOf.map(
+      ({ $ref }) => schema.$defs[$ref.split("/").at(-1)].properties.command.enum[0]
+    )
+    expect(requests.map(({ command }) => command).sort()).toEqual(
+      schemaCommands.sort()
+    )
+    for (const [index, request] of requests.entries()) {
       expect(validateWireEnvelope({
         storage_rpc_version: 1,
         request_id: `rpc_tools_${index}`,
@@ -296,12 +326,19 @@ describe("storage RPC canonical schema", () => {
     for (const [index, request] of planRequests().entries()) {
       expect(validateWireEnvelope({ storage_rpc_version: 1, request_id: `rpc_plan_${index}`, request })).toBe(true)
     }
-    const put = planRequests()[0]
-    const { metadata: _metadata, ...missingMetadata } = put.request
+    const create = planRequests()[0]
+    const { source: _source, ...missingSource } = create.request
     expect(validateWireEnvelope({
       storage_rpc_version: 1,
-      request_id: "rpc_plan_missing_metadata",
-      request: { ...put, request: missingMetadata }
+      request_id: "rpc_plan_missing_source",
+      request: { ...create, request: missingSource }
+    })).toBe(false)
+    const operation = planRequests()[3]
+    const { expected_revision: _revision, ...missingRevision } = operation.request
+    expect(validateWireEnvelope({
+      storage_rpc_version: 1,
+      request_id: "rpc_plan_missing_revision",
+      request: { ...operation, request: missingRevision }
     })).toBe(false)
   })
 
@@ -314,11 +351,11 @@ describe("storage RPC canonical schema", () => {
       }), JSON.stringify(validateWireEnvelope.errors)).toBe(true)
     }
     const attempt = objectiveRequests()[5]
-    const { metadata: _metadata, ...missingMetadata } = attempt.request
+    const { expected_revision: _revision, ...missingRevision } = attempt.request
     expect(validateWireEnvelope({
       storage_rpc_version: 1,
-      request_id: "rpc_objective_missing_metadata",
-      request: { ...attempt, request: missingMetadata }
+      request_id: "rpc_objective_missing_revision",
+      request: { ...attempt, request: missingRevision }
     })).toBe(false)
     expect(validateWireEnvelope({
       storage_rpc_version: 1,
@@ -327,7 +364,6 @@ describe("storage RPC canonical schema", () => {
         command: "list-objective-attempts",
         request: {
           objective_id: "objective_schema",
-          state: null,
           limit: null,
           extra: true
         }
@@ -361,19 +397,27 @@ describe("storage RPC canonical schema", () => {
   })
 
   it("accepts every team command and rejects team control drift", () => {
-    for (const [index, request] of teamRequests().entries()) {
+    const requests = teamRequests()
+    const schemaCommands = schema.$defs.TeamStorageRpcCommand.oneOf.map(
+      ({ $ref }) => schema.$defs[$ref.split("/").at(-1)].properties.command.enum[0]
+    )
+    expect(requests.map(({ command }) => command).sort()).toEqual(
+      schemaCommands.sort()
+    )
+    for (const [index, request] of requests.entries()) {
       expect(validateWireEnvelope({
         storage_rpc_version: 1,
         request_id: `rpc_team_${index}`,
         request
       }), JSON.stringify(validateWireEnvelope.errors)).toBe(true)
     }
-    const turn = teamRequests()[7]
-    const { metadata: _metadata, ...missingMetadata } = turn.request
+    const message = teamRequests().find(({ command }) => command === "admit-team-message")
+    expect(message).toBeDefined()
+    const { idempotency_key: _idempotencyKey, ...missingIdempotencyKey } = message.request
     expect(validateWireEnvelope({
       storage_rpc_version: 1,
-      request_id: "rpc_team_missing_turn_metadata",
-      request: { ...turn, request: missingMetadata }
+      request_id: "rpc_team_missing_message_idempotency_key",
+      request: { ...message, request: missingIdempotencyKey }
     })).toBe(false)
     expect(validateWireEnvelope({
       storage_rpc_version: 1,
@@ -389,7 +433,8 @@ describe("storage RPC canonical schema", () => {
     for (const [index, request] of pluginRequests().entries()) {
       expect(validateWireEnvelope({ storage_rpc_version: 1, request_id: `rpc_plugin_${index}`, request }), JSON.stringify(validateWireEnvelope.errors)).toBe(true)
     }
-    const action = pluginRequests()[8]
+    const action = pluginRequests().find(({ command }) => command === "submit-plugin-action")
+    expect(action).toBeDefined()
     const { retry_policy: _retryPolicy, ...missingRetryPolicy } = action.request
     expect(validateWireEnvelope({ storage_rpc_version: 1, request_id: "rpc_plugin_missing_retry", request: { ...action, request: missingRetryPolicy } })).toBe(false)
     expect(validateWireEnvelope({ storage_rpc_version: 1, request_id: "rpc_plugin_open_filter", request: { command: "list-plugin-installs", request: { plugin_id: null, state: null, limit: null, extra: true } } })).toBe(false)
@@ -493,6 +538,12 @@ function runtimeRequests() {
       }
     },
     { command: "put-config", key: "profile", value: { enabled: true } },
+    {
+      command: "apply-config-mutations",
+      puts: [{ key: "profile", value: { enabled: true } }],
+      deletes: ["profile.previous"]
+    },
+    { command: "has-live-secret-reference", secret_ref: "env://PROVIDER_KEY" },
     { command: "get-config", key: "profile" },
     {
       command: "write-atomic-file",
@@ -553,8 +604,32 @@ function mediaGenerationRequests() {
         principal_id: "media_user_schema",
         idempotency_key: "media_key_schema",
         binding: {
-          profileId: "media_profile_schema",
-          outputModality: "image"
+          endpointId: "media_endpoint_schema",
+          endpointDigest: "media_endpoint_digest_schema",
+          connection: {
+            id: "media_connection_schema",
+            providerId: "media_provider_schema"
+          },
+          protocol: { id: "media_protocol_schema" },
+          model: {
+            id: "media_model_schema",
+            operations: ["image.generate"],
+            inputModalities: ["text"],
+            outputModalities: ["image"],
+            features: [],
+            catalog: {
+              source: "custom",
+              catalogId: "schema.media-model",
+              revision: "1"
+            }
+          },
+          request: {
+            prompt: "schema image",
+            outputModality: "image",
+            inputResources: [],
+            options: null
+          },
+          requestDigest: "media_request_digest_schema"
         },
         priority: null
       }
@@ -569,17 +644,21 @@ function mediaGenerationRequests() {
       }
     },
     {
-      command: "checkpoint-media-generation",
+      command: "suspend-media-generation",
       request: {
         ...lease,
+        next_poll_at: Date.now() + 1000,
+        outcome: "pending",
         provider_checkpoint: { cursor: 2 },
-        progress: { percent: 50 }
+        progress: { percent: 50 },
+        error: null
       }
     },
     {
       command: "record-media-generation-outputs",
       request: {
         ...lease,
+        poll_outcome: "completed",
         output_references: [
           {
             kindOfReference: "provider_file",
@@ -594,6 +673,7 @@ function mediaGenerationRequests() {
       command: "complete-media-generation",
       request: {
         ...lease,
+        poll_outcome: "completed",
         output_resource_ids: ["resource_schema"],
         result: null
       }
@@ -602,6 +682,7 @@ function mediaGenerationRequests() {
       command: "settle-media-generation",
       request: {
         ...lease,
+        poll_outcome: "none",
         outcome: "recovery_required",
         error: { type: "ambiguous_provider_submission" },
         reason: "provider checkpoint missing"
@@ -674,20 +755,34 @@ function sessionsRequests() {
         execution_binding: {
           digest: "binding_schema",
           createdAt: 1,
-          provider: {
-            profileId: "profile_schema",
-            profileDigest: "profile_digest_schema",
-            adapterId: "openai-compatible",
-            providerId: "provider_schema",
-            modelId: "model_schema"
+          modelEndpoint: {
+            endpointId: "endpoint_schema",
+            endpointDigest: "endpoint_digest_schema",
+            connection: {
+              id: "connection_schema",
+              providerId: "provider_schema"
+            },
+            protocol: { id: "openai-chat-completions" },
+            model: {
+              id: "model_schema",
+              operations: ["conversation"],
+              inputModalities: ["text"],
+              outputModalities: ["text"],
+              features: [],
+              catalog: {
+                source: "custom",
+                catalogId: "schema.model",
+                revision: "1"
+              }
+            }
           },
+          resources: [],
           recovery: {
             providerMaxAttempts: 2,
             idempotentToolMaxAttempts: 2
           }
         },
         max_steps: null,
-        parent_turn_id: null,
         regenerates_turn_id: null,
         scheduled_at: null,
         not_before: null,
@@ -784,12 +879,24 @@ function sessionsRequests() {
         lease_token: "lease_schema"
       }
     },
-    { command: "list-session-inputs", session_id: "ses_schema" },
-    { command: "list-session-messages", session_id: "ses_schema" },
+    {
+      command: "list-session-inputs",
+      session_id: "ses_schema",
+      status: null,
+      limit: null
+    },
+    {
+      command: "list-session-messages",
+      session_id: "ses_schema",
+      before_sequence: null,
+      limit: null,
+      turn_ids: null
+    },
     {
       command: "list-session-turns",
       session_id: "ses_schema",
-      state: null
+      state: null,
+      turn_ids: null
     },
     { command: "list-session-attempts", turn_id: "turn_schema" },
     {
@@ -805,39 +912,93 @@ function sessionsRequests() {
       role: "assistant",
       content,
       provider_state: []
+    },
+    {
+      command: "rename-session",
+      request: {
+        session_id: "ses_schema",
+        title: "Renamed",
+        expected_revision: 1
+      }
+    },
+    {
+      command: "archive-session",
+      request: { session_id: "ses_schema", expected_revision: 2 }
+    },
+    {
+      command: "restore-session",
+      request: { session_id: "ses_schema", expected_revision: 3 }
     }
   ]
 }
 
 function contextRequests() {
+  const lease = {
+    epoch_id: "ctx_schema",
+    job_id: "job_schema",
+    worker_id: "worker_schema",
+    lease_token: "lease_schema"
+  }
   return [
     {
-      command: "put-context-epoch",
+      command: "begin-context-epoch",
       request: {
-        id: null,
+        id: "ctx_schema",
         session_id: "ses_schema",
-        policy_version: "policy_schema",
-        state: null,
-        token_estimate_before: null,
-        token_estimate_after: null,
-        token_savings: null,
-        replacement_count: null,
-        metadata: null
+        job_id: lease.job_id,
+        worker_id: lease.worker_id,
+        lease_token: lease.lease_token,
+        max_provider_attempts: 2,
+        previous_epoch_id: null,
+        previous_summary_digest: null,
+        source_head_sequence: 6,
+        source_head_message_id: "msg_schema_6",
+        cut_sequence: 2,
+        cut_message_id: "msg_schema_2",
+        retained_from_sequence: 3,
+        retained_from_message_id: "msg_schema_3",
+        source_digest: "source_digest_schema",
+        policy: { algorithm: "semantic-summary" },
+        policy_digest: "policy_digest_schema",
+        model_endpoint: { endpointId: "endpoint_schema" },
+        request_digest: "request_digest_schema",
+        token_estimate_before: 12_000
+      }
+    },
+    {
+      command: "mark-context-epoch-dispatched",
+      request: lease
+    },
+    {
+      command: "mark-context-epoch-output-observed",
+      request: { ...lease, generation_attempt: 1 }
+    },
+    {
+      command: "finish-context-epoch-generation",
+      request: {
+        ...lease,
+        generation_attempt: 1,
+        outcome: "succeeded",
+        retryable: null,
+        summary: "Semantic summary",
+        summary_digest: "summary_digest_schema",
+        usage: { inputTokens: 1000, outputTokens: 100 },
+        error: null,
+        token_estimate_after: 1_100,
+        token_savings: 10_900
       }
     },
     {
       command: "activate-context-epoch",
-      request: { epoch_id: "ctx_schema" }
-    },
-    {
-      command: "clone-context-epoch",
-      request: { source_epoch_id: "ctx_schema", id: null, metadata: null }
+      request: {
+        ...lease,
+        expected_previous_epoch_id: null
+      }
     },
     {
       command: "prune-context-epochs",
       request: {
         session_id: "ses_schema",
-        policy_version: "policy_schema",
         keep_last_superseded: null,
         older_than_updated_at: null,
         dry_run: null
@@ -847,37 +1008,12 @@ function contextRequests() {
       command: "list-context-epochs",
       request: {
         session_id: "ses_schema",
-        policy_version: null,
         state: null
       }
     },
     {
       command: "get-active-context-epoch",
-      request: { session_id: "ses_schema", policy_version: "policy_schema" }
-    },
-    {
-      command: "put-context-replacement",
-      request: {
-        id: null,
-        epoch_id: "ctx_schema",
-        session_id: "ses_schema",
-        policy_version: "policy_schema",
-        message_id: null,
-        part_id: "part_schema",
-        tier: "tier1_snip",
-        original_token_estimate: 100,
-        replacement_token_estimate: 10,
-        replacement: { type: "text", id: "part_schema", text: "summary" },
-        metadata: null
-      }
-    },
-    {
-      command: "list-context-replacements",
-      request: {
-        session_id: "ses_schema",
-        policy_version: null,
-        epoch_id: null
-      }
+      request: { session_id: "ses_schema" }
     }
   ]
 }
@@ -958,6 +1094,7 @@ function schedulerRequests() {
 }
 
 function toolsRequests() {
+  const mediaBinding = mediaGenerationRequests()[0].request.binding
   return [
     {
       command: "begin-tool-execution",
@@ -967,8 +1104,23 @@ function toolsRequests() {
         job_id: "job_schema", worker_id: "worker_schema", lease_token: "lease_schema",
         principal_id: "principal", tool_call_id: "call", tool_name: "echo",
         input: { text: "hello" }, descriptor: { name: "echo" },
-        permission: { status: "allow" }, state: "running",
+        permission: { status: "allow" }, activity: null, state: "running",
         idempotency_key: "tool:turn:call"
+      }
+    },
+    {
+      command: "defer-tool-execution",
+      request: {
+        session_id: "session", turn_id: "turn", session_attempt_id: "attempt",
+        input_id: "input", source_message_id: "message_source",
+        session_job_id: "job_schema", worker_id: "worker_schema",
+        lease_token: "lease_schema", tool_execution_id: "toolx",
+        tool_invocation_attempt_id: "toolattempt_schema", tool_call_id: "call",
+        operation: {
+          kind: "media_generation",
+          binding: mediaBinding,
+          priority: null
+        }
       }
     },
     {
@@ -978,10 +1130,47 @@ function toolsRequests() {
         input_id: "input", job_id: "job_schema", worker_id: "worker_schema",
         lease_token: "lease_schema", execution_id: "toolx",
         invocation_attempt_id: "toolattempt_schema", state: "succeeded",
-        result: { ok: true }, is_error: false, error: null
+        content: [{ type: "json", value: { ok: true } }],
+        content_digest: "a".repeat(64), is_error: false,
+        result_presentation: null, error: null
+      }
+    },
+    {
+      command: "require-tool-execution-recovery",
+      request: {
+        session_id: "session", turn_id: "turn", session_attempt_id: "attempt",
+        input_id: "input", job_id: "job_schema", worker_id: "worker_schema",
+        lease_token: "lease_schema", execution_id: "toolx",
+        invocation_attempt_id: "toolattempt_schema",
+        evidence: { type: "ambiguous_tool_outcome", message: "unknown" }
+      }
+    },
+    {
+      command: "resolve-tool-execution-recovery",
+      request: {
+        execution_id: "toolx", expected_recovery_revision: 1,
+        decision: "confirm_succeeded", principal_id: "principal",
+        reason: "verified", idempotency_key: "tool-recovery-schema",
+        content: [{ type: "json", value: { ok: true } }],
+        content_digest: "a".repeat(64), error: null
+      }
+    },
+    {
+      command: "resolve-tool-execution-approval",
+      request: {
+        execution_id: "toolx", expected_approval_revision: 1,
+        decision: "approve_once", principal_id: "principal",
+        reason: "approved", idempotency_key: "tool-approval-schema"
       }
     },
     { command: "get-tool-execution", execution_id: "toolx" },
+    {
+      command: "get-tool-execution-by-call",
+      request: {
+        turn_id: "turn", source_message_id: "message_source",
+        tool_call_id: "call"
+      }
+    },
     {
       command: "list-tool-executions",
       request: {
@@ -989,6 +1178,13 @@ function toolsRequests() {
         turn_id: "turn",
         state: null,
         limit: 20
+      }
+    },
+    {
+      command: "list-tool-activities",
+      request: {
+        session_id: "session",
+        source_message_ids: ["message_source"]
       }
     },
     {
@@ -1075,18 +1271,60 @@ function workspaceRequests() {
 }
 
 function planRequests() {
+  const content = {
+    title: "Schema plan",
+    summary: "Validate the Plan RPC schema",
+    steps: [
+      {
+        id: "step_schema",
+        title: "Validate",
+        detail: null,
+        metadata: null
+      }
+    ],
+    references: [
+      {
+        kind: "resource",
+        reference_id: "resource_schema",
+        role: null,
+        metadata: null
+      }
+    ]
+  }
+  const turn = {
+    ...sessionsRequests()[4].request,
+    origin: { kind: "plan", sourceRef: "plan_schema" }
+  }
   return [
     {
-      command: "put-plan-proposal",
+      command: "create-plan-proposal",
       request: {
         id: null,
         principal_id: "user_schema",
-        title: null,
-        summary: null,
-        steps: [],
-        references: null,
-        metadata: null,
-        idempotency_key: null
+        source: {
+          session_id: "ses_schema",
+          head_sequence: 0,
+          head_message_id: null,
+          head_turn_id: null,
+          analysis_input_digest: "a".repeat(64),
+          planning_request: [
+            { type: "text", id: "part_plan_request", text: "Plan this" }
+          ]
+        },
+        generation: {
+          endpoint_id: "endpoint_schema",
+          endpoint_digest: "b".repeat(64),
+          protocol_id: "fake",
+          provider_id: "fake",
+          model_id: "model_schema",
+          generated_at: 1,
+          output_digest: "c".repeat(64),
+          output: [
+            { type: "text", id: "part_plan_output", text: "{}" }
+          ]
+        },
+        content,
+        idempotency_key: "plan-create-schema"
       }
     },
     { command: "get-plan-proposal", proposal_id: "plan_schema" },
@@ -1094,6 +1332,7 @@ function planRequests() {
       command: "list-plan-proposals",
       request: {
         principal_id: null,
+        source_session_id: null,
         state: null,
         reference_kind: null,
         reference_id: null,
@@ -1106,9 +1345,21 @@ function planRequests() {
         id: null,
         proposal_id: "plan_schema",
         operation: "approve",
+        expected_revision: 1,
+        actor_kind: "human",
         actor_id: "user_schema",
+        content: null,
         reason: null,
-        metadata: null
+        idempotency_key: "plan-operation-schema"
+      }
+    },
+    {
+      command: "execute-approved-plan",
+      request: {
+        proposal_id: "plan_schema",
+        expected_revision: 2,
+        idempotency_key: "plan-execution-schema",
+        turn
       }
     },
     {
@@ -1119,88 +1370,126 @@ function planRequests() {
 }
 
 function objectiveRequests() {
+  const turn = {
+    ...sessionsRequests()[4].request,
+    origin: { kind: "objective", sourceRef: "objective_schema" }
+  }
   return [
     {
-      command: "put-objective-run",
+      command: "create-objective",
       request: {
         id: null,
+        session_id: "ses_schema",
         principal_id: "user_schema",
         objective: "Ship the feature",
-        scope: null,
+        boundaries: ["packages/app"],
         constraints: ["preserve public API"],
-        success_criteria: ["tests pass"],
-        stop_policy: { maxAttempts: 3, requireVerification: true },
-        references: [{ kind: "session", reference_id: "ses_schema" }],
-        metadata: null,
-        idempotency_key: null
+        success_criteria: [{ id: "tests", description: "tests pass" }],
+        verification_policy: {
+          requirements: [{
+            id: "verify-tests",
+            criterionIds: ["tests"],
+            verifierKind: "runtime",
+            verifierRef: "wanex.schema-verifier"
+          }]
+        },
+        stop_policy: {
+          maxAttempts: 3,
+          maxConsecutiveBlockedAttempts: 2,
+          budget: { tokens: 10_000 }
+        },
+        idempotency_key: "objective-create-schema"
       }
     },
-    { command: "get-objective-run", objective_id: "objective_schema" },
+    { command: "get-objective", objective_id: "objective_schema" },
     {
-      command: "list-objective-runs",
+      command: "list-objectives",
       request: {
+        session_id: null,
         principal_id: null,
-        state: "running",
-        reference_kind: "session",
-        reference_id: "ses_schema",
+        states: ["active", "cancel_requested"],
         limit: null
       }
     },
     {
-      command: "record-objective-run-operation",
+      command: "pause-objective",
       request: {
-        id: null,
         objective_id: "objective_schema",
-        operation: "record_blocked",
-        actor_id: "agent_schema",
+        expected_revision: 1,
         reason: null,
-        metadata: { source: "schema" }
+        idempotency_key: "objective-pause-schema"
       }
     },
     {
-      command: "list-objective-run-operations",
-      request: { objective_id: "objective_schema" }
+      command: "resume-objective",
+      request: {
+        objective_id: "objective_schema",
+        expected_revision: 2,
+        reason: null,
+        idempotency_key: "objective-resume-schema"
+      }
     },
     {
-      command: "put-objective-attempt",
+      command: "admit-objective-attempt",
+      request: {
+        objective_id: "objective_schema",
+        expected_revision: 3,
+        trigger: "initial",
+        idempotency_key: "objective-attempt-schema",
+        turn
+      }
+    },
+    {
+      command: "review-objective-attempt",
       request: {
         id: null,
         objective_id: "objective_schema",
-        attempt_number: null,
-        state: "planned",
-        session_id: null,
-        session_input_id: null,
-        session_turn_id: null,
-        scheduler_job_id: null,
-        delegation_graph_id: null,
-        plan_proposal_id: null,
-        workspace_change_proposal_id: null,
-        summary: null,
-        result: null,
-        error: null,
-        metadata: null,
-        started_at: null,
-        finished_at: null,
-        idempotency_key: null
+        attempt_id: "objective_attempt_schema",
+        expected_revision: 4,
+        disposition: "succeeded",
+        reason: null,
+        verifications: [{
+          requirementId: "verify-tests",
+          verifierKind: "runtime",
+          verifierRef: "wanex.schema-verifier",
+          result: "passed",
+          evidence: [{
+            kind: "runtime_projection",
+            referenceId: "tests:schema",
+            digest: "d".repeat(64)
+          }]
+        }],
+        idempotency_key: "objective-review-schema"
+      }
+    },
+    {
+      command: "request-objective-cancel",
+      request: {
+        objective_id: "objective_schema",
+        expected_revision: 4,
+        reason: "user requested cancellation",
+        idempotency_key: "objective-cancel-schema"
+      }
+    },
+    {
+      command: "reconcile-objective-cancellation",
+      request: {
+        objective_id: "objective_schema",
+        attempt_id: "objective_attempt_schema",
+        expected_revision: 5,
+        idempotency_key: "objective-cancel-reconcile-schema"
       }
     },
     {
       command: "list-objective-attempts",
-      request: { objective_id: "objective_schema", state: null, limit: null }
+      request: { objective_id: "objective_schema", limit: null }
     },
     {
-      command: "put-objective-verification",
+      command: "list-objective-attempt-reviews",
       request: {
-        id: null,
         objective_id: "objective_schema",
         attempt_id: null,
-        kind: "script",
-        state: "passed",
-        reason: null,
-        evidence: { command: "pnpm test", exitCode: 0 },
-        verifier_ref: null,
-        metadata: null,
-        idempotency_key: null
+        limit: null
       }
     },
     {
@@ -1208,7 +1497,8 @@ function objectiveRequests() {
       request: {
         objective_id: "objective_schema",
         attempt_id: null,
-        state: null,
+        requirement_id: null,
+        result: null,
         limit: null
       }
     }
@@ -1337,6 +1627,14 @@ function teamRequests() {
       request: { conversation_id: "team_schema", state: "paused" }
     },
     {
+      command: "set-team-conversation-lead",
+      request: {
+        conversation_id: "team_schema",
+        expected_lead_participant_id: null,
+        lead_participant_id: "participant_schema"
+      }
+    },
+    {
       command: "put-team-participant",
       request: {
         id: null,
@@ -1345,6 +1643,7 @@ function teamRequests() {
         kind: "agent",
         display_name: null,
         role: null,
+        agent_session_id: "ses_team_schema",
         metadata: null,
         idempotency_key: null
       }
@@ -1358,24 +1657,142 @@ function teamRequests() {
       request: { participant_id: "participant_schema", state: "muted" }
     },
     {
-      command: "append-team-turn",
+      command: "admit-team-message",
       request: {
         id: null,
         conversation_id: "team_schema",
-        speaker_participant_id: "participant_schema",
-        audience_participant_ids: null,
+        author_participant_id: "participant_schema",
+        parent_message_id: null,
         kind: "message",
+        targets: [{ kind: "all", participant_id: null }],
         content,
-        metadata: null
+        metadata: null,
+        idempotency_key: "team-message-schema"
+      }
+    },
+    { command: "get-team-message", message_id: "message_schema" },
+    {
+      command: "list-team-messages",
+      request: {
+        conversation_id: "team_schema",
+        state: null,
+        after_created_at: null,
+        after_message_id: null,
+        limit: null
       }
     },
     {
-      command: "list-team-turns",
+      command: "route-team-message",
+      request: {
+        id: null,
+        message_id: "message_schema",
+        expected_revision: 1,
+        expected_lead_participant_id: null,
+        mode: "hybrid",
+        outcome: "deliver",
+        actor_principal_id: "router_schema",
+        reason: "Route the admitted message",
+        metadata: null,
+        idempotency_key: "team-route-schema",
+        deliveries: [{
+          id: null,
+          target_participant_id: "participant_schema",
+          role: "speaker",
+          trigger: "mention",
+          budget_grant_id: null
+        }]
+      }
+    },
+    {
+      command: "get-team-routing-decision-by-message",
+      message_id: "message_schema"
+    },
+    {
+      command: "list-team-routing-decisions",
       request: {
         conversation_id: "team_schema",
-        after_created_at: null,
-        after_turn_id: null,
+        message_id: null,
         limit: null
+      }
+    },
+    {
+      command: "list-team-deliveries",
+      request: {
+        conversation_id: "team_schema",
+        message_id: null,
+        routing_decision_id: null,
+        state: "queued",
+        limit: null
+      }
+    },
+    {
+      command: "get-team-discussion-round",
+      round_id: "round_schema"
+    },
+    {
+      command: "list-team-discussion-rounds",
+      request: {
+        conversation_id: "team_schema",
+        state: "open",
+        after_created_at: null,
+        after_round_id: null,
+        limit: null
+      }
+    },
+    {
+      command: "get-team-delegation-operation",
+      operation_id: "team_delegation_operation_schema"
+    },
+    {
+      command: "get-team-delegation-operation-by-tool-execution",
+      tool_execution_id: "tool_execution_team_delegation_schema"
+    },
+    {
+      command: "list-team-delegation-tasks",
+      operation_id: "team_delegation_operation_schema"
+    },
+    {
+      command: "read-team-conversation-page",
+      request: {
+        conversation_id: "team_schema",
+        before_created_at: null,
+        before_message_id: null,
+        limit: null
+      }
+    },
+    {
+      command: "get-team-delivery-materialization-context",
+      delivery_id: "delivery_schema"
+    },
+    {
+      command: "materialize-team-delivery",
+      request: {
+        delivery_id: "delivery_schema",
+        dispatch_job_id: "job_team_delivery_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        execution_binding: {},
+        max_steps: null,
+        child_priority: null
+      }
+    },
+    {
+      command: "fail-team-delivery-materialization",
+      request: {
+        delivery_id: "delivery_schema",
+        dispatch_job_id: "job_team_delivery_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        error: { type: "test", message: "failed" }
+      }
+    },
+    {
+      command: "project-team-delivery-outcome",
+      request: {
+        delivery_id: "delivery_schema",
+        outcome_job_id: "job_team_outcome_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema"
       }
     }
   ]
@@ -1386,12 +1803,17 @@ function pluginRequests() {
     { command: "put-plugin-manifest", request: { id: null, plugin_id: "plugin_schema", version: "1.0.0", name: null, entry: { kind: "process" }, capabilities: ["resource.read"], metadata: null, idempotency_key: null } },
     { command: "get-plugin-manifest", request: { plugin_id: "plugin_schema", version: null } },
     { command: "list-plugin-manifests", request: { state: "registered", capability: null, limit: null } },
+    { command: "activate-plugin-install", request: {
+      manifest: { id: null, plugin_id: "plugin_schema", version: "1.0.0", name: null, entry: { kind: "process" }, capabilities: ["resource.read"], metadata: null, idempotency_key: null },
+      install: { id: null, plugin_id: "plugin_schema", version: "1.0.0", layout: { kind: "layout" }, trust: { status: "allow" }, install_root_dir: "/plugins/plugin_schema", metadata: null, idempotency_key: null }
+    } },
     { command: "put-plugin-install", request: { id: null, plugin_id: "plugin_schema", version: "1.0.0", layout: { kind: "layout" }, trust: { status: "allow" }, install_root_dir: "/plugins/plugin_schema", metadata: null, idempotency_key: null } },
     { command: "get-plugin-install", request: { plugin_id: "plugin_schema", version: null } },
     { command: "list-plugin-installs", request: { plugin_id: null, state: "installed", limit: null } },
-    { command: "update-plugin-install-state", request: { plugin_id: "plugin_schema", version: null, state: "disabled" } },
-    { command: "update-plugin-manifest-state", request: { plugin_id: "plugin_schema", version: null, state: "disabled" } },
-    { command: "submit-plugin-action", request: { plugin_id: "plugin_schema", version: null, action_id: "run", principal_id: "user_schema", payload: { value: 1 }, required_capability: "resource.read", job_id: null, job_idempotency_key: null, scheduled_at: null, not_before: null, priority: null, max_attempts: null, retry_policy: null, budget_grant_id: null } }
+    { command: "update-plugin-install-state", request: { plugin_id: "plugin_schema", version: "1.0.0", state: "disabled" } },
+    { command: "update-plugin-manifest-state", request: { plugin_id: "plugin_schema", version: "1.0.0", state: "disabled" } },
+    { command: "get-plugin-action-execution-admission", request: { plugin_id: "plugin_schema", version: "1.0.0", required_capability: "resource.read" } },
+    { command: "submit-plugin-action", request: { plugin_id: "plugin_schema", version: "1.0.0", action_id: "run", principal_id: "user_schema", payload: { value: 1 }, required_capability: "resource.read", job_id: null, job_idempotency_key: null, scheduled_at: null, not_before: null, priority: null, max_attempts: null, retry_policy: null, budget_grant_id: null } }
   ]
 }
 

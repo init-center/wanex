@@ -5,6 +5,9 @@ import {
   projectWanexAppJobExecutionReference
 } from "../src/internal-index.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
+import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
+
+const fakeModelEndpoint = appTestModelEndpoint()
 
 describe("wanex-app execution reference read contract", () => {
   it.each([
@@ -64,7 +67,8 @@ describe("wanex-app execution reference read contract", () => {
       },
       artifacts: {
         explicitPath: serviceBin
-      }
+      },
+      modelEndpoint: fakeModelEndpoint
     })
 
     try {

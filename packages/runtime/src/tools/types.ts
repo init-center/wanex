@@ -1,12 +1,27 @@
 import type {
+  DeferredToolOperationRequest,
+  DeferToolExecutionReceipt,
   JsonValue,
+  ModelCapabilityRequirement,
+  ModelCapabilityRouteExecutionBinding,
+  RequireToolExecutionRecoveryReceipt,
+  ResourceKind,
   RuntimeAbortSignal,
   ToolCallMessagePart,
+  ToolExecutionApprovalSuspensionReceipt,
+  ToolActivityPresentation,
+  ToolResultContentPart,
   ToolResultMessagePart
 } from "@wanex/protocol"
-import type { SchedulerStore, ToolExecutionStore } from "@wanex/storage"
+import type {
+  CoreStore,
+  SchedulerStore,
+  ToolExecutionStore
+} from "@wanex/storage"
 
 export type ToolRisk = "read_only" | "mutating" | "external"
+export type ToolConcurrency = "parallel_safe" | "exclusive"
+export type ToolResultMode = "immediate" | "deferred"
 
 export interface ToolInputSchema extends Readonly<Record<string, JsonValue>> {
   readonly type: "object"
@@ -26,6 +41,9 @@ export interface ToolDescriptor {
   readonly inputSchema: ToolInputSchema
   readonly risk: ToolRisk
   readonly idempotent: boolean
+  readonly concurrency: ToolConcurrency
+  readonly resultMode: ToolResultMode
+  readonly requiredCapabilities?: readonly ModelCapabilityRequirement[]
   readonly annotations?: ToolAnnotations
 }
 
@@ -46,6 +64,16 @@ export interface ToolRegistrySnapshot {
 
 export interface ToolDefinition extends ToolDescriptor {
   readonly runtimeBinding: ToolRuntimeBinding
+  presentCall?(input: JsonValue): ToolActivityPresentation
+  presentResult?(request: {
+    readonly input: JsonValue
+    readonly result: ToolExecutionResult
+  }): ToolActivityPresentation
+  presentFailure?(request: {
+    readonly input: JsonValue
+    readonly error: unknown
+    readonly reason: "exception" | "cancelled" | "timed_out"
+  }): ToolActivityPresentation
   invoke(invocation: ToolInvocation): Promise<ToolExecutionResult>
 }
 
@@ -62,14 +90,46 @@ export interface ToolInvocation extends ToolInvocationIdentity {
   readonly toolName: string
   readonly input: JsonValue
   readonly idempotencyKey: string
+  readonly capabilityRoutes?: readonly ModelCapabilityRouteExecutionBinding[]
+  readonly resources: ToolResourceOutputPort
   readonly signal?: RuntimeAbortSignal
 }
 
-export interface ToolExecutionResult {
-  readonly toolCallId: string
-  readonly result: JsonValue
-  readonly isError: boolean
+export interface ToolOutputResourceRequest {
+  readonly content: Uint8Array
+  readonly mediaType?: string
+  readonly kind?: ResourceKind
+  readonly label?: string
+  readonly metadata?: JsonValue
+  readonly width?: number
+  readonly height?: number
+  readonly durationMs?: number
+  readonly inputResourceIds?: readonly string[]
 }
+
+export interface ToolResourceOutputPort {
+  publish(request: ToolOutputResourceRequest): Promise<Extract<ToolResultContentPart, { type: "resource" }>>
+  reference(resourceId: string): Promise<Extract<ToolResultContentPart, { type: "resource" }>>
+}
+
+export type ToolExecutionResult =
+  | {
+      readonly outcome: "succeeded" | "failed"
+      readonly toolCallId: string
+      readonly content: readonly ToolResultContentPart[]
+    }
+  | {
+      readonly outcome: "ambiguous"
+      readonly toolCallId: string
+      readonly message: string
+      readonly reconciliationRef?: string
+      readonly metadata?: JsonValue
+    }
+  | {
+      readonly outcome: "deferred"
+      readonly toolCallId: string
+      readonly operation: DeferredToolOperationRequest
+    }
 
 export type ToolPermissionDecision =
   | {
@@ -78,10 +138,26 @@ export type ToolPermissionDecision =
       readonly authorizationRef?: string
     }
   | {
-      readonly status: "deny" | "approval_required"
+      readonly status: "deny"
       readonly reason: string
       readonly authorizationRef?: string
     }
+  | {
+      readonly status: "approval_required"
+      readonly reason: string
+      readonly presentation: ToolApprovalPresentation
+      readonly authorizationRef?: string
+    }
+
+export interface ToolApprovalPresentation {
+  readonly summary: string
+  readonly details?: readonly ToolApprovalPresentationDetail[]
+}
+
+export interface ToolApprovalPresentationDetail {
+  readonly label: string
+  readonly value: string
+}
 
 export interface ToolPermissionRequest extends ToolInvocationIdentity {
   readonly call: ToolCallMessagePart
@@ -103,16 +179,43 @@ export interface ToolExecutionRequest extends ToolInvocationIdentity {
   readonly permissionPolicy?: ToolPermissionPolicy
   readonly signal?: RuntimeAbortSignal
   readonly timeoutMs?: number
-  readonly storage: ToolExecutionStore
+  readonly storage: Pick<
+    ToolExecutionStore,
+    | "beginToolExecution"
+    | "finishToolExecution"
+    | "getToolExecutionByCall"
+    | "requireToolExecutionRecovery"
+    | "deferToolExecution"
+  > & Pick<
+    CoreStore,
+    "getResource" | "ingestResource" | "recordResourceProvenance"
+  >
   readonly budget?: {
     readonly grantId: string
     readonly storage: Pick<SchedulerStore, "recordBudgetUsage">
   }
 }
 
-export interface ToolExecutionOutcome {
+interface ToolExecutionOutcomeBase {
   readonly descriptor?: ToolDescriptor
   readonly permission: ToolPermissionDecision
-  readonly result: ToolResultMessagePart
   readonly invoked: boolean
 }
+
+export type ToolExecutionOutcome =
+  | (ToolExecutionOutcomeBase & {
+      readonly state: "completed"
+      readonly result: ToolResultMessagePart
+    })
+  | (ToolExecutionOutcomeBase & {
+      readonly state: "recovery_required"
+      readonly recovery: RequireToolExecutionRecoveryReceipt
+    })
+  | (ToolExecutionOutcomeBase & {
+      readonly state: "suspended"
+      readonly receipt: DeferToolExecutionReceipt
+    })
+  | (ToolExecutionOutcomeBase & {
+      readonly state: "approval_required"
+      readonly receipt: ToolExecutionApprovalSuspensionReceipt
+    })

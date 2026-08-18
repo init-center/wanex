@@ -4,7 +4,6 @@ import type {
   SchedulerJobState,
   SessionInputRecord
 } from "@wanex/protocol"
-import { runWanexAppAgentTurn } from "./agent.js"
 import type { WanexAppConversationOperationController } from "./conversation-operation.js"
 import type { BootstrappedWanexAppRuntime } from "./runtime.js"
 import type {
@@ -26,7 +25,7 @@ export async function submitWanexAppScheduledTick(
   runtime: BootstrappedWanexAppRuntime,
   options: {
     readonly request: WanexAppSubmitScheduledTickRequest
-    readonly providerProfileId: string
+    readonly modelEndpointId: string
     readonly conversationOperations: WanexAppConversationOperationController
   }
 ): Promise<WanexAppScheduledTickResult> {
@@ -42,57 +41,50 @@ export async function submitWanexAppScheduledTick(
     }
   }
 
-  const result = await runWanexAppAgentTurn(
-    options.conversationOperations,
-    {
-      request: {
-        content: [{ type: "text", text: request.text }],
-        ...(request.sessionId === undefined
-          ? {}
-          : { sessionId: request.sessionId }),
-        ...(request.principalId === undefined
-          ? {}
-          : { principalId: request.principalId }),
-        ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
-        ...(request.idempotencyKey === undefined
-          ? {}
-          : { idempotencyKey: request.idempotencyKey }),
-        ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
-        ...(request.jobIdempotencyKey === undefined
-          ? {}
-          : { jobIdempotencyKey: request.jobIdempotencyKey }),
-        origin: {
-          kind: "scheduler",
-          sourceRef: request.scheduleId,
-          metadata: compactMetadata({
-            scheduleId: request.scheduleId,
-            tickId: request.tickId,
-            nonOverlap: request.nonOverlap,
-            ...(request.classifier === undefined
-              ? {}
-              : {
-                  classifierId: request.classifier.classifierId,
-                  classifierLabel: request.classifier.label,
-                  classifierConfidence: request.classifier.confidence
-                })
-          })
-        },
-        intent: "normal"
+  const receipt = await options.conversationOperations.submit({
+    request: {
+      content: [{ type: "text", text: request.text }],
+      ...(request.sessionId === undefined
+        ? {}
+        : { sessionId: request.sessionId }),
+      ...(request.principalId === undefined
+        ? {}
+        : { principalId: request.principalId }),
+      ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
+      ...(request.idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: request.idempotencyKey }),
+      ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
+      ...(request.jobIdempotencyKey === undefined
+        ? {}
+        : { jobIdempotencyKey: request.jobIdempotencyKey }),
+      origin: {
+        kind: "scheduler",
+        sourceRef: request.scheduleId,
+        metadata: compactMetadata({
+          scheduleId: request.scheduleId,
+          tickId: request.tickId,
+          nonOverlap: request.nonOverlap,
+          ...(request.classifier === undefined
+            ? {}
+            : {
+                classifierId: request.classifier.classifierId,
+                classifierLabel: request.classifier.label,
+                classifierConfidence: request.classifier.confidence
+              })
+        })
       },
-      providerProfileId: options.providerProfileId
-    }
-  )
+      intent: "normal"
+    },
+    modelEndpointId: options.modelEndpointId
+  })
 
   return {
     status: "submitted",
     scheduleId: request.scheduleId,
     tickId: request.tickId,
-    sessionId: result.sessionId,
-    ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
-    ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
-    providerProfileId: options.providerProfileId,
-    assistantText: result.assistantText,
-    jobStatuses: result.jobStatuses
+    modelEndpointId: options.modelEndpointId,
+    receipt
   }
 }
 

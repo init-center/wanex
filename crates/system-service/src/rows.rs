@@ -2,18 +2,20 @@ use crate::{
     BudgetAmount, BudgetGrantRecord, BudgetScopeRecord, BudgetUsageEntryRecord,
     ChannelBindingRecord, ChannelDeliveryRecord, ChannelInboundEventRecord,
     ChannelProjectionRecord, ConnectorCredentialRecord, ConnectorRegistrationRecord,
-    ConnectorSessionRecord, ContextEpochRecord, ContextReplacementRecord,
-    DelegationGraphDependencyRecord, DelegationGraphNodeRecord, DelegationGraphRecord, EventScope,
-    MediaGenerationOperationRecord, ObjectiveAttemptRecord, ObjectiveReferenceRecord,
-    ObjectiveRunOperationRecord, ObjectiveRunRecord, ObjectiveVerificationRecord,
-    PlanProposalOperationRecord, PlanProposalRecord, PlanProposalReferenceRecord,
-    PluginInstallRecord, PluginManifestRecord, ProviderInvocationRecord, ResourceRecord,
-    ResourceSource, Result, RuntimeEvent, SchedulerJobRecord, SessionAttemptRecord,
-    SessionInputRecord, SessionMessageRecord, SessionRecord, SessionTurnControlRecord,
-    SessionTurnRecord, TeamConversationRecord, TeamParticipantRecord, TeamTurnRecord,
-    ToolExecutionAttemptRecord, ToolExecutionRecord, WorkspaceChangeOperationRecord,
-    WorkspaceChangeProposalOperationRecord, WorkspaceChangeProposalRecord,
-    WorkspaceChangeSetRecord,
+    ConnectorSessionRecord, ContextEpochRecord, DelegationGraphDependencyRecord,
+    DelegationGraphNodeRecord, DelegationGraphRecord, EventScope, MediaGenerationOperationRecord,
+    ObjectiveAttemptRecord, ObjectiveAttemptReviewRecord, ObjectiveRecord, ObjectiveStateReason,
+    ObjectiveVerificationRecord, PlanProposalContentRecord, PlanProposalExecutionBindingRecord,
+    PlanProposalGenerationRecord, PlanProposalOperationRecord, PlanProposalRecord,
+    PlanProposalReferenceRecord, PlanProposalSourceRecord, PluginInstallRecord,
+    PluginManifestRecord, ProviderInvocationRecord, ResourceRecord, ResourceSource, Result,
+    RuntimeEvent, SchedulerJobRecord, SessionAttemptRecord, SessionInputRecord,
+    SessionMessageRecord, SessionRecord, SessionTurnControlRecord, SessionTurnRecord,
+    TeamConversationRecord, TeamDelegationOperationRecord, TeamDelegationTaskRecord,
+    TeamDeliveryRecord, TeamDiscussionRoundRecord, TeamMessageRecord, TeamParticipantRecord,
+    TeamRoutingDecisionRecord, ToolExecutionAttemptRecord, ToolExecutionRecord,
+    WorkspaceChangeOperationRecord, WorkspaceChangeProposalOperationRecord,
+    WorkspaceChangeProposalRecord, WorkspaceChangeSetRecord,
 };
 
 pub(crate) fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<RuntimeEvent> {
@@ -46,9 +48,10 @@ pub(crate) fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<Sessio
         title: row.get(1)?,
         kind: row.get(2)?,
         status: row.get(3)?,
-        created_at: row.get(4)?,
-        updated_at: row.get(5)?,
-        archived_at: row.get(6)?,
+        revision: row.get(4)?,
+        created_at: row.get(5)?,
+        updated_at: row.get(6)?,
+        archived_at: row.get(7)?,
     })
 }
 
@@ -151,8 +154,8 @@ pub(crate) fn row_to_session_message(
 
 pub(crate) fn row_to_session_turn(row: &rusqlite::Row<'_>) -> rusqlite::Result<SessionTurnRecord> {
     let execution_binding_json: String = row.get(5)?;
-    let result_json: Option<String> = row.get(13)?;
-    let error_json: Option<String> = row.get(14)?;
+    let result_json: Option<String> = row.get(12)?;
+    let error_json: Option<String> = row.get(13)?;
     Ok(SessionTurnRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
@@ -163,19 +166,18 @@ pub(crate) fn row_to_session_turn(row: &rusqlite::Row<'_>) -> rusqlite::Result<S
         execution_binding_digest: row.get(6)?,
         max_steps: row.get(7)?,
         current_attempt_id: row.get(8)?,
-        parent_turn_id: row.get(9)?,
-        regenerates_turn_id: row.get(10)?,
-        cancel_requested_at: row.get(11)?,
-        cancel_reason: row.get(12)?,
+        regenerates_turn_id: row.get(9)?,
+        cancel_requested_at: row.get(10)?,
+        cancel_reason: row.get(11)?,
         result: result_json
-            .map(|raw| json_from_column(&raw, 13))
+            .map(|raw| json_from_column(&raw, 12))
             .transpose()?,
         error: error_json
-            .map(|raw| json_from_column(&raw, 14))
+            .map(|raw| json_from_column(&raw, 13))
             .transpose()?,
-        created_at: row.get(15)?,
-        updated_at: row.get(16)?,
-        finished_at: row.get(17)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        finished_at: row.get(16)?,
     })
 }
 
@@ -233,104 +235,125 @@ pub(crate) fn row_to_provider_invocation(
 pub(crate) fn row_to_media_generation_operation(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<MediaGenerationOperationRecord> {
-    let binding_json: String = row.get(5)?;
-    let checkpoint_json: Option<String> = row.get(8)?;
-    let references_json: String = row.get(9)?;
-    let resource_ids_json: String = row.get(10)?;
-    let progress_json: Option<String> = row.get(11)?;
-    let error_json: Option<String> = row.get(12)?;
+    let session_id: Option<String> = row.get(4)?;
+    let turn_id: Option<String> = row.get(5)?;
+    let source_message_id: Option<String> = row.get(6)?;
+    let tool_execution_id: Option<String> = row.get(7)?;
+    let tool_call_id: Option<String> = row.get(8)?;
+    let conversation = match (
+        session_id,
+        turn_id,
+        source_message_id,
+        tool_execution_id,
+        tool_call_id,
+    ) {
+        (None, None, None, None, None) => None,
+        (
+            Some(session_id),
+            Some(turn_id),
+            Some(source_message_id),
+            Some(tool_execution_id),
+            Some(tool_call_id),
+        ) => Some(crate::MediaGenerationConversationRelation {
+            session_id,
+            turn_id,
+            source_message_id,
+            tool_execution_id,
+            tool_call_id,
+        }),
+        _ => {
+            return Err(rusqlite::Error::FromSqlConversionFailure(
+                4,
+                rusqlite::types::Type::Text,
+                "partial media generation conversation relation".into(),
+            ));
+        }
+    };
+    let binding_json: String = row.get(10)?;
+    let checkpoint_json: Option<String> = row.get(13)?;
+    let last_poll_error_json: Option<String> = row.get(17)?;
+    let references_json: String = row.get(18)?;
+    let resource_ids_json: String = row.get(19)?;
+    let progress_json: Option<String> = row.get(20)?;
+    let error_json: Option<String> = row.get(21)?;
     Ok(MediaGenerationOperationRecord {
         id: row.get(0)?,
         job_id: row.get(1)?,
         principal_id: row.get(2)?,
         idempotency_key: row.get(3)?,
-        state: row.get(4)?,
-        binding: json_from_column(&binding_json, 5)?,
-        dispatch_attempt: row.get(6)?,
-        external_operation_id: row.get(7)?,
+        conversation,
+        state: row.get(9)?,
+        binding: json_from_column(&binding_json, 10)?,
+        dispatch_attempt: row.get(11)?,
+        external_operation_id: row.get(12)?,
         provider_checkpoint: checkpoint_json
-            .map(|raw| json_from_column(&raw, 8))
+            .map(|raw| json_from_column(&raw, 13))
             .transpose()?,
-        output_references: json_from_column(&references_json, 9)?,
-        output_resource_ids: json_from_column(&resource_ids_json, 10)?,
+        poll_count: row.get(14)?,
+        consecutive_poll_failures: row.get(15)?,
+        next_poll_at: row.get(16)?,
+        last_poll_error: last_poll_error_json
+            .map(|raw| json_from_column(&raw, 17))
+            .transpose()?,
+        output_references: json_from_column(&references_json, 18)?,
+        output_resource_ids: json_from_column(&resource_ids_json, 19)?,
         progress: progress_json
-            .map(|raw| json_from_column(&raw, 11))
+            .map(|raw| json_from_column(&raw, 20))
             .transpose()?,
         error: error_json
-            .map(|raw| json_from_column(&raw, 12))
+            .map(|raw| json_from_column(&raw, 21))
             .transpose()?,
-        cancel_requested_at: row.get(13)?,
-        cancel_reason: row.get(14)?,
-        created_at: row.get(15)?,
-        updated_at: row.get(16)?,
-        finished_at: row.get(17)?,
-    })
-}
-
-pub(crate) fn row_to_context_replacement(
-    row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<ContextReplacementRecord> {
-    let replacement_json: String = row.get(9)?;
-    let metadata_json: Option<String> = row.get(10)?;
-    let replacement = serde_json::from_str(&replacement_json).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, Box::new(error))
-    })?;
-    let metadata = metadata_json
-        .map(|raw| {
-            serde_json::from_str(&raw).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    10,
-                    rusqlite::types::Type::Text,
-                    Box::new(error),
-                )
-            })
-        })
-        .transpose()?;
-    Ok(ContextReplacementRecord {
-        id: row.get(0)?,
-        epoch_id: row.get(1)?,
-        session_id: row.get(2)?,
-        policy_version: row.get(3)?,
-        message_id: row.get(4)?,
-        part_id: row.get(5)?,
-        tier: row.get(6)?,
-        original_token_estimate: row.get(7)?,
-        replacement_token_estimate: row.get(8)?,
-        replacement,
-        metadata,
-        created_at: row.get(11)?,
-        updated_at: row.get(12)?,
+        cancel_requested_at: row.get(22)?,
+        cancel_reason: row.get(23)?,
+        created_at: row.get(24)?,
+        updated_at: row.get(25)?,
+        finished_at: row.get(26)?,
     })
 }
 
 pub(crate) fn row_to_context_epoch(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<ContextEpochRecord> {
-    let metadata_json: Option<String> = row.get(8)?;
-    let metadata = metadata_json
-        .map(|raw| {
-            serde_json::from_str(&raw).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    8,
-                    rusqlite::types::Type::Text,
-                    Box::new(error),
-                )
-            })
-        })
-        .transpose()?;
+    let policy_json: String = row.get(16)?;
+    let model_endpoint_json: String = row.get(18)?;
+    let usage_json: Option<String> = row.get(22)?;
+    let error_json: Option<String> = row.get(23)?;
     Ok(ContextEpochRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
-        policy_version: row.get(2)?,
+        job_id: row.get(2)?,
         state: row.get(3)?,
-        token_estimate_before: row.get(4)?,
-        token_estimate_after: row.get(5)?,
-        token_savings: row.get(6)?,
-        replacement_count: row.get(7)?,
-        metadata,
-        created_at: row.get(9)?,
-        activated_at: row.get(10)?,
-        updated_at: row.get(11)?,
+        generation_state: row.get(4)?,
+        generation_attempt: row.get(5)?,
+        max_provider_attempts: row.get(6)?,
+        previous_epoch_id: row.get(7)?,
+        previous_summary_digest: row.get(8)?,
+        source_head_sequence: row.get(9)?,
+        source_head_message_id: row.get(10)?,
+        cut_sequence: row.get(11)?,
+        cut_message_id: row.get(12)?,
+        retained_from_sequence: row.get(13)?,
+        retained_from_message_id: row.get(14)?,
+        source_digest: row.get(15)?,
+        policy: json_from_column(&policy_json, 16)?,
+        policy_digest: row.get(17)?,
+        model_endpoint: json_from_column(&model_endpoint_json, 18)?,
+        request_digest: row.get(19)?,
+        summary: row.get(20)?,
+        summary_digest: row.get(21)?,
+        usage: usage_json
+            .map(|raw| json_from_column(&raw, 22))
+            .transpose()?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 23))
+            .transpose()?,
+        token_estimate_before: row.get(24)?,
+        token_estimate_after: row.get(25)?,
+        token_savings: row.get(26)?,
+        created_at: row.get(27)?,
+        activated_at: row.get(28)?,
+        finished_at: row.get(29)?,
+        updated_at: row.get(30)?,
     })
 }
 
@@ -412,162 +435,182 @@ pub(crate) fn row_to_workspace_change_proposal_operation(
 pub(crate) fn row_to_plan_proposal(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<PlanProposalRecord> {
-    let steps_json: String = row.get(4)?;
-    let steps = json_from_column(&steps_json, 4)?;
-    let references_json: String = row.get(5)?;
-    let references = plan_references_from_json(&references_json, 5)?;
-    let metadata_json: Option<String> = row.get(7)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 7))
+    let planning_request_json: String = row.get(8)?;
+    let generation_output_json: String = row.get(16)?;
+    let steps_json: String = row.get(19)?;
+    let references_json: String = row.get(20)?;
+    let execution_input_id: Option<String> = row.get(22)?;
+    let execution = execution_input_id
+        .map(|input_id| {
+            Ok::<PlanProposalExecutionBindingRecord, rusqlite::Error>(
+                PlanProposalExecutionBindingRecord {
+                    input_id,
+                    turn_id: required_plan_execution_column(row, 23, "turn_id")?,
+                    job_id: required_plan_execution_column(row, 24, "job_id")?,
+                    execution_binding_digest: required_plan_execution_column(
+                        row,
+                        25,
+                        "execution_binding_digest",
+                    )?,
+                    digest: required_plan_execution_column(row, 26, "digest")?,
+                    bound_at: row
+                        .get::<_, Option<i64>>(27)?
+                        .ok_or_else(|| invalid_plan_execution_column(27, "bound_at"))?,
+                },
+            )
+        })
         .transpose()?;
     Ok(PlanProposalRecord {
         id: row.get(0)?,
         principal_id: row.get(1)?,
-        title: row.get(2)?,
-        summary: row.get(3)?,
-        steps,
-        references,
-        state: row.get(6)?,
-        metadata,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
-        closed_at: row.get(10)?,
+        revision: row.get(2)?,
+        source: PlanProposalSourceRecord {
+            session_id: row.get(3)?,
+            head_sequence: row.get(4)?,
+            head_message_id: row.get(5)?,
+            head_turn_id: row.get(6)?,
+            analysis_input_digest: row.get(7)?,
+            planning_request: json_from_column(&planning_request_json, 8)?,
+        },
+        generation: PlanProposalGenerationRecord {
+            endpoint_id: row.get(9)?,
+            endpoint_digest: row.get(10)?,
+            protocol_id: row.get(11)?,
+            provider_id: row.get(12)?,
+            model_id: row.get(13)?,
+            generated_at: row.get(14)?,
+            output_digest: row.get(15)?,
+            output: json_from_column(&generation_output_json, 16)?,
+        },
+        title: row.get(17)?,
+        summary: row.get(18)?,
+        steps: json_from_column(&steps_json, 19)?,
+        references: plan_references_from_json(&references_json, 20)?,
+        state: row.get(21)?,
+        execution,
+        created_at: row.get(28)?,
+        updated_at: row.get(29)?,
+        decided_at: row.get(30)?,
     })
 }
 
 pub(crate) fn row_to_plan_proposal_operation(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<PlanProposalOperationRecord> {
-    let metadata_json: Option<String> = row.get(7)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 7))
+    let content_json: Option<String> = row.get(9)?;
+    let content = content_json
+        .map(|raw| json_from_column::<PlanProposalContentRecord>(&raw, 9))
         .transpose()?;
     Ok(PlanProposalOperationRecord {
         id: row.get(0)?,
         proposal_id: row.get(1)?,
         operation: row.get(2)?,
-        actor_id: row.get(3)?,
-        from_state: row.get(4)?,
-        to_state: row.get(5)?,
-        reason: row.get(6)?,
-        metadata,
-        created_at: row.get(8)?,
+        actor_kind: row.get(3)?,
+        actor_id: row.get(4)?,
+        from_state: row.get(5)?,
+        to_state: row.get(6)?,
+        from_revision: row.get(7)?,
+        to_revision: row.get(8)?,
+        content,
+        reason: row.get(10)?,
+        created_at: row.get(11)?,
     })
 }
 
-pub(crate) fn row_to_objective_run(
+fn required_plan_execution_column(
     row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<ObjectiveRunRecord> {
-    let constraints_json: String = row.get(4)?;
-    let constraints = json_from_column(&constraints_json, 4)?;
-    let success_criteria_json: String = row.get(5)?;
-    let success_criteria = json_from_column(&success_criteria_json, 5)?;
-    let stop_policy_json: Option<String> = row.get(6)?;
-    let stop_policy = stop_policy_json
-        .map(|raw| json_from_column(&raw, 6))
-        .transpose()?;
-    let references_json: String = row.get(7)?;
-    let references = objective_references_from_json(&references_json, 7)?;
-    let metadata_json: Option<String> = row.get(9)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 9))
-        .transpose()?;
-    Ok(ObjectiveRunRecord {
-        id: row.get(0)?,
-        principal_id: row.get(1)?,
-        objective: row.get(2)?,
-        scope: row.get(3)?,
-        constraints,
-        success_criteria,
-        stop_policy,
-        references,
-        state: row.get(8)?,
-        metadata,
-        created_at: row.get(10)?,
-        updated_at: row.get(11)?,
-        closed_at: row.get(12)?,
-    })
+    column: usize,
+    name: &str,
+) -> rusqlite::Result<String> {
+    row.get::<_, Option<String>>(column)?
+        .ok_or_else(|| invalid_plan_execution_column(column, name))
 }
 
-pub(crate) fn row_to_objective_run_operation(
-    row: &rusqlite::Row<'_>,
-) -> rusqlite::Result<ObjectiveRunOperationRecord> {
-    let metadata_json: Option<String> = row.get(7)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 7))
-        .transpose()?;
-    Ok(ObjectiveRunOperationRecord {
+fn invalid_plan_execution_column(column: usize, name: &str) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(
+        column,
+        rusqlite::types::Type::Null,
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("plan execution binding is missing {name}"),
+        )),
+    )
+}
+
+pub(crate) fn row_to_objective(row: &rusqlite::Row<'_>) -> rusqlite::Result<ObjectiveRecord> {
+    let boundaries_json: String = row.get(4)?;
+    let constraints_json: String = row.get(5)?;
+    let success_criteria_json: String = row.get(6)?;
+    let verification_policy_json: String = row.get(7)?;
+    let stop_policy_json: String = row.get(8)?;
+    Ok(ObjectiveRecord {
         id: row.get(0)?,
-        objective_id: row.get(1)?,
-        operation: row.get(2)?,
-        actor_id: row.get(3)?,
-        from_state: row.get(4)?,
-        to_state: row.get(5)?,
-        reason: row.get(6)?,
-        metadata,
-        created_at: row.get(8)?,
+        session_id: row.get(1)?,
+        principal_id: row.get(2)?,
+        objective: row.get(3)?,
+        boundaries: json_from_column(&boundaries_json, 4)?,
+        constraints: json_from_column(&constraints_json, 5)?,
+        success_criteria: json_from_column(&success_criteria_json, 6)?,
+        verification_policy: json_from_column(&verification_policy_json, 7)?,
+        stop_policy: json_from_column(&stop_policy_json, 8)?,
+        revision: row.get(9)?,
+        state: row.get(10)?,
+        reason: ObjectiveStateReason {
+            code: row.get(11)?,
+            detail: row.get(12)?,
+        },
+        active_attempt_id: row.get(13)?,
+        created_at: row.get(14)?,
+        updated_at: row.get(15)?,
+        closed_at: row.get(16)?,
     })
 }
 
 pub(crate) fn row_to_objective_attempt(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<ObjectiveAttemptRecord> {
-    let result_json: Option<String> = row.get(12)?;
-    let result = result_json
-        .map(|raw| json_from_column(&raw, 12))
-        .transpose()?;
-    let error_json: Option<String> = row.get(13)?;
-    let error = error_json
-        .map(|raw| json_from_column(&raw, 13))
-        .transpose()?;
-    let metadata_json: Option<String> = row.get(14)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 14))
-        .transpose()?;
     Ok(ObjectiveAttemptRecord {
         id: row.get(0)?,
         objective_id: row.get(1)?,
         attempt_number: row.get(2)?,
-        state: row.get(3)?,
-        session_id: row.get(4)?,
-        session_input_id: row.get(5)?,
-        session_turn_id: row.get(6)?,
-        scheduler_job_id: row.get(7)?,
-        delegation_graph_id: row.get(8)?,
-        plan_proposal_id: row.get(9)?,
-        workspace_change_proposal_id: row.get(10)?,
-        summary: row.get(11)?,
-        result,
-        error,
-        metadata,
-        started_at: row.get(15)?,
-        finished_at: row.get(16)?,
-        created_at: row.get(17)?,
-        updated_at: row.get(18)?,
+        input_id: row.get(3)?,
+        turn_id: row.get(4)?,
+        job_id: row.get(5)?,
+        execution_binding_digest: row.get(6)?,
+        trigger: row.get(7)?,
+        budget_grant_id: row.get(8)?,
+        idempotency_key: row.get(9)?,
+        bound_at: row.get(10)?,
+    })
+}
+
+pub(crate) fn row_to_objective_attempt_review(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<ObjectiveAttemptReviewRecord> {
+    Ok(ObjectiveAttemptReviewRecord {
+        id: row.get(0)?,
+        objective_id: row.get(1)?,
+        attempt_id: row.get(2)?,
+        disposition: row.get(3)?,
+        reason: row.get(4)?,
+        created_at: row.get(5)?,
     })
 }
 
 pub(crate) fn row_to_objective_verification(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<ObjectiveVerificationRecord> {
-    let evidence_json: Option<String> = row.get(6)?;
-    let evidence = evidence_json
-        .map(|raw| json_from_column(&raw, 6))
-        .transpose()?;
-    let metadata_json: Option<String> = row.get(8)?;
-    let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 8))
-        .transpose()?;
+    let evidence_json: String = row.get(8)?;
     Ok(ObjectiveVerificationRecord {
         id: row.get(0)?,
         objective_id: row.get(1)?,
         attempt_id: row.get(2)?,
-        kind: row.get(3)?,
-        state: row.get(4)?,
-        reason: row.get(5)?,
-        evidence,
-        verifier_ref: row.get(7)?,
-        metadata,
+        requirement_id: row.get(3)?,
+        verifier_kind: row.get(4)?,
+        verifier_ref: row.get(5)?,
+        result: row.get(6)?,
+        reason: row.get(7)?,
+        evidence: json_from_column(&evidence_json, 8)?,
         created_at: row.get(9)?,
     })
 }
@@ -632,9 +675,9 @@ pub(crate) fn row_to_delegation_graph_dependency(
 pub(crate) fn row_to_team_conversation(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<TeamConversationRecord> {
-    let metadata_json: Option<String> = row.get(5)?;
+    let metadata_json: Option<String> = row.get(6)?;
     let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 5))
+        .map(|raw| json_from_column(&raw, 6))
         .transpose()?;
     Ok(TeamConversationRecord {
         id: row.get(0)?,
@@ -642,19 +685,20 @@ pub(crate) fn row_to_team_conversation(
         title: row.get(2)?,
         mode: row.get(3)?,
         state: row.get(4)?,
+        lead_participant_id: row.get(5)?,
         metadata,
-        created_at: row.get(6)?,
-        updated_at: row.get(7)?,
-        closed_at: row.get(8)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+        closed_at: row.get(9)?,
     })
 }
 
 pub(crate) fn row_to_team_participant(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<TeamParticipantRecord> {
-    let metadata_json: Option<String> = row.get(7)?;
+    let metadata_json: Option<String> = row.get(8)?;
     let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 7))
+        .map(|raw| json_from_column(&raw, 8))
         .transpose()?;
     Ok(TeamParticipantRecord {
         id: row.get(0)?,
@@ -663,33 +707,173 @@ pub(crate) fn row_to_team_participant(
         kind: row.get(3)?,
         display_name: row.get(4)?,
         role: row.get(5)?,
-        state: row.get(6)?,
+        agent_session_id: row.get(6)?,
+        state: row.get(7)?,
         metadata,
-        created_at: row.get(8)?,
-        updated_at: row.get(9)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
     })
 }
 
-pub(crate) fn row_to_team_turn(row: &rusqlite::Row<'_>) -> rusqlite::Result<TeamTurnRecord> {
-    let audience_json: Option<String> = row.get(3)?;
-    let content_json: String = row.get(5)?;
-    let metadata_json: Option<String> = row.get(6)?;
-    let audience_participant_ids = audience_json
-        .map(|raw| json_from_column(&raw, 3))
-        .transpose()?;
-    let content = json_from_column(&content_json, 5)?;
+pub(crate) fn row_to_team_message(row: &rusqlite::Row<'_>) -> rusqlite::Result<TeamMessageRecord> {
+    let targets_json: String = row.get(7)?;
+    let content_json: String = row.get(8)?;
+    let metadata_json: Option<String> = row.get(9)?;
+    let targets = json_from_column(&targets_json, 7)?;
+    let content = json_from_column(&content_json, 8)?;
     let metadata = metadata_json
-        .map(|raw| json_from_column(&raw, 6))
+        .map(|raw| json_from_column(&raw, 9))
         .transpose()?;
-    Ok(TeamTurnRecord {
+    Ok(TeamMessageRecord {
         id: row.get(0)?,
         conversation_id: row.get(1)?,
-        speaker_participant_id: row.get(2)?,
-        audience_participant_ids,
-        kind: row.get(4)?,
+        author_participant_id: row.get(2)?,
+        parent_message_id: row.get(3)?,
+        discussion_round_id: row.get(4)?,
+        kind: row.get(5)?,
+        state: row.get(6)?,
+        targets,
         content,
         metadata,
-        created_at: row.get(7)?,
+        idempotency_key: row.get(10)?,
+        revision: row.get(11)?,
+        created_at: row.get(12)?,
+        updated_at: row.get(13)?,
+        visible_at: row.get(14)?,
+    })
+}
+
+pub(crate) fn row_to_team_routing_decision(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TeamRoutingDecisionRecord> {
+    let metadata_json: Option<String> = row.get(8)?;
+    let metadata = metadata_json
+        .map(|raw| json_from_column(&raw, 8))
+        .transpose()?;
+    Ok(TeamRoutingDecisionRecord {
+        id: row.get(0)?,
+        conversation_id: row.get(1)?,
+        message_id: row.get(2)?,
+        mode: row.get(3)?,
+        outcome: row.get(4)?,
+        lead_participant_id: row.get(5)?,
+        actor_principal_id: row.get(6)?,
+        reason: row.get(7)?,
+        metadata,
+        idempotency_key: row.get(9)?,
+        created_at: row.get(10)?,
+    })
+}
+
+pub(crate) fn row_to_team_discussion_round(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TeamDiscussionRoundRecord> {
+    let result_json: Option<String> = row.get(8)?;
+    let result = result_json
+        .map(|raw| json_from_column(&raw, 8))
+        .transpose()?;
+    Ok(TeamDiscussionRoundRecord {
+        id: row.get(0)?,
+        conversation_id: row.get(1)?,
+        source_message_id: row.get(2)?,
+        routing_decision_id: row.get(3)?,
+        mode: row.get(4)?,
+        state: row.get(5)?,
+        expected_delivery_count: row.get(6)?,
+        outcome: row.get(7)?,
+        result,
+        idempotency_key: row.get(9)?,
+        created_at: row.get(10)?,
+        updated_at: row.get(11)?,
+        closed_at: row.get(12)?,
+    })
+}
+
+pub(crate) fn row_to_team_delivery(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TeamDeliveryRecord> {
+    let last_error_json: Option<String> = row.get(18)?;
+    let last_error = last_error_json
+        .map(|raw| json_from_column(&raw, 18))
+        .transpose()?;
+    Ok(TeamDeliveryRecord {
+        id: row.get(0)?,
+        conversation_id: row.get(1)?,
+        message_id: row.get(2)?,
+        routing_decision_id: row.get(3)?,
+        discussion_round_id: row.get(4)?,
+        target_participant_id: row.get(5)?,
+        role: row.get(6)?,
+        trigger: row.get(7)?,
+        state: row.get(8)?,
+        target_session_id: row.get(9)?,
+        dispatch_job_id: row.get(10)?,
+        child_input_id: row.get(11)?,
+        child_turn_id: row.get(12)?,
+        child_turn_job_id: row.get(13)?,
+        outcome_job_id: row.get(14)?,
+        reply_message_id: row.get(15)?,
+        participation_tool_execution_id: row.get(16)?,
+        budget_grant_id: row.get(17)?,
+        last_error,
+        idempotency_key: row.get(19)?,
+        created_at: row.get(20)?,
+        updated_at: row.get(21)?,
+        materialized_at: row.get(22)?,
+        finished_at: row.get(23)?,
+    })
+}
+
+pub(crate) fn row_to_team_delegation_operation(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TeamDelegationOperationRecord> {
+    Ok(TeamDelegationOperationRecord {
+        id: row.get(0)?,
+        conversation_id: row.get(1)?,
+        source_delivery_id: row.get(2)?,
+        source_routing_decision_id: row.get(3)?,
+        source_discussion_round_id: row.get(4)?,
+        lead_participant_id: row.get(5)?,
+        parent_session_id: row.get(6)?,
+        parent_input_id: row.get(7)?,
+        parent_turn_id: row.get(8)?,
+        parent_session_attempt_id: row.get(9)?,
+        parent_session_job_id: row.get(10)?,
+        parent_tool_execution_id: row.get(11)?,
+        parent_tool_invocation_attempt_id: row.get(12)?,
+        parent_tool_call_id: row.get(13)?,
+        delegation_graph_id: row.get(14)?,
+        state: row.get(15)?,
+        idempotency_key: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
+        finished_at: row.get(19)?,
+    })
+}
+
+pub(crate) fn row_to_team_delegation_task(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<TeamDelegationTaskRecord> {
+    let execution_binding_json: String = row.get(11)?;
+    Ok(TeamDelegationTaskRecord {
+        id: row.get(0)?,
+        operation_id: row.get(1)?,
+        graph_node_id: row.get(2)?,
+        target_participant_id: row.get(3)?,
+        target_session_id: row.get(4)?,
+        prompt: row.get(5)?,
+        child_input_id: row.get(6)?,
+        child_turn_id: row.get(7)?,
+        child_job_id: row.get(8)?,
+        input_idempotency_key: row.get(9)?,
+        job_idempotency_key: row.get(10)?,
+        execution_binding: json_from_column(&execution_binding_json, 11)?,
+        execution_binding_digest: row.get(12)?,
+        max_steps: row.get(13)?,
+        priority: row.get(14)?,
+        materialized_at: row.get(15)?,
+        created_at: row.get(16)?,
+        updated_at: row.get(17)?,
     })
 }
 
@@ -1094,21 +1278,16 @@ fn plan_references_from_json(
     json_from_column(raw, column)
 }
 
-fn objective_references_from_json(
-    raw: &str,
-    column: usize,
-) -> rusqlite::Result<Vec<ObjectiveReferenceRecord>> {
-    json_from_column(raw, column)
-}
-
 pub(crate) fn row_to_tool_execution(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<ToolExecutionRecord> {
     let input_json: String = row.get(8)?;
     let descriptor_json: String = row.get(9)?;
     let permission_json: String = row.get(10)?;
-    let result_json: Option<String> = row.get(15)?;
-    let error_json: Option<String> = row.get(17)?;
+    let recovery_json: Option<String> = row.get(17)?;
+    let content_json: Option<String> = row.get(18)?;
+    let error_json: Option<String> = row.get(21)?;
+    let activity_json: Option<String> = row.get(25)?;
     Ok(ToolExecutionRecord {
         id: row.get(0)?,
         session_id: row.get(1)?,
@@ -1121,20 +1300,47 @@ pub(crate) fn row_to_tool_execution(
         input: json_from_column(&input_json, 8)?,
         descriptor: json_from_column(&descriptor_json, 9)?,
         permission: json_from_column(&permission_json, 10)?,
+        activity: activity_json
+            .map(|raw| json_from_column(&raw, 25))
+            .transpose()?,
         state: row.get(11)?,
         current_invocation_attempt_id: row.get(12)?,
         attempt_count: row.get(13)?,
         idempotency_key: row.get(14)?,
-        result: result_json
-            .map(|raw| json_from_column(&raw, 15))
-            .transpose()?,
-        is_error: row.get(16)?,
-        error: error_json
+        approval_revision: row.get(15)?,
+        recovery_revision: row.get(16)?,
+        recovery: recovery_json
             .map(|raw| json_from_column(&raw, 17))
             .transpose()?,
-        created_at: row.get(18)?,
-        finished_at: row.get(19)?,
-        updated_at: row.get(20)?,
+        content: content_json
+            .map(|raw| json_from_column(&raw, 18))
+            .transpose()?,
+        content_digest: row.get(19)?,
+        is_error: row.get(20)?,
+        error: error_json
+            .map(|raw| json_from_column(&raw, 21))
+            .transpose()?,
+        created_at: row.get(22)?,
+        finished_at: row.get(23)?,
+        updated_at: row.get(24)?,
+    })
+}
+
+pub(crate) fn row_to_tool_activity(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<crate::ToolActivityRecord> {
+    let activity_json: Option<String> = row.get(6)?;
+    Ok(crate::ToolActivityRecord {
+        session_id: row.get(0)?,
+        turn_id: row.get(1)?,
+        source_message_id: row.get(2)?,
+        tool_call_id: row.get(3)?,
+        tool_name: row.get(4)?,
+        state: row.get(5)?,
+        activity: activity_json
+            .map(|raw| json_from_column(&raw, 6))
+            .transpose()?,
+        updated_at: row.get(7)?,
     })
 }
 

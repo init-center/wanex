@@ -38,7 +38,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 14
+const expectedSchemaVersion = 15
 
 const tempDirs: string[] = []
 const servers: Server[] = []
@@ -381,6 +381,45 @@ describe("@wanex/storage", () => {
       id: "anthropic"
     })
     await expect(client.getConfig("provider.default")).resolves.toBeNull()
+    const firstEntry = await client.getConfigEntry("provider.first")
+    expect(firstEntry).toMatchObject({
+      key: "provider.first",
+      value: { id: "openai" },
+      revision: 1
+    })
+    const claimed = await client.compareAndApplyConfigMutations({
+      conditions: [
+        { key: "provider.first", expectedRevision: firstEntry!.revision },
+        { key: "provider.claim", expectedRevision: null }
+      ],
+      puts: [{ key: "provider.claim", value: { claimant: "oneshot" } }],
+      deletes: []
+    })
+    expect(claimed).toMatchObject({
+      kind: "applied",
+      entries: [{ key: "provider.claim", revision: 1 }]
+    })
+    await expect(
+      client.compareAndApplyConfigMutations({
+        conditions: [{ key: "provider.claim", expectedRevision: null }],
+        puts: [{ key: "provider.claim", value: { claimant: "late" } }],
+        deletes: []
+      })
+    ).resolves.toMatchObject({
+      kind: "conflict",
+      conflicts: [{
+        key: "provider.claim",
+        expectedRevision: null,
+        current: { value: { claimant: "oneshot" }, revision: 1 }
+      }]
+    })
+    await expect(
+      client.listConfigEntries({ prefix: "provider.", limit: 10 })
+    ).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ key: "provider.claim", revision: 1 }),
+      expect.objectContaining({ key: "provider.first", revision: 1 }),
+      expect.objectContaining({ key: "provider.second", revision: 1 })
+    ]))
     await expect(
       client.hasLiveSecretReference("env://UNUSED_PROVIDER_KEY")
     ).resolves.toBe(false)
@@ -1302,6 +1341,20 @@ describe("@wanex/storage", () => {
         limit: 10
       })
       expect(events.map((event) => event.type)).toContain("session.created")
+
+      const created = await client.compareAndApplyConfigMutations({
+        conditions: [{ key: "persistent.claim", expectedRevision: null }],
+        puts: [{ key: "persistent.claim", value: { owner: "worker" } }],
+        deletes: []
+      })
+      expect(created).toMatchObject({
+        kind: "applied",
+        entries: [{ key: "persistent.claim", revision: 1 }]
+      })
+      await expect(client.getConfigEntry("persistent.claim")).resolves.toMatchObject({
+        value: { owner: "worker" },
+        revision: 1
+      })
     } finally {
       await handle.dispose()
     }

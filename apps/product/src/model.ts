@@ -99,6 +99,11 @@ import type {
   ProductPluginManagementCommands,
   ProductPluginManagementEvents,
 } from "./plugin-management/model.js";
+import type {
+  ScheduleCommands,
+  ScheduleEvents,
+} from "./schedule/model.js";
+import type { SchedulePort } from "./schedule/port.js";
 
 export type * from "./conversation/model.js";
 export type * from "./attachments/model.js";
@@ -108,6 +113,8 @@ export type * from "./goal/model.js";
 export type * from "./team/model.js";
 export type * from "./team/port.js";
 export type * from "./plugin-management/model.js";
+export type * from "./schedule/model.js";
+export type * from "./schedule/port.js";
 
 export interface SafeError extends Omit<
   BackendSafeError,
@@ -150,6 +157,7 @@ export interface ShellOptions extends BackendAppOptions {
   readonly stateStore?: StateStore;
   readonly teamConversations?: TeamConversationPort;
   readonly pluginManagement?: PluginManagementPort;
+  readonly schedules?: SchedulePort;
   readonly productCommands?: NonNullable<BackendAppOptions["productCommands"]> & {
     readonly executionInvalidations?: import("./commands/model.js").CommandExecutionInvalidationSource;
   };
@@ -323,6 +331,8 @@ export interface Shell {
   readonly teamConversations: TeamConversationCommands;
   readonly pluginManagementEvents: ProductPluginManagementEvents;
   readonly pluginManagement: ProductPluginManagementCommands;
+  readonly scheduleEvents: ScheduleEvents;
+  readonly schedules: ScheduleCommands;
   readonly trustedResources: import("@wanex/product/backend").BackendResourceCommands;
   readonly trustedExecution: import("@wanex/app").WanexAppTrustedExecutionHost;
   status(): ShellStatus;

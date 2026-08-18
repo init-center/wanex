@@ -10,13 +10,13 @@ use wanex_system_service::{
     ApplySessionTurnControl, AttachDelegationGraphNodeJob, BeginContextEpoch,
     BeginProviderInvocation, BeginToolExecution, BudgetAmount, BudgetScopeKind, BudgetScopeRef,
     ChangeObjectiveState, ClaimJob, CleanupExpiredResourceTickets, CommitBudget,
-    CompleteChannelDelivery, CompleteJob, ContextEpochMutationIdentity, CreateObjective,
-    CreatePlanProposal, DoctorCheckState, EnqueueJob, EventScope, ExecuteApprovedPlan,
-    FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization, FinishConnectorSession,
-    FinishContextEpochGeneration, GetActiveContextEpoch, GetPluginInstall, GetPluginManifest,
-    HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent, IngestResource,
-    InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents, ListChannelProjections,
-    ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
+    CompleteChannelDelivery, CompleteJob, ConfigMutationCondition, ContextEpochMutationIdentity,
+    CreateObjective, CreatePlanProposal, DoctorCheckState, EnqueueJob, EventScope,
+    ExecuteApprovedPlan, FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization,
+    FinishConnectorSession, FinishContextEpochGeneration, GetActiveContextEpoch, GetPluginInstall,
+    GetPluginManifest, HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent,
+    IngestResource, InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents,
+    ListChannelProjections, ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
     ListDelegationGraphDependencies, ListDelegationGraphNodes, ListDelegationGraphs,
     ListObjectiveAttemptReviews, ListObjectiveAttempts, ListObjectiveVerifications,
     ListPlanProposalOperations, ListPlanProposals, ListPluginInstalls, ListPluginManifests,
@@ -2603,6 +2603,12 @@ fn upserts_and_reads_config_json() {
     let value = service.get_config("provider.default").unwrap();
 
     assert_eq!(value, Some(json!({ "id": "openai" })));
+    let entry = service
+        .get_config_entry("provider.default")
+        .unwrap()
+        .unwrap();
+    assert_eq!(entry.revision, 2);
+    assert_eq!(entry.value, json!({ "id": "openai" }));
 
     let events = service
         .query_events(QueryEvents {
@@ -2628,6 +2634,223 @@ fn upserts_and_reads_config_json() {
     assert!(config_events[0].payload.get("value").is_none());
     assert!(config_events[0].payload.get("apiKey").is_none());
     assert!(!config_events[0].payload.to_string().contains("sk-secret"));
+    assert_eq!(config_events[0].payload.get("revision"), Some(&json!(1)));
+    assert_eq!(config_events[1].payload.get("revision"), Some(&json!(2)));
+}
+
+#[test]
+fn conditionally_creates_config_once_and_reports_stale_evidence() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let key = "schedule.occurrence.definition-1.2026-08-19T12:00:00Z";
+    let condition = ConfigMutationCondition {
+        key: key.to_string(),
+        expected_revision: None,
+    };
+
+    let created = service
+        .compare_and_apply_config_mutations(
+            std::slice::from_ref(&condition),
+            &[(key.to_string(), json!({ "claimant": "first" }))],
+            &[],
+        )
+        .unwrap();
+    assert!(created.applied);
+    assert!(created.conflicts.is_empty());
+    assert_eq!(created.entries.len(), 1);
+    assert_eq!(created.entries[0].revision, 1);
+
+    let stale = service
+        .compare_and_apply_config_mutations(
+            &[condition],
+            &[(key.to_string(), json!({ "claimant": "second" }))],
+            &[],
+        )
+        .unwrap();
+    assert!(!stale.applied);
+    assert!(stale.entries.is_empty());
+    assert_eq!(stale.conflicts.len(), 1);
+    assert_eq!(stale.conflicts[0].expected_revision, None);
+    assert_eq!(stale.conflicts[0].current.as_ref().unwrap().revision, 1);
+    assert_eq!(
+        service.get_config(key).unwrap(),
+        Some(json!({ "claimant": "first" }))
+    );
+}
+
+#[test]
+fn rejects_conditional_config_batches_atomically_on_any_stale_revision() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .put_config("schedule.definition.alpha", &json!({ "enabled": true }))
+        .unwrap();
+    service
+        .put_config("schedule.definition.beta", &json!({ "enabled": true }))
+        .unwrap();
+    service
+        .put_config("schedule.definition.beta", &json!({ "enabled": false }))
+        .unwrap();
+
+    let result = service
+        .compare_and_apply_config_mutations(
+            &[
+                ConfigMutationCondition {
+                    key: "schedule.definition.alpha".to_string(),
+                    expected_revision: Some(1),
+                },
+                ConfigMutationCondition {
+                    key: "schedule.definition.beta".to_string(),
+                    expected_revision: Some(1),
+                },
+            ],
+            &[
+                (
+                    "schedule.definition.alpha".to_string(),
+                    json!({ "enabled": false }),
+                ),
+                (
+                    "schedule.definition.beta".to_string(),
+                    json!({ "enabled": true }),
+                ),
+            ],
+            &[],
+        )
+        .unwrap();
+
+    assert!(!result.applied);
+    assert_eq!(result.conflicts.len(), 1);
+    assert_eq!(result.conflicts[0].key, "schedule.definition.beta");
+    assert_eq!(result.conflicts[0].current.as_ref().unwrap().revision, 2);
+    assert_eq!(
+        service.get_config("schedule.definition.alpha").unwrap(),
+        Some(json!({ "enabled": true }))
+    );
+    assert_eq!(
+        service.get_config("schedule.definition.beta").unwrap(),
+        Some(json!({ "enabled": false }))
+    );
+}
+
+#[test]
+fn conditionally_deletes_config_and_pages_by_prefix() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    for suffix in ["alpha", "beta", "gamma"] {
+        service
+            .put_config(
+                &format!("schedule.definition.{suffix}"),
+                &json!({ "id": suffix }),
+            )
+            .unwrap();
+    }
+    service
+        .put_config("provider.default", &json!({ "id": "unrelated" }))
+        .unwrap();
+
+    let first_page = service
+        .list_config_entries("schedule.definition.", None, Some(2))
+        .unwrap();
+    assert_eq!(
+        first_page
+            .iter()
+            .map(|entry| entry.key.as_str())
+            .collect::<Vec<_>>(),
+        ["schedule.definition.alpha", "schedule.definition.beta"]
+    );
+    let second_page = service
+        .list_config_entries("schedule.definition.", Some(&first_page[1].key), Some(2))
+        .unwrap();
+    assert_eq!(second_page.len(), 1);
+    assert_eq!(second_page[0].key, "schedule.definition.gamma");
+
+    let deleted = service
+        .compare_and_apply_config_mutations(
+            &[ConfigMutationCondition {
+                key: "schedule.definition.beta".to_string(),
+                expected_revision: Some(1),
+            }],
+            &[],
+            &["schedule.definition.beta".to_string()],
+        )
+        .unwrap();
+    assert!(deleted.applied);
+    assert!(deleted.entries.is_empty());
+    assert_eq!(
+        service
+            .get_config_entry("schedule.definition.beta")
+            .unwrap(),
+        None
+    );
+
+    let repeated = service
+        .compare_and_apply_config_mutations(
+            &[ConfigMutationCondition {
+                key: "schedule.definition.beta".to_string(),
+                expected_revision: Some(1),
+            }],
+            &[],
+            &["schedule.definition.beta".to_string()],
+        )
+        .unwrap();
+    assert!(!repeated.applied);
+    assert_eq!(repeated.conflicts[0].current, None);
+}
+
+#[test]
+fn permits_only_one_concurrent_config_occurrence_claim() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().to_path_buf();
+    let seed = SystemService::open(&root).unwrap();
+    seed.put_config(
+        "schedule.definition.daily",
+        &json!({ "expression": "0 9 * * *" }),
+    )
+    .unwrap();
+
+    let barrier = Arc::new(Barrier::new(3));
+    let handles = (0..2)
+        .map(|claimant| {
+            let root = root.clone();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                let service = SystemService::open(root).unwrap();
+                barrier.wait();
+                service
+                    .compare_and_apply_config_mutations(
+                        &[
+                            ConfigMutationCondition {
+                                key: "schedule.definition.daily".to_string(),
+                                expected_revision: Some(1),
+                            },
+                            ConfigMutationCondition {
+                                key: "schedule.occurrence.daily.2026-08-20".to_string(),
+                                expected_revision: None,
+                            },
+                        ],
+                        &[(
+                            "schedule.occurrence.daily.2026-08-20".to_string(),
+                            json!({ "claimant": claimant }),
+                        )],
+                        &[],
+                    )
+                    .unwrap()
+            })
+        })
+        .collect::<Vec<_>>();
+    barrier.wait();
+
+    let results = handles
+        .into_iter()
+        .map(|handle| handle.join().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(results.iter().filter(|result| result.applied).count(), 1);
+    assert_eq!(results.iter().filter(|result| !result.applied).count(), 1);
+    let stored = seed
+        .get_config("schedule.occurrence.daily.2026-08-20")
+        .unwrap()
+        .unwrap();
+    assert!(stored == json!({ "claimant": 0 }) || stored == json!({ "claimant": 1 }));
 }
 
 #[test]

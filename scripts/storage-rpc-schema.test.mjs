@@ -431,7 +431,14 @@ describe("storage RPC canonical schema", () => {
 
   it("accepts every plugin command and rejects plugin control drift", () => {
     for (const [index, request] of pluginRequests().entries()) {
-      expect(validateWireEnvelope({ storage_rpc_version: 1, request_id: `rpc_plugin_${index}`, request }), JSON.stringify(validateWireEnvelope.errors)).toBe(true)
+      expect(
+        validateWireEnvelope({
+          storage_rpc_version: 1,
+          request_id: `rpc_plugin_${index}`,
+          request
+        }),
+        `${request.command}: ${JSON.stringify(validateWireEnvelope.errors)}`
+      ).toBe(true)
     }
     const action = pluginRequests().find(({ command }) => command === "submit-plugin-action")
     expect(action).toBeDefined()
@@ -543,8 +550,29 @@ function runtimeRequests() {
       puts: [{ key: "profile", value: { enabled: true } }],
       deletes: ["profile.previous"]
     },
+    {
+      command: "compare-and-apply-config-mutations",
+      conditions: [
+        { key: "schedule.definition.daily", expected_revision: 1 },
+        { key: "schedule.occurrence.daily.2026-08-20", expected_revision: null }
+      ],
+      puts: [
+        {
+          key: "schedule.occurrence.daily.2026-08-20",
+          value: { state: "claimed" }
+        }
+      ],
+      deletes: []
+    },
     { command: "has-live-secret-reference", secret_ref: "env://PROVIDER_KEY" },
     { command: "get-config", key: "profile" },
+    { command: "get-config-entry", key: "profile" },
+    {
+      command: "list-config-entries",
+      prefix: "schedule.definition.",
+      after_key: null,
+      limit: 50
+    },
     {
       command: "write-atomic-file",
       logical_path: "schema/file.txt",
@@ -1810,7 +1838,7 @@ function pluginRequests() {
     { command: "put-plugin-install", request: { id: null, plugin_id: "plugin_schema", version: "1.0.0", layout: { kind: "layout" }, trust: { status: "allow" }, install_root_dir: "/plugins/plugin_schema", metadata: null, idempotency_key: null } },
     { command: "get-plugin-install", request: { plugin_id: "plugin_schema", version: null } },
     { command: "list-plugin-installs", request: { plugin_id: null, state: "installed", limit: null } },
-    { command: "update-plugin-install-state", request: { plugin_id: "plugin_schema", version: "1.0.0", state: "disabled" } },
+    { command: "update-plugin-install-state", request: { plugin_id: "plugin_schema", version: "1.0.0", expected_state: "installed", state: "disabled" } },
     { command: "update-plugin-manifest-state", request: { plugin_id: "plugin_schema", version: "1.0.0", state: "disabled" } },
     { command: "get-plugin-action-execution-admission", request: { plugin_id: "plugin_schema", version: "1.0.0", required_capability: "resource.read" } },
     { command: "submit-plugin-action", request: { plugin_id: "plugin_schema", version: "1.0.0", action_id: "run", principal_id: "user_schema", payload: { value: 1 }, required_capability: "resource.read", job_id: null, job_idempotency_key: null, scheduled_at: null, not_before: null, priority: null, max_attempts: null, retry_policy: null, budget_grant_id: null } }

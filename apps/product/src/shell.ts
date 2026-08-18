@@ -84,6 +84,7 @@ import { createPlanShell } from "./plan/shell.js";
 import { createGoalShell } from "./goal/service.js";
 import { createTeamConversationService } from "./team/service.js";
 import { createProductPluginManagementService } from "./plugin-management/service.js";
+import { createScheduleService } from "./schedule/service.js";
 import type { TeamConversationCommands } from "./team/port.js";
 import { reconcileConversationSelection } from "./state/reconciliation.js";
 import {
@@ -146,6 +147,9 @@ export async function createShell(
       ? {}
       : { port: options.pluginManagement }),
   });
+  const schedules = createScheduleService({
+    ...(options.schedules === undefined ? {} : { port: options.schedules }),
+  });
 
   return {
     commandCatalogEvents,
@@ -158,6 +162,8 @@ export async function createShell(
     teamConversations: teams.commands,
     pluginManagementEvents: pluginManagement.events,
     pluginManagement: pluginManagement.commands,
+    scheduleEvents: schedules.events,
+    schedules: schedules.commands,
     trustedResources: {
       ingestResource: backend.commands.ingestResource,
       readResource: backend.commands.readResource,
@@ -441,6 +447,7 @@ export async function createShell(
       await goals.dispose();
       teams.dispose();
       pluginManagement.dispose();
+      schedules.dispose();
       await backend.dispose();
     },
   };

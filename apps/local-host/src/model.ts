@@ -113,6 +113,7 @@ export interface LocalProductHost {
   readonly shell: Shell;
   readonly surface: SurfaceAdapter;
   readonly teamConversations: Shell["teamConversations"];
+  readonly schedules: Shell["schedules"];
   readonly modelEndpoints: ModelEndpointCommands;
   readonly attachments: LocalAttachmentUploadPort;
   readonly resourceDeliveries: LocalResourceDeliveryPort;

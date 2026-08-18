@@ -36,6 +36,10 @@ import {
   type LocalTeamConversationAdapter,
 } from "../team/adapter.js"
 import type { LocalPluginCompositionBinding } from "./plugin.js"
+import {
+  createLocalScheduleAdapter,
+} from "../schedule/adapter.js"
+import type { LocalScheduleAdapter } from "../schedule/model.js"
 
 export interface StartedLocalProductHost {
   readonly runtime: BootstrappedWanexStorage
@@ -43,6 +47,7 @@ export interface StartedLocalProductHost {
   readonly surface: SurfaceAdapter
   readonly secrets: Awaited<ReturnType<typeof composeLocalSecretStore>>
   readonly teamAdapter: LocalTeamConversationAdapter
+  readonly scheduleAdapter: LocalScheduleAdapter
   readonly teamHost: TeamConversationExecutionHost
   readonly attachments: ReturnType<typeof createLocalAttachmentUploadPort>
   readonly resourceDeliveries: ReturnType<typeof createLocalResourceDeliveryPort>
@@ -75,6 +80,7 @@ export async function startLocalProductHostInternal(
     storage: toBootstrapStorage(options.storage, options.serviceBin),
   })
   const teamStorage = createTeamStore(runtime.transport)
+  const scheduleAdapter = createLocalScheduleAdapter({ storage: runtime.storage })
   let shell: Shell | undefined
   let surface: SurfaceAdapter | undefined
   let teamHost: TeamConversationExecutionHost | undefined
@@ -136,6 +142,7 @@ export async function startLocalProductHostInternal(
       },
       stateStore: createStorageStateStore({ storage: runtime.storage }),
       teamConversations: teamAdapter.port,
+      schedules: scheduleAdapter.port,
       ...(options.modelEndpoint === undefined
         ? {}
         : { modelEndpoint: options.modelEndpoint }),
@@ -179,6 +186,7 @@ export async function startLocalProductHostInternal(
       surface,
       secrets,
       teamAdapter,
+      scheduleAdapter,
       teamHost,
       attachments,
       resourceDeliveries,
@@ -191,6 +199,7 @@ export async function startLocalProductHostInternal(
       surface,
       teamHost,
       teamAdapter,
+      scheduleAdapter,
       ...(pluginComposition === undefined ? {} : { pluginComposition }),
     })
     throw error
@@ -205,6 +214,7 @@ export function createLocalProductHostHandle(
     shell: started.shell,
     surface: started.surface,
     teamConversations: started.shell.teamConversations,
+    schedules: started.shell.schedules,
     modelEndpoints: started.shell.modelEndpoints,
     attachments: started.attachments,
     resourceDeliveries: started.resourceDeliveries,
@@ -221,6 +231,7 @@ export async function closeStartedLocalProductHost(request: {
   readonly surface: SurfaceAdapter | undefined
   readonly teamHost: TeamConversationExecutionHost | undefined
   readonly teamAdapter: LocalTeamConversationAdapter
+  readonly scheduleAdapter: LocalScheduleAdapter
   readonly pluginComposition?: LocalPluginCompositionBinding
 }): Promise<void> {
   let firstError: unknown
@@ -230,6 +241,7 @@ export async function closeStartedLocalProductHost(request: {
     async () => await request.surface?.dispose(),
     async () => await request.shell?.dispose(),
     async () => request.teamAdapter.dispose(),
+    async () => request.scheduleAdapter.dispose(),
     async () => await request.pluginComposition?.dispose(),
     async () => await request.runtime.dispose(),
   ]) {

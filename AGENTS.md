@@ -3175,3 +3175,32 @@ Do not add a Kernel cron parser, renderer timer, per-schedule interval,
 definition polling, time wheel without scale evidence, catch-up storm,
 Gateway, second Store/Shell/Surface/event bus, or SQLite/vendor identity to the
 Product contract.
+
+The SCHEDULE-1 frozen plan and completed evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1386-phase-schedule-1-contract-and-durable-occurrence-claim-plan.md`
+
+Storage provides one generic bounded versioned-config CAS operation with
+expected-missing support, exact revision conflict evidence, prefix pagination,
+and value-free events. Product provides one optional renderer-safe Schedule
+port with bounded definitions, explicit unavailable/conflict results,
+prompt-free list summaries, exact revision actions, and revision-only
+invalidation. Local Host maps that port to the existing Storage handle through
+strict namespaced records and claims each occurrence by atomically checking the
+exact definition revision plus an expected-missing occurrence key. Neither
+Storage, Runtime nor Product knows Cron evaluation, timezone/DST, timer,
+occurrence execution, or scheduler worker identity. SCHEDULE-1A/1B/1C and the
+complete SCHEDULE-1 foundation are finished.
+
+SCHEDULE-2 is next. Add one trusted Local Host scheduler that parses recurrence,
+handles IANA timezone/DST and bounded misfire policy, maintains one
+earliest-deadline timer, and recomputes immediately from durable schedule
+invalidation. On a due occurrence it must use the existing atomic claim and
+only a successful claim may call App's existing one-shot
+`submitScheduledTick()`. Startup/reconnect must recover from durable truth and
+process only the bounded policy-selected occurrence; it must not replay an
+unbounded backlog. Do not add a package, domain table, second Store,
+Surface/Web/TUI, per-schedule timer, fixed-interval definition polling, time
+wheel without measured scale evidence, catch-up storm, Gateway, lock file,
+read-then-write admission, scheduler-job pseudo-claim, compatibility alias, or
+Runtime schedule semantics.

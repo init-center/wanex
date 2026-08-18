@@ -20,12 +20,14 @@ export interface WanexAppSubmitScheduledTickRequest {
   readonly sessionId?: SessionId
   readonly principalId?: string
   readonly inputId?: string
+  readonly turnId?: string
   readonly jobId?: string
   readonly idempotencyKey?: string
   readonly jobIdempotencyKey?: string
   readonly nonOverlap?: boolean
   readonly previousJobId?: string
   readonly activeJobScanLimit?: number
+  readonly modelEndpointId?: string
   readonly classifier?: WanexAppClassifierHint
 }
 

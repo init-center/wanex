@@ -9,12 +9,19 @@ import type {
 } from "@wanex/product/schedule"
 import type { ConfigEntryRecord } from "@wanex/storage"
 import {
+  deriveLocalScheduleExecutionIdentity,
   localScheduleDefinitionKey,
   localScheduleOccurrenceKey,
+  localSchedulePendingKey,
 } from "./identity.js"
 import type {
   LocalScheduleDefinitionRecord,
+  LocalScheduleExecutionIdentity,
+  LocalScheduleOccurrence,
+  LocalScheduleOccurrenceDelivery,
   LocalScheduleOccurrenceRecord,
+  LocalSchedulePendingEntry,
+  LocalSchedulePendingRecord,
 } from "./model.js"
 
 export function encodeLocalScheduleDefinitionRecord(
@@ -77,16 +84,22 @@ export function encodeLocalScheduleOccurrenceRecord(
     scheduleId: record.scheduleId,
     definitionRevision: record.definitionRevision,
     occurrenceAt: record.occurrenceAt,
+    definition: encodeDefinitionSpec(record.definition),
+    execution: encodeExecutionIdentity(record.execution),
     claimedAt: record.claimedAt,
+    delivery: encodeOccurrenceDelivery(record.delivery),
   }
 }
 
 export function decodeLocalScheduleOccurrenceEntry(
   entry: ConfigEntryRecord
-): LocalScheduleOccurrenceRecord {
+): LocalScheduleOccurrence {
   const value = exactRecord(entry.value, "Schedule occurrence record", [
     "claimedAt",
+    "definition",
     "definitionRevision",
+    "delivery",
+    "execution",
     "kind",
     "occurrenceAt",
     "scheduleId",
@@ -105,12 +118,66 @@ export function decodeLocalScheduleOccurrenceEntry(
       value.occurrenceAt,
       "Schedule occurrence time"
     ),
+    definition: decodeDefinitionSpec(value.definition),
+    execution: decodeExecutionIdentity(value.execution),
     claimedAt: nonNegativeInteger(value.claimedAt, "Schedule claim time"),
+    delivery: decodeOccurrenceDelivery(value.delivery),
   }
   if (entry.key !== localScheduleOccurrenceKey(record)) {
     throw new Error("Schedule occurrence key does not match its record")
   }
-  return record
+  const expectedExecution = deriveLocalScheduleExecutionIdentity(record)
+  if (!executionIdentitiesEqual(record.execution, expectedExecution)) {
+    throw new Error("Schedule occurrence execution identity is invalid")
+  }
+  return {
+    record,
+    revision: positiveInteger(entry.revision, "Schedule occurrence revision"),
+    updatedAt: nonNegativeInteger(entry.updatedAt, "Schedule occurrence updatedAt"),
+  }
+}
+
+export function encodeLocalSchedulePendingRecord(
+  record: LocalSchedulePendingRecord
+): JsonValue {
+  return {
+    kind: record.kind,
+    scheduleId: record.scheduleId,
+    occurrenceKey: record.occurrenceKey,
+  }
+}
+
+export function decodeLocalSchedulePendingEntry(
+  entry: ConfigEntryRecord
+): LocalSchedulePendingEntry {
+  const value = exactRecord(entry.value, "Schedule pending record", [
+    "kind",
+    "occurrenceKey",
+    "scheduleId",
+  ])
+  if (value.kind !== "local.schedule-pending") {
+    throw new Error("Schedule pending record kind is invalid")
+  }
+  const scheduleId = requiredString(value.scheduleId, "Schedule pending ID")
+  const occurrenceKey = requiredString(
+    value.occurrenceKey,
+    "Schedule pending occurrence key"
+  )
+  if (entry.key !== localSchedulePendingKey(scheduleId)) {
+    throw new Error("Schedule pending key does not match its record")
+  }
+  if (!occurrenceKey.startsWith(`schedule.occurrence.${scheduleId}.`)) {
+    throw new Error("Schedule pending occurrence is outside its namespace")
+  }
+  return {
+    record: {
+      kind: "local.schedule-pending",
+      scheduleId,
+      occurrenceKey,
+    },
+    revision: positiveInteger(entry.revision, "Schedule pending revision"),
+    updatedAt: nonNegativeInteger(entry.updatedAt, "Schedule pending updatedAt"),
+  }
 }
 
 export function localScheduleDefinitionSpecsEqual(
@@ -131,6 +198,159 @@ function encodeDefinitionSpec(spec: ScheduleDefinitionSpec): JsonValue {
     overlapPolicy: spec.overlapPolicy,
     misfirePolicy: spec.misfirePolicy,
   }
+}
+
+function encodeExecutionIdentity(
+  identity: LocalScheduleExecutionIdentity
+): JsonValue {
+  return {
+    tickId: identity.tickId,
+    sessionId: identity.sessionId,
+    inputId: identity.inputId,
+    turnId: identity.turnId,
+    jobId: identity.jobId,
+    idempotencyKey: identity.idempotencyKey,
+    jobIdempotencyKey: identity.jobIdempotencyKey,
+  }
+}
+
+function decodeExecutionIdentity(value: unknown): LocalScheduleExecutionIdentity {
+  const record = exactRecord(value, "Schedule execution identity", [
+    "idempotencyKey",
+    "inputId",
+    "jobId",
+    "jobIdempotencyKey",
+    "sessionId",
+    "tickId",
+    "turnId",
+  ])
+  return {
+    tickId: requiredString(record.tickId, "Schedule tick ID"),
+    sessionId: requiredString(record.sessionId, "Schedule execution Session ID"),
+    inputId: requiredString(record.inputId, "Schedule execution input ID"),
+    turnId: requiredString(record.turnId, "Schedule execution Turn ID"),
+    jobId: requiredString(record.jobId, "Schedule execution Job ID"),
+    idempotencyKey: requiredString(
+      record.idempotencyKey,
+      "Schedule execution idempotency key"
+    ),
+    jobIdempotencyKey: requiredString(
+      record.jobIdempotencyKey,
+      "Schedule execution Job idempotency key"
+    ),
+  }
+}
+
+function encodeOccurrenceDelivery(
+  delivery: LocalScheduleOccurrenceDelivery
+): JsonValue {
+  if (delivery.state === "pending") {
+    return {
+      state: "pending",
+      attempts: delivery.attempts,
+      nextAttemptAt: delivery.nextAttemptAt,
+      lastFailure: delivery.lastFailure ?? null,
+    }
+  }
+  if (delivery.state === "submitted") {
+    return { ...delivery }
+  }
+  return {
+    state: "skipped",
+    reason: delivery.reason,
+    settledAt: delivery.settledAt,
+    previousJobId: delivery.previousJobId ?? null,
+  }
+}
+
+function decodeOccurrenceDelivery(value: unknown): LocalScheduleOccurrenceDelivery {
+  const record = recordValue(value, "Schedule occurrence delivery")
+  if (record.state === "pending") {
+    exactKeys(record, "Schedule pending delivery", [
+      "attempts",
+      "lastFailure",
+      "nextAttemptAt",
+      "state",
+    ])
+    const lastFailure = decodeLastFailure(record.lastFailure)
+    return {
+      state: "pending",
+      attempts: nonNegativeInteger(record.attempts, "Schedule delivery attempts"),
+      nextAttemptAt: nonNegativeInteger(
+        record.nextAttemptAt,
+        "Schedule delivery next attempt"
+      ),
+      ...(lastFailure === undefined ? {} : { lastFailure }),
+    }
+  }
+  if (record.state === "submitted") {
+    exactKeys(record, "Schedule submitted delivery", [
+      "inputId",
+      "jobId",
+      "sessionId",
+      "settledAt",
+      "state",
+      "submittedAt",
+      "turnId",
+    ])
+    return {
+      state: "submitted",
+      settledAt: nonNegativeInteger(record.settledAt, "Schedule settledAt"),
+      sessionId: requiredString(record.sessionId, "Schedule submitted Session ID"),
+      inputId: requiredString(record.inputId, "Schedule submitted input ID"),
+      turnId: requiredString(record.turnId, "Schedule submitted Turn ID"),
+      jobId: requiredString(record.jobId, "Schedule submitted Job ID"),
+      submittedAt: nonNegativeInteger(record.submittedAt, "Schedule submittedAt"),
+    }
+  }
+  if (record.state === "skipped") {
+    exactKeys(record, "Schedule skipped delivery", [
+      "previousJobId",
+      "reason",
+      "settledAt",
+      "state",
+    ])
+    if (
+      record.reason !== "misfire" &&
+      record.reason !== "previous_job_active" &&
+      record.reason !== "superseded"
+    ) {
+      throw new Error("Schedule skipped reason is invalid")
+    }
+    const previousJobId = optionalString(
+      record.previousJobId,
+      "Schedule previous Job ID"
+    )
+    return {
+      state: "skipped",
+      reason: record.reason,
+      settledAt: nonNegativeInteger(record.settledAt, "Schedule settledAt"),
+      ...(previousJobId === undefined ? {} : { previousJobId }),
+    }
+  }
+  throw new Error("Schedule occurrence delivery state is invalid")
+}
+
+function decodeLastFailure(value: unknown):
+  | { readonly kind: "submission_failed"; readonly at: number }
+  | undefined {
+  if (value === null) return undefined
+  const record = exactRecord(value, "Schedule delivery failure", ["at", "kind"])
+  if (record.kind !== "submission_failed") {
+    throw new Error("Schedule delivery failure kind is invalid")
+  }
+  return {
+    kind: "submission_failed",
+    at: nonNegativeInteger(record.at, "Schedule delivery failure time"),
+  }
+}
+
+function executionIdentitiesEqual(
+  left: LocalScheduleExecutionIdentity,
+  right: LocalScheduleExecutionIdentity
+): boolean {
+  return JSON.stringify(encodeExecutionIdentity(left)) ===
+    JSON.stringify(encodeExecutionIdentity(right))
 }
 
 function decodeDefinitionSpec(value: unknown): ScheduleDefinitionSpec {

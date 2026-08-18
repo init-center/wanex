@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto"
+import type { ScheduleDefinitionSpec } from "@wanex/product/schedule"
+import type { LocalScheduleExecutionIdentity } from "./model.js"
 
 export const LOCAL_SCHEDULE_DEFINITION_PREFIX = "schedule.definition."
 export const LOCAL_SCHEDULE_OCCURRENCE_PREFIX = "schedule.occurrence."
+export const LOCAL_SCHEDULE_PENDING_PREFIX = "schedule.pending."
 
 const SCHEDULE_ID_PATTERN = /^schedule_[a-f0-9]{32}$/u
 const MAX_CURSOR_LENGTH = 512
+const INTEGER_KEY_WIDTH = 16
 
 export function deriveLocalScheduleIdentity(idempotencyKey: string): {
   readonly scheduleId: string
@@ -36,7 +40,47 @@ export function localScheduleOccurrenceKey(request: {
   requireLocalScheduleId(request.scheduleId)
   requirePositiveInteger(request.definitionRevision, "definition revision")
   requireNonNegativeInteger(request.occurrenceAt, "occurrence time")
-  return `${LOCAL_SCHEDULE_OCCURRENCE_PREFIX}${request.scheduleId}.${request.definitionRevision}.${request.occurrenceAt}`
+  return `${localScheduleOccurrencePrefix(request.scheduleId)}${paddedInteger(request.definitionRevision)}.${paddedInteger(request.occurrenceAt)}`
+}
+
+export function localScheduleOccurrencePrefix(scheduleId: string): string {
+  requireLocalScheduleId(scheduleId)
+  return `${LOCAL_SCHEDULE_OCCURRENCE_PREFIX}${scheduleId}.`
+}
+
+export function localSchedulePendingKey(scheduleId: string): string {
+  requireLocalScheduleId(scheduleId)
+  return `${LOCAL_SCHEDULE_PENDING_PREFIX}${scheduleId}`
+}
+
+export function deriveLocalScheduleExecutionIdentity(request: {
+  readonly scheduleId: string
+  readonly definitionRevision: number
+  readonly occurrenceAt: number
+  readonly definition: ScheduleDefinitionSpec
+}): LocalScheduleExecutionIdentity {
+  requireLocalScheduleId(request.scheduleId)
+  requirePositiveInteger(request.definitionRevision, "definition revision")
+  requireNonNegativeInteger(request.occurrenceAt, "occurrence time")
+  const digest = createHash("sha256")
+    .update(
+      `${request.scheduleId}\0${request.definitionRevision}\0${request.occurrenceAt}`,
+      "utf8"
+    )
+    .digest("hex")
+  const suffix = digest.slice(0, 32)
+  return {
+    tickId: `tick_${suffix}`,
+    sessionId:
+      request.definition.sessionPolicy.kind === "reuse"
+        ? request.definition.sessionPolicy.sessionId
+        : `ses_schedule_${request.scheduleId.slice("schedule_".length)}`,
+    inputId: `inp_schedule_${suffix}`,
+    turnId: `turn_schedule_${suffix}`,
+    jobId: `job_schedule_${suffix}`,
+    idempotencyKey: `local-schedule-input:${digest}`,
+    jobIdempotencyKey: `local-schedule-job:${digest}`,
+  }
 }
 
 export function encodeLocalScheduleCursor(scheduleId: string): string {
@@ -84,6 +128,10 @@ function requireNonNegativeInteger(value: number, field: string): void {
   if (!Number.isSafeInteger(value) || value < 0) {
     throw new Error(`${field} must be a non-negative safe integer`)
   }
+}
+
+function paddedInteger(value: number): string {
+  return String(value).padStart(INTEGER_KEY_WIDTH, "0")
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

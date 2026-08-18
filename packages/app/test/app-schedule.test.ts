@@ -32,22 +32,28 @@ describe("@wanex/app schedule commands", () => {
     })
 
     try {
-      const result = await app.commands.submitScheduledTick({
+      const request = {
         scheduleId: "schedule_wanex_app_minutely",
         tickId: "tick_0001",
         text: "scheduled app work",
         sessionId: "ses_wanex_app_schedule",
         inputId: "inp_wanex_app_schedule_tick_1",
+        turnId: "turn_wanex_app_schedule_tick_1",
         jobId: "job_wanex_app_schedule_tick_1",
         idempotencyKey: "wanex-app-schedule-input",
         jobIdempotencyKey: "wanex-app-schedule-job",
         nonOverlap: true,
+        modelEndpointId: "schedule-endpoint",
         classifier: {
           classifierId: "schedule-intent-v1",
           label: "maintenance",
           confidence: 0.8
         }
-      })
+      } as const
+      const result = await app.trustedExecution.submitScheduledTick(request)
+      await expect(
+        app.trustedExecution.submitScheduledTick(request)
+      ).resolves.toEqual(result)
 
       expect(result).toMatchObject({
         status: "submitted",
@@ -57,6 +63,7 @@ describe("@wanex/app schedule commands", () => {
         receipt: {
           sessionId: "ses_wanex_app_schedule",
           inputId: "inp_wanex_app_schedule_tick_1",
+          turnId: "turn_wanex_app_schedule_tick_1",
           jobId: "job_wanex_app_schedule_tick_1",
           state: "queued"
         }

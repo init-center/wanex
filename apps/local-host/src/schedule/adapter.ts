@@ -14,29 +14,42 @@ import type {
 import {
   decodeLocalScheduleDefinitionEntry,
   decodeLocalScheduleOccurrenceEntry,
+  decodeLocalSchedulePendingEntry,
   encodeLocalScheduleDefinitionRecord,
   encodeLocalScheduleOccurrenceRecord,
+  encodeLocalSchedulePendingRecord,
   localScheduleDefinitionSpecsEqual,
 } from "./codec.js"
 import { createLocalScheduleInvalidationHub } from "./events.js"
 import {
   decodeLocalScheduleCursor,
+  deriveLocalScheduleExecutionIdentity,
   deriveLocalScheduleIdentity,
   encodeLocalScheduleCursor,
   isLocalScheduleId,
   LOCAL_SCHEDULE_DEFINITION_PREFIX,
+  LOCAL_SCHEDULE_OCCURRENCE_PREFIX,
+  LOCAL_SCHEDULE_PENDING_PREFIX,
   localScheduleDefinitionKey,
   localScheduleOccurrenceKey,
+  localScheduleOccurrencePrefix,
+  localSchedulePendingKey,
 } from "./identity.js"
 import type {
   ClaimLocalScheduleOccurrenceRequest,
   ClaimLocalScheduleOccurrenceResult,
   LocalScheduleAdapter,
   LocalScheduleDefinitionRecord,
+  LocalScheduleOccurrence,
+  LocalScheduleOccurrenceDelivery,
   LocalScheduleOccurrenceRecord,
 } from "./model.js"
+import { validateLocalScheduleDefinitionSpec } from "./recurrence.js"
 
 const MAX_LIST_LIMIT = 100
+const MAX_OCCURRENCE_LIST_LIMIT = 199
+const MAX_RETAINED_SETTLED_OCCURRENCES = 64
+const MAX_CLEANUP_BATCH = 64
 
 export function createLocalScheduleAdapter(options: {
   readonly storage: CoreStore
@@ -47,9 +60,58 @@ export function createLocalScheduleAdapter(options: {
   const port = createPort(options.storage, events, now)
   return {
     port,
+    listDefinitionRecords: async (request) =>
+      await listDefinitionRecords(options.storage, request),
     claimOccurrence: async (request) =>
       await claimOccurrence(options.storage, request, now),
+    listOccurrences: async (request) =>
+      await listOccurrences(options.storage, request),
+    listPendingOccurrences: async (request) =>
+      await listPendingOccurrences(options.storage, request),
+    updateOccurrenceDelivery: async (request) =>
+      await updateOccurrenceDelivery(options.storage, request),
+    pruneSettledOccurrences: async (scheduleId) =>
+      await pruneSettledOccurrences(options.storage, scheduleId),
     dispose: () => events.dispose(),
+  }
+}
+
+async function listDefinitionRecords(
+  storage: CoreStore,
+  request: { readonly afterKey?: string; readonly limit: number }
+): Promise<{
+  readonly definitions: readonly ScheduleDefinition[]
+  readonly invalidEntryCount: number
+  readonly nextAfterKey?: string
+}> {
+  const limit = boundedOccurrenceLimit(request.limit)
+  if (
+    request.afterKey !== undefined &&
+    !request.afterKey.startsWith(LOCAL_SCHEDULE_DEFINITION_PREFIX)
+  ) {
+    throw new Error("Schedule definition cursor is outside its namespace")
+  }
+  const entries = await storage.listConfigEntries({
+    prefix: LOCAL_SCHEDULE_DEFINITION_PREFIX,
+    ...(request.afterKey === undefined ? {} : { afterKey: request.afterKey }),
+    limit: limit + 1,
+  })
+  const page = entries.slice(0, limit)
+  const definitions: ScheduleDefinition[] = []
+  let invalidEntryCount = 0
+  for (const entry of page) {
+    try {
+      definitions.push(decodeLocalScheduleDefinitionEntry(entry).definition)
+    } catch {
+      invalidEntryCount += 1
+    }
+  }
+  return {
+    definitions,
+    invalidEntryCount,
+    ...(entries.length <= limit || page.length === 0
+      ? {}
+      : { nextAfterKey: page.at(-1)!.key }),
   }
 }
 
@@ -89,6 +151,8 @@ function createPort(
         : decodeLocalScheduleDefinitionEntry(entry).definition
     },
     async createDefinition(request) {
+      const invalid = invalidDefinition("create", request.definition)
+      if (invalid !== null) return invalid
       const identity = deriveLocalScheduleIdentity(request.idempotencyKey)
       const key = localScheduleDefinitionKey(identity.scheduleId)
       const record: LocalScheduleDefinitionRecord = {
@@ -132,6 +196,8 @@ function createPort(
       }
     },
     async replaceDefinition(request) {
+      const invalid = invalidDefinition("replace", request.definition)
+      if (invalid !== null) return invalid
       return await mutateDefinition({
         storage,
         events,
@@ -202,6 +268,23 @@ function createPort(
       }
     },
     subscribeInvalidations: (listener) => events.subscribe(listener),
+  }
+}
+
+function invalidDefinition(
+  operation: "create" | "replace",
+  definition: ScheduleDefinitionSpec
+): ScheduleMutationResult | null {
+  try {
+    validateLocalScheduleDefinitionSpec(definition)
+    return null
+  } catch {
+    return {
+      kind: "product.schedule.rejected",
+      operation,
+      reason: "invalid_definition",
+      message: "Schedule recurrence or time zone is invalid.",
+    }
   }
 }
 
@@ -290,12 +373,26 @@ async function claimOccurrence(
     definitionRevision: request.expectedDefinitionRevision,
     occurrenceAt: request.occurrenceAt,
   })
+  const pendingKey = localSchedulePendingKey(request.scheduleId)
+  const claimedAt = safeNow(now)
   const occurrence: LocalScheduleOccurrenceRecord = {
     kind: "local.schedule-occurrence",
     scheduleId: request.scheduleId,
     definitionRevision: request.expectedDefinitionRevision,
     occurrenceAt: request.occurrenceAt,
-    claimedAt: safeNow(now),
+    definition: decoded.record.definition,
+    execution: deriveLocalScheduleExecutionIdentity({
+      scheduleId: request.scheduleId,
+      definitionRevision: request.expectedDefinitionRevision,
+      occurrenceAt: request.occurrenceAt,
+      definition: decoded.record.definition,
+    }),
+    claimedAt,
+    delivery: {
+      state: "pending",
+      attempts: 0,
+      nextAttemptAt: claimedAt,
+    },
   }
   const result = await storage.compareAndApplyConfigMutations({
     conditions: [
@@ -303,6 +400,7 @@ async function claimOccurrence(
         key: definitionKey,
         expectedRevision: request.expectedDefinitionRevision,
       },
+      { key: pendingKey, expectedRevision: null },
       { key: occurrenceKey, expectedRevision: null },
     ],
     puts: [
@@ -310,17 +408,23 @@ async function claimOccurrence(
         key: occurrenceKey,
         value: encodeLocalScheduleOccurrenceRecord(occurrence),
       },
+      {
+        key: pendingKey,
+        value: encodeLocalSchedulePendingRecord({
+          kind: "local.schedule-pending",
+          scheduleId: request.scheduleId,
+          occurrenceKey,
+        }),
+      },
     ],
     deletes: [],
   })
   if (result.kind === "applied") {
     const entry = requireEntry(result.entries, occurrenceKey)
-    decodeLocalScheduleOccurrenceEntry(entry)
     return {
       kind: "local.schedule-occurrence.claimed",
       definition: decoded.definition,
-      occurrenceAt: request.occurrenceAt,
-      definitionRevision: request.expectedDefinitionRevision,
+      occurrence: decodeLocalScheduleOccurrenceEntry(entry),
     }
   }
 
@@ -338,15 +442,195 @@ async function claimOccurrence(
     (conflict) => conflict.key === occurrenceKey
   )
   if (occurrenceConflict?.current !== undefined && occurrenceConflict.current !== null) {
-    decodeLocalScheduleOccurrenceEntry(occurrenceConflict.current)
     return {
-      kind: "local.schedule-occurrence.duplicate",
-      scheduleId: request.scheduleId,
-      occurrenceAt: request.occurrenceAt,
-      definitionRevision: request.expectedDefinitionRevision,
+      kind: "local.schedule-occurrence.existing",
+      occurrence: decodeLocalScheduleOccurrenceEntry(occurrenceConflict.current),
+    }
+  }
+  const pendingConflict = result.conflicts.find(
+    (conflict) => conflict.key === pendingKey
+  )
+  if (pendingConflict?.current !== undefined && pendingConflict.current !== null) {
+    const pending = decodeLocalSchedulePendingEntry(pendingConflict.current)
+    const pendingOccurrence = await storage.getConfigEntry(
+      pending.record.occurrenceKey
+    )
+    if (pendingOccurrence === null) {
+      throw new Error("Schedule pending record points to a missing occurrence")
+    }
+    const decodedPending = decodeLocalScheduleOccurrenceEntry(pendingOccurrence)
+    if (decodedPending.record.delivery.state !== "pending") {
+      throw new Error("Schedule pending record points to a settled occurrence")
+    }
+    return {
+      kind: "local.schedule-occurrence.pending",
+      occurrence: decodedPending,
     }
   }
   throw new Error("Schedule occurrence conflict evidence is incomplete")
+}
+
+async function listOccurrences(
+  storage: CoreStore,
+  request: {
+    readonly scheduleId?: string
+    readonly afterKey?: string
+    readonly limit: number
+  }
+): Promise<{
+  readonly occurrences: readonly LocalScheduleOccurrence[]
+  readonly nextAfterKey?: string
+}> {
+  const limit = boundedOccurrenceLimit(request.limit)
+  const prefix =
+    request.scheduleId === undefined
+      ? LOCAL_SCHEDULE_OCCURRENCE_PREFIX
+      : localScheduleOccurrencePrefix(request.scheduleId)
+  if (request.afterKey !== undefined && !request.afterKey.startsWith(prefix)) {
+    throw new Error("Schedule occurrence cursor is outside its namespace")
+  }
+  const entries = await storage.listConfigEntries({
+    prefix,
+    ...(request.afterKey === undefined ? {} : { afterKey: request.afterKey }),
+    limit: limit + 1,
+  })
+  const page = entries.slice(0, limit)
+  return {
+    occurrences: page.map(decodeLocalScheduleOccurrenceEntry),
+    ...(entries.length <= limit || page.length === 0
+      ? {}
+      : { nextAfterKey: page.at(-1)!.key }),
+  }
+}
+
+async function updateOccurrenceDelivery(
+  storage: CoreStore,
+  request: {
+    readonly occurrence: LocalScheduleOccurrence
+    readonly delivery: LocalScheduleOccurrenceDelivery
+  }
+): Promise<
+  | { readonly kind: "updated"; readonly occurrence: LocalScheduleOccurrence }
+  | { readonly kind: "conflict"; readonly current: LocalScheduleOccurrence | null }
+> {
+  const key = localScheduleOccurrenceKey(request.occurrence.record)
+  const pendingKey = localSchedulePendingKey(
+    request.occurrence.record.scheduleId
+  )
+  const pendingEntry = await storage.getConfigEntry(pendingKey)
+  if (pendingEntry === null) {
+    const current = await storage.getConfigEntry(key)
+    return {
+      kind: "conflict",
+      current: current === null ? null : decodeLocalScheduleOccurrenceEntry(current),
+    }
+  }
+  const pending = decodeLocalSchedulePendingEntry(pendingEntry)
+  if (pending.record.occurrenceKey !== key) {
+    const current = await storage.getConfigEntry(key)
+    return {
+      kind: "conflict",
+      current: current === null ? null : decodeLocalScheduleOccurrenceEntry(current),
+    }
+  }
+  const result = await storage.compareAndApplyConfigMutations({
+    conditions: [
+      { key, expectedRevision: request.occurrence.revision },
+      { key: pendingKey, expectedRevision: pending.revision },
+    ],
+    puts: [{
+      key,
+      value: encodeLocalScheduleOccurrenceRecord({
+        ...request.occurrence.record,
+        delivery: request.delivery,
+      }),
+    }],
+    deletes: request.delivery.state === "pending" ? [] : [pendingKey],
+  })
+  if (result.kind === "applied") {
+    return {
+      kind: "updated",
+      occurrence: decodeLocalScheduleOccurrenceEntry(requireEntry(result.entries, key)),
+    }
+  }
+  const current = await storage.getConfigEntry(key)
+  return {
+    kind: "conflict",
+    current: current === null ? null : decodeLocalScheduleOccurrenceEntry(current),
+  }
+}
+
+async function listPendingOccurrences(
+  storage: CoreStore,
+  request: { readonly afterKey?: string; readonly limit: number }
+): Promise<{
+  readonly occurrences: readonly LocalScheduleOccurrence[]
+  readonly nextAfterKey?: string
+}> {
+  const limit = boundedOccurrenceLimit(request.limit)
+  if (
+    request.afterKey !== undefined &&
+    !request.afterKey.startsWith(LOCAL_SCHEDULE_PENDING_PREFIX)
+  ) {
+    throw new Error("Schedule pending cursor is outside its namespace")
+  }
+  const entries = await storage.listConfigEntries({
+    prefix: LOCAL_SCHEDULE_PENDING_PREFIX,
+    ...(request.afterKey === undefined ? {} : { afterKey: request.afterKey }),
+    limit: limit + 1,
+  })
+  const page = entries.slice(0, limit)
+  const occurrences: LocalScheduleOccurrence[] = []
+  for (const entry of page) {
+    const pending = decodeLocalSchedulePendingEntry(entry)
+    const occurrenceEntry = await storage.getConfigEntry(
+      pending.record.occurrenceKey
+    )
+    if (occurrenceEntry === null) {
+      throw new Error("Schedule pending record points to a missing occurrence")
+    }
+    const occurrence = decodeLocalScheduleOccurrenceEntry(occurrenceEntry)
+    if (occurrence.record.delivery.state !== "pending") {
+      throw new Error("Schedule pending record points to a settled occurrence")
+    }
+    occurrences.push(occurrence)
+  }
+  return {
+    occurrences,
+    ...(entries.length <= limit || page.length === 0
+      ? {}
+      : { nextAfterKey: page.at(-1)!.key }),
+  }
+}
+
+async function pruneSettledOccurrences(
+  storage: CoreStore,
+  scheduleId: string
+): Promise<void> {
+  const page = await listOccurrences(storage, {
+    scheduleId,
+    limit: MAX_OCCURRENCE_LIST_LIMIT,
+  })
+  const settled = page.occurrences
+    .filter((occurrence) => occurrence.record.delivery.state !== "pending")
+    .sort((left, right) =>
+      right.record.occurrenceAt - left.record.occurrenceAt ||
+      right.record.definitionRevision - left.record.definitionRevision
+    )
+  const expired = settled.slice(MAX_RETAINED_SETTLED_OCCURRENCES)
+  for (let offset = 0; offset < expired.length; offset += MAX_CLEANUP_BATCH) {
+    const batch = expired.slice(offset, offset + MAX_CLEANUP_BATCH)
+    const entries = batch.map((occurrence) => ({
+      key: localScheduleOccurrenceKey(occurrence.record),
+      expectedRevision: occurrence.revision,
+    }))
+    const result = await storage.compareAndApplyConfigMutations({
+      conditions: entries,
+      puts: [],
+      deletes: entries.map((entry) => entry.key),
+    })
+    if (result.kind === "conflict") return
+  }
 }
 
 function conflictFromEvidence(
@@ -462,6 +746,15 @@ function requireConflict(
 function boundedLimit(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1 || value > MAX_LIST_LIMIT) {
     throw new Error(`Schedule list limit must be between 1 and ${MAX_LIST_LIMIT}`)
+  }
+  return value
+}
+
+function boundedOccurrenceLimit(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > MAX_OCCURRENCE_LIST_LIMIT) {
+    throw new Error(
+      `Schedule occurrence list limit must be between 1 and ${MAX_OCCURRENCE_LIST_LIMIT}`
+    )
   }
   return value
 }

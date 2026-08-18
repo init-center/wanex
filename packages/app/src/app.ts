@@ -295,6 +295,10 @@ export async function createWanexApp(
           modelEndpointId
         })
       },
+      async submitScheduledTick(request) {
+        assertActive()
+        return await commands.submitScheduledTick(request)
+      },
       wake() {
         assertActive()
         host.wake()

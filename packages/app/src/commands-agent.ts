@@ -62,7 +62,8 @@ export function createWanexAppAgentCommands(
     },
     async submitScheduledTick(request) {
       context.assertActive()
-      const modelEndpointId = await context.refreshActiveModelEndpointId()
+      const modelEndpointId =
+        request.modelEndpointId ?? await context.refreshActiveModelEndpointId()
       return await submitWanexAppScheduledTick(context.runtime, {
         request,
         modelEndpointId,

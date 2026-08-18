@@ -39,6 +39,68 @@ afterEach(async () => {
 })
 
 describe("Local Schedule adapter", () => {
+  it("rejects invalid Cron syntax and time zones before persistence", async () => {
+    const { storage, adapter } = await createHarness()
+    await expect(adapter.port.createDefinition({
+      definition: {
+        ...scheduleSpec("Invalid Cron"),
+        trigger: {
+          kind: "cron",
+          expression: "not a cron",
+          timeZone: "UTC",
+        },
+      },
+      idempotencyKey: "invalid-cron",
+    })).resolves.toEqual({
+      kind: "product.schedule.rejected",
+      operation: "create",
+      reason: "invalid_definition",
+      message: "Schedule recurrence or time zone is invalid.",
+    })
+    await expect(adapter.port.createDefinition({
+      definition: {
+        ...scheduleSpec("Invalid time zone"),
+        trigger: {
+          kind: "cron",
+          expression: "0 * * * *",
+          timeZone: "Mars/Olympus",
+        },
+      },
+      idempotencyKey: "invalid-time-zone",
+    })).resolves.toMatchObject({
+      kind: "product.schedule.rejected",
+      operation: "create",
+      reason: "invalid_definition",
+    })
+    await expect(storage.listConfigEntries({
+      prefix: LOCAL_SCHEDULE_DEFINITION_PREFIX,
+    })).resolves.toEqual([])
+
+    const created = await adapter.port.createDefinition({
+      definition: scheduleSpec("Valid before replacement"),
+      idempotencyKey: "valid-before-replacement",
+    })
+    const definition = requireDefinition(created)
+    await expect(adapter.port.replaceDefinition({
+      scheduleId: definition.scheduleId,
+      expectedRevision: definition.revision,
+      definition: {
+        ...scheduleSpec("Invalid replacement"),
+        trigger: {
+          kind: "cron",
+          expression: "0 * * * *",
+          timeZone: "Mars/Olympus",
+        },
+      },
+    })).resolves.toMatchObject({
+      kind: "product.schedule.rejected",
+      operation: "replace",
+      reason: "invalid_definition",
+    })
+    await expect(adapter.port.readDefinition(definition.scheduleId))
+      .resolves.toEqual(definition)
+  })
+
   it("persists strict definitions with idempotent create and exact revision CAS", async () => {
     let clock = 1_000
     const { storage, adapter } = await createHarness(() => clock++)
@@ -226,11 +288,53 @@ describe("Local Schedule adapter", () => {
     ])
     expect(results.map((result) => result.kind).sort()).toEqual([
       "local.schedule-occurrence.claimed",
-      "local.schedule-occurrence.duplicate",
+      "local.schedule-occurrence.existing",
     ])
+    const occurrences = results.map((result) => {
+      if (
+        result.kind !== "local.schedule-occurrence.claimed" &&
+        result.kind !== "local.schedule-occurrence.existing"
+      ) {
+        throw new Error("expected durable Schedule occurrence")
+      }
+      return result.occurrence
+    })
+    expect(occurrences[0]).toEqual(occurrences[1])
+    expect(occurrences[0]).toMatchObject({
+      revision: 1,
+      record: {
+        definition: { prompt: "Concurrent claim" },
+        execution: {
+          tickId: expect.stringMatching(/^tick_[a-f0-9]{32}$/u),
+          sessionId: `ses_schedule_${definition.scheduleId.slice("schedule_".length)}`,
+          inputId: expect.stringMatching(/^inp_schedule_[a-f0-9]{32}$/u),
+          turnId: expect.stringMatching(/^turn_schedule_[a-f0-9]{32}$/u),
+          jobId: expect.stringMatching(/^job_schedule_[a-f0-9]{32}$/u),
+        },
+        delivery: { state: "pending", attempts: 0 },
+      },
+    })
+    expect(occurrences[0]?.record.delivery).toMatchObject({
+      nextAttemptAt: occurrences[0]?.record.claimedAt,
+    })
+    expect([5_000, 5_001]).toContain(occurrences[0]?.record.claimedAt)
     await expect(firstStorage.listConfigEntries({
       prefix: LOCAL_SCHEDULE_OCCURRENCE_PREFIX,
     })).resolves.toHaveLength(1)
+    const blocked = await firstAdapter.claimOccurrence({
+      ...request,
+      occurrenceAt: 10_001,
+    })
+    expect(blocked).toMatchObject({
+      kind: "local.schedule-occurrence.pending",
+      occurrence: {
+        record: { occurrenceAt: 10_000, delivery: { state: "pending" } },
+      },
+    })
+    await expect(firstAdapter.listPendingOccurrences({ limit: 10 }))
+      .resolves.toMatchObject({
+        occurrences: [{ record: { occurrenceAt: 10_000 } }],
+      })
 
     const replaced = await firstAdapter.port.replaceDefinition({
       scheduleId: definition.scheduleId,

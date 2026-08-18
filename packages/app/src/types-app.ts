@@ -126,6 +126,9 @@ export interface WanexAppTrustedExecutionHost {
   prepareExecutionBinding(
     request: Omit<RuntimeHostPrepareExecutionBindingRequest, "modelEndpointId">
   ): Promise<RuntimeHostPreparedExecutionBinding>
+  submitScheduledTick(
+    request: import("./types-schedule.js").WanexAppSubmitScheduledTickRequest
+  ): Promise<import("./types-schedule.js").WanexAppScheduledTickResult>
   wake(): void
 }
 

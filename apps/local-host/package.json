@@ -24,11 +24,12 @@
     "@wanex/app": "workspace:*",
     "@wanex/local-credential-store": "workspace:*",
     "@wanex/product": "workspace:*",
-    "@wanex/web": "workspace:*",
     "@wanex/protocol": "workspace:*",
     "@wanex/runtime": "workspace:*",
     "@wanex/storage": "workspace:*",
-    "@wanex/team": "workspace:*"
+    "@wanex/team": "workspace:*",
+    "@wanex/web": "workspace:*",
+    "croner": "10.0.1"
   },
   "devDependencies": {
     "happy-dom": "20.11.1"

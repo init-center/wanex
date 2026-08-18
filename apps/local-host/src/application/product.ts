@@ -40,6 +40,10 @@ import {
   createLocalScheduleAdapter,
 } from "../schedule/adapter.js"
 import type { LocalScheduleAdapter } from "../schedule/model.js"
+import {
+  createLocalScheduleController,
+  type LocalScheduleController,
+} from "../schedule/controller.js"
 
 export interface StartedLocalProductHost {
   readonly runtime: BootstrappedWanexStorage
@@ -48,6 +52,7 @@ export interface StartedLocalProductHost {
   readonly secrets: Awaited<ReturnType<typeof composeLocalSecretStore>>
   readonly teamAdapter: LocalTeamConversationAdapter
   readonly scheduleAdapter: LocalScheduleAdapter
+  readonly scheduleController: LocalScheduleController
   readonly teamHost: TeamConversationExecutionHost
   readonly attachments: ReturnType<typeof createLocalAttachmentUploadPort>
   readonly resourceDeliveries: ReturnType<typeof createLocalResourceDeliveryPort>
@@ -84,6 +89,7 @@ export async function startLocalProductHostInternal(
   let shell: Shell | undefined
   let surface: SurfaceAdapter | undefined
   let teamHost: TeamConversationExecutionHost | undefined
+  let scheduleController: LocalScheduleController | undefined
   let pluginComposition: LocalPluginCompositionBinding | undefined
   const teamConversations = new TeamConversationRuntime({
     storage: teamStorage,
@@ -180,6 +186,12 @@ export async function startLocalProductHostInternal(
       { authorizer: createLocalResourceDeliveryAuthorizer(shell) },
     )
     await pluginComposition?.start()
+    scheduleController = createLocalScheduleController({
+      adapter: scheduleAdapter,
+      storage: runtime.storage,
+      submitScheduledTick: startedShell.trustedExecution.submitScheduledTick,
+    })
+    await scheduleController.start()
     return {
       runtime,
       shell,
@@ -187,6 +199,7 @@ export async function startLocalProductHostInternal(
       secrets,
       teamAdapter,
       scheduleAdapter,
+      scheduleController,
       teamHost,
       attachments,
       resourceDeliveries,
@@ -200,6 +213,7 @@ export async function startLocalProductHostInternal(
       teamHost,
       teamAdapter,
       scheduleAdapter,
+      ...(scheduleController === undefined ? {} : { scheduleController }),
       ...(pluginComposition === undefined ? {} : { pluginComposition }),
     })
     throw error
@@ -232,10 +246,12 @@ export async function closeStartedLocalProductHost(request: {
   readonly teamHost: TeamConversationExecutionHost | undefined
   readonly teamAdapter: LocalTeamConversationAdapter
   readonly scheduleAdapter: LocalScheduleAdapter
+  readonly scheduleController?: LocalScheduleController
   readonly pluginComposition?: LocalPluginCompositionBinding
 }): Promise<void> {
   let firstError: unknown
   for (const close of [
+    async () => await request.scheduleController?.dispose(),
     async () => await request.pluginComposition?.stop(),
     async () => await request.teamHost?.dispose(),
     async () => await request.surface?.dispose(),

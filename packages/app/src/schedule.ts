@@ -51,6 +51,7 @@ export async function submitWanexAppScheduledTick(
         ? {}
         : { principalId: request.principalId }),
       ...(request.inputId === undefined ? {} : { inputId: request.inputId }),
+      ...(request.turnId === undefined ? {} : { turnId: request.turnId }),
       ...(request.idempotencyKey === undefined
         ? {}
         : { idempotencyKey: request.idempotencyKey }),
@@ -164,6 +165,12 @@ function validateScheduledTick(
   validateNonEmpty(request.text, "schedule tick text")
   if (request.previousJobId !== undefined) {
     validateNonEmpty(request.previousJobId, "previous schedule job id")
+  }
+  if (request.turnId !== undefined) {
+    validateNonEmpty(request.turnId, "schedule turn id")
+  }
+  if (request.modelEndpointId !== undefined) {
+    validateNonEmpty(request.modelEndpointId, "schedule model endpoint id")
   }
   if (request.classifier !== undefined) {
     validateNonEmpty(request.classifier.classifierId, "schedule classifier id")

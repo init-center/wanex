@@ -2,6 +2,7 @@ import type {
   ScheduleDefinition,
   ScheduleDefinitionSpec,
   SchedulePort,
+  ScheduleStatus,
 } from "@wanex/product/schedule"
 
 export interface LocalScheduleDefinitionRecord {
@@ -139,6 +140,7 @@ export interface LocalScheduleAdapter {
     readonly afterKey?: string
     readonly limit: number
   }): Promise<LocalScheduleDefinitionPage>
+  readStatus(scheduleId: string): Promise<ScheduleStatus | null>
   claimOccurrence(
     request: ClaimLocalScheduleOccurrenceRequest
   ): Promise<ClaimLocalScheduleOccurrenceResult>

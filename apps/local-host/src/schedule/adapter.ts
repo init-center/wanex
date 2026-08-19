@@ -3,6 +3,7 @@ import { createLocalScheduleDefinitionStore } from "./definition-store.js"
 import { createLocalScheduleInvalidationHub } from "./events.js"
 import type { LocalScheduleAdapter } from "./model.js"
 import { createLocalScheduleOccurrenceStore } from "./occurrence-store.js"
+import { createLocalScheduleStatusReader } from "./status.js"
 
 export function createLocalScheduleAdapter(options: {
   readonly storage: CoreStore
@@ -10,18 +11,24 @@ export function createLocalScheduleAdapter(options: {
 }): LocalScheduleAdapter {
   const now = options.now ?? Date.now
   const events = createLocalScheduleInvalidationHub()
-  const definitions = createLocalScheduleDefinitionStore({
-    storage: options.storage,
-    events,
-    now,
-  })
   const occurrences = createLocalScheduleOccurrenceStore({
     storage: options.storage,
     now,
   })
+  const status = createLocalScheduleStatusReader({
+    storage: options.storage,
+    now,
+  })
+  const definitions = createLocalScheduleDefinitionStore({
+    storage: options.storage,
+    events,
+    now,
+    readStatus: status.readStatus,
+  })
   return {
     port: definitions.port,
     listDefinitionRecords: definitions.listDefinitionRecords,
+    readStatus: status.readStatus,
     claimOccurrence: occurrences.claimOccurrence,
     listOccurrences: occurrences.listOccurrences,
     listPendingOccurrences: occurrences.listPendingOccurrences,

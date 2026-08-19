@@ -3206,12 +3206,24 @@ occurrence, and composition responsibilities are separate files in the same
 Schedule owner; no package, Store, Gateway, daemon, polling loop, per-schedule
 timer, time wheel, compatibility path, or Runtime Cron semantics were added.
 
-SCHEDULE-3 is next and is limited to user-facing Schedule management and safe
-status projection through the existing Product/App/Surface path: create/edit,
-enable/disable/remove, next run, last outcome, and actionable attention/retry.
-It must not expose prompt text in list summaries, raw occurrence records,
-internal retry/errors, job/attempt/runtime identities, Storage keys, or trusted
-Host methods. It must not create a second scheduler owner, renderer timer,
-polling loop, package, Store, Shell, Surface, command protocol, Gateway,
-compatibility alias, or Runtime Schedule semantics. Freeze a dedicated
-SCHEDULE-3 plan and its renderer-safe read/action contract before editing code.
+SCHEDULE-3A Product-Safe Schedule Status Contract is complete. Its plan and
+completion evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1388-phase-schedule-3-product-safe-status-contract-plan.md`
+
+Product now receives only `disabled`, `scheduled`, `running`, `retrying`, or
+`completed`, with bounded next/retry timestamps and the latest submitted/skipped
+outcome. Local Host derives this from the existing definition, pending index,
+and retained occurrence history. Product fences schedule id and definition
+revision and rejects malformed status. Prompt, execution identity, attempt,
+raw error, Storage key, controller state, and trusted Host methods remain out of
+the Product contract.
+
+SCHEDULE-3B Surface Contract is next. Add Schedule list/detail/read/action
+commands to the existing Product Surface descriptor, strict parser, dispatcher,
+client, and value-free invalidation flow. Surface must expose only Product
+Schedule read models and exact-revision actions. It must not expose the Local
+Host adapter, occurrence records, trusted execution methods, prompt in list
+summaries, job/attempt/runtime identities, or raw retry errors. Do not add a
+second scheduler owner, renderer timer, polling loop, package, Store, Shell,
+event bus, Gateway, compatibility alias, or Runtime Schedule semantics.

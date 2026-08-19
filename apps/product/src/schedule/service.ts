@@ -17,6 +17,9 @@ import type {
   ScheduleMutationOperation,
   ScheduleMutationRejectedResult,
   ScheduleSessionPolicy,
+  ScheduleSkipReason,
+  ScheduleStatus,
+  ScheduleStatusState,
   ScheduleTrigger,
   SetScheduleEnabledRequest,
 } from "./model.js";
@@ -76,6 +79,15 @@ export function createScheduleService(options: {
         }
         const normalized = normalizeListRequest(request);
         const page = await options.port.listDefinitions(normalized);
+        const definitions = await Promise.all(
+          page.definitions.map(async (definition) => ({
+            definition,
+            status: requireStatus(
+              await options.port!.readStatus(definition.scheduleId),
+              definition.scheduleId,
+            ),
+          })),
+        );
         const nextCursor = optionalBoundedString(
           page.nextCursor,
           "schedule cursor",
@@ -84,7 +96,9 @@ export function createScheduleService(options: {
         return {
           kind: "product.schedule-list",
           availability: readySchedule(),
-          schedules: page.definitions.map(projectSummary),
+          schedules: definitions.map(({ definition, status }) =>
+            projectSummary(definition, status),
+          ),
           ...(nextCursor === undefined ? {} : { nextCursor }),
         };
       },
@@ -97,9 +111,18 @@ export function createScheduleService(options: {
         }
         const scheduleId = requiredId(request.scheduleId, "scheduleId");
         const definition = await options.port.readDefinition(scheduleId);
-        return definition === null
-          ? { kind: "product.schedule.missing", scheduleId }
-          : { kind: "product.schedule.found", definition };
+        if (definition === null) {
+          return { kind: "product.schedule.missing", scheduleId };
+        }
+        return {
+          kind: "product.schedule.found",
+          definition,
+          status: requireStatus(
+            await options.port.readStatus(scheduleId),
+            scheduleId,
+            definition.revision,
+          ),
+        };
       },
       async createDefinition(request: CreateScheduleDefinitionRequest) {
         if (options.port === undefined) return notConfigured("create");
@@ -329,7 +352,10 @@ function normalizeMisfirePolicy(
   throw new Error(`unsupported schedule misfire policy: ${String(policy)}`);
 }
 
-function projectSummary(definition: ScheduleDefinition): ScheduleDefinitionSummary {
+function projectSummary(
+  definition: ScheduleDefinition,
+  status: ScheduleStatus,
+): ScheduleDefinitionSummary {
   return {
     kind: "product.schedule-summary",
     scheduleId: definition.scheduleId,
@@ -338,7 +364,122 @@ function projectSummary(definition: ScheduleDefinition): ScheduleDefinitionSumma
     trigger: definition.trigger,
     revision: positiveRevision(definition.revision),
     updatedAt: nonNegativeSafeInteger(definition.updatedAt, "schedule updatedAt"),
+    status: projectStatus(status, definition.scheduleId, definition.revision),
   };
+}
+
+function requireStatus(
+  status: ScheduleStatus | null,
+  scheduleId: string,
+  expectedRevision?: number,
+): ScheduleStatus {
+  if (status === null) {
+    throw new Error(`Schedule status is missing for ${scheduleId}`);
+  }
+  return projectStatus(status, scheduleId, expectedRevision);
+}
+
+function projectStatus(
+  status: ScheduleStatus,
+  expectedScheduleId: string,
+  expectedRevision?: number,
+): ScheduleStatus {
+  const scheduleId = requiredId(status.scheduleId, "schedule status scheduleId");
+  if (scheduleId !== expectedScheduleId) {
+    throw new Error("Schedule status scheduleId does not match definition");
+  }
+  const definitionRevision = positiveRevision(status.definitionRevision);
+  if (
+    expectedRevision !== undefined &&
+    definitionRevision !== positiveRevision(expectedRevision)
+  ) {
+    throw new Error("Schedule status revision does not match definition");
+  }
+  const state = statusState(status.state);
+  const nextAt = optionalNonNegativeSafeInteger(status.nextAt, "schedule nextAt");
+  const retryAt = optionalNonNegativeSafeInteger(
+    status.retryAt,
+    "schedule retryAt",
+  );
+  const lastOutcome = status.lastOutcome === undefined
+    ? undefined
+    : projectLastOutcome(status.lastOutcome);
+  if (state === "retrying") {
+    if (retryAt === undefined || nextAt !== undefined) {
+      throw new Error("retrying Schedule status requires retryAt only");
+    }
+  } else if (retryAt !== undefined) {
+    throw new Error("only retrying Schedule status may include retryAt");
+  }
+  if (state === "scheduled" && nextAt === undefined) {
+    throw new Error("scheduled Schedule status requires nextAt");
+  }
+  if (
+    (state === "running" || state === "completed" || state === "disabled") &&
+    nextAt !== undefined
+  ) {
+    throw new Error(`${state} Schedule status cannot include nextAt`);
+  }
+  return {
+    kind: "product.schedule-status",
+    scheduleId,
+    definitionRevision,
+    state,
+    ...(nextAt === undefined ? {} : { nextAt }),
+    ...(retryAt === undefined ? {} : { retryAt }),
+    ...(lastOutcome === undefined ? {} : { lastOutcome }),
+  };
+}
+
+function projectLastOutcome(
+  outcome: NonNullable<ScheduleStatus["lastOutcome"]>,
+): NonNullable<ScheduleStatus["lastOutcome"]> {
+  const kind = outcome.kind;
+  if (kind !== "submitted" && kind !== "skipped") {
+    throw new Error("Schedule last outcome kind is invalid");
+  }
+  const occurrenceAt = nonNegativeSafeInteger(
+    outcome.occurrenceAt,
+    "schedule last occurrence time",
+  );
+  const settledAt = nonNegativeSafeInteger(
+    outcome.settledAt,
+    "schedule last settled time",
+  );
+  const reason = outcome.reason;
+  if (kind === "submitted" && reason !== undefined) {
+    throw new Error("submitted Schedule outcome cannot have a skip reason");
+  }
+  return {
+    kind,
+    occurrenceAt,
+    settledAt,
+    ...(reason === undefined ? {} : { reason: skipReason(reason) }),
+  };
+}
+
+function statusState(value: ScheduleStatusState): ScheduleStatusState {
+  if (
+    value === "disabled" ||
+    value === "scheduled" ||
+    value === "running" ||
+    value === "retrying" ||
+    value === "completed"
+  ) {
+    return value;
+  }
+  throw new Error("Schedule status state is invalid");
+}
+
+function skipReason(value: ScheduleSkipReason): ScheduleSkipReason {
+  if (
+    value === "misfire" ||
+    value === "previous_job_active" ||
+    value === "superseded"
+  ) {
+    return value;
+  }
+  throw new Error("Schedule skip reason is invalid");
 }
 
 function requiredId(value: string, field: string): string {
@@ -400,4 +541,11 @@ function nonNegativeSafeInteger(value: number, field: string): number {
     throw new Error(`${field} must be a non-negative safe integer`);
   }
   return value;
+}
+
+function optionalNonNegativeSafeInteger(
+  value: number | undefined,
+  field: string,
+): number | undefined {
+  return value === undefined ? undefined : nonNegativeSafeInteger(value, field);
 }

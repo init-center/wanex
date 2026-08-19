@@ -123,6 +123,13 @@ describe("Product Schedule boundary", () => {
             trigger: { kind: "cron", expression: "0 9 * * *", timeZone: "Asia/Shanghai" },
             revision: 3,
             updatedAt: 300,
+            status: {
+              kind: "product.schedule-status",
+              scheduleId: "schedule_daily",
+              definitionRevision: 3,
+              state: "scheduled",
+              nextAt: 86_400,
+            },
           },
         ],
         nextCursor: "schedule_daily",
@@ -308,6 +315,7 @@ class FakeSchedulePort implements SchedulePort {
   readonly definition = scheduleDefinition();
   listRequest: unknown;
   readScheduleId: string | undefined;
+  readStatusIds: string[] = [];
   createRequest: unknown;
   replaceRequest: unknown;
   setEnabledRequest: unknown;
@@ -326,6 +334,19 @@ class FakeSchedulePort implements SchedulePort {
   async readDefinition(scheduleId: string) {
     this.readScheduleId = scheduleId;
     return scheduleId === this.definition.scheduleId ? this.definition : null;
+  }
+
+  async readStatus(scheduleId: string) {
+    this.readStatusIds.push(scheduleId);
+    return scheduleId === this.definition.scheduleId
+      ? {
+          kind: "product.schedule-status" as const,
+          scheduleId,
+          definitionRevision: this.definition.revision,
+          state: "scheduled" as const,
+          nextAt: 86_400,
+        }
+      : null;
   }
 
   async createDefinition(request: {

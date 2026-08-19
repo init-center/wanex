@@ -5,6 +5,7 @@ import type {
   ScheduleMutationOperation,
   ScheduleMutationResult,
   SchedulePort,
+  ScheduleStatus,
 } from "@wanex/product/schedule"
 import type {
   ConfigConditionConflict,
@@ -38,9 +39,15 @@ export function createLocalScheduleDefinitionStore(options: {
   readonly storage: CoreStore
   readonly events: LocalScheduleInvalidationHub
   readonly now: () => number
+  readonly readStatus: (scheduleId: string) => Promise<ScheduleStatus | null>
 }) {
   return {
-    port: createPort(options.storage, options.events, options.now),
+    port: createPort(
+      options.storage,
+      options.events,
+      options.now,
+      options.readStatus,
+    ),
     listDefinitionRecords: async (request: {
       readonly afterKey?: string
       readonly limit: number
@@ -87,7 +94,8 @@ async function listDefinitionRecords(
 function createPort(
   storage: CoreStore,
   events: LocalScheduleInvalidationHub,
-  now: () => number
+  now: () => number,
+  readStatus: (scheduleId: string) => Promise<ScheduleStatus | null>,
 ): SchedulePort {
   return {
     async listDefinitions(request) {
@@ -118,6 +126,9 @@ function createPort(
       return entry === null
         ? null
         : decodeLocalScheduleDefinitionEntry(entry).definition
+    },
+    async readStatus(scheduleId) {
+      return await readStatus(scheduleId)
     },
     async createDefinition(request) {
       const invalid = invalidDefinition("create", request.definition)

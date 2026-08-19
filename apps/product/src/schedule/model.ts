@@ -58,6 +58,36 @@ export interface ScheduleDefinitionSummary {
   readonly trigger: ScheduleTrigger;
   readonly revision: number;
   readonly updatedAt: number;
+  readonly status: ScheduleStatus;
+}
+
+export type ScheduleStatusState =
+  | "disabled"
+  | "scheduled"
+  | "running"
+  | "retrying"
+  | "completed";
+
+export type ScheduleSkipReason =
+  | "misfire"
+  | "previous_job_active"
+  | "superseded";
+
+export interface ScheduleLastOutcome {
+  readonly kind: "submitted" | "skipped";
+  readonly occurrenceAt: number;
+  readonly settledAt: number;
+  readonly reason?: ScheduleSkipReason;
+}
+
+export interface ScheduleStatus {
+  readonly kind: "product.schedule-status";
+  readonly scheduleId: string;
+  readonly definitionRevision: number;
+  readonly state: ScheduleStatusState;
+  readonly nextAt?: number;
+  readonly retryAt?: number;
+  readonly lastOutcome?: ScheduleLastOutcome;
 }
 
 export type ScheduleAvailability =
@@ -102,6 +132,7 @@ export type ScheduleDefinitionReadResult =
   | {
       readonly kind: "product.schedule.found";
       readonly definition: ScheduleDefinition;
+      readonly status: ScheduleStatus;
     }
   | {
       readonly kind: "product.schedule.missing";

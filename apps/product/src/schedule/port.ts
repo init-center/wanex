@@ -4,6 +4,7 @@ import type {
   ScheduleDefinitionSpec,
   ScheduleMutationResult,
   SchedulePortInvalidation,
+  ScheduleStatus,
 } from "./model.js";
 
 export interface SchedulePort {
@@ -12,6 +13,7 @@ export interface SchedulePort {
     readonly limit: number;
   }): Promise<ScheduleDefinitionPage>;
   readDefinition(scheduleId: string): Promise<ScheduleDefinition | null>;
+  readStatus(scheduleId: string): Promise<ScheduleStatus | null>;
   createDefinition(request: {
     readonly definition: ScheduleDefinitionSpec;
     readonly idempotencyKey: string;

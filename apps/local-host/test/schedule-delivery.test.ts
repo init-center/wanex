@@ -48,6 +48,86 @@ afterEach(async () => {
 })
 
 describe("Local Schedule durable delivery", () => {
+  it("projects safe status from durable pending and settled truth", async () => {
+    const { adapter, occurrence, definition } = await createClaimedOccurrence()
+    await expect(adapter.readStatus(definition.scheduleId)).resolves.toEqual({
+      kind: "product.schedule-status",
+      scheduleId: definition.scheduleId,
+      definitionRevision: definition.revision,
+      state: "running",
+    })
+
+    const retry = await adapter.updateOccurrenceDelivery({
+      occurrence,
+      delivery: {
+        state: "pending",
+        attempts: 1,
+        nextAttemptAt: 11_000,
+        lastFailure: { kind: "submission_failed", at: 10_500 },
+      },
+    })
+    if (retry.kind !== "updated") throw new Error("expected retry update")
+    await expect(adapter.readStatus(definition.scheduleId)).resolves.toEqual({
+      kind: "product.schedule-status",
+      scheduleId: definition.scheduleId,
+      definitionRevision: definition.revision,
+      state: "retrying",
+      retryAt: 11_000,
+    })
+
+    const submitted = await adapter.updateOccurrenceDelivery({
+      occurrence: retry.occurrence,
+      delivery: {
+        state: "submitted",
+        settledAt: 12_000,
+        sessionId: retry.occurrence.record.execution.sessionId,
+        inputId: retry.occurrence.record.execution.inputId,
+        turnId: retry.occurrence.record.execution.turnId,
+        jobId: retry.occurrence.record.execution.jobId,
+        submittedAt: 11_500,
+      },
+    })
+    if (submitted.kind !== "updated") throw new Error("expected submitted update")
+    await expect(adapter.readStatus(definition.scheduleId)).resolves.toEqual({
+      kind: "product.schedule-status",
+      scheduleId: definition.scheduleId,
+      definitionRevision: definition.revision,
+      state: "completed",
+      lastOutcome: {
+        kind: "submitted",
+        occurrenceAt: 10_000,
+        settledAt: 12_000,
+      },
+    })
+
+    await expect(adapter.port.setEnabled({
+      scheduleId: definition.scheduleId,
+      expectedRevision: definition.revision,
+      enabled: false,
+    })).resolves.toMatchObject({ kind: "product.schedule.applied" })
+    await expect(adapter.readStatus(definition.scheduleId)).resolves.toMatchObject({
+      state: "disabled",
+      definitionRevision: definition.revision + 1,
+      lastOutcome: { kind: "submitted" },
+    })
+
+    const future = await adapter.port.createDefinition({
+      definition: {
+        ...scheduleSpec("Future"),
+        trigger: { kind: "once", at: 20_000 },
+      },
+      idempotencyKey: "future-status",
+    })
+    const futureDefinition = requireDefinition(future)
+    await expect(adapter.readStatus(futureDefinition.scheduleId)).resolves.toEqual({
+      kind: "product.schedule-status",
+      scheduleId: futureDefinition.scheduleId,
+      definitionRevision: futureDefinition.revision,
+      state: "scheduled",
+      nextAt: 20_000,
+    })
+  })
+
   it("settles deterministic App admission and replays it idempotently", async () => {
     const { storage, adapter, occurrence } = await createClaimedOccurrence()
     const calls: unknown[] = []

@@ -3288,3 +3288,26 @@ request across two further deadlines, disable/quiet, same-profile restore,
 re-enable with one request, remove, privacy, footprint, and process cleanup.
 Schedule Productization is closed. The next route requires a fresh global
 Product gap review; TUI Schedule parity remains value-gated.
+
+The post-SCHEDULE-4 global Product review selected a separate Coding Workspace
+Product route. Its frozen architecture review and staged route are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1393-post-schedule-4-global-product-gap-review-and-coding-workspace-route-plan.md`
+
+CODING-1 Foundation Integrity Reset is next. Do not add Coding UI or an app
+package before it is complete. The current Workspace directory lock can reclaim
+a live owner after a fixed stale interval, Proposal apply has no atomic claim,
+and multi-file apply is not crash recoverable. CODING-1 must replace those
+semantics directly with live-handle cross-process mutation ownership, exact
+durable apply claim/fenced settlement, crash-recoverable atomic file
+transactions, and writable-agent worktree isolation. Remove replaced pre-release
+contracts rather than adding compatibility states or aliases.
+
+Agent execution concurrency and shared-checkout integration are separate:
+writable agents run in independent worktrees and produce immutable proposals;
+only the explicit integration owner mutates the shared checkout after review.
+Do not serialize all agents behind a workspace lock, let agents queue direct
+writes to one checkout, expose lock/lease/path identities to Product, add a
+Gateway or persistent lock daemon, create a universal composition package, or
+make Workspace part of the default Runtime/App/Product closure. Connector,
+remote/mobile Host, and TUI Schedule parity remain value-gated.

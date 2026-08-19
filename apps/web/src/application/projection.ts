@@ -165,6 +165,7 @@ export function projectDiagnostics(
     | "modelEndpoints"
     | "commandCatalog"
     | "pluginManagement"
+    | "scheduleList"
     | "attachments"
     | "teamList"
     | "events"
@@ -203,6 +204,11 @@ export function projectDiagnostics(
       "plugin management"
     ),
     ...resultDiagnostic(
+      snapshot.scheduleList,
+      "web.schedule_list_failed",
+      "schedules"
+    ),
+    ...resultDiagnostic(
       snapshot.attachments,
       "web.attachments_failed",
       "conversation attachments"
@@ -235,7 +241,7 @@ function resultDiagnostic(
     {
       code,
       severity:
-        label === "events" || label === "plugin management"
+        label === "events" || label === "plugin management" || label === "schedules"
           ? "warning"
           : "error",
       message: `${label} failed: ${result.error?.message ?? "unknown error"}`

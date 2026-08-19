@@ -14,6 +14,7 @@ import type {
   ActionResult,
   Snapshot,
 } from "../src/application/model.js";
+import type { ScheduleDefinition } from "@wanex/product";
 import { STYLESHEET } from "../src/generated/stylesheet.js";
 
 const mounted: Array<{ unmount(): void }> = [];
@@ -54,6 +55,214 @@ describe("Web client", () => {
     expect(timeline.getAttribute("role")).toBe("log");
     expect(timeline.getAttribute("aria-label")).toBe("Conversation messages");
     expect(timeline.getAttribute("aria-relevant")).toBe("additions text");
+  });
+
+  it("creates a schedule from the Settings surface and keeps the product contract typed", async () => {
+    const snapshot = scheduleSnapshot();
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      return { ok: true, action: action.type, snapshot };
+    }));
+
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredButton("Add schedule").click());
+    const form = requiredElement<HTMLFormElement>("[data-ui-schedule-form]");
+    await setTextarea(requiredElement<HTMLTextAreaElement>("[data-ui-schedule-form] textarea"), "Summarize the latest work.");
+    await act(async () => form.requestSubmit());
+
+    expect(actions).toContainEqual(expect.objectContaining({
+      type: "create-schedule",
+      input: expect.objectContaining({
+        definition: expect.objectContaining({
+          prompt: "Summarize the latest work.",
+          trigger: expect.objectContaining({ kind: "interval", intervalMs: 3_600_000 }),
+          sessionPolicy: { kind: "isolated" },
+          modelPolicy: { kind: "active" },
+          misfirePolicy: "skip",
+        }),
+        idempotencyKey: expect.any(String),
+      }),
+    }));
+    expect(document.querySelector("[data-ui-schedule-form]")).toBeNull();
+  });
+
+  it("loads the exact schedule revision and keeps editing after a conflict", async () => {
+    const snapshot = scheduleSnapshot();
+    const definition = scheduleDefinition();
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      if (action.type === "read-schedule") {
+        return {
+          ok: true,
+          action: action.type,
+          output: {
+            kind: "web.schedule-action",
+            action: action.type,
+            result: {
+              kind: "product.schedule.found",
+              definition,
+              status: {
+                kind: "product.schedule-status",
+                scheduleId: definition.scheduleId,
+                definitionRevision: definition.revision,
+                state: "scheduled",
+                nextAt: 1_700_003_600_000,
+              },
+            },
+          },
+          snapshot,
+        };
+      }
+      if (action.type === "replace-schedule") {
+        return {
+          ok: false,
+          action: action.type,
+          message: "Schedule changed elsewhere",
+          output: {
+            kind: "web.schedule-action",
+            action: action.type,
+            result: {
+              kind: "product.schedule.conflict",
+              operation: "replace",
+              reason: "revision_conflict",
+              scheduleId: definition.scheduleId,
+              expectedRevision: definition.revision,
+              current: { ...definition, revision: definition.revision + 1 },
+              message: "Schedule changed elsewhere",
+            },
+          },
+          snapshot,
+        };
+      }
+      return { ok: true, action: action.type, snapshot };
+    }), snapshot);
+
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredButton("Edit Daily review").click());
+    await waitFor(() => document.querySelector("[data-ui-schedule-form]") !== null);
+    await submitForm(requiredElement<HTMLFormElement>("[data-ui-schedule-form]"));
+    await waitFor(() => document.body.textContent?.includes("Schedule changed elsewhere") === true);
+
+    expect(actions).toContainEqual({
+      type: "read-schedule",
+      input: { scheduleId: definition.scheduleId },
+    });
+    expect(actions).toContainEqual(expect.objectContaining({
+      type: "replace-schedule",
+      input: expect.objectContaining({
+        scheduleId: definition.scheduleId,
+        expectedRevision: definition.revision,
+      }),
+    }));
+    expect(document.querySelector("[data-ui-schedule-form]")).not.toBeNull();
+  });
+
+  it("reuses the Schedule create identity until the request is accepted", async () => {
+    const snapshot = scheduleSnapshot();
+    const actions: Action[] = [];
+    let attempt = 0;
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      if (action.type !== "create-schedule") {
+        return { ok: true, action: action.type, snapshot };
+      }
+      attempt += 1;
+      return attempt === 1
+        ? {
+            ok: false,
+            action: action.type,
+            message: "Schedule admission was interrupted",
+            snapshot,
+          }
+        : { ok: true, action: action.type, snapshot };
+    }), snapshot);
+
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredButton("Add schedule").click());
+    await setTextarea(
+      requiredElement<HTMLTextAreaElement>("[data-ui-schedule-form] textarea"),
+      "Retry this schedule safely.",
+    );
+    const form = requiredElement<HTMLFormElement>("[data-ui-schedule-form]");
+    await submitForm(form);
+    await waitFor(() => document.body.textContent?.includes(
+      "Schedule admission was interrupted",
+    ) === true);
+    await submitForm(form);
+    await waitFor(() => document.querySelector("[data-ui-schedule-form]") === null);
+
+    const creates = actions.filter(
+      (action): action is Extract<Action, { type: "create-schedule" }> =>
+        action.type === "create-schedule",
+    );
+    expect(creates).toHaveLength(2);
+    expect(creates[1]?.input.idempotencyKey).toBe(creates[0]?.input.idempotencyKey);
+  });
+
+  it("requires in-product confirmation before removing a schedule", async () => {
+    const snapshot = scheduleSnapshot();
+    const actions: Action[] = [];
+    let removeAttempt = 0;
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      if (action.type === "remove-schedule") {
+        removeAttempt += 1;
+        if (removeAttempt === 1) {
+          return {
+            ok: false,
+            action: action.type,
+            message: "Schedule changed before removal",
+            snapshot,
+          };
+        }
+      }
+      return { ok: true, action: action.type, snapshot };
+    }), snapshot);
+
+    await act(async () => requiredButton("Open settings").click());
+    const remove = requiredButton("Remove Daily review");
+    await act(async () => remove.click());
+    await waitFor(() => document.querySelector("[data-ui-schedule-remove-dialog]") !== null);
+    expect(actions).toHaveLength(0);
+    await waitFor(() => document.activeElement === requiredButton("Keep schedule"));
+    await act(async () => requiredButton("Keep schedule").click());
+    expect(document.querySelector("[data-ui-schedule-remove-dialog]")).toBeNull();
+    expect(document.activeElement).toBe(remove);
+
+    await act(async () => remove.click());
+    await act(async () => requiredElement<HTMLButtonElement>(
+      "[data-ui-schedule-remove-confirm]",
+    ).click());
+    await waitFor(() => actions.length === 1);
+    await waitFor(() => document.querySelector("[data-ui-schedule-remove-error]")
+      ?.textContent?.includes("Schedule changed before removal") === true);
+    expect(actions[0]).toEqual({
+      type: "remove-schedule",
+      input: {
+        scheduleId: "schedule_daily_review",
+        expectedRevision: 3,
+      },
+    });
+    expect(document.querySelector("[data-ui-schedule-remove-dialog]")).not.toBeNull();
+
+    await act(async () => requiredElement<HTMLButtonElement>(
+      "[data-ui-schedule-remove-confirm]",
+    ).click());
+    await waitFor(() => actions.length === 2);
+    expect(actions[1]).toEqual(actions[0]);
+    expect(document.querySelector("[data-ui-schedule-remove-dialog]")).toBeNull();
+  });
+
+  it("shows unavailable schedules without offering a fake create action", async () => {
+    const snapshot = baseSnapshot();
+    await mount(createClient(snapshot), snapshot);
+
+    await act(async () => requiredButton("Open settings").click());
+    expect(document.querySelector("[data-ui-schedule-unavailable]")?.textContent)
+      .toContain("not configured");
+    expect(document.querySelector("[data-ui-schedule-create]")).toBeNull();
   });
 
   it("shows a retryable unavailable state when the initial snapshot read fails", async () => {
@@ -3574,6 +3783,27 @@ function baseSnapshot(): Snapshot {
       },
       event: { sequence: 0 },
     },
+    scheduleList: {
+      ok: true,
+      command: "listSchedules",
+      value: {
+        kind: "product.schedule-list",
+        availability: {
+          kind: "product.schedule-availability",
+          state: "unavailable",
+          reason: "not_configured",
+          capabilities: {
+            canList: false,
+            canCreate: false,
+            canEdit: false,
+            canSetEnabled: false,
+            canRemove: false,
+          },
+        },
+        schedules: [],
+      },
+      event: { sequence: 0 },
+    },
     teamList: {
       ok: true,
       command: "listTeamConversations",
@@ -3741,6 +3971,11 @@ function baseSnapshot(): Snapshot {
           installs: [],
           message: "Plugin management is not configured.",
         },
+        schedules: {
+          state: "unavailable",
+          schedules: [],
+          message: "Schedules are not configured for this host.",
+        },
       },
       sessionCount: 1,
       recentSessions: [{
@@ -3834,6 +4069,85 @@ function baseSnapshot(): Snapshot {
       actions: [],
     },
   } as unknown as Snapshot;
+}
+
+function scheduleSnapshot(): Snapshot {
+  const base = baseSnapshot();
+  const definition = scheduleDefinition();
+  const availability = {
+    kind: "product.schedule-availability" as const,
+    state: "ready" as const,
+    reason: "configured" as const,
+    capabilities: {
+      canList: true,
+      canCreate: true,
+      canEdit: true,
+      canSetEnabled: true,
+      canRemove: true,
+    },
+  };
+  const schedule = {
+    kind: "product.schedule-summary" as const,
+    scheduleId: definition.scheduleId,
+    title: definition.title,
+    enabled: definition.enabled,
+    trigger: definition.trigger,
+    revision: definition.revision,
+    updatedAt: definition.updatedAt,
+    status: {
+      kind: "product.schedule-status" as const,
+      scheduleId: definition.scheduleId,
+      definitionRevision: definition.revision,
+      state: "scheduled" as const,
+      nextAt: 1_700_003_600_000,
+    },
+  };
+  return {
+    ...base,
+    scheduleList: {
+      ok: true,
+      command: "listSchedules",
+      value: {
+        kind: "product.schedule-list",
+        availability,
+        schedules: [schedule],
+      },
+      event: { sequence: 0 },
+    },
+    view: {
+      ...base.view,
+      settings: {
+        ...base.view.settings,
+        schedules: {
+          state: "ready",
+          availability,
+          schedules: [schedule],
+        },
+      },
+    },
+  } as unknown as Snapshot;
+}
+
+function scheduleDefinition(): ScheduleDefinition {
+  return {
+    kind: "product.schedule-definition",
+    scheduleId: "schedule_daily_review",
+    title: "Daily review",
+    prompt: "Summarize the latest work.",
+    enabled: true,
+    trigger: {
+      kind: "interval",
+      anchorAt: 1_700_000_000_000,
+      intervalMs: 3_600_000,
+    },
+    sessionPolicy: { kind: "isolated" },
+    modelPolicy: { kind: "active" },
+    overlapPolicy: "skip_if_running",
+    misfirePolicy: "skip",
+    revision: 3,
+    createdAt: 1_699_999_000_000,
+    updatedAt: 1_700_000_000_000,
+  };
 }
 
 function extensionSnapshot(

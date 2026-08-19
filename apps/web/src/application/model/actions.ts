@@ -30,7 +30,12 @@ import type {
   CreateTeamConversationRequest,
   SetTeamCoordinatorRequest,
   SubmitTeamRoundRequest,
-  UpdateTeamParticipantRequest
+  UpdateTeamParticipantRequest,
+  CreateScheduleDefinitionRequest,
+  ReadScheduleDefinitionRequest,
+  RemoveScheduleDefinitionRequest,
+  ReplaceScheduleDefinitionRequest,
+  SetScheduleEnabledRequest
 } from "@wanex/product/surface"
 import type {
   ApproveLocalPluginReviewRequest,
@@ -89,6 +94,26 @@ export type Action =
   | {
       readonly type: "execute-command"
       readonly input: ExecuteCommandRequest
+    }
+  | {
+      readonly type: "read-schedule"
+      readonly input: ReadScheduleDefinitionRequest
+    }
+  | {
+      readonly type: "create-schedule"
+      readonly input: CreateScheduleDefinitionRequest
+    }
+  | {
+      readonly type: "replace-schedule"
+      readonly input: ReplaceScheduleDefinitionRequest
+    }
+  | {
+      readonly type: "set-schedule-enabled"
+      readonly input: SetScheduleEnabledRequest
+    }
+  | {
+      readonly type: "remove-schedule"
+      readonly input: RemoveScheduleDefinitionRequest
     }
   | {
       readonly type: "refresh-execution"

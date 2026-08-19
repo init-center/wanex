@@ -19,6 +19,7 @@ import type {
   DispatchActionResult,
 } from "../shared/action.js";
 import { ExtensionsSection } from "./extensions.js";
+import { SchedulesSection } from "./schedules.js";
 
 const providerLabels: Readonly<Record<ProviderPresetId, string>> = {
   openai: "OpenAI",
@@ -193,6 +194,13 @@ export function SettingsPanel({
           error={appearanceError}
           status={appearanceStatus}
           update={updateAppearance}
+        />
+      )}
+      {onboarding ? null : (
+        <SchedulesSection
+          scheduleSettings={snapshot.view.settings.schedules}
+          snapshot={snapshot}
+          dispatch={dispatchResult}
         />
       )}
       {onboarding ? null : (

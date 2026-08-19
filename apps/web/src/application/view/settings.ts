@@ -5,6 +5,7 @@ import type {
   Snapshot
 } from "../model.js"
 import { projectPluginSettings } from "../plugins/projection.js"
+import { projectScheduleSettings } from "../schedule/projection.js"
 
 export function projectSettings(
   snapshot: Omit<Snapshot, "view">,
@@ -63,7 +64,8 @@ export function projectSettings(
         rendererMayReceiveServiceBinaryPath:
           settings.integration.rendererMayReceiveServiceBinaryPath
       },
-      plugins: projectPluginSettings(snapshot.pluginManagement)
+      plugins: projectPluginSettings(snapshot.pluginManagement),
+      schedules: projectScheduleSettings(snapshot.scheduleList)
     }
   }
   return {
@@ -95,7 +97,8 @@ export function projectSettings(
       rendererMayReceiveStorePath: false,
       rendererMayReceiveServiceBinaryPath: false
     },
-    plugins: projectPluginSettings(snapshot.pluginManagement)
+    plugins: projectPluginSettings(snapshot.pluginManagement),
+    schedules: projectScheduleSettings(snapshot.scheduleList)
   }
 }
 

@@ -88,6 +88,20 @@ export function operationStatusAfterAction(request: {
       updatedAt
     })
   }
+  if (
+    isScheduleAction(request.action.type) &&
+    request.actionResult.ok &&
+    isRecord(request.actionResult.value) &&
+    (request.actionResult.value.kind === "product.schedule.conflict" ||
+      request.actionResult.value.kind === "product.schedule.rejected") &&
+    typeof request.actionResult.value.message === "string"
+  ) {
+    return blockedOperationStatus({
+      action: request.action.type,
+      message: request.actionResult.value.message,
+      updatedAt
+    })
+  }
   if (isSuccessfulWorkbenchEnvelope(request.actionResult)) {
     return workbenchOperationStatus({
       action: request.action.type,
@@ -132,6 +146,14 @@ function isPluginManagementAction(type: Action["type"]): boolean {
     type === "cancel-local-plugin-review" ||
     type === "set-plugin-install-state" ||
     type === "retry-plugin-refresh"
+}
+
+function isScheduleAction(type: Action["type"]): boolean {
+  return type === "read-schedule" ||
+    type === "create-schedule" ||
+    type === "replace-schedule" ||
+    type === "set-schedule-enabled" ||
+    type === "remove-schedule"
 }
 
 function commandPreviewOperationStatus(request: {

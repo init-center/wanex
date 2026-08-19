@@ -35,6 +35,11 @@ import type {
   TeamConversationListReadModel
 } from "@wanex/product/surface"
 import type {
+  ScheduleDefinitionReadResult,
+  ScheduleListReadModel,
+  ScheduleMutationResult,
+} from "@wanex/product"
+import type {
   CancelLocalPluginReviewResult,
   PluginInstalledVersionSummary,
   PluginManagementMutationResult,
@@ -66,6 +71,7 @@ export interface Snapshot {
   readonly modelEndpoints: SurfaceClientCommandEnvelope<ModelEndpointListReadModel>
   readonly commandCatalog: SurfaceClientCommandEnvelope<CommandCatalogReadModel>
   readonly pluginManagement: SurfaceClientCommandEnvelope<PluginManagementReadResult>
+  readonly scheduleList: SurfaceClientCommandEnvelope<ScheduleListReadModel>
   readonly events: SurfaceClientEventsResult
   readonly eventStreamId?: string
   readonly eventCursor: number
@@ -157,6 +163,16 @@ export interface SettingsViewModel {
   readonly privacy: PrivacySettingsViewModel
   readonly integration: IntegrationSettingsViewModel
   readonly plugins: PluginSettingsViewModel
+  readonly schedules: ScheduleSettingsViewModel
+}
+
+export type ScheduleSettingsState = "ready" | "unavailable" | "failed"
+
+export interface ScheduleSettingsViewModel {
+  readonly state: ScheduleSettingsState
+  readonly schedules: ScheduleListReadModel["schedules"]
+  readonly availability?: ScheduleListReadModel["availability"]
+  readonly message?: string
 }
 
 export type PluginSettingsState = "ready" | "unavailable" | "failed"
@@ -470,14 +486,14 @@ export type ActionResult =
   | {
       readonly ok: true
       readonly action: Action["type"]
-      readonly output?: PluginManagementActionOutput
+      readonly output?: ActionOutput
       readonly snapshot: Snapshot
     }
   | {
       readonly ok: false
       readonly action: Action["type"]
       readonly message: string
-      readonly output?: PluginManagementActionOutput
+      readonly output?: ActionOutput
       readonly snapshot: Snapshot
     }
 
@@ -495,6 +511,23 @@ export interface PluginManagementActionOutput {
     | RequestLocalPluginReviewResult
     | CancelLocalPluginReviewResult
     | PluginManagementMutationResult
+}
+
+export type ActionOutput =
+  | PluginManagementActionOutput
+  | ScheduleActionOutput
+
+export type ScheduleActionType =
+  | "read-schedule"
+  | "create-schedule"
+  | "replace-schedule"
+  | "set-schedule-enabled"
+  | "remove-schedule"
+
+export interface ScheduleActionOutput {
+  readonly kind: "web.schedule-action"
+  readonly action: ScheduleActionType
+  readonly result: ScheduleDefinitionReadResult | ScheduleMutationResult
 }
 
 export type ActionSuccessResult = Extract<
@@ -521,6 +554,7 @@ export type DiagnosticCode =
   | "web.model_endpoints_failed"
   | "web.command_catalog_failed"
   | "web.plugin_management_failed"
+  | "web.schedule_list_failed"
   | "web.attachments_failed"
   | "web.team_list_failed"
   | "web.events_failed"

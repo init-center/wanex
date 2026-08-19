@@ -31,6 +31,16 @@ export async function dispatchAction(
       return await options.client.previewProductCommandInvocation(action.input)
     case "execute-command":
       return await options.client.executeProductCommand(action.input)
+    case "read-schedule":
+      return await options.client.readSchedule(action.input)
+    case "create-schedule":
+      return await options.client.createSchedule(action.input)
+    case "replace-schedule":
+      return await options.client.replaceSchedule(action.input)
+    case "set-schedule-enabled":
+      return await options.client.setScheduleEnabled(action.input)
+    case "remove-schedule":
+      return await options.client.removeSchedule(action.input)
     case "refresh-execution":
       return await options.client.readExecutionReference(action.input)
     case "open-workbench":

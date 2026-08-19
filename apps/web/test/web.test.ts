@@ -8,6 +8,10 @@ import {
   type Shell,
   type ShellOptions,
   type ConversationPresentationPart,
+  type ScheduleDefinition,
+  type ScheduleMutationResult,
+  type SchedulePort,
+  type SchedulePortInvalidation,
 } from "@wanex/product";
 import { type SurfaceTransportRequest } from "@wanex/product/surface";
 import {
@@ -83,6 +87,78 @@ describe("@wanex/web", () => {
         expect(readCount()).toBe(initialReads + 1);
       },
       { extensions: { source: catalog.source } },
+    );
+  });
+
+  it("rereads the canonical schedule list only after schedule invalidation", async () => {
+    const schedules = new WebSchedulePort();
+    await withWebSurface(
+      async ({ productSurface, surface, observed }) => {
+        const readCount = () => observed.filter(
+          (request) =>
+            request.operation === "dispatchSurfaceCommand" &&
+            request.command.command === "listSchedules",
+        ).length;
+        expect(readCount()).toBe(1);
+        schedules.emit({ at: 20, revision: 2 });
+        await surface.reconcileEvents();
+        expect(readCount()).toBe(2);
+        await surface.reconcileEvents();
+        expect(readCount()).toBe(2);
+        expect(productSurface.readSurfaceEvents().events.some(
+          (event) => event.type === "product.surface.schedule.invalidated",
+        )).toBe(true);
+      },
+      { schedules },
+    );
+  });
+
+  it("transports a rejected schedule mutation as a typed blocked action", async () => {
+    const schedules = new WebSchedulePort();
+    await withWebSurface(
+      async ({ client }) => {
+        const controller = await createController({ client });
+        const response = await handleRequest(controller, {
+          kind: "web.request",
+          operation: "dispatchAction",
+          requestId: "schedule-remove-request",
+          action: {
+            type: "remove-schedule",
+            input: {
+              scheduleId: schedules.definition.scheduleId,
+              expectedRevision: schedules.definition.revision,
+            },
+          },
+        });
+
+        expect(response).toMatchObject({
+          kind: "web.response",
+          ok: true,
+          operation: "dispatchAction",
+          requestId: "schedule-remove-request",
+          actionResult: {
+            ok: false,
+            action: "remove-schedule",
+            message: "Web test port does not remove schedules.",
+            output: {
+              kind: "web.schedule-action",
+              action: "remove-schedule",
+              result: {
+                kind: "product.schedule.rejected",
+                operation: "remove",
+                reason: "storage_failed",
+              },
+            },
+            snapshot: {
+              operationStatus: {
+                state: "blocked",
+                action: "remove-schedule",
+              },
+            },
+          },
+        });
+      },
+      { schedules },
     );
   });
 
@@ -339,7 +415,7 @@ describe("@wanex/web", () => {
         descriptor: {
           ok: true,
           value: {
-            commandCount: 67,
+            commandCount: 73,
           },
         },
         view: {
@@ -397,7 +473,7 @@ describe("@wanex/web", () => {
               rendererMayReceiveServiceBinaryPath: false,
             },
           },
-          commandCount: 67,
+          commandCount: 73,
           commandPaletteCount: 1,
           commandPalette: {
             kind: "web.command-palette",
@@ -1911,7 +1987,7 @@ async function withWebSurface(
     readonly surface: Awaited<ReturnType<typeof createSurface>>;
     readonly observed: SurfaceTransportRequest[];
   }) => Promise<void>,
-  shellOptions: Pick<ShellOptions, "extensions" | "productCommands"> = {},
+  shellOptions: Pick<ShellOptions, "extensions" | "productCommands" | "schedules"> = {},
 ): Promise<void> {
   const storeDir = await createStoreDir();
   const app = await createShell({
@@ -1952,6 +2028,96 @@ type WebCatalogGeneration = ReturnType<WebCatalogSource["current"]>;
 type WebExecutionInvalidationSource = NonNullable<
   NonNullable<ShellOptions["productCommands"]>["executionInvalidations"]
 >;
+
+class WebSchedulePort implements SchedulePort {
+  readonly definition: ScheduleDefinition = {
+    kind: "product.schedule-definition",
+    scheduleId: "schedule_web_test",
+    title: "Web test schedule",
+    prompt: "Read the latest work.",
+    enabled: true,
+    trigger: {
+      kind: "interval",
+      anchorAt: 10,
+      intervalMs: 60_000,
+    },
+    sessionPolicy: { kind: "isolated" },
+    modelPolicy: { kind: "active" },
+    overlapPolicy: "skip_if_running",
+    misfirePolicy: "fire_once",
+    revision: 1,
+    createdAt: 1,
+    updatedAt: 1,
+  };
+  #listener: ((event: SchedulePortInvalidation) => void) | undefined;
+
+  async listDefinitions() {
+    return { definitions: [this.definition] };
+  }
+
+  async readDefinition(scheduleId: string) {
+    return scheduleId === this.definition.scheduleId ? this.definition : null;
+  }
+
+  async readStatus(scheduleId: string) {
+    return scheduleId === this.definition.scheduleId
+      ? {
+          kind: "product.schedule-status" as const,
+          scheduleId,
+          definitionRevision: this.definition.revision,
+          state: "scheduled" as const,
+          nextAt: 70_000,
+        }
+      : null;
+  }
+
+  async createDefinition(): Promise<ScheduleMutationResult> {
+    return {
+      kind: "product.schedule.rejected",
+      operation: "create",
+      reason: "storage_failed",
+      message: "Web test port does not create schedules.",
+    };
+  }
+
+  async replaceDefinition(): Promise<ScheduleMutationResult> {
+    return {
+      kind: "product.schedule.rejected",
+      operation: "replace",
+      reason: "storage_failed",
+      message: "Web test port does not replace schedules.",
+    };
+  }
+
+  async setEnabled(): Promise<ScheduleMutationResult> {
+    return {
+      kind: "product.schedule.rejected",
+      operation: "set_enabled",
+      reason: "storage_failed",
+      message: "Web test port does not change schedules.",
+    };
+  }
+
+  async removeDefinition(): Promise<ScheduleMutationResult> {
+    return {
+      kind: "product.schedule.rejected",
+      operation: "remove",
+      reason: "storage_failed",
+      message: "Web test port does not remove schedules.",
+    };
+  }
+
+  subscribeInvalidations(listener: (event: SchedulePortInvalidation) => void) {
+    this.#listener = listener;
+    return () => {
+      this.#listener = undefined;
+    };
+  }
+
+  emit(event: SchedulePortInvalidation): void {
+    this.#listener?.(event);
+  }
+}
 
 function createWebExecutionInvalidations(): {
   readonly source: WebExecutionInvalidationSource;

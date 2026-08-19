@@ -3235,9 +3235,22 @@ source. Product Surface never exposes the Local Host adapter, occurrence
 records, pending index, timers, trusted execution methods, prompt in list
 summaries, job/attempt/runtime identities, or raw retry errors.
 
-SCHEDULE-3C Web/Desktop Product UX is next. Build the real Schedule management
-surface through `@wanex/product/surface`, keeping it in Settings or an
-on-demand context panel rather than the normal chat timeline. The UI must not
-add a scheduler, renderer timer, polling loop, package, Store, Shell, Gateway,
-compatibility alias, or a second Schedule command set. TUI parity follows only
-after the shared Product UX contract is stable.
+SCHEDULE-3C Web/Desktop Product UX is complete. Its frozen plan,
+implementation evidence, verification, real local Host browser acceptance, and
+best-practice review are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1390-phase-schedule-3c-web-desktop-product-ux-plan.md`
+
+Web now reconciles one canonical Schedule list, dispatches the six existing
+Product Surface commands, and owns only transient form/dialog state. Settings
+provides create/edit/enable/disable/remove without exposing scheduler internals.
+The Web HTTP action registry is exhaustive over `Action["type"]`, so a future
+transport omission fails TypeScript checking. Do not restore the former
+non-exhaustive string Set, browser-native Schedule confirmation, raw session ID
+display, `fire_once` as the safe create default, polling, renderer timers,
+Store/Local Host access, compatibility aliases, or a second Schedule command
+set.
+
+The next route requires a fresh post-SCHEDULE-3C Product gap review. TUI parity
+is value-gated and must not be inferred to require the same management form as
+Web/Desktop.

@@ -67,6 +67,10 @@ import {
   pluginManagementRejectionMessage,
   projectPluginManagementActionOutput
 } from "./plugins/projection.js"
+import {
+  isScheduleAction,
+  projectScheduleActionOutput
+} from "./schedule/projection.js"
 
 export async function createSurface(
   options: CreateSurfaceOptions
@@ -193,7 +197,8 @@ async function readEventSnapshot(request: {
     sideQuery,
     plan,
     commandCatalog,
-    pluginManagement
+    pluginManagement,
+    scheduleList
   ] = await Promise.all([
     shouldRefreshExecutionActivity(
       events,
@@ -228,7 +233,10 @@ async function readEventSnapshot(request: {
       : request.snapshot.commandCatalog,
     shouldRefreshPluginManagement(events)
       ? request.options.client.readPluginManagement()
-      : request.snapshot.pluginManagement
+      : request.snapshot.pluginManagement,
+    shouldRefreshScheduleList(events)
+      ? request.options.client.listSchedules()
+      : request.snapshot.scheduleList
   ])
   const eventPosition = nextEventPosition({
     streamId: request.snapshot.eventStreamId,
@@ -294,6 +302,7 @@ async function readEventSnapshot(request: {
     goal,
     commandCatalog,
     pluginManagement,
+    scheduleList,
     teamList: teamState.list,
     team: teamState.team,
     diagnostics: projectDiagnostics({
@@ -304,6 +313,7 @@ async function readEventSnapshot(request: {
       modelEndpoints: request.snapshot.modelEndpoints,
       commandCatalog,
       pluginManagement,
+      scheduleList,
       attachments: request.snapshot.attachments,
       teamList: teamState.list,
       events
@@ -338,6 +348,14 @@ function shouldRefreshPluginManagement(
       (event) =>
         event.type === "product.surface.plugin-management.invalidated"
     )
+  )
+}
+
+function shouldRefreshScheduleList(
+  events: SurfaceClientEventsResult
+): boolean {
+  return !events.ok || events.gap || events.events.some(
+    (event) => event.type === "product.surface.schedule.invalidated"
   )
 }
 
@@ -384,7 +402,8 @@ async function readSnapshot(request: {
     teamList,
     sideQuery,
     plan,
-    pluginManagement
+    pluginManagement,
+    scheduleList
   ] = await Promise.all([
     request.options.client.descriptor(),
     request.options.client.status(),
@@ -401,7 +420,8 @@ async function readSnapshot(request: {
       client: request.options.client,
       previous: request.plan
     }),
-    request.options.client.readPluginManagement()
+    request.options.client.readPluginManagement(),
+    request.options.client.listSchedules()
   ])
   const events = await request.options.client.readSurfaceEvents({
     afterSequence: request.eventCursor,
@@ -511,6 +531,7 @@ async function readSnapshot(request: {
     modelEndpoints,
     commandCatalog,
     pluginManagement,
+    scheduleList,
     teamList,
     events,
     ...(eventPosition.streamId === undefined
@@ -536,6 +557,7 @@ async function readSnapshot(request: {
       modelEndpoints,
       commandCatalog,
       pluginManagement,
+      scheduleList,
       attachments,
       teamList,
       events
@@ -593,12 +615,16 @@ async function dispatchAction(request: {
       plan: request.plan,
       workbench: request.workbench
     })
-    const output = isPluginManagementAction(request.action)
+    const pluginOutput = isPluginManagementAction(request.action)
       ? projectPluginManagementActionOutput(
           request.action.type,
           transition.actionResult
         )
       : undefined
+    const scheduleOutput = isScheduleAction(request.action)
+      ? projectScheduleActionOutput(request.action, transition.actionResult)
+      : undefined
+    const output = pluginOutput ?? scheduleOutput
     let snapshot = await readSnapshot({
       options: request.options,
       now: request.now,
@@ -641,7 +667,7 @@ async function dispatchAction(request: {
         )
       }
     }
-    const pluginRejection = pluginManagementRejectionMessage(output)
+    const pluginRejection = pluginManagementRejectionMessage(pluginOutput)
     if (pluginRejection !== undefined) {
       return {
         ok: false,
@@ -656,6 +682,7 @@ async function dispatchAction(request: {
         ok: false,
         action: request.action.type,
         message: transition.operationStatus.message,
+        ...(output === undefined ? {} : { output }),
         snapshot
       }
     }

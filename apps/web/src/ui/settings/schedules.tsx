@@ -369,36 +369,36 @@ function ScheduleForm({
       </div>
       <label>
         <span>Name</span>
-        <input value={form.title} maxLength={200} onChange={(event) => update("title", event.target.value)} placeholder="Optional" />
+        <input name="title" value={form.title} maxLength={200} onChange={(event) => update("title", event.target.value)} placeholder="Optional" />
       </label>
       <label className={classes("schedule-form-wide")}>
         <span>Prompt</span>
-        <textarea value={form.prompt} required maxLength={65_536} rows={3} onChange={(event) => update("prompt", event.target.value)} placeholder="What should run?" />
+        <textarea name="prompt" value={form.prompt} required maxLength={65_536} rows={3} onChange={(event) => update("prompt", event.target.value)} placeholder="What should run?" />
       </label>
       <label>
         <span>Trigger</span>
-        <select value={form.triggerKind} onChange={(event) => update("triggerKind", event.target.value as TriggerKind)}>
+        <select name="triggerKind" value={form.triggerKind} onChange={(event) => update("triggerKind", event.target.value as TriggerKind)}>
           <option value="once">Once</option>
           <option value="interval">Interval</option>
           <option value="cron">Cron</option>
         </select>
       </label>
       {form.triggerKind === "once" ? (
-        <label><span>Run at</span><input type="datetime-local" required value={form.onceAt} onChange={(event) => update("onceAt", event.target.value)} /></label>
+        <label><span>Run at</span><input name="onceAt" type="datetime-local" required value={form.onceAt} onChange={(event) => update("onceAt", event.target.value)} /></label>
       ) : form.triggerKind === "interval" ? (
         <>
-          <label><span>Start at</span><input type="datetime-local" required value={form.intervalAnchorAt} onChange={(event) => update("intervalAnchorAt", event.target.value)} /></label>
-          <label><span>Repeat</span><span className={classes("schedule-inline-field")}><input type="number" min={1} required value={form.intervalValue} onChange={(event) => update("intervalValue", event.target.value)} /><select value={form.intervalUnit} onChange={(event) => update("intervalUnit", event.target.value as IntervalUnit)}><option value="seconds">seconds</option><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select></span></label>
+          <label><span>Start at</span><input name="intervalAnchorAt" type="datetime-local" required value={form.intervalAnchorAt} onChange={(event) => update("intervalAnchorAt", event.target.value)} /></label>
+          <label><span>Repeat</span><span className={classes("schedule-inline-field")}><input name="intervalValue" type="number" min={1} required value={form.intervalValue} onChange={(event) => update("intervalValue", event.target.value)} /><select name="intervalUnit" value={form.intervalUnit} onChange={(event) => update("intervalUnit", event.target.value as IntervalUnit)}><option value="seconds">seconds</option><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select></span></label>
         </>
       ) : (
         <>
-          <label><span>Cron expression</span><input required maxLength={256} value={form.cronExpression} onChange={(event) => update("cronExpression", event.target.value)} placeholder="0 9 * * 1-5" /></label>
-          <label><span>Time zone</span><input required maxLength={128} value={form.timeZone} onChange={(event) => update("timeZone", event.target.value)} /></label>
+          <label><span>Cron expression</span><input name="cronExpression" required maxLength={256} value={form.cronExpression} onChange={(event) => update("cronExpression", event.target.value)} placeholder="0 9 * * 1-5" /></label>
+          <label><span>Time zone</span><input name="timeZone" required maxLength={128} value={form.timeZone} onChange={(event) => update("timeZone", event.target.value)} /></label>
         </>
       )}
       <label>
         <span>Session</span>
-        <select value={form.sessionMode} onChange={(event) => {
+        <select name="sessionMode" value={form.sessionMode} onChange={(event) => {
           const mode = event.target.value as SessionMode
           setForm({
             ...form,
@@ -419,7 +419,7 @@ function ScheduleForm({
       <div />
       <label>
         <span>Model</span>
-        <select value={form.modelMode === "active" ? "active" : `pinned:${form.pinnedEndpointId}`} onChange={(event) => {
+        <select name="modelMode" value={form.modelMode === "active" ? "active" : `pinned:${form.pinnedEndpointId}`} onChange={(event) => {
           const value = event.target.value
           if (value === "active") setForm({ ...form, modelMode: "active" })
           else setForm({ ...form, modelMode: "pinned", pinnedEndpointId: value.slice("pinned:".length) })
@@ -433,12 +433,12 @@ function ScheduleForm({
       </label>
       <label>
         <span>If missed</span>
-        <select value={form.misfirePolicy} onChange={(event) => update("misfirePolicy", event.target.value as ScheduleFormState["misfirePolicy"])}>
+        <select name="misfirePolicy" value={form.misfirePolicy} onChange={(event) => update("misfirePolicy", event.target.value as ScheduleFormState["misfirePolicy"])}>
           <option value="fire_once">Run once after reconnect</option>
           <option value="skip">Skip missed run</option>
         </select>
       </label>
-      <label className={classes("checkbox schedule-form-wide")}><input type="checkbox" checked={form.enabled} onChange={(event) => update("enabled", event.target.checked)} /><span>Enabled</span></label>
+      <label className={classes("checkbox schedule-form-wide")}><input name="enabled" type="checkbox" checked={form.enabled} onChange={(event) => update("enabled", event.target.checked)} /><span>Enabled</span></label>
       <div className={classes("inline-actions schedule-form-wide")}>
         <button type="submit" disabled={busy}><Check size={14} /> {form.scheduleId === undefined ? "Create schedule" : "Save changes"}</button>
         <button type="button" disabled={busy} onClick={cancel}>Cancel</button>

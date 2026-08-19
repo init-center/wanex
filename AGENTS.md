@@ -3251,6 +3251,40 @@ display, `fire_once` as the safe create default, polling, renderer timers,
 Store/Local Host access, compatibility aliases, or a second Schedule command
 set.
 
-The next route requires a fresh post-SCHEDULE-3C Product gap review. TUI parity
-is value-gated and must not be inferred to require the same management form as
-Web/Desktop.
+The post-SCHEDULE-3C review selected SCHEDULE-4 Packaged Acceptance. Its frozen
+plan is:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1391-post-schedule-3c-review-and-phase-schedule-4-packaged-acceptance-plan.md`
+
+SCHEDULE-4 must reuse the existing packaged Desktop, controlled Provider,
+same-profile relaunch orchestration, receipt, and distribution audit. It proves
+visible five-second Schedule creation, real fire, a held first execution across
+multiple deadlines without another Provider request, disable, durable relaunch,
+re-enable/fire, quiet disabled interval, remove, privacy, and shutdown cleanup.
+Deterministic misfire, DST, clock rollback, retry, and duplicate-claim evidence
+remains in Local Host fake-clock tests; do not add a fake clock or scheduler
+control to production renderer contracts. Add no package, test app, Gateway,
+polling, renderer timer, second event bus, compatibility path, or footprint
+budget increase. TUI Schedule parity remains value-gated.
+
+SCHEDULE-4 and the complete local Schedule Productization route are finished.
+The implementation, packaged evidence, regression corrections, distribution
+measurements, and final best-practice review are recorded in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1392-phase-schedule-4-packaged-acceptance-completion.md`
+
+Product now projects trusted background conversation work only after durable
+active-attempt validation; it does not require the turn to have been registered
+by the current UI. Web retains at most eight non-selected conversation streams
+of 65,536 characters each, keyed by Product operation identity, and clears them
+on matching invalidation. SSE-triggered snapshot rereads are advisory and must
+not supersede an in-flight foreground action response. Team participant forms
+submit the named select value directly instead of duplicating it in component
+state. Do not restore UI-tracking event admission, unbounded cross-session text,
+advisory refresh generations, or duplicated controlled form truth.
+
+Packaged Desktop proves a visible five-second Schedule, one held Provider
+request across two further deadlines, disable/quiet, same-profile restore,
+re-enable with one request, remove, privacy, footprint, and process cleanup.
+Schedule Productization is closed. The next route requires a fresh global
+Product gap review; TUI Schedule parity remains value-gated.

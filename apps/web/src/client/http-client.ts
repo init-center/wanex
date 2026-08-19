@@ -361,18 +361,32 @@ export function createHttpClient(
         return;
       }
       if (event?.type === "product.surface.conversation.assistant-text-delta") {
+        if (
+          event.conversation?.operationId === undefined ||
+          event.conversation.sessionId === undefined ||
+          event.conversation.text === undefined
+        ) {
+          emit({ kind: "snapshot-invalidated" });
+          return;
+        }
         emit({
           kind: "assistant-text-delta",
+          operationId: event.conversation.operationId,
+          sessionId: event.conversation.sessionId,
+          text: event.conversation.text,
+          sequence: event.sequence,
+        });
+        return;
+      }
+      if (event?.type === "product.surface.conversation.operation-invalidated") {
+        emit({
+          kind: "snapshot-invalidated",
           ...(event.conversation?.operationId === undefined
             ? {}
             : { operationId: event.conversation.operationId }),
           ...(event.conversation?.sessionId === undefined
             ? {}
             : { sessionId: event.conversation.sessionId }),
-          ...(event.conversation?.text === undefined
-            ? {}
-            : { text: event.conversation.text }),
-          sequence: event.sequence,
         });
         return;
       }

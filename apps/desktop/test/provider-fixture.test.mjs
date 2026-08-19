@@ -15,6 +15,10 @@ import {
   WANEX_DESKTOP_PROOF_GUIDED_PARENT_RESPONSE,
   WANEX_DESKTOP_PROOF_GUIDED_PARENT_TEXT,
   WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+  WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_ANSWER,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_FINAL_DELTA,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_PARTIAL_RESPONSE,
@@ -29,6 +33,70 @@ afterEach(async () => {
 })
 
 describe("Product Desktop proof Provider fixture", () => {
+  it("holds exactly one Schedule response and restores without retaining the prompt", async () => {
+    const credential = "proof-schedule-fixture-secret"
+    const fixture = await listenProductDesktopProofProvider({ credential })
+    fixtures.push(fixture)
+    const headers = {
+      authorization: `Bearer ${credential}`,
+      "content-type": "application/json"
+    }
+    const request = () => fetch(`${fixture.baseUrl}/relaunch/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+        messages: [{ role: "user", content: WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT }],
+        stream: true
+      })
+    })
+
+    const firstPromise = request()
+    await waitFor(() => fixture.requests.length === 1)
+    await new Promise((resolve) => setTimeout(resolve, 1_050))
+    expect(fixture.releaseSchedule()).toBe(true)
+    expect(fixture.releaseSchedule()).toBe(false)
+    const first = await firstPromise
+    const firstStream = await first.text()
+    expect(firstStream).toContain(WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE)
+    expect(firstStream).toContain(WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA)
+
+    const second = await request()
+    expect(await second.text()).toContain(
+      WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE
+    )
+    expect(fixture.requests).toEqual([
+      {
+        path: "/v1/relaunch/chat/completions",
+        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+        authorized: true,
+        imageInputCount: 0,
+        imageMediaTypes: [],
+        imageBytes: 0,
+        schedulePhase: "held",
+        scheduleAttempt: 1,
+        scheduleReleaseReceived: true,
+        scheduleSettled: true,
+        scheduleClientClosed: false
+      },
+      {
+        path: "/v1/relaunch/chat/completions",
+        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+        authorized: true,
+        imageInputCount: 0,
+        imageMediaTypes: [],
+        imageBytes: 0,
+        schedulePhase: "restored",
+        scheduleAttempt: 2
+      }
+    ])
+    const retained = JSON.stringify(fixture.requests)
+    expect(retained).not.toContain(credential)
+    expect(retained).not.toContain(WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT)
+    expect(retained).not.toContain(WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE)
+    expect(retained).not.toContain(WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE)
+  })
+
   it("records only bounded non-secret request evidence", async () => {
     const credential = "proof-fixture-secret"
     const fixture = await listenProductDesktopProofProvider({ credential })
@@ -335,3 +403,12 @@ describe("Product Desktop proof Provider fixture", () => {
     expect(retained).not.toContain(WANEX_DESKTOP_PROOF_SIDE_QUERY_ANSWER)
   })
 })
+
+async function waitFor(read, timeoutMs = 3_000) {
+  const end = Date.now() + timeoutMs
+  while (Date.now() < end) {
+    if (read()) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error("Provider fixture test timed out")
+}

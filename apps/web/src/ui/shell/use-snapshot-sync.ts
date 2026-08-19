@@ -8,6 +8,14 @@ import type { Snapshot } from "../../application/model.js";
 import type { Client } from "../../client/contracts.js";
 import { preserveExpandedConversationHistory } from "../../application/conversation/projection.js";
 
+const MAX_BUFFERED_ASSISTANT_CHARS = 65_536;
+const MAX_BUFFERED_CONVERSATIONS = 8;
+
+interface BufferedAssistantText {
+  readonly operationId: string;
+  readonly text: string;
+}
+
 export function useSnapshotSync(
   client: Client,
   initialSnapshot: Snapshot | undefined,
@@ -31,6 +39,10 @@ export function useSnapshotSync(
   const [snapshotRetrying, setSnapshotRetrying] = useState(false);
   const [snapshotReadAttempt, setSnapshotReadAttempt] = useState(0);
   const [streamAvailable, setStreamAvailable] = useState(true);
+  const snapshotRef = useRef(snapshot);
+  const bufferedAssistantText = useRef(
+    new Map<string, BufferedAssistantText>(),
+  );
   const requestGeneration = useRef(0);
   const latestAdoptedGeneration = useRef(0);
   const retryInFlight = useRef(false);
@@ -46,7 +58,12 @@ export function useSnapshotSync(
     if (generation < latestAdoptedGeneration.current) return;
     latestAdoptedGeneration.current = generation;
     setSnapshotError(undefined);
-    setSnapshot((current) => preserveTransientAssistantText(current, next));
+    const adopted = applyBufferedAssistantText(
+      preserveTransientAssistantText(snapshotRef.current, next),
+      bufferedAssistantText.current,
+    );
+    snapshotRef.current = adopted;
+    setSnapshot(adopted);
   }, []);
   const adoptArrivedSnapshot = useCallback((next: Snapshot) => {
     adoptSnapshot(next, beginRequest());
@@ -87,13 +104,37 @@ export function useSnapshotSync(
           return;
         }
         setStreamAvailable(true);
-        if (event.kind === "assistant-text-delta" && event.text !== undefined) {
-          setSnapshot((current) =>
-            current === undefined || !matchesConversation(current, event)
-              ? current
-              : withTransientDelta(current, event.text ?? ""),
-          );
+        if (event.kind === "assistant-text-delta") {
+          const current = snapshotRef.current;
+          if (current !== undefined && matchesConversation(current, event)) {
+            const next = withTransientDelta(current, event.text);
+            snapshotRef.current = next;
+            setSnapshot(next);
+            return;
+          }
+          bufferAssistantDelta(bufferedAssistantText.current, event);
+          if (current !== undefined) {
+            const next = applyBufferedAssistantText(
+              current,
+              bufferedAssistantText.current,
+            );
+            if (next !== current) {
+              snapshotRef.current = next;
+              setSnapshot(next);
+            }
+          }
+          scheduleRefresh();
           return;
+        }
+        if (
+          event.kind === "snapshot-invalidated" &&
+          event.operationId !== undefined &&
+          event.sessionId !== undefined
+        ) {
+          clearBufferedAssistantText(bufferedAssistantText.current, {
+            operationId: event.operationId,
+            sessionId: event.sessionId,
+          });
         }
         scheduleRefresh();
       });
@@ -113,7 +154,7 @@ export function useSnapshotSync(
     async function refreshCanonicalSnapshot(): Promise<void> {
       do {
         refreshPending = false;
-        const generation = beginRequest();
+        const generation = latestAdoptedGeneration.current;
         try {
           const next = await client.readSnapshot();
           if (!mounted) return;
@@ -156,6 +197,59 @@ export function useSnapshotSync(
   };
 }
 
+function bufferAssistantDelta(
+  buffered: Map<string, BufferedAssistantText>,
+  event: {
+    readonly operationId: string;
+    readonly sessionId: string;
+    readonly text: string;
+  },
+): void {
+  const current = buffered.get(event.sessionId);
+  const text = current?.operationId === event.operationId
+    ? `${current.text}${event.text}`
+    : event.text;
+  buffered.delete(event.sessionId);
+  buffered.set(event.sessionId, {
+    operationId: event.operationId,
+    text: text.slice(-MAX_BUFFERED_ASSISTANT_CHARS),
+  });
+  while (buffered.size > MAX_BUFFERED_CONVERSATIONS) {
+    const oldest = buffered.keys().next().value as string | undefined;
+    if (oldest === undefined) break;
+    buffered.delete(oldest);
+  }
+}
+
+function clearBufferedAssistantText(
+  buffered: Map<string, BufferedAssistantText>,
+  event: {
+    readonly operationId: string;
+    readonly sessionId: string;
+  },
+): void {
+  if (buffered.get(event.sessionId)?.operationId === event.operationId) {
+    buffered.delete(event.sessionId);
+  }
+}
+
+function applyBufferedAssistantText(
+  snapshot: Snapshot,
+  buffered: ReadonlyMap<string, BufferedAssistantText>,
+): Snapshot {
+  const sessionId = snapshot.conversation.sessionId;
+  if (sessionId === undefined) return snapshot;
+  const pending = buffered.get(sessionId);
+  if (
+    pending === undefined ||
+    (snapshot.conversation.operationId !== undefined &&
+      snapshot.conversation.operationId !== pending.operationId)
+  ) {
+    return snapshot;
+  }
+  return withTransientAssistantText(snapshot, pending.text);
+}
+
 function preserveTransientAssistantText(
   current: Snapshot | undefined,
   candidate: Snapshot,
@@ -186,6 +280,13 @@ function withTransientDelta(
   text: string,
 ): Snapshot {
   const transient = `${snapshot.conversation.transientAssistantText ?? ""}${text}`;
+  return withTransientAssistantText(snapshot, transient);
+}
+
+function withTransientAssistantText(
+  snapshot: Snapshot,
+  transient: string,
+): Snapshot {
   return {
     ...snapshot,
     conversation: { ...snapshot.conversation, transientAssistantText: transient },

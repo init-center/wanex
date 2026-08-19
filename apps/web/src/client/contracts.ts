@@ -101,16 +101,20 @@ export interface PreparedResourceDelivery {
   readonly expiresAt: number;
 }
 
-export interface ClientEvent {
-  readonly kind:
-    | "snapshot-invalidated"
-    | "assistant-text-delta"
-    | "stream-unavailable";
-  readonly operationId?: string;
-  readonly sessionId?: string;
-  readonly text?: string;
-  readonly sequence?: number;
-}
+export type ClientEvent =
+  | {
+      readonly kind: "snapshot-invalidated";
+      readonly operationId?: string;
+      readonly sessionId?: string;
+    }
+  | {
+      readonly kind: "assistant-text-delta";
+      readonly operationId: string;
+      readonly sessionId: string;
+      readonly text: string;
+      readonly sequence?: number;
+    }
+  | { readonly kind: "stream-unavailable" };
 
 export interface Client {
   readSnapshot(): Promise<Snapshot>;

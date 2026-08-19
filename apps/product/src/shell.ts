@@ -115,7 +115,6 @@ export async function createShell(
   });
   const conversationEvents = createConversationEventHub({
     backend,
-    state,
   });
   const commandCatalogEvents = createCommandCatalogEventHub({
     ...(options.extensions?.source === undefined

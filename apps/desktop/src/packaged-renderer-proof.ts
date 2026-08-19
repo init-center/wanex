@@ -16,6 +16,7 @@ import type {
   WanexDesktopNarrowVisualAccessibilityProofResult,
   WanexDesktopNormalVisualAccessibilityProofResult,
   WanexDesktopPluginProofResult,
+  WanexDesktopScheduleProofResult,
   WanexDesktopTeamProofResult,
   WanexDesktopVisualAccessibilityProofResult,
 } from "./proof-contract.js";
@@ -23,7 +24,17 @@ import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
   WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER,
+  WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER,
 } from "./proof-contract.js";
+import {
+  wanexDesktopScheduleCreateAdmissionProofScript,
+  wanexDesktopScheduleCreateSettlementProofScript,
+  wanexDesktopScheduleRestoreProofScript,
+} from "./schedule-proof-script.js";
+import type {
+  WanexDesktopScheduleCreateAdmission,
+} from "./schedule-proof.js";
 import type {
   WanexDesktopProviderGuidedFollowUpAdmission,
 } from "./provider-guided-follow-up-proof.js";
@@ -45,6 +56,8 @@ export type WanexDesktopPackagedProofStep =
   | "relaunch-team"
   | "relaunch-plugin-install"
   | "relaunch-plugin-restore"
+  | "relaunch-schedule-create"
+  | "relaunch-schedule-restore"
   | WanexDesktopProviderRelaunchProofStep;
 
 export class DesktopRendererProofError extends Error {
@@ -55,6 +68,7 @@ export class DesktopRendererProofError extends Error {
       | WanexDesktopRendererProofResult
       | WanexDesktopProviderRelaunchProofResult
       | WanexDesktopPluginProofResult
+      | WanexDesktopScheduleProofResult
       | WanexDesktopTeamProofResult,
   ) {
     super("desktop Product renderer proof failed");
@@ -89,6 +103,8 @@ export function requiredWanexDesktopPackagedProofStep(
     value === "relaunch-image-generation" ||
     value === "relaunch-plan" ||
     value === "relaunch-goal" ||
+    value === "relaunch-schedule-create" ||
+    value === "relaunch-schedule-restore" ||
     value === "relaunch-team" ||
     value === "relaunch-plugin-install" ||
     value === "relaunch-plugin-restore" ||
@@ -109,6 +125,7 @@ export async function runWanexDesktopPackagedRendererProof(input: {
   | WanexDesktopRendererProofResult
   | WanexDesktopProviderRelaunchProofResult
   | WanexDesktopPluginProofResult
+  | WanexDesktopScheduleProofResult
   | WanexDesktopTeamProofResult
 > {
   if (input.step === "lifecycle") {
@@ -155,6 +172,31 @@ export async function runWanexDesktopPackagedRendererProof(input: {
       wanexDesktopTeamProofScript(),
       true,
     )) as WanexDesktopTeamProofResult;
+  }
+  if (input.step === "relaunch-schedule-create") {
+    const admission = (await input.window.webContents.executeJavaScript(
+      wanexDesktopScheduleCreateAdmissionProofScript(),
+      true,
+    )) as WanexDesktopScheduleCreateAdmission;
+    if (
+      admission?.ok !== true ||
+      admission.scheduleId.length === 0 ||
+      admission.sessionId.length === 0
+    ) {
+      throw new Error("desktop Schedule admission proof failed");
+    }
+    await new Promise((resolve) => setTimeout(resolve, WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS));
+    process.stdout.write(`${WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER}\n`);
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopScheduleCreateSettlementProofScript(admission),
+      true,
+    )) as WanexDesktopScheduleProofResult;
+  }
+  if (input.step === "relaunch-schedule-restore") {
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopScheduleRestoreProofScript(),
+      true,
+    )) as WanexDesktopScheduleProofResult;
   }
   if (input.step === "relaunch-plugin-install") {
     return (await input.window.webContents.executeJavaScript(

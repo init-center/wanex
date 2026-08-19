@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest"
 import type { BackendShell } from "../src/backend/index.js"
 import { createConversationEventHub } from "../src/conversation/events.js"
-import type { MutableState } from "../src/state/product.js"
 
 type ConversationEventBackend = {
   readonly events: BackendShell["events"]
@@ -12,27 +11,13 @@ type ConversationEventBackend = {
 }
 
 describe("product conversation event filtering", () => {
-  it("emits only the tracked active attempt and isolates presentation listeners", async () => {
+  it("emits durable active foreground and background attempts and isolates presentation listeners", async () => {
     const reference = {
       sessionId: "ses_product_event_filter",
       inputId: "inp_product_event_filter",
       turnId: "turn_product_event_filter",
       jobId: "job_product_event_filter"
     }
-    const state: MutableState = {
-      selection: { kind: "session", sessionId: reference.sessionId },
-      layout: "single",
-      mode: "chat",
-      preferences: {
-        theme: "system",
-        density: "comfortable"
-      },
-    trackedConversationOperations: {
-        [reference.sessionId]: reference
-    },
-    pendingGuidedFollowUps: {},
-    conversationAttachmentDrafts: {}
-  }
     let sourceListener: Parameters<
       ConversationEventBackend["events"]["subscribeConversationEvents"]
     >[0] | undefined
@@ -76,7 +61,7 @@ describe("product conversation event filtering", () => {
         }
       }
     }
-    const hub = createConversationEventHub({ backend, state })
+    const hub = createConversationEventHub({ backend })
     const observed: Array<
       Parameters<Parameters<typeof hub.subscribeConversationEvents>[0]>[0]
     > = []
@@ -165,7 +150,6 @@ describe("product conversation event filtering", () => {
       turnId: "turn_product_event_pending",
       jobId: "job_product_event_pending"
     }
-    state.pendingGuidedFollowUps[reference.sessionId] = pendingReference
     sourceListener?.({
       kind: "wanex-app.conversation.assistant-text-delta",
       sequence: 5,
@@ -184,8 +168,6 @@ describe("product conversation event filtering", () => {
       text: "pending operation"
     })
 
-    state.trackedConversationOperations[reference.sessionId] = pendingReference
-    delete state.pendingGuidedFollowUps[reference.sessionId]
     sourceListener?.({
       kind: "wanex-app.conversation.assistant-text-delta",
       sequence: 6,
@@ -197,7 +179,13 @@ describe("product conversation event filtering", () => {
       truncated: false
     })
     await settleEventQueue()
-    expect(observed).toHaveLength(4)
+    expect(observed[4]).toMatchObject({
+      kind: "product.conversation.assistant-text-delta",
+      sequence: 5,
+      sessionId: reference.sessionId,
+      text: "replaced operation"
+    })
+    expect(durableReadCount).toBe(4)
 
     await hub.dispose()
     await hub.dispose()

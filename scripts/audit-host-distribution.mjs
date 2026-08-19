@@ -222,6 +222,10 @@ export function auditHostDistributionData(request) {
       "Product Desktop proof summary"
     )
     const samples = requireArray(desktop.samples, "Product Desktop proof samples")
+    const schedule = requireRecord(
+      desktop.schedule,
+      "Product Desktop Schedule proof summary"
+    )
     const summary = summarizeProductDesktopSamples(samples)
     const coldTimings = requireRecord(
       summary.cold.timingsMs,
@@ -247,6 +251,60 @@ export function auditHostDistributionData(request) {
     expectEqual(failures, "Product Desktop process cleanup", desktop.noOwnedProcessAfterRun, true)
     expectEqual(failures, "Product Desktop real Product document", desktop.realProductDocument, true)
     expectEqual(failures, "Product Desktop screenshot evidence", desktop.screenshotsNonBlank, true)
+    expectEqual(
+      failures,
+      "Product Desktop Schedule interval seconds",
+      schedule.intervalSeconds,
+      5
+    )
+    expectMinimum(
+      failures,
+      "Product Desktop Schedule held duration ms",
+      schedule.heldForMs,
+      10_000
+    )
+    expectMinimum(
+      failures,
+      "Product Desktop Schedule crossed deadlines",
+      schedule.crossedDeadlineCount,
+      2
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule create Provider request count",
+      schedule.createProviderRequestCount,
+      1
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule restore Provider request count",
+      schedule.restoreProviderRequestCount,
+      1
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule non-overlap",
+      schedule.nonOverlapVerified,
+      true
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule disabled quiet window",
+      schedule.disabledQuietWindowVerified,
+      true
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule same-profile restore",
+      schedule.sameProfileRestored,
+      true
+    )
+    expectEqual(
+      failures,
+      "Product Desktop Schedule removal",
+      schedule.removed,
+      true
+    )
     expectEqual(failures, "Product Desktop ASAR entry count", packaged.asarEntryCount, desktopBudget.exactAsarEntryCount)
     expectEqual(failures, "Product Desktop native file count", packaged.nativeFileCount, desktopBudget.exactNativeFileCount)
     expectEqual(failures, "Product Desktop credential file count", packaged.credentialFileCount, desktopBudget.exactCredentialFileCount)
@@ -332,6 +390,14 @@ export function auditHostDistributionData(request) {
       nativeFileCount: packaged.nativeFileCount,
       credentialBytes: packaged.credentialBytes,
       credentialFileCount: packaged.credentialFileCount,
+      schedule: {
+        intervalSeconds: schedule.intervalSeconds,
+        heldForMs: schedule.heldForMs,
+        crossedDeadlineCount: schedule.crossedDeadlineCount,
+        nonOverlapVerified: schedule.nonOverlapVerified,
+        sameProfileRestored: schedule.sameProfileRestored,
+        removed: schedule.removed
+      },
       cold: {
         interactiveTotalMs: coldTimings.interactiveTotal,
         conversationSettlementMs: coldTimings.conversationSettlement,

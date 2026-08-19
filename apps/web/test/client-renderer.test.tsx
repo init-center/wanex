@@ -2825,6 +2825,178 @@ describe("Web client", () => {
     expect(assistant.textContent).not.toContain("Working");
   });
 
+  it("refreshes the canonical snapshot for streamed work outside the selected conversation", async () => {
+    const initial = runningSnapshot();
+    const externalSessionId = "session_schedule_external";
+    const externalOperationId = "operation_schedule_external";
+    const externalSession = {
+      ...initial,
+      generatedAt: initial.generatedAt + 1,
+      view: {
+        ...initial.view,
+        sessionCount: initial.view.sessionCount + 1,
+        recentSessions: [
+          ...initial.view.recentSessions,
+          {
+            sessionId: externalSessionId,
+            label: "Scheduled conversation",
+            kind: "agent" as const,
+            status: "active" as const,
+            revision: 1,
+            createdAt: 2,
+            updatedAt: 2,
+            selected: false,
+            archived: false,
+          },
+        ],
+      },
+    };
+    const selectedExternalSession: Snapshot = {
+      ...externalSession,
+      conversation: {
+        kind: "web.conversation",
+        state: "untracked",
+        sessionId: externalSessionId,
+        message: "No interactive operation is tracked for this conversation.",
+        historyRows: [],
+        historyPage: {
+          limit: 100,
+          hasMore: false,
+          liveRowsTruncated: false,
+        },
+        historyExpanded: false,
+        canSubmit: true,
+        canQueueFollowUp: false,
+        canSteer: false,
+        canCancel: false,
+        canRegenerate: false,
+      },
+      view: {
+        ...externalSession.view,
+        title: "Scheduled conversation",
+        selection: { kind: "session", sessionId: externalSessionId },
+        selectedSessionTitle: "Scheduled conversation",
+        recentSessions: externalSession.view.recentSessions.map((session) => ({
+          ...session,
+          selected: session.sessionId === externalSessionId,
+        })),
+        conversationState: "untracked",
+      },
+    };
+    let listener: ((event: ClientEvent) => void) | undefined;
+    let readCount = 0;
+    let canonicalSnapshot: Snapshot = externalSession;
+    const client: Client = {
+      async readSnapshot() {
+        readCount += 1;
+        return canonicalSnapshot;
+      },
+      async dispatchAction(action) {
+        expect(action).toEqual({
+          type: "select-session",
+          sessionId: externalSessionId,
+        });
+        return { ok: true, action: action.type, snapshot: selectedExternalSession };
+      },
+      subscribe(nextListener) {
+        listener = nextListener;
+        return () => {};
+      },
+    };
+    await mount(client, initial);
+    await waitFor(() => listener !== undefined);
+
+    await act(async () => listener?.({
+      kind: "assistant-text-delta",
+      operationId: externalOperationId,
+      sessionId: externalSessionId,
+      text: "Scheduled response started",
+    }));
+    await act(async () => {
+      await waitFor(() => document.querySelector(
+        `[data-ui-session-select="${externalSessionId}"]`,
+      ) !== null);
+    });
+
+    expect(readCount).toBe(1);
+    expect(document.querySelector("[data-ui-transient-assistant]")).toBeNull();
+
+    await act(async () => requiredElement<HTMLButtonElement>(
+      `[data-ui-session-select="${externalSessionId}"]`,
+    ).click());
+    await waitFor(() => document.querySelector("[data-ui-transient-assistant]") !== null);
+    expect(document.querySelector("[data-ui-transient-assistant]")?.textContent)
+      .toContain("Scheduled response started");
+
+    canonicalSnapshot = selectedExternalSession;
+    await act(async () => listener?.({
+      kind: "snapshot-invalidated",
+      operationId: externalOperationId,
+      sessionId: externalSessionId,
+    }));
+    await waitFor(() => document.querySelector("[data-ui-transient-assistant]") === null);
+    expect(readCount).toBe(2);
+  });
+
+  it("does not let an advisory stream refresh supersede an in-flight user action", async () => {
+    const initial = sessionLibrarySnapshot();
+    const secondarySessionId = "session_secondary";
+    const selected: Snapshot = {
+      ...initial,
+      generatedAt: initial.generatedAt + 1,
+      view: {
+        ...initial.view,
+        title: "Provider investigation",
+        selection: { kind: "session", sessionId: secondarySessionId },
+        selectedSessionTitle: "Provider investigation",
+        recentSessions: initial.view.recentSessions.map((session) => ({
+          ...session,
+          selected: session.sessionId === secondarySessionId,
+        })),
+      },
+    };
+    let listener: ((event: ClientEvent) => void) | undefined;
+    let resolveSelection: ((result: ActionResult) => void) | undefined;
+    let readCount = 0;
+    const client: Client = {
+      async readSnapshot() {
+        readCount += 1;
+        return initial;
+      },
+      dispatchAction(action) {
+        expect(action).toEqual({
+          type: "select-session",
+          sessionId: secondarySessionId,
+        });
+        return new Promise((resolve) => {
+          resolveSelection = resolve;
+        });
+      },
+      subscribe(nextListener) {
+        listener = nextListener;
+        return () => {};
+      },
+    };
+    await mount(client, initial);
+    await waitFor(() => listener !== undefined);
+
+    await act(async () => requiredElement<HTMLButtonElement>(
+      `[data-ui-session-select="${secondarySessionId}"]`,
+    ).click());
+    await waitFor(() => resolveSelection !== undefined);
+    await act(async () => listener?.({ kind: "snapshot-invalidated" }));
+    await waitFor(() => readCount === 1);
+
+    await act(async () => resolveSelection?.({
+      ok: true,
+      action: "select-session",
+      snapshot: selected,
+    }));
+    await waitFor(() => document.querySelector(
+      `[data-ui-session-select="${secondarySessionId}"][aria-current="true"]`,
+    ) !== null);
+  });
+
   it("renders a queued follow-up with its opaque Product operation identity", async () => {
     const snapshot = pendingFollowUpSnapshot(runningSnapshot());
     await mount(createClient(snapshot));
@@ -3229,9 +3401,12 @@ describe("Web client", () => {
         done: false as const,
         value: encoder.encode(
           [4, 5, 6, 7, 8, 9]
-            .map((sequence) =>
-              `data: {"kind":"product.surface-stream.event","streamId":"react_stream","event":{"type":"${sequence === 9 ? "product.surface.conversation.operation-invalidated" : sequence === 8 ? "product.surface.team.invalidated" : "product.surface.state_changed"}","sequence":${sequence}}}\n`,
-            )
+            .map((sequence) => {
+              const conversation = sequence === 9
+                ? ',"conversation":{"operationId":"operation_external","sessionId":"session_external"}'
+                : "";
+              return `data: {"kind":"product.surface-stream.event","streamId":"react_stream","event":{"type":"${sequence === 9 ? "product.surface.conversation.operation-invalidated" : sequence === 8 ? "product.surface.team.invalidated" : "product.surface.state_changed"}","sequence":${sequence}${conversation}}}\n`;
+            })
             .join("\n") + "\n",
         ),
       },
@@ -3295,7 +3470,11 @@ describe("Web client", () => {
       .toBe("react_stream:7");
     expect(events).toEqual([
       { kind: "snapshot-invalidated" },
-      { kind: "snapshot-invalidated" },
+      {
+        kind: "snapshot-invalidated",
+        operationId: "operation_external",
+        sessionId: "session_external",
+      },
       { kind: "stream-unavailable" },
     ]);
     unsubscribe?.();
@@ -3635,6 +3814,51 @@ describe("Web client", () => {
     expect(actions).toContainEqual({
       type: "close-team-conversation",
       input: { conversationId: "team_review" },
+    });
+  });
+
+  it("adds the agent conversation selected in the form when it is not the default candidate", async () => {
+    const base = teamSnapshot();
+    const snapshot: Snapshot = {
+      ...base,
+      view: {
+        ...base.view,
+        recentSessions: [
+          {
+            ...base.view.recentSessions[0]!,
+            sessionId: "session_schedule_recent",
+            label: "Recent scheduled conversation",
+            selected: false,
+            updatedAt: 3,
+          },
+          base.view.recentSessions[0]!,
+        ],
+      },
+    };
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      return { ok: true, action: action.type, snapshot };
+    }), snapshot);
+
+    await act(async () => requiredButton("Toggle context panel").click());
+    const select = requiredElement<HTMLSelectElement>(
+      'select[name="agentSessionId"]',
+    );
+    await act(async () => {
+      select.value = "session_react";
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await submitForm(requiredButton("Add").closest("form")!);
+
+    expect(actions).toContainEqual({
+      type: "add-team-participant",
+      input: {
+        conversationId: "team_review",
+        agentSessionId: "session_react",
+        displayName: "Renderer architecture",
+        idempotencyKey: "team-participant:team_review:session_react",
+      },
     });
   });
 

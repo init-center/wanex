@@ -48,6 +48,13 @@ import {
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_TEXT,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_QUESTION,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER,
+  WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS,
+  WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE,
   WANEX_DESKTOP_PROOF_TEAM_MESSAGE,
   WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID
 } from "../src/proof-contract.ts"
@@ -144,7 +151,7 @@ export async function proveProductDesktop() {
         wallTimeMs: measured.wallTimeMs
       })
     }
-    const relaunch = await proveProductDesktopProviderRelaunch({
+    const relaunch = await proveProductDesktopRelaunchJourneys({
       executable,
       proofRoot,
       userDataDir,
@@ -203,6 +210,7 @@ export async function proveProductDesktop() {
       samples,
       summary: summarizeProductDesktopSamples(samples),
       relaunch,
+      schedule: relaunch.schedule,
       providerFixture: {
         requestCount: provider.requests.length,
         allAuthorized: provider.requests.every((request) => request.authorized),
@@ -256,7 +264,7 @@ async function makeProofTreeOwnerWritable(path) {
   }))
 }
 
-export async function proveProductDesktopProviderRelaunch(options) {
+export async function proveProductDesktopRelaunchJourneys(options) {
   const profileId = "proof-relaunch"
   const steps = []
   let cleanupRequired = true
@@ -274,6 +282,8 @@ export async function proveProductDesktopProviderRelaunch(options) {
     await runRelaunchStep("relaunch-image-generation")
     await runRelaunchStep("relaunch-plan")
     await runRelaunchStep("relaunch-goal")
+    await runRelaunchStep("relaunch-schedule-create")
+    await runRelaunchStep("relaunch-schedule-restore")
     await runRelaunchStep("relaunch-team")
     await runRelaunchStep("relaunch-plugin-install", {
       WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: JSON.stringify([
@@ -309,7 +319,7 @@ export async function proveProductDesktopProviderRelaunch(options) {
   if (journeyFailure !== undefined) throw journeyFailure
   if (cleanupFailure !== undefined) throw cleanupFailure
   return {
-    kind: "wanex.product-desktop.provider-relaunch-receipt",
+    kind: "wanex.product-desktop.relaunch-journeys-receipt",
     ok: true,
     processCount: steps.length,
     credentialPassedProcessCount: 1,
@@ -322,11 +332,27 @@ export async function proveProductDesktopProviderRelaunch(options) {
     imageGenerationRelaunchReceivedCredential: false,
     planRelaunchReceivedCredential: false,
     goalRelaunchReceivedCredential: false,
+    scheduleCreateRelaunchReceivedCredential: false,
+    scheduleRestoreRelaunchReceivedCredential: false,
     teamRelaunchReceivedCredential: false,
     pluginInstallRelaunchReceivedCredential: false,
     pluginRestoreRelaunchReceivedCredential: false,
     cleanupRelaunchReceivedCredential: false,
     finalRelaunchReceivedCredential: false,
+    schedule: {
+      intervalSeconds: WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS,
+      heldForMs: WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS,
+      crossedDeadlineCount: Math.floor(
+        WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS /
+          (WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS * 1_000)
+      ),
+      createProviderRequestCount: 1,
+      restoreProviderRequestCount: 1,
+      nonOverlapVerified: true,
+      disabledQuietWindowVerified: true,
+      sameProfileRestored: true,
+      removed: true
+    },
     steps
   }
 
@@ -348,32 +374,43 @@ export async function proveProductDesktopProviderRelaunch(options) {
     }
     let measured
     let proofReleaseTriggered = false
+    const releasesHeldProviderResponse =
+      step === "relaunch-guided-follow-up" ||
+      step === "relaunch-side-query" ||
+      step === "relaunch-schedule-create"
+    const onStdout = releasesHeldProviderResponse
+      ? (stdout) => {
+          const marker =
+            step === "relaunch-guided-follow-up"
+              ? WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER
+              : step === "relaunch-side-query"
+                ? WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER
+                : WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER
+          if (proofReleaseTriggered || !stdout.includes(marker)) return
+          proofReleaseTriggered = true
+          const released =
+            step === "relaunch-guided-follow-up"
+              ? options.provider.releaseGuidedFollowUpParent()
+              : step === "relaunch-side-query"
+                ? options.provider.releaseSideQueryParent()
+                : options.provider.releaseSchedule()
+          if (!released) {
+            throw new Error(
+              `Product Desktop ${step} parent release was not accepted`
+            )
+          }
+        }
+      : undefined
     try {
       measured = await measureProductDesktopSample(
-        () => run(options.executable, environment, 60_000, receiptPath, {
-          onStdout:
-            step === "relaunch-guided-follow-up" ||
-            step === "relaunch-side-query"
-            ? (stdout) => {
-                const marker = step === "relaunch-guided-follow-up"
-                  ? WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER
-                  : WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER
-                if (
-                  proofReleaseTriggered ||
-                  !stdout.includes(marker)
-                ) return
-                proofReleaseTriggered = true
-                const released = step === "relaunch-guided-follow-up"
-                  ? options.provider.releaseGuidedFollowUpParent()
-                  : options.provider.releaseSideQueryParent()
-                if (!released) {
-                  throw new Error(
-                    `Product Desktop ${step} parent release was not accepted`
-                  )
-                }
-              }
-            : undefined
-        }),
+        () =>
+          run(
+            options.executable,
+            environment,
+            step.startsWith("relaunch-schedule-") ? 90_000 : 60_000,
+            receiptPath,
+            { onStdout }
+          ),
         () => assertNoOwnedProcess(options.userDataDir)
       )
     } catch (error) {
@@ -384,10 +421,10 @@ export async function proveProductDesktopProviderRelaunch(options) {
       )
     }
     const runtime = JSON.parse(await readFile(receiptPath, "utf8"))
-    assertProviderRelaunchRuntimeReceipt(runtime, step, {
+    assertRelaunchJourneyRuntimeReceipt(runtime, step, {
       allowAlreadyClean: behavior.allowAlreadyClean === true
     })
-    assertProviderRelaunchFixtureRequests(
+    assertRelaunchJourneyFixtureRequests(
       options.provider.requests.slice(requestOffset),
       step
     )
@@ -599,7 +636,15 @@ function assertProviderFixtureRequests(requests) {
   }
 }
 
-export function assertProviderRelaunchFixtureRequests(requests, step) {
+export function assertRelaunchJourneyFixtureRequests(requests, step) {
+  if (step === "relaunch-schedule-create") {
+    assertScheduleCreateFixtureRequests(requests)
+    return
+  }
+  if (step === "relaunch-schedule-restore") {
+    assertScheduleRestoreFixtureRequests(requests)
+    return
+  }
   if (step === "relaunch-side-query") {
     assertSideQueryFixtureRequests(requests)
     return
@@ -651,6 +696,54 @@ export function assertProviderRelaunchFixtureRequests(requests, step) {
   ) {
     throw new Error(
       `Product Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`
+    )
+  }
+}
+
+function assertScheduleCreateFixtureRequests(requests) {
+  const [request] = requests
+  const retained = JSON.stringify(requests)
+  if (
+    requests.length !== 1 ||
+    request?.authorized !== true ||
+    !request.path.endsWith("/chat/completions") ||
+    request.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    request.imageInputCount !== 0 ||
+    request.imageBytes !== 0 ||
+    JSON.stringify(request.imageMediaTypes) !== JSON.stringify([]) ||
+    request.schedulePhase !== "held" ||
+    request.scheduleAttempt !== 1 ||
+    request.scheduleReleaseReceived !== true ||
+    request.scheduleSettled !== true ||
+    request.scheduleClientClosed !== false ||
+    retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT) ||
+    retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE) ||
+    retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE)
+  ) {
+    throw new Error(
+      `Product Desktop Schedule create Provider requests are invalid: ${retained}`
+    )
+  }
+}
+
+function assertScheduleRestoreFixtureRequests(requests) {
+  const [request] = requests
+  const retained = JSON.stringify(requests)
+  if (
+    requests.length !== 1 ||
+    request?.authorized !== true ||
+    !request.path.endsWith("/chat/completions") ||
+    request.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    request.imageInputCount !== 0 ||
+    request.imageBytes !== 0 ||
+    JSON.stringify(request.imageMediaTypes) !== JSON.stringify([]) ||
+    request.schedulePhase !== "restored" ||
+    request.scheduleAttempt !== 2 ||
+    retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT) ||
+    retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE)
+  ) {
+    throw new Error(
+      `Product Desktop Schedule restore Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -876,7 +969,7 @@ function assertGoalFixtureRequests(requests) {
   }
 }
 
-export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}) {
+export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {}) {
   const renderer = runtime?.renderer
   const commonInvalid =
     runtime?.kind !== "wanex.product-desktop.runtime-receipt" ||
@@ -1170,6 +1263,80 @@ export function assertProviderRelaunchRuntimeReceipt(runtime, step, options = {}
       renderer.internalIdentityEvidenceHidden !== true ||
       renderer.hostPathEvidenceHidden !== true ||
       renderer.originalSessionRestored !== true
+  } else if (step === "relaunch-schedule-create") {
+    const expectedKeys = [
+      "activeModelSelected",
+      "disabledBeforeShutdown",
+      "disabledQuietWindowObserved",
+      "enabledAtCreation",
+      "firstFinalResponseVisible",
+      "firstPartialResponseVisible",
+      "firstUserVisible",
+      "internalIdentityEvidenceHidden",
+      "intervalSeconds",
+      "isolatedSessionSelected",
+      "ok",
+      "providerEvidenceRedacted",
+      "providerReady",
+      "scheduleCreated",
+      "scheduleSessionVisible",
+      "skipMisfireSelected",
+      "step",
+      "timingsMs",
+      "visibleFormCreated"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      renderer.providerReady !== true ||
+      renderer.intervalSeconds !== WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
+      renderer.visibleFormCreated !== true ||
+      renderer.isolatedSessionSelected !== true ||
+      renderer.activeModelSelected !== true ||
+      renderer.skipMisfireSelected !== true ||
+      renderer.enabledAtCreation !== true ||
+      renderer.scheduleCreated !== true ||
+      renderer.scheduleSessionVisible !== true ||
+      renderer.firstUserVisible !== true ||
+      renderer.firstPartialResponseVisible !== true ||
+      renderer.firstFinalResponseVisible !== true ||
+      renderer.disabledBeforeShutdown !== true ||
+      renderer.disabledQuietWindowObserved !== true ||
+      renderer.internalIdentityEvidenceHidden !== true
+  } else if (step === "relaunch-schedule-restore") {
+    const expectedKeys = [
+      "canonicalRemovedStateVisible",
+      "disabledAfterExecution",
+      "disabledQuietWindowObserved",
+      "internalIdentityEvidenceHidden",
+      "intervalSeconds",
+      "ok",
+      "persistedTranscriptVisible",
+      "providerEvidenceRedacted",
+      "providerReady",
+      "reenabled",
+      "removed",
+      "restoredDefinitionVisible",
+      "restoredDisabledState",
+      "restoredExecutionResponseVisible",
+      "restoredExecutionUserVisible",
+      "step",
+      "timingsMs"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      renderer.providerReady !== true ||
+      renderer.intervalSeconds !== WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
+      renderer.restoredDefinitionVisible !== true ||
+      renderer.restoredDisabledState !== true ||
+      renderer.persistedTranscriptVisible !== true ||
+      renderer.reenabled !== true ||
+      renderer.restoredExecutionUserVisible !== true ||
+      renderer.restoredExecutionResponseVisible !== true ||
+      renderer.disabledAfterExecution !== true ||
+      renderer.disabledQuietWindowObserved !== true ||
+      renderer.removed !== true ||
+      renderer.canonicalRemovedStateVisible !== true ||
+      renderer.internalIdentityEvidenceHidden !== true
   } else if (step === "relaunch-plugin-install") {
     const expectedKeys = [
       "attentionDiagnosticVisible",

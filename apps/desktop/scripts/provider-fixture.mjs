@@ -28,6 +28,10 @@ import {
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_PARTIAL_RESPONSE,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_TEXT,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_QUESTION,
+  WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
+  WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT,
+  WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
   WANEX_DESKTOP_PROOF_TEAM_MESSAGE
 } from "../src/proof-contract.ts"
 
@@ -48,6 +52,8 @@ export async function listenProductDesktopProofProvider(options) {
   let sideQueryParentObserved = false
   let sideQueryObserved = false
   let sideQueryParent
+  let scheduleRequestCount = 0
+  let scheduleParent
   const server = createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request)
@@ -88,10 +94,12 @@ export async function listenProductDesktopProofProvider(options) {
       const guidedFollowUpPhase = readGuidedFollowUpPhase(body)
       const sideQueryPhase = readSideQueryProofPhase(body)
       const teamPhase = readTeamProofPhase(body)
+      const scheduleProof = readScheduleProof(body)
       const teamInputImages = teamPhase === undefined
         ? []
         : inspectLatestUserImageInputs(body)
       if (cancelRegenerate) cancelRegenerateRequestCount += 1
+      if (scheduleProof) scheduleRequestCount += 1
       const requestEvidence = {
         path,
         model,
@@ -160,9 +168,47 @@ export async function listenProductDesktopProofProvider(options) {
                 (total, image) => total + image.sizeBytes,
                 0
               )
-            })
+            }),
+        ...(scheduleProof
+          ? scheduleRequestCount === 1
+            ? {
+                schedulePhase: "held",
+                scheduleAttempt: scheduleRequestCount,
+                scheduleReleaseReceived: false,
+                scheduleSettled: false,
+                scheduleClientClosed: false
+              }
+            : {
+                schedulePhase: "restored",
+                scheduleAttempt: scheduleRequestCount
+              }
+          : {})
       }
       requests.push(requestEvidence)
+      if (scheduleProof) {
+        if (scheduleRequestCount === 1) {
+          scheduleParent = writeDelayedControlledTextEventStream(
+            response,
+            WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
+            requestEvidence,
+            () => {
+              requestEvidence.scheduleClientClosed = true
+            },
+            () => {
+              scheduleParent = undefined
+            }
+          )
+          return
+        }
+        if (scheduleRequestCount === 2) {
+          writeTextEventStream(
+            response,
+            WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE
+          )
+          return
+        }
+        throw new Error("Product Desktop proof Schedule dispatched more than twice")
+      }
       if (guidedFollowUpPhase === "parent") {
         if (guidedParentObserved) {
           throw new Error("Product Desktop proof guided parent was dispatched twice")
@@ -353,7 +399,27 @@ export async function listenProductDesktopProofProvider(options) {
       parent.evidence.sideQueryParentSettled = true
       return true
     },
+    releaseSchedule() {
+      if (scheduleParent === undefined || scheduleParent.released) return false
+      const parent = scheduleParent
+      parent.released = true
+      parent.evidence.scheduleReleaseReceived = true
+      if (!parent.partialWritten) {
+        clearTimeout(parent.partialTimer)
+        parent.response.write(textEvent(
+          WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
+          null
+        ))
+        parent.partialWritten = true
+      }
+      parent.response.end(
+        `${textEvent(WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA, "stop")}data: [DONE]\n\n`
+      )
+      parent.evidence.scheduleSettled = true
+      return true
+    },
     async close() {
+      if (scheduleParent !== undefined) clearTimeout(scheduleParent.partialTimer)
       await closeServer(server)
     }
   }
@@ -467,6 +533,14 @@ function readTeamProofPhase(body) {
     : undefined
 }
 
+function readScheduleProof(body) {
+  if (!Array.isArray(body?.messages)) return false
+  const latestUser = [...body.messages]
+    .reverse()
+    .find((message) => message?.role === "user")
+  return messageText(latestUser) === WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT
+}
+
 function messageText(message) {
   if (typeof message?.content === "string") return message.content
   if (!Array.isArray(message?.content)) return ""
@@ -510,6 +584,37 @@ function writeControlledTextEventStream(
     "cache-control": "no-cache"
   })
   response.write(textEvent(value, null))
+  return state
+}
+
+function writeDelayedControlledTextEventStream(
+  response,
+  value,
+  evidence,
+  onPrematureClose,
+  onClose
+) {
+  const state = {
+    response,
+    evidence,
+    released: false,
+    partialWritten: false,
+    partialTimer: undefined
+  }
+  response.once("close", () => {
+    clearTimeout(state.partialTimer)
+    if (!state.released) onPrematureClose()
+    onClose()
+  })
+  response.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache"
+  })
+  state.partialTimer = setTimeout(() => {
+    if (state.released) return
+    response.write(textEvent(value, null))
+    state.partialWritten = true
+  }, 1_000)
   return state
 }
 

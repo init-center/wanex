@@ -19,13 +19,16 @@ import {
   summarizeProductDesktopSamples,
 } from "../scripts/metrics.mjs";
 import {
-  assertProviderRelaunchFixtureRequests,
-  assertProviderRelaunchRuntimeReceipt,
+  assertRelaunchJourneyFixtureRequests,
+  assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
   createProductDesktopProofProcessEnvironment,
   measureProductDesktopSample,
   removeProductDesktopProofRoot,
 } from "../scripts/proof.mjs";
+import {
+  requiredWanexDesktopPackagedProofStep,
+} from "../src/packaged-renderer-proof.ts";
 
 const tempDirs = [];
 
@@ -282,7 +285,70 @@ describe("Product Desktop packaging policy", () => {
 
   it("accepts one exact post-relaunch Provider request only", () => {
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
+        [{
+          path: "/v1/relaunch/chat/completions",
+          model: "desktop-proof-relaunch-model",
+          authorized: true,
+          imageInputCount: 0,
+          imageMediaTypes: [],
+          imageBytes: 0,
+          schedulePhase: "held",
+          scheduleAttempt: 1,
+          scheduleReleaseReceived: true,
+          scheduleSettled: true,
+          scheduleClientClosed: false,
+        }],
+        "relaunch-schedule-create",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertRelaunchJourneyFixtureRequests(
+        [{
+          path: "/v1/relaunch/chat/completions",
+          model: "desktop-proof-relaunch-model",
+          authorized: true,
+          imageInputCount: 0,
+          imageMediaTypes: [],
+          imageBytes: 0,
+          schedulePhase: "restored",
+          scheduleAttempt: 2,
+        }],
+        "relaunch-schedule-restore",
+      ),
+    ).not.toThrow();
+    expect(() =>
+      assertRelaunchJourneyFixtureRequests(
+        [
+          {
+            path: "/v1/relaunch/chat/completions",
+            model: "desktop-proof-relaunch-model",
+            authorized: true,
+            imageInputCount: 0,
+            imageMediaTypes: [],
+            imageBytes: 0,
+            schedulePhase: "held",
+            scheduleAttempt: 1,
+            scheduleReleaseReceived: true,
+            scheduleSettled: true,
+            scheduleClientClosed: false,
+          },
+          {
+            path: "/v1/relaunch/chat/completions",
+            model: "desktop-proof-relaunch-model",
+            authorized: true,
+            imageInputCount: 0,
+            imageMediaTypes: [],
+            imageBytes: 0,
+            schedulePhase: "restored",
+            scheduleAttempt: 2,
+          },
+        ],
+        "relaunch-schedule-create",
+      ),
+    ).toThrow("Schedule create Provider requests are invalid");
+    expect(() =>
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -313,7 +379,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -342,7 +408,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -370,7 +436,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -417,7 +483,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -442,7 +508,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -455,7 +521,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [
           {
             path: "/v1/relaunch/chat/completions",
@@ -489,7 +555,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -502,7 +568,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -518,7 +584,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -534,7 +600,7 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).toThrow("Team Provider requests are invalid");
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -547,10 +613,10 @@ describe("Product Desktop packaging policy", () => {
       ),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests([], "relaunch-cleanup"),
+      assertRelaunchJourneyFixtureRequests([], "relaunch-cleanup"),
     ).not.toThrow();
     expect(() =>
-      assertProviderRelaunchFixtureRequests(
+      assertRelaunchJourneyFixtureRequests(
         [{
           path: "/v1/relaunch/chat/completions",
           model: "desktop-proof-relaunch-model",
@@ -564,13 +630,49 @@ describe("Product Desktop packaging policy", () => {
     ).toThrow("Provider requests are invalid");
   });
 
+  it("accepts only the two canonical Schedule packaged proof steps", () => {
+    expect(requiredWanexDesktopPackagedProofStep("relaunch-schedule-create"))
+      .toBe("relaunch-schedule-create");
+    expect(requiredWanexDesktopPackagedProofStep("relaunch-schedule-restore"))
+      .toBe("relaunch-schedule-restore");
+    expect(() => requiredWanexDesktopPackagedProofStep("schedule-create"))
+      .toThrow("must be recognized");
+  });
+
+  it("accepts only exact Schedule create and restore runtime receipts", () => {
+    const create = scheduleRuntimeReceipt("relaunch-schedule-create");
+    const restore = scheduleRuntimeReceipt("relaunch-schedule-restore");
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      create,
+      "relaunch-schedule-create",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      restore,
+      "relaunch-schedule-restore",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      {
+        ...create,
+        renderer: { ...create.renderer, scheduleId: "must-not-be-retained" },
+      },
+      "relaunch-schedule-create",
+    )).toThrow("runtime proof failed");
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      {
+        ...restore,
+        renderer: { ...restore.renderer, disabledQuietWindowObserved: false },
+      },
+      "relaunch-schedule-restore",
+    )).toThrow("runtime proof failed");
+  });
+
   it("accepts only the bounded installed Team runtime receipt", () => {
     const runtime = teamRuntimeReceipt();
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       runtime,
       "relaunch-team",
     )).not.toThrow();
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       {
         ...runtime,
         renderer: { ...runtime.renderer, sessionId: "must-not-be-retained" },
@@ -582,22 +684,22 @@ describe("Product Desktop packaging policy", () => {
   it("accepts only exact Plugin install and restore runtime receipts", () => {
     const install = pluginRuntimeReceipt("relaunch-plugin-install");
     const restore = pluginRuntimeReceipt("relaunch-plugin-restore");
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       install,
       "relaunch-plugin-install",
     )).not.toThrow();
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       restore,
       "relaunch-plugin-restore",
     )).not.toThrow();
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       {
         ...install,
         renderer: { ...install.renderer, sourceDir: "/private/source" },
       },
       "relaunch-plugin-install",
     )).toThrow("runtime proof failed");
-    expect(() => assertProviderRelaunchRuntimeReceipt(
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
       {
         ...restore,
         renderer: { ...restore.renderer, v2InstalledRestored: false },
@@ -778,6 +880,64 @@ function pluginRuntimeReceipt(step) {
         v1Removed: true,
         canonicalRemovedStateVisible: true,
         commandAbsentAfterRemoval: true,
+      };
+  return {
+    kind: "wanex.product-desktop.runtime-receipt",
+    ok: true,
+    proofStep: step,
+    renderer,
+    privacy: {
+      exposesStorePath: false,
+      exposesServiceBinaryPath: false,
+      exposesSecrets: false,
+      exposesRawStorageClient: false,
+      exposesElectronApi: false,
+    },
+  };
+}
+
+function scheduleRuntimeReceipt(step) {
+  const common = {
+    ok: true,
+    step,
+    providerReady: true,
+    providerEvidenceRedacted: true,
+    internalIdentityEvidenceHidden: true,
+    intervalSeconds: 5,
+    timingsMs: {
+      rendererInteractive: 1,
+      conversationSettlement: 2,
+      rendererPostSettlement: 3,
+    },
+  };
+  const renderer = step === "relaunch-schedule-create"
+    ? {
+        ...common,
+        visibleFormCreated: true,
+        isolatedSessionSelected: true,
+        activeModelSelected: true,
+        skipMisfireSelected: true,
+        enabledAtCreation: true,
+        scheduleCreated: true,
+        scheduleSessionVisible: true,
+        firstUserVisible: true,
+        firstPartialResponseVisible: true,
+        firstFinalResponseVisible: true,
+        disabledBeforeShutdown: true,
+        disabledQuietWindowObserved: true,
+      }
+    : {
+        ...common,
+        restoredDefinitionVisible: true,
+        restoredDisabledState: true,
+        persistedTranscriptVisible: true,
+        reenabled: true,
+        restoredExecutionUserVisible: true,
+        restoredExecutionResponseVisible: true,
+        disabledAfterExecution: true,
+        disabledQuietWindowObserved: true,
+        removed: true,
+        canonicalRemovedStateVisible: true,
       };
   return {
     kind: "wanex.product-desktop.runtime-receipt",

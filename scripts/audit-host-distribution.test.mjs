@@ -103,6 +103,23 @@ describe("host distribution budget", () => {
     ]))
   })
 
+  it("requires exact packaged Schedule lifecycle evidence", () => {
+    const desktop = desktopReceipt()
+    desktop.schedule.createProviderRequestCount = 2
+    desktop.schedule.sameProfileRestored = false
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
+      desktop
+    })
+    expect(result.ok).toBe(false)
+    expect(result.failures).toEqual(expect.arrayContaining([
+      expect.stringContaining("Schedule create Provider request count"),
+      expect.stringContaining("Schedule same-profile restore")
+    ]))
+  })
+
   it("enforces warm median ceilings independently from the cold sample", () => {
     const desktop = desktopReceipt()
     desktop.samples.slice(1, 4).forEach((sample) => {
@@ -360,7 +377,18 @@ function desktopReceipt() {
     realProductDocument: true,
     screenshotsNonBlank: true,
     noEpermRename: true,
-    noOwnedProcessAfterRun: true
+    noOwnedProcessAfterRun: true,
+    schedule: {
+      intervalSeconds: 5,
+      heldForMs: 12_000,
+      crossedDeadlineCount: 2,
+      createProviderRequestCount: 1,
+      restoreProviderRequestCount: 1,
+      nonOverlapVerified: true,
+      disabledQuietWindowVerified: true,
+      sameProfileRestored: true,
+      removed: true
+    }
   }
 }
 

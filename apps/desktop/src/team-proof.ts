@@ -154,7 +154,17 @@ export async function runWanexDesktopTeamProof(
     return matching.length === 0
       ? undefined
       : { row: matching[0]!, count: matching.length }
-  }, 10_000, "participant_added")
+  }, 10_000, "participant_added", () => {
+    const current = ready.surface.querySelector("[data-ui-team-context]")
+    return [
+      `original_${context.panel.isConnected ? "connected" : "detached"}`,
+      `current_${current === null ? "missing" : "present"}`,
+      `active_${String(current?.querySelectorAll(
+        '[data-ui-team-participant-state="active"]',
+      ).length ?? 0)}`,
+      `error_${ready.surface.querySelector("[data-ui-error]") === null ? "absent" : "present"}`,
+    ].join("_")
+  })
 
   const assignCoordinator = await waitForDom(() => {
     const button = [...context.panel.querySelectorAll("button")].find((candidate) =>

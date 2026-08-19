@@ -1,13 +1,10 @@
 import type { BackendShell } from "@wanex/product/backend"
 import { conversationOperationId } from "./operation.js"
-import type { MutableState } from "../state/product.js"
 import type {
-  ConversationAssistantTextDeltaEvent,
   ConversationEvent,
   ConversationEventListener,
   ConversationEventUnsubscribe,
-  ConversationEvents,
-  TrustedConversationOperationReference
+  ConversationEvents
 } from "./model.js"
 
 export interface ConversationEventHub
@@ -25,7 +22,6 @@ type ConversationEventBackend = {
 
 export function createConversationEventHub(request: {
   readonly backend: ConversationEventBackend
-  readonly state: MutableState
 }): ConversationEventHub {
   const listeners = new Set<ConversationEventListener>()
   const activeAttemptByOperation = new Map<string, string>()
@@ -42,10 +38,7 @@ export function createConversationEventHub(request: {
         if (disposed) {
           return
         }
-        const reference = eventReference(request.state, event.reference)
-        if (reference === undefined) {
-          return
-        }
+        const reference = event.reference
         const operationId = conversationOperationId(reference)
         if (event.kind === "wanex-app.conversation.operation-invalidated") {
           activeAttemptByOperation.delete(operationId)
@@ -129,30 +122,4 @@ export function createConversationEventHub(request: {
       activeAttemptByOperation.clear()
     }
   }
-}
-
-function eventReference(
-  state: MutableState,
-  reference: TrustedConversationOperationReference
-): TrustedConversationOperationReference | undefined {
-  const current = state.trackedConversationOperations[reference.sessionId]
-  if (current !== undefined && sameReference(current, reference)) {
-    return current
-  }
-  const pending = state.pendingGuidedFollowUps[reference.sessionId]
-  return pending !== undefined && sameReference(pending, reference)
-    ? pending
-    : undefined
-}
-
-function sameReference(
-  left: TrustedConversationOperationReference,
-  right: TrustedConversationOperationReference
-): boolean {
-  return (
-    left.sessionId === right.sessionId &&
-    left.inputId === right.inputId &&
-    left.turnId === right.turnId &&
-    left.jobId === right.jobId
-  )
 }

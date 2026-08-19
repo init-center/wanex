@@ -34,13 +34,11 @@ export function TeamContext({
   const page = snapshot.team.page;
   const conversationId = snapshot.team.conversationId;
   const candidates = snapshot.view.recentSessions.filter((session) => !session.archived);
-  const [candidateSessionId, setCandidateSessionId] = useState(candidates[0]?.sessionId ?? "");
   const [closeConfirmation, setCloseConfirmation] = useState(false);
   const [coordinatorError, setCoordinatorError] = useState<string>();
   const coordinatorParticipantId = page?.conversation.coordinatorParticipantId;
 
   useEffect(() => {
-    setCandidateSessionId(candidates[0]?.sessionId ?? "");
     setCloseConfirmation(false);
     setCoordinatorError(undefined);
   }, [conversationId, coordinatorParticipantId]);
@@ -140,7 +138,10 @@ export function TeamContext({
             className={classes("team-add-agent")}
             onSubmit={(event) => {
               event.preventDefault();
-              const candidate = candidates.find((session) => session.sessionId === candidateSessionId);
+              const selected = event.currentTarget.elements.namedItem("agentSessionId");
+              const candidate = selected instanceof HTMLSelectElement
+                ? candidates.find((session) => session.sessionId === selected.value)
+                : undefined;
               if (candidate === undefined || participantBusy) return;
               void dispatch({
                 type: "add-team-participant",
@@ -154,8 +155,9 @@ export function TeamContext({
             }}
           >
             <select
-              value={candidateSessionId}
-              onChange={(event) => setCandidateSessionId(event.target.value)}
+              key={conversationId}
+              name="agentSessionId"
+              defaultValue={candidates[0]?.sessionId ?? ""}
               aria-label="Agent conversation"
               disabled={participantBusy}
             >
@@ -163,7 +165,7 @@ export function TeamContext({
                 <option key={session.sessionId} value={session.sessionId}>{session.label}</option>
               ))}
             </select>
-            <button type="submit" disabled={candidateSessionId.length === 0 || participantBusy}>
+            <button type="submit" disabled={candidates.length === 0 || participantBusy}>
               <UserPlus size={14} /> Add
             </button>
           </form>

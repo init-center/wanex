@@ -15,6 +15,23 @@ export const WANEX_DESKTOP_PROOF_RELAUNCH_RESPONSE =
 export const WANEX_DESKTOP_PROOF_TEAM_TITLE = "Installed team acceptance"
 export const WANEX_DESKTOP_PROOF_TEAM_MESSAGE =
   "Prove the installed team delivery path"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_TITLE =
+  "Packaged schedule acceptance"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT =
+  "Packaged schedule acceptance must run through the trusted host"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE =
+  "The packaged schedule response started"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA =
+  " and completed after the overlap window"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE =
+  `${WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE}${WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA}`
+export const WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE =
+  "The restored packaged schedule response is complete"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER =
+  "WANEX_DESKTOP_SCHEDULE_RELEASE_V1"
+export const WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS = 5
+export const WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS = 12_000
+export const WANEX_DESKTOP_PROOF_SCHEDULE_QUIET_WINDOW_MS = 6_000
 export const WANEX_DESKTOP_PROOF_RELAUNCH_HEADING =
   "Wanex relaunch continuity proof"
 export const WANEX_DESKTOP_PROOF_RELAUNCH_CODE = "canonical transcript"
@@ -257,6 +274,60 @@ export type WanexDesktopProviderRelaunchProofStep =
   | "relaunch-unconfigured"
 
 export type WanexDesktopTeamProofStep = "relaunch-team"
+
+export type WanexDesktopScheduleProofStep =
+  | "relaunch-schedule-create"
+  | "relaunch-schedule-restore"
+
+interface WanexDesktopScheduleProofResultBase {
+  readonly ok: boolean
+  readonly step: WanexDesktopScheduleProofStep
+  readonly providerReady: boolean
+  readonly providerEvidenceRedacted: boolean
+  readonly internalIdentityEvidenceHidden: boolean
+  readonly intervalSeconds: number
+  readonly timingsMs: {
+    readonly rendererInteractive: number
+    readonly conversationSettlement: number
+    readonly rendererPostSettlement: number
+  }
+}
+
+export interface WanexDesktopScheduleCreateProofResult
+  extends WanexDesktopScheduleProofResultBase {
+  readonly step: "relaunch-schedule-create"
+  readonly visibleFormCreated: boolean
+  readonly isolatedSessionSelected: boolean
+  readonly activeModelSelected: boolean
+  readonly skipMisfireSelected: boolean
+  readonly enabledAtCreation: boolean
+  readonly scheduleCreated: boolean
+  readonly scheduleSessionVisible: boolean
+  readonly firstUserVisible: boolean
+  readonly firstPartialResponseVisible: boolean
+  readonly firstFinalResponseVisible: boolean
+  readonly disabledBeforeShutdown: boolean
+  readonly disabledQuietWindowObserved: boolean
+}
+
+export interface WanexDesktopScheduleRestoreProofResult
+  extends WanexDesktopScheduleProofResultBase {
+  readonly step: "relaunch-schedule-restore"
+  readonly restoredDefinitionVisible: boolean
+  readonly restoredDisabledState: boolean
+  readonly persistedTranscriptVisible: boolean
+  readonly reenabled: boolean
+  readonly restoredExecutionUserVisible: boolean
+  readonly restoredExecutionResponseVisible: boolean
+  readonly disabledAfterExecution: boolean
+  readonly disabledQuietWindowObserved: boolean
+  readonly removed: boolean
+  readonly canonicalRemovedStateVisible: boolean
+}
+
+export type WanexDesktopScheduleProofResult =
+  | WanexDesktopScheduleCreateProofResult
+  | WanexDesktopScheduleRestoreProofResult
 
 export type WanexDesktopPluginProofStep =
   | "relaunch-plugin-install"

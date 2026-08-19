@@ -573,6 +573,12 @@ function classifyRendererProofFailure(error: unknown): string {
     return `team_${teamTimeout[1] ?? "renderer"}_${teamTimeout[2] ?? "timeout"}`
       .slice(0, 256)
   }
+  const scheduleTimeout = message.match(
+    /Desktop Schedule proof timed out during ([a-z_]+)/
+  )
+  if (scheduleTimeout !== null) {
+    return `schedule_${scheduleTimeout[1] ?? "renderer"}_timeout`.slice(0, 256)
+  }
   for (const stage of [
     "chat_ready",
     "transcript_restore",

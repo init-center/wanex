@@ -17,6 +17,7 @@ import {
 import { isSurfaceCommandValue } from "./results.js";
 import { isTeamInvalidatedEvent } from "./team.js";
 import { isProductPluginManagementInvalidatedEvent } from "./plugin-management.js";
+import { isScheduleInvalidatedEvent } from "./schedule.js";
 
 export function isSurfaceDescriptor(
   value: unknown,
@@ -63,6 +64,7 @@ export function isSurfaceEvent(value: unknown): value is SurfaceEvent {
     matchesGoalEvent(value.type, value.goal) &&
     matchesTeamEvent(value.type, value.team) &&
     matchesPluginManagementEvent(value.type, value.pluginManagement) &&
+    matchesScheduleEvent(value.type, value.schedule) &&
     optionalSurfaceError(value.error)
   );
 }
@@ -111,7 +113,14 @@ function isSurfaceEventType(value: unknown): boolean {
     value === "product.surface.goal.invalidated"
     || value === "product.surface.team.invalidated"
     || value === "product.surface.plugin-management.invalidated"
+    || value === "product.surface.schedule.invalidated"
   );
+}
+
+function matchesScheduleEvent(type: unknown, value: unknown): boolean {
+  return type === "product.surface.schedule.invalidated"
+    ? isScheduleInvalidatedEvent(value)
+    : value === undefined;
 }
 
 function matchesCommandExecutionEvent(type: unknown, value: unknown): boolean {

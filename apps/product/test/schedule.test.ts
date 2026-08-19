@@ -4,12 +4,20 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createShell,
+  createSurfaceAdapter,
   type ScheduleDefinition,
   type ScheduleDefinitionSpec,
   type ScheduleMutationResult,
   type SchedulePort,
   type SchedulePortInvalidation,
 } from "../src/index.js";
+import {
+  createInProcessSurfaceClientTransport,
+  createMessageSurfaceClientTransport,
+  createSurfaceHostEndpoint,
+  createSurfaceClient,
+  type SurfaceClientTransport
+} from "../src/surface/client.js";
 
 const serviceBin = join(
   import.meta.dirname,
@@ -306,6 +314,202 @@ describe("Product Schedule boundary", () => {
       expect(port.replaceRequest).toBeUndefined();
       expect(port.setEnabledRequest).toBeUndefined();
     } finally {
+      await shell.dispose();
+    }
+  });
+
+  it("exposes Schedule only through the strict Surface contract", async () => {
+    const port = new FakeSchedulePort();
+    const shell = await createProduct({ schedules: port });
+    const surface = createSurfaceAdapter(shell, {
+      now: () => 9_000,
+      streamId: "schedule-surface"
+    });
+    const transport = createInProcessSurfaceClientTransport(surface);
+    const client = createSurfaceClient(transport);
+    try {
+      const descriptor = await client.descriptor();
+      expect(descriptor).toMatchObject({ ok: true });
+      if (descriptor.ok) {
+        for (const expected of [
+          ["listSchedules", "schedule-list"],
+          ["readSchedule", "schedule-read"],
+          ["createSchedule", "schedule-create"],
+          ["replaceSchedule", "schedule-replace"],
+          ["setScheduleEnabled", "schedule-enabled"],
+          ["removeSchedule", "schedule-remove"]
+        ] as const) {
+          expect(descriptor.value.commands).toContainEqual(
+            expect.objectContaining({ command: expected[0], input: expected[1] })
+          );
+        }
+      }
+
+      await expect(client.listSchedules({ limit: 500 })).resolves.toMatchObject({
+        ok: true,
+        value: {
+          kind: "product.schedule-list",
+          schedules: [{
+            scheduleId: "schedule_daily",
+            status: { state: "scheduled", nextAt: 86_400 }
+          }]
+        }
+      });
+      expect(port.listRequest).toEqual({ limit: 100 });
+
+      await expect(client.readSchedule({ scheduleId: "schedule_daily" })).resolves
+        .toMatchObject({
+          ok: true,
+          value: {
+            kind: "product.schedule.found",
+            definition: { scheduleId: "schedule_daily" },
+            status: { definitionRevision: 3 }
+          }
+        });
+      await expect(surface.dispatchSurfaceCommand({
+        command: "readSchedule",
+        input: { scheduleId: "schedule_daily", prompt: "not accepted" }
+      })).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: "validation_error",
+          message: expect.stringContaining("prompt")
+        }
+      });
+
+      await expect(client.createSchedule({
+        definition: {
+          title: "Queue check",
+          prompt: "Check the queue",
+          trigger: { kind: "interval", anchorAt: 1_000, intervalMs: 60_000 }
+        },
+        idempotencyKey: "surface-create"
+      })).resolves.toMatchObject({
+        ok: true,
+        value: { kind: "product.schedule.applied", operation: "create" }
+      });
+      expect(port.createRequest).toMatchObject({
+        definition: {
+          title: "Queue check",
+          prompt: "Check the queue",
+          enabled: true,
+          overlapPolicy: "skip_if_running"
+        },
+        idempotencyKey: "surface-create"
+      });
+
+      await expect(client.replaceSchedule({
+        scheduleId: "schedule_daily",
+        expectedRevision: 3,
+        definition: {
+          prompt: "Updated brief",
+          enabled: false,
+          trigger: { kind: "once", at: 100_000 }
+        }
+      })).resolves.toMatchObject({
+        ok: true,
+        value: { kind: "product.schedule.applied", operation: "replace" }
+      });
+      await expect(client.setScheduleEnabled({
+        scheduleId: "schedule_daily",
+        expectedRevision: 3,
+        enabled: false
+      })).resolves.toMatchObject({
+        ok: true,
+        value: { kind: "product.schedule.applied", operation: "set_enabled" }
+      });
+      await expect(client.removeSchedule({
+        scheduleId: "schedule_daily",
+        expectedRevision: 3
+      })).resolves.toMatchObject({
+        ok: true,
+        value: { kind: "product.schedule.applied", operation: "remove" }
+      });
+
+      await expect(surface.dispatchSurfaceCommand({
+        command: "createSchedule",
+        input: {
+          definition: {
+            prompt: "forged policy",
+            trigger: { kind: "once", at: 1 },
+            overlapPolicy: "parallel"
+          },
+          idempotencyKey: "unsafe"
+        }
+      })).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: "validation_error",
+          message: expect.stringContaining("overlapPolicy")
+        }
+      });
+      await expect(surface.dispatchSurfaceCommand({
+        command: "replaceSchedule",
+        input: {
+          scheduleId: "schedule_daily",
+          expectedRevision: 3,
+          definition: {
+            prompt: "missing enabled",
+            trigger: { kind: "once", at: 1 }
+          }
+        }
+      })).resolves.toMatchObject({
+        ok: false,
+        error: {
+          code: "validation_error",
+          message: expect.stringContaining("enabled")
+        }
+      });
+
+      port.emit({ at: 9_001, revision: 4 });
+      expect(surface.readSurfaceEvents().events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "product.surface.schedule.invalidated",
+            command: "listSchedules",
+            schedule: {
+              kind: "product.schedule.invalidated",
+              sequence: 1,
+              at: 9_001,
+              revision: 4
+            }
+          })
+        ])
+      );
+      const scheduleEvents = surface.readSurfaceEvents().events.filter(
+        (event) => event.type === "product.surface.schedule.invalidated"
+      );
+      expect(JSON.stringify(scheduleEvents)).not.toContain("prompt");
+
+      const forged = createSurfaceClient({
+        ...transport,
+        async dispatchSurfaceCommand(request) {
+          const response = await transport.dispatchSurfaceCommand(request);
+          if (request.command !== "listSchedules" || !response.ok) return response;
+          const value = structuredClone(response.value) as Record<string, any>;
+          value.schedules[0].prompt = "private prompt must not cross validator";
+          return { ...response, value };
+        }
+      } satisfies SurfaceClientTransport);
+      await expect(forged.listSchedules()).resolves.toMatchObject({
+        ok: false,
+        error: { code: "invalid_transport_response" }
+      });
+
+      const host = createSurfaceHostEndpoint({ surface });
+      const messageClient = createSurfaceClient(
+        createMessageSurfaceClientTransport({
+          send: (request) => host.send(request),
+          subscribe: (listener) => host.subscribe(listener)
+        })
+      );
+      await expect(messageClient.readSchedule({ scheduleId: "schedule_daily" }))
+        .resolves.toMatchObject({
+          ok: true,
+          value: { kind: "product.schedule.found" }
+        });
+    } finally {
+      await surface.dispose();
       await shell.dispose();
     }
   });

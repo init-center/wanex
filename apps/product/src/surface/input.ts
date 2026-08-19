@@ -67,6 +67,14 @@ export {
   parseSurfaceSetPluginInstallStateRequest,
 } from "./input/plugin-management.js";
 export {
+  parseSurfaceListSchedulesRequest,
+  parseSurfaceReadScheduleRequest,
+  parseSurfaceCreateScheduleRequest,
+  parseSurfaceReplaceScheduleRequest,
+  parseSurfaceSetScheduleEnabledRequest,
+  parseSurfaceRemoveScheduleRequest,
+} from "./input/schedule.js";
+export {
   expectSurfaceNoInput,
   normalizeSurfaceError,
   normalizeSurfaceValidationError,

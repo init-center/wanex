@@ -54,6 +54,11 @@ import type {
   PluginManagementReadResult,
   RequestLocalPluginReviewResult,
 } from "../../plugin-management/model.js";
+import type {
+  ScheduleDefinitionReadResult,
+  ScheduleListReadModel,
+  ScheduleMutationResult
+} from "../../schedule/model.js";
 import { SURFACE_COMMANDS, type SurfaceCommand } from "../model.js";
 import type { SurfaceClientTransport } from "../client-model.js";
 import { createSurfaceClientEventFactory } from "../events.js";
@@ -118,6 +123,12 @@ export function createSurfaceClient(
     previewProductCommandInvocation: (input, options) => send<CommandInvocationPreview>(SURFACE_COMMANDS.previewProductCommandInvocation, input, options),
     executeProductCommand: (input, options) => send<ExecuteCommandResult>(SURFACE_COMMANDS.executeProductCommand, input, options),
     readExecutionReference: (input, options) => send<ExecutionReferenceReadResult>(SURFACE_COMMANDS.readExecutionReference, input, options),
+    listSchedules: (input, options) => send<ScheduleListReadModel>(SURFACE_COMMANDS.listSchedules, input, options),
+    readSchedule: (input, options) => send<ScheduleDefinitionReadResult>(SURFACE_COMMANDS.readSchedule, input, options),
+    createSchedule: (input, options) => send<ScheduleMutationResult>(SURFACE_COMMANDS.createSchedule, input, options),
+    replaceSchedule: (input, options) => send<ScheduleMutationResult>(SURFACE_COMMANDS.replaceSchedule, input, options),
+    setScheduleEnabled: (input, options) => send<ScheduleMutationResult>(SURFACE_COMMANDS.setScheduleEnabled, input, options),
+    removeSchedule: (input, options) => send<ScheduleMutationResult>(SURFACE_COMMANDS.removeSchedule, input, options),
     openWorkbench: (input, options) => send<OpenWorkbenchResult>(SURFACE_COMMANDS.openWorkbench, input, options),
     readSessionTranscript: (input, options) => send<SessionTranscriptReadResult>(SURFACE_COMMANDS.readSessionTranscript, input, options),
     prepareConversationAttachment: (input, options) => send<PrepareConversationAttachmentResult>(SURFACE_COMMANDS.prepareConversationAttachment, input, options),

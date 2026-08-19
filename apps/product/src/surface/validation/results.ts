@@ -23,6 +23,11 @@ import {
   isPluginManagementReadResult,
   isRequestLocalPluginReviewResult,
 } from "./plugin-management.js";
+import {
+  isScheduleDefinitionReadResult,
+  isScheduleListReadModel,
+  isScheduleMutationResult
+} from "./schedule.js";
 
 export function isSurfaceCommandValue(
   value: unknown,
@@ -39,6 +44,15 @@ export function isSurfaceCommandValue(
       return isPluginManagementMutationResult(value);
     case "cancelLocalPluginReview":
       return isCancelLocalPluginReviewResult(value);
+    case "listSchedules":
+      return isScheduleListReadModel(value);
+    case "readSchedule":
+      return isScheduleDefinitionReadResult(value);
+    case "createSchedule":
+    case "replaceSchedule":
+    case "setScheduleEnabled":
+    case "removeSchedule":
+      return isScheduleMutationResult(value);
     case "listTeamConversations":
       return isTeamConversationListReadModel(value);
     case "readTeamConversation":

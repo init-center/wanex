@@ -12,6 +12,7 @@ import type {
 } from "../model.js"
 import type { TeamInvalidatedEvent } from "../team/model.js"
 import type { ProductPluginManagementInvalidatedEvent } from "../plugin-management/model.js"
+import type { ScheduleInvalidatedEvent } from "../schedule/model.js"
 import type {
   ReadSurfaceEventsRequest,
   SurfaceError,
@@ -47,6 +48,7 @@ export interface SurfaceEventRecordRequest {
   readonly goal?: GoalInvalidatedEvent
   readonly team?: TeamInvalidatedEvent
   readonly pluginManagement?: ProductPluginManagementInvalidatedEvent
+  readonly schedule?: ScheduleInvalidatedEvent
   readonly error?: SurfaceError
 }
 
@@ -102,6 +104,7 @@ export function createSurfaceEventRecorder(
         ...(request.pluginManagement === undefined
           ? {}
           : { pluginManagement: request.pluginManagement }),
+        ...(request.schedule === undefined ? {} : { schedule: request.schedule }),
         ...(request.error === undefined ? {} : { error: request.error })
       }
       events.push(event)

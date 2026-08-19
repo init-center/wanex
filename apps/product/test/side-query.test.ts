@@ -404,7 +404,7 @@ describe("Product ephemeral side-query coordinator", () => {
       expect(descriptor).toMatchObject({
         ok: true,
         value: {
-          commandCount: 67,
+          commandCount: 73,
           commands: expect.arrayContaining([
             expect.objectContaining({
               command: "startSideQuery",

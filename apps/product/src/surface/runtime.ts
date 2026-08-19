@@ -107,6 +107,15 @@ export function createSurfaceAdapter(
         })
       }
     )
+  const unsubscribeSchedules = app.scheduleEvents.subscribeScheduleEvents(
+    (schedule) => {
+      events.record({
+        type: "product.surface.schedule.invalidated",
+        command: SURFACE_COMMANDS.listSchedules,
+        schedule
+      })
+    }
+  )
   let disposed = false
 
   return {
@@ -135,6 +144,7 @@ export function createSurfaceAdapter(
       unsubscribeGoals()
       unsubscribeTeams()
       unsubscribePluginManagement()
+      unsubscribeSchedules()
       events.dispose()
     }
   }

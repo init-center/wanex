@@ -1768,6 +1768,12 @@ describe("@wanex/product", () => {
         "previewProductCommandInvocation",
         "executeProductCommand",
         "readExecutionReference",
+        "listSchedules",
+        "readSchedule",
+        "createSchedule",
+        "replaceSchedule",
+        "setScheduleEnabled",
+        "removeSchedule",
         "openWorkbench",
         "readSessionTranscript",
         "prepareConversationAttachment",
@@ -2653,7 +2659,7 @@ describe("@wanex/product", () => {
         ok: true,
         value: {
           kind: "product.surface-descriptor",
-          commandCount: 67
+          commandCount: 73
         }
       })
       const commandCatalog = await client.readProductCommands({
@@ -2890,7 +2896,7 @@ describe("@wanex/product", () => {
         ok: true,
         value: {
           kind: "product.surface-descriptor",
-          commandCount: 67
+          commandCount: 73
         }
       })
 
@@ -3033,7 +3039,7 @@ describe("@wanex/product", () => {
         ok: true,
         value: {
           kind: "product.surface-descriptor",
-          commandCount: 67
+          commandCount: 73
         }
       })
       expect(selected).toMatchObject({

@@ -112,6 +112,17 @@ import type {
   SetPluginInstallStateRequest,
 } from "../../plugin-management/model.js";
 import type {
+  CreateScheduleDefinitionRequest,
+  ListScheduleDefinitionsRequest,
+  ReadScheduleDefinitionRequest,
+  RemoveScheduleDefinitionRequest,
+  ReplaceScheduleDefinitionRequest,
+  ScheduleDefinitionReadResult,
+  ScheduleListReadModel,
+  ScheduleMutationResult,
+  SetScheduleEnabledRequest
+} from "../../schedule/model.js";
+import type {
   ReadSurfaceEventsRequest,
   SurfaceCommand,
   SurfaceDescriptor,
@@ -143,6 +154,12 @@ export interface SurfaceClient {
   previewProductCommandInvocation(input: PreviewCommandInvocationRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CommandInvocationPreview>>;
   executeProductCommand(input: ExecuteCommandRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ExecuteCommandResult>>;
   readExecutionReference(input: ReadExecutionReferenceRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ExecutionReferenceReadResult>>;
+  listSchedules(input?: ListScheduleDefinitionsRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleListReadModel>>;
+  readSchedule(input: ReadScheduleDefinitionRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleDefinitionReadResult>>;
+  createSchedule(input: CreateScheduleDefinitionRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleMutationResult>>;
+  replaceSchedule(input: ReplaceScheduleDefinitionRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleMutationResult>>;
+  setScheduleEnabled(input: SetScheduleEnabledRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleMutationResult>>;
+  removeSchedule(input: RemoveScheduleDefinitionRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ScheduleMutationResult>>;
   openWorkbench(input?: OpenWorkbenchRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<OpenWorkbenchResult>>;
   readSessionTranscript(input?: ReadSessionTranscriptRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<SessionTranscriptReadResult>>;
   prepareConversationAttachment(input: PrepareConversationAttachmentRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<PrepareConversationAttachmentResult>>;

@@ -129,6 +129,17 @@ Platform transports should preserve event order, keep delivery buffers bounded,
 and use replay after reconnect. Events are advisory: invalidation, stream
 change, or gap always resolves through canonical Product reads.
 
+## Schedule Surface
+
+Schedule management uses the same Surface contract as the rest of the Product:
+`listSchedules`, `readSchedule`, `createSchedule`, `replaceSchedule`,
+`setScheduleEnabled`, and `removeSchedule`. Schedule mutations use exact
+expected revisions. Schedule invalidation events carry only a revision and
+timestamp; clients refresh the canonical list or detail read model instead of
+treating event payloads as cached state. The Surface never exposes the trusted
+Local Host scheduler, occurrence records, pending index, timers, or execution
+identities.
+
 ## Provider Readiness
 
 `readHome()` includes `providerReadiness`, a renderer-safe summary derived from

@@ -53,7 +53,13 @@ import {
   parseSurfaceSubmitTeamRoundRequest,
   parseSurfaceApproveLocalPluginReviewRequest,
   parseSurfaceCancelLocalPluginReviewRequest,
-  parseSurfaceSetPluginInstallStateRequest
+  parseSurfaceSetPluginInstallStateRequest,
+  parseSurfaceListSchedulesRequest,
+  parseSurfaceReadScheduleRequest,
+  parseSurfaceCreateScheduleRequest,
+  parseSurfaceReplaceScheduleRequest,
+  parseSurfaceSetScheduleEnabledRequest,
+  parseSurfaceRemoveScheduleRequest
 } from "./input.js"
 import type {
   SurfaceCommand,
@@ -143,6 +149,30 @@ export async function runSurfaceCommand(
     case "readExecutionReference":
       return await app.readExecutionReference(
         parseSurfaceExecutionReferenceRequest(request.input)
+      )
+    case "listSchedules":
+      return await app.schedules.listDefinitions(
+        parseSurfaceListSchedulesRequest(request.input)
+      )
+    case "readSchedule":
+      return await app.schedules.readDefinition(
+        parseSurfaceReadScheduleRequest(request.input)
+      )
+    case "createSchedule":
+      return await app.schedules.createDefinition(
+        parseSurfaceCreateScheduleRequest(request.input)
+      )
+    case "replaceSchedule":
+      return await app.schedules.replaceDefinition(
+        parseSurfaceReplaceScheduleRequest(request.input)
+      )
+    case "setScheduleEnabled":
+      return await app.schedules.setEnabled(
+        parseSurfaceSetScheduleEnabledRequest(request.input)
+      )
+    case "removeSchedule":
+      return await app.schedules.removeDefinition(
+        parseSurfaceRemoveScheduleRequest(request.input)
       )
     case "openWorkbench":
       return await app.openWorkbench(

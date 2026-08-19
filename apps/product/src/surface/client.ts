@@ -131,6 +131,19 @@ export type {
   UpdateTeamParticipantRequest,
 } from "../team/port.js";
 export type {
+  CreateScheduleDefinitionRequest,
+  ListScheduleDefinitionsRequest,
+  ReadScheduleDefinitionRequest,
+  RemoveScheduleDefinitionRequest,
+  ReplaceScheduleDefinitionRequest,
+  ScheduleDefinitionInput,
+  ScheduleDefinitionReadResult,
+  ScheduleDefinitionSpec,
+  ScheduleListReadModel,
+  ScheduleMutationResult,
+  SetScheduleEnabledRequest
+} from "../schedule/model.js";
+export type {
   DecidePlanProposalRequest,
   DismissPlanGenerationResult,
   ExecutePlanProposalRequest,

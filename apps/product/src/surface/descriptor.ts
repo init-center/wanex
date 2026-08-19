@@ -123,6 +123,42 @@ export const surfaceCommandDescriptors: readonly SurfaceCommandDescriptor[] =
       mutatesState: false
     },
     {
+      command: SURFACE_COMMANDS.listSchedules,
+      title: "List schedules",
+      input: "schedule-list",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.readSchedule,
+      title: "Read schedule",
+      input: "schedule-read",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.createSchedule,
+      title: "Create schedule",
+      input: "schedule-create",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.replaceSchedule,
+      title: "Replace schedule",
+      input: "schedule-replace",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.setScheduleEnabled,
+      title: "Enable or disable schedule",
+      input: "schedule-enabled",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.removeSchedule,
+      title: "Remove schedule",
+      input: "schedule-remove",
+      mutatesState: false
+    },
+    {
       command: SURFACE_COMMANDS.openWorkbench,
       title: "Open workbench",
       input: "workbench-open",

@@ -63,6 +63,12 @@ import type {
   ProductPluginManagementInvalidatedEvent,
   RequestLocalPluginReviewResult
 } from "../plugin-management/model.js"
+import type {
+  ScheduleDefinitionReadResult,
+  ScheduleInvalidatedEvent,
+  ScheduleListReadModel,
+  ScheduleMutationResult
+} from "../schedule/model.js"
 
 export const SURFACE_COMMANDS = {
   status: "status",
@@ -84,6 +90,12 @@ export const SURFACE_COMMANDS = {
   previewProductCommandInvocation: "previewProductCommandInvocation",
   executeProductCommand: "executeProductCommand",
   readExecutionReference: "readExecutionReference",
+  listSchedules: "listSchedules",
+  readSchedule: "readSchedule",
+  createSchedule: "createSchedule",
+  replaceSchedule: "replaceSchedule",
+  setScheduleEnabled: "setScheduleEnabled",
+  removeSchedule: "removeSchedule",
   openWorkbench: "openWorkbench",
   readSessionTranscript: "readSessionTranscript",
   prepareConversationAttachment: "prepareConversationAttachment",
@@ -181,6 +193,12 @@ export type SurfaceCommandInputKind =
   | "product-command-invocation-preview"
   | "product-command-execution"
   | "execution-reference"
+  | "schedule-list"
+  | "schedule-read"
+  | "schedule-create"
+  | "schedule-replace"
+  | "schedule-enabled"
+  | "schedule-remove"
   | "json-body"
   | "workbench-open"
   | "conversation-transcript-read"
@@ -256,6 +274,9 @@ export type SurfaceCommandValue =
   | CommandInvocationPreview
   | ExecuteCommandResult
   | ExecutionReferenceReadResult
+  | ScheduleListReadModel
+  | ScheduleDefinitionReadResult
+  | ScheduleMutationResult
   | StateSnapshot
   | SessionRow
   | OpenWorkbenchResult
@@ -344,6 +365,7 @@ export interface SurfaceEvent {
   readonly goal?: GoalInvalidatedEvent
   readonly team?: TeamInvalidatedEvent
   readonly pluginManagement?: ProductPluginManagementInvalidatedEvent
+  readonly schedule?: ScheduleInvalidatedEvent
   readonly error?: SurfaceError
 }
 
@@ -360,3 +382,4 @@ export type SurfaceEventType =
   | "product.surface.goal.invalidated"
   | "product.surface.team.invalidated"
   | "product.surface.plugin-management.invalidated"
+  | "product.surface.schedule.invalidated"

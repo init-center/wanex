@@ -3219,11 +3219,25 @@ revision and rejects malformed status. Prompt, execution identity, attempt,
 raw error, Storage key, controller state, and trusted Host methods remain out of
 the Product contract.
 
-SCHEDULE-3B Surface Contract is next. Add Schedule list/detail/read/action
-commands to the existing Product Surface descriptor, strict parser, dispatcher,
-client, and value-free invalidation flow. Surface must expose only Product
-Schedule read models and exact-revision actions. It must not expose the Local
-Host adapter, occurrence records, trusted execution methods, prompt in list
-summaries, job/attempt/runtime identities, or raw retry errors. Do not add a
-second scheduler owner, renderer timer, polling loop, package, Store, Shell,
-event bus, Gateway, compatibility alias, or Runtime Schedule semantics.
+SCHEDULE-3B Product Surface Contract is complete. Its plan and completion
+evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1389-phase-schedule-3b-product-surface-contract-plan.md`
+
+The existing Product Surface now exposes exactly six Schedule commands:
+`listSchedules`, `readSchedule`, `createSchedule`, `replaceSchedule`,
+`setScheduleEnabled`, and `removeSchedule`. They use strict nested input
+parsers, typed client methods, message transport, Product read/mutation result
+validation, exact revision actions, and the existing event log. Schedule
+invalidation is value-free (`sequence`, `at`, `revision` only); renderers must
+canonical-reread list/detail and must not use the event as a second state
+source. Product Surface never exposes the Local Host adapter, occurrence
+records, pending index, timers, trusted execution methods, prompt in list
+summaries, job/attempt/runtime identities, or raw retry errors.
+
+SCHEDULE-3C Web/Desktop Product UX is next. Build the real Schedule management
+surface through `@wanex/product/surface`, keeping it in Settings or an
+on-demand context panel rather than the normal chat timeline. The UI must not
+add a scheduler, renderer timer, polling loop, package, Store, Shell, Gateway,
+compatibility alias, or a second Schedule command set. TUI parity follows only
+after the shared Product UX contract is stable.

@@ -266,13 +266,15 @@ describe("@wanex/runtime/media-generation", () => {
   })
 
   it("clamps provider poll hints to runtime bounds", async () => {
-    const storage = await createStore("media-poll-hints")
     const lowerAdapter = new PollHintAdapter("media-hint-lower", 1)
     const upperAdapter = new PollHintAdapter("media-hint-upper", 100_000)
     for (const [adapter, expectedDelay] of [
       [lowerAdapter, 50],
       [upperAdapter, 80]
     ] as const) {
+      const storage = await createStore(
+        `media-poll-hints-${adapter.modelEndpoint.id}`
+      )
       const runtime = new WanexMediaGenerationRuntime({
         storage,
         adapters: [adapter],

@@ -3540,6 +3540,23 @@ both `import.meta.url` and the argv entry path. Legitimate CLI/child argument
 access remains allowed and has an explicit regression test. Do not restore a
 token-only ban or rewrite valid callers merely to evade an audit pattern.
 
+Run `32345578013` passed the corrected hygiene policy on all four targets and
+passed the clean SDK/API proof on Linux. Its remaining failures are one batched
+cross-platform verification correction, documented in `1410`: Rust 1.96 Clippy
+cleanup on both macOS targets; Windows Runtime tests changed from fixed delays,
+shared Store state, and background eventually polling to exact PID/settlement
+evidence; and Linux installed TUI proof now runs inside a CI-only session D-Bus
+with the real GNOME Secret Service backend, following `@napi-rs/keyring` upstream
+CI. The TUI double-failure diagnostic now exposes both redacted proof and cleanup
+messages. Do not replace the real credential backend with an in-memory test
+store, restore fixed sleeps, raise global timeouts, or push partial diagnoses.
+The consolidated correction now passes all 20 TypeScript project checks, the
+complete low-concurrency package test suite, System Service 9 + 5 + 119 + 17
+tests and all-target Clippy, the real installed darwin-arm64 TUI proof, and all
+relevant structure/distribution/facade/storage audits locally. Linux Secret
+Service and Windows process behavior remain evidence owned by the next single
+matrix run, not by macOS inference.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,

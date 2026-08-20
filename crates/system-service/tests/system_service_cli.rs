@@ -720,13 +720,10 @@ fn workspace_snapshot_captures_dirty_checkout_and_releases_exact_runtime_resourc
     assert_eq!(frame["kind"], "workspace_snapshot_created");
     assert_eq!(frame["isolation_id"], "wiso_cli_dirty");
     assert_ne!(frame["base_revision"], head);
-    assert_eq!(
-        frame["runtime_ref"]
-            .as_str()
-            .unwrap()
-            .starts_with("wanex/runtime/"),
-        true
-    );
+    assert!(frame["runtime_ref"]
+        .as_str()
+        .unwrap()
+        .starts_with("wanex/runtime/"));
     let snapshot_root = Path::new(frame["root_dir"].as_str().unwrap());
     assert_eq!(
         fs::read_to_string(snapshot_root.join("README.md")).unwrap(),

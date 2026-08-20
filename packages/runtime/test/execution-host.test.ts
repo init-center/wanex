@@ -357,6 +357,7 @@ describe("@wanex/runtime/execution", () => {
 
   it("terminates the owned process tree when the Host control pipe closes", async () => {
     const cwd = await tempDir()
+    const pidFile = join(cwd, "pipe-eof-process-tree.json")
     const helper = spawn(serviceBin, ["--workspace-child"], {
       shell: false,
       windowsHide: true,
@@ -377,7 +378,7 @@ describe("@wanex/runtime/execution", () => {
       kind: "workspace_child_start",
       ...identity,
       program: process.execPath,
-      args: ["-e", processTreeFixture],
+      args: ["-e", processTreeFixture, pidFile],
       cwd,
       environment: { PATH: process.env.PATH ?? "" },
       stdin_base64: "",
@@ -389,13 +390,14 @@ describe("@wanex/runtime/execution", () => {
       kind: "workspace_child_ready",
       ...identity
     })
-    await new Promise((resolve) => setTimeout(resolve, 200))
+    const publishedPids = await waitForProcessTreePidFile(pidFile)
     helper.stdin.end()
     const output = await nextFrameOfKind(frames, "workspace_child_stdout")
     expect(output).toMatchObject({ kind: "workspace_child_stdout", ...identity })
     const pids = processTreePids(
       Buffer.from(String(output.data_base64), "base64").toString("utf8")
     )
+    expect(pids).toEqual(publishedPids)
 
     const terminal = await nextFrameOfKind(frames, "workspace_child_terminal")
     expect(terminal).toMatchObject({
@@ -441,8 +443,11 @@ describe("@wanex/runtime/execution", () => {
 
 const processTreeFixture = [
   "const {spawn}=require('node:child_process')",
+  "const {renameSync,writeFileSync}=require('node:fs')",
   "const grandchild=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true})",
-  "process.stdout.write(JSON.stringify({root:process.pid,grandchild:grandchild.pid})+'\\n')",
+  "const pids={root:process.pid,grandchild:grandchild.pid}",
+  "if(process.argv[1]){writeFileSync(process.argv[1]+'.tmp',JSON.stringify(pids));renameSync(process.argv[1]+'.tmp',process.argv[1])}",
+  "process.stdout.write(JSON.stringify(pids)+'\\n')",
   "setInterval(()=>{},1000)"
 ].join(";")
 
@@ -463,6 +468,21 @@ async function waitForPositivePidFile(path: string): Promise<number> {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
   throw new Error("active process did not publish its pid")
+}
+
+async function waitForProcessTreePidFile(
+  path: string
+): Promise<{ root: number; grandchild: number }> {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    try {
+      return processTreePids(await readFile(path, "utf8"))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error("process tree fixture did not publish its pids")
 }
 
 async function expectProcessGone(pid: number): Promise<void> {
@@ -528,8 +548,17 @@ function lineFrames(stream: NodeJS.ReadableStream): {
   next(): Promise<Record<string, unknown>>
 } {
   let buffer = ""
+  let terminalError: Error | undefined
   const queued: Record<string, unknown>[] = []
-  const waiters: Array<(frame: Record<string, unknown>) => void> = []
+  const waiters: Array<{
+    resolve(frame: Record<string, unknown>): void
+    reject(error: Error): void
+  }> = []
+  const finish = (error: Error) => {
+    if (terminalError !== undefined) return
+    terminalError = error
+    for (const waiter of waiters.splice(0)) waiter.reject(error)
+  }
   stream.setEncoding("utf8")
   stream.on("data", (chunk: string) => {
     buffer += chunk
@@ -538,18 +567,33 @@ function lineFrames(stream: NodeJS.ReadableStream): {
       if (newline < 0) return
       const line = buffer.slice(0, newline)
       buffer = buffer.slice(newline + 1)
-      const frame = JSON.parse(line) as Record<string, unknown>
+      let frame: Record<string, unknown>
+      try {
+        frame = JSON.parse(line) as Record<string, unknown>
+      } catch (cause) {
+        finish(new Error("workspace child emitted an invalid protocol frame", {
+          cause
+        }))
+        return
+      }
       const waiter = waiters.shift()
       if (waiter === undefined) queued.push(frame)
-      else waiter(frame)
+      else waiter.resolve(frame)
     }
+  })
+  stream.once("end", () => {
+    finish(new Error("workspace child protocol stream ended before the next frame"))
+  })
+  stream.once("error", (cause) => {
+    finish(new Error("workspace child protocol stream failed", { cause }))
   })
   return {
     async next() {
       const frame = queued.shift()
       if (frame !== undefined) return frame
-      return await new Promise<Record<string, unknown>>((resolve) => {
-        waiters.push(resolve)
+      if (terminalError !== undefined) throw terminalError
+      return await new Promise<Record<string, unknown>>((resolve, reject) => {
+        waiters.push({ resolve, reject })
       })
     }
   }

@@ -153,7 +153,7 @@ fn create_snapshot(
             "-m",
             "Wanex workspace snapshot",
         ],
-        &vec![
+        &[
             ("GIT_AUTHOR_NAME".to_string(), "Wanex Workspace".to_string()),
             (
                 "GIT_AUTHOR_EMAIL".to_string(),
@@ -244,7 +244,7 @@ fn release_snapshot(
         return Ok(());
     }
     if branch_exists {
-        let expected = expected_base_revision.unwrap_or_else(|| "");
+        let expected = expected_base_revision.unwrap_or("");
         if expected.is_empty() {
             git_output(
                 repository_root,

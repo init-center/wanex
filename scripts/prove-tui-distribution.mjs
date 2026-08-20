@@ -813,9 +813,11 @@ async function runInstalledFullScreenTui(options) {
     rm(relaunchExpectScript, { force: true })
   ])
   if (failure !== undefined && cleanupFailure !== undefined) {
-    throw new AggregateError(
-      [failure, cleanupFailure],
-      "installed TUI proof and credential cleanup failed"
+    throw new Error(
+      "installed TUI proof and credential cleanup failed:\n" +
+      `proof: ${errorMessage(failure)}\n` +
+      `cleanup: ${errorMessage(cleanupFailure)}`,
+      { cause: new AggregateError([failure, cleanupFailure]) }
     )
   }
   if (failure !== undefined) throw failure
@@ -962,6 +964,10 @@ function tuiEnvironment(overrides) {
     )
   )
   return { ...environment, ...overrides }
+}
+
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function cleanupInstalledTuiCredentials(options) {

@@ -3608,3 +3608,15 @@ UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,
 darwin-x64, and win32-x64. To conserve private GitHub Actions minutes, finish
 and verify a complete local batch before each push; never use one commit per CI
 diagnosis.
+
+Run `32399476820` for commit `61a1585` passed linux-x64, darwin-arm64, and
+darwin-x64, but Windows failed with the now-visible native Git diagnostic:
+`fatal: could not create leading directories of '//?/C:/.../.git': Invalid
+argument`. The root cause is the Windows extended path prefix emitted by Rust
+`fs::canonicalize` being passed directly to `git worktree add` and `remove`.
+The correction keeps canonical extended paths for internal identity and long
+path handling, but strips the prefix only at the Git argument and helper-frame
+boundary, normalizes Git worktree-list comparisons, and uses the same boundary
+format for `GIT_INDEX_FILE`. Rust path-format tests and the Workspace package
+tests pass locally. Do not treat this local macOS result as Windows proof; the
+next single matrix must validate the correction on win32-x64 before CODING-2.

@@ -128,10 +128,7 @@ fn create_snapshot(
     let head = git_output(repository_root, git_bin, &["rev-parse", "HEAD"], &[])?;
     let temp = TemporaryDirectory::new()?;
     let index = temp.path.join("index");
-    let index_env = vec![(
-        "GIT_INDEX_FILE".to_string(),
-        index.to_string_lossy().into_owned(),
-    )];
+    let index_env = vec![("GIT_INDEX_FILE".to_string(), git_path_arg(&index))];
     git_output(repository_root, git_bin, &["read-tree", "HEAD"], &index_env)?;
     git_output(
         repository_root,
@@ -182,7 +179,7 @@ fn create_snapshot(
         &[
             "worktree",
             "add",
-            &identity.root.to_string_lossy(),
+            &git_path_arg(&identity.root),
             &identity.branch,
         ],
         &[],
@@ -224,7 +221,7 @@ fn release_snapshot(
                 "worktree",
                 "remove",
                 "--force",
-                &identity.root.to_string_lossy(),
+                &git_path_arg(&identity.root),
             ],
             &[],
         )?;
@@ -323,7 +320,7 @@ fn frame(identity: &RuntimeIdentity, base_revision: String) -> CreatedFrame {
         isolation_id: identity.isolation_id.clone(),
         base_revision,
         runtime_ref: identity.branch.clone(),
-        root_dir: identity.root.to_string_lossy().into_owned(),
+        root_dir: normalized_git_path(&identity.root),
     }
 }
 
@@ -431,18 +428,48 @@ fn same_or_child(parent: &Path, child: &Path) -> bool {
 }
 
 fn normalized_git_path(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
+    git_path_arg(path).replace('\\', "/")
 }
 
 fn same_git_path(actual: &str, expected: &str) -> bool {
+    let actual = normalize_git_string(actual);
+    let expected = normalize_git_string(expected);
     #[cfg(windows)]
     {
-        actual.eq_ignore_ascii_case(expected)
+        actual.eq_ignore_ascii_case(&expected)
     }
     #[cfg(not(windows))]
     {
         actual == expected
     }
+}
+
+fn normalize_git_string(value: &str) -> String {
+    let value = value.replace('\\', "/");
+    #[cfg(windows)]
+    {
+        if let Some(path) = value.strip_prefix("//?/UNC/") {
+            return format!("//{path}");
+        }
+        if let Some(path) = value.strip_prefix("//?/") {
+            return path.to_string();
+        }
+    }
+    value
+}
+
+fn git_path_arg(path: &Path) -> String {
+    let value = path.to_string_lossy();
+    #[cfg(windows)]
+    {
+        if let Some(path) = value.strip_prefix("\\\\?\\UNC\\") {
+            return format!("\\\\{path}");
+        }
+        if let Some(path) = value.strip_prefix("\\\\?\\") {
+            return path.to_string();
+        }
+    }
+    value.into_owned()
 }
 
 fn require_absolute(path: &Path, label: &str) -> Result<()> {
@@ -491,4 +518,37 @@ fn hex_digest(bytes: &[u8]) -> String {
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalized_git_path, same_git_path};
+    use std::path::Path;
+
+    #[test]
+    fn normalizes_git_paths_to_forward_slashes() {
+        assert_eq!(
+            normalized_git_path(Path::new("/tmp/wanex-worktree")),
+            "/tmp/wanex-worktree"
+        );
+        assert!(same_git_path("/tmp/wanex-worktree", "/tmp/wanex-worktree"));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn removes_windows_extended_prefix_at_git_boundary() {
+        let path = Path::new(r"\\?\C:\Users\runner\wanex-worktree");
+        assert_eq!(normalized_git_path(path), "C:/Users/runner/wanex-worktree");
+        assert!(same_git_path(
+            "C:/Users/runner/wanex-worktree",
+            "//?/C:/Users/runner/wanex-worktree"
+        ));
+
+        let unc = Path::new(r"\\?\UNC\server\share\wanex-worktree");
+        assert_eq!(normalized_git_path(unc), "//server/share/wanex-worktree");
+        assert!(same_git_path(
+            "//server/share/wanex-worktree",
+            "//?/UNC/server/share/wanex-worktree"
+        ));
+    }
 }

@@ -639,7 +639,7 @@ impl ChildOwnership {
             if job.is_null() {
                 return Err(kill_unclaimed_child(child, io::Error::last_os_error()).into());
             }
-            let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+            let limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
                 BasicLimitInformation: JOBOBJECT_BASIC_LIMIT_INFORMATION {
                     LimitFlags: JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
                     ..Default::default()
@@ -650,7 +650,7 @@ impl ChildOwnership {
                 SetInformationJobObject(
                     job,
                     JobObjectExtendedLimitInformation,
-                    (&mut limits as *mut _).cast(),
+                    std::ptr::from_ref(&limits).cast::<std::ffi::c_void>(),
                     std::mem::size_of_val(&limits) as u32,
                 )
             };
@@ -687,7 +687,7 @@ impl ChildOwnership {
         self.armed = false;
     }
 
-    fn terminate(&self, child: &mut Child) -> io::Result<()> {
+    fn terminate(&self, _child: &mut Child) -> io::Result<()> {
         #[cfg(windows)]
         {
             let result =
@@ -699,7 +699,7 @@ impl ChildOwnership {
         }
         #[cfg(unix)]
         {
-            let pid = child.id() as libc::pid_t;
+            let pid = _child.id() as libc::pid_t;
             let result = unsafe { libc::kill(-pid, libc::SIGTERM) };
             if result != 0 && io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH) {
                 return Err(io::Error::last_os_error());
@@ -708,7 +708,7 @@ impl ChildOwnership {
         }
         #[cfg(not(any(windows, unix)))]
         {
-            child.kill()
+            _child.kill()
         }
     }
 
@@ -744,7 +744,7 @@ impl ChildOwnership {
                 QueryInformationJobObject(
                     self.job,
                     JobObjectBasicAccountingInformation,
-                    (&mut accounting as *mut _).cast(),
+                    std::ptr::from_mut(&mut accounting).cast::<std::ffi::c_void>(),
                     std::mem::size_of_val(&accounting) as u32,
                     std::ptr::null_mut(),
                 )

@@ -3532,6 +3532,14 @@ report order. Do not invoke the low-level report generator as standalone
 release evidence, treat an existing `target/` as proof, increase the global
 test timeout, or push one CI diagnosis at a time.
 
+The follow-up run `32344967671` stopped on every target at one common false
+positive in the workspace hygiene audit: the policy treated every
+`process.argv[1]` access as manual ESM main detection. The policy now uses the
+TypeScript AST and rejects only equality comparisons whose expression contains
+both `import.meta.url` and the argv entry path. Legitimate CLI/child argument
+access remains allowed and has an explicit regression test. Do not restore a
+token-only ban or rewrite valid callers merely to evade an audit pattern.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,

@@ -113,6 +113,20 @@ describe("audit-workspace-hygiene", () => {
       })
     )
   })
+
+  it("allows argv entry access that is not a main-module comparison", async () => {
+    await mkdir(fixtureDir, { recursive: true })
+    await writeFile(
+      join(fixtureDir, "argument.mjs"),
+      "export const entryArgument = process.argv[1]\n",
+      "utf8"
+    )
+
+    const result = await runAudit()
+
+    expect(result.code).toBe(0)
+    expect(result.report.failures).toEqual([])
+  })
 })
 
 async function runAudit() {

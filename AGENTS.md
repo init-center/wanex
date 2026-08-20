@@ -3620,3 +3620,14 @@ boundary, normalizes Git worktree-list comparisons, and uses the same boundary
 format for `GIT_INDEX_FILE`. Rust path-format tests and the Workspace package
 tests pass locally. Do not treat this local macOS result as Windows proof; the
 next single matrix must validate the correction on win32-x64 before CODING-2.
+
+Run `32402030353` validated the Windows path-boundary correction: the Windows
+extended-prefix tests, 119 system-service tests, and 16 CLI tests reached the
+snapshot integration successfully. The remaining Windows failure was the
+snapshot worktree being checked out with CRLF under the runner's Git
+`core.autocrlf=true`, while the committed snapshot bytes were LF. This is a
+production correctness issue, not a platform-specific test expectation; the
+native Git command boundary now sets `core.autocrlf=false` for snapshot
+operations so a worktree preserves the exact committed bytes. Do not change the
+test to accept platform-dependent line endings, do not mask the setting through
+CI configuration, and do not start CODING-2 until the next matrix is green.

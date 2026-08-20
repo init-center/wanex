@@ -377,9 +377,8 @@ fn git_output(
     args: &[&str],
     envs: &[(String, String)],
 ) -> Result<String> {
-    let mut command = Command::new(git_bin);
-    command.arg("-C").arg(root).args(args);
-    command.env("GIT_TERMINAL_PROMPT", "0");
+    let mut command = git_command(root, git_bin);
+    command.args(args);
     for (key, value) in envs {
         command.env(key, value);
     }
@@ -399,9 +398,8 @@ fn git_success(
     args: &[&str],
     envs: &[(String, String)],
 ) -> Result<bool> {
-    let mut command = Command::new(git_bin);
-    command.arg("-C").arg(root).args(args);
-    command.env("GIT_TERMINAL_PROMPT", "0");
+    let mut command = git_command(root, git_bin);
+    command.args(args);
     for (key, value) in envs {
         command.env(key, value);
     }
@@ -416,6 +414,18 @@ fn git_success(
             String::from_utf8_lossy(&output.stderr).trim()
         )))
     }
+}
+
+fn git_command(root: &Path, git_bin: &str) -> Command {
+    let mut command = Command::new(git_bin);
+    // Snapshot worktrees must preserve the committed byte content exactly.
+    command
+        .arg("-c")
+        .arg("core.autocrlf=false")
+        .arg("-C")
+        .arg(root);
+    command.env("GIT_TERMINAL_PROMPT", "0");
+    command
 }
 
 fn canonicalize_parent(path: &Path) -> Result<PathBuf> {

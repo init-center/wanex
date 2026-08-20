@@ -230,7 +230,10 @@ describe("@wanex/workspace/tasks", () => {
       attemptId: "wtat_expired_active",
       claimToken: "expired-active-token-abcdefghijklmnopqrstuvwxyz"
     })
-    await wait(1_100)
+    await waitForLeaseExpiry(
+      environment.storage,
+      "wtsk_expired_active"
+    )
 
     let handlerCalls = 0
     const recovered = await environment.runtime.recoverTask({
@@ -269,7 +272,10 @@ describe("@wanex/workspace/tasks", () => {
     })
     expect(first.proposal).toBeDefined()
 
-    await wait(1_100)
+    await waitForLeaseExpiry(
+      environment.storage,
+      "wtsk_admission_release"
+    )
     const admission = await environment.runtime.recoverExpiredTasks({
       maxRuns: 1,
       budgetMs: 5_000
@@ -317,7 +323,10 @@ describe("@wanex/workspace/tasks", () => {
       attemptId: "wtat_admission_attention",
       claimToken: "admission-attention-token-abcdefghijklmnopqrstuvwxyz"
     })
-    await wait(1_100)
+    await waitForLeaseExpiry(
+      environment.storage,
+      "wtsk_admission_attention"
+    )
 
     const admission = await environment.runtime.recoverExpiredTasks({
       maxRuns: 1,
@@ -402,7 +411,10 @@ describe("@wanex/workspace/tasks", () => {
         leaseMs: 1_000
       })
     }
-    await wait(1_100)
+    await waitForLeaseExpiry(
+      environment.storage,
+      "wtsk_admission_first"
+    )
 
     const admission = await environment.runtime.recoverExpiredTasks({
       maxRuns: 1,
@@ -457,13 +469,20 @@ describe("@wanex/workspace/tasks", () => {
       run: { state: "releasing", outcome: "proposed" },
       activeAttempt: { state: "active" }
     })
-    await wait(1_100)
+    await waitForLeaseExpiry(
+      environment.storage,
+      "wtsk_release_recovery"
+    )
 
     const recovered = await environment.runtime.recoverTask({
       runId: "wtsk_release_recovery"
     })
 
-    expect(recovered.status).toBe("succeeded")
+    if (recovered.status !== "succeeded") {
+      throw new Error(
+        `workspace task recovery returned ${JSON.stringify(recovered)}`
+      )
+    }
     expect(handlerCalls).toBe(1)
     expect(environment.writableIsolation.durableReleasedIds).toHaveLength(1)
     expect(environment.writableIsolation.durableReleasedIds[0]).toMatch(
@@ -987,6 +1006,18 @@ async function createRepo(): Promise<string> {
 
 async function wait(milliseconds: number): Promise<void> {
   await new Promise<void>((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function waitForLeaseExpiry(
+  storage: StorageTestStore,
+  runId: string
+): Promise<void> {
+  const snapshot = await storage.getWorkspaceTaskRun({ runId })
+  const leaseExpiresAt = snapshot?.activeAttempt?.leaseExpiresAt
+  if (leaseExpiresAt === undefined) {
+    throw new Error(`workspace task test has no active lease: ${runId}`)
+  }
+  await wait(Math.max(1, leaseExpiresAt - Date.now() + 100))
 }
 
 async function git(repoDir: string, args: readonly string[]): Promise<string> {

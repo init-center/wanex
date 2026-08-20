@@ -3631,3 +3631,13 @@ native Git command boundary now sets `core.autocrlf=false` for snapshot
 operations so a worktree preserves the exact committed bytes. Do not change the
 test to accept platform-dependent line endings, do not mask the setting through
 CI configuration, and do not start CODING-2 until the next matrix is green.
+
+Run `32404401225` passed Linux and darwin-arm64, but exposed two independent
+test/recovery defects: darwin-x64's expired-run admission test guessed
+`1100ms` instead of waiting for the persisted lease expiry, and Windows reached
+the durable-release recovery path but returned a failed receipt without showing
+the underlying error. The tests now wait from the stored `leaseExpiresAt` with a
+small explicit boundary and include the complete failed recovery receipt in the
+test error. This is diagnostic and determinism work, not a relaxed assertion;
+the next matrix must identify and resolve the Windows release error before
+CODING-2.

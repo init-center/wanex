@@ -11,6 +11,7 @@ import type {
 
 const PROTOCOL = 1
 const MAX_FRAME_BYTES = 64 * 1024
+const MAX_STDERR_BYTES = 8 * 1024
 const DEFAULT_TIMEOUT_MS = 30_000
 
 export class NativeWorkspaceSnapshotClient implements WorkspaceSnapshotClient {
@@ -74,8 +75,9 @@ async function readChild(child: ChildProcess, timeoutMs: number): Promise<string
     throw new WorkspaceSnapshotHelperError("spawn_failed", "workspace snapshot helper pipes are unavailable")
   }
   let stdout: Buffer<ArrayBufferLike> = Buffer.alloc(0)
+  let stderr: Buffer<ArrayBufferLike> = Buffer.alloc(0)
   child.stdout.on("data", (chunk: Buffer) => { stdout = append(stdout, chunk, MAX_FRAME_BYTES + 1) })
-  child.stderr.on("data", () => {})
+  child.stderr.on("data", (chunk: Buffer) => { stderr = append(stderr, chunk, MAX_STDERR_BYTES) })
   const result = await new Promise<{ code: number | null; error?: Error }>((resolveResult, reject) => {
     const timer = setTimeout(() => { child.kill(); reject(new WorkspaceSnapshotHelperError("timeout", "workspace snapshot helper timed out")) }, timeoutMs)
     child.once("error", (error) => { clearTimeout(timer); resolveResult({ code: null, error }) })
@@ -83,7 +85,13 @@ async function readChild(child: ChildProcess, timeoutMs: number): Promise<string
   })
   if (result.error !== undefined) throw new WorkspaceSnapshotHelperError("spawn_failed", "workspace snapshot helper failed to spawn", result.error)
   if (stdout.length > MAX_FRAME_BYTES) throw new WorkspaceSnapshotHelperError("invalid_protocol", "workspace snapshot helper frame exceeded its limit")
-  if (result.code !== 0) throw new WorkspaceSnapshotHelperError("helper_failed", "workspace snapshot helper failed")
+  if (result.code !== 0) {
+    const diagnostic = stderr.toString("utf8").trim()
+    throw new WorkspaceSnapshotHelperError(
+      "helper_failed",
+      `workspace snapshot helper failed; exit=${String(result.code)}${diagnostic.length === 0 ? "" : `; stderr=${diagnostic}`}`
+    )
+  }
   return stdout.toString("utf8")
 }
 

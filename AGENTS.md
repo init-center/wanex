@@ -3589,6 +3589,19 @@ signal result into a fake POSIX success, lower audit severity, or add an audit
 ignore. CODING-2 remains blocked until the next single four-platform matrix is
 green.
 
+Run `32354481122` for commit `a3381b9` failed all four verify jobs. macOS ARM64,
+macOS x64, and Linux stopped at the same exact facade baseline drift after the
+security dependency update (`runtime 507416`, `app 1420560`); the tracked
+baseline was regenerated to those measurements without increasing a tolerance
+or changing the forbidden closure. Windows reached the Workspace package, but
+all Git snapshot cases collapsed to `WorkspaceSnapshotHelperError:
+workspace snapshot helper failed` because the TypeScript snapshot client dropped
+native stderr. The client now retains a bounded 8 KiB diagnostic and includes
+the exit status, with a regression test. The next matrix must expose the actual
+Windows Git error; do not treat the diagnostic change as a Windows fix, do not
+skip Workspace tests, and do not push a platform-specific correction. CODING-2
+remains blocked until one consolidated matrix passes all four targets.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,

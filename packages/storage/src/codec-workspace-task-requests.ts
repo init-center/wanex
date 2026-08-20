@@ -144,6 +144,7 @@ export function toRpcListWorkspaceTaskRunsRequest(
 ): ListWorkspaceTaskRunsWire {
   return {
     workspace_id: request.workspaceId ?? null,
+    repository_id: request.repositoryId ?? null,
     state: request.state ?? null,
     lease_expires_before: request.leaseExpiresBefore ?? null,
     limit: request.limit ?? null,

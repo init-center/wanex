@@ -81,7 +81,7 @@ describe("@wanex/workspace transaction runtime", () => {
       mutation: mutation("conflict")
     })
     expect(result).toMatchObject({
-      receipt: { status: "conflicted", conflicts: [{ reason: "merge_conflict" }] },
+      receipt: { status: "conflicted", conflicts: [{ reason: "base_hash_mismatch" }] },
       changeSet: { currentState: "conflicted" },
       transaction: { snapshot: { transaction: { state: "rolled_back" } } }
     })

@@ -95,7 +95,7 @@ export async function rebuildTransactionReceipt(input: {
       changeSetId: transaction.changeSetId,
       status: "applied",
       files: source.receipt.files.map((file) => appliedFileRecord(
-        { path: file.path, kind: file.kind, merged: false },
+        { path: file.path, kind: file.kind },
         {
           beforeText: file.afterText,
           afterText: file.beforeText,
@@ -121,9 +121,7 @@ export async function rebuildTransactionReceipt(input: {
       files.push(appliedFileRecord(
         {
           path: change.path,
-          kind: change.kind,
-          merged: change.kind === "update" &&
-            durable.afterText !== change.targetText
+          kind: change.kind
         },
         {
           beforeText: durable.beforeText,
@@ -137,7 +135,7 @@ export async function rebuildTransactionReceipt(input: {
     const current = await input.reader.readText(change.path)
     const currentSha256 = current === null ? undefined : sha256(current)
     files.push(appliedFileRecord(
-      { path: change.path, kind: change.kind, merged: false },
+      { path: change.path, kind: change.kind },
       {
         beforeText: current ?? undefined,
         afterText: current ?? undefined,

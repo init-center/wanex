@@ -1,5 +1,4 @@
-import { sha256Optional, sha256Text } from "./hash.js"
-import { mergeText } from "./merge.js"
+import { sha256Optional } from "./hash.js"
 import { appliedFileRecord, conflictRecord } from "./records.js"
 import type { FileChange, PlannedFileChange, WorkspaceReader } from "./types.js"
 
@@ -25,8 +24,7 @@ export async function planFileChange(
       file: appliedFileRecord(
         {
           path: change.path,
-          kind: change.kind,
-          merged: false
+          kind: change.kind
         },
         {
           beforeText: current ?? undefined,
@@ -38,13 +36,6 @@ export async function planFileChange(
     }
   }
 
-  if (current === null) {
-    return {
-      conflict: conflictRecord(change.path, "missing_file", {
-        expectedSha256: baseSha256
-      })
-    }
-  }
   if (baseText === undefined || baseSha256 === undefined) {
     return {
       conflict: conflictRecord(change.path, "missing_base", {
@@ -52,30 +43,35 @@ export async function planFileChange(
       })
     }
   }
-  if (currentSha256 === targetSha256) {
+  const targetText = change.kind === "delete" ? null : (change.targetText ?? "")
+  if (current === targetText) {
     return {
       file: appliedFileRecord(
         {
           path: change.path,
-          kind: change.kind,
-          merged: false
+          kind: change.kind
         },
         {
-          beforeText: current,
-          afterText: current,
+          ...(current === null ? {} : { beforeText: current, afterText: current }),
           beforeSha256: currentSha256,
           afterSha256: currentSha256
         }
       )
     }
   }
-  if (currentSha256 === baseSha256) {
+  if (current === null) {
+    return {
+      conflict: conflictRecord(change.path, "missing_file", {
+        expectedSha256: baseSha256
+      })
+    }
+  }
+  if (current === baseText) {
     return {
       file: appliedFileRecord(
         {
           path: change.path,
-          kind: change.kind,
-          merged: false
+          kind: change.kind
         },
         {
           beforeText: current,
@@ -86,36 +82,10 @@ export async function planFileChange(
       )
     }
   }
-  if (change.kind === "delete") {
-    return {
-      conflict: conflictRecord(change.path, "base_hash_mismatch", {
-        currentSha256,
-        expectedSha256: baseSha256
-      })
-    }
-  }
-  const merged = mergeText(baseText, current, change.targetText ?? "")
-  if (merged === null) {
-    return {
-      conflict: conflictRecord(change.path, "merge_conflict", {
-        currentSha256,
-        expectedSha256: baseSha256
-      })
-    }
-  }
   return {
-    file: appliedFileRecord(
-      {
-        path: change.path,
-        kind: change.kind,
-        merged: true
-      },
-      {
-        beforeText: current,
-        afterText: merged,
-        beforeSha256: currentSha256,
-        afterSha256: sha256Text(merged)
-      }
-    )
+    conflict: conflictRecord(change.path, "base_hash_mismatch", {
+      currentSha256,
+      expectedSha256: baseSha256
+    })
   }
 }

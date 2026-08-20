@@ -212,7 +212,7 @@ describe("@wanex/workspace/tasks", () => {
   })
 
   it("does not rerun an expired active task and requires attention", async () => {
-    const environment = await createRuntime({ leaseMs: 30 })
+    const environment = await createRuntime({ leaseMs: 1_000 })
     await environment.storage.beginWorkspaceTaskRun({
       id: "wtsk_expired_active",
       workspaceId: "workspace_task_test",
@@ -223,14 +223,14 @@ describe("@wanex/workspace/tasks", () => {
       attemptId: "wtat_expired_active",
       ownerId: "owner_expired_active",
       claimToken: "expired-active-token-abcdefghijklmnopqrstuvwxyz",
-      leaseMs: 30
+      leaseMs: 1_000
     })
     await environment.storage.markWorkspaceTaskActive({
       runId: "wtsk_expired_active",
       attemptId: "wtat_expired_active",
       claimToken: "expired-active-token-abcdefghijklmnopqrstuvwxyz"
     })
-    await wait(60)
+    await wait(1_100)
 
     let handlerCalls = 0
     const recovered = await environment.runtime.recoverTask({
@@ -251,6 +251,184 @@ describe("@wanex/workspace/tasks", () => {
     expect(snapshot).toMatchObject({ run: { state: "attention" } })
     expect(snapshot?.activeAttempt).toBeUndefined()
     expect(environment.readOnlyIsolation.releasedIds).toHaveLength(0)
+  })
+
+  it("admits expired runs with a bounded recovery scan", async () => {
+    const environment = await createRuntime({
+      leaseMs: 1_000,
+      writableReleaseError: true
+    })
+    const first = await environment.runtime.runTask({
+      id: "wtsk_admission_release",
+      access: "writable",
+      input: null,
+      handler: async (context) => {
+        await writeFile(join(context.rootDir, "admission.txt"), "release\n")
+        return {}
+      }
+    })
+    expect(first.proposal).toBeDefined()
+
+    await wait(1_100)
+    const admission = await environment.runtime.recoverExpiredTasks({
+      maxRuns: 1,
+      budgetMs: 5_000
+    })
+
+    expect(admission).toMatchObject({
+      attempted: 1,
+      released: 1,
+      attention: 0,
+      skipped: 0,
+      failed: 0,
+      remaining: false,
+      entries: [
+        {
+          runId: "wtsk_admission_release",
+          previousState: "releasing",
+          outcome: "released"
+        }
+      ]
+    })
+    expect(admission.diagnostics).toEqual([])
+    await expect(
+      environment.storage.getWorkspaceTaskRun({
+        runId: "wtsk_admission_release"
+      })
+    ).resolves.toMatchObject({ run: { state: "released" } })
+  })
+
+  it("keeps an expired execution run in attention without rerunning it", async () => {
+    const environment = await createRuntime({ leaseMs: 1_000 })
+    await environment.storage.beginWorkspaceTaskRun({
+      id: "wtsk_admission_attention",
+      workspaceId: "workspace_task_test",
+      principalId: "principal_task_test",
+      access: "read_only",
+      repositoryId: "repo_task_test",
+      isolationId: "wiso_admission_attention",
+      attemptId: "wtat_admission_attention",
+      ownerId: "owner_admission_attention",
+      claimToken: "admission-attention-token-abcdefghijklmnopqrstuvwxyz",
+      leaseMs: 1_000
+    })
+    await environment.storage.markWorkspaceTaskActive({
+      runId: "wtsk_admission_attention",
+      attemptId: "wtat_admission_attention",
+      claimToken: "admission-attention-token-abcdefghijklmnopqrstuvwxyz"
+    })
+    await wait(1_100)
+
+    const admission = await environment.runtime.recoverExpiredTasks({
+      maxRuns: 1,
+      budgetMs: 5_000
+    })
+
+    expect(admission).toMatchObject({
+      attempted: 1,
+      released: 0,
+      attention: 1,
+      skipped: 0,
+      failed: 0,
+      remaining: false,
+      entries: [
+        {
+          runId: "wtsk_admission_attention",
+          previousState: "active",
+          outcome: "attention"
+        }
+      ]
+    })
+    await expect(
+      environment.storage.getWorkspaceTaskRun({
+        runId: "wtsk_admission_attention"
+      })
+    ).resolves.toMatchObject({ run: { state: "attention" } })
+  })
+
+  it("does not claim a task whose owner lease is still healthy", async () => {
+    const environment = await createRuntime()
+    await environment.storage.beginWorkspaceTaskRun({
+      id: "wtsk_admission_healthy",
+      workspaceId: "workspace_task_test",
+      principalId: "principal_task_test",
+      access: "read_only",
+      repositoryId: "repo_task_test",
+      isolationId: "wiso_admission_healthy",
+      attemptId: "wtat_admission_healthy",
+      ownerId: "owner_admission_healthy",
+      claimToken: "admission-healthy-token-abcdefghijklmnopqrstuvwxyz",
+      leaseMs: 60_000
+    })
+
+    const admission = await environment.runtime.recoverExpiredTasks({
+      maxRuns: 1,
+      budgetMs: 5_000
+    })
+
+    expect(admission).toEqual({
+      attempted: 0,
+      released: 0,
+      attention: 0,
+      skipped: 0,
+      failed: 0,
+      remaining: false,
+      entries: [],
+      diagnostics: []
+    })
+    await expect(
+      environment.storage.getWorkspaceTaskRun({
+        runId: "wtsk_admission_healthy"
+      })
+    ).resolves.toMatchObject({
+      run: { state: "preparing" },
+      activeAttempt: { id: "wtat_admission_healthy", state: "active" }
+    })
+  })
+
+  it("reports a bounded backlog instead of scanning every expired run", async () => {
+    const environment = await createRuntime({ leaseMs: 1_000 })
+    for (const suffix of ["first", "second"]) {
+      await environment.storage.beginWorkspaceTaskRun({
+        id: `wtsk_admission_${suffix}`,
+        workspaceId: "workspace_task_test",
+        principalId: "principal_task_test",
+        access: "read_only",
+        repositoryId: "repo_task_test",
+        isolationId: `wiso_admission_${suffix}`,
+        attemptId: `wtat_admission_${suffix}`,
+        ownerId: `owner_admission_${suffix}`,
+        claimToken: `admission-${suffix}-token-abcdefghijklmnopqrstuvwxyz`,
+        leaseMs: 1_000
+      })
+    }
+    await wait(1_100)
+
+    const admission = await environment.runtime.recoverExpiredTasks({
+      maxRuns: 1,
+      budgetMs: 5_000
+    })
+
+    expect(admission).toMatchObject({
+      attempted: 1,
+      attention: 1,
+      remaining: true,
+      diagnostics: [{ code: "limit_reached" }]
+    })
+    const snapshots = await Promise.all(
+      ["first", "second"].map(
+        async (suffix) =>
+          await environment.storage.getWorkspaceTaskRun({
+            runId: `wtsk_admission_${suffix}`
+          })
+      )
+    )
+    expect(
+      snapshots.filter((snapshot) => snapshot?.run.state === "attention")
+    ).toHaveLength(1)
+    expect(
+      snapshots.filter((snapshot) => snapshot?.run.state === "preparing")
+    ).toHaveLength(1)
   })
 
   it("recovers only durable release after a proposal has settled", async () => {
@@ -578,6 +756,53 @@ describe("@wanex/workspace/tasks", () => {
     expect(receipt.changeSet).toBeUndefined()
     expect(receipt.proposal).toBeUndefined()
     expect(environment.writableIsolation.releasedIds).toHaveLength(1)
+  })
+
+  it("keeps a writable task in attention when projection finds an unsupported file", async () => {
+    const environment = await createRuntime()
+    let executionRoot = ""
+    const receipt = await environment.runtime.runTask({
+      id: "wtsk_projection_attention",
+      access: "writable",
+      input: { prompt: "create image" },
+      handler: async (context) => {
+        executionRoot = context.rootDir
+        await writeFile(
+          join(context.rootDir, "image.bin"),
+          Buffer.from([0, 1, 2, 3])
+        )
+        return { summary: "created image" }
+      }
+    })
+
+    expect(receipt).toMatchObject({
+      taskId: "wtsk_projection_attention",
+      status: "failed",
+      error: {
+        name: "WorkspaceProjectionAttention",
+        details: {
+          attention: [{ code: "binary", path: "image.bin" }]
+        }
+      }
+    })
+    expect(receipt.changeSet).toBeUndefined()
+    expect(receipt.proposal).toBeUndefined()
+    expect(environment.writableIsolation.releasedIds).toHaveLength(0)
+    await expect(stat(executionRoot)).resolves.toBeDefined()
+    await expect(
+      environment.storage.getWorkspaceTaskRun({
+        runId: "wtsk_projection_attention"
+      })
+    ).resolves.toMatchObject({
+      run: {
+        state: "attention",
+        failure: {
+          details: {
+            attention: [{ code: "binary", path: "image.bin" }]
+          }
+        }
+      }
+    })
   })
 
   it("preserves classifiable partial edits when writable execution fails", async () => {

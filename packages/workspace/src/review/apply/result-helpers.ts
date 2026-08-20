@@ -74,8 +74,7 @@ export function toReceiptMetadata(
         : { beforeSha256: file.beforeSha256 }),
       ...(file.afterSha256 === undefined
         ? {}
-        : { afterSha256: file.afterSha256 }),
-      merged: file.merged
+        : { afterSha256: file.afterSha256 })
     })),
     conflicts: receipt.conflicts.map((conflict) => ({
       path: conflict.path,

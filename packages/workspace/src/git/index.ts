@@ -7,7 +7,14 @@ export type {
   EmptyWorktreeProjection,
   GitWorktreeDiffEntry,
   GitWorktreeDiffStatus,
+  WorktreeAttentionProjection,
   WorkspaceGitRuntimeOptions,
   WorktreeChangeCollection,
   WorktreeCollection
 } from "./types.js"
+export {
+  GitProjectionError,
+  projectionAttention,
+  projectionAttentionToJson
+} from "./projection.js"
+export type { GitProjectionAttention, GitProjectionAttentionCode } from "./projection.js"

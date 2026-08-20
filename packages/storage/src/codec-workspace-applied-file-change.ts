@@ -3,7 +3,7 @@ import {
   type WorkspaceAppliedFileChange
 } from "@wanex/protocol"
 
-import { expectBoolean, expectString, isRecord } from "./codec-common.js"
+import { expectString, isRecord } from "./codec-common.js"
 import { expectWorkspaceFileChangeKind } from "./codec-workspace-file-kind.js"
 
 export function workspaceAppliedFileChangeToJson(
@@ -12,7 +12,6 @@ export function workspaceAppliedFileChangeToJson(
   return {
     path: file.path,
     kind: file.kind,
-    merged: file.merged,
     ...(file.beforeText === undefined ? {} : { beforeText: file.beforeText }),
     ...(file.afterText === undefined ? {} : { afterText: file.afterText }),
     ...(file.beforeSha256 === undefined
@@ -34,10 +33,6 @@ export function workspaceAppliedFileChangeFromJson(
     kind: expectWorkspaceFileChangeKind(
       value.kind,
       `workspace applied file change ${index}.kind`
-    ),
-    merged: expectBoolean(
-      value.merged,
-      `workspace applied file change ${index}.merged`
     ),
     ...(value.beforeText === null || value.beforeText === undefined
       ? {}

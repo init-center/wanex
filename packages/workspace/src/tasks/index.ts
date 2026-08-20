@@ -10,6 +10,7 @@ export {
   registerWorkspaceTaskJobHandler,
   submitWorkspaceTaskJob
 } from "./job.js"
+export { recoverExpiredWorkspaceTasks } from "./recovery-admission.js"
 export type {
   SubmitWorkspaceTaskJobRequest,
   RecoverWorkspaceTaskRequest,
@@ -23,6 +24,12 @@ export type {
   WorkspaceTaskReceipt,
   WorkspaceTaskRequest,
   WorkspaceTaskRuntimeOptions,
+  WorkspaceTaskRecoveryAdmissionDiagnostic,
+  WorkspaceTaskRecoveryAdmissionDiagnosticCode,
+  WorkspaceTaskRecoveryAdmissionEntry,
+  WorkspaceTaskRecoveryAdmissionOutcome,
+  WorkspaceTaskRecoveryAdmissionRequest,
+  WorkspaceTaskRecoveryAdmissionResult,
   WorkspaceTaskStatus
 } from "./types.js"
 export type { WorkspaceTaskAccess } from "@wanex/protocol"

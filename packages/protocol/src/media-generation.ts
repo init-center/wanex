@@ -186,7 +186,7 @@ export interface SuspendMediaGenerationOperationRequest {
   readonly operationId: string
   readonly workerId: string
   readonly leaseToken: string
-  readonly nextPollAt: number
+  readonly delayMs: number
   readonly outcome: MediaGenerationSuspensionOutcome
   readonly providerCheckpoint?: JsonValue
   readonly progress?: JsonValue

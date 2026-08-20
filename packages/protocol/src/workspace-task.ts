@@ -154,6 +154,7 @@ export interface GetWorkspaceTaskRunRequest {
 
 export interface ListWorkspaceTaskRunsRequest {
   readonly workspaceId?: string;
+  readonly repositoryId?: string;
   readonly state?: WorkspaceTaskRunState;
   readonly leaseExpiresBefore?: number;
   readonly limit?: number;

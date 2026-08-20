@@ -13,6 +13,10 @@ import type {
   WorkspaceTaskReceipt
 } from "./types.js"
 import type { WorkspaceTaskStore } from "./storage.js"
+import {
+  GitProjectionError,
+  projectionAttentionToJson
+} from "../git/projection.js"
 
 export async function workspaceTaskReceiptFromSnapshot(
   storage: WorkspaceTaskStore,
@@ -68,7 +72,8 @@ export function workspaceTaskFailureJson(
   return {
     type,
     message: error.message,
-    ...(error.name === undefined ? {} : { name: error.name })
+    ...(error.name === undefined ? {} : { name: error.name }),
+    ...(error.details === undefined ? {} : { details: error.details })
   }
 }
 
@@ -89,7 +94,8 @@ function workspaceTaskErrorFromJson(
   }
   return {
     message: record.message,
-    ...(typeof record.name === "string" ? { name: record.name } : {})
+    ...(typeof record.name === "string" ? { name: record.name } : {}),
+    ...(record.details === undefined ? {} : { details: record.details })
   }
 }
 
@@ -112,9 +118,13 @@ export function serializeWorkspaceTaskError(
   sensitivePaths: readonly string[] = []
 ): WorkspaceTaskError {
   if (error instanceof Error) {
+    const details = error instanceof GitProjectionError
+      ? { attention: projectionAttentionToJson(error.attention) }
+      : undefined
     return {
       message: redactSensitivePaths(error.message, sensitivePaths),
-      ...(error.name.length === 0 ? {} : { name: error.name })
+      ...(error.name.length === 0 ? {} : { name: error.name }),
+      ...(details === undefined ? {} : { details })
     }
   }
   return {

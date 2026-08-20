@@ -1,5 +1,13 @@
 import { execFile } from "node:child_process"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -94,7 +102,7 @@ describe("@wanex/workspace/git", () => {
     ).resolves.toBe("base\n")
   })
 
-  it("rejects binary worktree changes before persisting a changeset", async () => {
+  it("returns binary attention before persisting a changeset", async () => {
     const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
@@ -117,13 +125,51 @@ describe("@wanex/workspace/git", () => {
         lease,
         changeSetId: "cs_git_binary"
       })
-    ).rejects.toThrow(/binary git worktree change is not supported/)
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [{ code: "binary", path: "image.bin" }]
+    })
     await expect(
       storage.getWorkspaceChangeSet({ changeSetId: "cs_git_binary" })
     ).resolves.toBeNull()
   })
 
-  it("rejects unsupported rename status before persisting a changeset", async () => {
+  it("returns binary attention for invalid UTF-8 without a NUL byte", async () => {
+    const { locator } = await createEnvironment()
+    const isolation = new GitWorktreeIsolationAdapter({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+    const lease = await isolation.prepare({
+      workspaceId: "workspace_git_runtime",
+      jobId: "job_git_invalid_utf8",
+      isolationId: "wiso_git_invalid_utf8"
+    })
+    await writeFile(join(lease.rootDir, "invalid.txt"), Buffer.from([0xc3, 0x28]))
+
+    const runtime = new WorkspaceGitRuntime({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+
+    await expect(
+      runtime.collectWorktree({
+        lease,
+        changeSetId: "cs_git_invalid_utf8"
+      })
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [
+        {
+          code: "binary",
+          path: "invalid.txt",
+          detail: "file is not valid UTF-8 text"
+        }
+      ]
+    })
+  })
+
+  it("returns rename attention before persisting a changeset", async () => {
     const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
@@ -146,10 +192,184 @@ describe("@wanex/workspace/git", () => {
         lease,
         changeSetId: "cs_git_rename"
       })
-    ).rejects.toThrow(/unsupported git diff status: R/)
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [
+        {
+          code: "rename",
+          path: "RENAMED.md",
+          previousPath: "README.md"
+        }
+      ]
+    })
     await expect(
       storage.getWorkspaceChangeSet({ changeSetId: "cs_git_rename" })
     ).resolves.toBeNull()
+  })
+
+  it("returns file size attention before reading an oversized untracked file", async () => {
+    const { locator } = await createEnvironment()
+    const isolation = new GitWorktreeIsolationAdapter({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+    const lease = await isolation.prepare({
+      workspaceId: "workspace_git_runtime",
+      jobId: "job_git_limit",
+      isolationId: "wiso_git_limit"
+    })
+    await writeFile(
+      join(lease.rootDir, "large.bin"),
+      Buffer.alloc(16 * 1024 * 1024 + 1)
+    )
+
+    const runtime = new WorkspaceGitRuntime({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+
+    await expect(
+      runtime.collectWorktree({
+        lease,
+        changeSetId: "cs_git_limit"
+      })
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [{ code: "limit_exceeded", path: "large.bin" }]
+    })
+  })
+
+  it.skipIf(process.platform === "win32")(
+    "returns mode attention for a mode-only edit",
+    async () => {
+      const { locator } = await createEnvironment()
+      const isolation = new GitWorktreeIsolationAdapter({
+        repositoryId: "repo_git_runtime",
+        locator
+      })
+      const lease = await isolation.prepare({
+        workspaceId: "workspace_git_runtime",
+        jobId: "job_git_mode",
+        isolationId: "wiso_git_mode"
+      })
+      await chmod(join(lease.rootDir, "README.md"), 0o755)
+
+      const runtime = new WorkspaceGitRuntime({
+        repositoryId: "repo_git_runtime",
+        locator
+      })
+
+      await expect(
+        runtime.collectWorktree({
+          lease,
+          changeSetId: "cs_git_mode"
+        })
+      ).resolves.toMatchObject({
+        status: "attention",
+        attention: [{ code: "mode_only", path: "README.md" }]
+      })
+    }
+  )
+
+  it.skipIf(process.platform === "win32")(
+    "returns symlink attention instead of reading through a link",
+    async () => {
+      const { locator } = await createEnvironment()
+      const isolation = new GitWorktreeIsolationAdapter({
+        repositoryId: "repo_git_runtime",
+        locator
+      })
+      const lease = await isolation.prepare({
+        workspaceId: "workspace_git_runtime",
+        jobId: "job_git_link",
+        isolationId: "wiso_git_link"
+      })
+      await symlink("README.md", join(lease.rootDir, "link.md"), "file")
+
+      const runtime = new WorkspaceGitRuntime({
+        repositoryId: "repo_git_runtime",
+        locator
+      })
+
+      await expect(
+        runtime.collectWorktree({
+          lease,
+          changeSetId: "cs_git_link"
+        })
+      ).resolves.toMatchObject({
+        status: "attention",
+        attention: [{ code: "link_or_reparse", path: "link.md" }]
+      })
+    }
+  )
+
+  it("returns gitlink attention from the staged index mode", async () => {
+    const { locator } = await createEnvironment()
+    const isolation = new GitWorktreeIsolationAdapter({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+    const lease = await isolation.prepare({
+      workspaceId: "workspace_git_runtime",
+      jobId: "job_git_gitlink",
+      isolationId: "wiso_git_gitlink"
+    })
+    const dependencyDir = join(lease.rootDir, "dependency")
+    await mkdir(dependencyDir)
+    await git(dependencyDir, ["init"])
+    await git(dependencyDir, ["config", "user.email", "wanex@example.local"])
+    await git(dependencyDir, ["config", "user.name", "Wanex Test"])
+    await writeFile(join(dependencyDir, "README.md"), "dependency\n")
+    await git(dependencyDir, ["add", "README.md"])
+    await git(dependencyDir, ["commit", "-m", "dependency"])
+    const revision = await git(dependencyDir, ["rev-parse", "HEAD"])
+    await git(lease.rootDir, [
+      "update-index",
+      "--add",
+      "--cacheinfo",
+      `160000,${revision},dependency`
+    ])
+
+    const runtime = new WorkspaceGitRuntime({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+
+    await expect(
+      runtime.collectWorktree({
+        lease,
+        changeSetId: "cs_git_gitlink"
+      })
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [{ code: "gitlink", path: "dependency" }]
+    })
+  })
+
+  it("returns identity attention for a forged worktree lease", async () => {
+    const { locator, worktreeParentDir } = await createEnvironment()
+    const runtime = new WorkspaceGitRuntime({
+      repositoryId: "repo_git_runtime",
+      locator
+    })
+
+    await expect(
+      runtime.collectWorktree({
+        lease: {
+          id: "wiso_forged",
+          kind: "git_worktree",
+          repositoryId: "repo_git_runtime",
+          rootDir: join(worktreeParentDir, "wanex-forged"),
+          baseRevision: "HEAD",
+          branchName: "wanex/runtime/forged",
+          createdAt: Date.now()
+        },
+        changeSetId: "cs_git_forged"
+      })
+    ).resolves.toMatchObject({
+      status: "attention",
+      attention: [{ code: "identity_drift" }]
+    })
   })
 })
 

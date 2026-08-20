@@ -52,34 +52,43 @@ describe("@wanex/workspace/changesets planning", () => {
     })).resolves.toMatchObject({ status: "already_applied" })
   })
 
-  it("plans a non-overlapping merge and reports overlapping conflicts", async () => {
+  it.each([
+    ["separate edits", "A\nb\nc\n", "a\nb\nC\n"],
+    ["insertions", "a\nexternal\nb\n", "a\ntarget\nb\n"],
+    ["deletions", "a\nc\n", "a\nb\n"],
+    ["repeated lines", "same\nexternal\nsame\n", "same\ntarget\nsame\n"],
+    ["adjacent edits", "external\nb\nc\n", "a\ntarget\nc\n"],
+    ["EOF newline changes", "a\nb", "a\nB\n"]
+  ])("fails closed for %s instead of guessing a text merge", async (
+    _scenario,
+    current,
+    target
+  ) => {
     const { root, reader } = await workspace()
-    await writeFile(join(root, "merge.txt"), "A\nb\nc\n", "utf8")
-    await writeFile(join(root, "conflict.txt"), "A\nb\n", "utf8")
+    await writeFile(join(root, "file.txt"), current, "utf8")
     await expect(planChangeSetApply(reader, {
-      id: "cs_merge",
+      id: "cs_conservative_conflict",
       changes: [{
-        path: "merge.txt",
+        path: "file.txt",
         kind: "update",
         baseText: "a\nb\nc\n",
-        targetText: "a\nb\nC\n"
-      }]
-    })).resolves.toMatchObject({
-      status: "applied",
-      files: [{ merged: true, afterText: "A\nb\nC\n" }]
-    })
-    await expect(planChangeSetApply(reader, {
-      id: "cs_conflict",
-      changes: [{
-        path: "conflict.txt",
-        kind: "update",
-        baseText: "a\nb\n",
-        targetText: "AA\nb\n"
+        targetText: target
       }]
     })).resolves.toMatchObject({
       status: "conflicted",
       files: [],
-      conflicts: [{ path: "conflict.txt", reason: "merge_conflict" }]
+      conflicts: [{ path: "file.txt", reason: "base_hash_mismatch" }]
+    })
+  })
+
+  it("classifies an absent delete target as already applied", async () => {
+    const { reader } = await workspace()
+    await expect(planChangeSetApply(reader, {
+      id: "cs_delete_already_applied",
+      changes: [{ path: "gone.txt", kind: "delete", baseText: "before\n" }]
+    })).resolves.toMatchObject({
+      status: "already_applied",
+      files: [{ path: "gone.txt", kind: "delete" }]
     })
   })
 
@@ -129,8 +138,7 @@ describe("@wanex/workspace/changesets planning", () => {
         beforeText: "base\n",
         afterText: "after\n",
         beforeSha256: sha256Text("base\n"),
-        afterSha256: sha256Text("after\n"),
-        merged: false
+        afterSha256: sha256Text("after\n")
       }],
       conflicts: []
     })

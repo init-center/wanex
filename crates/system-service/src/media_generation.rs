@@ -363,9 +363,9 @@ impl SystemService {
         &self,
         request: &SuspendMediaGenerationOperation,
     ) -> Result<Option<MediaGenerationSuspendReceipt>> {
-        if request.next_poll_at <= 0 {
+        if request.delay_ms <= 0 {
             return Err(SystemServiceError::InvalidInput(
-                "media generation next_poll_at must be positive".to_string(),
+                "media generation delay_ms must be positive".to_string(),
             ));
         }
         if !matches!(
@@ -388,11 +388,11 @@ impl SystemService {
             ));
         }
         let now = crate::util::now_ms();
-        if request.next_poll_at <= now {
+        let Some(next_poll_at) = now.checked_add(request.delay_ms) else {
             return Err(SystemServiceError::InvalidInput(
-                "media generation next_poll_at must be in the future".to_string(),
+                "media generation delay_ms exceeds the supported range".to_string(),
             ));
-        }
+        };
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         let Some(operation) = get_optional_operation_tx(&tx, &request.operation_id)? else {
@@ -447,7 +447,7 @@ impl SystemService {
                 progress,
                 request.outcome,
                 consecutive_poll_failures,
-                request.next_poll_at,
+                next_poll_at,
                 error,
                 now,
                 operation.id
@@ -459,7 +459,7 @@ impl SystemService {
              result_json = NULL, last_error_json = NULL, updated_at = ?
              WHERE id = ? AND state = 'running' AND lease_owner = ? AND lease_token = ?",
             params![
-                request.next_poll_at,
+                next_poll_at,
                 now,
                 job.id,
                 request.worker_id,
@@ -481,7 +481,7 @@ impl SystemService {
             &json!({
                 "operationId": operation.id,
                 "outcome": request.outcome,
-                "nextPollAt": request.next_poll_at,
+                "nextPollAt": next_poll_at,
                 "pollCount": updated.poll_count,
                 "consecutivePollFailures": updated.consecutive_poll_failures
             }),
@@ -493,7 +493,7 @@ impl SystemService {
             &job.id,
             &json!({
                 "jobId": job.id,
-                "notBefore": request.next_poll_at,
+                "notBefore": next_poll_at,
                 "reason": "media_generation_poll"
             }),
             now,

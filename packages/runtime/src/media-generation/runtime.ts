@@ -447,7 +447,7 @@ export class WanexMediaGenerationRuntime {
       operationId: options.operation.id,
       workerId: options.context.job.leaseOwner ?? "",
       leaseToken: requireLeaseToken(options.context.job),
-      nextPollAt: Date.now() + options.delayMs,
+      delayMs: options.delayMs,
       outcome: options.outcome,
       ...(options.providerCheckpoint === undefined
         ? {}

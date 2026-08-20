@@ -148,7 +148,7 @@ function withOptionalJobResultFields(
 function taskErrorToJson(error: WorkspaceTaskError): JsonValue {
   return withOptionalJsonFields(
     { message: error.message },
-    { name: error.name }
+    { name: error.name, details: error.details }
   )
 }
 

@@ -379,13 +379,13 @@ describe("@wanex/runtime/execution", () => {
     })
     await new Promise((resolve) => setTimeout(resolve, 200))
     helper.stdin.end()
-    const output = await frames.next()
+    const output = await nextFrameOfKind(frames, "workspace_child_stdout")
     expect(output).toMatchObject({ kind: "workspace_child_stdout", ...identity })
     const pids = processTreePids(
       Buffer.from(String(output.data_base64), "base64").toString("utf8")
     )
 
-    const terminal = await frames.next()
+    const terminal = await nextFrameOfKind(frames, "workspace_child_terminal")
     expect(terminal).toMatchObject({
       kind: "workspace_child_terminal",
       termination: "pipe_eof",
@@ -526,6 +526,18 @@ function lineFrames(stream: NodeJS.ReadableStream): {
       return await new Promise<Record<string, unknown>>((resolve) => {
         waiters.push(resolve)
       })
+    }
+  }
+}
+
+async function nextFrameOfKind(
+  frames: { next(): Promise<Record<string, unknown>> },
+  kind: string
+): Promise<Record<string, unknown>> {
+  while (true) {
+    const frame = await frames.next()
+    if (frame.kind === kind) {
+      return frame
     }
   }
 }

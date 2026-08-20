@@ -1,6 +1,7 @@
 import type { WorkspaceIsolationLease } from "../isolation/index.js"
 import type { GitCommandClient } from "./git-client.js"
 import { validateRelativePath } from "./path.js"
+import { projectionAttention } from "./projection.js"
 import type { GitWorktreeDiffEntry } from "./types.js"
 
 export async function diffNameStatus(input: {
@@ -12,6 +13,7 @@ export async function diffNameStatus(input: {
     "diff",
     "--name-status",
     "-z",
+    "--find-renames=50%",
     "--diff-filter=ACDMRTUXB",
     input.baseRevision,
     "--"
@@ -44,16 +46,28 @@ export function parseDiffNameStatus(raw: string): GitWorktreeDiffEntry[] {
       if (oldPath === undefined || newPath === undefined) {
         throw new Error("git diff rename/copy output was incomplete")
       }
-      throw new Error(`unsupported git diff status: ${status}`)
+      validateProjectionPath(oldPath)
+      validateProjectionPath(newPath)
+      entries.push({
+        status,
+        path: newPath,
+        previousPath: oldPath
+      })
+      index += 3
+      continue
     }
     const path = tokens[index + 1]
     if (path === undefined) {
       throw new Error("git diff name-status output was incomplete")
     }
     if (status !== "A" && status !== "M" && status !== "D") {
-      throw new Error(`unsupported git diff status: ${statusToken}`)
+      throw projectionAttention({
+        code: "unsupported_status",
+        path,
+        status: statusToken
+      })
     }
-    validateRelativePath(path)
+    validateProjectionPath(path)
     entries.push({ status, path })
     index += 2
   }
@@ -74,7 +88,19 @@ async function untrackedFiles(
     .split("\0")
     .filter((path) => path.length > 0)
     .map((path) => {
-      validateRelativePath(path)
+      validateProjectionPath(path)
       return path
     })
+}
+
+function validateProjectionPath(path: string): void {
+  try {
+    validateRelativePath(path)
+  } catch (error) {
+    throw projectionAttention({
+      code: "path_invalid",
+      path,
+      detail: error instanceof Error ? error.message : String(error)
+    })
+  }
 }

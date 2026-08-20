@@ -2069,6 +2069,7 @@ export interface ListWorkspaceTaskRunsCommand {
 }
 export interface ListWorkspaceTaskRunsWire {
   workspace_id: NullableString;
+  repository_id: NullableString;
   state: NullableWorkspaceTaskRunStateWire;
   lease_expires_before: NullableInteger;
   limit: NullableInteger;
@@ -3058,7 +3059,7 @@ export interface MediaGenerationSuspendWire {
   operation_id: string;
   worker_id: string;
   lease_token: string;
-  next_poll_at: number;
+  delay_ms: number;
   outcome: MediaGenerationSuspensionOutcomeWire;
   provider_checkpoint: JsonValue;
   progress: JsonValue;
@@ -3149,4 +3150,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "e644a0c3cee0d9bffb59e72713cadbf46786b070f499035c6a082f1a384d9811" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "703bad100cd0b8c67f5b5894134589c0fcbd2a69d49fb9054f00dd4247370691" as const

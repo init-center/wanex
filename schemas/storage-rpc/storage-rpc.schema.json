@@ -804,7 +804,7 @@
         "operation_id",
         "worker_id",
         "lease_token",
-        "next_poll_at",
+        "delay_ms",
         "outcome",
         "provider_checkpoint",
         "progress",
@@ -814,7 +814,7 @@
         "operation_id": { "type": "string" },
         "worker_id": { "type": "string" },
         "lease_token": { "type": "string" },
-        "next_poll_at": { "type": "integer" },
+        "delay_ms": { "type": "integer", "minimum": 1 },
         "outcome": { "$ref": "#/$defs/MediaGenerationSuspensionOutcomeWire" },
         "provider_checkpoint": { "$ref": "#/$defs/JsonValue" },
         "progress": { "$ref": "#/$defs/JsonValue" },
@@ -3168,9 +3168,16 @@
     "ListWorkspaceTaskRunsWire": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["workspace_id", "state", "lease_expires_before", "limit"],
+      "required": [
+        "workspace_id",
+        "repository_id",
+        "state",
+        "lease_expires_before",
+        "limit"
+      ],
       "properties": {
         "workspace_id": { "$ref": "#/$defs/NullableString" },
+        "repository_id": { "$ref": "#/$defs/NullableString" },
         "state": { "$ref": "#/$defs/NullableWorkspaceTaskRunStateWire" },
         "lease_expires_before": { "$ref": "#/$defs/NullableInteger" },
         "limit": { "$ref": "#/$defs/NullableInteger" }

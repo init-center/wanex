@@ -34,17 +34,19 @@ impl SystemService {
             let mut stmt = tx.prepare(&format!(
                 "{RUN_SELECT} r
                  WHERE (?1 IS NULL OR r.workspace_id = ?1)
-                   AND (?2 IS NULL OR r.state = ?2)
-                   AND (?3 IS NULL OR EXISTS (
+                   AND (?2 IS NULL OR r.repository_id = ?2)
+                   AND (?3 IS NULL OR r.state = ?3)
+                   AND (?4 IS NULL OR EXISTS (
                      SELECT 1 FROM workspace_task_attempt a
                      WHERE a.run_id = r.id AND a.state = 'active'
-                       AND a.lease_expires_at <= ?3
+                       AND a.lease_expires_at <= ?4
                    ))
-                 ORDER BY r.updated_at ASC, r.id ASC LIMIT ?4"
+                 ORDER BY r.updated_at ASC, r.id ASC LIMIT ?5"
             ))?;
             let rows = stmt.query_map(
                 params![
                     request.workspace_id,
+                    request.repository_id,
                     request.state,
                     request.lease_expires_before,
                     limit

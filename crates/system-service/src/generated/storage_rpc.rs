@@ -26397,6 +26397,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 #[doc = "  \"required\": ["]
 #[doc = "    \"lease_expires_before\","]
 #[doc = "    \"limit\","]
+#[doc = "    \"repository_id\","]
 #[doc = "    \"state\","]
 #[doc = "    \"workspace_id\""]
 #[doc = "  ],"]
@@ -26406,6 +26407,9 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 #[doc = "    },"]
 #[doc = "    \"limit\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
+#[doc = "    },"]
+#[doc = "    \"repository_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
 #[doc = "    \"state\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableWorkspaceTaskRunStateWire\""]
@@ -26423,6 +26427,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 pub struct ListWorkspaceTaskRunsWire {
     pub lease_expires_before: NullableInteger,
     pub limit: NullableInteger,
+    pub repository_id: NullableString,
     pub state: NullableWorkspaceTaskRunStateWire,
     pub workspace_id: NullableString,
 }
@@ -29033,9 +29038,9 @@ pub struct MediaGenerationSubmitWire {
 #[doc = "{"]
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
+#[doc = "    \"delay_ms\","]
 #[doc = "    \"error\","]
 #[doc = "    \"lease_token\","]
-#[doc = "    \"next_poll_at\","]
 #[doc = "    \"operation_id\","]
 #[doc = "    \"outcome\","]
 #[doc = "    \"progress\","]
@@ -29043,14 +29048,15 @@ pub struct MediaGenerationSubmitWire {
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
+#[doc = "    \"delay_ms\": {"]
+#[doc = "      \"type\": \"integer\","]
+#[doc = "      \"minimum\": 1.0"]
+#[doc = "    },"]
 #[doc = "    \"error\": {"]
 #[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
 #[doc = "    },"]
 #[doc = "    \"lease_token\": {"]
 #[doc = "      \"type\": \"string\""]
-#[doc = "    },"]
-#[doc = "    \"next_poll_at\": {"]
-#[doc = "      \"type\": \"integer\""]
 #[doc = "    },"]
 #[doc = "    \"operation_id\": {"]
 #[doc = "      \"type\": \"string\""]
@@ -29075,9 +29081,9 @@ pub struct MediaGenerationSubmitWire {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(deny_unknown_fields)]
 pub struct MediaGenerationSuspendWire {
+    pub delay_ms: ::std::num::NonZeroU64,
     pub error: ::serde_json::Value,
     pub lease_token: ::std::string::String,
-    pub next_poll_at: i64,
     pub operation_id: ::std::string::String,
     pub outcome: MediaGenerationSuspensionOutcomeWire,
     pub progress: ::serde_json::Value,
@@ -55684,4 +55690,4 @@ impl ::std::convert::TryFrom<::std::string::String> for WriteAtomicFileCommandCo
 }
 
 pub const STORAGE_RPC_SCHEMA_SHA256: &str =
-    "e644a0c3cee0d9bffb59e72713cadbf46786b070f499035c6a082f1a384d9811";
+    "703bad100cd0b8c67f5b5894134589c0fcbd2a69d49fb9054f00dd4247370691";

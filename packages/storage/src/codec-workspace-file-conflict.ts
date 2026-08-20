@@ -36,7 +36,6 @@ export function workspaceFileConflictFromJson(
     reason !== "base_hash_mismatch" &&
     reason !== "already_exists" &&
     reason !== "missing_file" &&
-    reason !== "merge_conflict" &&
     reason !== "undo_target_changed"
   ) {
     throw new Error(`invalid workspace file conflict reason: ${reason}`)

@@ -152,7 +152,6 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
         files: applied.receipt.files.map((file) => ({
           path: file.path,
           kind: file.kind,
-          merged: file.merged,
           beforeSha256: file.beforeSha256 ?? null,
           afterSha256: file.afterSha256 ?? null
         })),

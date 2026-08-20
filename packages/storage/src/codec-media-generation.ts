@@ -101,7 +101,7 @@ export function toRpcSuspendMediaGenerationOperationRequest(
     operation_id: request.operationId,
     worker_id: request.workerId,
     lease_token: request.leaseToken,
-    next_poll_at: request.nextPollAt,
+    delay_ms: request.delayMs,
     outcome: request.outcome,
     provider_checkpoint: toRpcJsonValue(request.providerCheckpoint ?? null),
     progress: toRpcJsonValue(request.progress ?? null),

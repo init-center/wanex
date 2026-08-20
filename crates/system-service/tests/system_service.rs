@@ -1230,8 +1230,7 @@ fn records_workspace_changesets_and_operation_history() {
                         "beforeText": "one\n",
                         "afterText": "two\n",
                         "beforeSha256": sha256_hex(b"one\n"),
-                        "afterSha256": sha256_hex(b"two\n"),
-                        "merged": false
+                        "afterSha256": sha256_hex(b"two\n")
                     }
                 ],
                 "conflicts": []
@@ -2369,12 +2368,23 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
     let due = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
             workspace_id: Some("workspace_task_recovery".to_string()),
+            repository_id: Some("repo_task_recovery".to_string()),
             state: Some("preparing".to_string()),
             lease_expires_before: Some(test_now_ms()),
             limit: None,
         })
         .unwrap();
     assert_eq!(due.len(), 1);
+    let other_repository = service
+        .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            workspace_id: Some("workspace_task_recovery".to_string()),
+            repository_id: Some("repo_task_other".to_string()),
+            state: Some("preparing".to_string()),
+            lease_expires_before: Some(test_now_ms()),
+            limit: None,
+        })
+        .unwrap();
+    assert!(other_repository.is_empty());
 
     let recovery_token = "task-recovery-token-00000000000000000000000000000000".to_string();
     let claimed = service
@@ -14284,7 +14294,7 @@ fn media_generation_persists_acceptance_during_cancel_race() {
             operation_id: submitted.operation.id.clone(),
             worker_id: "media-cancel-worker".to_string(),
             lease_token: lease_token.clone(),
-            next_poll_at: test_now_ms() + 60_000,
+            delay_ms: 60_000,
             outcome: "scheduled".to_string(),
             provider_checkpoint: None,
             progress: None,
@@ -14334,13 +14344,13 @@ fn media_generation_suspension_releases_lease_and_resumes_only_when_due() {
             provider_checkpoint: Some(json!({ "cursor": 1 })),
         })
         .unwrap();
-    let next_poll_at = test_now_ms() + 60_000;
+    let before_suspend = test_now_ms();
     let suspended = service
         .suspend_media_generation(&wanex_system_service::SuspendMediaGenerationOperation {
             operation_id: submitted.operation.id.clone(),
             worker_id: "media-suspend-worker".to_string(),
             lease_token,
-            next_poll_at,
+            delay_ms: 60_000,
             outcome: "pending".to_string(),
             provider_checkpoint: Some(json!({ "cursor": 2 })),
             progress: Some(json!({ "percent": 50 })),
@@ -14352,7 +14362,8 @@ fn media_generation_suspension_releases_lease_and_resumes_only_when_due() {
     assert_eq!(suspended.action, "suspended");
     assert_eq!(suspended.operation.poll_count, 1);
     assert_eq!(suspended.operation.consecutive_poll_failures, 0);
-    assert_eq!(suspended.operation.next_poll_at, Some(next_poll_at));
+    let next_poll_at = suspended.operation.next_poll_at.unwrap();
+    assert!(next_poll_at >= before_suspend + 60_000);
     assert_eq!(
         suspended.operation.provider_checkpoint,
         Some(json!({ "cursor": 2 }))
@@ -14426,7 +14437,7 @@ fn media_generation_cancel_wakes_a_suspended_provider_operation() {
             operation_id: submitted.operation.id.clone(),
             worker_id: "media-cancel-first".to_string(),
             lease_token,
-            next_poll_at: test_now_ms() + 60_000,
+            delay_ms: 60_000,
             outcome: "scheduled".to_string(),
             provider_checkpoint: None,
             progress: None,

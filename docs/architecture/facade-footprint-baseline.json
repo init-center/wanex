@@ -25,7 +25,7 @@
     "runtime": {
       "entry": "packages/runtime/src/index.ts",
       "maxOutputBytes": 507439,
-      "maxInputCount": 267,
+      "maxInputCount": 268,
       "allowedWorkspacePackages": [
         "@wanex/protocol",
         "@wanex/runtime",
@@ -35,7 +35,7 @@
     "app": {
       "entry": "packages/app/src/index.ts",
       "maxOutputBytes": 1419456,
-      "maxInputCount": 464,
+      "maxInputCount": 465,
       "allowedWorkspacePackages": [
         "@wanex/app",
         "@wanex/protocol",

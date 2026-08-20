@@ -219,7 +219,7 @@ describe("@wanex/storage", () => {
       operationId: submitted.operation.id,
       workerId: "media_storage_worker",
       leaseToken,
-      nextPollAt: Date.now() + 1_000,
+      delayMs: 1_000,
       outcome: "pending",
       providerCheckpoint: { cursor: 2 },
       progress: { percent: 50 },
@@ -2291,7 +2291,6 @@ setInterval(() => {}, 1000)
             kind: "update",
             beforeText: "before\n",
             afterText: "after\n",
-            merged: false,
           },
         ],
         conflicts: [],
@@ -2678,6 +2677,7 @@ setInterval(() => {}, 1000)
     await expect(
       client.listWorkspaceTaskRuns({
         workspaceId: "workspace_task_storage",
+        repositoryId: "repo_task_storage",
         state: "released",
       }),
     ).resolves.toHaveLength(1);

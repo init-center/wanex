@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto"
 import { resolve } from "node:path"
 import { NativeWorkspaceSnapshotClient } from "../snapshot/index.js"
 import type { RepositoryLocator } from "../locator/index.js"
+import { deterministicGitWorktreeIdentity } from "./identity.js"
 import { optionalLeaseFields, withOptionalLeaseFields } from "./lease.js"
 import type {
   GitWorktreeIsolationAdapterOptions,
@@ -70,7 +70,10 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
       throw new Error("git worktree lease is missing its durable runtime identity")
     }
     const repository = await this.locator.locate(this.repositoryId)
-    const expected = deterministicIdentity(repository.worktreeParent, lease.id)
+    const expected = deterministicGitWorktreeIdentity(
+      repository.worktreeParent,
+      lease.id
+    )
     if (
       resolve(lease.rootDir) !== expected.rootDir ||
       lease.branchName !== expected.runtimeRef
@@ -106,7 +109,10 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
       throw new Error("git worktree durable identity is incomplete")
     }
     const repository = await this.locator.locate(this.repositoryId)
-    const expected = deterministicIdentity(repository.worktreeParent, identity.id)
+    const expected = deterministicGitWorktreeIdentity(
+      repository.worktreeParent,
+      identity.id
+    )
     if (identity.branchName !== expected.runtimeRef) {
       throw new Error("git worktree durable identity is not owned by this runtime")
     }
@@ -124,17 +130,6 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
         timeoutMs: repository.gitTimeoutMs
       }
     )
-  }
-}
-
-function deterministicIdentity(
-  worktreeParent: string,
-  isolationId: string
-): { readonly rootDir: string; readonly runtimeRef: string } {
-  const hash = createHash("sha256").update(isolationId).digest("hex").slice(0, 32)
-  return {
-    rootDir: resolve(worktreeParent, `wanex-${hash}`),
-    runtimeRef: `wanex/runtime/${hash}`
   }
 }
 

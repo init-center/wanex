@@ -136,8 +136,7 @@ describe("workspace transaction recovery", () => {
           beforeText: file.beforeText!,
           beforeSha256: file.beforeSha256!,
           afterText: file.afterText!,
-          afterSha256: file.afterSha256!,
-          merged: false
+          afterSha256: file.afterSha256!
         })),
         conflicts: []
       })
@@ -188,12 +187,12 @@ describe("workspace transaction recovery", () => {
     }])
   })
 
-  it("rebuilds the exact merged receipt after finalization recovery", async () => {
-    const environment = await recoveryEnvironment("merged-receipt")
+  it("rebuilds the exact durable receipt after finalization recovery", async () => {
+    const environment = await recoveryEnvironment("durable-receipt")
     const current = "A\nb\nc\n"
-    const merged = "A\nb\nC\n"
+    const target = "A\nb\nC\n"
     await writeFile(join(environment.rootDir, "file.txt"), current, "utf8")
-    const files = [filePlan(0, "file.txt", current, merged)]
+    const files = [filePlan(0, "file.txt", current, target)]
     const transaction = await beginPreparedTransaction(
       environment,
       files,
@@ -202,8 +201,8 @@ describe("workspace transaction recovery", () => {
         changes: [{
           path: "file.txt",
           kind: "update",
-          baseText: "a\nb\nc\n",
-          targetText: "a\nb\nC\n"
+          baseText: current,
+          targetText: target
         }]
       }
     )
@@ -220,11 +219,10 @@ describe("workspace transaction recovery", () => {
       receipt: {
         files: [{
           path: "file.txt",
-          merged: true,
           beforeText: current,
-          afterText: merged,
+          afterText: target,
           beforeSha256: sha256(current),
-          afterSha256: sha256(merged)
+          afterSha256: sha256(target)
         }]
       }
     }])
@@ -321,8 +319,7 @@ describe("workspace transaction recovery", () => {
           path: "file.txt",
           kind: "delete",
           beforeText: "before\n",
-          beforeSha256: sha256("before\n"),
-          merged: false
+          beforeSha256: sha256("before\n")
         }],
         conflicts: []
       }

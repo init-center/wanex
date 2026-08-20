@@ -1200,6 +1200,7 @@ pub struct MarkWorkspaceTaskAttention {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListWorkspaceTaskRuns {
     pub workspace_id: Option<String>,
+    pub repository_id: Option<String>,
     pub state: Option<String>,
     pub lease_expires_before: Option<i64>,
     pub limit: Option<i64>,
@@ -2447,7 +2448,7 @@ pub struct SuspendMediaGenerationOperation {
     pub operation_id: String,
     pub worker_id: String,
     pub lease_token: String,
-    pub next_poll_at: i64,
+    pub delay_ms: i64,
     pub outcome: String,
     pub provider_checkpoint: Option<Value>,
     pub progress: Option<Value>,

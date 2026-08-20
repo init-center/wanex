@@ -675,7 +675,7 @@ function mediaGenerationRequests() {
       command: "suspend-media-generation",
       request: {
         ...lease,
-        next_poll_at: Date.now() + 1000,
+        delay_ms: 1000,
         outcome: "pending",
         provider_checkpoint: { cursor: 2 },
         progress: { percent: 50 },

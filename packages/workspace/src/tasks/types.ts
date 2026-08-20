@@ -4,7 +4,8 @@ import type {
   ResourceRecord,
   WorkspaceChangeProposalRecord,
   WorkspaceChangeSetRecord,
-  WorkspaceTaskAccess
+  WorkspaceTaskAccess,
+  WorkspaceTaskRunState
 } from "@wanex/protocol"
 import type { ProviderArtifactOutput } from "@wanex/runtime/resources"
 import type { ChildSupervisor, ExecutionHost } from "@wanex/runtime/execution"
@@ -43,6 +44,44 @@ export interface RecoverWorkspaceTaskRequest {
   readonly runId: string
 }
 
+export type WorkspaceTaskRecoveryAdmissionOutcome =
+  | "released"
+  | "attention"
+  | "skipped"
+  | "failed"
+
+export type WorkspaceTaskRecoveryAdmissionDiagnosticCode =
+  | "budget_exceeded"
+  | "limit_reached"
+  | "recovery_failed"
+
+export interface WorkspaceTaskRecoveryAdmissionEntry {
+  readonly runId: string
+  readonly previousState: WorkspaceTaskRunState
+  readonly outcome: WorkspaceTaskRecoveryAdmissionOutcome
+}
+
+export interface WorkspaceTaskRecoveryAdmissionDiagnostic {
+  readonly code: WorkspaceTaskRecoveryAdmissionDiagnosticCode
+}
+
+export interface WorkspaceTaskRecoveryAdmissionResult {
+  readonly attempted: number
+  readonly released: number
+  readonly attention: number
+  readonly skipped: number
+  readonly failed: number
+  readonly remaining: boolean
+  readonly entries: readonly WorkspaceTaskRecoveryAdmissionEntry[]
+  readonly diagnostics: readonly WorkspaceTaskRecoveryAdmissionDiagnostic[]
+}
+
+export interface WorkspaceTaskRecoveryAdmissionRequest {
+  readonly workspaceId?: string
+  readonly maxRuns?: number
+  readonly budgetMs?: number
+}
+
 export interface WorkspaceTaskContext {
   readonly taskId: string
   readonly workspaceId: string
@@ -78,6 +117,7 @@ export interface WorkspaceTaskReceipt {
 export interface WorkspaceTaskError {
   readonly message: string
   readonly name?: string
+  readonly details?: JsonValue
 }
 
 export interface WorkspaceTaskJobPayload {

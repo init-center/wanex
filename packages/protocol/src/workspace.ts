@@ -99,7 +99,6 @@ export interface WorkspaceFileConflict {
     | "base_hash_mismatch"
     | "already_exists"
     | "missing_file"
-    | "merge_conflict"
     | "undo_target_changed";
   readonly currentSha256?: string;
   readonly expectedSha256?: string;
@@ -112,7 +111,6 @@ export interface WorkspaceAppliedFileChange {
   readonly afterText?: string;
   readonly beforeSha256?: string;
   readonly afterSha256?: string;
-  readonly merged: boolean;
 }
 
 export interface WorkspaceChangeSetReceipt {

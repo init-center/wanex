@@ -70,7 +70,7 @@ export async function planChangeSetUndo(
     status: "applied",
     files: source.files.map((file) =>
       appliedFileRecord(
-        { path: file.path, kind: file.kind, merged: false },
+        { path: file.path, kind: file.kind },
         {
           beforeText: file.afterText,
           afterText: file.beforeText,

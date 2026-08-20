@@ -19,6 +19,8 @@ import {
 } from "./receipt.js"
 import { recoverWorkspaceTask } from "./recovery.js"
 import { WorkspaceTaskLeaseRenewal } from "./renewal.js"
+import { projectionAttentionToJson } from "../git/projection.js"
+import { recoverExpiredWorkspaceTasks } from "./recovery-admission.js"
 import type { WorkspaceTaskStore } from "./storage.js"
 import type {
   WorkspaceTaskContext,
@@ -26,6 +28,8 @@ import type {
   WorkspaceTaskHandlerResult,
   RecoverWorkspaceTaskRequest,
   WorkspaceTaskReceipt,
+  WorkspaceTaskRecoveryAdmissionRequest,
+  WorkspaceTaskRecoveryAdmissionResult,
   WorkspaceTaskRequest,
   WorkspaceTaskRuntimeOptions
 } from "./types.js"
@@ -214,6 +218,28 @@ export class WorkspaceTaskRuntime {
           lease,
           changeSetId: ids.changeSetId
         })
+        if (collection.status === "attention") {
+          const projectionError: WorkspaceTaskError = {
+            message: "workspace Git projection requires attention",
+            name: "WorkspaceProjectionAttention",
+            details: {
+              attention: collection.attention.map(projectionAttentionToJson)
+            }
+          }
+          await markAttentionBestEffort(this.storage, identity, projectionError)
+          renewal.stop()
+          return withOptionalReceiptFields(
+            {
+              taskId,
+              status: "failed",
+              access: request.access,
+              workspaceId,
+              principalId,
+              resources
+            },
+            { summary, error: projectionError }
+          )
+        }
         if (collection.status === "changes") {
           await this.storage.finalizeWorkspaceTaskCollection({
             ...identity,
@@ -316,6 +342,23 @@ export class WorkspaceTaskRuntime {
         repositoryId: this.repositoryId,
         ownerId: this.ownerId,
         leaseMs: this.leaseMs
+      },
+      request
+    )
+  }
+
+  async recoverExpiredTasks(
+    request: WorkspaceTaskRecoveryAdmissionRequest = {}
+  ): Promise<WorkspaceTaskRecoveryAdmissionResult> {
+    return await recoverExpiredWorkspaceTasks(
+      {
+        storage: this.storage,
+        readOnlyIsolation: this.readOnlyIsolation,
+        writableIsolation: this.writableIsolation,
+        repositoryId: this.repositoryId,
+        ownerId: this.ownerId,
+        leaseMs: this.leaseMs,
+        defaultWorkspaceId: this.defaultWorkspaceId
       },
       request
     )

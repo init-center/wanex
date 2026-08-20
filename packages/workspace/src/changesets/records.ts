@@ -1,7 +1,7 @@
 import type { AppliedFileChange, FileConflict } from "./types.js"
 
 export function appliedFileRecord(
-  base: Pick<AppliedFileChange, "path" | "kind" | "merged">,
+  base: Pick<AppliedFileChange, "path" | "kind">,
   fields: {
     readonly beforeText?: string | undefined
     readonly afterText?: string | undefined

@@ -3482,20 +3482,43 @@ collect or release writable state. Such a task enters `attention`, produces no
 ChangeSet/Proposal, and retains its writable worktree. Expired `preparing`,
 `active`, and `collecting` tasks are not automatically rerun. `proposed` and
 `releasing` recovery only retries deterministic durable release; it never reruns
-the handler. The only public recovery entry is `runtime.recoverTask({ runId })`.
+the handler. Exact per-run recovery uses `runtime.recoverTask({ runId })`;
+bounded Host admission uses the 1D.5 API below.
 
-Local evidence for CODING-1D.4 passed Rust formatting and native tests, Runtime
-execution (14 passed, one Windows-only test skipped on macOS), Workspace (80
-tests), Eval harness (17 tests), structure audit (20 packages, zero violations),
-public-contract audit, and the real multi-agent worktree conflict scenario. The
-2 MiB cross-frame native output regression is covered. This macOS run does not
-claim Windows Job Object/reparse/worktree acceptance; the current
-`windows-2025` GitHub matrix must verify that on the submitted revision.
+CODING-1D.5 Workspace Projection And Recovery Admission is locally complete.
+Its completion evidence and the post-CODING-1D route are:
 
-The next route is `CODING-1D.5 Workspace Projection And Recovery Admission`,
-recorded in the plan above. It owns Git projection taxonomy, deletion of the
-hand-written line-number `mergeText` heuristic, conservative apply conflict
-semantics, and a bounded Host startup/admission recovery coordinator. It must
-not reopen child supervision, locator, Storage schema, or add a Gateway/polling
-loop. Do not start Coding UI before 1D.5 and the following CODING-1D review are
-complete.
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1408-phase-coding-1d-5-projection-recovery-admission-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1409-post-coding-1d-global-review-and-coding-2-trusted-host-plan.md`
+
+The hand-written line-number `mergeText` heuristic is deleted. Apply is
+conservative: exact current-target is already applied, exact current-base may
+apply, and every other external edit is a structured conflict. Git projection
+accepts only bounded valid UTF-8 text create/update/delete. Binary or invalid
+UTF-8, symlink/reparse, gitlink, mode-only, rename/copy, invalid path,
+deterministic identity drift, file limit, and read failure produce atomic
+structured attention. Writable projection attention creates no partial
+ChangeSet/Proposal and retains the worktree.
+
+`WorkspaceTaskRuntime.recoverExpiredTasks` is the one-shot bounded recovery
+admission API for a trusted Host. It filters expired runs by opaque workspace
+and repository identity, never replays an unproven handler, releases only
+durably proposed work, skips healthy owners, and returns only opaque outcomes
+and fixed diagnostics. It does not create a timer, polling loop, Gateway, or
+daemon. CODING-2 must call it at trusted Host startup/repository-open admission;
+do not hide repeated scans in every task hot path.
+
+Local evidence now passes Rust formatting, 9 library + 5 binary tests, 119
+System Service tests, 17 CLI integration tests, Runtime 285 tests, Storage 80
+tests, Workspace 100 tests, Eval Harness 17 tests, storage RPC generation and
+schema policy, structure/public/facade audits, SDK API reports, and the real
+multi-agent worktree conflict scenario. One platform-conditioned Runtime test
+is skipped on macOS. This local run still does not claim Windows Job Object,
+reparse point, worktree release, or media suspension acceptance.
+
+The next route is CODING-2 Trusted Coding Host Composition, beginning with an
+entry and static-closure audit. Do not start CODING-2 implementation or Coding
+UI until the single consolidated CODING-1D submission passes linux-x64,
+darwin-arm64, darwin-x64, and win32-x64. To conserve private GitHub Actions
+minutes, finish and verify a complete local batch before each push; never use
+one commit per CI diagnosis.

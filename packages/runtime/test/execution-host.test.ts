@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createHash } from "node:crypto"
@@ -136,6 +136,7 @@ describe("@wanex/runtime/execution", () => {
 
   it("cancels an active process before returning", async () => {
     const cwd = await tempDir()
+    const pidFile = join(cwd, "active-process.pid")
     const controller = new AbortController()
     const host = new NodeExecutionHost({
       terminationGraceMs: 20,
@@ -143,19 +144,30 @@ describe("@wanex/runtime/execution", () => {
     })
     const execution = host.execute({
       program: process.execPath,
-      args: ["-e", "console.log(process.pid);setInterval(()=>{},1000)"],
+      args: [
+        "-e",
+        "require('node:fs').writeFileSync(process.argv[1],String(process.pid));setInterval(()=>{},1000)",
+        pidFile
+      ],
       cwd,
-      signal: controller.signal,
-      output: { stdoutBytes: 128 }
+      signal: controller.signal
     })
-    setTimeout(() => controller.abort(), 75)
+    let pid: number
+    try {
+      pid = await waitForPositivePidFile(pidFile)
+    } catch (error) {
+      controller.abort()
+      await execution.catch(() => undefined)
+      throw error
+    }
+    controller.abort()
     const result = await execution
 
     expect(result).toMatchObject({
       termination: "cancelled",
       cleanup: "completed"
     })
-    await expectProcessGone(positivePid(result.stdout.text.trim(), "root"))
+    await expectProcessGone(pid)
   })
 
   it("delegates Windows cancellation to the tree terminator", async () => {
@@ -438,6 +450,19 @@ async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-execution-host-"))
   tempDirs.push(dir)
   return dir
+}
+
+async function waitForPositivePidFile(path: string): Promise<number> {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    try {
+      return positivePid((await readFile(path, "utf8")).trim(), "root")
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error("active process did not publish its pid")
 }
 
 async function expectProcessGone(pid: number): Promise<void> {

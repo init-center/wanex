@@ -442,6 +442,110 @@ interface BeginWorkspaceChangeTransactionWire {
 }
 
 // @public (undocumented)
+interface BeginWorkspaceTaskCollectionCommand {
+    // (undocumented)
+    command: "begin-workspace-task-collection";
+    // (undocumented)
+    request: BeginWorkspaceTaskCollectionWire;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceTaskCollectionRequest extends WorkspaceTaskRunIdentityRequest {
+    // (undocumented)
+    readonly executionOutcome: WorkspaceTaskExecutionOutcome;
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly resourceIds: readonly string[];
+    // (undocumented)
+    readonly summary?: string;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceTaskCollectionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    execution_outcome: WorkspaceTaskExecutionOutcomeWire;
+    // (undocumented)
+    failure: JsonValue$1;
+    resource_ids: string[];
+    // (undocumented)
+    run_id: string;
+    // (undocumented)
+    summary: NullableString;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceTaskReleaseCommand {
+    // (undocumented)
+    command: "begin-workspace-task-release";
+    // (undocumented)
+    request: WorkspaceTaskRunIdentityWire;
+}
+
+// @public (undocumented)
+type BeginWorkspaceTaskReleaseRequest = WorkspaceTaskRunIdentityRequest;
+
+// @public (undocumented)
+interface BeginWorkspaceTaskRunCommand {
+    // (undocumented)
+    command: "begin-workspace-task-run";
+    // (undocumented)
+    request: BeginWorkspaceTaskRunWire;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceTaskRunRequest {
+    // (undocumented)
+    readonly access: WorkspaceTaskAccess;
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly isolationId: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly repositoryId: string;
+    // (undocumented)
+    readonly workspaceId: string;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceTaskRunWire {
+    // (undocumented)
+    access: WorkspaceTaskAccessWire;
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    isolation_id: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    principal_id: string;
+    // (undocumented)
+    repository_id: string;
+    // (undocumented)
+    workspace_id: string;
+}
+
+// @public (undocumented)
 interface BudgetAmountWire {
     // (undocumented)
     cost_micros: NullableInteger;
@@ -601,6 +705,42 @@ interface ClaimWorkspaceChangeTransactionRecoveryWire {
     owner_id: string;
     // (undocumented)
     transaction_id: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskRecoveryCommand {
+    // (undocumented)
+    command: "claim-workspace-task-recovery";
+    // (undocumented)
+    request: ClaimWorkspaceTaskRecoveryWire;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskRecoveryRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskRecoveryWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    run_id: string;
 }
 
 // @public (undocumented)
@@ -1160,6 +1300,66 @@ interface FinalizeWorkspaceChangeTransactionWire {
 }
 
 // @public (undocumented)
+interface FinalizeWorkspaceTaskCollectionCommand {
+    // (undocumented)
+    command: "finalize-workspace-task-collection";
+    // (undocumented)
+    request: FinalizeWorkspaceTaskCollectionWire;
+}
+
+// @public (undocumented)
+interface FinalizeWorkspaceTaskCollectionIdentity extends WorkspaceTaskRunIdentityRequest {
+    // (undocumented)
+    readonly outcome: WorkspaceTaskRunOutcome;
+}
+
+// @public (undocumented)
+type FinalizeWorkspaceTaskCollectionRequest = (FinalizeWorkspaceTaskCollectionIdentity & {
+    readonly outcome: "proposed";
+    readonly changeSet: WorkspaceChangeSet;
+    readonly proposalId: string;
+    readonly title?: string;
+    readonly proposalMetadata?: JsonValue;
+}) | (FinalizeWorkspaceTaskCollectionIdentity & {
+    readonly outcome: "read_only_completed" | "no_changes" | "execution_failed" | "cancelled";
+    readonly changeSet?: never;
+    readonly proposalId?: never;
+    readonly title?: never;
+    readonly proposalMetadata?: never;
+});
+
+// @public (undocumented)
+interface FinalizeWorkspaceTaskCollectionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    changeset: JsonValue$1;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    outcome: WorkspaceTaskRunOutcomeWire;
+    // (undocumented)
+    proposal_id: NullableString;
+    // (undocumented)
+    proposal_metadata: JsonValue$1;
+    // (undocumented)
+    run_id: string;
+    // (undocumented)
+    title: NullableString;
+}
+
+// @public (undocumented)
+interface FinalizeWorkspaceTaskReleaseCommand {
+    // (undocumented)
+    command: "finalize-workspace-task-release";
+    // (undocumented)
+    request: WorkspaceTaskRunIdentityWire;
+}
+
+// @public (undocumented)
+type FinalizeWorkspaceTaskReleaseRequest = WorkspaceTaskRunIdentityRequest;
+
+// @public (undocumented)
 interface FinishConnectorSessionCommand {
     // (undocumented)
     command: "finish-connector-session";
@@ -1587,6 +1787,14 @@ interface GetWorkspaceChangeTransactionCommand {
 interface GetWorkspaceChangeTransactionRequest {
     // (undocumented)
     readonly transactionId: string;
+}
+
+// @public (undocumented)
+interface GetWorkspaceTaskRunCommand {
+    // (undocumented)
+    command: "get-workspace-task-run";
+    // (undocumented)
+    run_id: string;
 }
 
 // @public (undocumented)
@@ -2664,6 +2872,66 @@ interface ListWorkspaceChangeTransactionsWire {
 }
 
 // @public (undocumented)
+interface ListWorkspaceTaskAttemptsCommand {
+    // (undocumented)
+    command: "list-workspace-task-attempts";
+    // (undocumented)
+    request: ListWorkspaceTaskAttemptsWire;
+}
+
+// @public (undocumented)
+interface ListWorkspaceTaskAttemptsRequest {
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceTaskAttemptsWire {
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    run_id: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceTaskRunsCommand {
+    // (undocumented)
+    command: "list-workspace-task-runs";
+    // (undocumented)
+    request: ListWorkspaceTaskRunsWire;
+}
+
+// @public (undocumented)
+interface ListWorkspaceTaskRunsRequest {
+    // (undocumented)
+    readonly leaseExpiresBefore?: number;
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly repositoryId?: string;
+    // (undocumented)
+    readonly state?: WorkspaceTaskRunState;
+    // (undocumented)
+    readonly workspaceId?: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceTaskRunsWire {
+    // (undocumented)
+    lease_expires_before: NullableInteger;
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    repository_id: NullableString;
+    // (undocumented)
+    state: NullableWorkspaceTaskRunStateWire;
+    // (undocumented)
+    workspace_id: NullableString;
+}
+
+// @public (undocumented)
 interface MarkContextEpochDispatchedCommand {
     // (undocumented)
     command: "mark-context-epoch-dispatched";
@@ -2753,6 +3021,62 @@ interface MarkWorkspaceChangeTransactionPreparedCommand {
 
 // @public (undocumented)
 type MarkWorkspaceChangeTransactionPreparedRequest = WorkspaceChangeTransactionIdentityRequest;
+
+// @public (undocumented)
+interface MarkWorkspaceTaskActiveCommand {
+    // (undocumented)
+    command: "mark-workspace-task-active";
+    // (undocumented)
+    request: MarkWorkspaceTaskActiveWire;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceTaskActiveRequest extends WorkspaceTaskRunIdentityRequest {
+    // (undocumented)
+    readonly baseRevision?: string;
+    // (undocumented)
+    readonly runtimeRef?: string;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceTaskActiveWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    base_revision: NullableString;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    run_id: string;
+    // (undocumented)
+    runtime_ref: NullableString;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceTaskAttentionCommand {
+    // (undocumented)
+    command: "mark-workspace-task-attention";
+    // (undocumented)
+    request: MarkWorkspaceTaskAttentionWire;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceTaskAttentionRequest extends WorkspaceTaskRunIdentityRequest {
+    // (undocumented)
+    readonly failure: JsonValue;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceTaskAttentionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    failure: JsonValue$1;
+    // (undocumented)
+    run_id: string;
+}
 
 // @public (undocumented)
 interface MaterializeReadyDelegationGraphNodeCommand {
@@ -2943,11 +3267,11 @@ interface MediaGenerationSubmitWire {
 // @public (undocumented)
 interface MediaGenerationSuspendWire {
     // (undocumented)
+    delay_ms: number;
+    // (undocumented)
     error: JsonValue$1;
     // (undocumented)
     lease_token: string;
-    // (undocumented)
-    next_poll_at: number;
     // (undocumented)
     operation_id: string;
     // (undocumented)
@@ -3145,6 +3469,9 @@ type NullableWorkspaceChangeTransactionProposalBindingWire = WorkspaceChangeTran
 
 // @public (undocumented)
 type NullableWorkspaceChangeTransactionStateWire = WorkspaceChangeTransactionStateWire | null;
+
+// @public (undocumented)
+type NullableWorkspaceTaskRunStateWire = WorkspaceTaskRunStateWire | null;
 
 // @public (undocumented)
 type ObjectiveAttemptDispositionWire = "continue" | "blocked" | "succeeded" | "failed";
@@ -4069,6 +4396,38 @@ interface RenewWorkspaceChangeTransactionWire {
     lease_ms: number;
     // (undocumented)
     transaction_id: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceTaskRunCommand {
+    // (undocumented)
+    command: "renew-workspace-task-run";
+    // (undocumented)
+    request: RenewWorkspaceTaskRunWire;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceTaskRunRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceTaskRunWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    run_id: string;
 }
 
 // @public (undocumented)
@@ -5364,8 +5723,6 @@ interface WorkspaceAppliedFileChange {
     // (undocumented)
     readonly kind: WorkspaceFileChangeKind;
     // (undocumented)
-    readonly merged: boolean;
-    // (undocumented)
     readonly path: string;
 }
 
@@ -5856,11 +6213,11 @@ interface WorkspaceFileConflict {
     // (undocumented)
     readonly path: string;
     // (undocumented)
-    readonly reason: "missing_base" | "base_hash_mismatch" | "already_exists" | "missing_file" | "merge_conflict" | "undo_target_changed";
+    readonly reason: "missing_base" | "base_hash_mismatch" | "already_exists" | "missing_file" | "undo_target_changed";
 }
 
 // @public (undocumented)
-type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand;
+type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand | BeginWorkspaceTaskRunCommand | ClaimWorkspaceTaskRecoveryCommand | RenewWorkspaceTaskRunCommand | MarkWorkspaceTaskActiveCommand | BeginWorkspaceTaskCollectionCommand | FinalizeWorkspaceTaskCollectionCommand | BeginWorkspaceTaskReleaseCommand | FinalizeWorkspaceTaskReleaseCommand | MarkWorkspaceTaskAttentionCommand | GetWorkspaceTaskRunCommand | ListWorkspaceTaskRunsCommand | ListWorkspaceTaskAttemptsCommand;
 
 // @public (undocumented)
 export interface WorkspaceStore {
@@ -5869,17 +6226,33 @@ export interface WorkspaceStore {
     // (undocumented)
     beginWorkspaceChangeTransactionCommit(request: BeginWorkspaceChangeTransactionCommitRequest): Promise<WorkspaceChangeTransactionSnapshot>;
     // (undocumented)
+    beginWorkspaceTaskCollection(request: BeginWorkspaceTaskCollectionRequest): Promise<WorkspaceTaskRunSnapshot>;
+    // (undocumented)
+    beginWorkspaceTaskRelease(request: BeginWorkspaceTaskReleaseRequest): Promise<WorkspaceTaskRunSnapshot>;
+    // (undocumented)
+    beginWorkspaceTaskRun(request: BeginWorkspaceTaskRunRequest): Promise<WorkspaceTaskClaimResult>;
+    // (undocumented)
     claimWorkspaceChangeProposalApply(request: ClaimWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplyClaimResult>;
     // (undocumented)
     claimWorkspaceChangeTransactionRecovery(request: ClaimWorkspaceChangeTransactionRecoveryRequest): Promise<WorkspaceChangeTransactionClaimResult>;
     // (undocumented)
+    claimWorkspaceTaskRecovery(request: ClaimWorkspaceTaskRecoveryRequest): Promise<WorkspaceTaskClaimResult>;
+    // (undocumented)
     finalizeWorkspaceChangeTransaction(request: FinalizeWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionFinalization>;
+    // (undocumented)
+    finalizeWorkspaceTaskCollection(request: FinalizeWorkspaceTaskCollectionRequest): Promise<WorkspaceTaskRunSnapshot>;
+    // (undocumented)
+    finalizeWorkspaceTaskRelease(request: FinalizeWorkspaceTaskReleaseRequest): Promise<WorkspaceTaskRunSnapshot>;
     // (undocumented)
     getWorkspaceChangeProposal(request: GetWorkspaceChangeProposalRequest): Promise<WorkspaceChangeProposalRecord | null>;
     // (undocumented)
     getWorkspaceChangeSet(request: GetWorkspaceChangeSetRequest): Promise<WorkspaceChangeSetRecord | null>;
     // (undocumented)
     getWorkspaceChangeTransaction(request: GetWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionSnapshot | null>;
+    // (undocumented)
+    getWorkspaceTaskRun(request: {
+        readonly runId: string;
+    }): Promise<WorkspaceTaskRunSnapshot | null>;
     // (undocumented)
     listWorkspaceChangeOperations(request: ListWorkspaceChangeOperationsRequest): Promise<WorkspaceChangeOperationRecord[]>;
     // (undocumented)
@@ -5895,9 +6268,17 @@ export interface WorkspaceStore {
     // (undocumented)
     listWorkspaceChangeTransactions(request: ListWorkspaceChangeTransactionsRequest): Promise<WorkspaceChangeTransactionSnapshot[]>;
     // (undocumented)
+    listWorkspaceTaskAttempts(request: ListWorkspaceTaskAttemptsRequest): Promise<WorkspaceTaskAttemptRecord[]>;
+    // (undocumented)
+    listWorkspaceTaskRuns(request: ListWorkspaceTaskRunsRequest): Promise<WorkspaceTaskRunSnapshot[]>;
+    // (undocumented)
     markWorkspaceChangeProposalRecoveryRequired(request: MarkWorkspaceChangeProposalRecoveryRequiredRequest): Promise<WorkspaceChangeProposalRecoveryResult>;
     // (undocumented)
     markWorkspaceChangeTransactionPrepared(request: MarkWorkspaceChangeTransactionPreparedRequest): Promise<WorkspaceChangeTransactionSnapshot>;
+    // (undocumented)
+    markWorkspaceTaskActive(request: MarkWorkspaceTaskActiveRequest): Promise<WorkspaceTaskRunSnapshot>;
+    // (undocumented)
+    markWorkspaceTaskAttention(request: MarkWorkspaceTaskAttentionRequest): Promise<WorkspaceTaskRunSnapshot>;
     // (undocumented)
     putWorkspaceChangeProposal(request: PutWorkspaceChangeProposalRequest): Promise<WorkspaceChangeProposalRecord>;
     // (undocumented)
@@ -5917,8 +6298,145 @@ export interface WorkspaceStore {
     // (undocumented)
     renewWorkspaceChangeTransaction(request: RenewWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionAttemptRecord>;
     // (undocumented)
+    renewWorkspaceTaskRun(request: RenewWorkspaceTaskRunRequest): Promise<WorkspaceTaskAttemptRecord>;
+    // (undocumented)
     settleWorkspaceChangeProposalApply(request: SettleWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplySettlement>;
 }
+
+// @public (undocumented)
+type WorkspaceTaskAccess = "read_only" | "writable";
+
+// @public (undocumented)
+type WorkspaceTaskAccessWire = "read_only" | "writable";
+
+// @public (undocumented)
+type WorkspaceTaskAttemptKind = "execution" | "recovery";
+
+// @public (undocumented)
+interface WorkspaceTaskAttemptRecord {
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: WorkspaceTaskAttemptKind;
+    // (undocumented)
+    readonly leaseExpiresAt: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly runId: string;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: WorkspaceTaskAttemptState;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type WorkspaceTaskAttemptState = "active" | "completed" | "failed" | "expired";
+
+// @public (undocumented)
+interface WorkspaceTaskClaimResult {
+    // (undocumented)
+    readonly snapshot: WorkspaceTaskRunSnapshot;
+    // (undocumented)
+    readonly status: WorkspaceTaskClaimStatus;
+}
+
+// @public (undocumented)
+type WorkspaceTaskClaimStatus = "claimed" | "busy" | "already_terminal";
+
+// @public (undocumented)
+type WorkspaceTaskExecutionOutcome = "completed" | "failed" | "cancelled";
+
+// @public (undocumented)
+type WorkspaceTaskExecutionOutcomeWire = "completed" | "failed" | "cancelled";
+
+// @public (undocumented)
+interface WorkspaceTaskRunIdentityRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+interface WorkspaceTaskRunIdentityWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    run_id: string;
+}
+
+// @public (undocumented)
+type WorkspaceTaskRunOutcome = "read_only_completed" | "no_changes" | "proposed" | "execution_failed" | "cancelled";
+
+// @public (undocumented)
+type WorkspaceTaskRunOutcomeWire = "read_only_completed" | "no_changes" | "proposed" | "execution_failed" | "cancelled";
+
+// @public (undocumented)
+interface WorkspaceTaskRunRecord {
+    // (undocumented)
+    readonly access: WorkspaceTaskAccess;
+    // (undocumented)
+    readonly baseRevision?: string;
+    // (undocumented)
+    readonly changeSetId?: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly executionOutcome?: WorkspaceTaskExecutionOutcome;
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly isolationId: string;
+    // (undocumented)
+    readonly outcome?: WorkspaceTaskRunOutcome;
+    // (undocumented)
+    readonly principalId: PrincipalId;
+    // (undocumented)
+    readonly proposalId?: string;
+    // (undocumented)
+    readonly repositoryId: string;
+    // (undocumented)
+    readonly resourceIds: readonly string[];
+    // (undocumented)
+    readonly runtimeRef?: string;
+    // (undocumented)
+    readonly state: WorkspaceTaskRunState;
+    // (undocumented)
+    readonly summary?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workspaceId: string;
+}
+
+// @public (undocumented)
+interface WorkspaceTaskRunSnapshot {
+    // (undocumented)
+    readonly activeAttempt?: WorkspaceTaskAttemptRecord;
+    // (undocumented)
+    readonly run: WorkspaceTaskRunRecord;
+}
+
+// @public (undocumented)
+type WorkspaceTaskRunState = "preparing" | "active" | "collecting" | "proposed" | "releasing" | "released" | "attention";
+
+// @public (undocumented)
+type WorkspaceTaskRunStateWire = "preparing" | "active" | "collecting" | "proposed" | "releasing" | "released" | "attention";
 
 // @public (undocumented)
 interface WriteAtomicFileCommand {

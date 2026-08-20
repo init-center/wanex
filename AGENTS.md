@@ -3516,9 +3516,25 @@ multi-agent worktree conflict scenario. One platform-conditioned Runtime test
 is skipped on macOS. This local run still does not claim Windows Job Object,
 reparse point, worktree release, or media suspension acceptance.
 
+The first consolidated submission `1a5430f` ran as GitHub Actions
+`32339366184` and exposed three verification defects: a 30-second cold Windows
+native fixture budget, a fixed-delay darwin-x64 cancellation race, and stale
+tracked SDK API reports hidden by an existing local `target/`. The complete
+batched correction and local evidence are recorded in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1410-coding-1d-cross-platform-ci-correction-batch.md`
+
+The corrected native fixture keeps its real compiler/executable assertions
+with a test-specific bound; cancellation now waits for explicit child-start
+evidence; SDK API evidence is regenerated only after a fresh staging build.
+The public `api:sdk` and `api:sdk:update` commands enforce that build-before-
+report order. Do not invoke the low-level report generator as standalone
+release evidence, treat an existing `target/` as proof, increase the global
+test timeout, or push one CI diagnosis at a time.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
-UI until the single consolidated CODING-1D submission passes linux-x64,
-darwin-arm64, darwin-x64, and win32-x64. To conserve private GitHub Actions
-minutes, finish and verify a complete local batch before each push; never use
-one commit per CI diagnosis.
+UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,
+darwin-x64, and win32-x64. To conserve private GitHub Actions minutes, finish
+and verify a complete local batch before each push; never use one commit per CI
+diagnosis.

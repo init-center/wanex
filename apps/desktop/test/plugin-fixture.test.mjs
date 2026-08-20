@@ -55,7 +55,7 @@ describe("Product Desktop Plugin proof fixture", () => {
         result: { fixture: true, version: fixture.version }
       })
     }
-  })
+  }, 120_000)
 })
 
 function executeFixture(executable, version) {

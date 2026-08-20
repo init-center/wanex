@@ -316,6 +316,72 @@ interface CancelJobRequest {
 type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
+export interface ChildProcessRun {
+    // (undocumented)
+    terminate(reason: "timed_out" | "cancelled"): Promise<void>;
+    // (undocumented)
+    wait(): Promise<ChildTerminalEvidence>;
+}
+
+// @public (undocumented)
+export interface ChildSupervisor {
+    // (undocumented)
+    start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
+}
+
+// @public (undocumented)
+export interface ChildSupervisorClaim {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+export interface ChildSupervisorStartRequest {
+    // (undocumented)
+    readonly args: readonly string[];
+    // (undocumented)
+    readonly childId: string;
+    // (undocumented)
+    readonly claim: ChildSupervisorClaim;
+    // (undocumented)
+    readonly cwd: string;
+    // (undocumented)
+    readonly environment: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly program: string;
+    // (undocumented)
+    readonly stderrLimitBytes: number;
+    // (undocumented)
+    readonly stdin: Uint8Array;
+    // (undocumented)
+    readonly stdoutLimitBytes: number;
+    // (undocumented)
+    readonly terminationGraceMs: number;
+}
+
+// @public (undocumented)
+export interface ChildTerminalEvidence {
+    // (undocumented)
+    readonly cleanup: "completed" | "ambiguous";
+    // (undocumented)
+    readonly cleanupError?: string;
+    // (undocumented)
+    readonly exitCode: number | null;
+    // (undocumented)
+    readonly signal: string | null;
+    // (undocumented)
+    readonly stderr: ExecutionOutput;
+    // (undocumented)
+    readonly stdout: ExecutionOutput;
+    // (undocumented)
+    readonly termination: ExecutionTerminationReason | "pipe_eof";
+}
+
+// @public (undocumented)
 interface ClaimJobRequest {
     // (undocumented)
     readonly kinds?: readonly SchedulerJobKind[];
@@ -664,6 +730,11 @@ export class ExecutionAbortedError extends Error {
 }
 
 // @public (undocumented)
+export class ExecutionCleanupRequiredError extends Error {
+    constructor();
+}
+
+// @public (undocumented)
 export type ExecutionCleanupStatus = "not_required" | "completed" | "failed";
 
 // @public (undocumented)
@@ -729,11 +800,9 @@ export interface ExecutionResult {
     // (undocumented)
     readonly exitCode: number | null;
     // (undocumented)
-    readonly pid: number;
-    // (undocumented)
     readonly program: string;
     // (undocumented)
-    readonly signal: NodeJS.Signals | null;
+    readonly signal: string | null;
     // (undocumented)
     readonly stderr: ExecutionOutput;
     // (undocumented)
@@ -750,7 +819,7 @@ export class ExecutionSpawnError extends Error {
 }
 
 // @public (undocumented)
-export type ExecutionTerminationReason = "exited" | "signaled" | "timed_out" | "cancelled";
+export type ExecutionTerminationReason = "exited" | "signaled" | "timed_out" | "cancelled" | "pipe_eof";
 
 // @public (undocumented)
 interface FailJobRequest {
@@ -1427,6 +1496,35 @@ type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.
 type ModelOutputModality = "text" | "image" | "audio" | "video";
 
 // @public (undocumented)
+export class NativeChildSupervisor implements ChildSupervisor {
+    constructor(options: NativeChildSupervisorOptions);
+    // (undocumented)
+    start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
+}
+
+// @public (undocumented)
+export class NativeChildSupervisorError extends Error {
+    constructor(code: NativeChildSupervisorErrorCode, message: string, cause?: unknown);
+    // (undocumented)
+    readonly code: NativeChildSupervisorErrorCode;
+}
+
+// @public (undocumented)
+type NativeChildSupervisorErrorCode = "spawn_failed" | "startup_timeout" | "invalid_protocol" | "helper_exited" | "write_failed" | "shutdown_failed";
+
+// @public (undocumented)
+interface NativeChildSupervisorOptions {
+    // (undocumented)
+    readonly serviceArgsPrefix?: readonly string[];
+    // (undocumented)
+    readonly serviceBin: string;
+    // (undocumented)
+    readonly shutdownTimeoutMs?: number;
+    // (undocumented)
+    readonly startupTimeoutMs?: number;
+}
+
+// @public (undocumented)
 export class NodeExecutionHost implements ExecutionHost {
     constructor(options?: NodeExecutionHostOptions);
     // (undocumented)
@@ -1438,6 +1536,8 @@ export interface NodeExecutionHostOptions {
     // (undocumented)
     readonly baseEnvironment?: NodeJS.ProcessEnv;
     // (undocumented)
+    readonly childSupervisor?: ChildSupervisor;
+    // (undocumented)
     readonly cleanupTimeoutMs?: number;
     // (undocumented)
     readonly defaultOutputLimitBytes?: number;
@@ -1447,6 +1547,8 @@ export interface NodeExecutionHostOptions {
     readonly maxStdinBytes?: number;
     // (undocumented)
     readonly platform?: NodeJS.Platform;
+    // (undocumented)
+    readonly supervisorClaim?: ChildSupervisorClaim;
     // (undocumented)
     readonly terminationGraceMs?: number;
     // (undocumented)
@@ -2815,6 +2917,17 @@ interface SubmitSessionTurnRequest {
     // (undocumented)
     readonly turnId?: SessionTurnId;
 }
+
+// @public (undocumented)
+export function supervisorRequestFromExecution(request: ExecutionRequest, input: {
+    readonly claim: ChildSupervisorClaim;
+    readonly childId: string;
+    readonly environment: Readonly<Record<string, string>>;
+    readonly stdin: Uint8Array;
+    readonly stdoutLimitBytes: number;
+    readonly stderrLimitBytes: number;
+    readonly terminationGraceMs: number;
+}): ChildSupervisorStartRequest;
 
 // @public (undocumented)
 interface TeamDelegationOperationRecord {

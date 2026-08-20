@@ -3574,6 +3574,21 @@ locally. Do not restore PID startup coupling in the EOF test, wait for a
 nonexistent empty output frame, branch on `script` dialects, or enable terminal
 logging in CI.
 
+Run `32351855394` for commit `31e0f05` confirmed the EOF, Clippy, Linux Secret
+Service, and Expect-native PTY corrections: darwin-arm64 was green, Linux
+completed functional verify and installed TUI proof, and Windows Runtime
+completed 285 tests plus one platform skip. Its remaining failures were
+diagnosed together and corrected locally: direct cancellation now uses the
+product-level 250ms grace instead of a 20ms race budget; the Windows Local Host
+demo test models Node's forced SIGTERM exit separately from the POSIX graceful
+handler; and MCP SDK 1.30 plus seven patched dependency overrides remove all
+production and complete JavaScript audit findings. Local Runtime 285, Local
+Host 158, MCP checks/tests, 20-run cancellation stress, security audits,
+structure, public contracts, and hygiene all pass. Do not turn the Windows
+signal result into a fake POSIX success, lower audit severity, or add an audit
+ignore. CODING-2 remains blocked until the next single four-platform matrix is
+green.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,

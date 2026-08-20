@@ -139,8 +139,8 @@ describe("@wanex/runtime/execution", () => {
     const pidFile = join(cwd, "active-process.pid")
     const controller = new AbortController()
     const host = new NodeExecutionHost({
-      terminationGraceMs: 20,
-      cleanupTimeoutMs: 1_000
+      terminationGraceMs: 250,
+      cleanupTimeoutMs: 2_000
     })
     const execution = host.execute({
       program: process.execPath,
@@ -163,7 +163,7 @@ describe("@wanex/runtime/execution", () => {
     controller.abort()
     const result = await execution
 
-    expect(result).toMatchObject({
+    expect(result, result.cleanupError).toMatchObject({
       termination: "cancelled",
       cleanup: "completed"
     })

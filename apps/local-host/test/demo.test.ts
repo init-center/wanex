@@ -43,7 +43,11 @@ describe("local host demo", () => {
     child.kill("SIGTERM")
     const exit = await waitForDemoExit(child)
 
-    expect(exit).toEqual({ code: 0, signal: null })
+    expect(exit).toEqual(
+      process.platform === "win32"
+        ? { code: null, signal: "SIGTERM" }
+        : { code: 0, signal: null }
+    )
     expect(output.stdout).toContain("Wanex local host demo running")
     expect(output.stdout).toContain("URL: http://127.0.0.1:")
     expect(output.stdout).toContain(`Service binary: ${serviceBin}`)

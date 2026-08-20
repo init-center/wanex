@@ -59,6 +59,7 @@ export async function writeInstalledTuiProofReceipt(
   receipt,
   outputPath = installedTuiProofPath
 ) {
+  await mkdir(dirname(outputPath), { recursive: true })
   await writeFile(
     outputPath,
     `${JSON.stringify(receipt, null, 2)}\n`,

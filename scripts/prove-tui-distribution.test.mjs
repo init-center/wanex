@@ -1,4 +1,5 @@
-import { readFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
@@ -7,9 +8,13 @@ import {
 import { distributionRoot } from "../apps/tui/scripts/distribution.mjs"
 
 const testReceiptPath = join(distributionRoot, "test-installed-proof.json")
+const tempDirs = []
 
 afterEach(async () => {
   await rm(testReceiptPath, { force: true })
+  while (tempDirs.length > 0) {
+    await rm(tempDirs.pop(), { recursive: true, force: true })
+  }
 })
 
 describe("installed TUI proof receipt", () => {
@@ -25,6 +30,23 @@ describe("installed TUI proof receipt", () => {
       testReceiptPath
     )
     await expect(readFile(testReceiptPath, "utf8")).resolves.toBe(
+      `${JSON.stringify(receipt, null, 2)}\n`
+    )
+  })
+
+  it("creates a missing receipt directory on a clean runner", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wanex-tui-proof-"))
+    tempDirs.push(root)
+    const outputPath = join(root, "missing", "nested", "installed-proof.json")
+    const receipt = {
+      kind: "wanex.tui.installed-proof-receipt",
+      ok: true
+    }
+
+    await expect(
+      writeInstalledTuiProofReceipt(receipt, outputPath)
+    ).resolves.toBe(outputPath)
+    await expect(readFile(outputPath, "utf8")).resolves.toBe(
       `${JSON.stringify(receipt, null, 2)}\n`
     )
   })

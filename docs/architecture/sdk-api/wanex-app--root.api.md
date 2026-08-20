@@ -3780,6 +3780,8 @@ export interface WanexAppSubmitScheduledTickRequest {
     // (undocumented)
     readonly jobIdempotencyKey?: string;
     // (undocumented)
+    readonly modelEndpointId?: string;
+    // (undocumented)
     readonly nonOverlap?: boolean;
     // (undocumented)
     readonly previousJobId?: string;
@@ -3793,6 +3795,8 @@ export interface WanexAppSubmitScheduledTickRequest {
     readonly text: string;
     // (undocumented)
     readonly tickId: string;
+    // (undocumented)
+    readonly turnId?: string;
 }
 
 // @public (undocumented)
@@ -3823,6 +3827,8 @@ export interface WanexAppToolContributionRow extends WanexAppExtensionContributi
 export interface WanexAppTrustedExecutionHost {
     // (undocumented)
     prepareExecutionBinding(request: Omit<RuntimeHostPrepareExecutionBindingRequest, "modelEndpointId">): Promise<RuntimeHostPreparedExecutionBinding>;
+    // (undocumented)
+    submitScheduledTick(request: WanexAppSubmitScheduledTickRequest): Promise<WanexAppScheduledTickResult>;
     // (undocumented)
     wake(): void;
 }

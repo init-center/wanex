@@ -12,6 +12,7 @@ export {
 } from "./job.js"
 export type {
   SubmitWorkspaceTaskJobRequest,
+  RecoverWorkspaceTaskRequest,
   WorkspaceTaskContext,
   WorkspaceTaskError,
   WorkspaceTaskHandler,
@@ -24,4 +25,5 @@ export type {
   WorkspaceTaskRuntimeOptions,
   WorkspaceTaskStatus
 } from "./types.js"
+export type { WorkspaceTaskAccess } from "@wanex/protocol"
 export { WorkspaceTaskJobFailedError } from "./types.js"

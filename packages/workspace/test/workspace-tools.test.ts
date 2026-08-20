@@ -108,6 +108,7 @@ describe("@wanex/workspace/tools", () => {
     const changedRuntime = new WorkspaceRuntime({
       storage: environment.client,
       rootDir: environment.rootDir,
+      serviceBin,
       workspaceId: "workspace_tools_other"
     })
     const changedWorkspace = workspaceEvidenceRegistry({
@@ -276,7 +277,15 @@ describe("@wanex/workspace/tools", () => {
     expect(await readFile(join(environment.rootDir, "app.ts"), "utf8")).toBe(
       "after\n"
     )
-    await environment.runtime.undoChangeSet({ changeSetId: "cs_workspace_tool" })
+    await environment.runtime.undoChangeSet({
+      changeSetId: "cs_workspace_tool",
+      mutation: {
+        sourceKind: "host",
+        sourceId: "workspace-tools-test:undo",
+        idempotencyKey: "workspace-tools-test:undo",
+        ownerId: environment.identity.principalId
+      }
+    })
     expect(await readFile(join(environment.rootDir, "app.ts"), "utf8")).toBe(
       "before\n"
     )
@@ -437,6 +446,7 @@ async function createEnvironment(): Promise<{
     runtime: new WorkspaceRuntime({
       storage: client,
       rootDir,
+      serviceBin,
       workspaceId: "workspace_tools"
     }),
     identity: {
@@ -526,7 +536,6 @@ class RecordingExecutionHost implements ExecutionHost {
       program: request.program,
       args: request.args ?? [],
       cwd: request.cwd,
-      pid: 1,
       exitCode: 0,
       signal: null,
       termination: "exited",

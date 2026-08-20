@@ -1,10 +1,15 @@
 import type { RuntimeAbortSignal } from "@wanex/protocol"
+import type {
+  ChildSupervisor,
+  ChildSupervisorClaim
+} from "./supervisor-types.js"
 
 export type ExecutionTerminationReason =
   | "exited"
   | "signaled"
   | "timed_out"
   | "cancelled"
+  | "pipe_eof"
 
 export type ExecutionCleanupStatus =
   | "not_required"
@@ -39,9 +44,8 @@ export interface ExecutionResult {
   readonly program: string
   readonly args: readonly string[]
   readonly cwd: string
-  readonly pid: number
   readonly exitCode: number | null
-  readonly signal: NodeJS.Signals | null
+  readonly signal: string | null
   readonly termination: ExecutionTerminationReason
   readonly cleanup: ExecutionCleanupStatus
   readonly cleanupError?: string
@@ -63,6 +67,8 @@ export interface NodeExecutionHostOptions {
   readonly cleanupTimeoutMs?: number
   readonly platform?: NodeJS.Platform
   readonly windowsTreeTerminator?: WindowsTreeTerminator
+  readonly childSupervisor?: ChildSupervisor
+  readonly supervisorClaim?: ChildSupervisorClaim
 }
 
 export interface WindowsTreeTerminator {

@@ -17,12 +17,16 @@ use wanex_system_service::{
     AcceptMediaGenerationOperation, ActivateContextEpoch, ActivatePluginInstall,
     AdmitObjectiveAttempt, AdmitSessionInput, AdmitTeamMessage, AppendSessionMessage,
     ApplySessionTurnControl, AttachDelegationGraphNodeJob, BeginContextEpoch,
-    BeginMediaGenerationOperation, BeginProviderInvocation, BeginToolExecution, CancelJob,
-    ChangeObjectiveState, ClaimJob, CleanupExpiredResourceTickets, CommitBudget,
+    BeginMediaGenerationOperation, BeginProviderInvocation, BeginToolExecution,
+    BeginWorkspaceChangeTransaction, BeginWorkspaceChangeTransactionCommit,
+    BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun, CancelJob, ChangeObjectiveState, ClaimJob,
+    ClaimWorkspaceChangeProposalApply, ClaimWorkspaceChangeTransactionRecovery,
+    ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets, CommitBudget,
     CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
     ConfigMutationCondition, ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal,
     DeferToolExecution, EnqueueJob, ExecuteApprovedPlan, FailChannelDelivery, FailJob,
-    FailTeamDeliveryMaterialization, FinishConnectorSession, FinishContextEpochGeneration,
+    FailTeamDeliveryMaterialization, FinalizeWorkspaceChangeTransaction,
+    FinalizeWorkspaceTaskCollection, FinishConnectorSession, FinishContextEpochGeneration,
     FinishProviderInvocation, FinishToolExecution, GetActiveContextEpoch, GetDelegationGraphNode,
     GetJob, GetMediaGenerationOperation, GetPluginActionExecutionAdmission, GetPluginInstall,
     GetPluginManifest, GetToolExecutionByCall, HeartbeatConnectorSession, HeartbeatJob,
@@ -37,27 +41,35 @@ use wanex_system_service::{
     ListSessionTurnControls, ListSessionTurns, ListSessions, ListTeamConversations,
     ListTeamDeliveries, ListTeamDiscussionRounds, ListTeamMessages, ListTeamParticipants,
     ListTeamRoutingDecisions, ListToolActivities, ListToolExecutionAttempts, ListToolExecutions,
-    ListWorkspaceChangeOperations, ListWorkspaceChangeProposalOperations,
-    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, MarkContextEpochOutputObserved,
-    MarkProviderInvocationOutput, MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery,
-    ProjectChannelInboundEvent, ProjectTeamDeliveryOutcome, PruneContextEpochs, PutChannelBinding,
-    PutConnectorCredential, PutConnectorRegistration, PutDelegationGraph,
-    PutDelegationGraphDependency, PutDelegationGraphNode, PutPluginInstall, PutPluginManifest,
-    PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal, PutWorkspaceChangeSet,
-    QueryEvents, ReadTeamConversationPage, ReconcileObjectiveCancellation, RecordBudgetUsage,
-    RecordMediaGenerationOutputs, RecordPlanProposalOperation, RecordResourceProvenance,
-    RecordWorkspaceChangeOperation, RecordWorkspaceChangeProposalOperation, RenameSession,
-    RequestMediaGenerationCancel, RequestObjectiveCancel, RequestSessionTurnCancel,
-    RequireToolExecutionRecovery, ReserveBudget, ResolveToolExecutionApproval,
-    ResolveToolExecutionRecovery, ResourceCapability, ReviewObjectiveAttempt, RevokeChannelBinding,
-    RevokeConnectorCredential, RouteTeamMessage, RuntimeEvent, SessionStateTransition,
-    SetTeamConversationLead, SettleMediaGenerationOperation, SettleSessionTurn,
-    StartConnectorSession, StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
+    ListWorkspaceChangeOperations, ListWorkspaceChangeProposalApplyAttempts,
+    ListWorkspaceChangeProposalOperations, ListWorkspaceChangeProposals, ListWorkspaceChangeSets,
+    ListWorkspaceChangeTransactionAttempts, ListWorkspaceChangeTransactions,
+    ListWorkspaceTaskAttempts, ListWorkspaceTaskRuns, MarkContextEpochOutputObserved,
+    MarkProviderInvocationOutput, MarkWorkspaceChangeProposalRecoveryRequired,
+    MarkWorkspaceChangeTransactionPrepared, MarkWorkspaceTaskActive, MarkWorkspaceTaskAttention,
+    MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery, ProjectChannelInboundEvent,
+    ProjectTeamDeliveryOutcome, PruneContextEpochs, PutChannelBinding, PutConnectorCredential,
+    PutConnectorRegistration, PutDelegationGraph, PutDelegationGraphDependency,
+    PutDelegationGraphNode, PutPluginInstall, PutPluginManifest, PutTeamConversation,
+    PutTeamParticipant, PutWorkspaceChangeProposal, PutWorkspaceChangeSet, QueryEvents,
+    ReadTeamConversationPage, ReconcileObjectiveCancellation,
+    ReconcileWorkspaceChangeTransactionFiles, RecordBudgetUsage, RecordMediaGenerationOutputs,
+    RecordPlanProposalOperation, RecordResourceProvenance, RecordWorkspaceChangeOperation,
+    RecordWorkspaceChangeProposalOperation, RecordWorkspaceChangeTransactionFileCommitted,
+    RecordWorkspaceChangeTransactionPlan, RenameSession, RenewWorkspaceChangeProposalApply,
+    RenewWorkspaceChangeTransaction, RenewWorkspaceTaskRun, RequestMediaGenerationCancel,
+    RequestObjectiveCancel, RequestSessionTurnCancel, RequireToolExecutionRecovery, ReserveBudget,
+    ResolveToolExecutionApproval, ResolveToolExecutionRecovery, ResourceCapability,
+    ReviewObjectiveAttempt, RevokeChannelBinding, RevokeConnectorCredential, RouteTeamMessage,
+    RuntimeEvent, SessionStateTransition, SetTeamConversationLead, SettleMediaGenerationOperation,
+    SettleSessionTurn, SettleWorkspaceChangeProposalApply, StartConnectorSession,
+    StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
     SubmitMediaGenerationOperation, SubmitPluginAction, SubmitSessionTurn,
     SuspendMediaGenerationOperation, SystemService, SystemServiceError,
     UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
     UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
     UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
+    WorkspaceTaskRunIdentity,
 };
 
 const STORAGE_RPC_VERSION: i64 = 1;
@@ -1075,6 +1087,153 @@ fn handle_workspace_request(
         WorkspaceStorageRpcCommand::ListWorkspaceChangeProposalOperationsCommand(command) => {
             let request: ListWorkspaceChangeProposalOperations = project_wire(command.request)?;
             serde_json::to_value(service.list_workspace_change_proposal_operations(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ClaimWorkspaceChangeProposalApplyCommand(command) => {
+            let request: ClaimWorkspaceChangeProposalApply = project_wire(command.request)?;
+            serde_json::to_value(service.claim_workspace_change_proposal_apply(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::RenewWorkspaceChangeProposalApplyCommand(command) => {
+            let request: RenewWorkspaceChangeProposalApply = project_wire(command.request)?;
+            serde_json::to_value(service.renew_workspace_change_proposal_apply(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::SettleWorkspaceChangeProposalApplyCommand(command) => {
+            let request: SettleWorkspaceChangeProposalApply = project_wire(command.request)?;
+            serde_json::to_value(service.settle_workspace_change_proposal_apply(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::MarkWorkspaceChangeProposalRecoveryRequiredCommand(command) => {
+            let request: MarkWorkspaceChangeProposalRecoveryRequired =
+                project_wire(command.request)?;
+            serde_json::to_value(
+                service.mark_workspace_change_proposal_recovery_required(&request)?,
+            )
+            .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ListWorkspaceChangeProposalApplyAttemptsCommand(command) => {
+            let request: ListWorkspaceChangeProposalApplyAttempts = project_wire(command.request)?;
+            serde_json::to_value(service.list_workspace_change_proposal_apply_attempts(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::BeginWorkspaceChangeTransactionCommand(command) => {
+            let request: BeginWorkspaceChangeTransaction = project_wire(command.request)?;
+            serde_json::to_value(service.begin_workspace_change_transaction(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ClaimWorkspaceChangeTransactionRecoveryCommand(command) => {
+            let request: ClaimWorkspaceChangeTransactionRecovery = project_wire(command.request)?;
+            serde_json::to_value(service.claim_workspace_change_transaction_recovery(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::RenewWorkspaceChangeTransactionCommand(command) => {
+            let request: RenewWorkspaceChangeTransaction = project_wire(command.request)?;
+            serde_json::to_value(service.renew_workspace_change_transaction(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::RecordWorkspaceChangeTransactionPlanCommand(command) => {
+            let request: RecordWorkspaceChangeTransactionPlan = project_wire(command.request)?;
+            serde_json::to_value(service.record_workspace_change_transaction_plan(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::MarkWorkspaceChangeTransactionPreparedCommand(command) => {
+            let request: MarkWorkspaceChangeTransactionPrepared = project_wire(command.request)?;
+            serde_json::to_value(service.mark_workspace_change_transaction_prepared(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::BeginWorkspaceChangeTransactionCommitCommand(command) => {
+            let request: BeginWorkspaceChangeTransactionCommit = project_wire(command.request)?;
+            serde_json::to_value(service.begin_workspace_change_transaction_commit(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::RecordWorkspaceChangeTransactionFileCommittedCommand(
+            command,
+        ) => {
+            let request: RecordWorkspaceChangeTransactionFileCommitted =
+                project_wire(command.request)?;
+            serde_json::to_value(
+                service.record_workspace_change_transaction_file_committed(&request)?,
+            )
+            .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ReconcileWorkspaceChangeTransactionFilesCommand(command) => {
+            let request: ReconcileWorkspaceChangeTransactionFiles = project_wire(command.request)?;
+            serde_json::to_value(service.reconcile_workspace_change_transaction_files(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::FinalizeWorkspaceChangeTransactionCommand(command) => {
+            let request: FinalizeWorkspaceChangeTransaction = project_wire(command.request)?;
+            serde_json::to_value(service.finalize_workspace_change_transaction(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::GetWorkspaceChangeTransactionCommand(command) => {
+            serde_json::to_value(service.get_workspace_change_transaction(&command.transaction_id)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ListWorkspaceChangeTransactionsCommand(command) => {
+            let request: ListWorkspaceChangeTransactions = project_wire(command.request)?;
+            serde_json::to_value(service.list_workspace_change_transactions(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ListWorkspaceChangeTransactionAttemptsCommand(command) => {
+            let request: ListWorkspaceChangeTransactionAttempts = project_wire(command.request)?;
+            serde_json::to_value(service.list_workspace_change_transaction_attempts(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::BeginWorkspaceTaskRunCommand(command) => {
+            let request: BeginWorkspaceTaskRun = project_wire(command.request)?;
+            serde_json::to_value(service.begin_workspace_task_run(&request)?).map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ClaimWorkspaceTaskRecoveryCommand(command) => {
+            let request: ClaimWorkspaceTaskRecovery = project_wire(command.request)?;
+            serde_json::to_value(service.claim_workspace_task_recovery(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::RenewWorkspaceTaskRunCommand(command) => {
+            let request: RenewWorkspaceTaskRun = project_wire(command.request)?;
+            serde_json::to_value(service.renew_workspace_task_run(&request)?).map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::MarkWorkspaceTaskActiveCommand(command) => {
+            let request: MarkWorkspaceTaskActive = project_wire(command.request)?;
+            serde_json::to_value(service.mark_workspace_task_active(&request)?).map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::BeginWorkspaceTaskCollectionCommand(command) => {
+            let request: BeginWorkspaceTaskCollection = project_wire(command.request)?;
+            serde_json::to_value(service.begin_workspace_task_collection(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::FinalizeWorkspaceTaskCollectionCommand(command) => {
+            let request: FinalizeWorkspaceTaskCollection = project_wire(command.request)?;
+            serde_json::to_value(service.finalize_workspace_task_collection(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::BeginWorkspaceTaskReleaseCommand(command) => {
+            let request: WorkspaceTaskRunIdentity = project_wire(command.request)?;
+            serde_json::to_value(service.begin_workspace_task_release(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::FinalizeWorkspaceTaskReleaseCommand(command) => {
+            let request: WorkspaceTaskRunIdentity = project_wire(command.request)?;
+            serde_json::to_value(service.finalize_workspace_task_release(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::MarkWorkspaceTaskAttentionCommand(command) => {
+            let request: MarkWorkspaceTaskAttention = project_wire(command.request)?;
+            serde_json::to_value(service.mark_workspace_task_attention(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::GetWorkspaceTaskRunCommand(command) => {
+            serde_json::to_value(service.get_workspace_task_run(&command.run_id)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ListWorkspaceTaskRunsCommand(command) => {
+            let request: ListWorkspaceTaskRuns = project_wire(command.request)?;
+            serde_json::to_value(service.list_workspace_task_runs(&request)?).map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ListWorkspaceTaskAttemptsCommand(command) => {
+            let request: ListWorkspaceTaskAttempts = project_wire(command.request)?;
+            serde_json::to_value(service.list_workspace_task_attempts(&request)?)
                 .map_err(Into::into)
         }
     }

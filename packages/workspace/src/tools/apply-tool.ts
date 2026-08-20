@@ -132,7 +132,14 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     )
     const applied = await this.runtime.applyChangeSet({
       changeSet,
-      principalId: invocation.principalId
+      principalId: invocation.principalId,
+      mutation: {
+        sourceKind: "tool",
+        sourceId: `${invocation.sessionId}:${invocation.turnId}:${invocation.attemptId}:${invocation.toolCallId}`,
+        idempotencyKey: invocation.idempotencyKey,
+        ownerId: invocation.principalId
+      },
+      ...(invocation.signal === undefined ? {} : { signal: invocation.signal })
     })
     return {
       outcome: "succeeded",

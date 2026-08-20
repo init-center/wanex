@@ -340,7 +340,7 @@ impl SystemService {
                 &request.tool_invocation_attempt_id,
             )?,
             operation: DeferredToolOperationReceipt::TeamDelegation {
-                record,
+                record: Box::new(record),
                 tasks,
                 graph,
                 nodes,
@@ -603,7 +603,7 @@ fn validate_tasks_tx(
                 )));
             }
         }
-        if task.prompt.trim().is_empty() || task.prompt.as_bytes().len() > MAX_PROMPT_BYTES {
+        if task.prompt.trim().is_empty() || task.prompt.len() > MAX_PROMPT_BYTES {
             return Err(SystemServiceError::InvalidInput(format!(
                 "team delegation prompt must be non-empty and at most {MAX_PROMPT_BYTES} bytes"
             )));
@@ -828,7 +828,7 @@ fn deferred_team_receipt_tx(
             &request.tool_invocation_attempt_id,
         )?,
         operation: DeferredToolOperationReceipt::TeamDelegation {
-            record: operation,
+            record: Box::new(operation),
             tasks,
             graph,
             nodes,

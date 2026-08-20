@@ -219,16 +219,68 @@ export type WorkspaceStorageRpcCommand =
   | GetWorkspaceChangeProposalCommand
   | ListWorkspaceChangeProposalsCommand
   | RecordWorkspaceChangeProposalOperationCommand
-  | ListWorkspaceChangeProposalOperationsCommand;
+  | ListWorkspaceChangeProposalOperationsCommand
+  | ClaimWorkspaceChangeProposalApplyCommand
+  | RenewWorkspaceChangeProposalApplyCommand
+  | SettleWorkspaceChangeProposalApplyCommand
+  | MarkWorkspaceChangeProposalRecoveryRequiredCommand
+  | ListWorkspaceChangeProposalApplyAttemptsCommand
+  | BeginWorkspaceChangeTransactionCommand
+  | ClaimWorkspaceChangeTransactionRecoveryCommand
+  | RenewWorkspaceChangeTransactionCommand
+  | RecordWorkspaceChangeTransactionPlanCommand
+  | MarkWorkspaceChangeTransactionPreparedCommand
+  | BeginWorkspaceChangeTransactionCommitCommand
+  | RecordWorkspaceChangeTransactionFileCommittedCommand
+  | ReconcileWorkspaceChangeTransactionFilesCommand
+  | FinalizeWorkspaceChangeTransactionCommand
+  | GetWorkspaceChangeTransactionCommand
+  | ListWorkspaceChangeTransactionsCommand
+  | ListWorkspaceChangeTransactionAttemptsCommand
+  | BeginWorkspaceTaskRunCommand
+  | ClaimWorkspaceTaskRecoveryCommand
+  | RenewWorkspaceTaskRunCommand
+  | MarkWorkspaceTaskActiveCommand
+  | BeginWorkspaceTaskCollectionCommand
+  | FinalizeWorkspaceTaskCollectionCommand
+  | BeginWorkspaceTaskReleaseCommand
+  | FinalizeWorkspaceTaskReleaseCommand
+  | MarkWorkspaceTaskAttentionCommand
+  | GetWorkspaceTaskRunCommand
+  | ListWorkspaceTaskRunsCommand
+  | ListWorkspaceTaskAttemptsCommand;
 export type NullableWorkspaceChangeSetStateWire = WorkspaceChangeSetStateWire | null;
 export type WorkspaceChangeSetStateWire =
   "submitted" | "applied" | "already_applied" | "conflicted" | "undone" | "undo_conflicted";
 export type WorkspaceChangeOperationWire = "apply" | "undo";
 export type NullableWorkspaceChangeProposalStateWire = WorkspaceChangeProposalStateWire | null;
 export type WorkspaceChangeProposalStateWire =
-  "open" | "approved" | "rejected" | "withdrawn" | "apply_requested" | "applied" | "apply_failed";
-export type WorkspaceChangeProposalOperationWire =
-  "approve" | "reject" | "withdraw" | "request_apply" | "mark_applied" | "mark_apply_failed";
+  | "open"
+  | "approved"
+  | "rejected"
+  | "withdrawn"
+  | "apply_requested"
+  | "applying"
+  | "applied"
+  | "apply_failed"
+  | "recovery_required";
+export type WorkspaceChangeProposalOperationWire = "approve" | "reject" | "withdraw" | "request_apply";
+export type WorkspaceChangeProposalApplyOutcomeWire = "applied" | "apply_failed" | "recovery_required";
+export type WorkspaceChangeTransactionOperationWire = "apply" | "undo";
+export type WorkspaceChangeTransactionSourceKindWire = "proposal" | "tool" | "host";
+export type NullableWorkspaceChangeTransactionProposalBindingWire =
+  WorkspaceChangeTransactionProposalBindingWire | null;
+export type WorkspaceChangeTransactionOutcomeWire = "applied" | "conflicted" | "rolled_back" | "recovery_required";
+export type NullableWorkspaceChangeTransactionStateWire = WorkspaceChangeTransactionStateWire | null;
+export type WorkspaceChangeTransactionStateWire =
+  "planning" | "prepared" | "committing" | "applied" | "rolled_back" | "recovery_required";
+export type WorkspaceTaskAccessWire = "read_only" | "writable";
+export type WorkspaceTaskExecutionOutcomeWire = "completed" | "failed" | "cancelled";
+export type WorkspaceTaskRunOutcomeWire =
+  "read_only_completed" | "no_changes" | "proposed" | "execution_failed" | "cancelled";
+export type NullableWorkspaceTaskRunStateWire = WorkspaceTaskRunStateWire | null;
+export type WorkspaceTaskRunStateWire =
+  "preparing" | "active" | "collecting" | "proposed" | "releasing" | "released" | "attention";
 export type PlanStorageRpcCommand =
   | CreatePlanProposalCommand
   | GetPlanProposalCommand
@@ -1714,6 +1766,321 @@ export interface ListWorkspaceChangeProposalOperationsCommand {
 export interface ListWorkspaceChangeProposalOperationsWire {
   proposal_id: string;
 }
+export interface ClaimWorkspaceChangeProposalApplyCommand {
+  command: "claim-workspace-change-proposal-apply";
+  request: ClaimWorkspaceChangeProposalApplyWire;
+}
+export interface ClaimWorkspaceChangeProposalApplyWire {
+  proposal_id: string;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+  metadata: JsonValue;
+}
+export interface RenewWorkspaceChangeProposalApplyCommand {
+  command: "renew-workspace-change-proposal-apply";
+  request: RenewWorkspaceChangeProposalApplyWire;
+}
+export interface RenewWorkspaceChangeProposalApplyWire {
+  proposal_id: string;
+  attempt_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface SettleWorkspaceChangeProposalApplyCommand {
+  command: "settle-workspace-change-proposal-apply";
+  request: SettleWorkspaceChangeProposalApplyWire;
+}
+export interface SettleWorkspaceChangeProposalApplyWire {
+  proposal_id: string;
+  attempt_id: string;
+  claim_token: string;
+  outcome: WorkspaceChangeProposalApplyOutcomeWire;
+  workspace_operation_id: NullableString;
+  failure: JsonValue;
+}
+export interface MarkWorkspaceChangeProposalRecoveryRequiredCommand {
+  command: "mark-workspace-change-proposal-recovery-required";
+  request: MarkWorkspaceChangeProposalRecoveryRequiredWire;
+}
+export interface MarkWorkspaceChangeProposalRecoveryRequiredWire {
+  proposal_id: string;
+}
+export interface ListWorkspaceChangeProposalApplyAttemptsCommand {
+  command: "list-workspace-change-proposal-apply-attempts";
+  request: ListWorkspaceChangeProposalApplyAttemptsWire;
+}
+export interface ListWorkspaceChangeProposalApplyAttemptsWire {
+  proposal_id: string;
+  limit: NullableInteger;
+}
+export interface BeginWorkspaceChangeTransactionCommand {
+  command: "begin-workspace-change-transaction";
+  request: BeginWorkspaceChangeTransactionWire;
+}
+export interface BeginWorkspaceChangeTransactionWire {
+  id: string;
+  workspace_id: string;
+  changeset_id: string;
+  operation: WorkspaceChangeTransactionOperationWire;
+  undo_source_operation_id: NullableString;
+  source_kind: WorkspaceChangeTransactionSourceKindWire;
+  source_id: string;
+  idempotency_key: string;
+  root_identity_sha256: string;
+  proposal: NullableWorkspaceChangeTransactionProposalBindingWire;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface WorkspaceChangeTransactionProposalBindingWire {
+  proposal_id: string;
+  proposal_attempt_id: string;
+  proposal_claim_token: string;
+}
+export interface ClaimWorkspaceChangeTransactionRecoveryCommand {
+  command: "claim-workspace-change-transaction-recovery";
+  request: ClaimWorkspaceChangeTransactionRecoveryWire;
+}
+export interface ClaimWorkspaceChangeTransactionRecoveryWire {
+  transaction_id: string;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface RenewWorkspaceChangeTransactionCommand {
+  command: "renew-workspace-change-transaction";
+  request: RenewWorkspaceChangeTransactionWire;
+}
+export interface RenewWorkspaceChangeTransactionWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface RecordWorkspaceChangeTransactionPlanCommand {
+  command: "record-workspace-change-transaction-plan";
+  request: RecordWorkspaceChangeTransactionPlanWire;
+}
+export interface RecordWorkspaceChangeTransactionPlanWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+  /**
+   * @minItems 1
+   * @maxItems 10000
+   */
+  files: [WorkspaceChangeTransactionFilePlanWire, ...WorkspaceChangeTransactionFilePlanWire[]];
+}
+export interface WorkspaceChangeTransactionFilePlanWire {
+  ordinal: number;
+  path: string;
+  before_text: NullableString;
+  before_sha256: NullableString;
+  after_text: NullableString;
+  after_sha256: NullableString;
+}
+export interface MarkWorkspaceChangeTransactionPreparedCommand {
+  command: "mark-workspace-change-transaction-prepared";
+  request: WorkspaceChangeTransactionIdentityWire;
+}
+export interface WorkspaceChangeTransactionIdentityWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+}
+export interface BeginWorkspaceChangeTransactionCommitCommand {
+  command: "begin-workspace-change-transaction-commit";
+  request: WorkspaceChangeTransactionIdentityWire;
+}
+export interface RecordWorkspaceChangeTransactionFileCommittedCommand {
+  command: "record-workspace-change-transaction-file-committed";
+  request: RecordWorkspaceChangeTransactionFileCommittedWire;
+}
+export interface RecordWorkspaceChangeTransactionFileCommittedWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+  ordinal: number;
+}
+export interface ReconcileWorkspaceChangeTransactionFilesCommand {
+  command: "reconcile-workspace-change-transaction-files";
+  request: ReconcileWorkspaceChangeTransactionFilesWire;
+}
+export interface ReconcileWorkspaceChangeTransactionFilesWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+  /**
+   * @minItems 1
+   * @maxItems 10000
+   */
+  observations: [WorkspaceChangeTransactionFileObservationWire, ...WorkspaceChangeTransactionFileObservationWire[]];
+}
+export interface WorkspaceChangeTransactionFileObservationWire {
+  ordinal: number;
+  current: "before" | "after" | "other";
+}
+export interface FinalizeWorkspaceChangeTransactionCommand {
+  command: "finalize-workspace-change-transaction";
+  request: FinalizeWorkspaceChangeTransactionWire;
+}
+export interface FinalizeWorkspaceChangeTransactionWire {
+  transaction_id: string;
+  attempt_id: string;
+  claim_token: string;
+  outcome: WorkspaceChangeTransactionOutcomeWire;
+  operation_id: NullableString;
+  receipt: JsonValue;
+  failure: JsonValue;
+}
+export interface GetWorkspaceChangeTransactionCommand {
+  command: "get-workspace-change-transaction";
+  transaction_id: string;
+}
+export interface ListWorkspaceChangeTransactionsCommand {
+  command: "list-workspace-change-transactions";
+  request: ListWorkspaceChangeTransactionsWire;
+}
+export interface ListWorkspaceChangeTransactionsWire {
+  workspace_id: NullableString;
+  state: NullableWorkspaceChangeTransactionStateWire;
+  limit: NullableInteger;
+}
+export interface ListWorkspaceChangeTransactionAttemptsCommand {
+  command: "list-workspace-change-transaction-attempts";
+  request: ListWorkspaceChangeTransactionAttemptsWire;
+}
+export interface ListWorkspaceChangeTransactionAttemptsWire {
+  transaction_id: string;
+  limit: NullableInteger;
+}
+export interface BeginWorkspaceTaskRunCommand {
+  command: "begin-workspace-task-run";
+  request: BeginWorkspaceTaskRunWire;
+}
+export interface BeginWorkspaceTaskRunWire {
+  id: string;
+  workspace_id: string;
+  principal_id: string;
+  access: WorkspaceTaskAccessWire;
+  repository_id: string;
+  isolation_id: string;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface ClaimWorkspaceTaskRecoveryCommand {
+  command: "claim-workspace-task-recovery";
+  request: ClaimWorkspaceTaskRecoveryWire;
+}
+export interface ClaimWorkspaceTaskRecoveryWire {
+  run_id: string;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface RenewWorkspaceTaskRunCommand {
+  command: "renew-workspace-task-run";
+  request: RenewWorkspaceTaskRunWire;
+}
+export interface RenewWorkspaceTaskRunWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+  lease_ms: number;
+}
+export interface MarkWorkspaceTaskActiveCommand {
+  command: "mark-workspace-task-active";
+  request: MarkWorkspaceTaskActiveWire;
+}
+export interface MarkWorkspaceTaskActiveWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+  base_revision: NullableString;
+  runtime_ref: NullableString;
+}
+export interface BeginWorkspaceTaskCollectionCommand {
+  command: "begin-workspace-task-collection";
+  request: BeginWorkspaceTaskCollectionWire;
+}
+export interface BeginWorkspaceTaskCollectionWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+  execution_outcome: WorkspaceTaskExecutionOutcomeWire;
+  summary: NullableString;
+  /**
+   * @maxItems 1024
+   */
+  resource_ids: string[];
+  failure: JsonValue;
+}
+export interface FinalizeWorkspaceTaskCollectionCommand {
+  command: "finalize-workspace-task-collection";
+  request: FinalizeWorkspaceTaskCollectionWire;
+}
+export interface FinalizeWorkspaceTaskCollectionWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+  outcome: WorkspaceTaskRunOutcomeWire;
+  changeset: JsonValue;
+  proposal_id: NullableString;
+  title: NullableString;
+  proposal_metadata: JsonValue;
+}
+export interface BeginWorkspaceTaskReleaseCommand {
+  command: "begin-workspace-task-release";
+  request: WorkspaceTaskRunIdentityWire;
+}
+export interface WorkspaceTaskRunIdentityWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+}
+export interface FinalizeWorkspaceTaskReleaseCommand {
+  command: "finalize-workspace-task-release";
+  request: WorkspaceTaskRunIdentityWire;
+}
+export interface MarkWorkspaceTaskAttentionCommand {
+  command: "mark-workspace-task-attention";
+  request: MarkWorkspaceTaskAttentionWire;
+}
+export interface MarkWorkspaceTaskAttentionWire {
+  run_id: string;
+  attempt_id: string;
+  claim_token: string;
+  failure: JsonValue;
+}
+export interface GetWorkspaceTaskRunCommand {
+  command: "get-workspace-task-run";
+  run_id: string;
+}
+export interface ListWorkspaceTaskRunsCommand {
+  command: "list-workspace-task-runs";
+  request: ListWorkspaceTaskRunsWire;
+}
+export interface ListWorkspaceTaskRunsWire {
+  workspace_id: NullableString;
+  state: NullableWorkspaceTaskRunStateWire;
+  lease_expires_before: NullableInteger;
+  limit: NullableInteger;
+}
+export interface ListWorkspaceTaskAttemptsCommand {
+  command: "list-workspace-task-attempts";
+  request: ListWorkspaceTaskAttemptsWire;
+}
+export interface ListWorkspaceTaskAttemptsWire {
+  run_id: string;
+  limit: NullableInteger;
+}
 export interface CreatePlanProposalCommand {
   command: "create-plan-proposal";
   request: CreatePlanProposalWire;
@@ -2782,4 +3149,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "d735e9c1c9c0f9f37517f8d1085058835dcc9079de0278d6bb6c0dbab2d495a6" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "e644a0c3cee0d9bffb59e72713cadbf46786b070f499035c6a082f1a384d9811" as const

@@ -651,7 +651,7 @@ describe("@wanex/tui", () => {
           ok: true,
           value: {
             kind: "product.surface-descriptor",
-            commandCount: 67
+            commandCount: 73
           }
         },
         status: {
@@ -703,7 +703,7 @@ describe("@wanex/tui", () => {
         ready: true,
         mode: "chat",
         layout: "single",
-        commandCount: 67,
+        commandCount: 73,
         productCommandCount: 14,
         statusCount: 8
       })
@@ -918,7 +918,7 @@ describe("@wanex/tui", () => {
         ok: true,
         value: {
           kind: "product.surface-descriptor",
-          commandCount: 67
+          commandCount: 73
         }
       })
       expect(status).toMatchObject({

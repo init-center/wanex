@@ -204,7 +204,6 @@ describe("@wanex/workspace/review", () => {
     const result = await runtime.applyProposal({
       proposalId: "wcp_apply_runtime",
       actorId: "proposal_apply_test",
-      operationId: "wcpo_runtime_mark_applied",
       metadata: { source: "test" }
     })
 
@@ -215,17 +214,12 @@ describe("@wanex/workspace/review", () => {
       operation: "apply",
       status: "applied"
     })
-    expect(result.proposalOperation).toMatchObject({
-      id: "wcpo_runtime_mark_applied",
-      operation: "mark_applied",
-      fromState: "apply_requested",
-      toState: "applied",
-      metadata: {
-        source: "test",
-        workspaceOperationId: result.workspaceOperation?.id,
-        changeSetId: "cs_apply_runtime",
-        status: "applied"
-      }
+    expect(result.applyAttempt).toMatchObject({
+      ownerId: "proposal_apply_test",
+      state: "applied",
+      workspaceOperationId: result.workspaceOperation?.id,
+      metadata: { source: "test" },
+      finishedAt: expect.any(Number)
     })
     await expect(readFile(join(rootDir, "apply.txt"), "utf8")).resolves.toBe(
       "applied\n"
@@ -235,9 +229,13 @@ describe("@wanex/workspace/review", () => {
     })
     expect(operations.map((operation) => operation.operation)).toEqual([
       "approve",
-      "request_apply",
-      "mark_applied"
+      "request_apply"
     ])
+    await expect(
+      storage.listWorkspaceChangeProposalApplyAttempts({
+        proposalId: "wcp_apply_runtime"
+      })
+    ).resolves.toEqual([expect.objectContaining({ state: "applied" })])
   })
 
   it("marks conflicted proposal apply as apply_failed", async () => {
@@ -276,8 +274,7 @@ describe("@wanex/workspace/review", () => {
     })
 
     const result = await runtime.applyProposal({
-      proposalId: "wcp_apply_conflict_runtime",
-      failureOperationId: "wcpo_runtime_mark_apply_failed"
+      proposalId: "wcp_apply_conflict_runtime"
     })
 
     expect(result.status).toBe("apply_failed")
@@ -286,16 +283,10 @@ describe("@wanex/workspace/review", () => {
       operation: "apply",
       status: "conflicted"
     })
-    expect(result.proposalOperation).toMatchObject({
-      id: "wcpo_runtime_mark_apply_failed",
-      operation: "mark_apply_failed",
-      fromState: "apply_requested",
-      toState: "apply_failed"
-    })
-    expect(result.proposalOperation.metadata).toMatchObject({
-      changeSetId: "cs_apply_conflict_runtime",
+    expect(result.applyAttempt).toMatchObject({
+      state: "failed",
       workspaceOperationId: result.workspaceOperation?.id,
-      error: {
+      failure: {
         type: "workspace.apply_conflicted"
       }
     })
@@ -329,7 +320,7 @@ describe("@wanex/workspace/review", () => {
 
     await expect(
       runtime.applyProposal({ proposalId: "wcp_apply_not_ready" })
-    ).rejects.toThrow(/not apply_requested/)
+    ).resolves.toMatchObject({ status: "not_ready", proposal: { state: "open" } })
   })
 
   it("applies a batch in dependency order", async () => {
@@ -383,10 +374,10 @@ describe("@wanex/workspace/review", () => {
     await expect(readFile(join(rootDir, "batch-c.txt"), "utf8")).resolves.toBe(
       "c\n"
     )
-    const operations = await storage.listWorkspaceChangeProposalOperations({
+    const attempts = await storage.listWorkspaceChangeProposalApplyAttempts({
       proposalId: "wcp_batch_b"
     })
-    expect(operations.at(-1)?.metadata).toMatchObject({
+    expect(attempts.at(-1)?.metadata).toMatchObject({
       source: "batch-test",
       batchIndex: 1,
       dependsOn: ["wcp_batch_a"]
@@ -544,6 +535,7 @@ async function createRuntime(): Promise<{
   const workspace = new WorkspaceRuntime({
     storage,
     rootDir,
+    serviceBin,
     workspaceId: "workspace_apply_runtime",
     principalId: "agent_apply_runtime"
   })

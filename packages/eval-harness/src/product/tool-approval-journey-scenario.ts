@@ -133,7 +133,7 @@ export const toolApprovalJourneyScenario = createEvalScenario({
         serviceBin: context.serviceBin,
         sessionId: APPROVE_SESSION_ID,
       });
-      const rendererJson = JSON.stringify(approvalSnapshot);
+      const rendererJson = JSON.stringify(approval);
       const tuiText = renderTuiConversationOperation({
         kind: "product.conversation-operation.found",
         operation: approvalSnapshot.conversation.operation!,

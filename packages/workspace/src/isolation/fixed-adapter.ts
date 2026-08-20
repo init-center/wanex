@@ -4,41 +4,36 @@ import { createLeaseId, optionalLeaseFields, withOptionalLeaseFields } from "./l
 import type {
   FixedWorkspaceIsolationAdapterOptions,
   WorkspaceIsolationAdapter,
+  WorkspaceIsolationDurableIdentity,
   WorkspaceIsolationLease,
-  WorkspaceIsolationReleasePolicy,
   WorkspaceIsolationRequest
 } from "./types.js"
 
 export class FixedWorkspaceIsolationAdapter implements WorkspaceIsolationAdapter {
   private readonly rootDir: string
   private readonly workspaceId: string | undefined
-  private readonly releasePolicy: WorkspaceIsolationReleasePolicy
 
   constructor(options: FixedWorkspaceIsolationAdapterOptions) {
     this.rootDir = resolve(options.rootDir)
     this.workspaceId = options.workspaceId
-    this.releasePolicy = options.releasePolicy ?? "keep"
   }
 
   async prepare(
     request: WorkspaceIsolationRequest = {}
   ): Promise<WorkspaceIsolationLease> {
-    const rootDir = resolve(request.rootDir ?? this.rootDir)
-    await mkdir(rootDir, { recursive: true })
-    const id = createLeaseId()
+    await mkdir(this.rootDir, { recursive: true })
+    const id = request.isolationId ?? createLeaseId()
     const optional = optionalLeaseFields({
       workspaceId: request.workspaceId ?? this.workspaceId,
       jobId: request.jobId,
-      agentId: request.agentId,
-      metadata: request.metadata
+      agentId: request.agentId
     })
     return withOptionalLeaseFields(
       {
         id,
         kind: "fixed",
-        rootDir,
-        createdAt: Date.now(),
-        releasePolicy: request.releasePolicy ?? this.releasePolicy
+        rootDir: this.rootDir,
+        createdAt: Date.now()
       },
       optional
     )
@@ -46,5 +41,11 @@ export class FixedWorkspaceIsolationAdapter implements WorkspaceIsolationAdapter
 
   async release(_lease: WorkspaceIsolationLease): Promise<void> {
     // Fixed workspaces are owned by the caller. Releasing the lease is a no-op.
+  }
+
+  async releaseDurable(identity: WorkspaceIsolationDurableIdentity): Promise<void> {
+    if (identity.kind !== "fixed") {
+      throw new Error("fixed workspace isolation cannot release a different kind")
+    }
   }
 }

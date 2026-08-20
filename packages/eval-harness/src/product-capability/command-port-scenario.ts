@@ -140,13 +140,13 @@ export const backendCommandPortScenario = createEvalScenario({
       )
       assert(
         isRecord(runValue) &&
-          runValue.kind === "completed" &&
+          runValue.kind === "submitted" &&
           isRecord(runValue.value) &&
           runValue.value.sessionId ===
             "ses_eval_product_app_backend_command_port" &&
           typeof runValue.value.jobId === "string" &&
           typeof runValue.value.state === "string",
-        "executeProductCommand should return an asynchronous conversation receipt"
+        "executeProductCommand should return a submitted asynchronous conversation receipt"
       )
       const runResult = runValue.value
       await storage.settlements.waitForJob(String(runResult.jobId))

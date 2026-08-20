@@ -1,3 +1,5 @@
 export * from "./codec-workspace-records.js"
 export * from "./codec-workspace-requests.js"
+export * from "./codec-workspace-task-records.js"
+export * from "./codec-workspace-task-requests.js"
 export * from "./codec-workspace-values.js"

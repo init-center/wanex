@@ -11,6 +11,7 @@ export const workspaceConflictScenario = createEvalScenario({
     const workspace = new WorkspaceRuntime({
       storage: context.storage,
       rootDir: context.workspaceRootDir,
+      serviceBin: context.serviceBin,
       workspaceId: "eval_workspace",
       principalId: "agent_eval_workspace"
     })

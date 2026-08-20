@@ -24,9 +24,6 @@ export function validateApplyProposalRequest(request: ApplyProposalRequest): voi
   if (request.actorId === "") {
     throw new Error("proposal apply actorId must not be empty")
   }
-  if (request.operationId === "" || request.failureOperationId === "") {
-    throw new Error("proposal apply operation ids must not be empty")
-  }
 }
 
 export function mergeMetadata(

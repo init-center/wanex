@@ -4,17 +4,21 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 pub(crate) fn acquire_path_write_lock(lock_path: &Path) -> io::Result<PathWriteLock> {
+    let file = open_path_write_lock_file(lock_path)?;
+    file.lock()?;
+    Ok(PathWriteLock { _file: file })
+}
+
+pub(crate) fn open_path_write_lock_file(lock_path: &Path) -> io::Result<File> {
     if let Some(parent) = lock_path.parent() {
         fs::create_dir_all(parent)?;
     }
-    let file = OpenOptions::new()
+    OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
         .write(true)
-        .open(lock_path)?;
-    file.lock()?;
-    Ok(PathWriteLock { _file: file })
+        .open(lock_path)
 }
 
 pub(crate) struct PathWriteLock {
@@ -79,13 +83,29 @@ impl Drop for PreparedReplacement {
     }
 }
 
+pub(crate) fn sync_parent(path: &Path) -> io::Result<()> {
+    #[cfg(not(windows))]
+    {
+        let parent = path
+            .parent()
+            .ok_or_else(|| io::Error::other("path has no parent directory"))?;
+        File::open(parent)?.sync_all()
+    }
+    #[cfg(windows)]
+    {
+        let _ = path;
+        Ok(())
+    }
+}
+
 #[cfg(not(windows))]
-fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
-    fs::rename(source, destination)
+pub(crate) fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+    fs::rename(source, destination)?;
+    sync_parent(destination)
 }
 
 #[cfg(windows)]
-fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
+pub(crate) fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use std::thread;
     use std::time::Duration;
@@ -97,12 +117,12 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
     };
 
     const MAX_ATTEMPTS: u32 = 8;
-    let source = source
+    let source_wide = source
         .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
         .collect::<Vec<_>>();
-    let destination = destination
+    let destination_wide = destination
         .as_os_str()
         .encode_wide()
         .chain(std::iter::once(0))
@@ -111,13 +131,13 @@ fn replace_file(source: &Path, destination: &Path) -> io::Result<()> {
     for attempt in 0..MAX_ATTEMPTS {
         let replaced = unsafe {
             MoveFileExW(
-                source.as_ptr(),
-                destination.as_ptr(),
+                source_wide.as_ptr(),
+                destination_wide.as_ptr(),
                 MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH,
             )
         };
         if replaced != 0 {
-            return Ok(());
+            return sync_parent(destination);
         }
         let error = io::Error::last_os_error();
         let transient = matches!(

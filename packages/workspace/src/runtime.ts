@@ -1,11 +1,15 @@
-import { ChangeSetApplier, LocalWorkspace } from "./changesets/index.js"
+import {
+  LocalWorkspaceReader,
+  planChangeSetApply,
+  planChangeSetUndo
+} from "./changesets/index.js"
 import type { PrincipalId, WorkspaceChangeSetRecord } from "@wanex/protocol"
 import type { WorkspaceStore } from "@wanex/storage/workspace"
 import { latestApplicableApplyOperation } from "./history.js"
 import {
-  FileSystemWorkspaceMutationGate,
-  NoopWorkspaceMutationGate
-} from "./mutation-gate.js"
+  DEFAULT_WORKSPACE_TRANSACTION_LEASE_MS,
+  WorkspaceChangeTransactionRuntime
+} from "./transaction/runtime.js"
 import type {
   ApplyWorkspaceChangeSetRequest,
   ApplyWorkspaceChangeSetResult,
@@ -13,8 +17,7 @@ import type {
   UndoWorkspaceChangeSetRequest,
   UndoWorkspaceChangeSetResult,
   WorkspaceRuntimeOptions,
-  WorkspaceChangeSetHistory,
-  WorkspaceMutationGate
+  WorkspaceChangeSetHistory
 } from "./types.js"
 
 export const WANEX_WORKSPACE = "wanex-workspace" as const
@@ -24,93 +27,98 @@ const DEFAULT_PRINCIPAL_ID = "workspace"
 
 export class WorkspaceRuntime {
   readonly workspaceId: string
+  readonly transactionLeaseMs: number
 
   private readonly storage: WorkspaceStore
-  private readonly applier: ChangeSetApplier
+  private readonly reader: LocalWorkspaceReader
   private readonly principalId: PrincipalId
-  private readonly mutationGate: WorkspaceMutationGate
+  private readonly transactions: WorkspaceChangeTransactionRuntime
 
   constructor(options: WorkspaceRuntimeOptions) {
     this.storage = options.storage
     this.workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID
+    this.transactionLeaseMs =
+      options.transactionLeaseMs ?? DEFAULT_WORKSPACE_TRANSACTION_LEASE_MS
     this.principalId = options.principalId ?? DEFAULT_PRINCIPAL_ID
-    const workspace =
-      options.workspace ??
-      (options.rootDir === undefined
-        ? undefined
-        : new LocalWorkspace(options.rootDir))
-    if (workspace === undefined) {
-      throw new Error("workspace requires workspace or rootDir")
-    }
-    this.applier = new ChangeSetApplier(workspace)
-    this.mutationGate =
-      options.mutationGate ??
-      (options.rootDir === undefined
-        ? new NoopWorkspaceMutationGate()
-        : new FileSystemWorkspaceMutationGate({
-            rootDir: options.rootDir,
-            ...(options.mutationGateTimeoutMs === undefined
-              ? {}
-              : { timeoutMs: options.mutationGateTimeoutMs })
-          }))
+    this.reader = new LocalWorkspaceReader(options.rootDir)
+    this.transactions = new WorkspaceChangeTransactionRuntime({
+      storage: options.storage,
+      rootDir: options.rootDir,
+      serviceBin: options.serviceBin,
+      leaseMs: this.transactionLeaseMs
+    })
+  }
+
+  async recoverPendingTransactions(
+    workspaceId: string = this.workspaceId
+  ): Promise<void> {
+    await this.transactions.recoverPending(workspaceId)
   }
 
   async applyChangeSet(
     request: ApplyWorkspaceChangeSetRequest
   ): Promise<ApplyWorkspaceChangeSetResult> {
-    return await this.mutationGate.runExclusive(async () => {
-      const changeSet = await this.storage.putWorkspaceChangeSet({
-        workspaceId: request.workspaceId ?? this.workspaceId,
-        principalId: request.principalId ?? this.principalId,
-        changeSet: request.changeSet
-      })
-      const receipt = await this.applier.apply(changeSet.changeSet)
-      const operation = await this.storage.recordWorkspaceChangeOperation({
-        changeSetId: changeSet.id,
-        operation: "apply",
-        receipt
-      })
-      const latest =
-        (await this.storage.getWorkspaceChangeSet({
-          changeSetId: changeSet.id
-        })) ?? changeSet
-      return { changeSet: latest, operation, receipt }
+    const changeSet = await this.storage.putWorkspaceChangeSet({
+      workspaceId: request.workspaceId ?? this.workspaceId,
+      principalId: request.principalId ?? this.principalId,
+      changeSet: request.changeSet
     })
+    const executed = await this.transactions.execute({
+      workspaceId: changeSet.workspaceId,
+      changeSetId: changeSet.id,
+      operation: "apply",
+      mutation: request.mutation,
+      plan: async () => await planChangeSetApply(this.reader, changeSet.changeSet),
+      ...(request.signal === undefined ? {} : { signal: request.signal })
+    })
+    const latest =
+      (await this.storage.getWorkspaceChangeSet({ changeSetId: changeSet.id })) ??
+      changeSet
+    return {
+      changeSet: latest,
+      operation: executed.operation,
+      receipt: executed.receipt,
+      transaction: executed.finalization
+    }
   }
 
   async undoChangeSet(
     request: UndoWorkspaceChangeSetRequest
   ): Promise<UndoWorkspaceChangeSetResult> {
-    return await this.mutationGate.runExclusive(async () => {
-      const changeSet = await this.storage.getWorkspaceChangeSet({
-        changeSetId: request.changeSetId
-      })
-      if (changeSet === null) {
-        throw new Error(
-          `workspace changeset does not exist: ${request.changeSetId}`
-        )
-      }
-      const operations = await this.storage.listWorkspaceChangeOperations({
-        changeSetId: request.changeSetId
-      })
-      const applyOperation = latestApplicableApplyOperation(operations)
-      if (applyOperation === undefined) {
-        throw new Error(
-          `workspace changeset has no applied receipt to undo: ${request.changeSetId}`
-        )
-      }
-      const receipt = await this.applier.undo(applyOperation.receipt)
-      const operation = await this.storage.recordWorkspaceChangeOperation({
-        changeSetId: request.changeSetId,
-        operation: "undo",
-        receipt
-      })
-      const latest =
-        (await this.storage.getWorkspaceChangeSet({
-          changeSetId: request.changeSetId
-        })) ?? changeSet
-      return { changeSet: latest, operation, receipt }
+    const changeSet = await this.storage.getWorkspaceChangeSet({
+      changeSetId: request.changeSetId
     })
+    if (changeSet === null) {
+      throw new Error(`workspace changeset does not exist: ${request.changeSetId}`)
+    }
+    const operations = await this.storage.listWorkspaceChangeOperations({
+      changeSetId: request.changeSetId
+    })
+    const applyOperation = latestApplicableApplyOperation(operations)
+    if (applyOperation === undefined) {
+      throw new Error(
+        `workspace changeset has no applied receipt to undo: ${request.changeSetId}`
+      )
+    }
+    const executed = await this.transactions.execute({
+      workspaceId: changeSet.workspaceId,
+      changeSetId: request.changeSetId,
+      operation: "undo",
+      undoSourceOperationId: applyOperation.id,
+      mutation: request.mutation,
+      plan: async () => await planChangeSetUndo(this.reader, applyOperation.receipt),
+      ...(request.signal === undefined ? {} : { signal: request.signal })
+    })
+    const latest =
+      (await this.storage.getWorkspaceChangeSet({
+        changeSetId: request.changeSetId
+      })) ?? changeSet
+    return {
+      changeSet: latest,
+      operation: executed.operation,
+      receipt: executed.receipt,
+      transaction: executed.finalization
+    }
   }
 
   async getHistory(changeSetId: string): Promise<WorkspaceChangeSetHistory | null> {

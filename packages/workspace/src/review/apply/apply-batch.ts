@@ -56,6 +56,10 @@ export async function applyProposalBatch(input: {
       const dependencyStatus = terminalByProposalId.get(dependencyId)
       return (
         dependencyStatus === "apply_failed" ||
+        dependencyStatus === "busy" ||
+        dependencyStatus === "recovery_required" ||
+        dependencyStatus === "not_ready" ||
+        dependencyStatus === "already_terminal" ||
         dependencyStatus === "blocked" ||
         dependencyStatus === "needs_review" ||
         dependencyStatus === "skipped"
@@ -85,12 +89,6 @@ export async function applyProposalBatch(input: {
     const result = await input.applyProposal({
       proposalId: planItem.proposalId,
       ...(actorId === undefined ? {} : { actorId }),
-      ...(planItem.operationId === undefined
-        ? {}
-        : { operationId: planItem.operationId }),
-      ...(planItem.failureOperationId === undefined
-        ? {}
-        : { failureOperationId: planItem.failureOperationId }),
       metadata: mergeMetadata(input.request.metadata, {
         itemMetadata: planItem.metadata,
         batchIndex,
@@ -107,7 +105,7 @@ export async function applyProposalBatch(input: {
     results.push(itemResult)
     terminalByProposalId.set(planItem.proposalId, itemResult.status)
 
-    if (result.status === "apply_failed" && stopOnFailure) {
+    if (result.status !== "applied" && stopOnFailure) {
       stopped = true
       break
     }

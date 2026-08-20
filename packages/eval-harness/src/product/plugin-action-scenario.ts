@@ -242,7 +242,7 @@ async function executeAndComplete(
     input: { text }
   })
   assert(
-    execution.ok && execution.value.kind === "completed",
+    execution.ok && execution.value.kind === "submitted",
     "Product should submit the active exact-version Plugin action"
   )
   const job = execution.value.summary.references.find(

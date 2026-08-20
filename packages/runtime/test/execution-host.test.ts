@@ -1,10 +1,20 @@
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { createHash } from "node:crypto"
+import { spawn } from "node:child_process"
 import { afterEach, describe, expect, it } from "vitest"
-import { NodeExecutionHost } from "../src/execution/index.js"
+import {
+  NativeChildSupervisor,
+  NodeExecutionHost,
+  type ChildSupervisor
+} from "../src/execution/index.js"
 
 const tempDirs: string[] = []
+const serviceBin = join(
+  import.meta.dirname,
+  `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
+)
 
 afterEach(async () => {
   while (tempDirs.length > 0) {
@@ -93,7 +103,6 @@ describe("@wanex/runtime/execution", () => {
         cleanup: "completed"
       })
       const pids = processTreePids(result.stdout.text)
-      expect(pids.root).toBe(result.pid)
       await expectProcessGone(pids.root)
       await expectProcessGone(pids.grandchild)
     }
@@ -120,7 +129,6 @@ describe("@wanex/runtime/execution", () => {
         cleanup: "completed"
       })
       const pids = processTreePids(result.stdout.text)
-      expect(pids.root).toBe(result.pid)
       await expectProcessGone(pids.root)
       await expectProcessGone(pids.grandchild)
     }
@@ -147,7 +155,7 @@ describe("@wanex/runtime/execution", () => {
       termination: "cancelled",
       cleanup: "completed"
     })
-    await expectProcessGone(result.pid)
+    await expectProcessGone(positivePid(result.stdout.text.trim(), "root"))
   })
 
   it("delegates Windows cancellation to the tree terminator", async () => {
@@ -175,7 +183,8 @@ describe("@wanex/runtime/execution", () => {
       termination: "timed_out",
       cleanup: "completed"
     })
-    expect(terminated).toEqual([result.pid])
+    expect(terminated).toHaveLength(1)
+    await expectProcessGone(terminated[0]!)
   })
 
   it("fails before spawn for an already aborted request", async () => {
@@ -191,6 +200,230 @@ describe("@wanex/runtime/execution", () => {
         signal: controller.signal
       })
     ).rejects.toMatchObject({ name: "ExecutionAbortedError" })
+  })
+
+  it("executes through the native child supervisor with bounded evidence", async () => {
+    const cwd = await tempDir()
+    const host = nativeExecutionHost()
+    const result = await host.execute({
+      program: process.execPath,
+      args: [
+        "-e",
+        "process.stdout.write('A'.repeat(50)+'Z'.repeat(50));process.stderr.write('B'.repeat(20)+'Y'.repeat(20))"
+      ],
+      cwd,
+      output: { stdoutBytes: 20, stderrBytes: 10 }
+    })
+
+    expect(result).toMatchObject({
+      exitCode: 0,
+      signal: null,
+      termination: "exited",
+      cleanup: "completed"
+    })
+    expect(result.stdout).toMatchObject({
+      text: `${"A".repeat(10)}${"Z".repeat(10)}`,
+      observedBytes: 100,
+      retainedBytes: 20,
+      truncated: true
+    })
+    expect(result.stderr).toMatchObject({
+      text: `${"B".repeat(5)}${"Y".repeat(5)}`,
+      observedBytes: 40,
+      retainedBytes: 10,
+      truncated: true
+    })
+  })
+
+  it("streams retained native output across the protocol frame limit", async () => {
+    const cwd = await tempDir()
+    const retainedBytes = 2 * 1024 * 1024
+    const result = await nativeExecutionHost().execute({
+      program: process.execPath,
+      args: [
+        "-e",
+        `process.stdout.write('A'.repeat(${retainedBytes / 2})+'Z'.repeat(${retainedBytes / 2}))`
+      ],
+      cwd,
+      output: { stdoutBytes: retainedBytes }
+    })
+
+    expect(result).toMatchObject({
+      exitCode: 0,
+      termination: "exited",
+      cleanup: "completed"
+    })
+    expect(result.stdout).toMatchObject({
+      observedBytes: retainedBytes,
+      retainedBytes,
+      truncated: false
+    })
+    expect(result.stdout.text.startsWith("A".repeat(64))).toBe(true)
+    expect(result.stdout.text.endsWith("Z".repeat(64))).toBe(true)
+  })
+
+  it("uses native process ownership to clean descendants on timeout", async () => {
+    const cwd = await tempDir()
+    const result = await nativeExecutionHost().execute({
+      program: process.execPath,
+      args: ["-e", processTreeFixture],
+      cwd,
+      timeoutMs: 300,
+      output: { stdoutBytes: 256 }
+    })
+
+    expect(result).toMatchObject({
+      termination: "timed_out",
+      cleanup: "completed"
+    })
+    const pids = processTreePids(result.stdout.text)
+    await expectProcessGone(pids.root)
+    await expectProcessGone(pids.grandchild)
+  })
+
+  it("uses native process ownership to clean descendants on cancellation", async () => {
+    const cwd = await tempDir()
+    const controller = new AbortController()
+    const execution = nativeExecutionHost().execute({
+      program: process.execPath,
+      args: ["-e", processTreeFixture],
+      cwd,
+      signal: controller.signal,
+      output: { stdoutBytes: 256 }
+    })
+    setTimeout(() => controller.abort(), 300)
+    const result = await execution
+
+    expect(result).toMatchObject({
+      termination: "cancelled",
+      cleanup: "completed"
+    })
+    const pids = processTreePids(result.stdout.text)
+    await expectProcessGone(pids.root)
+    await expectProcessGone(pids.grandchild)
+  })
+
+  it("redacts transient program and cwd when native spawn fails", async () => {
+    const cwd = await tempDir()
+    const program = join(cwd, "secret-program-that-does-not-exist")
+
+    await expect(
+      nativeExecutionHost().execute({
+        program,
+        cwd
+      })
+    ).rejects.toSatisfy((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      return !message.includes(program) && !message.includes(cwd)
+    })
+  })
+
+  it("requires recovery when a started helper exits without terminal evidence", async () => {
+    const cwd = await tempDir()
+    const program = join(cwd, "private-program")
+    let terminateCalls = 0
+    const supervisor: ChildSupervisor = {
+      async start() {
+        return {
+          async wait() {
+            throw new Error(`untrusted helper diagnostic ${program}`)
+          },
+          async terminate() {
+            terminateCalls += 1
+          }
+        }
+      }
+    }
+    const host = new NodeExecutionHost({ childSupervisor: supervisor })
+
+    await expect(host.execute({ program, cwd })).rejects.toMatchObject({
+      name: "ExecutionCleanupRequiredError",
+      message: "execution process tree cleanup could not be proven"
+    })
+    expect(terminateCalls).toBe(1)
+  })
+
+  it("terminates the owned process tree when the Host control pipe closes", async () => {
+    const cwd = await tempDir()
+    const helper = spawn(serviceBin, ["--workspace-child"], {
+      shell: false,
+      windowsHide: true,
+      stdio: ["pipe", "pipe", "pipe"]
+    })
+    const frames = lineFrames(helper.stdout)
+    const claimToken = "a".repeat(64)
+    const identity = {
+      run_id: "wtsk_pipe_eof",
+      attempt_id: "wtat_pipe_eof",
+      child_id: "exch_pipe_eof",
+      claim_token_sha256: createHash("sha256")
+        .update(claimToken)
+        .digest("hex")
+    }
+    helper.stdin.write(`${JSON.stringify({
+      protocol: 1,
+      kind: "workspace_child_start",
+      ...identity,
+      program: process.execPath,
+      args: ["-e", processTreeFixture],
+      cwd,
+      environment: { PATH: process.env.PATH ?? "" },
+      stdin_base64: "",
+      stdout_limit_bytes: 256,
+      stderr_limit_bytes: 256,
+      termination_grace_ms: 30
+    })}\n`)
+    expect(await frames.next()).toMatchObject({
+      kind: "workspace_child_ready",
+      ...identity
+    })
+    await new Promise((resolve) => setTimeout(resolve, 200))
+    helper.stdin.end()
+    const output = await frames.next()
+    expect(output).toMatchObject({ kind: "workspace_child_stdout", ...identity })
+    const pids = processTreePids(
+      Buffer.from(String(output.data_base64), "base64").toString("utf8")
+    )
+
+    const terminal = await frames.next()
+    expect(terminal).toMatchObject({
+      kind: "workspace_child_terminal",
+      termination: "pipe_eof",
+      cleanup: "completed",
+      ...identity
+    })
+    await waitForChildClose(helper)
+    await expectProcessGone(pids.root)
+    await expectProcessGone(pids.grandchild)
+  })
+
+  it("keeps different supervisor claims isolated while cancelling one child", async () => {
+    const cwd = await tempDir()
+    const firstController = new AbortController()
+    const first = claimedExecutionHost("run_first", "attempt_first").execute({
+      program: process.execPath,
+      args: ["-e", processTreeFixture],
+      cwd,
+      signal: firstController.signal,
+      output: { stdoutBytes: 256 }
+    })
+    const second = claimedExecutionHost("run_second", "attempt_second").execute({
+      program: process.execPath,
+      args: ["-e", "setTimeout(()=>process.stdout.write('second-complete'),600)"],
+      cwd,
+      output: { stdoutBytes: 64 }
+    })
+    setTimeout(() => firstController.abort(), 300)
+
+    await expect(first).resolves.toMatchObject({
+      termination: "cancelled",
+      cleanup: "completed"
+    })
+    await expect(second).resolves.toMatchObject({
+      termination: "exited",
+      cleanup: "completed",
+      stdout: { text: "second-complete" }
+    })
   })
 })
 
@@ -238,8 +471,75 @@ function processTreePids(output: string): {
 }
 
 function positivePid(value: unknown, name: string): number {
-  if (!Number.isInteger(value) || Number(value) <= 0) {
+  const number = typeof value === "number" ? value : Number(value)
+  if (!Number.isInteger(number) || number <= 0) {
     throw new Error(`process tree fixture returned invalid ${name} pid`)
   }
-  return Number(value)
+  return number
+}
+
+function nativeExecutionHost(): NodeExecutionHost {
+  return new NodeExecutionHost({
+    childSupervisor: new NativeChildSupervisor({ serviceBin }),
+    terminationGraceMs: 30,
+    cleanupTimeoutMs: 1_000
+  })
+}
+
+function claimedExecutionHost(runId: string, attemptId: string): NodeExecutionHost {
+  return new NodeExecutionHost({
+    childSupervisor: new NativeChildSupervisor({ serviceBin }),
+    supervisorClaim: {
+      runId,
+      attemptId,
+      claimToken: "b".repeat(64)
+    },
+    terminationGraceMs: 30,
+    cleanupTimeoutMs: 1_000
+  })
+}
+
+function lineFrames(stream: NodeJS.ReadableStream): {
+  next(): Promise<Record<string, unknown>>
+} {
+  let buffer = ""
+  const queued: Record<string, unknown>[] = []
+  const waiters: Array<(frame: Record<string, unknown>) => void> = []
+  stream.setEncoding("utf8")
+  stream.on("data", (chunk: string) => {
+    buffer += chunk
+    while (true) {
+      const newline = buffer.indexOf("\n")
+      if (newline < 0) return
+      const line = buffer.slice(0, newline)
+      buffer = buffer.slice(newline + 1)
+      const frame = JSON.parse(line) as Record<string, unknown>
+      const waiter = waiters.shift()
+      if (waiter === undefined) queued.push(frame)
+      else waiter(frame)
+    }
+  })
+  return {
+    async next() {
+      const frame = queued.shift()
+      if (frame !== undefined) return frame
+      return await new Promise<Record<string, unknown>>((resolve) => {
+        waiters.push(resolve)
+      })
+    }
+  }
+}
+
+async function waitForChildClose(child: ReturnType<typeof spawn>): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("workspace child helper did not close")),
+      2_000
+    )
+    child.once("close", () => {
+      clearTimeout(timeout)
+      resolve()
+    })
+  })
 }

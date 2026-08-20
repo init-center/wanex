@@ -10,6 +10,9 @@
     "./git": "./src/git/index.ts",
     "./tasks": "./src/tasks/index.ts",
     "./review": "./src/review/index.ts",
+    "./transaction": "./src/transaction/index.ts",
+    "./locator": "./src/locator/index.ts",
+    "./snapshot": "./src/snapshot/index.ts",
     "./tools": "./src/tools/index.ts"
   },
   "scripts": {

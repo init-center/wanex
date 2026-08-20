@@ -8,15 +8,19 @@ use wanex_system_service::{
     ActivateContextEpoch, ActivatePluginInstall, AdmitObjectiveAttempt,
     AdmitObjectiveAttemptReceipt, AdmitSessionInput, AdmitTeamMessage, AppendSessionMessage,
     ApplySessionTurnControl, AttachDelegationGraphNodeJob, BeginContextEpoch,
-    BeginProviderInvocation, BeginToolExecution, BudgetAmount, BudgetScopeKind, BudgetScopeRef,
-    ChangeObjectiveState, ClaimJob, CleanupExpiredResourceTickets, CommitBudget,
+    BeginProviderInvocation, BeginToolExecution, BeginWorkspaceChangeTransaction,
+    BeginWorkspaceChangeTransactionCommit, BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun,
+    BudgetAmount, BudgetScopeKind, BudgetScopeRef, ChangeObjectiveState, ClaimJob,
+    ClaimWorkspaceChangeProposalApply, ClaimWorkspaceChangeTransactionRecovery,
+    ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets, CommitBudget,
     CompleteChannelDelivery, CompleteJob, ConfigMutationCondition, ContextEpochMutationIdentity,
     CreateObjective, CreatePlanProposal, DoctorCheckState, EnqueueJob, EventScope,
     ExecuteApprovedPlan, FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization,
-    FinishConnectorSession, FinishContextEpochGeneration, GetActiveContextEpoch, GetPluginInstall,
-    GetPluginManifest, HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent,
-    IngestResource, InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents,
-    ListChannelProjections, ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
+    FinalizeWorkspaceChangeTransaction, FinalizeWorkspaceTaskCollection, FinishConnectorSession,
+    FinishContextEpochGeneration, GetActiveContextEpoch, GetPluginInstall, GetPluginManifest,
+    HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent, IngestResource,
+    InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents, ListChannelProjections,
+    ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
     ListDelegationGraphDependencies, ListDelegationGraphNodes, ListDelegationGraphs,
     ListObjectiveAttemptReviews, ListObjectiveAttempts, ListObjectiveVerifications,
     ListPlanProposalOperations, ListPlanProposals, ListPluginInstalls, ListPluginManifests,
@@ -24,27 +28,33 @@ use wanex_system_service::{
     ListSessionTurns, ListSessions, ListTeamConversations, ListTeamDeliveries,
     ListTeamDiscussionRounds, ListTeamMessages, ListTeamParticipants, ListTeamRoutingDecisions,
     ListWorkspaceChangeOperations, ListWorkspaceChangeProposalOperations,
-    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, MarkContextEpochOutputObserved,
-    MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery, PlanProposalContentRecord,
-    PlanProposalGenerationRecord, PlanProposalReferenceRecord, PlanProposalSourceRecord,
-    ProjectChannelInboundEvent, ProjectTeamDeliveryOutcome, PruneContextEpochs, PutChannelBinding,
-    PutConnectorCredential, PutConnectorRegistration, PutDelegationGraph,
-    PutDelegationGraphDependency, PutDelegationGraphNode, PutPluginInstall, PutPluginManifest,
-    PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal, PutWorkspaceChangeSet,
-    QueryEvents, ReadTeamConversationPage, ReconcileObjectiveCancellation, RecordBudgetUsage,
-    RecordPlanProposalOperation, RecordWorkspaceChangeOperation,
-    RecordWorkspaceChangeProposalOperation, RenameSession, RequestObjectiveCancel,
-    RequestSessionTurnCancel, RequireToolExecutionRecovery, ReserveBudget,
+    ListWorkspaceChangeProposals, ListWorkspaceChangeSets, ListWorkspaceTaskAttempts,
+    ListWorkspaceTaskRuns, MarkContextEpochOutputObserved,
+    MarkWorkspaceChangeProposalRecoveryRequired, MarkWorkspaceChangeTransactionPrepared,
+    MarkWorkspaceTaskActive, MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery,
+    PlanProposalContentRecord, PlanProposalGenerationRecord, PlanProposalReferenceRecord,
+    PlanProposalSourceRecord, ProjectChannelInboundEvent, ProjectTeamDeliveryOutcome,
+    PruneContextEpochs, PutChannelBinding, PutConnectorCredential, PutConnectorRegistration,
+    PutDelegationGraph, PutDelegationGraphDependency, PutDelegationGraphNode, PutPluginInstall,
+    PutPluginManifest, PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal,
+    PutWorkspaceChangeSet, QueryEvents, ReadTeamConversationPage, ReconcileObjectiveCancellation,
+    ReconcileWorkspaceChangeTransactionFiles, RecordBudgetUsage, RecordPlanProposalOperation,
+    RecordWorkspaceChangeOperation, RecordWorkspaceChangeProposalOperation,
+    RecordWorkspaceChangeTransactionFileCommitted, RecordWorkspaceChangeTransactionPlan,
+    RenameSession, RenewWorkspaceChangeProposalApply, RenewWorkspaceChangeTransaction,
+    RequestObjectiveCancel, RequestSessionTurnCancel, RequireToolExecutionRecovery, ReserveBudget,
     ResolveToolExecutionRecovery, ResourceCapability, ResourceSource, RetryPolicy, RetryStrategy,
     ReviewObjectiveAttempt, RevokeConnectorCredential, RouteTeamDelivery, RouteTeamMessage,
     RuntimeEvent, SchedulerJobKind, SchedulerJobRecord, SessionStateTransition,
-    SetTeamConversationLead, SettleSessionTurn, StartConnectorSession, StartSessionTurnAttempt,
-    SteerSessionTurn, SubmitChannelDelivery, SubmitPluginAction, SubmitSessionTurn,
-    SubmitSessionTurnReceipt, SystemService, SystemServiceError, TeamTarget, ToolResultContentPart,
-    UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
-    UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
-    UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
-    CURRENT_SCHEMA_VERSION,
+    SetTeamConversationLead, SettleSessionTurn, SettleWorkspaceChangeProposalApply,
+    StartConnectorSession, StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
+    SubmitPluginAction, SubmitSessionTurn, SubmitSessionTurnReceipt, SystemService,
+    SystemServiceError, TeamTarget, ToolResultContentPart, UpdateChannelInboundEventState,
+    UpdateConnectorRegistrationState, UpdateDelegationGraphNodeState, UpdateDelegationGraphState,
+    UpdatePluginInstallState, UpdatePluginManifestState, UpdateTeamConversationState,
+    UpdateTeamParticipantState, WorkspaceChangeTransactionFileObservation,
+    WorkspaceChangeTransactionFilePlan, WorkspaceChangeTransactionProposalBinding,
+    WorkspaceTaskRunIdentity, CURRENT_SCHEMA_VERSION,
 };
 
 fn test_execution_binding(label: &str) -> serde_json::Value {
@@ -1394,29 +1404,1195 @@ fn records_workspace_change_proposal_review_history() {
         vec!["approve", "request_apply"]
     );
 
-    let marked_applied = service
-        .record_workspace_change_proposal_operation(&RecordWorkspaceChangeProposalOperation {
-            id: Some("wcpo_mark_applied".to_string()),
-            proposal_id: "wcp_review".to_string(),
-            operation: "mark_applied".to_string(),
-            actor_id: "proposal_apply_runtime".to_string(),
-            reason: None,
-            metadata: Some(json!({ "workspaceOperationId": "wcop_apply" })),
-        })
-        .unwrap();
-    assert_eq!(marked_applied.from_state, "apply_requested");
-    assert_eq!(marked_applied.to_state, "applied");
-    let terminal = service
+    let retired_terminal_operation = service
         .record_workspace_change_proposal_operation(&RecordWorkspaceChangeProposalOperation {
             id: None,
             proposal_id: "wcp_review".to_string(),
-            operation: "mark_apply_failed".to_string(),
+            operation: "mark_applied".to_string(),
             actor_id: "proposal_apply_runtime".to_string(),
             reason: None,
             metadata: None,
         })
         .unwrap_err();
-    assert!(matches!(terminal, SystemServiceError::Invariant(_)));
+    assert!(matches!(
+        retired_terminal_operation,
+        SystemServiceError::Invariant(_)
+    ));
+}
+
+#[test]
+fn claims_renews_and_fences_workspace_proposal_apply() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_apply_requested_proposal(&service, "wcp_claim", "cs_claim");
+    let token = "a".repeat(43);
+
+    let claimed = service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            owner_id: "host_claim".to_string(),
+            claim_token: token.clone(),
+            lease_ms: 60_000,
+            metadata: Some(json!({ "source": "test" })),
+        })
+        .unwrap();
+    assert_eq!(claimed.status, "claimed");
+    assert_eq!(claimed.proposal.state, "applying");
+    assert_eq!(claimed.attempt.as_ref().unwrap().state, "active");
+    let persisted_token_hash: String = rusqlite::Connection::open(service.db_path())
+        .unwrap()
+        .query_row(
+            "SELECT claim_token_sha256 FROM workspace_change_proposal_apply_attempt WHERE id = ?",
+            ["wcpa_claim"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_ne!(persisted_token_hash, token);
+    assert_eq!(persisted_token_hash.len(), 64);
+    let serialized_attempt = serde_json::to_value(claimed.attempt.as_ref().unwrap()).unwrap();
+    assert!(serialized_attempt.get("claim_token_sha256").is_none());
+    assert!(serialized_attempt.get("claimTokenSha256").is_none());
+
+    let busy = service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_loser".to_string(),
+            owner_id: "host_loser".to_string(),
+            claim_token: "b".repeat(43),
+            lease_ms: 60_000,
+            metadata: None,
+        })
+        .unwrap();
+    assert_eq!(busy.status, "busy");
+
+    let stale = service
+        .renew_workspace_change_proposal_apply(&RenewWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: "wrong-token-that-is-at-least-32-bytes".to_string(),
+            lease_ms: 60_000,
+        })
+        .unwrap_err();
+    assert!(matches!(stale, SystemServiceError::Conflict(_)));
+
+    let renewed = service
+        .renew_workspace_change_proposal_apply(&RenewWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert!(renewed.lease_expires_at >= claimed.attempt.unwrap().lease_expires_at);
+
+    let missing_evidence = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: token.clone(),
+            outcome: "applied".to_string(),
+            workspace_operation_id: None,
+            failure: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        missing_evidence,
+        SystemServiceError::InvalidInput(_)
+    ));
+
+    service
+        .put_workspace_changeset(&PutWorkspaceChangeSet {
+            workspace_id: "workspace_claim".to_string(),
+            principal_id: "agent_claim".to_string(),
+            changeset: json!({
+                "id": "cs_foreign_claim",
+                "changes": [{ "path": "foreign.txt", "kind": "create", "targetText": "no\n" }]
+            }),
+        })
+        .unwrap();
+    let foreign_operation = service
+        .record_workspace_change_operation(&RecordWorkspaceChangeOperation {
+            id: Some("wop_foreign_claim".to_string()),
+            changeset_id: "cs_foreign_claim".to_string(),
+            operation: "apply".to_string(),
+            receipt: json!({
+                "changeSetId": "cs_foreign_claim",
+                "status": "applied",
+                "files": [],
+                "conflicts": []
+            }),
+        })
+        .unwrap();
+    let foreign_evidence = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: token.clone(),
+            outcome: "applied".to_string(),
+            workspace_operation_id: Some(foreign_operation.id),
+            failure: None,
+        })
+        .unwrap_err();
+    assert!(matches!(foreign_evidence, SystemServiceError::Conflict(_)));
+
+    let workspace_operation = service
+        .record_workspace_change_operation(&RecordWorkspaceChangeOperation {
+            id: Some("wop_claim".to_string()),
+            changeset_id: "cs_claim".to_string(),
+            operation: "apply".to_string(),
+            receipt: json!({
+                "changeSetId": "cs_claim",
+                "status": "applied",
+                "files": [],
+                "conflicts": []
+            }),
+        })
+        .unwrap();
+    let wrong_settlement_token = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: "wrong-token-that-is-at-least-32-bytes".to_string(),
+            outcome: "applied".to_string(),
+            workspace_operation_id: Some(workspace_operation.id.clone()),
+            failure: None,
+        })
+        .unwrap_err();
+    assert!(matches!(
+        wrong_settlement_token,
+        SystemServiceError::Conflict(_)
+    ));
+
+    let settled = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: token.clone(),
+            outcome: "applied".to_string(),
+            workspace_operation_id: Some(workspace_operation.id),
+            failure: None,
+        })
+        .unwrap();
+    assert_eq!(settled.proposal.state, "applied");
+    assert_eq!(settled.attempt.state, "applied");
+    assert!(settled.attempt.finished_at.is_some());
+
+    let old_owner = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_claim".to_string(),
+            attempt_id: "wcpa_claim".to_string(),
+            claim_token: token,
+            outcome: "apply_failed".to_string(),
+            workspace_operation_id: None,
+            failure: Some(json!({ "message": "late" })),
+        })
+        .unwrap_err();
+    assert!(matches!(old_owner, SystemServiceError::Conflict(_)));
+}
+
+#[test]
+fn expired_workspace_proposal_apply_requires_recovery_and_survives_restart() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_apply_requested_proposal(&service, "wcp_expire", "cs_expire");
+    service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_expire".to_string(),
+            attempt_id: "wcpa_expire".to_string(),
+            owner_id: "host_expire".to_string(),
+            claim_token: "c".repeat(43),
+            lease_ms: 10,
+            metadata: None,
+        })
+        .unwrap();
+    drop(service);
+    std::thread::sleep(std::time::Duration::from_millis(20));
+
+    let restarted = SystemService::open(dir.path()).unwrap();
+    let recovery = restarted
+        .mark_workspace_change_proposal_recovery_required(
+            &MarkWorkspaceChangeProposalRecoveryRequired {
+                proposal_id: "wcp_expire".to_string(),
+            },
+        )
+        .unwrap();
+    assert_eq!(recovery.status, "marked");
+    assert_eq!(recovery.proposal.state, "recovery_required");
+    assert_eq!(recovery.attempt.unwrap().state, "recovery_required");
+
+    let retry = restarted
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_expire".to_string(),
+            attempt_id: "wcpa_retry".to_string(),
+            owner_id: "host_retry".to_string(),
+            claim_token: "d".repeat(43),
+            lease_ms: 60_000,
+            metadata: None,
+        })
+        .unwrap();
+    assert_eq!(retry.status, "recovery_required");
+}
+
+#[test]
+fn active_workspace_proposal_apply_reports_ambiguous_mutation_for_recovery() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_apply_requested_proposal(&service, "wcp_ambiguous", "cs_ambiguous");
+    let token = "ambiguous-token-that-is-at-least-32-bytes".to_string();
+    service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_ambiguous".to_string(),
+            attempt_id: "wcpa_ambiguous".to_string(),
+            owner_id: "host_ambiguous".to_string(),
+            claim_token: token.clone(),
+            lease_ms: 60_000,
+            metadata: None,
+        })
+        .unwrap();
+
+    let settled = service
+        .settle_workspace_change_proposal_apply(&SettleWorkspaceChangeProposalApply {
+            proposal_id: "wcp_ambiguous".to_string(),
+            attempt_id: "wcpa_ambiguous".to_string(),
+            claim_token: token,
+            outcome: "recovery_required".to_string(),
+            workspace_operation_id: None,
+            failure: Some(json!({ "type": "workspace.apply_error" })),
+        })
+        .unwrap();
+    assert_eq!(settled.proposal.state, "recovery_required");
+    assert_eq!(settled.proposal.closed_at, None);
+    assert_eq!(settled.attempt.state, "recovery_required");
+    assert_eq!(
+        settled.attempt.failure,
+        Some(json!({ "type": "workspace.apply_error" }))
+    );
+    assert!(settled.attempt.finished_at.is_some());
+
+    let retry = service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_ambiguous".to_string(),
+            attempt_id: "wcpa_ambiguous_retry".to_string(),
+            owner_id: "host_ambiguous_retry".to_string(),
+            claim_token: "ambiguous-retry-token-that-is-at-least-32-bytes".to_string(),
+            lease_ms: 60_000,
+            metadata: None,
+        })
+        .unwrap();
+    assert_eq!(retry.status, "recovery_required");
+}
+
+#[test]
+fn concurrent_workspace_proposal_apply_has_one_claim_winner() {
+    let dir = tempdir().unwrap();
+    let service = Arc::new(SystemService::open(dir.path()).unwrap());
+    put_apply_requested_proposal(&service, "wcp_concurrent_claim", "cs_concurrent_claim");
+    let barrier = Arc::new(Barrier::new(100));
+    let mut workers = Vec::new();
+    for index in 0..100 {
+        let service = Arc::clone(&service);
+        let barrier = Arc::clone(&barrier);
+        workers.push(std::thread::spawn(move || {
+            barrier.wait();
+            service
+                .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+                    proposal_id: "wcp_concurrent_claim".to_string(),
+                    attempt_id: format!("wcpa_concurrent_{index}"),
+                    owner_id: format!("host_concurrent_{index}"),
+                    claim_token: format!("token-concurrent-{index:03}-{}", "x".repeat(32)),
+                    lease_ms: 60_000,
+                    metadata: None,
+                })
+                .unwrap()
+                .status
+        }));
+    }
+    let statuses = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|status| *status == "claimed")
+            .count(),
+        1
+    );
+    assert_eq!(
+        statuses.iter().filter(|status| *status == "busy").count(),
+        99
+    );
+}
+
+#[test]
+fn independent_services_fence_concurrent_workspace_proposal_apply() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_apply_requested_proposal(
+        &service,
+        "wcp_cross_service_claim",
+        "cs_cross_service_claim",
+    );
+    let root = dir.path().to_path_buf();
+    let barrier = Arc::new(Barrier::new(32));
+    let workers = (0..32)
+        .map(|index| {
+            let root = root.clone();
+            let barrier = Arc::clone(&barrier);
+            std::thread::spawn(move || {
+                let service = SystemService::open(root).unwrap();
+                barrier.wait();
+                service
+                    .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+                        proposal_id: "wcp_cross_service_claim".to_string(),
+                        attempt_id: format!("wcpa_cross_service_{index}"),
+                        owner_id: format!("host_cross_service_{index}"),
+                        claim_token: format!("token-cross-service-{index:03}-{}", "x".repeat(32)),
+                        lease_ms: 60_000,
+                        metadata: None,
+                    })
+                    .unwrap()
+                    .status
+            })
+        })
+        .collect::<Vec<_>>();
+    let statuses = workers
+        .into_iter()
+        .map(|worker| worker.join().unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        statuses
+            .iter()
+            .filter(|status| *status == "claimed")
+            .count(),
+        1
+    );
+    assert_eq!(
+        statuses.iter().filter(|status| *status == "busy").count(),
+        31
+    );
+}
+
+#[test]
+fn workspace_change_transaction_finalizes_operation_from_durable_file_evidence() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_transaction_changeset(&service, "cs_tx_apply", "workspace_tx_apply");
+    let claim_token = format!("transaction-token-{}", "x".repeat(32));
+    let claim = service
+        .begin_workspace_change_transaction(&BeginWorkspaceChangeTransaction {
+            id: "wtx_apply".to_string(),
+            workspace_id: "workspace_tx_apply".to_string(),
+            changeset_id: "cs_tx_apply".to_string(),
+            operation: "apply".to_string(),
+            undo_source_operation_id: None,
+            source_kind: "host".to_string(),
+            source_id: "host-request-apply".to_string(),
+            idempotency_key: "workspace-tx:apply".to_string(),
+            root_identity_sha256: "a".repeat(64),
+            proposal: None,
+            attempt_id: "wtxa_apply".to_string(),
+            owner_id: "host_apply".to_string(),
+            claim_token: claim_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(claim.status, "claimed");
+    let serialized = serde_json::to_string(&claim).unwrap();
+    assert!(!serialized.contains(&claim_token));
+    assert!(!serialized.contains("claim_token_sha256"));
+
+    let plan = transaction_file_plan(0, "src/main.ts", Some("before"), Some("after"));
+    let snapshot = service
+        .record_workspace_change_transaction_plan(&RecordWorkspaceChangeTransactionPlan {
+            transaction_id: "wtx_apply".to_string(),
+            attempt_id: "wtxa_apply".to_string(),
+            claim_token: claim_token.clone(),
+            files: vec![plan.clone()],
+        })
+        .unwrap();
+    assert_eq!(snapshot.transaction.state, "planning");
+    assert!(snapshot.transaction.plan_digest.is_some());
+    assert_eq!(snapshot.files[0].state, "pending");
+
+    let replay = service
+        .record_workspace_change_transaction_plan(&RecordWorkspaceChangeTransactionPlan {
+            transaction_id: "wtx_apply".to_string(),
+            attempt_id: "wtxa_apply".to_string(),
+            claim_token: claim_token.clone(),
+            files: vec![plan],
+        })
+        .unwrap();
+    assert_eq!(
+        replay.transaction.plan_digest,
+        snapshot.transaction.plan_digest
+    );
+
+    service
+        .mark_workspace_change_transaction_prepared(&MarkWorkspaceChangeTransactionPrepared {
+            transaction_id: "wtx_apply".to_string(),
+            attempt_id: "wtxa_apply".to_string(),
+            claim_token: claim_token.clone(),
+        })
+        .unwrap();
+    service
+        .begin_workspace_change_transaction_commit(&BeginWorkspaceChangeTransactionCommit {
+            transaction_id: "wtx_apply".to_string(),
+            attempt_id: "wtxa_apply".to_string(),
+            claim_token: claim_token.clone(),
+        })
+        .unwrap();
+    service
+        .record_workspace_change_transaction_file_committed(
+            &RecordWorkspaceChangeTransactionFileCommitted {
+                transaction_id: "wtx_apply".to_string(),
+                attempt_id: "wtxa_apply".to_string(),
+                claim_token: claim_token.clone(),
+                ordinal: 0,
+            },
+        )
+        .unwrap();
+
+    let finalize = FinalizeWorkspaceChangeTransaction {
+        transaction_id: "wtx_apply".to_string(),
+        attempt_id: "wtxa_apply".to_string(),
+        claim_token: claim_token.clone(),
+        outcome: "applied".to_string(),
+        operation_id: Some("wop_tx_apply".to_string()),
+        receipt: Some(json!({
+            "changeSetId": "cs_tx_apply",
+            "status": "applied",
+            "files": [],
+            "conflicts": []
+        })),
+        failure: None,
+    };
+    let finalization = service
+        .finalize_workspace_change_transaction(&finalize)
+        .unwrap();
+    assert_eq!(finalization.snapshot.transaction.state, "applied");
+    assert_eq!(finalization.operation.unwrap().id, "wop_tx_apply");
+    assert!(finalization.snapshot.active_attempt.is_none());
+
+    let replay = service
+        .finalize_workspace_change_transaction(&finalize)
+        .unwrap();
+    assert_eq!(replay.snapshot.transaction.state, "applied");
+    assert_eq!(
+        service
+            .list_workspace_change_operations(&ListWorkspaceChangeOperations {
+                changeset_id: "cs_tx_apply".to_string(),
+            })
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn workspace_change_transaction_atomically_settles_bound_proposal() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_apply_requested_proposal(&service, "wcp_tx_apply", "cs_tx_proposal");
+    let proposal_token = format!("proposal-token-{}", "p".repeat(32));
+    service
+        .claim_workspace_change_proposal_apply(&ClaimWorkspaceChangeProposalApply {
+            proposal_id: "wcp_tx_apply".to_string(),
+            attempt_id: "wcpa_tx_apply".to_string(),
+            owner_id: "proposal_host".to_string(),
+            claim_token: proposal_token.clone(),
+            lease_ms: 60_000,
+            metadata: None,
+        })
+        .unwrap();
+    let transaction_token = format!("transaction-token-{}", "t".repeat(32));
+    service
+        .begin_workspace_change_transaction(&BeginWorkspaceChangeTransaction {
+            id: "wtx_proposal".to_string(),
+            workspace_id: "workspace_claim".to_string(),
+            changeset_id: "cs_tx_proposal".to_string(),
+            operation: "apply".to_string(),
+            undo_source_operation_id: None,
+            source_kind: "proposal".to_string(),
+            source_id: "wcp_tx_apply".to_string(),
+            idempotency_key: "workspace-tx:proposal".to_string(),
+            root_identity_sha256: "b".repeat(64),
+            proposal: Some(WorkspaceChangeTransactionProposalBinding {
+                proposal_id: "wcp_tx_apply".to_string(),
+                proposal_attempt_id: "wcpa_tx_apply".to_string(),
+                proposal_claim_token: proposal_token,
+            }),
+            attempt_id: "wtxa_proposal".to_string(),
+            owner_id: "proposal_host".to_string(),
+            claim_token: transaction_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    service
+        .record_workspace_change_transaction_plan(&RecordWorkspaceChangeTransactionPlan {
+            transaction_id: "wtx_proposal".to_string(),
+            attempt_id: "wtxa_proposal".to_string(),
+            claim_token: transaction_token.clone(),
+            files: vec![transaction_file_plan(
+                0,
+                "proposal.txt",
+                Some("before"),
+                Some("after"),
+            )],
+        })
+        .unwrap();
+    service
+        .mark_workspace_change_transaction_prepared(&MarkWorkspaceChangeTransactionPrepared {
+            transaction_id: "wtx_proposal".to_string(),
+            attempt_id: "wtxa_proposal".to_string(),
+            claim_token: transaction_token.clone(),
+        })
+        .unwrap();
+    service
+        .begin_workspace_change_transaction_commit(&BeginWorkspaceChangeTransactionCommit {
+            transaction_id: "wtx_proposal".to_string(),
+            attempt_id: "wtxa_proposal".to_string(),
+            claim_token: transaction_token.clone(),
+        })
+        .unwrap();
+    service
+        .record_workspace_change_transaction_file_committed(
+            &RecordWorkspaceChangeTransactionFileCommitted {
+                transaction_id: "wtx_proposal".to_string(),
+                attempt_id: "wtxa_proposal".to_string(),
+                claim_token: transaction_token.clone(),
+                ordinal: 0,
+            },
+        )
+        .unwrap();
+    let result = service
+        .finalize_workspace_change_transaction(&FinalizeWorkspaceChangeTransaction {
+            transaction_id: "wtx_proposal".to_string(),
+            attempt_id: "wtxa_proposal".to_string(),
+            claim_token: transaction_token,
+            outcome: "applied".to_string(),
+            operation_id: Some("wop_tx_proposal".to_string()),
+            receipt: Some(json!({
+                "changeSetId": "cs_tx_proposal",
+                "status": "applied",
+                "files": [],
+                "conflicts": []
+            })),
+            failure: None,
+        })
+        .unwrap();
+    assert_eq!(result.proposal.unwrap().state, "applied");
+    let proposal_attempt = result.proposal_attempt.unwrap();
+    assert_eq!(proposal_attempt.state, "applied");
+    assert_eq!(
+        proposal_attempt.workspace_operation_id.as_deref(),
+        Some("wop_tx_proposal")
+    );
+}
+
+#[test]
+fn workspace_change_transaction_recovery_fences_old_owner_and_persists_decision() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    put_transaction_changeset(&service, "cs_tx_recovery", "workspace_tx_recovery");
+    let old_token = format!("old-transaction-token-{}", "o".repeat(32));
+    service
+        .begin_workspace_change_transaction(&BeginWorkspaceChangeTransaction {
+            id: "wtx_recovery".to_string(),
+            workspace_id: "workspace_tx_recovery".to_string(),
+            changeset_id: "cs_tx_recovery".to_string(),
+            operation: "apply".to_string(),
+            undo_source_operation_id: None,
+            source_kind: "tool".to_string(),
+            source_id: "tool-call-recovery".to_string(),
+            idempotency_key: "workspace-tx:recovery".to_string(),
+            root_identity_sha256: "c".repeat(64),
+            proposal: None,
+            attempt_id: "wtxa_old".to_string(),
+            owner_id: "old_host".to_string(),
+            claim_token: old_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    service
+        .record_workspace_change_transaction_plan(&RecordWorkspaceChangeTransactionPlan {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_old".to_string(),
+            claim_token: old_token.clone(),
+            files: vec![
+                transaction_file_plan(0, "first.txt", Some("one"), Some("ONE")),
+                transaction_file_plan(1, "second.txt", Some("two"), Some("TWO")),
+            ],
+        })
+        .unwrap();
+    service
+        .mark_workspace_change_transaction_prepared(&MarkWorkspaceChangeTransactionPrepared {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_old".to_string(),
+            claim_token: old_token.clone(),
+        })
+        .unwrap();
+    service
+        .begin_workspace_change_transaction_commit(&BeginWorkspaceChangeTransactionCommit {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_old".to_string(),
+            claim_token: old_token.clone(),
+        })
+        .unwrap();
+    service
+        .record_workspace_change_transaction_file_committed(
+            &RecordWorkspaceChangeTransactionFileCommitted {
+                transaction_id: "wtx_recovery".to_string(),
+                attempt_id: "wtxa_old".to_string(),
+                claim_token: old_token.clone(),
+                ordinal: 0,
+            },
+        )
+        .unwrap();
+    rusqlite::Connection::open(service.db_path())
+        .unwrap()
+        .execute(
+            "UPDATE workspace_change_transaction_attempt SET lease_expires_at = 0 WHERE id = ?",
+            ["wtxa_old"],
+        )
+        .unwrap();
+
+    let recovery_token = format!("recovery-token-{}", "r".repeat(32));
+    let recovery = service
+        .claim_workspace_change_transaction_recovery(&ClaimWorkspaceChangeTransactionRecovery {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_recovery".to_string(),
+            owner_id: "recovery_host".to_string(),
+            claim_token: recovery_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(recovery.status, "claimed");
+    assert!(matches!(
+        service.renew_workspace_change_transaction(&RenewWorkspaceChangeTransaction {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_old".to_string(),
+            claim_token: old_token,
+            lease_ms: 60_000,
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
+    let reconciliation = service
+        .reconcile_workspace_change_transaction_files(&ReconcileWorkspaceChangeTransactionFiles {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_recovery".to_string(),
+            claim_token: recovery_token.clone(),
+            observations: vec![
+                WorkspaceChangeTransactionFileObservation {
+                    ordinal: 0,
+                    current: "after".to_string(),
+                },
+                WorkspaceChangeTransactionFileObservation {
+                    ordinal: 1,
+                    current: "before".to_string(),
+                },
+            ],
+        })
+        .unwrap();
+    assert_eq!(reconciliation.decision, "finish_forward");
+    assert_eq!(
+        reconciliation
+            .snapshot
+            .transaction
+            .recovery_decision
+            .as_deref(),
+        Some("finish_forward")
+    );
+    service
+        .record_workspace_change_transaction_file_committed(
+            &RecordWorkspaceChangeTransactionFileCommitted {
+                transaction_id: "wtx_recovery".to_string(),
+                attempt_id: "wtxa_recovery".to_string(),
+                claim_token: recovery_token.clone(),
+                ordinal: 1,
+            },
+        )
+        .unwrap();
+    let finalized = service
+        .finalize_workspace_change_transaction(&FinalizeWorkspaceChangeTransaction {
+            transaction_id: "wtx_recovery".to_string(),
+            attempt_id: "wtxa_recovery".to_string(),
+            claim_token: recovery_token,
+            outcome: "applied".to_string(),
+            operation_id: Some("wop_tx_recovery".to_string()),
+            receipt: Some(json!({
+                "changeSetId": "cs_tx_recovery",
+                "status": "applied",
+                "files": [],
+                "conflicts": []
+            })),
+            failure: None,
+        })
+        .unwrap();
+    assert_eq!(finalized.snapshot.transaction.state, "applied");
+}
+
+#[test]
+fn workspace_task_run_atomically_projects_and_survives_reopen() {
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    let token = "task-execution-token-00000000000000000000000000000000".to_string();
+    let identity = WorkspaceTaskRunIdentity {
+        run_id: "wtsk_atomic".to_string(),
+        attempt_id: "wtat_atomic".to_string(),
+        claim_token: token.clone(),
+    };
+    let claim = service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_atomic".to_string(),
+            principal_id: "agent_task_atomic".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_atomic".to_string(),
+            isolation_id: "wiso_task_atomic".to_string(),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_atomic".to_string(),
+            claim_token: token,
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(claim.status, "claimed");
+    assert_eq!(claim.snapshot.run.state, "preparing");
+    assert!(!serde_json::to_string(&claim).unwrap().contains("token"));
+
+    let exact_replay = service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_atomic".to_string(),
+            principal_id: "agent_task_atomic".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_atomic".to_string(),
+            isolation_id: "wiso_task_atomic".to_string(),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_atomic".to_string(),
+            claim_token: identity.claim_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(exact_replay.status, "claimed");
+    assert!(matches!(
+        service.begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_changed".to_string(),
+            principal_id: "agent_task_atomic".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_atomic".to_string(),
+            isolation_id: "wiso_task_atomic".to_string(),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_atomic".to_string(),
+            claim_token: identity.claim_token.clone(),
+            lease_ms: 60_000,
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
+    assert!(matches!(
+        service.begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_atomic".to_string(),
+            principal_id: "agent_task_atomic".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_atomic".to_string(),
+            isolation_id: "wiso_task_atomic".to_string(),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_changed".to_string(),
+            claim_token: "task-changed-token-000000000000000000000000000000000".to_string(),
+            lease_ms: 60_000,
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
+
+    let base_revision = "a".repeat(40);
+    service
+        .mark_workspace_task_active(&MarkWorkspaceTaskActive {
+            run_id: identity.run_id.clone(),
+            attempt_id: identity.attempt_id.clone(),
+            claim_token: identity.claim_token.clone(),
+            base_revision: Some(base_revision.clone()),
+            runtime_ref: Some("refs/heads/wanex/task-atomic".to_string()),
+        })
+        .unwrap();
+    let collection = BeginWorkspaceTaskCollection {
+        run_id: identity.run_id.clone(),
+        attempt_id: identity.attempt_id.clone(),
+        claim_token: identity.claim_token.clone(),
+        execution_outcome: "completed".to_string(),
+        summary: Some("created task output".to_string()),
+        resource_ids: vec!["res_task_log".to_string()],
+        failure: None,
+    };
+    service
+        .begin_workspace_task_collection(&collection)
+        .unwrap();
+    assert_eq!(
+        service
+            .begin_workspace_task_collection(&collection)
+            .unwrap()
+            .run
+            .state,
+        "collecting"
+    );
+    let mut changed_collection = collection.clone();
+    changed_collection.summary = Some("changed evidence".to_string());
+    assert!(matches!(
+        service.begin_workspace_task_collection(&changed_collection),
+        Err(SystemServiceError::Conflict(_))
+    ));
+    let finalization = FinalizeWorkspaceTaskCollection {
+        run_id: identity.run_id.clone(),
+        attempt_id: identity.attempt_id.clone(),
+        claim_token: identity.claim_token.clone(),
+        outcome: "proposed".to_string(),
+        changeset: Some(json!({
+            "id": "wcs_task_atomic",
+            "baseRevision": base_revision,
+            "changes": [{
+                "path": "src/task.ts",
+                "kind": "create",
+                "targetText": "export const task = true\n"
+            }]
+        })),
+        proposal_id: Some("wcp_task_atomic".to_string()),
+        title: Some("Task output".to_string()),
+        proposal_metadata: Some(json!({ "incomplete": false })),
+    };
+    let proposed = service
+        .finalize_workspace_task_collection(&finalization)
+        .unwrap();
+    assert_eq!(proposed.run.state, "proposed");
+    assert_eq!(
+        proposed.run.changeset_id.as_deref(),
+        Some("wcs_task_atomic")
+    );
+    assert_eq!(proposed.run.proposal_id.as_deref(), Some("wcp_task_atomic"));
+    assert!(service
+        .get_workspace_changeset("wcs_task_atomic")
+        .unwrap()
+        .is_some());
+    assert!(service
+        .get_workspace_change_proposal("wcp_task_atomic")
+        .unwrap()
+        .is_some());
+    assert_eq!(
+        service
+            .finalize_workspace_task_collection(&finalization)
+            .unwrap()
+            .run
+            .proposal_id
+            .as_deref(),
+        Some("wcp_task_atomic")
+    );
+    let mut changed_finalization = finalization.clone();
+    changed_finalization.proposal_metadata = Some(json!({ "incomplete": true }));
+    assert!(matches!(
+        service.finalize_workspace_task_collection(&changed_finalization),
+        Err(SystemServiceError::Conflict(_))
+    ));
+
+    service.begin_workspace_task_release(&identity).unwrap();
+    service.finalize_workspace_task_release(&identity).unwrap();
+    assert_eq!(
+        service
+            .finalize_workspace_task_release(&identity)
+            .unwrap()
+            .run
+            .state,
+        "released"
+    );
+    drop(service);
+
+    let reopened = SystemService::open(root.path()).unwrap();
+    let restored = reopened
+        .get_workspace_task_run("wtsk_atomic")
+        .unwrap()
+        .unwrap();
+    assert_eq!(restored.run.state, "released");
+    assert_eq!(restored.run.outcome.as_deref(), Some("proposed"));
+    assert!(restored.active_attempt.is_none());
+    let attempts = reopened
+        .list_workspace_task_attempts(&ListWorkspaceTaskAttempts {
+            run_id: "wtsk_atomic".to_string(),
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 1);
+    assert_eq!(attempts[0].state, "completed");
+    let serialized = serde_json::to_string(&restored).unwrap();
+    assert!(!serialized.contains(root.path().to_string_lossy().as_ref()));
+    assert!(!serialized.contains("task-execution-token"));
+    let events = reopened
+        .query_events(QueryEvents {
+            session_id: None,
+            plan_proposal_id: None,
+            objective_id: None,
+            after_occurred_at: None,
+            after_event_id: None,
+            limit: Some(100),
+        })
+        .unwrap();
+    let serialized_events = serde_json::to_string(&events).unwrap();
+    assert!(!serialized_events.contains(root.path().to_string_lossy().as_ref()));
+    assert!(!serialized_events.contains(&identity.claim_token));
+    assert!(!serialized_events.contains("src/task.ts"));
+}
+
+#[test]
+fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    let old_token = "task-old-owner-token-0000000000000000000000000000000".to_string();
+    service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: "wtsk_recovery".to_string(),
+            workspace_id: "workspace_task_recovery".to_string(),
+            principal_id: "agent_task_recovery".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_recovery".to_string(),
+            isolation_id: "wiso_task_recovery".to_string(),
+            attempt_id: "wtat_old".to_string(),
+            owner_id: "host_old".to_string(),
+            claim_token: old_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    let conn = rusqlite::Connection::open(service.db_path()).unwrap();
+    conn.execute(
+        "UPDATE workspace_task_attempt SET lease_expires_at = 0 WHERE id = ?",
+        ["wtat_old"],
+    )
+    .unwrap();
+    let due = service
+        .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            workspace_id: Some("workspace_task_recovery".to_string()),
+            state: Some("preparing".to_string()),
+            lease_expires_before: Some(test_now_ms()),
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(due.len(), 1);
+
+    let recovery_token = "task-recovery-token-00000000000000000000000000000000".to_string();
+    let claimed = service
+        .claim_workspace_task_recovery(&ClaimWorkspaceTaskRecovery {
+            run_id: "wtsk_recovery".to_string(),
+            attempt_id: "wtat_recovery".to_string(),
+            owner_id: "host_recovery".to_string(),
+            claim_token: recovery_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(claimed.status, "claimed");
+    assert_eq!(claimed.snapshot.active_attempt.unwrap().kind, "recovery");
+    assert!(matches!(
+        service.mark_workspace_task_active(&MarkWorkspaceTaskActive {
+            run_id: "wtsk_recovery".to_string(),
+            attempt_id: "wtat_old".to_string(),
+            claim_token: old_token,
+            base_revision: Some("b".repeat(40)),
+            runtime_ref: Some("refs/heads/wanex/stale".to_string()),
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
+    let active = service
+        .mark_workspace_task_active(&MarkWorkspaceTaskActive {
+            run_id: "wtsk_recovery".to_string(),
+            attempt_id: "wtat_recovery".to_string(),
+            claim_token: recovery_token,
+            base_revision: Some("b".repeat(40)),
+            runtime_ref: Some("refs/heads/wanex/recovered".to_string()),
+        })
+        .unwrap();
+    assert_eq!(active.run.state, "active");
+    let attempts = service
+        .list_workspace_task_attempts(&ListWorkspaceTaskAttempts {
+            run_id: "wtsk_recovery".to_string(),
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 2);
+    assert_eq!(attempts[0].state, "expired");
+    assert_eq!(attempts[1].state, "active");
+}
+
+#[test]
+fn workspace_task_proposal_conflict_rolls_back_changeset_and_run_linkage() {
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    service
+        .put_workspace_changeset(&PutWorkspaceChangeSet {
+            workspace_id: "workspace_existing".to_string(),
+            principal_id: "agent_existing".to_string(),
+            changeset: json!({
+                "id": "wcs_existing",
+                "changes": [{
+                    "path": "existing.txt",
+                    "kind": "create",
+                    "targetText": "existing\n"
+                }]
+            }),
+        })
+        .unwrap();
+    service
+        .put_workspace_change_proposal(&PutWorkspaceChangeProposal {
+            id: Some("wcp_conflict".to_string()),
+            workspace_id: "workspace_existing".to_string(),
+            changeset_id: "wcs_existing".to_string(),
+            principal_id: "agent_existing".to_string(),
+            title: None,
+            summary: None,
+            metadata: None,
+            idempotency_key: None,
+        })
+        .unwrap();
+
+    let token = "task-conflict-token-00000000000000000000000000000000".to_string();
+    let identity = WorkspaceTaskRunIdentity {
+        run_id: "wtsk_atomic_conflict".to_string(),
+        attempt_id: "wtat_atomic_conflict".to_string(),
+        claim_token: token.clone(),
+    };
+    service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_conflict".to_string(),
+            principal_id: "agent_task_conflict".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_conflict".to_string(),
+            isolation_id: "wiso_task_conflict".to_string(),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_conflict".to_string(),
+            claim_token: token,
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    let base_revision = "d".repeat(40);
+    service
+        .mark_workspace_task_active(&MarkWorkspaceTaskActive {
+            run_id: identity.run_id.clone(),
+            attempt_id: identity.attempt_id.clone(),
+            claim_token: identity.claim_token.clone(),
+            base_revision: Some(base_revision.clone()),
+            runtime_ref: Some("refs/heads/wanex/task-conflict".to_string()),
+        })
+        .unwrap();
+    service
+        .begin_workspace_task_collection(&BeginWorkspaceTaskCollection {
+            run_id: identity.run_id.clone(),
+            attempt_id: identity.attempt_id.clone(),
+            claim_token: identity.claim_token.clone(),
+            execution_outcome: "completed".to_string(),
+            summary: None,
+            resource_ids: vec![],
+            failure: None,
+        })
+        .unwrap();
+    assert!(service
+        .finalize_workspace_task_collection(&FinalizeWorkspaceTaskCollection {
+            run_id: identity.run_id.clone(),
+            attempt_id: identity.attempt_id,
+            claim_token: identity.claim_token,
+            outcome: "proposed".to_string(),
+            changeset: Some(json!({
+                "id": "wcs_should_rollback",
+                "baseRevision": base_revision,
+                "changes": [{
+                    "path": "task.txt",
+                    "kind": "create",
+                    "targetText": "task\n"
+                }]
+            })),
+            proposal_id: Some("wcp_conflict".to_string()),
+            title: None,
+            proposal_metadata: None,
+        })
+        .is_err());
+    assert!(service
+        .get_workspace_changeset("wcs_should_rollback")
+        .unwrap()
+        .is_none());
+    let run = service
+        .get_workspace_task_run("wtsk_atomic_conflict")
+        .unwrap()
+        .unwrap();
+    assert_eq!(run.run.state, "collecting");
+    assert!(run.run.changeset_id.is_none());
+    assert!(run.run.proposal_id.is_none());
+}
+
+fn put_transaction_changeset(service: &SystemService, changeset_id: &str, workspace_id: &str) {
+    service
+        .put_workspace_changeset(&PutWorkspaceChangeSet {
+            workspace_id: workspace_id.to_string(),
+            principal_id: "agent_workspace_transaction".to_string(),
+            changeset: json!({
+                "id": changeset_id,
+                "changes": [{
+                    "path": "placeholder.txt",
+                    "kind": "update",
+                    "baseText": "before",
+                    "targetText": "after"
+                }]
+            }),
+        })
+        .unwrap();
+}
+
+fn transaction_file_plan(
+    ordinal: i64,
+    path: &str,
+    before: Option<&str>,
+    after: Option<&str>,
+) -> WorkspaceChangeTransactionFilePlan {
+    WorkspaceChangeTransactionFilePlan {
+        ordinal,
+        path: path.to_string(),
+        before_text: before.map(str::to_string),
+        before_sha256: before.map(|text| sha256_hex(text.as_bytes())),
+        after_text: after.map(str::to_string),
+        after_sha256: after.map(|text| sha256_hex(text.as_bytes())),
+    }
+}
+
+fn put_apply_requested_proposal(service: &SystemService, proposal_id: &str, changeset_id: &str) {
+    service
+        .put_workspace_changeset(&PutWorkspaceChangeSet {
+            workspace_id: "workspace_claim".to_string(),
+            principal_id: "agent_claim".to_string(),
+            changeset: json!({
+                "id": changeset_id,
+                "changes": [{ "path": "claim.txt", "kind": "create", "targetText": "ok\n" }]
+            }),
+        })
+        .unwrap();
+    service
+        .put_workspace_change_proposal(&PutWorkspaceChangeProposal {
+            id: Some(proposal_id.to_string()),
+            workspace_id: "workspace_claim".to_string(),
+            changeset_id: changeset_id.to_string(),
+            principal_id: "agent_claim".to_string(),
+            title: None,
+            summary: None,
+            metadata: None,
+            idempotency_key: None,
+        })
+        .unwrap();
+    for operation in ["approve", "request_apply"] {
+        service
+            .record_workspace_change_proposal_operation(&RecordWorkspaceChangeProposalOperation {
+                id: None,
+                proposal_id: proposal_id.to_string(),
+                operation: operation.to_string(),
+                actor_id: "reviewer_claim".to_string(),
+                reason: None,
+                metadata: None,
+            })
+            .unwrap();
+    }
 }
 
 #[test]
@@ -7795,7 +8971,7 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
             .get_team_delegation_operation_by_tool_execution(&request.tool_execution_id,)
             .unwrap()
             .as_ref(),
-        Some(operation)
+        Some(operation.as_ref())
     );
     assert_eq!(
         service.list_team_delegation_tasks(&operation.id).unwrap(),
@@ -12796,10 +13972,11 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
                 "kind": "workspace.task",
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
+                "access": "writable",
+                "input": { "prompt": "fix file" },
                 "taskId": "wtsk_projection",
                 "workspaceId": "workspace_projection",
-                "jobId": "job_projection_workspace",
-                "metadata": { "prompt": "fix file" }
+                "jobId": "job_projection_workspace"
             }),
             metadata: None,
             idempotency_key: Some("projection-workspace-key".to_string()),
@@ -12820,7 +13997,8 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
     let workspace_job = workspace_projection.job.unwrap();
     assert_eq!(workspace_job.kind, "workspace.task");
     assert_eq!(workspace_job.payload["handlerId"], "coding.default");
-    assert_eq!(workspace_job.payload["metadata"]["prompt"], "fix file");
+    assert_eq!(workspace_job.payload["access"], "writable");
+    assert_eq!(workspace_job.payload["input"]["prompt"], "fix file");
 
     let ignored_inbound = service
         .ingest_channel_inbound_event(&IngestChannelInboundEvent {
@@ -12862,6 +14040,127 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
         })
         .unwrap();
     assert_eq!(projections.len(), 4);
+}
+
+#[test]
+fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    register_test_connector(
+        &service,
+        "connector.workspace-policy",
+        &["channel.connect", "channel.receive", "channel.deliver"],
+    );
+    let cases = [
+        (
+            "missing-access",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "input": null
+            }),
+            "access",
+        ),
+        (
+            "missing-input",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "access": "read_only"
+            }),
+            "input",
+        ),
+        (
+            "invalid-access",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "access": "fixed",
+                "input": null
+            }),
+            "access must be read_only or writable",
+        ),
+        (
+            "keep-lease",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "access": "writable",
+                "input": null,
+                "keepLease": true
+            }),
+            "unsupported field: keepLease",
+        ),
+        (
+            "isolation",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "access": "writable",
+                "input": null,
+                "isolation": { "rootDir": "/tmp/untrusted" }
+            }),
+            "unsupported field: isolation",
+        ),
+        (
+            "metadata",
+            json!({
+                "kind": "workspace.task",
+                "handlerId": "coding.default",
+                "principalId": "principal_projection",
+                "access": "writable",
+                "input": null,
+                "metadata": { "rootDir": "/tmp/untrusted" }
+            }),
+            "unsupported field: metadata",
+        ),
+    ];
+
+    for (label, target, expected) in cases {
+        let inbound = service
+            .ingest_channel_inbound_event(&IngestChannelInboundEvent {
+                id: Some(format!("chin_workspace_policy_{label}")),
+                connector_id: "connector.workspace-policy".to_string(),
+                channel_kind: "test".to_string(),
+                channel_id: "workspace-policy".to_string(),
+                external_event_id: format!("workspace-policy-{label}"),
+                external_thread_id: None,
+                sender_external_identity_id: "workspace_policy_user".to_string(),
+                principal_id: Some("principal_projection".to_string()),
+                payload: json!({ "label": label }),
+                metadata: None,
+                received_at: None,
+                idempotency_key: Some(format!("workspace-policy-{label}")),
+            })
+            .unwrap();
+        let error = service
+            .project_channel_inbound_event(&ProjectChannelInboundEvent {
+                id: Some(format!("chproj_workspace_policy_{label}")),
+                inbound_event_id: inbound.id,
+                target,
+                metadata: None,
+                idempotency_key: Some(format!("workspace-policy-projection-{label}")),
+            })
+            .unwrap_err();
+        assert!(
+            error.to_string().contains(expected),
+            "{label} error did not contain {expected}: {error}"
+        );
+    }
+
+    assert!(service
+        .list_jobs(&wanex_system_service::ListJobs {
+            state: None,
+            kind: Some("workspace.task".to_string()),
+            limit: Some(20),
+        })
+        .unwrap()
+        .is_empty());
 }
 
 #[test]
@@ -13715,7 +15014,7 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
     let receipt = service.defer_tool_execution(&request).unwrap();
     let (media_operation, media_job) = match &receipt.operation {
         wanex_system_service::DeferredToolOperationReceipt::MediaGeneration { record, job } => {
-            (record.clone(), job.clone())
+            (record.as_ref().clone(), job.clone())
         }
         _ => panic!("expected deferred media operation"),
     };

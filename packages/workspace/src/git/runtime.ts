@@ -1,60 +1,53 @@
 import type { ChangeSet, FileChange } from "../changesets/index.js"
-import type { PrincipalId } from "@wanex/protocol"
-import type { WorkspaceStore } from "@wanex/storage/workspace"
 import { diffNameStatus } from "./diff.js"
 import { fileChangeForEntry } from "./file-change.js"
 import { GitCommandClient } from "./git-client.js"
-import { createChangeSetId } from "./ids.js"
 import { requireBaseRevision, validateLease } from "./lease.js"
-import { createProposalFromWorktree } from "./proposal.js"
 import type {
-  CreateChangeSetFromWorktreeRequest,
-  CreateChangeSetFromWorktreeResult,
+  CollectWorktreeRequest,
+  WorktreeCollection,
   WorkspaceGitRuntimeOptions
 } from "./types.js"
 
 export const WANEX_WORKSPACE_GIT = "wanex-workspace-git" as const
 
-const DEFAULT_WORKSPACE_ID = "local"
-const DEFAULT_PRINCIPAL_ID = "workspace-git"
-
 export class WorkspaceGitRuntime {
-  private readonly storage: WorkspaceStore
-  private readonly git: GitCommandClient
-  private readonly workspaceId: string
-  private readonly principalId: PrincipalId
+  private readonly repositoryId: string
+  private readonly locator: WorkspaceGitRuntimeOptions["locator"]
 
   constructor(options: WorkspaceGitRuntimeOptions) {
-    this.storage = options.storage
-    this.git = new GitCommandClient({
-      repoDir: options.repoDir,
-      ...(options.gitBin === undefined ? {} : { gitBin: options.gitBin }),
-      ...(options.executionHost === undefined
-        ? {}
-        : { executionHost: options.executionHost })
-    })
-    this.workspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID
-    this.principalId = options.principalId ?? DEFAULT_PRINCIPAL_ID
+    this.repositoryId = options.repositoryId
+    this.locator = options.locator
   }
 
-  async createChangeSetFromWorktree(
-    request: CreateChangeSetFromWorktreeRequest
-  ): Promise<CreateChangeSetFromWorktreeResult> {
+  async collectWorktree(
+    request: CollectWorktreeRequest
+  ): Promise<WorktreeCollection> {
     validateLease(request.lease)
-    const workspaceId = request.workspaceId ?? request.lease.workspaceId ?? this.workspaceId
-    const principalId = request.principalId ?? this.principalId
     const baseRevision = requireBaseRevision(request.lease)
+    const repository = await this.locator.locate(this.repositoryId)
+    const git = new GitCommandClient({
+      repoDir: repository.repositoryRoot,
+      ...(repository.gitBin === undefined ? {} : { gitBin: repository.gitBin }),
+      ...(repository.executionHost === undefined
+        ? {}
+        : { executionHost: repository.executionHost }),
+      timeoutMs: repository.gitTimeoutMs
+    })
     const diff = await diffNameStatus({
-      git: this.git,
+      git,
       lease: request.lease,
       baseRevision
     })
+    if (diff.length === 0) {
+      return { status: "no_changes", diff: [] }
+    }
     const changes: FileChange[] = []
 
     for (const entry of diff) {
       changes.push(
         await fileChangeForEntry({
-          git: this.git,
+          git,
           lease: request.lease,
           baseRevision,
           entry
@@ -63,27 +56,14 @@ export class WorkspaceGitRuntime {
     }
 
     const changeSetInput: ChangeSet = {
-      id: request.id ?? createChangeSetId(),
+      id: request.changeSetId,
       ...(request.title === undefined ? {} : { title: request.title }),
       baseRevision,
       changes
     }
-    const changeSet = await this.storage.putWorkspaceChangeSet({
-      workspaceId,
-      principalId,
-      changeSet: changeSetInput
-    })
-    const proposal =
-      request.createProposal === undefined || request.createProposal === false
-        ? undefined
-        : await createProposalFromWorktree({
-            storage: this.storage,
-            request,
-            changeSet
-          })
     return {
-      changeSet,
-      ...(proposal === undefined ? {} : { proposal }),
+      status: "changes",
+      changeSet: changeSetInput,
       diff
     }
   }

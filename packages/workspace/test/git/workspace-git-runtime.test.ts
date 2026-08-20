@@ -6,6 +6,7 @@ import { promisify } from "node:util"
 import { afterEach, describe, expect, it } from "vitest"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { GitWorktreeIsolationAdapter } from "../../src/isolation/index.js"
+import { LocalRepositoryLocator } from "../../src/index.js"
 import { WorkspaceGitRuntime } from "../../src/git/index.js"
 
 const execFileAsync = promisify(execFile)
@@ -30,37 +31,30 @@ afterEach(async () => {
 })
 
 describe("@wanex/workspace/git", () => {
-  it("creates a durable changeset and proposal from text worktree changes", async () => {
-    const { repoDir, worktreeParentDir, storage } = await createEnvironment()
+  it("collects an immutable changeset from text worktree changes", async () => {
+    const { repoDir, worktreeParentDir, locator } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
-      repoDir,
-      worktreeParentDir,
-      releasePolicy: "keep"
+      repositoryId: "repo_git_runtime",
+      locator
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
-      jobId: "job_git_runtime"
+      jobId: "job_git_runtime",
+      isolationId: "wiso_git_runtime"
     })
     await writeFile(join(lease.rootDir, "README.md"), "updated\n", "utf8")
     await writeFile(join(lease.rootDir, "new.txt"), "new\n", "utf8")
     await rm(join(lease.rootDir, "delete.txt"))
 
     const runtime = new WorkspaceGitRuntime({
-      storage,
-      repoDir,
-      workspaceId: "workspace_git_runtime",
-      principalId: "agent_git_runtime"
+      repositoryId: "repo_git_runtime",
+      locator
     })
 
-    const result = await runtime.createChangeSetFromWorktree({
+    const result = await runtime.collectWorktree({
       lease,
-      id: "cs_git_runtime",
-      title: "Git runtime changes",
-      createProposal: {
-        id: "wcp_git_runtime",
-        summary: "Review git runtime output",
-        metadata: { source: "git-runtime-test" }
-      }
+      changeSetId: "cs_git_runtime",
+      title: "Git runtime changes"
     })
 
     expect(result.diff).toEqual([
@@ -68,16 +62,15 @@ describe("@wanex/workspace/git", () => {
       { status: "D", path: "delete.txt" },
       { status: "A", path: "new.txt" }
     ])
+    expect(result.status).toBe("changes")
+    if (result.status !== "changes") {
+      throw new Error("expected worktree changes")
+    }
     expect(result.changeSet).toMatchObject({
       id: "cs_git_runtime",
-      workspaceId: "workspace_git_runtime",
-      principalId: "agent_git_runtime",
-      currentState: "submitted",
-      changeSet: {
-        id: "cs_git_runtime",
-        title: "Git runtime changes",
-        baseRevision: lease.baseRevision,
-        changes: [
+      title: "Git runtime changes",
+      baseRevision: lease.baseRevision,
+      changes: [
           {
             path: "README.md",
             kind: "update",
@@ -94,14 +87,7 @@ describe("@wanex/workspace/git", () => {
             kind: "create",
             targetText: "new\n"
           }
-        ]
-      }
-    })
-    expect(result.proposal).toMatchObject({
-      id: "wcp_git_runtime",
-      state: "open",
-      changeSetId: "cs_git_runtime",
-      metadata: { source: "git-runtime-test" }
+      ]
     })
     await expect(
       readFile(join(repoDir, "README.md"), "utf8")
@@ -109,29 +95,27 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("rejects binary worktree changes before persisting a changeset", async () => {
-    const { repoDir, worktreeParentDir, storage } = await createEnvironment()
+    const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
-      repoDir,
-      worktreeParentDir,
-      releasePolicy: "keep"
+      repositoryId: "repo_git_runtime",
+      locator
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
-      jobId: "job_git_binary"
+      jobId: "job_git_binary",
+      isolationId: "wiso_git_binary"
     })
     await writeFile(join(lease.rootDir, "image.bin"), Buffer.from([0, 1, 2, 3]))
 
     const runtime = new WorkspaceGitRuntime({
-      storage,
-      repoDir,
-      workspaceId: "workspace_git_runtime",
-      principalId: "agent_git_runtime"
+      repositoryId: "repo_git_runtime",
+      locator
     })
 
     await expect(
-      runtime.createChangeSetFromWorktree({
+      runtime.collectWorktree({
         lease,
-        id: "cs_git_binary"
+        changeSetId: "cs_git_binary"
       })
     ).rejects.toThrow(/binary git worktree change is not supported/)
     await expect(
@@ -140,29 +124,27 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("rejects unsupported rename status before persisting a changeset", async () => {
-    const { repoDir, worktreeParentDir, storage } = await createEnvironment()
+    const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
-      repoDir,
-      worktreeParentDir,
-      releasePolicy: "keep"
+      repositoryId: "repo_git_runtime",
+      locator
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
-      jobId: "job_git_rename"
+      jobId: "job_git_rename",
+      isolationId: "wiso_git_rename"
     })
     await git(lease.rootDir, ["mv", "README.md", "RENAMED.md"])
 
     const runtime = new WorkspaceGitRuntime({
-      storage,
-      repoDir,
-      workspaceId: "workspace_git_runtime",
-      principalId: "agent_git_runtime"
+      repositoryId: "repo_git_runtime",
+      locator
     })
 
     await expect(
-      runtime.createChangeSetFromWorktree({
+      runtime.collectWorktree({
         lease,
-        id: "cs_git_rename"
+        changeSetId: "cs_git_rename"
       })
     ).rejects.toThrow(/unsupported git diff status: R/)
     await expect(
@@ -175,6 +157,7 @@ async function createEnvironment(): Promise<{
   readonly repoDir: string
   readonly worktreeParentDir: string
   readonly storage: StorageTestStore
+  readonly locator: LocalRepositoryLocator
 }> {
   const repoDir = await createRepo()
   const worktreeParentDir = await tempDir("wanex-git-runtime-worktrees-")
@@ -184,7 +167,15 @@ async function createEnvironment(): Promise<{
     serviceBin
   })
   clients.push(storage)
-  return { repoDir, worktreeParentDir, storage }
+  const locator = new LocalRepositoryLocator({
+    repositories: [{
+      repositoryId: "repo_git_runtime",
+      repositoryRoot: repoDir,
+      worktreeParent: worktreeParentDir,
+      serviceBin
+    }]
+  })
+  return { repoDir, worktreeParentDir, storage, locator }
 }
 
 async function createRepo(): Promise<string> {

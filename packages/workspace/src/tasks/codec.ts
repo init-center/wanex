@@ -1,11 +1,21 @@
-import type { JsonValue } from "@wanex/protocol"
-import type { WorkspaceIsolationLease, WorkspaceIsolationRequest } from "../isolation/index.js"
+import type { JsonValue, WorkspaceTaskAccess } from "@wanex/protocol"
 import type {
   WorkspaceTaskError,
   WorkspaceTaskJobPayload,
   WorkspaceTaskJobResult,
   WorkspaceTaskReceipt
 } from "./types.js"
+
+const PAYLOAD_FIELDS = new Set([
+  "handlerId",
+  "access",
+  "input",
+  "taskId",
+  "workspaceId",
+  "principalId",
+  "jobId",
+  "agentId"
+])
 
 export function workspaceTaskJobResultToJson(
   result: WorkspaceTaskJobResult
@@ -14,15 +24,15 @@ export function workspaceTaskJobResultToJson(
     {
       taskId: result.taskId,
       status: result.status,
+      access: result.access,
       workspaceId: result.workspaceId,
       principalId: result.principalId,
-      released: result.released,
-      lease: result.lease,
       resourceIds: [...result.resourceIds]
     },
     {
       changeSetId: result.changeSetId,
-      metadata: result.metadata,
+      proposalId: result.proposalId,
+      summary: result.summary,
       error: result.error === undefined ? undefined : taskErrorToJson(result.error)
     }
   )
@@ -35,15 +45,15 @@ export function workspaceTaskJobResultFromReceipt(
     {
       taskId: receipt.taskId,
       status: receipt.status,
+      access: receipt.access,
       workspaceId: receipt.workspaceId,
       principalId: receipt.principalId,
-      released: receipt.released,
-      lease: leaseSummaryToJson(receipt.lease),
       resourceIds: receipt.resources.map((resource) => resource.id)
     },
     {
       changeSetId: receipt.changeSet?.id,
-      metadata: recordToJsonValue(receipt.metadata),
+      proposalId: receipt.proposal?.id,
+      summary: receipt.summary,
       error: receipt.error
     }
   )
@@ -52,20 +62,16 @@ export function workspaceTaskJobResultFromReceipt(
 export function workspaceTaskJobPayloadToJson(payload: WorkspaceTaskJobPayload): JsonValue {
   return withOptionalJsonFields(
     {
-      handlerId: payload.handlerId
+      handlerId: payload.handlerId,
+      access: payload.access,
+      input: payload.input
     },
     {
       taskId: payload.taskId,
       workspaceId: payload.workspaceId,
       principalId: payload.principalId,
       jobId: payload.jobId,
-      agentId: payload.agentId,
-      keepLease: payload.keepLease,
-      isolation:
-        payload.isolation === undefined
-          ? undefined
-          : (payload.isolation as unknown as JsonValue),
-      metadata: recordToJsonValue(payload.metadata)
+      agentId: payload.agentId
     }
   )
 }
@@ -74,12 +80,18 @@ export function workspaceTaskJobPayloadFromJson(payload: JsonValue): WorkspaceTa
   if (!isJsonRecord(payload)) {
     throw new Error("workspace.task payload must be an object")
   }
+  assertOnlyPayloadFields(payload)
   const handlerId = expectString(payload.handlerId, "workspace.task.handlerId")
   if (handlerId.length === 0) {
     throw new Error("workspace.task.handlerId must not be empty")
   }
+  if (!("input" in payload)) {
+    throw new Error("workspace.task.input is required")
+  }
   return {
     handlerId,
+    access: expectAccess(payload.access),
+    input: payload.input,
     ...(payload.taskId === undefined
       ? {}
       : { taskId: expectString(payload.taskId, "workspace.task.taskId") }),
@@ -104,60 +116,19 @@ export function workspaceTaskJobPayloadFromJson(payload: JsonValue): WorkspaceTa
       : { jobId: expectString(payload.jobId, "workspace.task.jobId") }),
     ...(payload.agentId === undefined
       ? {}
-      : { agentId: expectString(payload.agentId, "workspace.task.agentId") }),
-    ...(payload.keepLease === undefined
-      ? {}
-      : {
-          keepLease: expectBoolean(
-            payload.keepLease,
-            "workspace.task.keepLease"
-          )
-        }),
-    ...(payload.isolation === undefined
-      ? {}
-      : {
-          isolation: expectRecord(
-            payload.isolation,
-            "workspace.task.isolation"
-          ) as unknown as WorkspaceIsolationRequest
-        }),
-    ...(payload.metadata === undefined
-      ? {}
-      : {
-          metadata: expectRecord(
-            payload.metadata,
-            "workspace.task.metadata"
-          ) as Record<string, JsonValue>
-        })
+      : { agentId: expectString(payload.agentId, "workspace.task.agentId") })
   }
 }
 
-function leaseSummaryToJson(lease: WorkspaceIsolationLease): JsonValue {
-  return withOptionalJsonFields(
-    {
-      id: lease.id,
-      kind: lease.kind,
-      rootDir: lease.rootDir,
-      createdAt: lease.createdAt,
-      releasePolicy: lease.releasePolicy
-    },
-    {
-      workspaceId: lease.workspaceId,
-      jobId: lease.jobId,
-      agentId: lease.agentId,
-      baseRef: lease.baseRef,
-      baseRevision: lease.baseRevision,
-      branchName: lease.branchName,
-      metadata: recordToJsonValue(lease.metadata)
-    }
-  )
-}
-
 function withOptionalJobResultFields(
-  result: Omit<WorkspaceTaskJobResult, "changeSetId" | "metadata" | "error">,
+  result: Omit<
+    WorkspaceTaskJobResult,
+    "changeSetId" | "proposalId" | "summary" | "error"
+  >,
   optional: {
     readonly changeSetId?: string | undefined
-    readonly metadata?: JsonValue | undefined
+    readonly proposalId?: string | undefined
+    readonly summary?: string | undefined
     readonly error?: WorkspaceTaskError | undefined
   }
 ): WorkspaceTaskJobResult {
@@ -166,7 +137,10 @@ function withOptionalJobResultFields(
     ...(optional.changeSetId === undefined
       ? {}
       : { changeSetId: optional.changeSetId }),
-    ...(optional.metadata === undefined ? {} : { metadata: optional.metadata }),
+    ...(optional.proposalId === undefined
+      ? {}
+      : { proposalId: optional.proposalId }),
+    ...(optional.summary === undefined ? {} : { summary: optional.summary }),
     ...(optional.error === undefined ? {} : { error: optional.error })
   }
 }
@@ -178,7 +152,7 @@ function taskErrorToJson(error: WorkspaceTaskError): JsonValue {
   )
 }
 
-export function withOptionalJsonFields(
+function withOptionalJsonFields(
   base: Record<string, JsonValue>,
   optional: Record<string, JsonValue | undefined>
 ): JsonValue {
@@ -192,19 +166,21 @@ export function withOptionalJsonFields(
   }
 }
 
-export function recordToJsonValue(
-  value: Record<string, unknown> | undefined
-): JsonValue | undefined {
-  return value === undefined ? undefined : (value as JsonValue)
+function assertOnlyPayloadFields(payload: Record<string, JsonValue>): void {
+  for (const field of Object.keys(payload)) {
+    if (!PAYLOAD_FIELDS.has(field)) {
+      throw new Error(`workspace.task payload contains unsupported field: ${field}`)
+    }
+  }
 }
 
 function isJsonRecord(value: JsonValue): value is Record<string, JsonValue> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-function expectRecord(value: JsonValue, name: string): Record<string, JsonValue> {
-  if (!isJsonRecord(value)) {
-    throw new Error(`${name} must be an object`)
+function expectAccess(value: JsonValue | undefined): WorkspaceTaskAccess {
+  if (value !== "read_only" && value !== "writable") {
+    throw new Error("workspace.task.access must be read_only or writable")
   }
   return value
 }
@@ -212,13 +188,6 @@ function expectRecord(value: JsonValue, name: string): Record<string, JsonValue>
 function expectString(value: JsonValue | undefined, name: string): string {
   if (typeof value !== "string") {
     throw new Error(`${name} must be a string`)
-  }
-  return value
-}
-
-function expectBoolean(value: JsonValue | undefined, name: string): boolean {
-  if (typeof value !== "boolean") {
-    throw new Error(`${name} must be a boolean`)
   }
   return value
 }

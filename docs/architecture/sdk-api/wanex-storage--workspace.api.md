@@ -359,6 +359,89 @@ interface BeginToolExecutionWire {
 }
 
 // @public (undocumented)
+interface BeginWorkspaceChangeTransactionCommand {
+    // (undocumented)
+    command: "begin-workspace-change-transaction";
+    // (undocumented)
+    request: BeginWorkspaceChangeTransactionWire;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceChangeTransactionCommitCommand {
+    // (undocumented)
+    command: "begin-workspace-change-transaction-commit";
+    // (undocumented)
+    request: WorkspaceChangeTransactionIdentityWire;
+}
+
+// @public (undocumented)
+type BeginWorkspaceChangeTransactionCommitRequest = WorkspaceChangeTransactionIdentityRequest;
+
+// @public (undocumented)
+interface BeginWorkspaceChangeTransactionRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly changeSetId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly operation: WorkspaceChangeTransactionOperation;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly proposal?: WorkspaceChangeTransactionProposalBinding;
+    // (undocumented)
+    readonly rootIdentitySha256: string;
+    // (undocumented)
+    readonly sourceId: string;
+    // (undocumented)
+    readonly sourceKind: WorkspaceChangeTransactionSourceKind;
+    // (undocumented)
+    readonly undoSourceOperationId?: string;
+    // (undocumented)
+    readonly workspaceId: string;
+}
+
+// @public (undocumented)
+interface BeginWorkspaceChangeTransactionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    changeset_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    idempotency_key: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    operation: WorkspaceChangeTransactionOperationWire;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    proposal: NullableWorkspaceChangeTransactionProposalBindingWire;
+    // (undocumented)
+    root_identity_sha256: string;
+    // (undocumented)
+    source_id: string;
+    // (undocumented)
+    source_kind: WorkspaceChangeTransactionSourceKindWire;
+    // (undocumented)
+    undo_source_operation_id: NullableString;
+    // (undocumented)
+    workspace_id: string;
+}
+
+// @public (undocumented)
 interface BudgetAmountWire {
     // (undocumented)
     cost_micros: NullableInteger;
@@ -445,6 +528,82 @@ interface ClaimJobWire {
 }
 
 // @public (undocumented)
+interface ClaimWorkspaceChangeProposalApplyCommand {
+    // (undocumented)
+    command: "claim-workspace-change-proposal-apply";
+    // (undocumented)
+    request: ClaimWorkspaceChangeProposalApplyWire;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceChangeProposalApplyRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceChangeProposalApplyWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    metadata: JsonValue$1;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    proposal_id: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceChangeTransactionRecoveryCommand {
+    // (undocumented)
+    command: "claim-workspace-change-transaction-recovery";
+    // (undocumented)
+    request: ClaimWorkspaceChangeTransactionRecoveryWire;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceChangeTransactionRecoveryRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly transactionId: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceChangeTransactionRecoveryWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
 interface CleanupExpiredResourceTicketsCommand {
     // (undocumented)
     command: "cleanup-expired-resource-tickets";
@@ -472,6 +631,15 @@ interface CommitBudgetCommand {
 interface CommitBudgetWire {
     // (undocumented)
     grant_id: string;
+}
+
+// @public (undocumented)
+interface CompareAndApplyConfigMutationsCommand {
+    // (undocumented)
+    command: "compare-and-apply-config-mutations";
+    conditions: [ConfigMutationConditionWire, ...ConfigMutationConditionWire[]];
+    deletes: string[];
+    puts: ConfigPutWire[];
 }
 
 // @public (undocumented)
@@ -522,6 +690,17 @@ interface CompleteMediaGenerationCommand {
     command: "complete-media-generation";
     // (undocumented)
     request: MediaGenerationCompleteWire;
+}
+
+// @public (undocumented)
+type ConfigExpectedRevisionWire = number | null;
+
+// @public (undocumented)
+interface ConfigMutationConditionWire {
+    // (undocumented)
+    expected_revision: ConfigExpectedRevisionWire;
+    // (undocumented)
+    key: string;
 }
 
 // @public (undocumented)
@@ -931,6 +1110,56 @@ interface FailTeamDeliveryMaterializationWire {
 }
 
 // @public (undocumented)
+interface FinalizeWorkspaceChangeTransactionCommand {
+    // (undocumented)
+    command: "finalize-workspace-change-transaction";
+    // (undocumented)
+    request: FinalizeWorkspaceChangeTransactionWire;
+}
+
+// @public (undocumented)
+interface FinalizeWorkspaceChangeTransactionIdentity extends WorkspaceChangeTransactionIdentityRequest {
+    // (undocumented)
+    readonly failure?: JsonValue;
+}
+
+// @public (undocumented)
+type FinalizeWorkspaceChangeTransactionRequest = FinalizeWorkspaceChangeTransactionIdentity & ({
+    readonly outcome: "applied" | "conflicted";
+    readonly operationId: string;
+    readonly receipt: WorkspaceChangeSetReceipt;
+    readonly failure?: never;
+} | {
+    readonly outcome: "rolled_back";
+    readonly operationId?: never;
+    readonly receipt?: never;
+    readonly failure?: never;
+} | {
+    readonly outcome: "recovery_required";
+    readonly operationId?: never;
+    readonly receipt?: never;
+    readonly failure: JsonValue;
+});
+
+// @public (undocumented)
+interface FinalizeWorkspaceChangeTransactionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    failure: JsonValue$1;
+    // (undocumented)
+    operation_id: NullableString;
+    // (undocumented)
+    outcome: WorkspaceChangeTransactionOutcomeWire;
+    // (undocumented)
+    receipt: JsonValue$1;
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
 interface FinishConnectorSessionCommand {
     // (undocumented)
     command: "finish-connector-session";
@@ -1098,6 +1327,14 @@ interface GetBudgetScopeCommand {
 interface GetConfigCommand {
     // (undocumented)
     command: "get-config";
+    // (undocumented)
+    key: string;
+}
+
+// @public (undocumented)
+interface GetConfigEntryCommand {
+    // (undocumented)
+    command: "get-config-entry";
     // (undocumented)
     key: string;
 }
@@ -1336,6 +1573,20 @@ interface GetWorkspaceChangeSetCommand {
 interface GetWorkspaceChangeSetRequest {
     // (undocumented)
     readonly changeSetId: string;
+}
+
+// @public (undocumented)
+interface GetWorkspaceChangeTransactionCommand {
+    // (undocumented)
+    command: "get-workspace-change-transaction";
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
+interface GetWorkspaceChangeTransactionRequest {
+    // (undocumented)
+    readonly transactionId: string;
 }
 
 // @public (undocumented)
@@ -1585,6 +1836,18 @@ interface ListChannelProjectionsWire {
     limit: NullableInteger;
     // (undocumented)
     target_kind: NullableChannelProjectionTargetKindWire;
+}
+
+// @public (undocumented)
+interface ListConfigEntriesCommand {
+    // (undocumented)
+    after_key: NullableString;
+    // (undocumented)
+    command: "list-config-entries";
+    // (undocumented)
+    limit: number | null;
+    // (undocumented)
+    prefix: string;
 }
 
 // @public (undocumented)
@@ -2245,6 +2508,30 @@ interface ListWorkspaceChangeOperationsWire {
 }
 
 // @public (undocumented)
+interface ListWorkspaceChangeProposalApplyAttemptsCommand {
+    // (undocumented)
+    command: "list-workspace-change-proposal-apply-attempts";
+    // (undocumented)
+    request: ListWorkspaceChangeProposalApplyAttemptsWire;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeProposalApplyAttemptsRequest {
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeProposalApplyAttemptsWire {
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    proposal_id: string;
+}
+
+// @public (undocumented)
 interface ListWorkspaceChangeProposalOperationsCommand {
     // (undocumented)
     command: "list-workspace-change-proposal-operations";
@@ -2325,6 +2612,58 @@ interface ListWorkspaceChangeSetsWire {
 }
 
 // @public (undocumented)
+interface ListWorkspaceChangeTransactionAttemptsCommand {
+    // (undocumented)
+    command: "list-workspace-change-transaction-attempts";
+    // (undocumented)
+    request: ListWorkspaceChangeTransactionAttemptsWire;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeTransactionAttemptsRequest {
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly transactionId: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeTransactionAttemptsWire {
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeTransactionsCommand {
+    // (undocumented)
+    command: "list-workspace-change-transactions";
+    // (undocumented)
+    request: ListWorkspaceChangeTransactionsWire;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeTransactionsRequest {
+    // (undocumented)
+    readonly limit?: number;
+    // (undocumented)
+    readonly state?: WorkspaceChangeTransactionState;
+    // (undocumented)
+    readonly workspaceId?: string;
+}
+
+// @public (undocumented)
+interface ListWorkspaceChangeTransactionsWire {
+    // (undocumented)
+    limit: NullableInteger;
+    // (undocumented)
+    state: NullableWorkspaceChangeTransactionStateWire;
+    // (undocumented)
+    workspace_id: NullableString;
+}
+
+// @public (undocumented)
 interface MarkContextEpochDispatchedCommand {
     // (undocumented)
     command: "mark-context-epoch-dispatched";
@@ -2383,6 +2722,37 @@ interface MarkProviderInvocationOutputWire {
     // (undocumented)
     worker_id: string;
 }
+
+// @public (undocumented)
+interface MarkWorkspaceChangeProposalRecoveryRequiredCommand {
+    // (undocumented)
+    command: "mark-workspace-change-proposal-recovery-required";
+    // (undocumented)
+    request: MarkWorkspaceChangeProposalRecoveryRequiredWire;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceChangeProposalRecoveryRequiredRequest {
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceChangeProposalRecoveryRequiredWire {
+    // (undocumented)
+    proposal_id: string;
+}
+
+// @public (undocumented)
+interface MarkWorkspaceChangeTransactionPreparedCommand {
+    // (undocumented)
+    command: "mark-workspace-change-transaction-prepared";
+    // (undocumented)
+    request: WorkspaceChangeTransactionIdentityWire;
+}
+
+// @public (undocumented)
+type MarkWorkspaceChangeTransactionPreparedRequest = WorkspaceChangeTransactionIdentityRequest;
 
 // @public (undocumented)
 interface MaterializeReadyDelegationGraphNodeCommand {
@@ -2769,6 +3139,12 @@ type NullableWorkspaceChangeProposalStateWire = WorkspaceChangeProposalStateWire
 
 // @public (undocumented)
 type NullableWorkspaceChangeSetStateWire = WorkspaceChangeSetStateWire | null;
+
+// @public (undocumented)
+type NullableWorkspaceChangeTransactionProposalBindingWire = WorkspaceChangeTransactionProposalBindingWire | null;
+
+// @public (undocumented)
+type NullableWorkspaceChangeTransactionStateWire = WorkspaceChangeTransactionStateWire | null;
 
 // @public (undocumented)
 type ObjectiveAttemptDispositionWire = "continue" | "blocked" | "succeeded" | "failed";
@@ -3381,6 +3757,31 @@ interface ReconcileObjectiveCancellationWire {
 }
 
 // @public (undocumented)
+interface ReconcileWorkspaceChangeTransactionFilesCommand {
+    // (undocumented)
+    command: "reconcile-workspace-change-transaction-files";
+    // (undocumented)
+    request: ReconcileWorkspaceChangeTransactionFilesWire;
+}
+
+// @public (undocumented)
+interface ReconcileWorkspaceChangeTransactionFilesRequest extends WorkspaceChangeTransactionIdentityRequest {
+    // (undocumented)
+    readonly observations: readonly WorkspaceChangeTransactionFileObservation[];
+}
+
+// @public (undocumented)
+interface ReconcileWorkspaceChangeTransactionFilesWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    observations: [WorkspaceChangeTransactionFileObservationWire, ...WorkspaceChangeTransactionFileObservationWire[]];
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
 interface RecordBudgetUsageCommand {
     // (undocumented)
     command: "record-budget-usage";
@@ -3530,6 +3931,57 @@ interface RecordWorkspaceChangeProposalOperationWire {
 }
 
 // @public (undocumented)
+interface RecordWorkspaceChangeTransactionFileCommittedCommand {
+    // (undocumented)
+    command: "record-workspace-change-transaction-file-committed";
+    // (undocumented)
+    request: RecordWorkspaceChangeTransactionFileCommittedWire;
+}
+
+// @public (undocumented)
+interface RecordWorkspaceChangeTransactionFileCommittedRequest extends WorkspaceChangeTransactionIdentityRequest {
+    // (undocumented)
+    readonly ordinal: number;
+}
+
+// @public (undocumented)
+interface RecordWorkspaceChangeTransactionFileCommittedWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    ordinal: number;
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
+interface RecordWorkspaceChangeTransactionPlanCommand {
+    // (undocumented)
+    command: "record-workspace-change-transaction-plan";
+    // (undocumented)
+    request: RecordWorkspaceChangeTransactionPlanWire;
+}
+
+// @public (undocumented)
+interface RecordWorkspaceChangeTransactionPlanRequest extends WorkspaceChangeTransactionIdentityRequest {
+    // (undocumented)
+    readonly files: readonly WorkspaceChangeTransactionFilePlan[];
+}
+
+// @public (undocumented)
+interface RecordWorkspaceChangeTransactionPlanWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    files: [WorkspaceChangeTransactionFilePlanWire, ...WorkspaceChangeTransactionFilePlanWire[]];
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
 interface ReleaseBudgetCommand {
     // (undocumented)
     command: "release-budget";
@@ -3553,6 +4005,70 @@ interface RenameSessionWire {
     session_id: string;
     // (undocumented)
     title: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeProposalApplyCommand {
+    // (undocumented)
+    command: "renew-workspace-change-proposal-apply";
+    // (undocumented)
+    request: RenewWorkspaceChangeProposalApplyWire;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeProposalApplyRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeProposalApplyWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    proposal_id: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeTransactionCommand {
+    // (undocumented)
+    command: "renew-workspace-change-transaction";
+    // (undocumented)
+    request: RenewWorkspaceChangeTransactionWire;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeTransactionRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly transactionId: string;
+}
+
+// @public (undocumented)
+interface RenewWorkspaceChangeTransactionWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    transaction_id: string;
 }
 
 // @public (undocumented)
@@ -3931,7 +4447,7 @@ interface RuntimeEventScopeWire {
 }
 
 // @public (undocumented)
-type RuntimeStorageRpcCommand = AppendEventCommand | QueryEventsCommand | PutConfigCommand | ApplyConfigMutationsCommand | HasLiveSecretReferenceCommand | GetConfigCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ReadResourceContentCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | RecordResourceProvenanceCommand | ListResourceProvenanceCommand | DoctorCommand;
+type RuntimeStorageRpcCommand = AppendEventCommand | QueryEventsCommand | PutConfigCommand | ApplyConfigMutationsCommand | CompareAndApplyConfigMutationsCommand | HasLiveSecretReferenceCommand | GetConfigCommand | GetConfigEntryCommand | ListConfigEntriesCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ReadResourceContentCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | RecordResourceProvenanceCommand | ListResourceProvenanceCommand | DoctorCommand;
 
 // @public (undocumented)
 type SchedulerJobKindsWire = SchedulerJobKindWire[];
@@ -4056,6 +4572,45 @@ interface SettleSessionTurnWire {
     turn_id: string;
     // (undocumented)
     worker_id: string;
+}
+
+// @public (undocumented)
+interface SettleWorkspaceChangeProposalApplyCommand {
+    // (undocumented)
+    command: "settle-workspace-change-proposal-apply";
+    // (undocumented)
+    request: SettleWorkspaceChangeProposalApplyWire;
+}
+
+// @public (undocumented)
+type SettleWorkspaceChangeProposalApplyRequest = WorkspaceChangeProposalApplySettlementIdentity & ({
+    readonly outcome: "applied";
+    readonly workspaceOperationId: string;
+    readonly failure?: never;
+} | {
+    readonly outcome: "apply_failed";
+    readonly workspaceOperationId?: string;
+    readonly failure: JsonValue;
+} | {
+    readonly outcome: "recovery_required";
+    readonly workspaceOperationId?: string;
+    readonly failure: JsonValue;
+});
+
+// @public (undocumented)
+interface SettleWorkspaceChangeProposalApplyWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    failure: JsonValue$1;
+    // (undocumented)
+    outcome: WorkspaceChangeProposalApplyOutcomeWire;
+    // (undocumented)
+    proposal_id: string;
+    // (undocumented)
+    workspace_operation_id: NullableString;
 }
 
 // @public (undocumented)
@@ -4737,6 +5292,8 @@ interface UpdatePluginInstallStateCommand {
 // @public (undocumented)
 interface UpdatePluginInstallStateWire {
     // (undocumented)
+    expected_state: PluginInstallStateWire;
+    // (undocumented)
     plugin_id: string;
     // (undocumented)
     state: PluginInstallStateWire;
@@ -4838,7 +5395,70 @@ interface WorkspaceChangeOperationRecord {
 type WorkspaceChangeOperationWire = "apply" | "undo";
 
 // @public (undocumented)
-type WorkspaceChangeProposalOperationKind = "approve" | "reject" | "withdraw" | "request_apply" | "mark_applied" | "mark_apply_failed";
+interface WorkspaceChangeProposalApplyAttemptRecord {
+    // (undocumented)
+    readonly claimedAt: number;
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly leaseExpiresAt: number;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly proposalId: string;
+    // (undocumented)
+    readonly state: WorkspaceChangeProposalApplyAttemptState;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workspaceOperationId?: string;
+}
+
+// @public (undocumented)
+type WorkspaceChangeProposalApplyAttemptState = "active" | "applied" | "failed" | "recovery_required";
+
+// @public (undocumented)
+interface WorkspaceChangeProposalApplyClaimResult {
+    // (undocumented)
+    readonly attempt?: WorkspaceChangeProposalApplyAttemptRecord;
+    // (undocumented)
+    readonly proposal: WorkspaceChangeProposalRecord;
+    // (undocumented)
+    readonly status: WorkspaceChangeProposalApplyClaimStatus;
+}
+
+// @public (undocumented)
+type WorkspaceChangeProposalApplyClaimStatus = "claimed" | "busy" | "recovery_required" | "not_ready" | "already_terminal";
+
+// @public (undocumented)
+type WorkspaceChangeProposalApplyOutcomeWire = "applied" | "apply_failed" | "recovery_required";
+
+// @public (undocumented)
+interface WorkspaceChangeProposalApplySettlement {
+    // (undocumented)
+    readonly attempt: WorkspaceChangeProposalApplyAttemptRecord;
+    // (undocumented)
+    readonly proposal: WorkspaceChangeProposalRecord;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeProposalApplySettlementIdentity {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+type WorkspaceChangeProposalOperationKind = "approve" | "reject" | "withdraw" | "request_apply";
 
 // @public (undocumented)
 interface WorkspaceChangeProposalOperationRecord {
@@ -4863,7 +5483,7 @@ interface WorkspaceChangeProposalOperationRecord {
 }
 
 // @public (undocumented)
-type WorkspaceChangeProposalOperationWire = "approve" | "reject" | "withdraw" | "request_apply" | "mark_applied" | "mark_apply_failed";
+type WorkspaceChangeProposalOperationWire = "approve" | "reject" | "withdraw" | "request_apply";
 
 // @public (undocumented)
 interface WorkspaceChangeProposalRecord {
@@ -4892,10 +5512,23 @@ interface WorkspaceChangeProposalRecord {
 }
 
 // @public (undocumented)
-type WorkspaceChangeProposalState = "open" | "approved" | "rejected" | "withdrawn" | "apply_requested" | "applied" | "apply_failed";
+interface WorkspaceChangeProposalRecoveryResult {
+    // (undocumented)
+    readonly attempt?: WorkspaceChangeProposalApplyAttemptRecord;
+    // (undocumented)
+    readonly proposal: WorkspaceChangeProposalRecord;
+    // (undocumented)
+    readonly status: WorkspaceChangeProposalRecoveryStatus;
+}
 
 // @public (undocumented)
-type WorkspaceChangeProposalStateWire = "open" | "approved" | "rejected" | "withdrawn" | "apply_requested" | "applied" | "apply_failed";
+type WorkspaceChangeProposalRecoveryStatus = "marked" | "not_due" | "unchanged";
+
+// @public (undocumented)
+type WorkspaceChangeProposalState = "open" | "approved" | "rejected" | "withdrawn" | "apply_requested" | "applying" | "applied" | "apply_failed" | "recovery_required";
+
+// @public (undocumented)
+type WorkspaceChangeProposalStateWire = "open" | "approved" | "rejected" | "withdrawn" | "apply_requested" | "applying" | "applied" | "apply_failed" | "recovery_required";
 
 // @public (undocumented)
 interface WorkspaceChangeSet {
@@ -4950,6 +5583,254 @@ type WorkspaceChangeSetState = "submitted" | "applied" | "already_applied" | "co
 type WorkspaceChangeSetStateWire = "submitted" | "applied" | "already_applied" | "conflicted" | "undone" | "undo_conflicted";
 
 // @public (undocumented)
+type WorkspaceChangeTransactionAttemptKind = "execution" | "recovery";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionAttemptRecord {
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: WorkspaceChangeTransactionAttemptKind;
+    // (undocumented)
+    readonly leaseExpiresAt: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly startedAt: number;
+    // (undocumented)
+    readonly state: WorkspaceChangeTransactionAttemptState;
+    // (undocumented)
+    readonly transactionId: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionAttemptState = "active" | "completed" | "failed";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionClaimResult {
+    // (undocumented)
+    readonly snapshot: WorkspaceChangeTransactionSnapshot;
+    // (undocumented)
+    readonly status: WorkspaceChangeTransactionClaimStatus;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionClaimStatus = "claimed" | "busy" | "recovery_required" | "already_terminal";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFileObservation {
+    // (undocumented)
+    readonly current: "before" | "after" | "other";
+    // (undocumented)
+    readonly ordinal: number;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFileObservationWire {
+    // (undocumented)
+    current: "before" | "after" | "other";
+    // (undocumented)
+    ordinal: number;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFilePlan {
+    // (undocumented)
+    readonly afterSha256?: string;
+    // (undocumented)
+    readonly afterText?: string;
+    // (undocumented)
+    readonly beforeSha256?: string;
+    // (undocumented)
+    readonly beforeText?: string;
+    // (undocumented)
+    readonly ordinal: number;
+    // (undocumented)
+    readonly path: string;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFilePlanWire {
+    // (undocumented)
+    after_sha256: NullableString;
+    // (undocumented)
+    after_text: NullableString;
+    // (undocumented)
+    before_sha256: NullableString;
+    // (undocumented)
+    before_text: NullableString;
+    // (undocumented)
+    ordinal: number;
+    // (undocumented)
+    path: string;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFileRecord {
+    // (undocumented)
+    readonly afterSha256?: string;
+    // (undocumented)
+    readonly afterText?: string;
+    // (undocumented)
+    readonly beforeSha256?: string;
+    // (undocumented)
+    readonly beforeText?: string;
+    // (undocumented)
+    readonly ordinal: number;
+    // (undocumented)
+    readonly path: string;
+    // (undocumented)
+    readonly state: WorkspaceChangeTransactionFileState;
+    // (undocumented)
+    readonly transactionId: string;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionFileState = "pending" | "prepared" | "committed";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionFinalization {
+    // (undocumented)
+    readonly operation?: WorkspaceChangeOperationRecord;
+    // (undocumented)
+    readonly proposal?: WorkspaceChangeProposalRecord;
+    // (undocumented)
+    readonly proposalAttempt?: WorkspaceChangeProposalApplyAttemptRecord;
+    // (undocumented)
+    readonly snapshot: WorkspaceChangeTransactionSnapshot;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionIdentityRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly transactionId: string;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionIdentityWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    transaction_id: string;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionOperation = "apply" | "undo";
+
+// @public (undocumented)
+type WorkspaceChangeTransactionOperationWire = "apply" | "undo";
+
+// @public (undocumented)
+type WorkspaceChangeTransactionOutcomeWire = "applied" | "conflicted" | "rolled_back" | "recovery_required";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionProposalBinding {
+    // (undocumented)
+    readonly proposalAttemptId: string;
+    // (undocumented)
+    readonly proposalClaimToken: string;
+    // (undocumented)
+    readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionProposalBindingWire {
+    // (undocumented)
+    proposal_attempt_id: string;
+    // (undocumented)
+    proposal_claim_token: string;
+    // (undocumented)
+    proposal_id: string;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionReconciliation {
+    // (undocumented)
+    readonly decision: WorkspaceChangeTransactionRecoveryDecision;
+    // (undocumented)
+    readonly snapshot: WorkspaceChangeTransactionSnapshot;
+}
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionRecord {
+    // (undocumented)
+    readonly changeSetId: string;
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly failure?: JsonValue;
+    // (undocumented)
+    readonly finishedAt?: number;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly operation: WorkspaceChangeTransactionOperation;
+    // (undocumented)
+    readonly planDigest?: string;
+    // (undocumented)
+    readonly proposalApplyAttemptId?: string;
+    // (undocumented)
+    readonly recoveryDecision?: WorkspaceChangeTransactionRecoveryDecision;
+    // (undocumented)
+    readonly rootIdentitySha256: string;
+    // (undocumented)
+    readonly sourceId: string;
+    // (undocumented)
+    readonly sourceKind: WorkspaceChangeTransactionSourceKind;
+    // (undocumented)
+    readonly state: WorkspaceChangeTransactionState;
+    // (undocumented)
+    readonly undoSourceOperationId?: string;
+    // (undocumented)
+    readonly updatedAt: number;
+    // (undocumented)
+    readonly workspaceId: string;
+    // (undocumented)
+    readonly workspaceOperationId?: string;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionRecoveryDecision = "rollback_noop" | "finish_forward" | "finalize" | "attention";
+
+// @public (undocumented)
+interface WorkspaceChangeTransactionSnapshot {
+    // (undocumented)
+    readonly activeAttempt?: WorkspaceChangeTransactionAttemptRecord;
+    // (undocumented)
+    readonly files: readonly WorkspaceChangeTransactionFileRecord[];
+    // (undocumented)
+    readonly transaction: WorkspaceChangeTransactionRecord;
+}
+
+// @public (undocumented)
+type WorkspaceChangeTransactionSourceKind = "proposal" | "tool" | "host";
+
+// @public (undocumented)
+type WorkspaceChangeTransactionSourceKindWire = "proposal" | "tool" | "host";
+
+// @public (undocumented)
+type WorkspaceChangeTransactionState = "planning" | "prepared" | "committing" | "applied" | "rolled_back" | "recovery_required";
+
+// @public (undocumented)
+type WorkspaceChangeTransactionStateWire = "planning" | "prepared" | "committing" | "applied" | "rolled_back" | "recovery_required";
+
+// @public (undocumented)
 interface WorkspaceFileChange {
     // (undocumented)
     readonly baseSha256?: string;
@@ -4979,16 +5860,30 @@ interface WorkspaceFileConflict {
 }
 
 // @public (undocumented)
-type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand;
+type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand;
 
 // @public (undocumented)
 export interface WorkspaceStore {
+    // (undocumented)
+    beginWorkspaceChangeTransaction(request: BeginWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionClaimResult>;
+    // (undocumented)
+    beginWorkspaceChangeTransactionCommit(request: BeginWorkspaceChangeTransactionCommitRequest): Promise<WorkspaceChangeTransactionSnapshot>;
+    // (undocumented)
+    claimWorkspaceChangeProposalApply(request: ClaimWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplyClaimResult>;
+    // (undocumented)
+    claimWorkspaceChangeTransactionRecovery(request: ClaimWorkspaceChangeTransactionRecoveryRequest): Promise<WorkspaceChangeTransactionClaimResult>;
+    // (undocumented)
+    finalizeWorkspaceChangeTransaction(request: FinalizeWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionFinalization>;
     // (undocumented)
     getWorkspaceChangeProposal(request: GetWorkspaceChangeProposalRequest): Promise<WorkspaceChangeProposalRecord | null>;
     // (undocumented)
     getWorkspaceChangeSet(request: GetWorkspaceChangeSetRequest): Promise<WorkspaceChangeSetRecord | null>;
     // (undocumented)
+    getWorkspaceChangeTransaction(request: GetWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionSnapshot | null>;
+    // (undocumented)
     listWorkspaceChangeOperations(request: ListWorkspaceChangeOperationsRequest): Promise<WorkspaceChangeOperationRecord[]>;
+    // (undocumented)
+    listWorkspaceChangeProposalApplyAttempts(request: ListWorkspaceChangeProposalApplyAttemptsRequest): Promise<WorkspaceChangeProposalApplyAttemptRecord[]>;
     // (undocumented)
     listWorkspaceChangeProposalOperations(request: ListWorkspaceChangeProposalOperationsRequest): Promise<WorkspaceChangeProposalOperationRecord[]>;
     // (undocumented)
@@ -4996,13 +5891,33 @@ export interface WorkspaceStore {
     // (undocumented)
     listWorkspaceChangeSets(request: ListWorkspaceChangeSetsRequest): Promise<WorkspaceChangeSetRecord[]>;
     // (undocumented)
+    listWorkspaceChangeTransactionAttempts(request: ListWorkspaceChangeTransactionAttemptsRequest): Promise<WorkspaceChangeTransactionAttemptRecord[]>;
+    // (undocumented)
+    listWorkspaceChangeTransactions(request: ListWorkspaceChangeTransactionsRequest): Promise<WorkspaceChangeTransactionSnapshot[]>;
+    // (undocumented)
+    markWorkspaceChangeProposalRecoveryRequired(request: MarkWorkspaceChangeProposalRecoveryRequiredRequest): Promise<WorkspaceChangeProposalRecoveryResult>;
+    // (undocumented)
+    markWorkspaceChangeTransactionPrepared(request: MarkWorkspaceChangeTransactionPreparedRequest): Promise<WorkspaceChangeTransactionSnapshot>;
+    // (undocumented)
     putWorkspaceChangeProposal(request: PutWorkspaceChangeProposalRequest): Promise<WorkspaceChangeProposalRecord>;
     // (undocumented)
     putWorkspaceChangeSet(request: PutWorkspaceChangeSetRequest): Promise<WorkspaceChangeSetRecord>;
     // (undocumented)
+    reconcileWorkspaceChangeTransactionFiles(request: ReconcileWorkspaceChangeTransactionFilesRequest): Promise<WorkspaceChangeTransactionReconciliation>;
+    // (undocumented)
     recordWorkspaceChangeOperation(request: RecordWorkspaceChangeOperationRequest): Promise<WorkspaceChangeOperationRecord>;
     // (undocumented)
     recordWorkspaceChangeProposalOperation(request: RecordWorkspaceChangeProposalOperationRequest): Promise<WorkspaceChangeProposalOperationRecord>;
+    // (undocumented)
+    recordWorkspaceChangeTransactionFileCommitted(request: RecordWorkspaceChangeTransactionFileCommittedRequest): Promise<WorkspaceChangeTransactionSnapshot>;
+    // (undocumented)
+    recordWorkspaceChangeTransactionPlan(request: RecordWorkspaceChangeTransactionPlanRequest): Promise<WorkspaceChangeTransactionSnapshot>;
+    // (undocumented)
+    renewWorkspaceChangeProposalApply(request: RenewWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplyAttemptRecord>;
+    // (undocumented)
+    renewWorkspaceChangeTransaction(request: RenewWorkspaceChangeTransactionRequest): Promise<WorkspaceChangeTransactionAttemptRecord>;
+    // (undocumented)
+    settleWorkspaceChangeProposalApply(request: SettleWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplySettlement>;
 }
 
 // @public (undocumented)

@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process"
+import { randomBytes, randomUUID } from "node:crypto"
 import type { ChildProcessWithoutNullStreams } from "node:child_process"
 import { BoundedExecutionCapture } from "./capture.js"
 import {
   ExecutionAbortedError,
+  ExecutionCleanupRequiredError,
   ExecutionSpawnError,
   errorMessage
 } from "./errors.js"
@@ -19,6 +21,7 @@ import type {
   NodeExecutionHostOptions,
   WindowsTreeTerminator
 } from "./types.js"
+import { supervisorRequestFromExecution } from "./supervisor-types.js"
 
 const DEFAULT_OUTPUT_LIMIT_BYTES = 64 * 1024
 const DEFAULT_MAX_OUTPUT_LIMIT_BYTES = 50 * 1024 * 1024
@@ -35,6 +38,8 @@ export class NodeExecutionHost implements ExecutionHost {
   private readonly cleanupTimeoutMs: number
   private readonly platform: NodeJS.Platform
   private readonly windowsTreeTerminator: WindowsTreeTerminator
+  private readonly childSupervisor: NodeExecutionHostOptions["childSupervisor"]
+  private readonly supervisorClaim: NodeExecutionHostOptions["supervisorClaim"]
 
   constructor(options: NodeExecutionHostOptions = {}) {
     this.baseEnvironment = options.baseEnvironment ?? process.env
@@ -50,6 +55,14 @@ export class NodeExecutionHost implements ExecutionHost {
     this.platform = options.platform ?? process.platform
     this.windowsTreeTerminator =
       options.windowsTreeTerminator ?? createTaskkillTreeTerminator()
+    this.childSupervisor = options.childSupervisor
+    this.supervisorClaim = options.supervisorClaim
+    if (this.supervisorClaim !== undefined && this.childSupervisor === undefined) {
+      throw new Error("execution supervisorClaim requires a childSupervisor")
+    }
+    if (this.supervisorClaim !== undefined) {
+      validateSupervisorClaim(this.supervisorClaim)
+    }
     validateHostOptions({
       defaultOutputLimitBytes: this.defaultOutputLimitBytes,
       maxOutputLimitBytes: this.maxOutputLimitBytes,
@@ -64,6 +77,110 @@ export class NodeExecutionHost implements ExecutionHost {
     if (request.signal?.aborted === true) {
       throw new ExecutionAbortedError()
     }
+    if (this.childSupervisor !== undefined) {
+      return await this.executeWithSupervisor(request)
+    }
+    return await this.executeDirect(request)
+  }
+
+  private async executeWithSupervisor(
+    request: ExecutionRequest
+  ): Promise<ExecutionResult> {
+    const supervisor = this.childSupervisor
+    if (supervisor === undefined) {
+      throw new Error("execution child supervisor is not configured")
+    }
+    const args = [...(request.args ?? [])]
+    const stdoutLimit = this.outputLimit(request.output?.stdoutBytes)
+    const stderrLimit = this.outputLimit(request.output?.stderrBytes)
+    const stdin = stdinBytes(request.stdin)
+    if (stdin.byteLength > this.maxStdinBytes) {
+      throw new Error(
+        `execution stdin exceeds limit: ${stdin.byteLength} > ${this.maxStdinBytes}`
+      )
+    }
+    const startedAt = Date.now()
+    const executionId = randomUUID().replaceAll("-", "")
+    let run
+    try {
+      run = await supervisor.start(
+        supervisorRequestFromExecution(request, {
+          claim: this.supervisorClaim ?? {
+            runId: `exec_${executionId}`,
+            attemptId: `exat_${executionId}`,
+            claimToken: randomBytes(32).toString("hex")
+          },
+          childId: `exch_${executionId}`,
+          environment: {
+            ...definedEnvironment(this.baseEnvironment),
+            ...(request.environment === undefined
+              ? {}
+              : definedEnvironment(request.environment))
+          },
+          stdin,
+          stdoutLimitBytes: stdoutLimit,
+          stderrLimitBytes: stderrLimit,
+          terminationGraceMs: this.terminationGraceMs
+        })
+      )
+    } catch (error) {
+      if (isSafePreSpawnFailure(error)) throw error
+      throw new ExecutionCleanupRequiredError()
+    }
+    let requestedTermination: "timed_out" | "cancelled" | undefined
+    let timeout: NodeJS.Timeout | undefined
+    let terminationError: unknown
+    const requestTermination = (reason: "timed_out" | "cancelled"): void => {
+      if (requestedTermination !== undefined) return
+      requestedTermination = reason
+      void run.terminate(reason).catch((error: unknown) => {
+        terminationError ??= error
+      })
+    }
+    const abort = (): void => requestTermination("cancelled")
+    request.signal?.addEventListener("abort", abort, { once: true })
+    if (request.signal?.aborted === true) {
+      requestTermination("cancelled")
+    }
+    if (request.timeoutMs !== undefined) {
+      timeout = setTimeout(
+        () => requestTermination("timed_out"),
+        request.timeoutMs
+      )
+    }
+    try {
+      const evidence = await run.wait()
+      if (terminationError !== undefined) throw terminationError
+      const cleanup = evidence.cleanup === "completed" ? "completed" : "failed"
+      return {
+        program: request.program,
+        args,
+        cwd: request.cwd,
+        exitCode: evidence.exitCode,
+        signal: evidence.signal,
+        termination: requestedTermination ?? evidence.termination,
+        cleanup,
+        ...(cleanup === "failed"
+          ? {
+              cleanupError:
+                evidence.cleanupError ??
+                "child supervisor could not prove process tree termination"
+            }
+          : {}),
+        durationMs: Date.now() - startedAt,
+        stdout: evidence.stdout,
+        stderr: evidence.stderr
+      }
+    } catch {
+      await run.terminate(requestedTermination ?? "cancelled").catch(() => {})
+      throw new ExecutionCleanupRequiredError()
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
+      request.signal?.removeEventListener("abort", abort)
+    }
+  }
+
+  private async executeDirect(request: ExecutionRequest): Promise<ExecutionResult> {
 
     const args = [...(request.args ?? [])]
     const stdout = new BoundedExecutionCapture(
@@ -155,7 +272,6 @@ export class NodeExecutionHost implements ExecutionHost {
           program: request.program,
           args,
           cwd: request.cwd,
-          pid,
           exitCode,
           signal: signalName,
           termination,
@@ -294,6 +410,41 @@ function validateRequest(request: ExecutionRequest): void {
   ) {
     throw new Error("execution timeoutMs must be a positive integer")
   }
+}
+
+function validateSupervisorClaim(
+  claim: NonNullable<NodeExecutionHostOptions["supervisorClaim"]>
+): void {
+  if (
+    !/^[A-Za-z0-9_.:-]{1,256}$/u.test(claim.runId) ||
+    !/^[A-Za-z0-9_.:-]{1,256}$/u.test(claim.attemptId) ||
+    claim.claimToken.length < 32 ||
+    claim.claimToken.length > 512 ||
+    claim.claimToken.includes("\0")
+  ) {
+    throw new Error("execution supervisor claim is invalid")
+  }
+}
+
+function isSafePreSpawnFailure(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "name" in error &&
+    error.name === "NativeChildSupervisorError" &&
+    "code" in error &&
+    error.code === "spawn_failed"
+  )
+}
+
+function definedEnvironment(
+  environment: NodeJS.ProcessEnv | Readonly<Record<string, string>>
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(environment).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined
+    )
+  )
 }
 
 function stdinBytes(stdin: ExecutionRequest["stdin"]): Buffer {

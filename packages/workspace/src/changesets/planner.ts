@@ -1,10 +1,10 @@
 import { sha256Optional, sha256Text } from "./hash.js"
 import { mergeText } from "./merge.js"
 import { appliedFileRecord, conflictRecord } from "./records.js"
-import type { FileChange, PlannedFileChange, Workspace } from "./types.js"
+import type { FileChange, PlannedFileChange, WorkspaceReader } from "./types.js"
 
 export async function planFileChange(
-  workspace: Workspace,
+  workspace: WorkspaceReader,
   change: FileChange
 ): Promise<PlannedFileChange> {
   const current = await workspace.readText(change.path)

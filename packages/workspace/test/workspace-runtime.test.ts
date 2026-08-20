@@ -4,11 +4,7 @@ import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import { sha256Text, type ChangeSet } from "../src/changesets/index.js"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
-import {
-  FileSystemWorkspaceMutationGate,
-  WorkspaceRuntime,
-  type WorkspaceMutationGate
-} from "../src/index.js"
+import { WorkspaceRuntime, type WorkspaceMutationIdentity } from "../src/index.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -19,331 +15,198 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
-  while (clients.length > 0) {
-    await clients.pop()?.dispose()
-  }
+  while (clients.length > 0) await clients.pop()?.dispose()
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
-    if (dir) {
-      await rm(dir, { recursive: true, force: true })
-    }
+    if (dir !== undefined) await rm(dir, { recursive: true, force: true })
   }
 })
 
-describe("@wanex/workspace", () => {
-  it("applies, persists, undoes, and reapplies a changeset", async () => {
+describe("@wanex/workspace transaction runtime", () => {
+  it("applies, persists, undoes, and reapplies through durable transactions", async () => {
     const { rootDir, runtime } = await createRuntime()
     await mkdir(join(rootDir, "src"), { recursive: true })
     await writeFile(join(rootDir, "src/app.ts"), "one\n", "utf8")
     const changeSet: ChangeSet = {
       id: "cs_workspace_apply",
-      title: "Update app",
-      changes: [
-        {
-          path: "src/app.ts",
-          kind: "update",
-          baseText: "one\n",
-          targetText: "two\n"
-        }
-      ]
+      changes: [{
+        path: "src/app.ts",
+        kind: "update",
+        baseText: "one\n",
+        targetText: "two\n"
+      }]
     }
 
-    const applied = await runtime.applyChangeSet({ changeSet })
-    expect(applied.receipt.status).toBe("applied")
-    expect(applied.changeSet.currentState).toBe("applied")
-    expect(await readFile(join(rootDir, "src/app.ts"), "utf8")).toBe("two\n")
+    const applied = await runtime.applyChangeSet({
+      changeSet,
+      mutation: mutation("apply-first")
+    })
+    expect(applied).toMatchObject({
+      receipt: { status: "applied" },
+      changeSet: { currentState: "applied" },
+      transaction: { snapshot: { transaction: { state: "applied" } } }
+    })
+    await expect(readFile(join(rootDir, "src/app.ts"), "utf8")).resolves.toBe("two\n")
 
     const undone = await runtime.undoChangeSet({
-      changeSetId: changeSet.id
+      changeSetId: changeSet.id,
+      mutation: mutation("undo")
     })
-    expect(undone.receipt.status).toBe("applied")
     expect(undone.changeSet.currentState).toBe("undone")
-    expect(await readFile(join(rootDir, "src/app.ts"), "utf8")).toBe("one\n")
+    await expect(readFile(join(rootDir, "src/app.ts"), "utf8")).resolves.toBe("one\n")
 
-    const reapplied = await runtime.applyChangeSet({ changeSet })
-    expect(reapplied.receipt.status).toBe("applied")
-    expect(reapplied.changeSet.currentState).toBe("applied")
-    expect(await readFile(join(rootDir, "src/app.ts"), "utf8")).toBe("two\n")
-
+    await runtime.applyChangeSet({
+      changeSet,
+      mutation: mutation("apply-second")
+    })
     const history = await runtime.getHistory(changeSet.id)
     expect(history?.operations.map((operation) => operation.operation)).toEqual([
-      "apply",
-      "undo",
-      "apply"
+      "apply", "undo", "apply"
     ])
   })
 
-  it("persists conflicts without mutating the workspace", async () => {
+  it("atomically records conflicts without mutating files", async () => {
     const { rootDir, runtime } = await createRuntime()
     await writeFile(join(rootDir, "file.txt"), "current\n", "utf8")
-    const changeSet: ChangeSet = {
-      id: "cs_workspace_conflict",
-      changes: [
-        {
+    const result = await runtime.applyChangeSet({
+      changeSet: {
+        id: "cs_workspace_conflict",
+        changes: [{
           path: "file.txt",
           kind: "update",
           baseText: "base\n",
           targetText: "target\n"
-        }
-      ]
-    }
-
-    const result = await runtime.applyChangeSet({ changeSet })
-
-    expect(result.receipt.status).toBe("conflicted")
-    expect(result.changeSet.currentState).toBe("conflicted")
-    expect(result.receipt.conflicts[0]).toMatchObject({
-      path: "file.txt",
-      reason: "merge_conflict"
+        }]
+      },
+      mutation: mutation("conflict")
     })
-    expect(await readFile(join(rootDir, "file.txt"), "utf8")).toBe("current\n")
-    const history = await runtime.getHistory(changeSet.id)
-    expect(history?.operations[0]?.status).toBe("conflicted")
+    expect(result).toMatchObject({
+      receipt: { status: "conflicted", conflicts: [{ reason: "merge_conflict" }] },
+      changeSet: { currentState: "conflicted" },
+      transaction: { snapshot: { transaction: { state: "rolled_back" } } }
+    })
+    await expect(readFile(join(rootDir, "file.txt"), "utf8")).resolves.toBe("current\n")
   })
 
-  it("can undo from durable history after recreating the runtime", async () => {
-    const env = await createRuntime()
-    await writeFile(join(env.rootDir, "file.txt"), "before\n", "utf8")
-    const changeSet: ChangeSet = {
-      id: "cs_workspace_restart",
-      changes: [
-        {
+  it("records a proven already-applied operation without a mutation plan", async () => {
+    const { rootDir, runtime } = await createRuntime()
+    await writeFile(join(rootDir, "file.txt"), "after\n", "utf8")
+    const result = await runtime.applyChangeSet({
+      changeSet: {
+        id: "cs_workspace_noop",
+        changes: [{
           path: "file.txt",
           kind: "update",
           baseText: "before\n",
           targetText: "after\n"
-        }
-      ]
-    }
-    await env.runtime.applyChangeSet({ changeSet })
-    await env.client.dispose()
-
-    const restartedClient = clientFor(env.storeDir)
-    const restartedRuntime = new WorkspaceRuntime({
-      storage: restartedClient,
-      rootDir: env.rootDir,
-      workspaceId: "workspace_test"
+        }]
+      },
+      mutation: mutation("noop")
     })
-    const history = await restartedRuntime.getHistory(changeSet.id)
-    expect(history?.changeSet.currentState).toBe("applied")
-    expect(history?.operations[0]?.receipt.files[0]).toMatchObject({
-      afterSha256: sha256Text("after\n")
+    expect(result).toMatchObject({
+      receipt: { status: "already_applied" },
+      operation: { status: "already_applied" },
+      transaction: { snapshot: { files: [], transaction: { state: "applied" } } }
     })
-
-    const undone = await restartedRuntime.undoChangeSet({
-      changeSetId: changeSet.id
-    })
-
-    expect(undone.changeSet.currentState).toBe("undone")
-    expect(await readFile(join(env.rootDir, "file.txt"), "utf8")).toBe(
-      "before\n"
-    )
   })
 
-  it("serializes concurrent workspace mutations through the mutation gate", async () => {
-    const storeDir = await mkdtemp(join(tmpdir(), "wanex-workspace-store-"))
-    const rootDir = await mkdtemp(join(tmpdir(), "wanex-workspace-root-"))
-    tempDirs.push(storeDir, rootDir)
-    const clientA = clientFor(storeDir)
-    const clientB = clientFor(storeDir)
-    const gate = new InstrumentedGate(
-      new FileSystemWorkspaceMutationGate({
-        rootDir,
-        timeoutMs: 2_000,
-        retryDelayMs: 5
-      })
-    )
+  it("replays the same idempotency identity without creating another operation", async () => {
+    const { rootDir, runtime } = await createRuntime()
+    await writeFile(join(rootDir, "file.txt"), "before\n", "utf8")
+    const request = {
+      changeSet: {
+        id: "cs_workspace_replay",
+        changes: [{
+          path: "file.txt",
+          kind: "update" as const,
+          baseText: "before\n",
+          targetText: "after\n"
+        }]
+      },
+      mutation: mutation("replay")
+    }
+    const first = await runtime.applyChangeSet(request)
+    const second = await runtime.applyChangeSet(request)
+    expect(second.operation.id).toBe(first.operation.id)
+    expect((await runtime.getHistory("cs_workspace_replay"))?.operations).toHaveLength(1)
+  })
+
+  it("can undo from durable history after recreating the runtime", async () => {
+    const environment = await createRuntime()
+    await writeFile(join(environment.rootDir, "file.txt"), "before\n", "utf8")
+    const changeSet: ChangeSet = {
+      id: "cs_workspace_restart",
+      changes: [{
+        path: "file.txt",
+        kind: "update",
+        baseText: "before\n",
+        targetText: "after\n"
+      }]
+    }
+    await environment.runtime.applyChangeSet({
+      changeSet,
+      mutation: mutation("restart-apply")
+    })
+    await environment.client.dispose()
+
+    const restarted = new WorkspaceRuntime({
+      storage: clientFor(environment.storeDir),
+      rootDir: environment.rootDir,
+      serviceBin,
+      workspaceId: "workspace_test"
+    })
+    expect((await restarted.getHistory(changeSet.id))?.operations[0]?.receipt.files[0]).toMatchObject({
+      afterSha256: sha256Text("after\n")
+    })
+    await restarted.undoChangeSet({
+      changeSetId: changeSet.id,
+      mutation: mutation("restart-undo")
+    })
+    await expect(readFile(join(environment.rootDir, "file.txt"), "utf8")).resolves.toBe("before\n")
+  })
+
+  it("serializes independent concurrent mutations with native workspace ownership", async () => {
+    const storeDir = await temporaryDirectory("wanex-workspace-store-")
+    const rootDir = await temporaryDirectory("wanex-workspace-root-")
     const runtimeA = new WorkspaceRuntime({
-      storage: clientA,
-      rootDir,
-      workspaceId: "workspace_test",
-      principalId: "agent_a",
-      mutationGate: gate
+      storage: clientFor(storeDir), rootDir, serviceBin,
+      workspaceId: "workspace_test", principalId: "agent_a"
     })
     const runtimeB = new WorkspaceRuntime({
-      storage: clientB,
-      rootDir,
-      workspaceId: "workspace_test",
-      principalId: "agent_b",
-      mutationGate: gate
+      storage: clientFor(storeDir), rootDir, serviceBin,
+      workspaceId: "workspace_test", principalId: "agent_b"
     })
     await writeFile(join(rootDir, "a.txt"), "base-a\n", "utf8")
     await writeFile(join(rootDir, "b.txt"), "base-b\n", "utf8")
 
     const [first, second] = await Promise.all([
       runtimeA.applyChangeSet({
-        changeSet: {
-          id: "cs_concurrent_a",
-          changes: [
-            {
-              path: "a.txt",
-              kind: "update",
-              baseText: "base-a\n",
-              targetText: "target-a\n"
-            }
-          ]
-        }
+        changeSet: { id: "cs_concurrent_a", changes: [{
+          path: "a.txt", kind: "update", baseText: "base-a\n", targetText: "target-a\n"
+        }] },
+        mutation: mutation("concurrent-a", "agent_a")
       }),
       runtimeB.applyChangeSet({
-        changeSet: {
-          id: "cs_concurrent_b",
-          changes: [
-            {
-              path: "b.txt",
-              kind: "update",
-              baseText: "base-b\n",
-              targetText: "target-b\n"
-            }
-          ]
-        }
+        changeSet: { id: "cs_concurrent_b", changes: [{
+          path: "b.txt", kind: "update", baseText: "base-b\n", targetText: "target-b\n"
+        }] },
+        mutation: mutation("concurrent-b", "agent_b")
       })
     ])
-
-    expect(first.receipt.status).toBe("applied")
-    expect(second.receipt.status).toBe("applied")
-    expect(gate.maxActive).toBe(1)
-    expect(gate.entries).toBe(2)
-    expect(await readFile(join(rootDir, "a.txt"), "utf8")).toBe("target-a\n")
-    expect(await readFile(join(rootDir, "b.txt"), "utf8")).toBe("target-b\n")
-  })
-
-  it("recovers stale workspace mutation locks with owner metadata", async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), "wanex-workspace-root-"))
-    tempDirs.push(rootDir)
-    const lockDir = workspaceMutationLockDir(rootDir)
-    await mkdir(lockDir, { recursive: true })
-    await writeFile(
-      join(lockDir, "owner.json"),
-      JSON.stringify({
-        ownerToken: "lock_stale",
-        createdAt: Date.now() - 10_000,
-        pid: 999_999,
-        hostname: "stale-host",
-        lockName: "workspace-mutation.lock"
-      }),
-      "utf8"
-    )
-    const gate = new FileSystemWorkspaceMutationGate({
-      rootDir,
-      staleMs: 1,
-      timeoutMs: 500,
-      retryDelayMs: 5
-    })
-
-    await expect(gate.runExclusive(async () => "recovered")).resolves.toBe(
-      "recovered"
-    )
-    await expect(readFile(join(lockDir, "owner.json"), "utf8")).rejects.toMatchObject({
-      code: "ENOENT"
-    })
-  })
-
-  it("times out active workspace mutation locks with owner diagnostics", async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), "wanex-workspace-root-"))
-    tempDirs.push(rootDir)
-    const lockDir = workspaceMutationLockDir(rootDir)
-    await mkdir(lockDir, { recursive: true })
-    await writeFile(
-      join(lockDir, "owner.json"),
-      JSON.stringify({
-        ownerToken: "lock_active",
-        createdAt: Date.now(),
-        pid: 123,
-        hostname: "active-host",
-        lockName: "workspace-mutation.lock"
-      }),
-      "utf8"
-    )
-    const gate = new FileSystemWorkspaceMutationGate({
-      rootDir,
-      staleMs: 60_000,
-      timeoutMs: 25,
-      retryDelayMs: 5
-    })
-
-    await expect(gate.runExclusive(async () => "blocked")).rejects.toThrow(
-      /lock_active/
-    )
-  })
-
-  it("does not release a lock acquired by a newer owner after stale recovery", async () => {
-    const rootDir = await mkdtemp(join(tmpdir(), "wanex-workspace-root-"))
-    tempDirs.push(rootDir)
-    const firstGate = new FileSystemWorkspaceMutationGate({
-      rootDir,
-      staleMs: 1,
-      timeoutMs: 500,
-      retryDelayMs: 5
-    })
-    const secondGate = new FileSystemWorkspaceMutationGate({
-      rootDir,
-      staleMs: 1,
-      timeoutMs: 500,
-      retryDelayMs: 5
-    })
-    let releaseFirst!: () => void
-    const firstRun = firstGate.runExclusive(
-      async () =>
-        await new Promise<string>((resolve) => {
-          releaseFirst = () => resolve("first")
-        })
-    )
-    await waitForOwner(rootDir)
-    const lockDir = workspaceMutationLockDir(rootDir)
-    const firstOwner = JSON.parse(
-      await readFile(join(lockDir, "owner.json"), "utf8")
-    ) as { readonly ownerToken: string }
-    await writeFile(
-      join(lockDir, "owner.json"),
-      JSON.stringify({
-        ownerToken: firstOwner.ownerToken,
-        createdAt: Date.now() - 10_000,
-        pid: 123,
-        hostname: "stale-first",
-        lockName: "workspace-mutation.lock"
-      }),
-      "utf8"
-    )
-
-    let releaseSecond!: () => void
-    const secondRun = secondGate.runExclusive(
-      async () =>
-        await new Promise<string>((resolve) => {
-          releaseSecond = () => resolve("second")
-        })
-    )
-    await waitForOwner(rootDir, firstOwner.ownerToken)
-    releaseFirst()
-    await expect(firstRun).resolves.toBe("first")
-    const ownerAfterFirstRelease = await readFile(
-      join(lockDir, "owner.json"),
-      "utf8"
-    )
-    expect(JSON.parse(ownerAfterFirstRelease).ownerToken).not.toBe(
-      firstOwner.ownerToken
-    )
-
-    releaseSecond()
-    await expect(secondRun).resolves.toBe("second")
-    await expect(readFile(join(lockDir, "owner.json"), "utf8")).rejects.toMatchObject({
-      code: "ENOENT"
-    })
+    expect([first.receipt.status, second.receipt.status]).toEqual(["applied", "applied"])
+    await expect(readFile(join(rootDir, "a.txt"), "utf8")).resolves.toBe("target-a\n")
+    await expect(readFile(join(rootDir, "b.txt"), "utf8")).resolves.toBe("target-b\n")
   })
 })
 
-async function createRuntime(): Promise<{
-  readonly storeDir: string
-  readonly rootDir: string
-  readonly client: StorageTestStore
-  readonly runtime: WorkspaceRuntime
-}> {
-  const storeDir = await mkdtemp(join(tmpdir(), "wanex-workspace-store-"))
-  const rootDir = await mkdtemp(join(tmpdir(), "wanex-workspace-root-"))
-  tempDirs.push(storeDir, rootDir)
+async function createRuntime() {
+  const storeDir = await temporaryDirectory("wanex-workspace-store-")
+  const rootDir = await temporaryDirectory("wanex-workspace-root-")
   const client = clientFor(storeDir)
   const runtime = new WorkspaceRuntime({
     storage: client,
     rootDir,
+    serviceBin,
     workspaceId: "workspace_test",
     principalId: "agent_test"
   })
@@ -351,7 +214,9 @@ async function createRuntime(): Promise<{
 }
 
 function clientFor(storeDir: string): StorageTestStore {
-  const client = createStorageTestStore({ kind: "local-system-service", mode: "persistent",
+  const client = createStorageTestStore({
+    kind: "local-system-service",
+    mode: "persistent",
     storeDir,
     serviceBin
   })
@@ -359,53 +224,17 @@ function clientFor(storeDir: string): StorageTestStore {
   return client
 }
 
-class InstrumentedGate implements WorkspaceMutationGate {
-  active = 0
-  maxActive = 0
-  entries = 0
-
-  constructor(private readonly inner: WorkspaceMutationGate) {}
-
-  async runExclusive<T>(operation: () => Promise<T>): Promise<T> {
-    return await this.inner.runExclusive(async () => {
-      this.active += 1
-      this.entries += 1
-      this.maxActive = Math.max(this.maxActive, this.active)
-      await new Promise((resolve) => setTimeout(resolve, 30))
-      try {
-        return await operation()
-      } finally {
-        this.active -= 1
-      }
-    })
-  }
+async function temporaryDirectory(prefix: string): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
 }
 
-function workspaceMutationLockDir(rootDir: string): string {
-  return join(rootDir, ".wanex", "locks", "workspace-mutation.lock")
-}
-
-async function waitForOwner(
-  rootDir: string,
-  previousOwnerToken?: string
-): Promise<void> {
-  const ownerPath = join(workspaceMutationLockDir(rootDir), "owner.json")
-  const startedAt = Date.now()
-  while (Date.now() - startedAt < 1_000) {
-    try {
-      const owner = JSON.parse(await readFile(ownerPath, "utf8")) as {
-        readonly ownerToken?: string
-      }
-      if (
-        typeof owner.ownerToken === "string" &&
-        owner.ownerToken !== previousOwnerToken
-      ) {
-        return
-      }
-    } catch {
-      // Retry until owner metadata appears.
-    }
-    await new Promise((resolve) => setTimeout(resolve, 5))
+function mutation(label: string, ownerId = "agent_test"): WorkspaceMutationIdentity {
+  return {
+    sourceKind: "host",
+    sourceId: `host:${label}`,
+    idempotencyKey: `workspace-test:${label}`,
+    ownerId
   }
-  throw new Error("timed out waiting for workspace lock owner metadata")
 }

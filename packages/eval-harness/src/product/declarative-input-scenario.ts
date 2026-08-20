@@ -184,7 +184,7 @@ export const declarativeCommandInputProductScenario = createEvalScenario({
       })
       assert(
         execution.ok &&
-          execution.snapshot.commandExecution.state === "completed",
+          execution.snapshot.commandExecution.state === "submitted",
         "Web declarative input should submit a durable plugin command"
       )
       const reference = execution.snapshot.commandExecution.references.find(

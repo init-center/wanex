@@ -15,7 +15,7 @@ const serviceBin = join(
 )
 const cliEntry = join(import.meta.dirname, "../src/index.ts")
 const tsxBin = join(import.meta.dirname, "../../../node_modules/tsx/dist/cli.mjs")
-const expectedSchemaVersion = 10
+const expectedSchemaVersion = 18
 const CLI_EXEC_TIMEOUT_MS = 30_000
 const tempDirs: string[] = []
 

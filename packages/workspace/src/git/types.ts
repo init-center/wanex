@@ -1,39 +1,32 @@
-import type { JsonValue, PrincipalId, WorkspaceChangeProposalRecord, WorkspaceChangeSetRecord } from "@wanex/protocol"
-import type { WorkspaceStore } from "@wanex/storage/workspace"
-import type { ExecutionHost } from "@wanex/runtime/execution"
+import type { RepositoryLocator } from "../locator/index.js"
 import type { WorkspaceIsolationLease } from "../isolation/index.js"
+import type { ChangeSet } from "../changesets/index.js"
 
 export interface WorkspaceGitRuntimeOptions {
-  readonly storage: WorkspaceStore
-  readonly repoDir: string
-  readonly gitBin?: string
-  readonly executionHost?: ExecutionHost
-  readonly workspaceId?: string
-  readonly principalId?: PrincipalId
+  readonly repositoryId: string
+  readonly locator: RepositoryLocator
 }
 
-export interface CreateChangeSetFromWorktreeRequest {
+export interface CollectWorktreeRequest {
   readonly lease: WorkspaceIsolationLease
-  readonly id?: string
+  readonly changeSetId: string
   readonly title?: string
-  readonly workspaceId?: string
-  readonly principalId?: PrincipalId
-  readonly createProposal?: boolean | CreateProposalFromWorktreeOptions
 }
 
-export interface CreateProposalFromWorktreeOptions {
-  readonly id?: string
-  readonly title?: string
-  readonly summary?: string
-  readonly metadata?: JsonValue
-  readonly idempotencyKey?: string
-}
-
-export interface CreateChangeSetFromWorktreeResult {
-  readonly changeSet: WorkspaceChangeSetRecord
-  readonly proposal?: WorkspaceChangeProposalRecord
+export interface WorktreeChangeCollection {
+  readonly status: "changes"
+  readonly changeSet: ChangeSet
   readonly diff: readonly GitWorktreeDiffEntry[]
 }
+
+export interface EmptyWorktreeProjection {
+  readonly status: "no_changes"
+  readonly diff: readonly []
+}
+
+export type WorktreeCollection =
+  | WorktreeChangeCollection
+  | EmptyWorktreeProjection
 
 export interface GitWorktreeDiffEntry {
   readonly status: GitWorktreeDiffStatus

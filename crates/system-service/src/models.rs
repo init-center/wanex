@@ -312,6 +312,176 @@ pub struct WorkspaceChangeProposalOperationRecord {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeProposalApplyAttemptRecord {
+    pub id: String,
+    pub proposal_id: String,
+    pub owner_id: String,
+    #[serde(skip)]
+    pub(crate) claim_token_sha256: String,
+    pub state: String,
+    pub lease_expires_at: i64,
+    pub workspace_operation_id: Option<String>,
+    pub metadata: Option<Value>,
+    pub failure: Option<Value>,
+    pub claimed_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkspaceChangeProposalApplyClaimResult {
+    pub status: String,
+    pub proposal: WorkspaceChangeProposalRecord,
+    pub attempt: Option<WorkspaceChangeProposalApplyAttemptRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeProposalApplySettlement {
+    pub proposal: WorkspaceChangeProposalRecord,
+    pub attempt: WorkspaceChangeProposalApplyAttemptRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkspaceChangeProposalRecoveryResult {
+    pub status: String,
+    pub proposal: WorkspaceChangeProposalRecord,
+    pub attempt: Option<WorkspaceChangeProposalApplyAttemptRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionRecord {
+    pub id: String,
+    pub workspace_id: String,
+    pub changeset_id: String,
+    pub operation: String,
+    pub undo_source_operation_id: Option<String>,
+    pub source_kind: String,
+    pub source_id: String,
+    pub idempotency_key: String,
+    pub root_identity_sha256: String,
+    pub proposal_apply_attempt_id: Option<String>,
+    pub state: String,
+    pub plan_digest: Option<String>,
+    pub recovery_decision: Option<String>,
+    pub workspace_operation_id: Option<String>,
+    pub failure: Option<Value>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionFileRecord {
+    pub transaction_id: String,
+    pub ordinal: i64,
+    pub path: String,
+    pub before_text: Option<String>,
+    pub before_sha256: Option<String>,
+    pub after_text: Option<String>,
+    pub after_sha256: Option<String>,
+    pub state: String,
+    pub updated_at: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionAttemptRecord {
+    pub id: String,
+    pub transaction_id: String,
+    pub owner_id: String,
+    #[serde(skip)]
+    pub(crate) claim_token_sha256: String,
+    pub kind: String,
+    pub state: String,
+    pub lease_expires_at: i64,
+    pub failure: Option<Value>,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionSnapshot {
+    pub transaction: WorkspaceChangeTransactionRecord,
+    pub files: Vec<WorkspaceChangeTransactionFileRecord>,
+    pub active_attempt: Option<WorkspaceChangeTransactionAttemptRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkspaceChangeTransactionClaimResult {
+    pub status: String,
+    pub snapshot: WorkspaceChangeTransactionSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkspaceChangeTransactionReconciliation {
+    pub decision: String,
+    pub snapshot: WorkspaceChangeTransactionSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionFinalization {
+    pub snapshot: WorkspaceChangeTransactionSnapshot,
+    pub operation: Option<WorkspaceChangeOperationRecord>,
+    pub proposal: Option<WorkspaceChangeProposalRecord>,
+    pub proposal_attempt: Option<WorkspaceChangeProposalApplyAttemptRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceTaskRunRecord {
+    pub id: String,
+    pub workspace_id: String,
+    pub principal_id: String,
+    pub access: String,
+    pub repository_id: String,
+    pub isolation_id: String,
+    pub state: String,
+    pub base_revision: Option<String>,
+    pub runtime_ref: Option<String>,
+    pub execution_outcome: Option<String>,
+    pub outcome: Option<String>,
+    pub summary: Option<String>,
+    pub resource_ids: Vec<String>,
+    pub changeset_id: Option<String>,
+    pub proposal_id: Option<String>,
+    pub failure: Option<Value>,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceTaskAttemptRecord {
+    pub id: String,
+    pub run_id: String,
+    pub owner_id: String,
+    #[serde(skip)]
+    pub(crate) claim_token_sha256: String,
+    pub kind: String,
+    pub state: String,
+    pub lease_expires_at: i64,
+    pub failure: Option<Value>,
+    pub started_at: i64,
+    pub updated_at: i64,
+    pub finished_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceTaskRunSnapshot {
+    pub run: WorkspaceTaskRunRecord,
+    pub active_attempt: Option<WorkspaceTaskAttemptRecord>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorkspaceTaskClaimResult {
+    pub status: String,
+    pub snapshot: WorkspaceTaskRunSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PlanProposalReferenceRecord {
     pub kind: String,
     pub reference_id: String,
@@ -781,6 +951,264 @@ pub struct RecordWorkspaceChangeProposalOperation {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListWorkspaceChangeProposalOperations {
     pub proposal_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ClaimWorkspaceChangeProposalApply {
+    pub proposal_id: String,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+    pub metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenewWorkspaceChangeProposalApply {
+    pub proposal_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SettleWorkspaceChangeProposalApply {
+    pub proposal_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub outcome: String,
+    pub workspace_operation_id: Option<String>,
+    pub failure: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MarkWorkspaceChangeProposalRecoveryRequired {
+    pub proposal_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListWorkspaceChangeProposalApplyAttempts {
+    pub proposal_id: String,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionProposalBinding {
+    pub proposal_id: String,
+    pub proposal_attempt_id: String,
+    pub proposal_claim_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BeginWorkspaceChangeTransaction {
+    pub id: String,
+    pub workspace_id: String,
+    pub changeset_id: String,
+    pub operation: String,
+    pub undo_source_operation_id: Option<String>,
+    pub source_kind: String,
+    pub source_id: String,
+    pub idempotency_key: String,
+    pub root_identity_sha256: String,
+    pub proposal: Option<WorkspaceChangeTransactionProposalBinding>,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaimWorkspaceChangeTransactionRecovery {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenewWorkspaceChangeTransaction {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionIdentity {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionFilePlan {
+    pub ordinal: i64,
+    pub path: String,
+    pub before_text: Option<String>,
+    pub before_sha256: Option<String>,
+    pub after_text: Option<String>,
+    pub after_sha256: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordWorkspaceChangeTransactionPlan {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub files: Vec<WorkspaceChangeTransactionFilePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeginWorkspaceChangeTransactionCommit {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MarkWorkspaceChangeTransactionPrepared {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordWorkspaceChangeTransactionFileCommitted {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub ordinal: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceChangeTransactionFileObservation {
+    pub ordinal: i64,
+    pub current: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReconcileWorkspaceChangeTransactionFiles {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub observations: Vec<WorkspaceChangeTransactionFileObservation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinalizeWorkspaceChangeTransaction {
+    pub transaction_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub outcome: String,
+    pub operation_id: Option<String>,
+    pub receipt: Option<Value>,
+    pub failure: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListWorkspaceChangeTransactions {
+    pub workspace_id: Option<String>,
+    pub state: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListWorkspaceChangeTransactionAttempts {
+    pub transaction_id: String,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BeginWorkspaceTaskRun {
+    pub id: String,
+    pub workspace_id: String,
+    pub principal_id: String,
+    pub access: String,
+    pub repository_id: String,
+    pub isolation_id: String,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaimWorkspaceTaskRecovery {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenewWorkspaceTaskRun {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceTaskRunIdentity {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MarkWorkspaceTaskActive {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub base_revision: Option<String>,
+    pub runtime_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BeginWorkspaceTaskCollection {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub execution_outcome: String,
+    pub summary: Option<String>,
+    pub resource_ids: Vec<String>,
+    pub failure: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FinalizeWorkspaceTaskCollection {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub outcome: String,
+    pub changeset: Option<Value>,
+    pub proposal_id: Option<String>,
+    pub title: Option<String>,
+    pub proposal_metadata: Option<Value>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MarkWorkspaceTaskAttention {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub claim_token: String,
+    pub failure: Value,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListWorkspaceTaskRuns {
+    pub workspace_id: Option<String>,
+    pub state: Option<String>,
+    pub lease_expires_before: Option<i64>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListWorkspaceTaskAttempts {
+    pub run_id: String,
+    pub limit: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1968,11 +2396,11 @@ pub struct DeferToolExecution {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum DeferredToolOperationReceipt {
     MediaGeneration {
-        record: MediaGenerationOperationRecord,
+        record: Box<MediaGenerationOperationRecord>,
         job: SchedulerJobRecord,
     },
     TeamDelegation {
-        record: TeamDelegationOperationRecord,
+        record: Box<TeamDelegationOperationRecord>,
         tasks: Vec<TeamDelegationTaskRecord>,
         graph: DelegationGraphRecord,
         nodes: Vec<DelegationGraphNodeRecord>,

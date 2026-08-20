@@ -1,71 +1,64 @@
 import type {
   ChangeSet,
-  ChangeSetReceipt,
-  Workspace
+  ChangeSetReceipt
 } from "./changesets/index.js"
 import type {
   ListWorkspaceChangeSetsRequest,
   PrincipalId,
+  RuntimeAbortSignal,
   WorkspaceChangeOperationRecord,
-  WorkspaceChangeSetRecord
+  WorkspaceChangeSetRecord,
+  WorkspaceChangeTransactionFinalization
 } from "@wanex/protocol"
 import type { WorkspaceStore } from "@wanex/storage/workspace"
+import type {
+  WorkspaceMutationIdentity,
+  WorkspaceProposalMutationIdentity
+} from "./transaction/runtime.js"
 
-export interface WorkspaceRuntimeOptions {
+interface WorkspaceRuntimeCommonOptions {
   readonly storage: WorkspaceStore
-  readonly workspace?: Workspace
-  readonly rootDir?: string
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
-  readonly mutationGate?: WorkspaceMutationGate
-  readonly mutationGateTimeoutMs?: number
+}
+
+export interface WorkspaceRuntimeOptions extends WorkspaceRuntimeCommonOptions {
+  readonly rootDir: string
+  readonly serviceBin: string
+  readonly transactionLeaseMs?: number
 }
 
 export interface ApplyWorkspaceChangeSetRequest {
   readonly changeSet: ChangeSet
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
+  readonly mutation: WorkspaceMutationIdentity | WorkspaceProposalMutationIdentity
+  readonly signal?: RuntimeAbortSignal
 }
 
 export interface ApplyWorkspaceChangeSetResult {
   readonly changeSet: WorkspaceChangeSetRecord
   readonly operation: WorkspaceChangeOperationRecord
   readonly receipt: ChangeSetReceipt
+  readonly transaction: WorkspaceChangeTransactionFinalization
 }
 
 export interface UndoWorkspaceChangeSetRequest {
   readonly changeSetId: string
+  readonly mutation: WorkspaceMutationIdentity
+  readonly signal?: RuntimeAbortSignal
 }
 
 export interface UndoWorkspaceChangeSetResult {
   readonly changeSet: WorkspaceChangeSetRecord
   readonly operation: WorkspaceChangeOperationRecord
   readonly receipt: ChangeSetReceipt
+  readonly transaction: WorkspaceChangeTransactionFinalization
 }
 
 export interface WorkspaceChangeSetHistory {
   readonly changeSet: WorkspaceChangeSetRecord
   readonly operations: readonly WorkspaceChangeOperationRecord[]
-}
-
-export interface WorkspaceMutationGate {
-  runExclusive<T>(operation: () => Promise<T>): Promise<T>
-}
-
-export interface FileSystemWorkspaceMutationGateOptions {
-  readonly rootDir: string
-  readonly lockName?: string
-  readonly timeoutMs?: number
-  readonly retryDelayMs?: number
-  readonly staleMs?: number
-}
-
-export interface WorkspaceLockMetadata {
-  readonly ownerToken: string
-  readonly createdAt: number
-  readonly pid?: number
-  readonly hostname?: string
-  readonly lockName: string
 }
 
 export type ListWorkspaceRuntimeChangeSetsRequest = Omit<

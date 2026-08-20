@@ -3311,3 +3311,191 @@ writes to one checkout, expose lock/lease/path identities to Product, add a
 Gateway or persistent lock daemon, create a universal composition package, or
 make Workspace part of the default Runtime/App/Product closure. Connector,
 remote/mobile Host, and TUI Schedule parity remain value-gated.
+
+CODING-1A Native Mutation Ownership is complete. Its frozen ownership contract
+and completion evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1394-phase-coding-1a-1b-ownership-contract-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1395-phase-coding-1a-native-mutation-ownership-completion.md`
+
+The shared-checkout ownership primitive lives inside the existing System
+Service transaction helper: it opens a stable lock file, owns an OS advisory
+lock by live handle, and releases ownership when its control pipe closes. The
+public callback/Noop `NativeWorkspaceMutationGate` abstraction was removed in
+CODING-1C; do not restore it or let callers substitute a second mutation path.
+`WorkspaceRuntime` receives explicit trusted `rootDir + serviceBin` Host
+configuration, and its one transaction engine invokes the helper directly.
+Do not restore directory creation as ownership, stale timestamps, owner
+metadata deletion, a second native artifact, or a persistent lock process.
+
+CODING-1B Exact Apply Claim And Fenced Settlement is complete. Its completion
+evidence and the next frozen transaction plan are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1396-phase-coding-1b-exact-apply-claim-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1397-phase-coding-1c-crash-recoverable-change-transaction-plan.md`
+
+Proposal apply now claims one durable `applying` attempt before filesystem
+mutation, stores only a token hash, renews and settles with exact-token fencing,
+and requires same-changeset Workspace operation evidence for success. SQLite
+claim contention uses a short process-local admission gate plus bounded
+cross-instance `BEGIN IMMEDIATE` retry; this serializes only the Store writer
+critical section, not Agent or worktree execution. Explicit conflict becomes
+`apply_failed`; exceptions or partial/ambiguous writes become
+`recovery_required` and are never blindly replayed. Do not restore generic
+`mark_applied` / `mark_apply_failed`, expose token/lease/attempt state to
+Product, or classify an exception as a proven filesystem failure.
+
+CODING-1C Crash-Recoverable Change Transaction is complete. Its frozen plan and
+completion evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1397-phase-coding-1c-crash-recoverable-change-transaction-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1398-phase-coding-1c-crash-recoverable-change-transaction-completion.md`
+
+Apply, undo, Proposal apply, and Workspace Tool mutation now share one durable
+transaction engine. SQLite owns immutable plans, exact execution/recovery
+claims, per-file evidence, deterministic reconciliation, Workspace operation
+creation, changeset state, and optional Proposal settlement. The existing
+System Service artifact is the only native executor; it owns the live OS lock,
+same-directory prepare/fsync, atomic replacement/delete, progress, inspect, and
+exact cleanup. Recovery skips a healthy live owner, claims expired work, then
+finishes forward, proves rollback no-op, finalizes all-after files, or stops for
+attention without overwriting external edits. Terminal business settlement and
+artifact cleanup are separate: cleanup retries never roll back an applied
+operation, and idempotent replay retries exact cleanup before returning the
+existing operation.
+
+Do not restore direct Node writes, callback/Noop mutation gates, duplicate
+Proposal lease configuration, blind replay, non-atomic copy fallback, or a
+second package/binary/daemon/Gateway. The threat model remains a trusted local
+workspace with cooperative writers; path validation rejects symlink/reparse
+ancestors but is not advertised as an adversarial openat-style filesystem
+sandbox. Windows behavior is enforced by the existing `windows-2025` full
+verify matrix, not claimed from local macOS testing. CODING-1D worktree
+isolation is next and must reuse this shared-checkout transaction boundary
+rather than create another mutation engine.
+
+CODING-1D Writable Worktree Policy And Concurrency Acceptance is in progress.
+Its frozen plan and CODING-1D.1 completion evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1399-phase-coding-1d-writable-worktree-policy-and-concurrency-acceptance-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1400-phase-coding-1d-1-contract-reset-completion.md`
+
+The repository already has a worktree adapter, Git diff projection, and
+durable `workspace.task` job. CODING-1D must productionize those primitives,
+not add another adapter: Product expresses only `read_only | writable`; the
+trusted Host resolves opaque repository identity and derives disposable
+worktrees; a temporary-index synthetic commit captures dirty checkout content
+without changing HEAD/index/stash; durable exact-fenced lifecycle owns
+snapshot/worktree/branch/process recovery; writable output is projected
+automatically to ChangeSet/Proposal; reviewed integration still uses CODING-1C.
+Delete caller-selected root/branch/keep/isolation metadata, handler-supplied
+ChangeSet, persisted absolute lease paths, and the hand-written line-number
+`mergeText` heuristic rather than preserving compatibility. Worktree isolation
+is a cooperative conflict/review boundary, not a hostile-code sandbox.
+
+CODING-1D.1 has completed the pre-release contract reset. `workspace.task` now
+requires explicit `read_only | writable` access and JSON input; callers cannot
+select root, branch, release policy, keep behavior, isolation metadata, or a
+handwritten ChangeSet. Writable handlers receive only task identity, input,
+access, and the isolated root; Git diff is projected automatically to one
+deterministic ChangeSet/Proposal. Receipts and durable job results expose only
+opaque resource/ChangeSet/Proposal ids and never persist lease/root details.
+Runtime-owned worktrees always clean their branch, and the prototype adapter
+releases only same-instance leases it actually created.
+
+CODING-1D.2 Durable Workspace Task Lifecycle is complete. Its frozen plan and
+completion evidence are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1401-phase-coding-1d-2-durable-workspace-task-lifecycle-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1402-phase-coding-1d-2-durable-workspace-task-lifecycle-completion.md`
+
+SQLite now owns the exact-fenced `preparing -> active -> collecting -> proposed
+-> releasing -> released` lifecycle plus non-terminal `attention`. Durable task
+runs, execution/recovery attempts, scheduler jobs, and Proposals remain distinct
+facts. ChangeSet, Proposal, and run linkage settle atomically; cleanup failure
+cannot erase a durable Proposal, and stale attempts cannot transition or release
+new ownership. Store records and task events contain opaque identities rather
+than repository/worktree paths or raw claim tokens. Do not restore generic state
+mutation, persist paths, merge run and attempt, retry the handler after Proposal,
+or add a second native service.
+
+CODING-1D.3 Snapshot And Locator is complete. Its implementation, real Git
+acceptance, Rust CLI evidence, privacy review, and best-practice review are
+recorded in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1403-phase-coding-1d-3-snapshot-and-locator-plan.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1404-phase-coding-1d-3-snapshot-and-locator-completion.md`
+
+The trusted Host now maps an opaque repository identity to a canonical
+repository through `LocalRepositoryLocator`. `GitWorktreeIsolationAdapter` and
+`WorkspaceGitRuntime` no longer accept caller-selected `repoDir`, worktree
+parent, base ref, branch prefix, or process-local ownership maps. The existing
+System Service semantic `--workspace-snapshot` helper holds the native shared
+mutation handle only while it creates a temporary-index synthetic base and
+deterministic runtime ref/worktree. It captures dirty checkout state without
+changing user HEAD, branch, index, stash, working tree, or Git config. Release
+and a new Host instance re-prove deterministic runtime identity before cleanup.
+
+Temporary index, canonical paths, worktree roots, raw Git diagnostics, and native
+helper details remain Host-internal; they must not enter Store, events, receipts,
+job results, Product payloads, or ordinary errors. The helper is a concrete
+semantic protocol, never a generic shell executor. Special Git objects fail
+closed. Do not restore direct `repoDir` task configuration, persisted paths,
+owner JSON/mtime heuristics, random recovery roots, or a second native service.
+
+The next route is CODING-1D.4 Child Supervisor And Recovery. It must add process
+ownership and explicit recovery policy on top of the now-stable snapshot/resource
+identity. It must not reopen locator design, add a Gateway/daemon, or move child
+supervision into Storage/Product. Windows Job Object and reparse-point behavior
+must be verified by the existing Windows matrix rather than claimed from local
+macOS/Linux tests.
+
+The post-CODING-1D.3 review and the frozen CODING-1D.4 route are recorded in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1405-post-coding-1d-3-review-and-phase-coding-1d-4-child-supervisor-plan.md`
+
+Do not start 1D.4 by adding a PID column, process-name scanning, a Node ownership
+Map, or a new daemon. First audit the existing `ExecutionHost` process-group
+implementation and make the native child-control protocol and recovery evidence
+boundary explicit.
+
+CODING-1D.4 Child Supervisor And Recovery is implementation-complete. Its
+completion evidence and the next frozen route are:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1406-phase-coding-1d-4-child-supervisor-and-recovery-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1407-post-coding-1d-4-review-and-phase-coding-1d-5-projection-recovery-plan.md`
+
+The existing `wanex-system-service` artifact now owns the concrete semantic
+`--workspace-child` helper. The trusted Host starts one helper per execution,
+binds it to `runId + attemptId + childId + claimTokenSha256`, and receives exact
+ready/output/terminal evidence. POSIX uses a process group; Windows uses a Job
+Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; control-pipe EOF cleans the
+owned tree. Output is bounded and split into fixed-size protocol frames. Do not
+replace this with PID scanning, command-line matching, a process Map, a generic
+shell RPC, or another daemon/binary.
+
+`NodeExecutionHost` keeps direct execution only for explicitly trusted short-lived
+Host paths. Workspace task execution receives a claim-bound supervisor Host when
+configured. A started child whose cleanup or terminal evidence is ambiguous is a
+hard recovery boundary: the handler cannot catch the exception and continue to
+collect or release writable state. Such a task enters `attention`, produces no
+ChangeSet/Proposal, and retains its writable worktree. Expired `preparing`,
+`active`, and `collecting` tasks are not automatically rerun. `proposed` and
+`releasing` recovery only retries deterministic durable release; it never reruns
+the handler. The only public recovery entry is `runtime.recoverTask({ runId })`.
+
+Local evidence for CODING-1D.4 passed Rust formatting and native tests, Runtime
+execution (14 passed, one Windows-only test skipped on macOS), Workspace (80
+tests), Eval harness (17 tests), structure audit (20 packages, zero violations),
+public-contract audit, and the real multi-agent worktree conflict scenario. The
+2 MiB cross-frame native output regression is covered. This macOS run does not
+claim Windows Job Object/reparse/worktree acceptance; the current
+`windows-2025` GitHub matrix must verify that on the submitted revision.
+
+The next route is `CODING-1D.5 Workspace Projection And Recovery Admission`,
+recorded in the plan above. It owns Git projection taxonomy, deletion of the
+hand-written line-number `mergeText` heuristic, conservative apply conflict
+semantics, and a bounded Host startup/admission recovery coordinator. It must
+not reopen child supervision, locator, Storage schema, or add a Gateway/polling
+loop. Do not start Coding UI before 1D.5 and the following CODING-1D review are
+complete.

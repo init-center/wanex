@@ -529,7 +529,7 @@ describe("@wanex/app/diagnostics", () => {
 
     expect(bundle.generatedAt).toBe(1_000)
     expect(bundle.doctor).toMatchObject({
-      schemaVersion: 14
+      schemaVersion: 18
     })
     expect(bundle.modelEndpoints).toEqual([
       expect.objectContaining({

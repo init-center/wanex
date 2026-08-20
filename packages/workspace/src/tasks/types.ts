@@ -1,46 +1,56 @@
-import type { ChangeSet } from "../changesets/index.js"
 import type {
   JsonValue,
   PrincipalId,
   ResourceRecord,
-  WorkspaceChangeSetRecord
+  WorkspaceChangeProposalRecord,
+  WorkspaceChangeSetRecord,
+  WorkspaceTaskAccess
 } from "@wanex/protocol"
 import type { ProviderArtifactOutput } from "@wanex/runtime/resources"
+import type { ChildSupervisor, ExecutionHost } from "@wanex/runtime/execution"
 import type { WorkspaceTaskStore } from "./storage.js"
-import type {
-  WorkspaceIsolationAdapter,
-  WorkspaceIsolationLease,
-  WorkspaceIsolationRequest
-} from "../isolation/index.js"
+import type { WorkspaceIsolationAdapter } from "../isolation/index.js"
+import type { WorkspaceGitRuntime } from "../git/index.js"
 import type { WorkspaceTaskRuntime } from "./runtime.js"
 
 export type WorkspaceTaskStatus = "succeeded" | "failed"
 
 export interface WorkspaceTaskRuntimeOptions {
   readonly storage: WorkspaceTaskStore
-  readonly isolation: WorkspaceIsolationAdapter
+  readonly readOnlyIsolation: WorkspaceIsolationAdapter
+  readonly writableIsolation: WorkspaceIsolationAdapter
+  readonly writableCollection: WorkspaceGitRuntime
+  readonly repositoryId: string
+  readonly ownerId?: PrincipalId
+  readonly leaseMs?: number
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
+  readonly childSupervisor?: ChildSupervisor
 }
 
 export interface WorkspaceTaskRequest {
+  readonly access: WorkspaceTaskAccess
+  readonly input: JsonValue
   readonly id?: string
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
   readonly jobId?: string
   readonly agentId?: string
-  readonly isolation?: WorkspaceIsolationRequest
-  readonly keepLease?: boolean
   readonly handler: WorkspaceTaskHandler
+}
+
+export interface RecoverWorkspaceTaskRequest {
+  readonly runId: string
 }
 
 export interface WorkspaceTaskContext {
   readonly taskId: string
   readonly workspaceId: string
   readonly principalId: PrincipalId
-  readonly lease: WorkspaceIsolationLease
+  readonly access: WorkspaceTaskAccess
+  readonly input: JsonValue
   readonly rootDir: string
-  readonly storage: WorkspaceTaskStore
+  readonly executionHost?: ExecutionHost
 }
 
 export type WorkspaceTaskHandler = (
@@ -49,20 +59,19 @@ export type WorkspaceTaskHandler = (
 
 export interface WorkspaceTaskHandlerResult {
   readonly artifacts?: readonly ProviderArtifactOutput[]
-  readonly changeSet?: ChangeSet
-  readonly metadata?: Record<string, unknown>
+  readonly summary?: string
 }
 
 export interface WorkspaceTaskReceipt {
   readonly taskId: string
   readonly status: WorkspaceTaskStatus
+  readonly access: WorkspaceTaskAccess
   readonly workspaceId: string
   readonly principalId: PrincipalId
-  readonly lease: WorkspaceIsolationLease
-  readonly released: boolean
   readonly resources: readonly ResourceRecord[]
   readonly changeSet?: WorkspaceChangeSetRecord
-  readonly metadata?: Record<string, unknown>
+  readonly proposal?: WorkspaceChangeProposalRecord
+  readonly summary?: string
   readonly error?: WorkspaceTaskError
 }
 
@@ -73,27 +82,25 @@ export interface WorkspaceTaskError {
 
 export interface WorkspaceTaskJobPayload {
   readonly handlerId: string
+  readonly access: WorkspaceTaskAccess
+  readonly input: JsonValue
   readonly taskId?: string
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
   readonly jobId?: string
   readonly agentId?: string
-  readonly keepLease?: boolean
-  readonly isolation?: WorkspaceIsolationRequest
-  readonly metadata?: Record<string, JsonValue>
 }
 
 export interface SubmitWorkspaceTaskJobRequest {
   readonly id?: string
   readonly handlerId: string
   readonly principalId: PrincipalId
+  readonly access: WorkspaceTaskAccess
+  readonly input: JsonValue
   readonly taskId?: string
   readonly workspaceId?: string
   readonly jobId?: string
   readonly agentId?: string
-  readonly keepLease?: boolean
-  readonly isolation?: WorkspaceIsolationRequest
-  readonly metadata?: Record<string, JsonValue>
   readonly scheduledAt?: number
   readonly notBefore?: number
   readonly priority?: number
@@ -109,13 +116,13 @@ export interface WorkspaceTaskJobHandlerOptions {
 export interface WorkspaceTaskJobResult {
   readonly taskId: string
   readonly status: WorkspaceTaskStatus
+  readonly access: WorkspaceTaskAccess
   readonly workspaceId: string
   readonly principalId: PrincipalId
-  readonly released: boolean
-  readonly lease: JsonValue
   readonly resourceIds: readonly string[]
   readonly changeSetId?: string
-  readonly metadata?: JsonValue
+  readonly proposalId?: string
+  readonly summary?: string
   readonly error?: WorkspaceTaskError
 }
 

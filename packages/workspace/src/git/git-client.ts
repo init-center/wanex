@@ -60,7 +60,7 @@ export class GitCommandClient {
     })
     if (result.stdout.truncated) {
       throw new Error(
-        `git stdout exceeded ${this.outputLimitBytes} bytes: ${commandLabel(this.gitBin, cwd, args)}`
+        `git stdout exceeded ${this.outputLimitBytes} bytes: ${commandLabel(this.gitBin, args)}`
       )
     }
     if (
@@ -80,15 +80,12 @@ function gitFailure(
   cwd: string,
   args: readonly string[]
 ): string {
-  const stderr = result.stderr.text.trim()
-  const detail = stderr.length === 0 ? "" : `: ${stderr}`
-  return `git command failed (${result.termination}, code ${String(result.exitCode)}): ${commandLabel(gitBin, cwd, args)}${detail}`
+  return `git command failed (${result.termination}, code ${String(result.exitCode)}): ${commandLabel(gitBin, args)}`
 }
 
 function commandLabel(
   gitBin: string,
-  cwd: string,
   args: readonly string[]
 ): string {
-  return `${gitBin} -C ${cwd} ${args.join(" ")}`
+  return `${gitBin} ${args.join(" ")}`
 }

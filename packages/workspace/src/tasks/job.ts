@@ -27,14 +27,13 @@ export async function submitWorkspaceTaskJob(
     principalId: request.principalId,
     payload: workspaceTaskJobPayloadToJson({
       handlerId: request.handlerId,
+      access: request.access,
+      input: request.input,
       ...(request.taskId === undefined ? {} : { taskId: request.taskId }),
       ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
       principalId: request.principalId,
       ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
-      ...(request.agentId === undefined ? {} : { agentId: request.agentId }),
-      ...(request.keepLease === undefined ? {} : { keepLease: request.keepLease }),
-      ...(request.isolation === undefined ? {} : { isolation: request.isolation }),
-      ...(request.metadata === undefined ? {} : { metadata: request.metadata })
+      ...(request.agentId === undefined ? {} : { agentId: request.agentId })
     }),
     ...(request.scheduledAt === undefined
       ? {}
@@ -61,13 +60,13 @@ export function createWorkspaceTaskJobHandler(
       throw new Error(`workspace.task handler not registered: ${payload.handlerId}`)
     }
     const receipt = await options.runtime.runTask({
+      access: payload.access,
+      input: payload.input,
       ...(payload.taskId === undefined ? {} : { id: payload.taskId }),
       principalId: payload.principalId ?? context.job.principalId,
       jobId: payload.jobId ?? context.job.id,
       ...(payload.workspaceId === undefined ? {} : { workspaceId: payload.workspaceId }),
       ...(payload.agentId === undefined ? {} : { agentId: payload.agentId }),
-      ...(payload.isolation === undefined ? {} : { isolation: payload.isolation }),
-      ...(payload.keepLease === undefined ? {} : { keepLease: payload.keepLease }),
       handler
     })
     const result = workspaceTaskJobResultFromReceipt(receipt)

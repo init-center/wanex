@@ -270,11 +270,11 @@ describe("@wanex/protocol", () => {
   })
 
   it("exposes workspace change proposal review states", () => {
-    const state: WorkspaceChangeProposalState = "apply_requested"
-    const operation: WorkspaceChangeProposalOperationKind = "mark_applied"
+    const state: WorkspaceChangeProposalState = "applying"
+    const operation: WorkspaceChangeProposalOperationKind = "request_apply"
 
-    expect(state).toBe("apply_requested")
-    expect(operation).toBe("mark_applied")
+    expect(state).toBe("applying")
+    expect(operation).toBe("request_apply")
   })
 
   it("exposes durable plan proposal contracts", () => {

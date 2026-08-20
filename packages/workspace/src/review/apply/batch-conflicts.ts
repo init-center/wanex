@@ -61,12 +61,6 @@ export function classifyProposalPlan(
       paths: loaded.paths,
       conflicts,
       ...(loaded.item.actorId === undefined ? {} : { actorId: loaded.item.actorId }),
-      ...(loaded.item.operationId === undefined
-        ? {}
-        : { operationId: loaded.item.operationId }),
-      ...(loaded.item.failureOperationId === undefined
-        ? {}
-        : { failureOperationId: loaded.item.failureOperationId }),
       ...(loaded.item.metadata === undefined ? {} : { metadata: loaded.item.metadata })
     })
 

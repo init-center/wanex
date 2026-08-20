@@ -1047,7 +1047,7 @@ fn deferred_receipt_tx(
             &request.tool_invocation_attempt_id,
         )?,
         operation: DeferredToolOperationReceipt::MediaGeneration {
-            record: operation,
+            record: Box::new(operation),
             job,
         },
     })

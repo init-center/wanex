@@ -259,6 +259,14 @@ export interface AppExtensionCatalogSource {
 }
 
 // @public (undocumented)
+export interface AppExtensionCommandCompletedResult {
+    // (undocumented)
+    readonly kind: "completed";
+    // (undocumented)
+    readonly value: unknown;
+}
+
+// @public (undocumented)
 export interface AppExtensionCommandExecutionRequest {
     // (undocumented)
     readonly commandId: string;
@@ -269,9 +277,12 @@ export interface AppExtensionCommandExecutionRequest {
 }
 
 // @public (undocumented)
+export type AppExtensionCommandExecutionResult = AppExtensionCommandCompletedResult | AppExtensionCommandSubmittedResult;
+
+// @public (undocumented)
 export interface AppExtensionCommandExecutor {
     // (undocumented)
-    execute(request: AppExtensionCommandExecutionRequest): Promise<unknown>;
+    execute(request: AppExtensionCommandExecutionRequest): Promise<AppExtensionCommandExecutionResult>;
     // (undocumented)
     preview(request: AppExtensionCommandExecutionRequest): AppExtensionCommandPreviewResult;
     // (undocumented)
@@ -285,6 +296,14 @@ export type AppExtensionCommandPreviewResult = {
     readonly ok: false;
     readonly message: string;
 };
+
+// @public (undocumented)
+export interface AppExtensionCommandSubmittedResult {
+    // (undocumented)
+    readonly kind: "submitted";
+    // (undocumented)
+    readonly value: unknown;
+}
 
 // @public (undocumented)
 export type AppExtensionConflictPolicy = "replace" | "append" | "merge" | "error";

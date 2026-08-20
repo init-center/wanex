@@ -471,6 +471,142 @@ CREATE TABLE IF NOT EXISTS workspace_change_proposal_operation (
 CREATE INDEX IF NOT EXISTS idx_workspace_change_proposal_operation_proposal
   ON workspace_change_proposal_operation(proposal_id, created_at, id);
 
+CREATE TABLE IF NOT EXISTS workspace_change_proposal_apply_attempt (
+  id TEXT PRIMARY KEY,
+  proposal_id TEXT NOT NULL REFERENCES workspace_change_proposal(id),
+  owner_id TEXT NOT NULL,
+  claim_token_sha256 TEXT NOT NULL,
+  state TEXT NOT NULL,
+  lease_expires_at INTEGER NOT NULL,
+  workspace_operation_id TEXT REFERENCES workspace_change_operation(id),
+  metadata_json TEXT,
+  failure_json TEXT,
+  claimed_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_change_proposal_one_active_apply
+  ON workspace_change_proposal_apply_attempt(proposal_id)
+  WHERE state = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_workspace_change_proposal_apply_attempt_proposal
+  ON workspace_change_proposal_apply_attempt(proposal_id, claimed_at, id);
+
+CREATE TABLE IF NOT EXISTS workspace_change_transaction (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  changeset_id TEXT NOT NULL REFERENCES workspace_changeset(id),
+  operation TEXT NOT NULL,
+  undo_source_operation_id TEXT REFERENCES workspace_change_operation(id),
+  source_kind TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  idempotency_key TEXT NOT NULL UNIQUE,
+  root_identity_sha256 TEXT NOT NULL,
+  proposal_apply_attempt_id TEXT UNIQUE REFERENCES workspace_change_proposal_apply_attempt(id),
+  state TEXT NOT NULL,
+  plan_digest TEXT,
+  recovery_decision TEXT,
+  workspace_operation_id TEXT UNIQUE REFERENCES workspace_change_operation(id),
+  failure_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_change_transaction_workspace_state
+  ON workspace_change_transaction(workspace_id, state, updated_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_change_transaction_changeset
+  ON workspace_change_transaction(changeset_id, created_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_change_transaction_source
+  ON workspace_change_transaction(source_kind, source_id, created_at, id);
+
+CREATE TABLE IF NOT EXISTS workspace_change_transaction_file (
+  transaction_id TEXT NOT NULL REFERENCES workspace_change_transaction(id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL,
+  path TEXT NOT NULL,
+  before_text TEXT,
+  before_sha256 TEXT,
+  after_text TEXT,
+  after_sha256 TEXT,
+  state TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (transaction_id, ordinal),
+  UNIQUE (transaction_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS workspace_change_transaction_attempt (
+  id TEXT PRIMARY KEY,
+  transaction_id TEXT NOT NULL REFERENCES workspace_change_transaction(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL,
+  claim_token_sha256 TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  state TEXT NOT NULL,
+  lease_expires_at INTEGER NOT NULL,
+  failure_json TEXT,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_change_transaction_one_active_attempt
+  ON workspace_change_transaction_attempt(transaction_id)
+  WHERE state = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_workspace_change_transaction_attempt_transaction
+  ON workspace_change_transaction_attempt(transaction_id, started_at, id);
+
+CREATE TABLE IF NOT EXISTS workspace_task_run (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  principal_id TEXT NOT NULL,
+  access TEXT NOT NULL,
+  repository_id TEXT NOT NULL,
+  isolation_id TEXT NOT NULL UNIQUE,
+  state TEXT NOT NULL,
+  base_revision TEXT,
+  runtime_ref TEXT,
+  execution_outcome TEXT,
+  outcome TEXT,
+  summary TEXT,
+  resource_ids_json TEXT NOT NULL,
+  changeset_id TEXT UNIQUE REFERENCES workspace_changeset(id),
+  proposal_id TEXT UNIQUE REFERENCES workspace_change_proposal(id),
+  failure_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_task_run_workspace_state
+  ON workspace_task_run(workspace_id, state, updated_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_task_run_recovery
+  ON workspace_task_run(state, updated_at, id);
+
+CREATE TABLE IF NOT EXISTS workspace_task_attempt (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL REFERENCES workspace_task_run(id) ON DELETE CASCADE,
+  owner_id TEXT NOT NULL,
+  claim_token_sha256 TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  state TEXT NOT NULL,
+  lease_expires_at INTEGER NOT NULL,
+  failure_json TEXT,
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_task_one_active_attempt
+  ON workspace_task_attempt(run_id)
+  WHERE state = 'active';
+
+CREATE INDEX IF NOT EXISTS idx_workspace_task_attempt_run
+  ON workspace_task_attempt(run_id, started_at, id);
+
 CREATE TABLE IF NOT EXISTS plan_proposal (
   id TEXT PRIMARY KEY,
   principal_id TEXT NOT NULL,
@@ -1201,4 +1337,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (15, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (18, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

@@ -618,6 +618,7 @@ name = "wanex-system-service"
 version = "0.0.0"
 dependencies = [
  "base64",
+ "libc",
  "rusqlite",
  "serde",
  "serde_json",

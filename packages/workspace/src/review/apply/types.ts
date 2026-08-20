@@ -2,7 +2,7 @@ import type {
   JsonValue,
   PrincipalId,
   WorkspaceChangeOperationRecord,
-  WorkspaceChangeProposalOperationRecord,
+  WorkspaceChangeProposalApplyAttemptRecord,
   WorkspaceChangeProposalRecord,
   WorkspaceChangeSetRecord
 } from "@wanex/protocol"
@@ -16,24 +16,30 @@ export interface WorkspaceProposalApplyRuntimeOptions {
   readonly storage: WorkspaceStore
   readonly workspace: WorkspaceRuntime
   readonly actorId?: PrincipalId
+  readonly createAttemptId?: () => string
+  readonly createClaimToken?: () => string
 }
 
 export interface ApplyProposalRequest {
   readonly proposalId: string
   readonly actorId?: PrincipalId
-  readonly operationId?: string
-  readonly failureOperationId?: string
   readonly metadata?: JsonValue
 }
 
-export type ApplyProposalStatus = "applied" | "apply_failed"
+export type ApplyProposalStatus =
+  | "applied"
+  | "apply_failed"
+  | "busy"
+  | "recovery_required"
+  | "not_ready"
+  | "already_terminal"
 
 export interface ApplyProposalResult {
   readonly status: ApplyProposalStatus
   readonly proposal: WorkspaceChangeProposalRecord
   readonly changeSet: WorkspaceChangeSetRecord
   readonly workspaceOperation?: WorkspaceChangeOperationRecord
-  readonly proposalOperation: WorkspaceChangeProposalOperationRecord
+  readonly applyAttempt?: WorkspaceChangeProposalApplyAttemptRecord
   readonly applyResult?: ApplyWorkspaceChangeSetResult
   readonly error?: JsonValue
 }
@@ -42,8 +48,6 @@ export interface ApplyProposalBatchItem {
   readonly proposalId: string
   readonly dependsOn?: readonly string[]
   readonly actorId?: PrincipalId
-  readonly operationId?: string
-  readonly failureOperationId?: string
   readonly metadata?: JsonValue
 }
 
@@ -58,6 +62,10 @@ export type ApplyProposalBatchStatus = "applied" | "partial" | "failed"
 export type ApplyProposalBatchItemStatus =
   | "applied"
   | "apply_failed"
+  | "busy"
+  | "recovery_required"
+  | "not_ready"
+  | "already_terminal"
   | "blocked"
   | "needs_review"
   | "skipped"
@@ -97,8 +105,6 @@ export interface ApplyProposalPlanItem {
   readonly paths: readonly string[]
   readonly conflicts: readonly ApplyProposalPlanConflict[]
   readonly actorId?: PrincipalId
-  readonly operationId?: string
-  readonly failureOperationId?: string
   readonly metadata?: JsonValue
 }
 

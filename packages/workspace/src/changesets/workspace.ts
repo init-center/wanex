@@ -1,9 +1,8 @@
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises"
-import { dirname } from "node:path"
+import { readFile } from "node:fs/promises"
 import { WorkspacePathResolver } from "../path-policy.js"
-import type { Workspace } from "./types.js"
+import type { WorkspaceReader } from "./types.js"
 
-export class LocalWorkspace implements Workspace {
+export class LocalWorkspaceReader implements WorkspaceReader {
   readonly rootDir: string
 
   private readonly paths: WorkspacePathResolver
@@ -24,13 +23,4 @@ export class LocalWorkspace implements Workspace {
     }
   }
 
-  async writeText(path: string, text: string): Promise<void> {
-    const absolute = await this.paths.resolveMutation(path)
-    await mkdir(dirname(absolute), { recursive: true })
-    await writeFile(absolute, text, "utf8")
-  }
-
-  async delete(path: string): Promise<void> {
-    await rm(await this.paths.resolveMutation(path), { force: true })
-  }
 }

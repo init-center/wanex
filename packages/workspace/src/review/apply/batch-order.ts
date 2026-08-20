@@ -5,8 +5,6 @@ export interface PlannedBatchItem {
   readonly proposalId: string
   readonly dependsOn: readonly string[]
   readonly actorId?: PrincipalId
-  readonly operationId?: string
-  readonly failureOperationId?: string
   readonly metadata?: JsonValue
 }
 
@@ -33,10 +31,6 @@ export function planProposalBatch(
       proposalId: item.proposalId,
       dependsOn,
       ...(item.actorId === undefined ? {} : { actorId: item.actorId }),
-      ...(item.operationId === undefined ? {} : { operationId: item.operationId }),
-      ...(item.failureOperationId === undefined
-        ? {}
-        : { failureOperationId: item.failureOperationId }),
       ...(item.metadata === undefined ? {} : { metadata: item.metadata })
     })
     originalIndex.set(item.proposalId, index)
@@ -126,9 +120,6 @@ function validateBatchItem(item: ApplyProposalBatchItem): void {
   }
   if (item.actorId === "") {
     throw new Error("proposal batch actorId must not be empty")
-  }
-  if (item.operationId === "" || item.failureOperationId === "") {
-    throw new Error("proposal batch operation ids must not be empty")
   }
 }
 

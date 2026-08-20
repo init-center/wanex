@@ -1316,7 +1316,9 @@ fn enqueue_workspace_task_projection_tx(
 fn workspace_task_payload(target: &WorkspaceTaskProjectionTarget) -> serde_json::Value {
     let mut payload = serde_json::json!({
         "handlerId": target.handler_id,
-        "principalId": target.principal_id
+        "principalId": target.principal_id,
+        "access": target.access,
+        "input": target.input
     });
     if let Some(task_id) = &target.task_id {
         payload["taskId"] = serde_json::json!(task_id);
@@ -1329,15 +1331,6 @@ fn workspace_task_payload(target: &WorkspaceTaskProjectionTarget) -> serde_json:
     }
     if let Some(agent_id) = &target.agent_id {
         payload["agentId"] = serde_json::json!(agent_id);
-    }
-    if let Some(keep_lease) = target.keep_lease {
-        payload["keepLease"] = serde_json::json!(keep_lease);
-    }
-    if let Some(isolation) = &target.isolation {
-        payload["isolation"] = isolation.clone();
-    }
-    if let Some(metadata) = &target.metadata {
-        payload["metadata"] = metadata.clone();
     }
     payload
 }
@@ -1462,13 +1455,12 @@ impl TeamMessageProjectionTarget {
 struct WorkspaceTaskProjectionTarget {
     handler_id: String,
     principal_id: String,
+    access: String,
+    input: serde_json::Value,
     task_id: Option<String>,
     workspace_id: Option<String>,
     job_id: Option<String>,
     agent_id: Option<String>,
-    keep_lease: Option<bool>,
-    isolation: Option<serde_json::Value>,
-    metadata: Option<serde_json::Value>,
     scheduled_at: Option<i64>,
     not_before: Option<i64>,
     priority: Option<i64>,
@@ -1479,16 +1471,28 @@ struct WorkspaceTaskProjectionTarget {
 
 impl WorkspaceTaskProjectionTarget {
     fn parse(value: &serde_json::Value) -> Result<Self> {
+        for removed in ["keepLease", "isolation", "metadata"] {
+            if value.get(removed).is_some() {
+                return Err(SystemServiceError::Invariant(format!(
+                    "workspace.task projection contains unsupported field: {removed}"
+                )));
+            }
+        }
+        let access = required_string(value, "access")?;
+        if access != "read_only" && access != "writable" {
+            return Err(SystemServiceError::Invariant(
+                "workspace.task projection access must be read_only or writable".to_string(),
+            ));
+        }
         Ok(Self {
             handler_id: required_string(value, "handlerId")?,
             principal_id: required_string(value, "principalId")?,
+            access,
+            input: required_json(value, "input")?.clone(),
             task_id: optional_string_json(value, "taskId")?,
             workspace_id: optional_string_json(value, "workspaceId")?,
             job_id: optional_string_json(value, "jobId")?,
             agent_id: optional_string_json(value, "agentId")?,
-            keep_lease: optional_bool_json(value, "keepLease")?,
-            isolation: optional_json(value, "isolation").cloned(),
-            metadata: optional_json(value, "metadata").cloned(),
             scheduled_at: optional_i64_json(value, "scheduledAt")?,
             not_before: optional_i64_json(value, "notBefore")?,
             priority: optional_i64_json(value, "priority")?,
@@ -1554,18 +1558,6 @@ fn optional_i64_json(value: &serde_json::Value, field: &str) -> Result<Option<i6
             raw.as_i64().ok_or_else(|| {
                 SystemServiceError::Invariant(format!(
                     "channel projection {field} must be an integer"
-                ))
-            })
-        })
-        .transpose()
-}
-
-fn optional_bool_json(value: &serde_json::Value, field: &str) -> Result<Option<bool>> {
-    optional_json(value, field)
-        .map(|raw| {
-            raw.as_bool().ok_or_else(|| {
-                SystemServiceError::Invariant(format!(
-                    "channel projection {field} must be a boolean"
                 ))
             })
         })

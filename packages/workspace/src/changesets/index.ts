@@ -1,9 +1,9 @@
 export const WANEX_WORKSPACE_CHANGESETS = "wanex-workspace-changesets" as const
 
-export { ChangeSetApplier } from "./applier.js"
 export { sha256Text } from "./hash.js"
 export { mergeText } from "./merge.js"
-export { LocalWorkspace } from "./workspace.js"
+export { planChangeSetApply, planChangeSetUndo } from "./plan.js"
+export { LocalWorkspaceReader } from "./workspace.js"
 export type {
   AppliedFileChange,
   ChangeApplyStatus,
@@ -12,5 +12,5 @@ export type {
   FileChange,
   FileChangeKind,
   FileConflict,
-  Workspace
+  WorkspaceReader
 } from "./types.js"

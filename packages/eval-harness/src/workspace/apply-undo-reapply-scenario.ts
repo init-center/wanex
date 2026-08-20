@@ -12,6 +12,7 @@ export const workspaceApplyUndoReapplyScenario = createEvalScenario({
     const workspace = new WorkspaceRuntime({
       storage: context.storage,
       rootDir: context.workspaceRootDir,
+      serviceBin: context.serviceBin,
       workspaceId: "eval_workspace_apply",
       principalId: "agent_eval_workspace_apply"
     })
@@ -31,17 +32,24 @@ export const workspaceApplyUndoReapplyScenario = createEvalScenario({
       ]
     }
 
-    const applied = await workspace.applyChangeSet({ changeSet })
+    const applied = await workspace.applyChangeSet({
+      changeSet,
+      mutation: hostMutation("apply")
+    })
     assert(applied.receipt.status === "applied", "changeset should apply")
     assert((await readFile(targetPath, "utf8")) === "two\n", "file should update")
 
     const undone = await workspace.undoChangeSet({
-      changeSetId: changeSet.id
+      changeSetId: changeSet.id,
+      mutation: hostMutation("undo")
     })
     assert(undone.changeSet.currentState === "undone", "changeset should undo")
     assert((await readFile(targetPath, "utf8")) === "one\n", "file should revert")
 
-    const reapplied = await workspace.applyChangeSet({ changeSet })
+    const reapplied = await workspace.applyChangeSet({
+      changeSet,
+      mutation: hostMutation("reapply")
+    })
     assert(
       reapplied.changeSet.currentState === "applied",
       "changeset should reapply"
@@ -61,3 +69,12 @@ export const workspaceApplyUndoReapplyScenario = createEvalScenario({
     }
   }
 })
+
+function hostMutation(label: string) {
+  return {
+    sourceKind: "host" as const,
+    sourceId: `eval:workspace-apply:${label}`,
+    idempotencyKey: `eval:workspace-apply:${label}`,
+    ownerId: "agent_eval_workspace_apply"
+  }
+}

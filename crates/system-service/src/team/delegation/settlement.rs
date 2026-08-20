@@ -20,16 +20,16 @@ pub(crate) fn settle_team_delegation_child_tx(
     })?;
     let expected_node_state = node_state_for_turn(&child_turn.state)?;
 
-    if is_terminal_node_state(&node.state) {
-        if node.state != expected_node_state || is_terminal_operation_state(&operation.state) {
-            return if node.state == expected_node_state {
-                Ok(())
-            } else {
-                Err(SystemServiceError::Invariant(
-                    "Team delegation child replay disagrees with its graph node".to_string(),
-                ))
-            };
-        }
+    if is_terminal_node_state(&node.state)
+        && (node.state != expected_node_state || is_terminal_operation_state(&operation.state))
+    {
+        return if node.state == expected_node_state {
+            Ok(())
+        } else {
+            Err(SystemServiceError::Invariant(
+                "Team delegation child replay disagrees with its graph node".to_string(),
+            ))
+        };
     }
     if !matches!(operation.state.as_str(), "running" | "cancel_requested")
         || node.graph_id != operation.delegation_graph_id

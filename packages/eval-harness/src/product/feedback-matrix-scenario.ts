@@ -293,12 +293,12 @@ export const feedbackMatrixScenario = createEvalScenario({
       assert(
         readyWebExecution.actionResult.ok &&
           submitSnapshot(readyWebExecution).view.commandExecution.state ===
-            "completed" &&
+            "submitted" &&
           submitSnapshot(readyWebExecution).view.commandExecution.commandId ===
             "product.agent.submit" &&
           submitSnapshot(readyWebExecution).view.operationStatus.state ===
             "succeeded",
-        "Web should report completed typed command execution after setup"
+        "Web should report submitted typed command execution after setup"
       )
       assert(
         readyTui.blockedCommandCount === 0 &&

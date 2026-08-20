@@ -49,6 +49,7 @@ export const workspaceControlledToolsScenario = createEvalScenario({
     const workspace = new WorkspaceRuntime({
       storage: context.storage,
       rootDir: context.workspaceRootDir,
+      serviceBin: context.serviceBin,
       workspaceId: "eval_controlled_tools",
       principalId
     })
@@ -168,7 +169,15 @@ export const workspaceControlledToolsScenario = createEvalScenario({
       await readFile(targetPath, "utf8") === "after\n",
       "changeset tool should update the file"
     )
-    await workspace.undoChangeSet({ changeSetId: "cs_eval_controlled_tools" })
+    await workspace.undoChangeSet({
+      changeSetId: "cs_eval_controlled_tools",
+      mutation: {
+        sourceKind: "host",
+        sourceId: "eval:controlled-tools:undo",
+        idempotencyKey: "eval:controlled-tools:undo",
+        ownerId: identity.principalId
+      }
+    })
     assert(
       await readFile(targetPath, "utf8") === "before\n",
       "changeset tool output should remain undoable"

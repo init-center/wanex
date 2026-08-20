@@ -1,4 +1,8 @@
 use crate::event_store::append_event_tx;
+mod apply_claim;
+mod task;
+mod transaction;
+
 use crate::rows::{
     row_to_workspace_change_operation, row_to_workspace_change_proposal,
     row_to_workspace_change_proposal_operation, row_to_workspace_changeset,
@@ -630,7 +634,7 @@ fn validate_record_workspace_change_proposal_operation(
     }
     if !matches!(
         request.operation.as_str(),
-        "approve" | "reject" | "withdraw" | "request_apply" | "mark_applied" | "mark_apply_failed"
+        "approve" | "reject" | "withdraw" | "request_apply"
     ) {
         return Err(SystemServiceError::Invariant(format!(
             "invalid workspace proposal operation: {}",
@@ -681,8 +685,6 @@ fn proposal_next_state(from_state: &str, operation: &str) -> Result<&'static str
         ("open", "reject") => Ok("rejected"),
         ("open", "withdraw") => Ok("withdrawn"),
         ("approved", "request_apply") => Ok("apply_requested"),
-        ("apply_requested", "mark_applied") => Ok("applied"),
-        ("apply_requested", "mark_apply_failed") => Ok("apply_failed"),
         _ => Err(SystemServiceError::Invariant(format!(
             "invalid workspace proposal transition: {from_state}/{operation}"
         ))),
@@ -697,8 +699,10 @@ fn proposal_state_is_known(state: &str) -> bool {
             | "rejected"
             | "withdrawn"
             | "apply_requested"
+            | "applying"
             | "applied"
             | "apply_failed"
+            | "recovery_required"
     )
 }
 

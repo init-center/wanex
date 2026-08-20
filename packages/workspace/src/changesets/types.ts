@@ -46,10 +46,8 @@ export interface ChangeSetReceipt {
   readonly conflicts: readonly FileConflict[]
 }
 
-export interface Workspace {
+export interface WorkspaceReader {
   readText(path: string): Promise<string | null>
-  writeText(path: string, text: string): Promise<void>
-  delete(path: string): Promise<void>
 }
 
 export type PlannedFileChange =

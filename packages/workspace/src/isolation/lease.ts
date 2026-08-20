@@ -8,53 +8,49 @@ export function createLeaseId(): string {
 export function withOptionalLeaseFields(
   lease: Omit<
     WorkspaceIsolationLease,
+    | "repositoryId"
     | "workspaceId"
     | "jobId"
     | "agentId"
-    | "baseRef"
     | "baseRevision"
     | "branchName"
-    | "metadata"
   > &
     Partial<Pick<WorkspaceIsolationLease, "baseRevision" | "branchName">>,
   optional: Partial<
     Pick<
       WorkspaceIsolationLease,
-      "workspaceId" | "jobId" | "agentId" | "baseRef" | "metadata"
+      "repositoryId" | "workspaceId" | "jobId" | "agentId"
     >
   >
 ): WorkspaceIsolationLease {
   return {
     ...lease,
+    ...(optional.repositoryId === undefined ? {} : { repositoryId: optional.repositoryId }),
     ...(optional.workspaceId === undefined
       ? {}
       : { workspaceId: optional.workspaceId }),
     ...(optional.jobId === undefined ? {} : { jobId: optional.jobId }),
-    ...(optional.agentId === undefined ? {} : { agentId: optional.agentId }),
-    ...(optional.baseRef === undefined ? {} : { baseRef: optional.baseRef }),
-    ...(optional.metadata === undefined ? {} : { metadata: optional.metadata })
+    ...(optional.agentId === undefined ? {} : { agentId: optional.agentId })
   }
 }
 
 export function optionalLeaseFields(fields: {
+  readonly repositoryId?: string | undefined
   readonly workspaceId?: string | undefined
   readonly jobId?: string | undefined
   readonly agentId?: string | undefined
-  readonly baseRef?: string | undefined
-  readonly metadata?: Record<string, unknown> | undefined
 }): Partial<
   Pick<
     WorkspaceIsolationLease,
-    "workspaceId" | "jobId" | "agentId" | "baseRef" | "metadata"
+    "repositoryId" | "workspaceId" | "jobId" | "agentId"
   >
 > {
   return {
+    ...(fields.repositoryId === undefined ? {} : { repositoryId: fields.repositoryId }),
     ...(fields.workspaceId === undefined
       ? {}
       : { workspaceId: fields.workspaceId }),
     ...(fields.jobId === undefined ? {} : { jobId: fields.jobId }),
-    ...(fields.agentId === undefined ? {} : { agentId: fields.agentId }),
-    ...(fields.baseRef === undefined ? {} : { baseRef: fields.baseRef }),
-    ...(fields.metadata === undefined ? {} : { metadata: fields.metadata })
+    ...(fields.agentId === undefined ? {} : { agentId: fields.agentId })
   }
 }

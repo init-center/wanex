@@ -14,8 +14,10 @@ use crate::{
     TeamConversationRecord, TeamDelegationOperationRecord, TeamDelegationTaskRecord,
     TeamDeliveryRecord, TeamDiscussionRoundRecord, TeamMessageRecord, TeamParticipantRecord,
     TeamRoutingDecisionRecord, ToolExecutionAttemptRecord, ToolExecutionRecord,
-    WorkspaceChangeOperationRecord, WorkspaceChangeProposalOperationRecord,
-    WorkspaceChangeProposalRecord, WorkspaceChangeSetRecord,
+    WorkspaceChangeOperationRecord, WorkspaceChangeProposalApplyAttemptRecord,
+    WorkspaceChangeProposalOperationRecord, WorkspaceChangeProposalRecord,
+    WorkspaceChangeSetRecord, WorkspaceChangeTransactionAttemptRecord,
+    WorkspaceChangeTransactionFileRecord, WorkspaceChangeTransactionRecord,
 };
 
 pub(crate) fn row_to_event(row: &rusqlite::Row<'_>) -> rusqlite::Result<RuntimeEvent> {
@@ -429,6 +431,96 @@ pub(crate) fn row_to_workspace_change_proposal_operation(
         reason: row.get(6)?,
         metadata,
         created_at: row.get(8)?,
+    })
+}
+
+pub(crate) fn row_to_workspace_change_proposal_apply_attempt(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<WorkspaceChangeProposalApplyAttemptRecord> {
+    let metadata_json: Option<String> = row.get(7)?;
+    let failure_json: Option<String> = row.get(8)?;
+    Ok(WorkspaceChangeProposalApplyAttemptRecord {
+        id: row.get(0)?,
+        proposal_id: row.get(1)?,
+        owner_id: row.get(2)?,
+        claim_token_sha256: row.get(3)?,
+        state: row.get(4)?,
+        lease_expires_at: row.get(5)?,
+        workspace_operation_id: row.get(6)?,
+        metadata: metadata_json
+            .map(|raw| json_from_column(&raw, 7))
+            .transpose()?,
+        failure: failure_json
+            .map(|raw| json_from_column(&raw, 8))
+            .transpose()?,
+        claimed_at: row.get(9)?,
+        updated_at: row.get(10)?,
+        finished_at: row.get(11)?,
+    })
+}
+
+pub(crate) fn row_to_workspace_change_transaction(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<WorkspaceChangeTransactionRecord> {
+    let failure_json: Option<String> = row.get(14)?;
+    Ok(WorkspaceChangeTransactionRecord {
+        id: row.get(0)?,
+        workspace_id: row.get(1)?,
+        changeset_id: row.get(2)?,
+        operation: row.get(3)?,
+        undo_source_operation_id: row.get(4)?,
+        source_kind: row.get(5)?,
+        source_id: row.get(6)?,
+        idempotency_key: row.get(7)?,
+        root_identity_sha256: row.get(8)?,
+        proposal_apply_attempt_id: row.get(9)?,
+        state: row.get(10)?,
+        plan_digest: row.get(11)?,
+        recovery_decision: row.get(12)?,
+        workspace_operation_id: row.get(13)?,
+        failure: failure_json
+            .map(|raw| json_from_column(&raw, 14))
+            .transpose()?,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        finished_at: row.get(17)?,
+    })
+}
+
+pub(crate) fn row_to_workspace_change_transaction_file(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<WorkspaceChangeTransactionFileRecord> {
+    Ok(WorkspaceChangeTransactionFileRecord {
+        transaction_id: row.get(0)?,
+        ordinal: row.get(1)?,
+        path: row.get(2)?,
+        before_text: row.get(3)?,
+        before_sha256: row.get(4)?,
+        after_text: row.get(5)?,
+        after_sha256: row.get(6)?,
+        state: row.get(7)?,
+        updated_at: row.get(8)?,
+    })
+}
+
+pub(crate) fn row_to_workspace_change_transaction_attempt(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<WorkspaceChangeTransactionAttemptRecord> {
+    let failure_json: Option<String> = row.get(7)?;
+    Ok(WorkspaceChangeTransactionAttemptRecord {
+        id: row.get(0)?,
+        transaction_id: row.get(1)?,
+        owner_id: row.get(2)?,
+        claim_token_sha256: row.get(3)?,
+        kind: row.get(4)?,
+        state: row.get(5)?,
+        lease_expires_at: row.get(6)?,
+        failure: failure_json
+            .map(|raw| json_from_column(&raw, 7))
+            .transpose()?,
+        started_at: row.get(8)?,
+        updated_at: row.get(9)?,
+        finished_at: row.get(10)?,
     })
 }
 

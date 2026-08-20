@@ -15,6 +15,13 @@ export class ExecutionAbortedError extends Error {
   }
 }
 
+export class ExecutionCleanupRequiredError extends Error {
+  constructor() {
+    super("execution process tree cleanup could not be proven")
+    this.name = "ExecutionCleanupRequiredError"
+  }
+}
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }

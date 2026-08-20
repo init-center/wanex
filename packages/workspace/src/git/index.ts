@@ -3,10 +3,11 @@ export {
   WANEX_WORKSPACE_GIT
 } from "./runtime.js"
 export type {
-  CreateChangeSetFromWorktreeRequest,
-  CreateChangeSetFromWorktreeResult,
-  CreateProposalFromWorktreeOptions,
-  WorkspaceGitRuntimeOptions,
+  CollectWorktreeRequest,
+  EmptyWorktreeProjection,
   GitWorktreeDiffEntry,
-  GitWorktreeDiffStatus
+  GitWorktreeDiffStatus,
+  WorkspaceGitRuntimeOptions,
+  WorktreeChangeCollection,
+  WorktreeCollection
 } from "./types.js"

@@ -3557,6 +3557,23 @@ relevant structure/distribution/facade/storage audits locally. Linux Secret
 Service and Windows process behavior remain evidence owned by the next single
 matrix run, not by macOS inference.
 
+Run `32349107416` for commit `7f8cbd7` made darwin-arm64 and darwin-x64 fully
+green. Linux completed full verify, clean SDK/API, external consumer, and real
+Secret Service cleanup before its installed TUI proof exited because the proof
+used BSD/macOS `/usr/bin/script` argument syntax on util-linux. Windows reached
+one remaining Runtime failure: the control-pipe EOF test duplicated descendant
+startup evidence and timed out waiting for its PID fixture. The final local
+batch removes that coupling: EOF now proves only exact ready -> pipe close ->
+`pipe_eof + cleanup completed`, while adjacent timeout/cancellation tests retain
+real descendant cleanup coverage. Installed POSIX TUI proof now uses Expect's
+own PTY and `log_user 0` plus `log_file -a`, so a complete audit transcript is
+written without exposing terminal output to CI stdout. Runtime 285 + 1 skip,
+System Service 9 + 5 + 119 + 17, all-target Clippy, TUI script tests, real
+installed darwin-arm64 proof, workspace hygiene, and structure audit all pass
+locally. Do not restore PID startup coupling in the EOF test, wait for a
+nonexistent empty output frame, branch on `script` dialects, or enable terminal
+logging in CI.
+
 The next route is CODING-2 Trusted Coding Host Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,

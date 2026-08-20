@@ -735,6 +735,7 @@ impl ChildOwnership {
     fn has_live_members(&self, child: &Child) -> io::Result<bool> {
         #[cfg(windows)]
         {
+            let _ = child;
             use windows_sys::Win32::System::JobObjects::{
                 JobObjectBasicAccountingInformation, QueryInformationJobObject,
                 JOBOBJECT_BASIC_ACCOUNTING_INFORMATION,

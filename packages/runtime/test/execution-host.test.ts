@@ -295,22 +295,30 @@ describe("@wanex/runtime/execution", () => {
 
   it("uses native process ownership to clean descendants on cancellation", async () => {
     const cwd = await tempDir()
+    const pidFile = join(cwd, "native-cancel-process-tree.json")
     const controller = new AbortController()
     const execution = nativeExecutionHost().execute({
       program: process.execPath,
-      args: ["-e", processTreeFixture],
+      args: ["-e", processTreeFixture, pidFile],
       cwd,
       signal: controller.signal,
       output: { stdoutBytes: 256 }
     })
-    setTimeout(() => controller.abort(), 300)
+    let pids: { readonly root: number; readonly grandchild: number }
+    try {
+      pids = await waitForProcessTreePidFile(pidFile)
+    } catch (error) {
+      controller.abort()
+      await execution.catch(() => undefined)
+      throw error
+    }
+    controller.abort()
     const result = await execution
 
-    expect(result).toMatchObject({
+    expect(result, result.cleanupError).toMatchObject({
       termination: "cancelled",
       cleanup: "completed"
     })
-    const pids = processTreePids(result.stdout.text)
     await expectProcessGone(pids.root)
     await expectProcessGone(pids.grandchild)
   })
@@ -432,8 +440,11 @@ describe("@wanex/runtime/execution", () => {
 
 const processTreeFixture = [
   "const {spawn}=require('node:child_process')",
+  "const {renameSync,writeFileSync}=require('node:fs')",
   "const grandchild=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true})",
-  "process.stdout.write(JSON.stringify({root:process.pid,grandchild:grandchild.pid})+'\\n')",
+  "const pids={root:process.pid,grandchild:grandchild.pid}",
+  "if(process.argv[1]){writeFileSync(process.argv[1]+'.tmp',JSON.stringify(pids));renameSync(process.argv[1]+'.tmp',process.argv[1])}",
+  "process.stdout.write(JSON.stringify(pids)+'\\n')",
   "setInterval(()=>{},1000)"
 ].join(";")
 
@@ -454,6 +465,21 @@ async function waitForPositivePidFile(path: string): Promise<number> {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
   throw new Error("active process did not publish its pid")
+}
+
+async function waitForProcessTreePidFile(
+  path: string
+): Promise<{ readonly root: number; readonly grandchild: number }> {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    try {
+      return processTreePids(await readFile(path, "utf8"))
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20))
+  }
+  throw new Error("process tree fixture did not publish its pids")
 }
 
 async function expectProcessGone(pid: number): Promise<void> {

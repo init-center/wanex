@@ -3691,3 +3691,20 @@ failure. The targeted case passed 10 serial repetitions and the full Workspace
 package passed 14 files / 102 tests locally. Distribution and Packed Core were
 skipped by the failed Verify gate; CODING-2 remains blocked until one
 consolidated matrix is fully green.
+
+The fourteenth native-cancellation readiness correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1419-coding-1d-fourteenth-native-cancellation-readiness-fixture-correction.md`
+
+Run `32446772959` passed Windows, Linux, and darwin-arm64 Verify. Windows passed
+the complete Workspace package, confirming the thirteenth correction. The only
+failure was darwin-x64 native process-tree cancellation: a fixed 300ms timer
+could abort before the fixture published PID output, even though cancellation
+and cleanup completed. The fixture now atomically publishes root/grandchild PID
+readiness, and the test aborts only after reading that evidence. Do not add a
+longer sleep, parse output that may not have been emitted before cancellation,
+or weaken descendant cleanup assertions. The targeted test passed 20 serial
+repetitions, the full Runtime package passed 285 tests plus one platform skip,
+and native workspace-child tests and all-targets Clippy passed locally.
+Distribution and Packed Core were skipped by the Verify gate; CODING-2 remains
+blocked until the next single consolidated matrix is fully green.

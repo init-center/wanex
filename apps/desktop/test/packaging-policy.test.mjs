@@ -29,6 +29,13 @@ import {
 import {
   requiredWanexDesktopPackagedProofStep,
 } from "../src/packaged-renderer-proof.ts";
+import {
+  electronArtifactChecksum,
+  electronArtifactFileName,
+  prepareElectronArtifact,
+  sha256File,
+  validateElectronArtifact,
+} from "../scripts/electron-artifact.mjs";
 
 const tempDirs = [];
 
@@ -89,6 +96,60 @@ describe("Product Desktop packaging policy", () => {
     expect(main).not.toContain("@wanex/runtime");
     expect(main).not.toContain("preload:");
     expect(main).not.toContain("loadFile(");
+  });
+
+  it("requires a prepared, checksum-verified Electron artifact", async () => {
+    const fileName = electronArtifactFileName({
+      version: "43.2.0",
+      platform: "darwin",
+      arch: "arm64",
+    });
+    expect(fileName).toBe("electron-v43.2.0-darwin-arm64.zip");
+    expect(electronArtifactChecksum(fileName)).toMatch(/^[a-f0-9]{64}$/);
+    expect(() => electronArtifactChecksum("electron-v43.2.0-unknown.zip"))
+      .toThrow("Electron checksum is missing");
+    await expect(prepareElectronArtifact({
+      platform: process.platform,
+      arch: process.arch === "x64" ? "arm64" : "x64",
+    })).rejects.toThrow("requires the host target");
+
+    const root = await temporaryDirectory("wanex-electron-artifact-");
+    const filePath = join(root, fileName);
+    await writeFile(filePath, "verified-electron-artifact", "utf8");
+    const checksum = await sha256File(filePath);
+    await expect(validateElectronArtifact({
+      filePath,
+      root,
+      expectedName: fileName,
+      expectedChecksum: checksum,
+    })).resolves.toMatchObject({
+      path: expect.stringMatching(/electron-v43\.2\.0-darwin-arm64\.zip$/),
+      bytes: 26,
+      sha256: checksum,
+    });
+    await expect(validateElectronArtifact({
+      filePath,
+      root,
+      expectedName: fileName,
+      expectedChecksum: "0".repeat(64),
+    })).rejects.toThrow("checksum mismatch");
+
+    const outside = join(root, "..", fileName);
+    await writeFile(outside, "outside", "utf8");
+    await expect(validateElectronArtifact({
+      filePath: outside,
+      root,
+      expectedName: fileName,
+      expectedChecksum: await sha256File(outside),
+    })).rejects.toThrow("outside its preparation directory");
+    await rm(outside, { force: true });
+  });
+
+  it("does not let Desktop packaging guess from user Electron caches", async () => {
+    const buildSource = await readFile(join(packageRoot, "scripts/build.mjs"), "utf8");
+    expect(buildSource).toContain("resolvePreparedElectronZipPath");
+    expect(buildSource).not.toContain("ELECTRON_CACHE");
+    expect(buildSource).not.toContain("homedir()");
   });
 
   it("stages exactly one target keyring binding with integrity evidence", async () => {
@@ -728,6 +789,11 @@ describe("Product Desktop packaging policy", () => {
     );
     expect(workflow).toContain("run: pnpm proof:desktop");
     expect(workflow).toContain(
+      "run: pnpm --filter @wanex/desktop prepare:electron",
+    );
+    expect(workflow.indexOf("run: pnpm --filter @wanex/desktop prepare:electron"))
+      .toBeLessThan(workflow.indexOf("run: pnpm proof:desktop"));
+    expect(workflow).toContain(
       "run: pnpm proof:tui -- --native-artifact-dir target/distribution/native",
     );
     expect(workflow).toContain(
@@ -738,6 +804,9 @@ describe("Product Desktop packaging policy", () => {
       "--tui-receipt target/distribution/tui/installed-proof.json",
     );
     expect(workflow).toContain("target/distribution/tui");
+    expect(workflow).toContain(
+      "target/distribution/product-desktop/electron-artifact.json",
+    );
     expect(workflow).not.toContain("--samples");
     expect(workflow).toContain("name: Packed Core Node 24");
     expect(workflow).toContain("run: pnpm security:js");

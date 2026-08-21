@@ -3708,3 +3708,26 @@ repetitions, the full Runtime package passed 285 tests plus one platform skip,
 and native workspace-child tests and all-targets Clippy passed locally.
 Distribution and Packed Core were skipped by the Verify gate; CODING-2 remains
 blocked until the next single consolidated matrix is fully green.
+
+The fifteenth Distribution correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1420-coding-1d-fifteenth-distribution-tool-artifact-and-footprint-correction.md`
+
+The native Release profile uses fat LTO and one codegen unit. Product Desktop
+must prepare Electron explicitly with `pnpm --filter @wanex/desktop
+prepare:electron` before `proof:desktop`; the preparation reads the installed
+Electron checksum table, uses bounded official artifact download, verifies
+SHA-256, atomically materializes the target ZIP under
+`target/tool-cache/electron`, and writes a receipt under
+`target/distribution/product-desktop`. Desktop packaging must consume only
+that verified canonical path and must not recursively search user caches or
+let `@electron/packager` download implicitly. The local darwin-arm64
+preparation/reuse path, Desktop typecheck, and 45 Desktop tests pass. CODING-2
+remains blocked until the next single four-platform matrix is fully green.
+
+The first local packaged Desktop run after the fifteenth correction passed the
+Electron artifact boundary and exposed one proof-only readiness race. Product
+enters Settings focus on `requestAnimationFrame`; Desktop proof now waits for
+the existing dialog-focus condition before sampling it, matching the Web
+interaction contract. Do not replace this with a fixed delay or weaken the
+focus assertion.

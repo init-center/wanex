@@ -12,11 +12,15 @@ import {
   writeFile
 } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
-import { homedir } from "node:os"
 import { fileURLToPath } from "node:url"
 import { extractFile, listPackage } from "@electron/asar"
 import { packager } from "@electron/packager"
 import { build } from "esbuild"
+import {
+  electronVersion,
+  electronZipDir,
+  resolvePreparedElectronZipPath
+} from "./electron-artifact.mjs"
 
 export const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 export const workspaceRoot = dirname(dirname(packageRoot))
@@ -31,13 +35,6 @@ export const nativeArtifactDir = join(
   "target/distribution/native"
 )
 export const credentialArtifactDir = join(distributionRoot, "credentials")
-export const electronZipDir = join(workspaceRoot, "target/tool-cache/electron")
-
-const electronVersion = JSON.parse(await readFile(
-  join(packageRoot, "node_modules/electron/package.json"),
-  "utf8"
-)).version
-
 if (import.meta.main) {
   const options = parseArgs(process.argv.slice(2))
   const receipt = options.package
@@ -65,7 +62,7 @@ export async function packageProductDesktop() {
   const staging = await buildProductDesktop()
   await assertNativeArtifactDirectory(nativeArtifactDir)
   const credential = await stageProductDesktopCredentialArtifact()
-  const hostElectronZipDir = await resolveHostElectronZipDir()
+  await resolvePreparedElectronZipPath()
   await rm(packageOutputDir, { recursive: true, force: true })
   const outputPaths = await packager({
     dir: stagingDir,
@@ -81,7 +78,7 @@ export async function packageProductDesktop() {
     out: packageOutputDir,
     extraResource: [nativeArtifactDir, credentialArtifactDir],
     electronVersion,
-    electronZipDir: hostElectronZipDir,
+    electronZipDir,
     osxSign: false
   })
   if (outputPaths.length !== 1) {
@@ -452,48 +449,6 @@ function credentialTarget(platform, arch) {
     throw new Error(`unsupported Product Desktop target: ${id}`)
   }
   return { id, packageName }
-}
-
-async function resolveHostElectronZipDir() {
-  const name = `electron-v${electronVersion}-${process.platform}-${process.arch}.zip`
-  const roots = [
-    electronZipDir,
-    process.env.ELECTRON_CACHE,
-    process.platform === "darwin"
-      ? join(homedir(), "Library/Caches/electron")
-      : undefined,
-    process.platform === "win32" && process.env.LOCALAPPDATA !== undefined
-      ? join(process.env.LOCALAPPDATA, "electron/Cache")
-      : undefined,
-    process.platform === "linux"
-      ? join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "electron")
-      : undefined
-  ].filter((value) => value !== undefined)
-  for (const root of roots) {
-    const found = await findNamedFile(root, name, 3)
-    if (found !== undefined) return dirname(found)
-  }
-  throw new Error(
-    `Electron ${electronVersion} ${process.platform}-${process.arch} ZIP is not present in the install cache`
-  )
-}
-
-async function findNamedFile(root, name, remainingDepth) {
-  let entries
-  try {
-    entries = await readdir(root, { withFileTypes: true })
-  } catch {
-    return undefined
-  }
-  for (const entry of entries) {
-    const path = join(root, entry.name)
-    if (entry.isFile() && entry.name === name) return path
-    if (entry.isDirectory() && remainingDepth > 0) {
-      const nested = await findNamedFile(path, name, remainingDepth - 1)
-      if (nested !== undefined) return nested
-    }
-  }
-  return undefined
 }
 
 async function listFiles(root, current = root) {

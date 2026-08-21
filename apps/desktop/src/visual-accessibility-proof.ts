@@ -83,6 +83,7 @@ async function runNormalVisualAccessibilityProof(): Promise<
     settingsOpenerFocused = document.activeElement === opener;
     opener.click();
     const dialog = await waitForElement<HTMLElement>("[data-ui-settings-panel]");
+    await waitFor(() => dialog.contains(document.activeElement));
     settingsDialogFocused = dialog.contains(document.activeElement);
     settingsBackgroundInert =
       topbar?.hasAttribute("inert") === true &&

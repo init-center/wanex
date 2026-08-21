@@ -138,6 +138,8 @@ jobs:
       - if: matrix.desktop
         run: pnpm test:desktop
       - if: matrix.desktop
+        run: pnpm --filter @wanex/desktop prepare:electron
+      - if: matrix.desktop
         run: pnpm proof:desktop
       - run: pnpm audit:host-distribution -- --target ${{ matrix.target }} --tui-receipt target/distribution/tui/installed-proof.json
       - run: pnpm release:sdk
@@ -154,6 +156,7 @@ jobs:
             target/distribution/native-runtime-proof.json
             target/distribution/tui
             target/distribution/host-distribution-audit-${{ matrix.target }}.json
+            target/distribution/product-desktop/electron-artifact.json
             target/distribution/product-desktop/product-desktop-report.json
             target/distribution/product-desktop/product-desktop-proof.png
             target/sdk/native/${{ matrix.target }}

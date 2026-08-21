@@ -15,7 +15,8 @@
     "test": "vitest run",
     "build": "node ./scripts/build.mjs",
     "package": "node ./scripts/build.mjs --package",
-    "proof": "node ./scripts/proof.mjs"
+    "proof": "node ./scripts/proof.mjs",
+    "prepare:electron": "node ./scripts/electron-artifact.mjs"
   },
   "dependencies": {
     "@wanex/local-credential-store": "workspace:*",
@@ -25,6 +26,7 @@
   },
   "devDependencies": {
     "@electron/asar": "^4.2.1",
+    "@electron/get": "^5.0.0",
     "@electron/packager": "^20.0.4",
     "electron": "43.2.0",
     "esbuild": "0.28.1"

@@ -23,6 +23,7 @@
     "check:desktop": "pnpm --filter @wanex/desktop check",
     "test:desktop": "pnpm --filter @wanex/desktop test",
     "proof:desktop": "pnpm --filter @wanex/desktop proof",
+    "prepare:desktop-electron": "pnpm --filter @wanex/desktop prepare:electron",
     "start:desktop": "pnpm --filter @wanex/desktop start",
     "generate:storage-rpc": "node ./scripts/generate-storage-rpc.mjs",
     "generate:model-catalog": "tsx ./scripts/generate-local-model-catalog.ts",

@@ -116,6 +116,7 @@ describe("Product Desktop lifecycle and navigation", () => {
 
     expect(normal).toContain("settingsForwardTabContained")
     expect(normal).toContain("settingsFocusRestored")
+    expect(normal).toContain("dialog.contains(document.activeElement)")
     expect(normal).toContain("prefers-reduced-motion: reduce")
     expect(normal).toContain("completedMessagesUnframed")
     expect(normal).toContain("productChromeBrandFree")

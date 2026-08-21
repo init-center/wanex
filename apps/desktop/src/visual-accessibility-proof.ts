@@ -31,6 +31,10 @@ function visualAccessibilityScript(run: () => Promise<unknown>): string {
 async function runNormalVisualAccessibilityProof(): Promise<
   WanexDesktopNormalVisualAccessibilityProofResult
 > {
+  await waitFor(
+    () => window.innerWidth === 1280 && window.innerHeight === 748,
+    "normal_viewport",
+  );
   await closeSettingsIfOpen();
   await nextPaint();
 
@@ -65,6 +69,10 @@ async function runNormalVisualAccessibilityProof(): Promise<
     surface.querySelector("[data-ui-brand]") === null &&
     !surface.textContent?.includes("Wanex");
   const noHorizontalOverflow = layoutFitsViewport(surface);
+  await waitFor(
+    () => elementFitsViewport(composer),
+    "normal_composer_layout",
+  );
   const composerFullyVisible = elementFitsViewport(composer);
   const reducedMotionRuleShipped = hasReducedMotionRule();
 
@@ -82,8 +90,14 @@ async function runNormalVisualAccessibilityProof(): Promise<
     opener.focus();
     settingsOpenerFocused = document.activeElement === opener;
     opener.click();
-    const dialog = await waitForElement<HTMLElement>("[data-ui-settings-panel]");
-    await waitFor(() => dialog.contains(document.activeElement));
+    const dialog = await waitForElement<HTMLElement>(
+      "[data-ui-settings-panel]",
+      "normal_settings_open",
+    );
+    await waitFor(
+      () => dialog.contains(document.activeElement),
+      "normal_settings_focus",
+    );
     settingsDialogFocused = dialog.contains(document.activeElement);
     settingsBackgroundInert =
       topbar?.hasAttribute("inert") === true &&
@@ -116,7 +130,10 @@ async function runNormalVisualAccessibilityProof(): Promise<
       cancelable: true,
     });
     (document.activeElement ?? dialog).dispatchEvent(escape);
-    await waitForAbsent("[data-ui-settings-panel]");
+    await waitForAbsent(
+      "[data-ui-settings-panel]",
+      "normal_settings_close",
+    );
     settingsClosedWithEscape = true;
     settingsFocusRestored = document.activeElement === opener;
   }
@@ -155,13 +172,20 @@ async function runNormalVisualAccessibilityProof(): Promise<
     );
     if (!(close instanceof HTMLButtonElement)) return;
     close.click();
-    await waitForAbsent("[data-ui-settings-panel]");
+    await waitForAbsent(
+      "[data-ui-settings-panel]",
+      "normal_settings_initial_cleanup",
+    );
   }
 }
 
 async function runNarrowVisualAccessibilityProof(): Promise<
   WanexDesktopNarrowVisualAccessibilityProofResult
 > {
+  await waitFor(
+    () => window.innerWidth === 760 && window.innerHeight === 748,
+    "narrow_viewport",
+  );
   await nextPaint();
   const surface = document.querySelector('[data-ui-product-shell]');
   const topbar = surface?.querySelector("[data-ui-topbar]");
@@ -172,10 +196,12 @@ async function runNarrowVisualAccessibilityProof(): Promise<
   const trigger = surface?.querySelector('[data-ui-action="open-conversations"]');
 
   if (sidebar instanceof HTMLElement) {
-    await waitFor(() =>
-      sidebar.getAttribute("data-ui-drawer-open") === "false" &&
-      getComputedStyle(sidebar).visibility === "hidden" &&
-      !elementIntersectsViewport(sidebar)
+    await waitFor(
+      () =>
+        sidebar.getAttribute("data-ui-drawer-open") === "false" &&
+        getComputedStyle(sidebar).visibility === "hidden" &&
+        !elementIntersectsViewport(sidebar),
+      "narrow_drawer_initially_hidden",
     );
   }
 
@@ -186,6 +212,10 @@ async function runNarrowVisualAccessibilityProof(): Promise<
     getComputedStyle(sidebar).visibility === "hidden" &&
     !elementIntersectsViewport(sidebar);
   const noHorizontalOverflow = layoutFitsViewport(surface);
+  await waitFor(
+    () => elementFitsViewport(composer),
+    "narrow_composer_layout",
+  );
   const composerFullyVisible = elementFitsViewport(composer);
 
   let drawerDialogSemantics = false;
@@ -202,10 +232,16 @@ async function runNarrowVisualAccessibilityProof(): Promise<
   if (trigger instanceof HTMLButtonElement && sidebar instanceof HTMLElement) {
     trigger.focus();
     trigger.click();
-    await waitFor(() => sidebar.getAttribute("data-ui-drawer-open") === "true");
+    await waitFor(
+      () => sidebar.getAttribute("data-ui-drawer-open") === "true",
+      "narrow_drawer_open",
+    );
     const initial = sidebar.querySelector("[data-ui-initial-focus]");
     if (initial instanceof HTMLElement) {
-      await waitFor(() => document.activeElement === initial);
+      await waitFor(
+        () => document.activeElement === initial,
+        "narrow_drawer_focus",
+      );
     }
     drawerDialogSemantics =
       sidebar.getAttribute("role") === "dialog" &&
@@ -236,28 +272,42 @@ async function runNarrowVisualAccessibilityProof(): Promise<
       cancelable: true,
     });
     (document.activeElement ?? sidebar).dispatchEvent(escape);
-    await waitFor(() => sidebar.getAttribute("data-ui-drawer-open") === "false");
+    await waitFor(
+      () => sidebar.getAttribute("data-ui-drawer-open") === "false",
+      "narrow_drawer_close",
+    );
     drawerClosedWithEscape = true;
     drawerFocusRestored = document.activeElement === trigger;
 
     const settingsTrigger = surface?.querySelector('[data-ui-action="open-settings"]');
     if (settingsTrigger instanceof HTMLButtonElement) {
       settingsTrigger.click();
-      const settings = await waitForElement<HTMLElement>("[data-ui-settings-panel]");
+      const settings = await waitForElement<HTMLElement>(
+        "[data-ui-settings-panel]",
+        "narrow_settings_open",
+      );
       const extensions = settings.querySelector("[data-ui-extension-settings]");
       narrowSettingsFitsViewport =
         elementFitsViewport(settings) && layoutFitsViewport(settings);
       narrowExtensionManagementVisible = extensions instanceof HTMLElement;
       const closeSettings = settings.querySelector('[aria-label="Close settings"]');
       if (closeSettings instanceof HTMLButtonElement) closeSettings.click();
-      await waitForAbsent("[data-ui-settings-panel]");
+      await waitForAbsent(
+        "[data-ui-settings-panel]",
+        "narrow_settings_close",
+      );
     }
 
     trigger.click();
-    await waitFor(() =>
-      sidebar.getAttribute("data-ui-drawer-open") === "true" &&
-      getComputedStyle(sidebar).visibility === "visible" &&
-      getComputedStyle(sidebar).transform === "matrix(1, 0, 0, 1, 0, 0)"
+    await waitFor(
+      () => {
+        const style = getComputedStyle(sidebar);
+        return sidebar.getAttribute("data-ui-drawer-open") === "true" &&
+          style.visibility === "visible" &&
+          style.pointerEvents !== "none" &&
+          elementFitsViewport(sidebar);
+      },
+      "narrow_drawer_reopen",
     );
     drawerReopenedForScreenshot = true;
   }
@@ -364,25 +414,30 @@ function hasReducedMotionRule(): boolean {
   });
 }
 
-async function waitForElement<T extends Element>(selector: string): Promise<T> {
+async function waitForElement<T extends Element>(
+  selector: string,
+  stage: string,
+): Promise<T> {
   return await waitFor(() => {
     const element = document.querySelector(selector);
     return element instanceof Element ? element as T : false;
-  });
+  }, stage);
 }
 
-async function waitForAbsent(selector: string): Promise<void> {
-  await waitFor(() => document.querySelector(selector) === null);
+async function waitForAbsent(selector: string, stage: string): Promise<void> {
+  await waitFor(() => document.querySelector(selector) === null, stage);
 }
 
-async function waitFor<T>(read: () => T | false): Promise<T> {
+async function waitFor<T>(read: () => T | false, stage: string): Promise<T> {
   const end = Date.now() + 5_000;
   while (Date.now() < end) {
     const value = read();
     if (value !== false) return value;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error("desktop visual accessibility proof timed out");
+  throw new Error(
+    `desktop visual accessibility proof timed out during ${stage}`,
+  );
 }
 
 async function nextPaint(): Promise<void> {

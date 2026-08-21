@@ -3731,3 +3731,23 @@ enters Settings focus on `requestAnimationFrame`; Desktop proof now waits for
 the existing dialog-focus condition before sampling it, matching the Web
 interaction contract. Do not replace this with a fixed delay or weaken the
 focus assertion.
+
+Run `32454998498` for commit `e0022ed` passed all four Verify jobs, Packed Core
+Node 24, every native staging/runtime proof, every installed TUI proof, and
+explicit Electron preparation on all three Desktop targets. Linux completed
+Distribution. darwin-x64 then sampled the normal Composer before post-resize
+layout settlement; darwin-arm64 and Windows timed out because narrow drawer
+reopening compared Chromium's exact serialized transform matrix. Desktop proof
+now waits for the exact normal/narrow viewport, requires the Composer and drawer
+to fit the viewport, and checks drawer state, visibility, and interactivity
+instead of transform serialization. Every wait has a diagnostic stage name.
+Do not restore an exact CSS matrix assertion, add a fixed sleep, increase the
+five-second condition budget, retry a failed proof, or weaken visibility.
+
+Desktop typecheck, 45 tests, two consecutive complete packaged proofs, and all
+four relevant structure/distribution audits pass locally on darwin-arm64. Both
+proofs retained five lifecycle samples, complete relaunch/product coverage,
+nonblank normal/narrow screenshots, no `EPERM` rename, and no process residue.
+This is local evidence only. Submit the correction once and let one complete
+matrix own darwin-x64 and win32-x64 acceptance; CODING-2 remains blocked until
+that matrix is fully green.

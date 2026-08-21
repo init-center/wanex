@@ -122,6 +122,8 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(normal).toContain("productChromeBrandFree")
     expect(normal).toContain("extensionManagementVisible")
     expect(normal).toContain("extensionPathInputAbsent")
+    expect(normal).toContain("normal_viewport")
+    expect(normal).toContain("normal_composer_layout")
     expect(narrow).toContain("sidebarInitiallyHidden")
     expect(narrow).toContain("drawerDialogSemantics")
     expect(narrow).toContain("drawerForwardTabContained")
@@ -130,6 +132,13 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(narrow).toContain("narrowExtensionManagementVisible")
     expect(narrow).toContain("drawerReopenedForScreenshot")
     expect(narrow).toContain("getAttribute(\"data-ui-drawer-open\"")
+    expect(narrow).toContain("narrow_viewport")
+    expect(narrow).toContain("narrow_composer_layout")
+    expect(narrow).toContain("narrow_drawer_reopen")
+    expect(narrow).toContain("elementFitsViewport(sidebar)")
+    expect(narrow).not.toContain(
+      'transform === "matrix(1, 0, 0, 1, 0, 0)"',
+    )
   })
 
   it("uses explicit secret-free scripts after Provider configuration", () => {

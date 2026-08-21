@@ -3675,3 +3675,19 @@ sources. Never fix this class of issue by adding a duplicate Debug build,
 accepting stale `target/` state, or pushing one platform at a time; complete a
 full local batch and trigger one consolidated matrix. CODING-2 remains blocked
 until all four Distribution targets are green.
+
+The thirteenth recovery-backlog fixture correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1418-coding-1d-thirteenth-recovery-backlog-expiry-fixture-correction.md`
+
+Run `32445328333` passed Linux and both macOS Verify jobs, but Windows exposed
+that the bounded-backlog fixture waited only for the first of two sequentially
+created leases. The second Storage RPC can complete materially later on
+Windows, so the second lease was still healthy and production correctly
+reported no remaining expired run. The fixture now reads both durable
+`leaseExpiresAt` values and waits until the later one has passed. Do not change
+recovery admission, add a fixed delay, or weaken the backlog assertion for this
+failure. The targeted case passed 10 serial repetitions and the full Workspace
+package passed 14 files / 102 tests locally. Distribution and Packed Core were
+skipped by the failed Verify gate; CODING-2 remains blocked until one
+consolidated matrix is fully green.

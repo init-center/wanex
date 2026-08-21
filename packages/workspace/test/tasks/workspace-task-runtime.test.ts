@@ -413,7 +413,8 @@ describe("@wanex/workspace/tasks", () => {
     }
     await waitForLeaseExpiry(
       environment.storage,
-      "wtsk_admission_first"
+      "wtsk_admission_first",
+      "wtsk_admission_second"
     )
 
     const admission = await environment.runtime.recoverExpiredTasks({
@@ -1010,14 +1011,25 @@ async function wait(milliseconds: number): Promise<void> {
 
 async function waitForLeaseExpiry(
   storage: StorageTestStore,
-  runId: string
+  ...runIds: readonly string[]
 ): Promise<void> {
-  const snapshot = await storage.getWorkspaceTaskRun({ runId })
-  const leaseExpiresAt = snapshot?.activeAttempt?.leaseExpiresAt
-  if (leaseExpiresAt === undefined) {
-    throw new Error(`workspace task test has no active lease: ${runId}`)
+  if (runIds.length === 0) {
+    throw new Error("workspace task test requires at least one active lease")
   }
-  await wait(Math.max(1, leaseExpiresAt - Date.now() + 100))
+  const leaseExpirations = await Promise.all(
+    runIds.map(async (runId) => {
+      const snapshot = await storage.getWorkspaceTaskRun({ runId })
+      const leaseExpiresAt = snapshot?.activeAttempt?.leaseExpiresAt
+      if (leaseExpiresAt === undefined) {
+        throw new Error(`workspace task test has no active lease: ${runId}`)
+      }
+      return leaseExpiresAt
+    })
+  )
+  const latestLeaseExpiration = Math.max(...leaseExpirations)
+  while (Date.now() <= latestLeaseExpiration) {
+    await wait(latestLeaseExpiration - Date.now() + 1)
+  }
 }
 
 async function git(repoDir: string, args: readonly string[]): Promise<string> {

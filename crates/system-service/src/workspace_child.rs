@@ -664,7 +664,7 @@ impl ChildOwnership {
                 let _ = child.wait();
                 return Err(error.into());
             }
-            return Ok(Self { armed: true, job });
+            Ok(Self { armed: true, job })
         }
         #[cfg(not(windows))]
         {

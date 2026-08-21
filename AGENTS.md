@@ -3641,3 +3641,11 @@ small explicit boundary and include the complete failed recovery receipt in the
 test error. This is diagnostic and determinism work, not a relaxed assertion;
 the next matrix must identify and resolve the Windows release error before
 CODING-2.
+
+Run `32418243274` passed Linux, darwin-arm64, and darwin-x64. Windows Workspace
+tests passed, including the recovery cases, but Windows Clippy failed on an
+unnecessary `return` in `crates/system-service/src/workspace_child.rs:667`.
+The local fix makes the Windows branch use its final `Ok(...)` expression and
+does not change Job Object ownership or child cleanup. This is a platform lint
+correction, not a production behavior change. The next single four-platform
+matrix is still required; do not start CODING-2 before all four targets pass.

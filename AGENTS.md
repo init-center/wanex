@@ -3649,3 +3649,14 @@ The local fix makes the Windows branch use its final `Ok(...)` expression and
 does not change Job Object ownership or child cleanup. This is a platform lint
 correction, not a production behavior change. The next single four-platform
 matrix is still required; do not start CODING-2 before all four targets pass.
+
+Run `32435419578` passed Linux, darwin-arm64, and darwin-x64. Windows passed the
+Clippy correction and reached the Workspace recovery suite, where the durable
+release case exposed a real lease lifecycle race: `WorkspaceTaskLeaseRenewal`
+could reschedule after `stop()` if a renewal RPC was already in flight. The
+renewal now records its in-flight Promise, blocks scheduling after stop, and
+drains before Runtime/recovery returns. The focused regression passed, the full
+Workspace package passed 14 files / 102 tests, and the durable-release case
+passed 10 serial repetitions locally. This is a shared lifecycle correction,
+not a Windows-only test relaxation. A new four-platform matrix is still
+required; do not start CODING-2 before all four targets pass.

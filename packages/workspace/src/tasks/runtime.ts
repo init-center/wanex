@@ -142,7 +142,7 @@ export class WorkspaceTaskRuntime {
     } catch (error) {
       const taskError = serializeWorkspaceTaskError(error)
       await markAttentionBestEffort(this.storage, identity, taskError)
-      renewal.stop()
+      await renewal.stop()
       return failedReceipt({
         taskId,
         access: request.access,
@@ -190,7 +190,7 @@ export class WorkspaceTaskRuntime {
     } catch (error) {
       const cleanupError = serializeWorkspaceTaskError(error, [lease.rootDir])
       await markAttentionBestEffort(this.storage, identity, cleanupError)
-      renewal.stop()
+      await renewal.stop()
       return failedReceipt({
         taskId,
         access: request.access,
@@ -227,7 +227,7 @@ export class WorkspaceTaskRuntime {
             }
           }
           await markAttentionBestEffort(this.storage, identity, projectionError)
-          renewal.stop()
+          await renewal.stop()
           return withOptionalReceiptFields(
             {
               taskId,
@@ -276,7 +276,7 @@ export class WorkspaceTaskRuntime {
     } catch (error) {
       const collectionError = serializeWorkspaceTaskError(error, [lease.rootDir])
       await markAttentionBestEffort(this.storage, identity, collectionError)
-      renewal.stop()
+      await renewal.stop()
       return withOptionalReceiptFields(
         {
           taskId,
@@ -306,7 +306,7 @@ export class WorkspaceTaskRuntime {
         releaseError = serializeWorkspaceTaskError(error, [lease.rootDir])
       }
     }
-    renewal.stop()
+    await renewal.stop()
     const snapshot = await this.storage.getWorkspaceTaskRun({ runId: taskId })
     if (snapshot === null) {
       throw new Error(`workspace task run disappeared: ${taskId}`)

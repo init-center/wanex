@@ -104,7 +104,7 @@ export async function recoverWorkspaceTask(
       return failedRecoveryReceipt(claim.snapshot, taskError.message)
     }
   } finally {
-    renewal.stop()
+    await renewal.stop()
   }
 }
 

@@ -130,9 +130,9 @@ jobs:
       - if: matrix.target == 'linux-x64'
         run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
       - if: matrix.target == 'linux-x64'
-        run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui
+        run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native
       - if: matrix.target != 'linux-x64'
-        run: pnpm proof:tui
+        run: pnpm proof:tui -- --native-artifact-dir target/distribution/native
       - if: matrix.desktop
         run: pnpm check:desktop
       - if: matrix.desktop

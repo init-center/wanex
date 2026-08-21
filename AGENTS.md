@@ -3660,3 +3660,18 @@ Workspace package passed 14 files / 102 tests, and the durable-release case
 passed 10 serial repetitions locally. This is a shared lifecycle correction,
 not a Windows-only test relaxation. A new four-platform matrix is still
 required; do not start CODING-2 before all four targets pass.
+
+The twelfth TUI Distribution artifact-input correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1417-coding-1d-twelfth-tui-artifact-input-correction.md`
+
+Run `32437363951` passed all four Verify jobs and Packed Core Node 24, but every
+Distribution job failed because `proof:tui` implicitly required a Debug native
+binary that only existed in the separate Verify checkout. Distribution now
+passes `--native-artifact-dir target/distribution/native`, so the installed TUI
+proof consumes the Release artifact created by that same job. The local
+darwin-arm64 artifact proof passed after rebuilding the artifact from current
+sources. Never fix this class of issue by adding a duplicate Debug build,
+accepting stale `target/` state, or pushing one platform at a time; complete a
+full local batch and trigger one consolidated matrix. CODING-2 remains blocked
+until all four Distribution targets are green.

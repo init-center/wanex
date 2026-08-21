@@ -70,7 +70,9 @@ export async function writeInstalledTuiProofReceipt(
 
 if (import.meta.main) {
   try {
-    const receipt = await proveInstalledTui()
+    const receipt = await proveInstalledTui(
+      parseTuiProofArgs(process.argv.slice(2))
+    )
     await writeInstalledTuiProofReceipt(receipt)
     process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
   } catch (error) {
@@ -79,7 +81,23 @@ if (import.meta.main) {
   }
 }
 
-export async function proveInstalledTui() {
+export function parseTuiProofArgs(args) {
+  let nativeArtifactDir
+  for (let index = 0; index < args.length; index += 1) {
+    const name = args[index]
+    if (name === "--") continue
+    if (name !== "--native-artifact-dir") {
+      throw new Error(`unknown TUI proof argument: ${String(name)}`)
+    }
+    const value = args[index + 1]
+    if (!value) throw new Error(`${name} requires a path`)
+    nativeArtifactDir = resolve(value)
+    index += 1
+  }
+  return nativeArtifactDir === undefined ? {} : { nativeArtifactDir }
+}
+
+export async function proveInstalledTui(options = {}) {
   const distribution = await buildTuiDistribution()
   const publicDistribution = {
     ...distribution,
@@ -90,15 +108,22 @@ export async function proveInstalledTui() {
   }
   const policy = await loadSdkDistributionPolicy()
   const nativePackage = nativePackageForHost(policy)
-  const sourceServiceBin = resolve(
-    workspaceRoot,
-    `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
-  )
-  await access(sourceServiceBin, constants.F_OK)
+  const sourceServiceBin = options.nativeArtifactDir === undefined
+    ? resolve(
+      workspaceRoot,
+      `target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
+    )
+    : undefined
+  if (sourceServiceBin !== undefined) {
+    await access(sourceServiceBin, constants.F_OK)
+  }
   const nativeReport = await prepareExternalNativePackage({
     workspaceRoot,
     nativePackage,
-    sourceServiceBin
+    ...(sourceServiceBin === undefined ? {} : { sourceServiceBin }),
+    ...(options.nativeArtifactDir === undefined
+      ? {}
+      : { nativeArtifactDir: options.nativeArtifactDir })
   })
   const tuiManifest = JSON.parse(
     await readFile(join(stagingDir, "package.json"), "utf8")

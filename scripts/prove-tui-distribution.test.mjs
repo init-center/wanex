@@ -3,6 +3,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
+  parseTuiProofArgs,
   writeInstalledTuiProofReceipt
 } from "./prove-tui-distribution.mjs"
 import { distributionRoot } from "../apps/tui/scripts/distribution.mjs"
@@ -18,6 +19,25 @@ afterEach(async () => {
 })
 
 describe("installed TUI proof receipt", () => {
+  it("accepts an explicit staged native artifact directory", () => {
+    expect(parseTuiProofArgs([
+      "--",
+      "--native-artifact-dir",
+      "target/distribution/native"
+    ])).toEqual({
+      nativeArtifactDir: join(
+        process.cwd(),
+        "target/distribution/native"
+      )
+    })
+  })
+
+  it("rejects unknown proof arguments", () => {
+    expect(() => parseTuiProofArgs(["--unknown"])).toThrow(
+      "unknown TUI proof argument"
+    )
+  })
+
   it("writes a standalone JSON receipt for distribution audits", async () => {
     const receipt = {
       kind: "wanex.tui.installed-proof-receipt",

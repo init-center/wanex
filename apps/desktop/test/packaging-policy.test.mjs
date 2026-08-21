@@ -727,7 +727,13 @@ describe("Product Desktop packaging policy", () => {
       "os: windows-2025\n            target: win32-x64",
     );
     expect(workflow).toContain("run: pnpm proof:desktop");
-    expect(workflow).toContain("run: pnpm proof:tui");
+    expect(workflow).toContain(
+      "run: pnpm proof:tui -- --native-artifact-dir target/distribution/native",
+    );
+    expect(workflow).toContain(
+      "run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native",
+    );
+    expect(workflow).not.toMatch(/run: pnpm proof:tui\s*$/m);
     expect(workflow).toContain(
       "--tui-receipt target/distribution/tui/installed-proof.json",
     );

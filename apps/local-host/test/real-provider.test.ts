@@ -241,6 +241,84 @@ describe("@wanex/local-host real provider", () => {
     expect(stateDb.includes(credentialRef)).toBe(true)
   })
 
+  it("runs through the surviving Provider immediately after active removal", async () => {
+    const provider = await listenOpenAICompatibleProvider()
+    const credentialStore = new MemorySecretStore()
+    const app = await startLocalWebApp({
+      storage: {
+        kind: "store-dir",
+        mode: "persistent",
+        storeDir: await createTempDir("wanex-provider-fallback-run-")
+      },
+      serviceBin,
+      credentialStore,
+      web: { hostname: "127.0.0.1", port: 0 }
+    })
+    apps.push(app)
+
+    const primary = await app.providers.saveProvider({
+      presetId: "openai-compatible",
+      conversationModelId: "fallback-primary-model",
+      baseUrl: `${provider.baseUrl}/primary`,
+      credential: "fallback-primary-secret",
+      makeConversationActive: true
+    })
+    const selected = await app.providers.saveProvider({
+      presetId: "openai-compatible",
+      conversationModelId: "fallback-selected-model",
+      baseUrl: `${provider.baseUrl}/selected`,
+      credential: "fallback-selected-secret",
+      makeConversationActive: false
+    })
+    const selectedEndpointId = selected.provider.endpoints[0]?.id
+    if (selectedEndpointId === undefined) {
+      throw new Error("selected Provider endpoint is missing")
+    }
+    await app.shell.modelEndpoints.setActiveModelEndpoint({
+      endpointId: selectedEndpointId
+    })
+
+    const first = await app.shell.submitConversationOperation({
+      text: "Run through the selected Provider"
+    })
+    if (first.kind !== "product.conversation-operation.found") {
+      throw new Error("selected Provider conversation was not admitted")
+    }
+    await waitForConversationTerminal(app)
+    expect(requestModel(provider.requests[0]?.body)).toBe(
+      "fallback-selected-model"
+    )
+
+    const removed = await app.providers.removeProvider({
+      connectionId: selected.provider.connectionId
+    })
+    expect(removed).toMatchObject({
+      removedEndpointIds: [selectedEndpointId],
+      readiness: {
+        activeEndpointId: primary.provider.endpoints[0]?.id,
+        canRun: true
+      }
+    })
+
+    await app.shell.submitConversationOperation({
+      sessionId: first.operation.sessionId,
+      text: "Run immediately through the surviving Provider"
+    })
+    const fallback = await waitForConversationTerminal(app)
+
+    expect(provider.requests).toHaveLength(2)
+    expect(requestModel(provider.requests[1]?.body)).toBe(
+      "fallback-primary-model"
+    )
+    expect(fallback.web.conversation).toMatchObject({
+      state: "succeeded",
+      operation: {
+        result: { assistantText },
+        capabilities: { terminal: true }
+      }
+    })
+  })
+
   it("completes a chat-first Web turn through an environment-backed provider", async () => {
     const provider = await listenOpenAICompatibleProvider()
     const storeDir = await createTempDir("wanex-product-local-real-provider-")
@@ -648,6 +726,12 @@ function requestHasToolResult(body: unknown, toolCallId: string): boolean {
     message.role === "tool" &&
     message.tool_call_id === toolCallId
   )
+}
+
+function requestModel(body: unknown): string | undefined {
+  return isRecord(body) && typeof body.model === "string"
+    ? body.model
+    : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

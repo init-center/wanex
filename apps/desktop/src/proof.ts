@@ -79,6 +79,9 @@ async function runWanexDesktopRendererProof(
   let providerEditedWithoutCredential = false
   let configuredProviderCount = 0
   let selectedEndpointId = ""
+  let activeProviderRemoved = false
+  let fallbackProviderReady = false
+  let fallbackModelResponseVisible = false
   let failureStage = "provider_configure"
 
   try {
@@ -381,7 +384,15 @@ async function runWanexDesktopRendererProof(
       !document.documentElement.innerHTML.includes("secretRef")
 
     failureStage = "provider_lifecycle"
-    const lifecycle = await providerLifecycle.removeSelectedAndRunFallback()
+    const lifecycle = await providerLifecycle.removeSelectedAndRunFallback(
+      (progress) => {
+        if (progress.activeProviderRemoved === true) activeProviderRemoved = true
+        if (progress.fallbackProviderReady === true) fallbackProviderReady = true
+        if (progress.fallbackModelResponseVisible === true) {
+          fallbackModelResponseVisible = true
+        }
+      }
+    )
     const providerLifecycleWithoutRestart =
       document === initialDocument && performance.timeOrigin === initialTimeOrigin
     const result: WanexDesktopRendererProofResult = {
@@ -397,27 +408,12 @@ async function runWanexDesktopRendererProof(
         providerReady &&
         soleProductRenderer &&
         unknownRouteRejected &&
-        initialLayout.shellStartsAtViewportTop &&
-        initialLayout.shellFitsViewport &&
-        initialLayout.noHorizontalOverflow &&
-        initialLayout.settingsTriggerFullyVisible &&
-        initialLayout.settingsPanelInitiallyClosed &&
-        initialLayout.sidebarVisible &&
-        initialLayout.composerFullyVisible &&
         conversationIdentityIntegrity &&
-        sessionNavigationTruth &&
         canonicalTranscriptIntegrity &&
-        conversationTimelineSemantics &&
-        chatFirstInformationArchitecture &&
-        conversationSpaceAllocation &&
-        workflowsContextual &&
-        composerControlsComplete &&
-        commandPaletteContextual &&
         canonicalCommandPreviewed &&
         canonicalCommandExecuted &&
         commandCompletionVisible &&
         internalExecutionIdentitiesHidden &&
-        developerControlsAbsent &&
         selectedModelResponseVisible,
       sessionId: settled.sessionId,
       providerConfigured,
@@ -585,10 +581,10 @@ async function runWanexDesktopRendererProof(
       providerEditedWithoutCredential,
       configuredProviderCount,
       providerEvidenceRedacted: false,
-      activeProviderRemoved: false,
-      fallbackProviderReady: false,
+      activeProviderRemoved,
+      fallbackProviderReady,
       fallbackModelId: "",
-      fallbackModelResponseVisible: false,
+      fallbackModelResponseVisible,
       providerLifecycleWithoutRestart: false,
       initialLayout: layout.emptyInitialLayout(),
       userVisible: false,

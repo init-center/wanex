@@ -24,7 +24,11 @@ export interface WanexDesktopProviderLifecycleRemovalResult {
 
 export interface WanexDesktopProviderLifecycleProof {
   configure(): Promise<WanexDesktopProviderLifecycleConfiguredResult>
-  removeSelectedAndRunFallback(): Promise<WanexDesktopProviderLifecycleRemovalResult>
+  removeSelectedAndRunFallback(
+    reportProgress: (
+      progress: Partial<WanexDesktopProviderLifecycleRemovalResult>
+    ) => void
+  ): Promise<WanexDesktopProviderLifecycleRemovalResult>
 }
 
 export type WanexDesktopProviderLifecycleProofFactory = (
@@ -107,7 +111,7 @@ function createWanexDesktopProviderLifecycleProof(
         selectedEndpointId
       }
     },
-    async removeSelectedAndRunFallback() {
+    async removeSelectedAndRunFallback(reportProgress) {
       await openProviderSettings()
       const selected = document.querySelector(
         `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
@@ -142,6 +146,11 @@ function createWanexDesktopProviderLifecycleProof(
       if (fallbackModelId !== expected.primaryModelId) {
         throw new Error(`Provider fallback selected unexpected model: ${fallbackModelId}`)
       }
+      reportProgress({
+        activeProviderRemoved: true,
+        fallbackProviderReady: true,
+        fallbackModelId
+      })
       const fallbackText = surface?.querySelector(
         '[data-ui-composer] textarea[name="text"]'
       )
@@ -179,6 +188,7 @@ function createWanexDesktopProviderLifecycleProof(
         return rows.length > beforeAssistantRows &&
           rows.at(-1)?.textContent?.includes(expected.fallbackResponse) === true
       })
+      reportProgress({ fallbackModelResponseVisible: true })
       return {
         activeProviderRemoved: true,
         fallbackProviderReady: true,

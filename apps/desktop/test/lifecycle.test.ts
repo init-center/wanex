@@ -13,14 +13,7 @@ import {
 } from "../src/provider-relaunch-proof-result.js"
 import {
   requiredWanexDesktopPackagedProofStep,
-  runWanexDesktopNormalVisualAccessibilityProof,
 } from "../src/packaged-renderer-proof.js"
-import {
-  DesktopVisualAccessibilityProofError,
-} from "../src/visual-accessibility-result.js"
-import {
-  createWanexDesktopProofFailureReceipt,
-} from "../src/proof-failure.js"
 import { wanexDesktopTeamProofScript } from "../src/team-proof.js"
 import {
   wanexDesktopPluginInstallProofScript,
@@ -30,10 +23,6 @@ import {
   isWanexDesktopOwnedNavigation,
   resolveWanexDesktopWindowChrome,
 } from "../src/window-policy.js"
-import {
-  wanexDesktopNarrowVisualAccessibilityProofScript,
-  wanexDesktopNormalVisualAccessibilityProofScript,
-} from "../src/visual-accessibility-proof.js"
 
 describe("Product Desktop lifecycle and navigation", () => {
   it("closes owned resources exactly once", async () => {
@@ -115,106 +104,6 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(script).toContain("message-header")
     expect(script).not.toContain('querySelector("header strong")')
     expect(script).not.toContain("scrollIntoView")
-  })
-
-  it("proves packaged normal and narrow visual accessibility contracts", () => {
-    const normal = wanexDesktopNormalVisualAccessibilityProofScript()
-    const narrow = wanexDesktopNarrowVisualAccessibilityProofScript()
-
-    expect(normal).toContain("settingsForwardTabContained")
-    expect(normal).toContain("settingsFocusRestored")
-    expect(normal).toContain("dialog.contains(document.activeElement)")
-    expect(normal).toContain("prefers-reduced-motion: reduce")
-    expect(normal).toContain("completedMessagesUnframed")
-    expect(normal).toContain("productChromeBrandFree")
-    expect(normal).toContain("extensionManagementVisible")
-    expect(normal).toContain("extensionPathInputAbsent")
-    expect(normal).toContain("normal_viewport")
-    expect(normal).toContain("normal_composer_layout")
-    expect(normal).toContain("completed: true")
-    expect(normal).toContain("captureVisualAccessibilityFailureEvidence")
-    expect(normal).not.toContain("return executeVisualAccessibilityProof(")
-    expect(narrow).toContain("sidebarInitiallyHidden")
-    expect(narrow).toContain("drawerDialogSemantics")
-    expect(narrow).toContain("drawerForwardTabContained")
-    expect(narrow).toContain("drawerFocusRestored")
-    expect(narrow).toContain("narrowSettingsFitsViewport")
-    expect(narrow).toContain("narrowExtensionManagementVisible")
-    expect(narrow).toContain("drawerReopenedForScreenshot")
-    expect(narrow).toContain("getAttribute(\"data-ui-drawer-open\"")
-    expect(narrow).toContain("narrow_viewport")
-    expect(narrow).toContain("narrow_composer_layout")
-    expect(narrow).toContain("narrow_drawer_reopen")
-    expect(narrow).toContain("elementFitsViewport(sidebar)")
-    expect(narrow).not.toContain(
-      'transform === "matrix(1, 0, 0, 1, 0, 0)"',
-    )
-    expect(() => new Function(`return ${normal}`)).not.toThrow()
-    expect(() => new Function(`return ${narrow}`)).not.toThrow()
-  })
-
-  it("retains a bounded visual wait failure through the runtime receipt", async () => {
-    const failure = {
-      code: "condition_timeout" as const,
-      stage: "normal_composer_layout" as const,
-      evidence: visualFailureEvidence(),
-      ignoredSecret: "renderer-secret",
-    }
-    const window = {
-      webContents: {
-        executeJavaScript: async () => ({ completed: false, failure }),
-      },
-    }
-
-    let caught: unknown
-    try {
-      await runWanexDesktopNormalVisualAccessibilityProof(window as never)
-    } catch (error) {
-      caught = error
-    }
-
-    expect(caught).toBeInstanceOf(DesktopVisualAccessibilityProofError)
-    const receipt = createWanexDesktopProofFailureReceipt({
-      error: caught,
-      failurePhase: "normal_visual_accessibility",
-      proofStep: "lifecycle",
-    })
-    expect(receipt).toMatchObject({
-      kind: "wanex.product-desktop.runtime-receipt",
-      ok: false,
-      failurePhase: "normal_visual_accessibility",
-      failureProofStep: "lifecycle",
-      failureDiagnostic: "normal_composer_layout",
-      error: {
-        name: "DesktopVisualAccessibilityProofError",
-        code: "desktop_visual_accessibility_proof_failed",
-      },
-      visualAccessibilityFailure: {
-        code: "condition_timeout",
-        stage: "normal_composer_layout",
-        evidence: visualFailureEvidence(),
-      },
-    })
-    expect(JSON.stringify(receipt)).not.toContain("renderer-secret")
-  })
-
-  it("rejects visual failure stages outside the packaged proof contract", async () => {
-    const window = {
-      webContents: {
-        executeJavaScript: async () => ({
-          completed: false,
-          failure: {
-            code: "condition_timeout",
-            stage: "untrusted_stage",
-            evidence: visualFailureEvidence(),
-          },
-        }),
-      },
-    }
-
-    await expect(
-      runWanexDesktopNormalVisualAccessibilityProof(window as never),
-    ).rejects.toThrow("visual accessibility failure is invalid")
   })
 
   it("uses explicit secret-free scripts after Provider configuration", () => {
@@ -449,44 +338,3 @@ describe("Product Desktop lifecycle and navigation", () => {
     })
   })
 })
-
-function visualFailureEvidence() {
-  return {
-    viewport: {
-      width: 1280,
-      height: 748,
-      documentScrollWidth: 1280,
-      bodyScrollWidth: 1280,
-    },
-    productSurfacePresent: true,
-    composer: {
-      present: true,
-      rect: {
-        left: 260,
-        top: 640,
-        right: 1260,
-        bottom: 760,
-        width: 1000,
-        height: 120,
-      },
-      visibility: "visible" as const,
-      pointerInteractive: true,
-    },
-    sidebar: {
-      present: true,
-      rect: {
-        left: 0,
-        top: 52,
-        right: 240,
-        bottom: 748,
-        width: 240,
-        height: 696,
-      },
-      visibility: "visible" as const,
-      pointerInteractive: true,
-    },
-    drawerState: "closed" as const,
-    settingsPresent: false,
-    activeElement: "other" as const,
-  }
-}

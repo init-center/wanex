@@ -17,10 +17,6 @@ import type {
   WanexDesktopScheduleProofResult,
   WanexDesktopTeamProofResult,
 } from "./proof-contract.js";
-import type {
-  WanexDesktopNarrowVisualAccessibilityProofResult,
-  WanexDesktopNormalVisualAccessibilityProofResult,
-} from "./visual-accessibility-contract.js";
 import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
   WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
@@ -42,13 +38,6 @@ import type {
 import type {
   WanexDesktopProviderSideQueryAdmission,
 } from "./provider-side-query-proof.js";
-import {
-  wanexDesktopNarrowVisualAccessibilityProofScript,
-  wanexDesktopNormalVisualAccessibilityProofScript,
-} from "./visual-accessibility-proof.js";
-import {
-  readVisualAccessibilityExecutionResult,
-} from "./visual-accessibility-result.js";
 import { wanexDesktopTeamProofScript } from "./team-proof.js";
 import {
   wanexDesktopPluginInstallProofScript,
@@ -218,30 +207,6 @@ export async function runWanexDesktopPackagedRendererProof(input: {
     script,
     true,
   )) as WanexDesktopProviderRelaunchProofResult;
-}
-
-export async function runWanexDesktopNormalVisualAccessibilityProof(
-  window: BrowserWindow,
-): Promise<WanexDesktopNormalVisualAccessibilityProofResult> {
-  const execution = await window.webContents.executeJavaScript(
-    wanexDesktopNormalVisualAccessibilityProofScript(),
-    true,
-  ) as unknown;
-  return readVisualAccessibilityExecutionResult<
-    WanexDesktopNormalVisualAccessibilityProofResult
-  >(execution);
-}
-
-export async function runWanexDesktopNarrowVisualAccessibilityProof(
-  window: BrowserWindow,
-): Promise<WanexDesktopNarrowVisualAccessibilityProofResult> {
-  const execution = await window.webContents.executeJavaScript(
-    wanexDesktopNarrowVisualAccessibilityProofScript(),
-    true,
-  ) as unknown;
-  return readVisualAccessibilityExecutionResult<
-    WanexDesktopNarrowVisualAccessibilityProofResult
-  >(execution);
 }
 
 function assertSideQueryAdmission(

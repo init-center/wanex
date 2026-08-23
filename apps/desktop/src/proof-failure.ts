@@ -1,18 +1,11 @@
 import {
   DesktopRendererProofError,
 } from "./packaged-renderer-proof.js";
-import {
-  DesktopVisualAccessibilityProofError,
-} from "./visual-accessibility-result.js";
-
 export function createWanexDesktopProofFailureReceipt(input: {
   readonly error: unknown;
   readonly failurePhase: string;
   readonly proofStep?: string;
 }): unknown {
-  const visual = input.error instanceof DesktopVisualAccessibilityProofError
-    ? input.error
-    : undefined;
   return {
     kind: "wanex.product-desktop.runtime-receipt",
     ok: false,
@@ -25,14 +18,6 @@ export function createWanexDesktopProofFailureReceipt(input: {
     ...(input.error instanceof DesktopRendererProofError
       ? { renderer: input.error.renderer }
       : {}),
-    ...(visual === undefined
-      ? {}
-      : {
-          visualAccessibility: visual.visualAccessibility,
-          ...(visual.failure === undefined
-            ? {}
-            : { visualAccessibilityFailure: visual.failure }),
-        }),
   };
 }
 
@@ -45,24 +30,6 @@ function failureDiagnostic(
   error: unknown,
   failurePhase: string,
 ): { readonly failureDiagnostic?: string } {
-  if (error instanceof DesktopVisualAccessibilityProofError) {
-    if (error.failure !== undefined) {
-      return { failureDiagnostic: error.failure.stage };
-    }
-    return {
-      failureDiagnostic: failurePhase === "normal_visual_accessibility"
-        ? "normal_visual_contract_failed"
-        : failurePhase === "narrow_visual_accessibility"
-        ? "narrow_visual_contract_failed"
-        : "visual_contract_failed",
-    };
-  }
-  if (failurePhase === "normal_visual_accessibility") {
-    return { failureDiagnostic: "normal_visual_execution_exception" };
-  }
-  if (failurePhase === "narrow_visual_accessibility") {
-    return { failureDiagnostic: "narrow_visual_execution_exception" };
-  }
   if (failurePhase === "renderer_proof") {
     return { failureDiagnostic: classifyRendererProofFailure(error) };
   }

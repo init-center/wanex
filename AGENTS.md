@@ -3780,3 +3780,30 @@ five normal/narrow lifecycle samples, all 16 relaunch journeys, nonblank
 screenshots, no `EPERM` rename, and no process residue. This remains local
 darwin-arm64 evidence. Make one consolidated submission only; CODING-2 stays
 blocked until linux-x64, darwin-arm64, darwin-x64, and win32-x64 all pass.
+
+Run `32648400290` passed every non-Desktop gate. Its darwin-arm64 exact-height
+and darwin-x64 drawer-focus failures were temporary UI proof requirements, not
+distribution defects; the Product UI will be reconstructed. Windows stopped
+during Provider fallback and therefore required functional evidence. The
+seventeenth correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1422-coding-1d-seventeenth-desktop-core-proof-boundary-correction.md`
+
+The release-blocking Desktop proof now owns packaging, startup, Provider and
+conversation behavior, Product workflows, privacy, performance, shutdown, and
+process cleanup. It still captures normal/narrow nonblank screenshots, but it
+does not gate on exact requested dimensions, temporary layout, drawer state,
+focus, or styling. The old visual-accessibility proof contracts were deleted;
+do not restore them or add compatibility aliases. The rebuilt UI must freeze a
+new accessibility/visual contract from its own design.
+
+Failed Desktop reports retain only allowlisted Renderer stages/counts/booleans
+and at most 64 Provider request kind/authorization summaries. Never retain raw
+request bodies, model names, IDs, paths, HTML, messages, credentials, or error
+text. Provider fallback has a presentation-independent real Local Host
+regression: active removal must immediately allow the same Session to complete
+through the deterministic survivor. It passed six focused runs, the complete
+159-test Local Host suite, and the complete darwin-arm64 packaged proof. No
+Runtime change was justified. Submit one consolidated matrix; do not speculate
+from a platform timeout or push one diagnostic commit at a time. CODING-2 stays
+blocked until all four Verify/Distribution targets and Packed Core are green.

@@ -24,14 +24,9 @@ import {
 import { createWanexDesktopOwnedLifecycle } from "./lifecycle.js";
 import {
   requiredWanexDesktopPackagedProofStep,
-  runWanexDesktopNarrowVisualAccessibilityProof,
-  runWanexDesktopNormalVisualAccessibilityProof,
   runWanexDesktopPackagedRendererProof,
   DesktopRendererProofError,
 } from "./packaged-renderer-proof.js";
-import {
-  DesktopVisualAccessibilityProofError,
-} from "./visual-accessibility-result.js";
 import {
   createWanexDesktopProofFailureReceipt,
   formatWanexDesktopError,
@@ -324,18 +319,11 @@ async function runPackagedProof(timings: {
       : { providerCredential: proofProviderCredential }),
   });
   if (!renderer.ok) throw new DesktopRendererProofError(renderer);
-  let visualAccessibility;
   let screenshots;
   if (step === "lifecycle") {
-    failurePhase = "normal_visual_accessibility";
-    activeWindow.setContentSize(1280, 748, false);
-    const normal = await runWanexDesktopNormalVisualAccessibilityProof(
-      activeWindow,
-    );
-    if (!normal.ok) {
-      throw new DesktopVisualAccessibilityProofError({ normal });
-    }
     failurePhase = "normal_screenshot";
+    activeWindow.setContentSize(1280, 748, false);
+    await waitForRendererPaint(activeWindow);
     const normalScreenshot = await captureProofScreenshot(
       activeWindow,
       requiredProofValue(
@@ -344,15 +332,9 @@ async function runPackagedProof(timings: {
       ),
     );
 
-    failurePhase = "narrow_visual_accessibility";
-    activeWindow.setContentSize(760, 748, false);
-    const narrow = await runWanexDesktopNarrowVisualAccessibilityProof(
-      activeWindow,
-    );
-    if (!narrow.ok) {
-      throw new DesktopVisualAccessibilityProofError({ normal, narrow });
-    }
     failurePhase = "narrow_screenshot";
+    activeWindow.setContentSize(760, 748, false);
+    await waitForRendererPaint(activeWindow);
     const narrowScreenshot = await captureProofScreenshot(
       activeWindow,
       requiredProofValue(
@@ -360,7 +342,6 @@ async function runPackagedProof(timings: {
         "narrow screenshot path",
       ),
     );
-    visualAccessibility = { normal, narrow };
     screenshots = { normal: normalScreenshot, narrow: narrowScreenshot };
   }
   failurePhase = "proof_cleanup";
@@ -374,9 +355,7 @@ async function runPackagedProof(timings: {
     proofStep: step,
     ...(timings.targetId === undefined ? {} : { target: timings.targetId }),
     renderer,
-    ...(visualAccessibility === undefined
-      ? {}
-      : { visualAccessibility, screenshots }),
+    ...(screenshots === undefined ? {} : { screenshots }),
     privacy: {
       exposesStorePath: false,
       exposesServiceBinaryPath: false,
@@ -405,6 +384,13 @@ async function runPackagedProof(timings: {
   });
   exitAllowed = true;
   app.exit(0);
+}
+
+async function waitForRendererPaint(activeWindow: BrowserWindow): Promise<void> {
+  await activeWindow.webContents.executeJavaScript(
+    "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+    true,
+  );
 }
 
 async function captureProofScreenshot(

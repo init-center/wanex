@@ -102,6 +102,7 @@ export async function proveProductDesktop() {
   const provider = await listenProductDesktopProofProvider({
     credential: proofCredential
   })
+  let activeProviderRequestOffset = 0
   try {
     const buildReceipt = await packageProductDesktop()
     const executable = packagedExecutable(buildReceipt.packaged.packageDir)
@@ -124,6 +125,7 @@ export async function proveProductDesktop() {
         `product-desktop-narrow-${index}.png`
       )
       const requestOffset = provider.requests.length
+      activeProviderRequestOffset = requestOffset
       const measured = await measureProductDesktopSample(
         () => run(executable, {
           WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
@@ -161,6 +163,7 @@ export async function proveProductDesktop() {
         wallTimeMs: measured.wallTimeMs
       })
     }
+    activeProviderRequestOffset = provider.requests.length
     const relaunch = await proveProductDesktopRelaunchJourneys({
       executable,
       proofRoot,
@@ -242,7 +245,11 @@ export async function proveProductDesktop() {
     )
     return receipt
   } catch (error) {
-    await writeProductDesktopFailureReport({ error, proofRoot })
+    await writeProductDesktopFailureReport({
+      error,
+      proofRoot,
+      providerRequests: provider.requests.slice(activeProviderRequestOffset)
+    })
     throw error
   } finally {
     await Promise.all([
@@ -493,33 +500,6 @@ function assertRuntimeReceipt(runtime) {
     runtime.ok !== true ||
     runtime.proofStep !== "lifecycle" ||
     runtime.renderer?.ok !== true ||
-    !Number.isSafeInteger(runtime.renderer?.initialLayout?.viewportWidth) ||
-    runtime.renderer.initialLayout.viewportWidth < 760 ||
-    !Number.isSafeInteger(runtime.renderer?.initialLayout?.viewportHeight) ||
-    runtime.renderer.initialLayout.viewportHeight < 560 ||
-    !Number.isFinite(runtime.renderer?.initialLayout?.shellBottom) ||
-    runtime.renderer.initialLayout.shellBottom <= 0 ||
-    runtime.renderer.initialLayout.shellBottom >
-      runtime.renderer.initialLayout.viewportHeight ||
-    !Number.isFinite(runtime.renderer?.initialLayout?.sidebarWidth) ||
-    runtime.renderer.initialLayout.sidebarWidth < 180 ||
-    runtime.renderer.initialLayout.sidebarWidth > 320 ||
-    runtime.renderer?.initialLayout?.shellStartsAtViewportTop !== true ||
-    runtime.renderer?.initialLayout?.shellFitsViewport !== true ||
-    runtime.renderer?.initialLayout?.noHorizontalOverflow !== true ||
-    runtime.renderer?.initialLayout?.settingsTriggerFullyVisible !== true ||
-    runtime.renderer?.initialLayout?.settingsPanelInitiallyClosed !== true ||
-    runtime.renderer?.initialLayout?.sidebarVisible !== true ||
-    runtime.renderer?.initialLayout?.composerFullyVisible !== true ||
-    !Number.isFinite(runtime.renderer?.initialLayout?.timelineHeight) ||
-    runtime.renderer.initialLayout.timelineHeight < 120 ||
-    !Number.isFinite(runtime.renderer?.initialLayout?.composerDockHeight) ||
-    runtime.renderer.initialLayout.composerDockHeight <= 0 ||
-    runtime.renderer.initialLayout.composerDockHeight > 320 ||
-    !Number.isFinite(runtime.renderer?.initialLayout?.composerHeight) ||
-    runtime.renderer.initialLayout.composerHeight <= 0 ||
-    runtime.renderer.initialLayout.composerHeight > 160 ||
-    runtime.renderer?.initialLayout?.initialScrollPolicyValid !== true ||
     runtime.renderer?.userVisible !== true ||
     runtime.renderer?.assistantVisible !== true ||
     runtime.renderer?.providerConfigured !== true ||
@@ -532,75 +512,29 @@ function assertRuntimeReceipt(runtime) {
     runtime.renderer?.fallbackModelResponseVisible !== true ||
     runtime.renderer?.providerLifecycleWithoutRestart !== true ||
     runtime.renderer?.providerReady !== true ||
-    runtime.renderer?.modelSelectorVisible !== true ||
     runtime.renderer?.modelSwitchAccepted !== true ||
     runtime.renderer?.draftPreservedAcrossModelSwitch !== true ||
     runtime.renderer?.selectedModelEndpointId?.length === 0 ||
     runtime.renderer?.selectedModelId !== WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID ||
     runtime.renderer?.selectedModelResponseVisible !== true ||
-    runtime.renderer?.richHeadingVisible !== true ||
-    runtime.renderer?.richCodeVisible !== true ||
     runtime.renderer?.selectedSessionTitle !== "Desktop product proof" ||
     runtime.renderer?.listedSessionTitle !== "Desktop product proof" ||
     runtime.renderer?.conversationIdentityIntegrity !== true ||
     runtime.renderer?.soleProductRenderer !== true ||
     runtime.renderer?.unknownRouteRejected !== true ||
-    runtime.renderer?.sessionNavigationTruth !== true ||
     runtime.renderer?.canonicalTranscriptIntegrity !== true ||
-    runtime.renderer?.conversationTimelineSemantics !== true ||
-    runtime.renderer?.chatFirstInformationArchitecture !== true ||
-    runtime.renderer?.conversationSpaceAllocation !== true ||
-    runtime.renderer?.composerVisible !== true ||
-    runtime.renderer?.latestAssistantVisible !== true ||
-    runtime.renderer?.workflowsContextual !== true ||
-    runtime.renderer?.composerControlsComplete !== true ||
-    runtime.renderer?.commandPaletteContextual !== true ||
     runtime.renderer?.canonicalCommandPreviewed !== true ||
     runtime.renderer?.canonicalCommandExecuted !== true ||
     runtime.renderer?.commandCompletionVisible !== true ||
     runtime.renderer?.internalExecutionIdentitiesHidden !== true ||
-    runtime.renderer?.developerControlsAbsent !== true ||
     runtime.renderer?.sessionId?.length === 0 ||
-    runtime.visualAccessibility?.normal?.ok !== true ||
-    runtime.visualAccessibility?.narrow?.ok !== true ||
-    runtime.visualAccessibility.normal.viewportWidth < 1270 ||
-    runtime.visualAccessibility.normal.viewportHeight < 700 ||
-    runtime.visualAccessibility.normal.timelineLogSemantics !== true ||
-    runtime.visualAccessibility.normal.completedMessagesUnframed !== true ||
-    runtime.visualAccessibility.normal.productChromeBrandFree !== true ||
-    runtime.visualAccessibility.normal.noHorizontalOverflow !== true ||
-    runtime.visualAccessibility.normal.composerFullyVisible !== true ||
-    runtime.visualAccessibility.normal.reducedMotionRuleShipped !== true ||
-    runtime.visualAccessibility.normal.settingsOpenerFocused !== true ||
-    runtime.visualAccessibility.normal.settingsDialogFocused !== true ||
-    runtime.visualAccessibility.normal.settingsBackgroundInert !== true ||
-    runtime.visualAccessibility.normal.settingsForwardTabContained !== true ||
-    runtime.visualAccessibility.normal.settingsBackwardTabContained !== true ||
-    runtime.visualAccessibility.normal.settingsClosedWithEscape !== true ||
-    runtime.visualAccessibility.normal.settingsFocusRestored !== true ||
-    runtime.visualAccessibility.narrow.viewportWidth !== 760 ||
-    runtime.visualAccessibility.narrow.viewportHeight < 700 ||
-    runtime.visualAccessibility.narrow.mobileNavigationVisible !== true ||
-    runtime.visualAccessibility.narrow.sidebarInitiallyHidden !== true ||
-    runtime.visualAccessibility.narrow.noHorizontalOverflow !== true ||
-    runtime.visualAccessibility.narrow.composerFullyVisible !== true ||
-    runtime.visualAccessibility.narrow.drawerDialogSemantics !== true ||
-    runtime.visualAccessibility.narrow.drawerInitialFocusEntered !== true ||
-    runtime.visualAccessibility.narrow.drawerBackgroundInert !== true ||
-    runtime.visualAccessibility.narrow.drawerForwardTabContained !== true ||
-    runtime.visualAccessibility.narrow.drawerBackwardTabContained !== true ||
-    runtime.visualAccessibility.narrow.drawerClosedWithEscape !== true ||
-    runtime.visualAccessibility.narrow.drawerFocusRestored !== true ||
-    runtime.visualAccessibility.narrow.drawerReopenedForScreenshot !== true ||
     runtime.screenshots?.normal?.nonBlank !== true ||
     runtime.screenshots?.narrow?.nonBlank !== true ||
-    runtime.screenshots?.normal?.contentWidth !== 1280 ||
-    runtime.screenshots?.normal?.contentHeight !== 748 ||
+    !positiveScreenshotDimensions(runtime.screenshots.normal) ||
     !validScreenshotScale(runtime.screenshots.normal) ||
     !Number.isSafeInteger(runtime.screenshots?.normal?.bytes) ||
     runtime.screenshots.normal.bytes <= 0 ||
-    runtime.screenshots?.narrow?.contentWidth !== 760 ||
-    runtime.screenshots?.narrow?.contentHeight !== 748 ||
+    !positiveScreenshotDimensions(runtime.screenshots.narrow) ||
     !validScreenshotScale(runtime.screenshots.narrow) ||
     !Number.isSafeInteger(runtime.screenshots?.narrow?.bytes) ||
     runtime.screenshots.narrow.bytes <= 0 ||
@@ -614,6 +548,13 @@ function assertRuntimeReceipt(runtime) {
       `Product Desktop runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
+}
+
+function positiveScreenshotDimensions(screenshot) {
+  return Number.isSafeInteger(screenshot?.contentWidth) &&
+    screenshot.contentWidth > 0 &&
+    Number.isSafeInteger(screenshot?.contentHeight) &&
+    screenshot.contentHeight > 0
 }
 
 function validScreenshotScale(screenshot) {

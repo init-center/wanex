@@ -355,32 +355,41 @@ describe("Product Desktop packaging policy", () => {
       JSON.stringify({
         kind: "wanex.product-desktop.runtime-receipt",
         ok: false,
-        failurePhase: "normal_visual_accessibility",
+        failurePhase: "renderer_proof",
         failureProofStep: "lifecycle",
-        failureDiagnostic: "normal_composer_layout",
+        failureDiagnostic: "renderer_provider_lifecycle",
         error: {
-          name: "DesktopVisualAccessibilityProofError",
-          code: "desktop_visual_accessibility_proof_failed",
+          name: "DesktopRendererProofError",
+          code: "desktop_renderer_proof_failed",
           message: "runtime-secret",
         },
-        visualAccessibilityFailure: {
-          code: "condition_timeout",
-          stage: "normal_composer_layout",
-          evidence: {
-            viewport: {
-              width: 1280,
-              height: 748,
-              documentScrollWidth: 1280,
-              bodyScrollWidth: 1280,
-            },
-            productSurfacePresent: true,
-            composer: visualElementEvidence(260, 640, 1260, 760),
-            sidebar: visualElementEvidence(0, 52, 240, 748),
-            drawerState: "closed",
-            settingsPresent: false,
-            activeElement: "other",
-            secret: "renderer-secret",
+        renderer: {
+          ok: false,
+          failureStage: "provider_lifecycle",
+          failureDiagnostics: {
+            surfaceCount: 1,
+            userRowCount: 2,
+            assistantRowCount: 1,
+            composerCount: 1,
+            composerDisabled: true,
+            modelSelectorCount: 1,
+            modelSelectorDisabled: false,
+            providerState: "ready",
+            errorVisible: false,
+            activeSessionCount: 1,
+            activeSessionIdPresent: true,
+            richHeadingVisible: true,
+            richCodeVisible: true,
+            selectedResponseVisible: true,
+            sessionId: "renderer-session-secret",
           },
+          providerConfigured: true,
+          providerEditedWithoutCredential: true,
+          configuredProviderCount: 2,
+          activeProviderRemoved: false,
+          fallbackProviderReady: false,
+          fallbackModelResponseVisible: false,
+          selectedModelEndpointId: "renderer-endpoint-secret",
         },
         secret: "receipt-secret",
       }),
@@ -393,6 +402,20 @@ describe("Product Desktop packaging policy", () => {
     const report = await writeProductDesktopFailureReport({
       error,
       proofRoot,
+      providerRequests: [
+        {
+          path: "/v1/selected/chat/completions",
+          model: "provider-model-secret",
+          authorized: true,
+          messages: [{ content: "provider-message-secret" }],
+          credential: "provider-credential-secret",
+        },
+        {
+          path: "/v1/primary/chat/completions",
+          model: "provider-fallback-secret",
+          authorized: false,
+        },
+      ],
       outputRoot,
     });
 
@@ -404,30 +427,131 @@ describe("Product Desktop packaging policy", () => {
         code: "product_desktop_process_failed",
       },
       runtimeFailures: [{
-        failurePhase: "normal_visual_accessibility",
+        failurePhase: "renderer_proof",
         failureProofStep: "lifecycle",
-        failureDiagnostic: "normal_composer_layout",
-        visualAccessibilityFailure: {
-          stage: "normal_composer_layout",
-          evidence: {
-            viewport: { width: 1280, height: 748 },
-            composer: { present: true, visibility: "visible" },
+        failureDiagnostic: "renderer_provider_lifecycle",
+        renderer: {
+          ok: false,
+          failureStage: "provider_lifecycle",
+          failureDiagnostics: {
+            surfaceCount: 1,
+            userRowCount: 2,
+            assistantRowCount: 1,
+            composerCount: 1,
+            composerDisabled: true,
+            modelSelectorCount: 1,
+            modelSelectorDisabled: false,
+            providerState: "ready",
+            errorVisible: false,
+            activeSessionCount: 1,
+            activeSessionIdPresent: true,
+            richHeadingVisible: true,
+            richCodeVisible: true,
+            selectedResponseVisible: true,
           },
+          providerConfigured: true,
+          providerEditedWithoutCredential: true,
+          configuredProviderCount: 2,
+          activeProviderRemoved: false,
+          fallbackProviderReady: false,
+          fallbackModelResponseVisible: false,
         },
       }],
+      providerFixture: {
+        requestCount: 2,
+        retainedCount: 2,
+        truncated: false,
+        requests: [
+          { kind: "chat_completion", authorized: true },
+          { kind: "chat_completion", authorized: false },
+        ],
+      },
     });
     const persisted = await readFile(
       join(outputRoot, "product-desktop-report.json"),
       "utf8",
     );
     expect(JSON.parse(persisted)).toEqual(report);
-    expect(persisted).not.toMatch(/outer-secret|runtime-secret|renderer-secret|receipt-secret/);
+    expect(persisted).not.toMatch(
+      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret/,
+    );
     await removeProductDesktopProofRoot(proofRoot);
     tempDirs.splice(tempDirs.indexOf(proofRoot), 1);
     await expect(stat(proofRoot)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(
       readFile(join(outputRoot, "product-desktop-report.json"), "utf8"),
     ).resolves.toBe(persisted);
+  });
+
+  it("bounds Provider fixture failure evidence without retaining request data", async () => {
+    const proofRoot = await temporaryDirectory("wanex-provider-evidence-root-");
+    const outputRoot = await temporaryDirectory("wanex-provider-evidence-report-");
+    const providerRequests = Array.from({ length: 70 }, (_, index) => ({
+      path: index % 2 === 0
+        ? "/v1/chat/completions"
+        : "/v1/images/generations",
+      authorized: index !== 69,
+      model: `secret-model-${index}`,
+      body: { messages: [{ content: `secret-message-${index}` }] },
+    }));
+
+    const report = await writeProductDesktopFailureReport({
+      error: new Error("bounded fixture evidence"),
+      proofRoot,
+      providerRequests,
+      outputRoot,
+    });
+
+    expect(report.providerFixture).toMatchObject({
+      requestCount: 70,
+      retainedCount: 64,
+      truncated: true,
+    });
+    expect(report.providerFixture.requests).toHaveLength(64);
+    expect(report.providerFixture.requests[0]).toEqual({
+      kind: "chat_completion",
+      authorized: true,
+    });
+    expect(report.providerFixture.requests[1]).toEqual({
+      kind: "image_generation",
+      authorized: true,
+    });
+    const persisted = await readFile(
+      join(outputRoot, "product-desktop-report.json"),
+      "utf8",
+    );
+    expect(persisted).not.toMatch(/secret-model|secret-message|chat\/completions/);
+  });
+
+  it("rejects unknown Renderer failure stages from durable evidence", async () => {
+    const proofRoot = await temporaryDirectory("wanex-renderer-stage-root-");
+    const outputRoot = await temporaryDirectory("wanex-renderer-stage-report-");
+    await writeFile(
+      join(proofRoot, "runtime-receipt-0.json"),
+      JSON.stringify({
+        kind: "wanex.product-desktop.runtime-receipt",
+        ok: false,
+        failurePhase: "renderer_proof",
+        error: { name: "Error", code: "desktop_renderer_proof_failed" },
+        renderer: {
+          ok: false,
+          failureStage: "secret_untrusted_stage",
+          providerConfigured: false,
+        },
+      }),
+      "utf8",
+    );
+
+    const report = await writeProductDesktopFailureReport({
+      error: new Error("renderer failed"),
+      proofRoot,
+      outputRoot,
+    });
+
+    expect(report.runtimeFailures[0]?.renderer?.failureStage).toBe(
+      "unknown_stage",
+    );
+    expect(JSON.stringify(report)).not.toContain("secret_untrusted_stage");
   });
 
   it("accepts one exact post-relaunch Provider request only", () => {
@@ -1121,22 +1245,6 @@ function scheduleRuntimeReceipt(step) {
       exposesRawStorageClient: false,
       exposesElectronApi: false,
     },
-  };
-}
-
-function visualElementEvidence(left, top, right, bottom) {
-  return {
-    present: true,
-    rect: {
-      left,
-      top,
-      right,
-      bottom,
-      width: right - left,
-      height: bottom - top,
-    },
-    visibility: "visible",
-    pointerInteractive: true,
   };
 }
 

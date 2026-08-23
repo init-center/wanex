@@ -5,6 +5,7 @@ import { distributionRoot } from "../build.mjs"
 export async function writeProductDesktopFailureReport({
   error,
   proofRoot,
+  providerRequests = [],
   outputRoot = distributionRoot
 }) {
   const runtimeFailures = await readRuntimeFailures(proofRoot)
@@ -13,7 +14,8 @@ export async function writeProductDesktopFailureReport({
     ok: false,
     host: { platform: process.platform, arch: process.arch },
     failure: boundedProofError(error),
-    runtimeFailures
+    runtimeFailures,
+    providerFixture: boundedProviderFixture(providerRequests)
   }
   await mkdir(outputRoot, { recursive: true })
   await writeFile(
@@ -59,13 +61,7 @@ function boundedRuntimeFailure(value) {
   if (!isRecord(value) ||
     value.kind !== "wanex.product-desktop.runtime-receipt" ||
     value.ok !== false) return undefined
-  const visualAccessibility = boundedBooleanNumberRecord(
-    value.visualAccessibility,
-    0
-  )
-  const visualAccessibilityFailure = boundedVisualFailure(
-    value.visualAccessibilityFailure
-  )
+  const renderer = boundedRendererFailure(value.renderer)
   return {
     kind: "wanex.product-desktop.runtime-receipt",
     ok: false,
@@ -94,98 +90,82 @@ function boundedRuntimeFailure(value) {
         ? boundedIdentifier(value.error.code, "product_desktop_failed")
         : "product_desktop_failed"
     },
-    ...(visualAccessibility === undefined ? {} : { visualAccessibility }),
-    ...(visualAccessibilityFailure === undefined
-      ? {}
-      : { visualAccessibilityFailure })
+    ...(renderer === undefined ? {} : { renderer })
   }
 }
 
-function boundedVisualFailure(value) {
-  if (!isRecord(value) ||
-    !["condition_timeout", "unexpected_exception"].includes(value.code) ||
-    !isRecord(value.evidence) ||
-    !isRecord(value.evidence.viewport)) return undefined
-  const composer = boundedVisualElement(value.evidence.composer)
-  const sidebar = boundedVisualElement(value.evidence.sidebar)
-  if (composer === undefined || sidebar === undefined) return undefined
+function boundedRendererFailure(value) {
+  if (!isRecord(value) || value.ok !== false) return undefined
+  const diagnostics = boundedRendererDiagnostics(value.failureDiagnostics)
   return {
-    code: value.code,
-    stage: boundedIdentifier(value.stage, "visual_script_exception"),
-    evidence: {
-      viewport: {
-        width: boundedNumber(value.evidence.viewport.width),
-        height: boundedNumber(value.evidence.viewport.height),
-        documentScrollWidth: boundedNumber(
-          value.evidence.viewport.documentScrollWidth
-        ),
-        bodyScrollWidth: boundedNumber(value.evidence.viewport.bodyScrollWidth)
-      },
-      productSurfacePresent: value.evidence.productSurfacePresent === true,
-      composer,
-      sidebar,
-      drawerState: boundedEnum(
-        value.evidence.drawerState,
-        ["missing", "open", "closed", "invalid"],
-        "invalid"
-      ),
-      settingsPresent: value.evidence.settingsPresent === true,
-      activeElement: boundedEnum(
-        value.evidence.activeElement,
-        [
-          "none",
-          "other",
-          "settings",
-          "sidebar",
-          "open_settings",
-          "open_conversations"
-        ],
-        "other"
-      )
-    }
-  }
-}
-
-function boundedVisualElement(value) {
-  if (!isRecord(value)) return undefined
-  let rect = null
-  if (value.rect !== null) {
-    if (!isRecord(value.rect)) return undefined
-    rect = {
-      left: boundedNumber(value.rect.left),
-      top: boundedNumber(value.rect.top),
-      right: boundedNumber(value.rect.right),
-      bottom: boundedNumber(value.rect.bottom),
-      width: boundedNumber(value.rect.width),
-      height: boundedNumber(value.rect.height)
-    }
-  }
-  return {
-    present: value.present === true,
-    rect,
-    visibility: boundedEnum(
-      value.visibility,
-      ["missing", "visible", "hidden", "other"],
-      "other"
+    ok: false,
+    failureStage: boundedEnum(
+      value.failureStage,
+      [
+        "provider_configure",
+        "settings_close",
+        "renderer_ready",
+        "model_switch",
+        "conversation_settlement",
+        "canonical_command",
+        "provider_lifecycle"
+      ],
+      "unknown_stage"
     ),
-    pointerInteractive: value.pointerInteractive === true
+    ...(diagnostics === undefined ? {} : { failureDiagnostics: diagnostics }),
+    providerConfigured: value.providerConfigured === true,
+    providerEditedWithoutCredential:
+      value.providerEditedWithoutCredential === true,
+    configuredProviderCount: boundedCount(value.configuredProviderCount),
+    activeProviderRemoved: value.activeProviderRemoved === true,
+    fallbackProviderReady: value.fallbackProviderReady === true,
+    fallbackModelResponseVisible: value.fallbackModelResponseVisible === true
   }
 }
 
-function boundedBooleanNumberRecord(value, depth) {
-  if (!isRecord(value) || depth > 3) return undefined
-  const result = {}
-  for (const [key, item] of Object.entries(value).slice(0, 64)) {
-    if (!/^[A-Za-z][A-Za-z0-9]{0,63}$/.test(key)) continue
-    if (typeof item === "boolean") result[key] = item
-    else if (typeof item === "number" && Number.isFinite(item)) {
-      result[key] = boundedNumber(item)
-    } else {
-      const nested = boundedBooleanNumberRecord(item, depth + 1)
-      if (nested !== undefined) result[key] = nested
-    }
+function boundedRendererDiagnostics(value) {
+  if (!isRecord(value)) return undefined
+  return {
+    surfaceCount: boundedCount(value.surfaceCount),
+    userRowCount: boundedCount(value.userRowCount),
+    assistantRowCount: boundedCount(value.assistantRowCount),
+    composerCount: boundedCount(value.composerCount),
+    composerDisabled: value.composerDisabled === true,
+    modelSelectorCount: boundedCount(value.modelSelectorCount),
+    modelSelectorDisabled: value.modelSelectorDisabled === true,
+    providerState: boundedEnum(
+      value.providerState,
+      ["ready", "blocked", "missing"],
+      "unknown"
+    ),
+    errorVisible: value.errorVisible === true,
+    activeSessionCount: boundedCount(value.activeSessionCount),
+    activeSessionIdPresent: value.activeSessionIdPresent === true,
+    richHeadingVisible: value.richHeadingVisible === true,
+    richCodeVisible: value.richCodeVisible === true,
+    selectedResponseVisible: value.selectedResponseVisible === true
   }
-  return result
+}
+
+function boundedProviderFixture(requests) {
+  const values = Array.isArray(requests) ? requests : []
+  const retained = values.slice(0, 64).map((request) => ({
+    kind: providerRequestKind(request),
+    authorized: isRecord(request) && request.authorized === true
+  }))
+  return {
+    requestCount: values.length,
+    retainedCount: retained.length,
+    truncated: values.length > retained.length,
+    requests: retained
+  }
+}
+
+function providerRequestKind(value) {
+  if (!isRecord(value) || typeof value.path !== "string") return "unknown"
+  if (value.path.endsWith("/chat/completions")) return "chat_completion"
+  if (value.path.endsWith("/images/generations")) return "image_generation"
+  return "other"
 }
 
 function boundedProofError(error) {
@@ -209,9 +189,9 @@ function boundedEnum(value, allowed, fallback) {
   return typeof value === "string" && allowed.includes(value) ? value : fallback
 }
 
-function boundedNumber(value) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.round(value * 100) / 100
+function boundedCount(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(value, 1_000_000)
     : 0
 }
 

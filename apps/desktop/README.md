@@ -49,7 +49,7 @@ Session title while the complete rich heading and code remain visible in the
 conversation. The proof-only Provider fixture and generated credential remain
 outside the packaged ASAR and production dependency closure.
 
-The proof also runs a separate eleven-process same-profile relaunch journey. Only
+The proof also runs a separate sixteen-process same-profile relaunch journey. Only
 the first packaged process receives the raw credential and configures the
 Provider. Later credential-free processes reopen the same canonical Session,
 continue its conversation, cancel one response after transient output, verify
@@ -68,7 +68,7 @@ conversation Turn in the same Session. Another credential-free process starts
 one bounded Goal, observes App coordinate two ordinary attempt Turns, and
 renders failed-then-passed independent verification plus terminal success. The
 final two processes remove the Provider through the trusted Host and verify the
-unconfigured blocked state. All 28 Provider requests are authorized, and only
+unconfigured blocked state. All 31 Provider requests are authorized, and only
 the configuration process receives the raw credential. All receipts are
 bounded and secret-free; this is
 acceptance coverage, not a production restart mode.
@@ -93,28 +93,26 @@ response. The controlled fixture verifies the prior upload is the only image
 replayed to both conversation requests and that exactly one Images request is
 authorized with the configured generation model.
 
-## Packaged visual and accessibility proof
+## Packaged core proof and screenshot diagnostics
 
-The packaged proof is also the desktop acceptance boundary for the current
-Product surface. It drives the real Electron renderer and checks the DOM after
-the same lifecycle setup; it does not replace the renderer with a screenshot
-fixture or make Electron a second Product UI implementation.
+The release-blocking proof drives the real Electron Renderer and verifies
+packaging, startup, Provider onboarding/edit/removal/fallback, conversations,
+Product workflows, resource delivery, privacy, shutdown, and process cleanup.
+It does not replace the Renderer with a fixture or make Electron a second
+Product UI implementation.
 
-It verifies both logical content viewports:
+The proof captures nonblank normal and narrow screenshots after Renderer paint:
 
 - normal: `1280 x 748`;
-- narrow: `760 x 748`, where the permanent sidebar becomes the same compact
-  session drawer.
+- narrow: `760 x 748`.
 
-The normal proof checks the semantic conversation log, unframed completed
-messages, brand-free Product chrome, reduced-motion stylesheet, Composer
-visibility, and horizontal overflow. It then opens Settings and verifies dialog
-focus entry, forward/backward Tab containment, background `inert`, Escape close,
-and focus restoration to the opener.
-
-The narrow proof checks the hidden initial sidebar, mobile navigation entry,
-drawer dialog semantics, focus entry, background `inert`, Tab containment,
-Escape close, focus restoration, and a reopened drawer screenshot state.
+Window managers may cap the requested content dimensions. The receipt therefore
+records and validates the actual positive content/pixel dimensions and scale;
+it does not require exact requested dimensions. Screenshots are packaging and
+diagnostic evidence only. Temporary layout, drawer, focus, and visual styling
+are not release gates while the Product UI is scheduled for reconstruction.
+The replacement UI must freeze its own accessibility and visual acceptance
+contract rather than inherit selectors or geometry from this implementation.
 
 The latest evidence is written to:
 
@@ -122,8 +120,8 @@ The latest evidence is written to:
 - `/Users/asuna/workspace/my/wanex/target/distribution/product-desktop/product-desktop-proof-normal.png`;
 - `/Users/asuna/workspace/my/wanex/target/distribution/product-desktop/product-desktop-proof-narrow.png`.
 
-The report records CSS viewport dimensions separately from physical screenshot
+The report records content dimensions separately from physical screenshot
 dimensions and DPI scale. The proof passed with five lifecycle samples,
-28 authorized Provider requests, no `EPERM` rename, no owned-process residue,
+31 authorized Provider requests, no `EPERM` rename, no owned-process residue,
 and an ASAR containing only `main.cjs` and `package.json` with no application
 `node_modules`.

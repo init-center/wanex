@@ -203,6 +203,14 @@ and therefore must not warm host caches or perturb the fixed cold/warm
 measurement cohorts. Package generation and installation then consume the
 already audited immutable native artifact without changing it.
 
+`proof:desktop` is a hard gate for packaged startup, Provider and conversation
+behavior, supported Product workflows, privacy, shutdown, and process cleanup.
+Its normal/narrow screenshots are retained as nonblank diagnostics; temporary
+layout, focus, drawer, styling, and exact requested viewport dimensions are not
+release gates. A future UI acceptance gate must be frozen against the rebuilt
+Product UI and must not revive selectors or geometry from the pre-rebuild
+surface by compatibility.
+
 The job uploads the target-native npm tarball and portable report beside the
 existing native/Product Desktop receipts.
 

@@ -122,6 +122,16 @@ bounded artifact verification, shutdown, settlement, and proof wall continue
 to use maxima. Neither short sample set can establish a meaningful p95, and no
 sample is trimmed or excluded from correctness.
 
+The release-blocking Desktop proof owns functional distribution behavior, not
+the temporary Product UI composition. It requires the packaged Renderer to
+complete Provider onboarding/edit/removal/fallback, canonical conversations,
+the supported Product workflow journeys, privacy checks, shutdown, and process
+cleanup. Normal and narrow screenshots must be captured and nonblank, but their
+layout, focus, drawer state, and exact requested content dimensions are
+diagnostic until the replacement UI freezes a new visual/accessibility
+acceptance contract. The receipt validates actual positive content/pixel
+dimensions and scale because a host window manager may cap a requested size.
+
 Product Desktop proof wall timing stops when the packaged process exits. Receipt
 parsing and the mandatory process-table audit occur afterward and remain fatal
 correctness checks, but their cost is excluded from both interactivity and

@@ -13,13 +13,14 @@ import {
 import type {
   WanexDesktopProviderRelaunchProofResult,
   WanexDesktopProviderRelaunchProofStep,
-  WanexDesktopNarrowVisualAccessibilityProofResult,
-  WanexDesktopNormalVisualAccessibilityProofResult,
   WanexDesktopPluginProofResult,
   WanexDesktopScheduleProofResult,
   WanexDesktopTeamProofResult,
-  WanexDesktopVisualAccessibilityProofResult,
 } from "./proof-contract.js";
+import type {
+  WanexDesktopNarrowVisualAccessibilityProofResult,
+  WanexDesktopNormalVisualAccessibilityProofResult,
+} from "./visual-accessibility-contract.js";
 import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
   WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
@@ -45,6 +46,9 @@ import {
   wanexDesktopNarrowVisualAccessibilityProofScript,
   wanexDesktopNormalVisualAccessibilityProofScript,
 } from "./visual-accessibility-proof.js";
+import {
+  readVisualAccessibilityExecutionResult,
+} from "./visual-accessibility-result.js";
 import { wanexDesktopTeamProofScript } from "./team-proof.js";
 import {
   wanexDesktopPluginInstallProofScript,
@@ -73,19 +77,6 @@ export class DesktopRendererProofError extends Error {
   ) {
     super("desktop Product renderer proof failed");
     this.name = "DesktopRendererProofError";
-  }
-}
-
-export class DesktopVisualAccessibilityProofError extends Error {
-  readonly code = "desktop_visual_accessibility_proof_failed";
-
-  constructor(
-    readonly visualAccessibility: Partial<
-      WanexDesktopVisualAccessibilityProofResult
-    >,
-  ) {
-    super("desktop Product visual accessibility proof failed");
-    this.name = "DesktopVisualAccessibilityProofError";
   }
 }
 
@@ -232,19 +223,25 @@ export async function runWanexDesktopPackagedRendererProof(input: {
 export async function runWanexDesktopNormalVisualAccessibilityProof(
   window: BrowserWindow,
 ): Promise<WanexDesktopNormalVisualAccessibilityProofResult> {
-  return (await window.webContents.executeJavaScript(
+  const execution = await window.webContents.executeJavaScript(
     wanexDesktopNormalVisualAccessibilityProofScript(),
     true,
-  )) as WanexDesktopNormalVisualAccessibilityProofResult;
+  ) as unknown;
+  return readVisualAccessibilityExecutionResult<
+    WanexDesktopNormalVisualAccessibilityProofResult
+  >(execution);
 }
 
 export async function runWanexDesktopNarrowVisualAccessibilityProof(
   window: BrowserWindow,
 ): Promise<WanexDesktopNarrowVisualAccessibilityProofResult> {
-  return (await window.webContents.executeJavaScript(
+  const execution = await window.webContents.executeJavaScript(
     wanexDesktopNarrowVisualAccessibilityProofScript(),
     true,
-  )) as WanexDesktopNarrowVisualAccessibilityProofResult;
+  ) as unknown;
+  return readVisualAccessibilityExecutionResult<
+    WanexDesktopNarrowVisualAccessibilityProofResult
+  >(execution);
 }
 
 function assertSideQueryAdmission(

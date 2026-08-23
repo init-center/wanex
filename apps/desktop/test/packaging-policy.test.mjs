@@ -27,6 +27,9 @@ import {
   removeProductDesktopProofRoot,
 } from "../scripts/proof.mjs";
 import {
+  writeProductDesktopFailureReport,
+} from "../scripts/proof/failure-report.mjs";
+import {
   requiredWanexDesktopPackagedProofStep,
 } from "../src/packaged-renderer-proof.ts";
 import {
@@ -342,6 +345,89 @@ describe("Product Desktop packaging policy", () => {
     await removeProductDesktopProofRoot(root);
     tempDirs.splice(tempDirs.indexOf(root), 1);
     await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("persists bounded failure evidence before the proof root is removed", async () => {
+    const proofRoot = await temporaryDirectory("wanex-product-desktop-failure-");
+    const outputRoot = await temporaryDirectory("wanex-product-desktop-report-");
+    await writeFile(
+      join(proofRoot, "runtime-receipt-0.json"),
+      JSON.stringify({
+        kind: "wanex.product-desktop.runtime-receipt",
+        ok: false,
+        failurePhase: "normal_visual_accessibility",
+        failureProofStep: "lifecycle",
+        failureDiagnostic: "normal_composer_layout",
+        error: {
+          name: "DesktopVisualAccessibilityProofError",
+          code: "desktop_visual_accessibility_proof_failed",
+          message: "runtime-secret",
+        },
+        visualAccessibilityFailure: {
+          code: "condition_timeout",
+          stage: "normal_composer_layout",
+          evidence: {
+            viewport: {
+              width: 1280,
+              height: 748,
+              documentScrollWidth: 1280,
+              bodyScrollWidth: 1280,
+            },
+            productSurfacePresent: true,
+            composer: visualElementEvidence(260, 640, 1260, 760),
+            sidebar: visualElementEvidence(0, 52, 240, 748),
+            drawerState: "closed",
+            settingsPresent: false,
+            activeElement: "other",
+            secret: "renderer-secret",
+          },
+        },
+        secret: "receipt-secret",
+      }),
+      "utf8",
+    );
+    const error = Object.assign(new Error("outer-secret"), {
+      code: "product_desktop_process_failed",
+    });
+
+    const report = await writeProductDesktopFailureReport({
+      error,
+      proofRoot,
+      outputRoot,
+    });
+
+    expect(report).toMatchObject({
+      kind: "wanex.product-desktop.proof-receipt",
+      ok: false,
+      failure: {
+        name: "Error",
+        code: "product_desktop_process_failed",
+      },
+      runtimeFailures: [{
+        failurePhase: "normal_visual_accessibility",
+        failureProofStep: "lifecycle",
+        failureDiagnostic: "normal_composer_layout",
+        visualAccessibilityFailure: {
+          stage: "normal_composer_layout",
+          evidence: {
+            viewport: { width: 1280, height: 748 },
+            composer: { present: true, visibility: "visible" },
+          },
+        },
+      }],
+    });
+    const persisted = await readFile(
+      join(outputRoot, "product-desktop-report.json"),
+      "utf8",
+    );
+    expect(JSON.parse(persisted)).toEqual(report);
+    expect(persisted).not.toMatch(/outer-secret|runtime-secret|renderer-secret|receipt-secret/);
+    await removeProductDesktopProofRoot(proofRoot);
+    tempDirs.splice(tempDirs.indexOf(proofRoot), 1);
+    await expect(stat(proofRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      readFile(join(outputRoot, "product-desktop-report.json"), "utf8"),
+    ).resolves.toBe(persisted);
   });
 
   it("accepts one exact post-relaunch Provider request only", () => {
@@ -807,6 +893,15 @@ describe("Product Desktop packaging policy", () => {
     expect(workflow).toContain(
       "target/distribution/product-desktop/electron-artifact.json",
     );
+    expect(workflow).toContain(
+      "target/distribution/product-desktop/product-desktop-proof-normal.png",
+    );
+    expect(workflow).toContain(
+      "target/distribution/product-desktop/product-desktop-proof-narrow.png",
+    );
+    expect(workflow).not.toContain(
+      "target/distribution/product-desktop/product-desktop-proof.png",
+    );
     expect(workflow).not.toContain("--samples");
     expect(workflow).toContain("name: Packed Core Node 24");
     expect(workflow).toContain("run: pnpm security:js");
@@ -1026,6 +1121,22 @@ function scheduleRuntimeReceipt(step) {
       exposesRawStorageClient: false,
       exposesElectronApi: false,
     },
+  };
+}
+
+function visualElementEvidence(left, top, right, bottom) {
+  return {
+    present: true,
+    rect: {
+      left,
+      top,
+      right,
+      bottom,
+      width: right - left,
+      height: bottom - top,
+    },
+    visibility: "visible",
+    pointerInteractive: true,
   };
 }
 

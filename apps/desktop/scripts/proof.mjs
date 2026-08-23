@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
-import { chmod, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  writeFile
+} from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import {
@@ -16,6 +23,9 @@ import {
 } from "./metrics.mjs"
 import { listenProductDesktopProofProvider } from "./provider-fixture.mjs"
 import { createProductDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
+import {
+  writeProductDesktopFailureReport
+} from "./proof/failure-report.mjs"
 import {
   WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
   WANEX_DESKTOP_PROOF_CANCEL_PARTIAL_RESPONSE,
@@ -231,6 +241,9 @@ export async function proveProductDesktop() {
       "utf8"
     )
     return receipt
+  } catch (error) {
+    await writeProductDesktopFailureReport({ error, proofRoot })
+    throw error
   } finally {
     await Promise.all([
       provider.close(),

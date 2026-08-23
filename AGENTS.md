@@ -3751,3 +3751,32 @@ nonblank normal/narrow screenshots, no `EPERM` rename, and no process residue.
 This is local evidence only. Submit the correction once and let one complete
 matrix own darwin-x64 and win32-x64 acceptance; CODING-2 remains blocked until
 that matrix is fully green.
+
+Run `32462288436` for commit `5eabac2` passed every Verify job, Packed Core Node
+24, Linux Distribution, all native/TUI proofs, Desktop checks/tests, and
+Electron preparation. The three Desktop proofs still failed at one normal and
+two narrow visual phases. Their runtime receipts proved that Renderer wait
+exceptions crossed `executeJavaScript()` before becoming the typed visual
+error, so the named stage was lost; the temporary receipt was then deleted
+before artifact upload. The sixteenth correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1421-coding-1d-sixteenth-desktop-visual-failure-evidence-correction.md`
+
+Visual proof execution now returns a discriminated result inside the Renderer.
+Main accepts only allowlisted stages and reconstructed finite geometry/state
+evidence. The outer proof writes a bounded, secret-free failure report to the
+existing `product-desktop-report.json` path before deleting its proof root.
+The workflow uploads the exact normal and narrow screenshot filenames; do not
+restore the nonexistent singular `product-desktop-proof.png` path.
+Do not restore raw Renderer messages, persist the proof root, accept arbitrary
+stages, add retries/fixed delays, increase the condition timeout, or alter CSS
+without evidence. Visual contracts have a dedicated source owner; do not move
+them back into the general proof contract or add compatibility re-exports.
+
+Desktop typecheck, 48 tests, three complete packaged proofs during the
+correction, workspace hygiene, structure, distribution, distribution graph,
+and distribution footprint pass locally. The final structure proof retained
+five normal/narrow lifecycle samples, all 16 relaunch journeys, nonblank
+screenshots, no `EPERM` rename, and no process residue. This remains local
+darwin-arm64 evidence. Make one consolidated submission only; CODING-2 stays
+blocked until linux-x64, darwin-arm64, darwin-x64, and win32-x64 all pass.

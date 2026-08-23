@@ -1,7 +1,11 @@
 import type {
+  WanexDesktopVisualAccessibilityExecutionResult,
+  WanexDesktopVisualAccessibilityFailureEvidence,
+  WanexDesktopVisualAccessibilityProofFailure,
+  WanexDesktopVisualAccessibilityProofStage,
   WanexDesktopNarrowVisualAccessibilityProofResult,
   WanexDesktopNormalVisualAccessibilityProofResult,
-} from "./proof-contract.js";
+} from "./visual-accessibility-contract.js";
 
 export function wanexDesktopNormalVisualAccessibilityProofScript(): string {
   return visualAccessibilityScript(runNormalVisualAccessibilityProof);
@@ -24,8 +28,32 @@ function visualAccessibilityScript(run: () => Promise<unknown>): string {
     ${waitForAbsent.toString()}
     ${waitFor.toString()}
     ${nextPaint.toString()}
-    return (${run.toString()})();
+    ${isVisualAccessibilityWaitFailure.toString()}
+    ${captureVisualAccessibilityFailureEvidence.toString()}
+    ${captureElementEvidence.toString()}
+    ${captureActiveElement.toString()}
+    ${roundEvidenceNumber.toString()}
+    return (${executeVisualAccessibilityProof.toString()})(${run.toString()});
   })()`;
+}
+
+async function executeVisualAccessibilityProof<Result>(
+  run: () => Promise<Result>,
+): Promise<WanexDesktopVisualAccessibilityExecutionResult<Result>> {
+  try {
+    return { completed: true, result: await run() };
+  } catch (error) {
+    const failure: WanexDesktopVisualAccessibilityProofFailure = {
+      code: isVisualAccessibilityWaitFailure(error)
+        ? "condition_timeout"
+        : "unexpected_exception",
+      stage: isVisualAccessibilityWaitFailure(error)
+        ? error.stage
+        : "visual_script_exception",
+      evidence: captureVisualAccessibilityFailureEvidence(),
+    };
+    return { completed: false, failure };
+  }
 }
 
 async function runNormalVisualAccessibilityProof(): Promise<
@@ -416,7 +444,7 @@ function hasReducedMotionRule(): boolean {
 
 async function waitForElement<T extends Element>(
   selector: string,
-  stage: string,
+  stage: WanexDesktopVisualAccessibilityProofStage,
 ): Promise<T> {
   return await waitFor(() => {
     const element = document.querySelector(selector);
@@ -424,24 +452,120 @@ async function waitForElement<T extends Element>(
   }, stage);
 }
 
-async function waitForAbsent(selector: string, stage: string): Promise<void> {
+async function waitForAbsent(
+  selector: string,
+  stage: WanexDesktopVisualAccessibilityProofStage,
+): Promise<void> {
   await waitFor(() => document.querySelector(selector) === null, stage);
 }
 
-async function waitFor<T>(read: () => T | false, stage: string): Promise<T> {
+async function waitFor<T>(
+  read: () => T | false,
+  stage: WanexDesktopVisualAccessibilityProofStage,
+): Promise<T> {
   const end = Date.now() + 5_000;
   while (Date.now() < end) {
     const value = read();
     if (value !== false) return value;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(
-    `desktop visual accessibility proof timed out during ${stage}`,
-  );
+  throw {
+    code: "wanex_visual_accessibility_condition_timeout",
+    stage,
+  };
 }
 
 async function nextPaint(): Promise<void> {
   await new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   );
+}
+
+function isVisualAccessibilityWaitFailure(
+  value: unknown,
+): value is {
+  readonly code: "wanex_visual_accessibility_condition_timeout";
+  readonly stage: WanexDesktopVisualAccessibilityProofStage;
+} {
+  return typeof value === "object" && value !== null &&
+    "code" in value &&
+    value.code === "wanex_visual_accessibility_condition_timeout" &&
+    "stage" in value && typeof value.stage === "string";
+}
+
+function captureVisualAccessibilityFailureEvidence():
+  WanexDesktopVisualAccessibilityFailureEvidence {
+  const surface = document.querySelector("[data-ui-product-shell]");
+  const composer = surface?.querySelector("[data-ui-composer-dock]");
+  const sidebar = surface?.querySelector("[data-ui-session-drawer]");
+  const drawerValue = sidebar?.getAttribute("data-ui-drawer-open");
+  return {
+    viewport: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+    },
+    productSurfacePresent: surface instanceof HTMLElement,
+    composer: captureElementEvidence(composer),
+    sidebar: captureElementEvidence(sidebar),
+    drawerState: sidebar === null || sidebar === undefined
+      ? "missing"
+      : drawerValue === "true"
+      ? "open"
+      : drawerValue === "false"
+      ? "closed"
+      : "invalid",
+    settingsPresent: document.querySelector("[data-ui-settings-panel]") !== null,
+    activeElement: captureActiveElement(document.activeElement),
+  };
+}
+
+function captureElementEvidence(
+  element: Element | null | undefined,
+): WanexDesktopVisualAccessibilityFailureEvidence["composer"] {
+  if (!(element instanceof HTMLElement)) {
+    return {
+      present: false,
+      rect: null,
+      visibility: "missing",
+      pointerInteractive: false,
+    };
+  }
+  const rect = element.getBoundingClientRect();
+  const style = getComputedStyle(element);
+  return {
+    present: true,
+    rect: {
+      left: roundEvidenceNumber(rect.left),
+      top: roundEvidenceNumber(rect.top),
+      right: roundEvidenceNumber(rect.right),
+      bottom: roundEvidenceNumber(rect.bottom),
+      width: roundEvidenceNumber(rect.width),
+      height: roundEvidenceNumber(rect.height),
+    },
+    visibility: style.visibility === "visible"
+      ? "visible"
+      : style.visibility === "hidden"
+      ? "hidden"
+      : "other",
+    pointerInteractive: style.pointerEvents !== "none",
+  };
+}
+
+function captureActiveElement(
+  active: Element | null,
+): WanexDesktopVisualAccessibilityFailureEvidence["activeElement"] {
+  if (!(active instanceof HTMLElement)) return "none";
+  if (active.closest("[data-ui-settings-panel]") !== null) return "settings";
+  if (active.closest("[data-ui-session-drawer]") !== null) return "sidebar";
+  if (active.matches('[data-ui-action="open-settings"]')) return "open_settings";
+  if (active.matches('[data-ui-action="open-conversations"]')) {
+    return "open_conversations";
+  }
+  return "other";
+}
+
+function roundEvidenceNumber(value: number): number {
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
 }

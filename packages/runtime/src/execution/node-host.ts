@@ -251,12 +251,10 @@ export class NodeExecutionHost implements ExecutionHost {
       let terminationFinished = true
       let settled = false
       let timeout: NodeJS.Timeout | undefined
-      let cleanupDeadline: NodeJS.Timeout | undefined
       const closeWaiters = new Set<(closed: boolean) => void>()
 
       const cleanupListeners = (): void => {
         if (timeout !== undefined) clearTimeout(timeout)
-        if (cleanupDeadline !== undefined) clearTimeout(cleanupDeadline)
         request.signal?.removeEventListener("abort", abort)
       }
 
@@ -305,20 +303,11 @@ export class NodeExecutionHost implements ExecutionHost {
         requestedTermination = reason
         cleanup = "completed"
         terminationFinished = false
-        cleanupDeadline = setTimeout(() => {
-          cleanup = "failed"
-          cleanupError ??= "process tree did not close before cleanup deadline"
-          terminationFinished = true
-          if (!closed) {
-            closed = true
-            for (const waiter of closeWaiters) waiter(true)
-          }
-          finish()
-        }, this.cleanupTimeoutMs)
         void terminateProcessTree({
           child,
           platform: this.platform,
           graceMs: this.terminationGraceMs,
+          cleanupTimeoutMs: this.cleanupTimeoutMs,
           waitForClose,
           windowsTreeTerminator: this.windowsTreeTerminator
         })
@@ -328,6 +317,10 @@ export class NodeExecutionHost implements ExecutionHost {
           })
           .finally(() => {
             terminationFinished = true
+            if (!closed) {
+              closed = true
+              for (const waiter of closeWaiters) waiter(true)
+            }
             finish()
           })
       }

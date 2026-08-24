@@ -3807,3 +3807,26 @@ through the deterministic survivor. It passed six focused runs, the complete
 Runtime change was justified. Submit one consolidated matrix; do not speculate
 from a platform timeout or push one diagnostic commit at a time. CODING-2 stays
 blocked until all four Verify/Distribution targets and Packed Core are green.
+
+Run `32653223820` for commit `3042c10` passed Verify on darwin-arm64,
+linux-x64, and win32-x64. The sole failure was darwin-x64 direct
+`NodeExecutionHost`: timeout termination was correct, but cleanup was reported
+failed while the native supervisor process-tree cases passed. The eighteenth
+correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1423-coding-1d-eighteenth-posix-direct-execution-cleanup-proof-correction.md`
+
+POSIX direct cleanup now owns one absolute deadline and proves final process-group
+membership disappearance with `kill(-pgid, 0)` across TERM and forced KILL. A
+Node root `close` notification is used for bounded output settlement but cannot
+override authoritative group-absence evidence. Intermediate signal errors are
+diagnostic unless the group still exists at the deadline. Windows direct
+`taskkill` remains bounded and still requires root close; durable Workspace
+execution continues to use the native Job Object/process-group supervisor.
+
+Do not restore the second `NodeExecutionHost` cleanup timer, equate stream-close
+latency with a live process tree, add a timeout/retry, or move durable Workspace
+execution back to the direct Host. Local ARM64 focused stress and Rosetta
+darwin-x64 Node 26.7.0 process-tree stress each passed 20 runs; Runtime 288,
+Plugin 64, Workspace 102, and Eval Harness 17 tests pass. CODING-2 remains
+blocked until the next single consolidated matrix is fully green.

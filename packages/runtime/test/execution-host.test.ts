@@ -3,12 +3,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { createHash } from "node:crypto"
 import { spawn } from "node:child_process"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   NativeChildSupervisor,
   NodeExecutionHost,
   type ChildSupervisor
 } from "../src/execution/index.js"
+import { terminateProcessTree } from "../src/execution/process-tree.js"
 
 const tempDirs: string[] = []
 const serviceBin = join(
@@ -98,13 +99,157 @@ describe("@wanex/runtime/execution", () => {
         output: { stdoutBytes: 256 }
       })
 
-      expect(result).toMatchObject({
+      expect(result, result.cleanupError).toMatchObject({
         termination: "timed_out",
         cleanup: "completed"
       })
       const pids = processTreePids(result.stdout.text)
       await expectProcessGone(pids.root)
       await expectProcessGone(pids.grandchild)
+    }
+  )
+
+  it.runIf(process.platform !== "win32")(
+    "uses final process-group evidence after a transient signal error",
+    async () => {
+      const cwd = await tempDir()
+      const pidFile = join(cwd, "transient-signal-process-tree.json")
+      const controller = new AbortController()
+      const host = new NodeExecutionHost({
+        terminationGraceMs: 30,
+        cleanupTimeoutMs: 1_000
+      })
+      const execution = host.execute({
+        program: process.execPath,
+        args: ["-e", stubbornProcessTreeFixture, pidFile],
+        cwd,
+        signal: controller.signal,
+        output: { stdoutBytes: 256 }
+      })
+      let pids: { readonly root: number; readonly grandchild: number }
+      try {
+        pids = await waitForProcessTreePidFile(pidFile)
+      } catch (error) {
+        controller.abort()
+        await execution.catch(() => undefined)
+        throw error
+      }
+      const kill = process.kill.bind(process)
+      let injected = false
+      const killSpy = vi.spyOn(process, "kill").mockImplementation((
+        pid: number,
+        signal?: string | number
+      ) => {
+        const result = kill(pid, signal)
+        if (!injected && pid < 0 && signal === "SIGTERM") {
+          injected = true
+          throw Object.assign(new Error("injected transient signal error"), {
+            code: "EPERM"
+          })
+        }
+        return result
+      })
+      let result
+      try {
+        controller.abort()
+        result = await execution
+      } finally {
+        killSpy.mockRestore()
+      }
+
+      expect(injected).toBe(true)
+      expect(result, result.cleanupError).toMatchObject({
+        termination: "cancelled",
+        cleanup: "completed"
+      })
+      await expectProcessGone(pids.root)
+      await expectProcessGone(pids.grandchild)
+    }
+  )
+
+  it.runIf(process.platform !== "win32")(
+    "accepts process-group cleanup proof before root close notification",
+    async () => {
+      const cwd = await tempDir()
+      const child = spawn(
+        process.execPath,
+        ["-e", "setInterval(()=>{},1000)"],
+        {
+          cwd,
+          detached: true,
+          shell: false,
+          windowsHide: true,
+          stdio: ["pipe", "pipe", "pipe"]
+        }
+      )
+      const pid = child.pid
+      if (pid === undefined) {
+        throw new Error("process-group cleanup fixture has no pid")
+      }
+
+      try {
+        await terminateProcessTree({
+          child,
+          platform: process.platform,
+          graceMs: 30,
+          cleanupTimeoutMs: 1_000,
+          async waitForClose() {
+            return false
+          },
+          windowsTreeTerminator: {
+            async terminate() {
+              throw new Error("unexpected Windows process terminator")
+            }
+          }
+        })
+
+        await expectProcessGone(pid)
+      } finally {
+        killProcessGroupBestEffort(pid)
+        await waitForChildClose(child)
+      }
+    }
+  )
+
+  it.runIf(process.platform !== "win32")(
+    "cleans remaining process-group members after the root exits",
+    async () => {
+      const cwd = await tempDir()
+      const pidFile = join(cwd, "exited-root-process-tree.json")
+      const child = spawn(
+        process.execPath,
+        ["-e", exitingRootProcessTreeFixture, pidFile],
+        {
+          cwd,
+          detached: true,
+          shell: false,
+          windowsHide: true,
+          stdio: ["pipe", "pipe", "pipe"]
+        }
+      )
+      const pids = await waitForProcessTreePidFile(pidFile)
+      await waitForChildClose(child)
+
+      try {
+        expect(isProcessAlive(pids.grandchild)).toBe(true)
+        await terminateProcessTree({
+          child,
+          platform: process.platform,
+          graceMs: 30,
+          cleanupTimeoutMs: 1_000,
+          async waitForClose() {
+            return true
+          },
+          windowsTreeTerminator: {
+            async terminate() {
+              throw new Error("unexpected Windows process terminator")
+            }
+          }
+        })
+        await expectProcessGone(pids.grandchild)
+      } finally {
+        killProcessGroupBestEffort(pids.root)
+      }
     }
   )
 
@@ -448,6 +593,19 @@ const processTreeFixture = [
   "setInterval(()=>{},1000)"
 ].join(";")
 
+const stubbornProcessTreeFixture =
+  "process.on('SIGTERM',()=>{});" + processTreeFixture
+
+const exitingRootProcessTreeFixture = [
+  "const {spawn}=require('node:child_process')",
+  "const {renameSync,writeFileSync}=require('node:fs')",
+  "const grandchild=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true})",
+  "grandchild.unref()",
+  "const pids={root:process.pid,grandchild:grandchild.pid}",
+  "writeFileSync(process.argv[1]+'.tmp',JSON.stringify(pids))",
+  "renameSync(process.argv[1]+'.tmp',process.argv[1])"
+].join(";")
+
 async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "wanex-execution-host-"))
   tempDirs.push(dir)
@@ -496,6 +654,24 @@ async function expectProcessGone(pid: number): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 20))
   }
   throw new Error(`process ${pid} is still alive`)
+}
+
+function killProcessGroupBestEffort(pid: number): void {
+  try {
+    process.kill(-pid, "SIGKILL")
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+  }
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ESRCH") return false
+    throw error
+  }
 }
 
 function processTreePids(output: string): {

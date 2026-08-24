@@ -9,6 +9,7 @@ import type { ProviderAdapter } from "../../provider/index.js"
 import type { SecretResolverPort } from "../../secrets/index.js"
 import type { WanexSessionCore } from "../../sessions/index.js"
 import type { WanexWorker } from "../../jobs/index.js"
+import type { TurnControlEventObserver } from "./turn-control-observer.js"
 
 export interface SessionTurnJobPayload {
   readonly sessionId: string
@@ -39,6 +40,8 @@ export interface SessionTurnHandlerOptions {
   readonly toolMaxConcurrency?: number
   readonly timeoutMs?: number
   readonly observeProviderEvent?: import("../../provider/index.js").ProviderEventObserver
+  /** @internal */
+  readonly turnControlObserver?: TurnControlEventObserver
 }
 
 export interface RegisterSessionTurnHandlerOptions

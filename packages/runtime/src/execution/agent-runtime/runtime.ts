@@ -5,6 +5,7 @@ import {
 } from "../core/index.js"
 import { createTurnExecutionBinding } from "../turn-binding.js"
 import { registerSessionTurnHandler } from "../worker/index.js"
+import { TurnControlEventObserver } from "../worker/turn-control-observer.js"
 import type { PreparedAgentContext } from "../../context/agent/index.js"
 import type { ContextCompiler } from "../../context/memory/index.js"
 import { SemanticContextCompiler } from "../../context/memory/index.js"
@@ -105,6 +106,9 @@ export class WanexAgentRuntime {
       worker: this.runtime.worker,
       session: this.session,
       storage: options.storage,
+      turnControlObserver:
+        options.turnControlObserver ??
+        new TurnControlEventObserver({ storage: options.storage }),
       ...(directProvider === undefined ? {} : { directProvider }),
       ...(options.secretResolver === undefined
         ? {}

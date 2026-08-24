@@ -28,6 +28,7 @@ import type { WorkerRunOnceResult } from "../../jobs/index.js"
 import type { ActiveExecutionAbortRegistry } from "../../jobs/active-abort.js"
 import type { SecretResolverPort } from "../../secrets/index.js"
 import type { SessionTurnAgentContextResolver } from "../worker/types.js"
+import type { TurnControlEventObserver } from "../worker/turn-control-observer.js"
 
 export interface WanexAgentRuntimeOptions {
   readonly storage: CoreStore
@@ -49,6 +50,8 @@ export interface WanexAgentRuntimeOptions {
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
   /** @internal */
   readonly activeAbortRegistry?: ActiveExecutionAbortRegistry
+  /** @internal */
+  readonly turnControlObserver?: TurnControlEventObserver
 }
 
 export interface SubmitUserTurnRequest {

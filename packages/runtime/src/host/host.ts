@@ -57,6 +57,7 @@ import {
   createRuntimeHostMediaGenerationWorkers
 } from "./worker-factory.js"
 import { observeRuntimeHostSessionTurnResult } from "./session-turn-result.js"
+import { TurnControlEventObserver } from "../execution/worker/turn-control-observer.js"
 
 export type {
   RuntimeHostMemoryCompactionOptions,
@@ -70,6 +71,7 @@ export const WANEX_RUNTIME_HOST = "wanex-runtime-host" as const
 export class WanexRuntimeHost {
   readonly storage: CoreStore
   readonly #activeAbortRegistry: ActiveExecutionAbortRegistry
+  readonly #turnControlObserver: TurnControlEventObserver
 
   private readonly workers: ReturnType<typeof createRuntimeHostAgentWorkers>
   private readonly mediaGenerationWorkers: ReturnType<
@@ -111,9 +113,11 @@ export class WanexRuntimeHost {
       options.memoryCompaction
     )
     this.#activeAbortRegistry = new ActiveExecutionAbortRegistry()
+    this.#turnControlObserver = new TurnControlEventObserver({ storage: this.storage })
     this.workers = createRuntimeHostAgentWorkers({
       storage: this.storage,
       activeAbortRegistry: this.#activeAbortRegistry,
+      turnControlObserver: this.#turnControlObserver,
       ...(options.workerCount === undefined
         ? {}
         : { workerCount: options.workerCount }),
@@ -445,6 +449,10 @@ export class WanexRuntimeHost {
 
   private async disposeOwnedResources(): Promise<void> {
     await this.stop()
-    await this.storageHandle?.dispose()
+    try {
+      await this.#turnControlObserver.close()
+    } finally {
+      await this.storageHandle?.dispose()
+    }
   }
 }

@@ -3882,3 +3882,28 @@ obsolete `disabledBeforeShutdown` receipt field. Local Desktop 48 tests, TUI
 script 11 tests, external installed TUI proof, and complete packaged Desktop
 proof pass. CODING-2 remains blocked until the next single consolidated matrix
 passes every target.
+
+Run `32749696752` passed Verify on Linux and both macOS targets. Windows alone
+failed `runtime-host.remote-multi-owner` after all eight Providers had entered,
+exposing a load-amplification path consistent with the failure: every active
+Turn independently polled two durable control tables every 250ms through one
+serial remote System Service transport. The twenty-first correction is
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1426-coding-1d-twenty-first-shared-turn-control-observation-correction.md`
+
+One Runtime owner now shares one event-cursor control observer across all active
+Session Turns. Durable cancel/interrupt events are exact local wake hints only;
+Runner safe-point reads, leases, and System Service settlement remain
+authoritative. Cursor revisions fence overlapping old/new active windows.
+Do not restore per-Turn state-table polling, increase remote timeouts, add
+retries/fixed sleeps, reduce concurrency, accept fewer workers, or introduce a
+second event authority. Focused observer/Host tests pass 31 cases, complete
+Runtime passes 292 with one platform skip, Eval Harness passes 17, all 64 Eval
+scenarios pass, and four remote multi-owner scenarios pass concurrently. The
+reviewed Runtime/App facade ceilings are 511,656/1,424,800 bytes with unchanged
+input and workspace-package closures; SDK, packed-consumer, installed TUI,
+Rust, structure, public-contract, Storage/RPC, and distribution audits pass.
+This local evidence proves and removes the duplicated load but does not claim
+the sole Windows failure cause until the next matrix confirms it. CODING-2
+remains blocked until that single consolidated matrix is fully green.

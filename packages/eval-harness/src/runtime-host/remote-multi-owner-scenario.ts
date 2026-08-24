@@ -341,9 +341,19 @@ function assertStatuses(
     result.results.map((item) => item.worker.status)
   )
   const count = (status: string) => statuses.filter((item) => item === status).length
-  assert(count("completed") === completed, `${label} completed worker count differs`)
-  assert(count("idle") === idle, `${label} idle worker count differs`)
-  assert(count("failed") === failed, `${label} failed worker count differs`)
+  const evidence = results.flatMap((result) => result.results).map((item) => ({
+    status: item.worker.status,
+    ...(item.worker.status === "failed"
+      ? { error: item.worker.error.message, jobState: item.worker.job?.state ?? null }
+      : {})
+  }))
+  const detail = JSON.stringify(evidence)
+  assert(
+    count("completed") === completed,
+    `${label} completed worker count differs: ${detail}`
+  )
+  assert(count("idle") === idle, `${label} idle worker count differs: ${detail}`)
+  assert(count("failed") === failed, `${label} failed worker count differs: ${detail}`)
 }
 
 class MultiOwnerProbeProvider implements ProviderAdapter {

@@ -12,14 +12,17 @@ import type {
   SessionTurnHandlerOptions,
   SessionTurnJobPayload
 } from "./types.js"
-import { startTurnControlObserver } from "./turn-control-observer.js"
 import { assertTurnResourcesMatchBinding } from "../../resources/index.js"
 import { createInlineContextCapacityCompactor } from "../../context/capacity/index.js"
 import { SemanticContextCompiler } from "../../context/memory/index.js"
+import { TurnControlEventObserver } from "./turn-control-observer.js"
 
 export function createSessionTurnHandler(
   options: SessionTurnHandlerOptions
 ): WorkerHandler {
+  const turnControlObserver =
+    options.turnControlObserver ??
+    new TurnControlEventObserver({ storage: options.storage })
   return async ({ job, signal, heartbeat, registerActiveAttempt }) => {
     const payload = parseSessionTurnPayload(job.payload)
     const workerId = requireField(job.leaseOwner, "claimed job lease owner")
@@ -33,11 +36,12 @@ export function createSessionTurnHandler(
       leaseToken
     })
     const activeRegistration = registerActiveAttempt(started.attempt.id)
-    const controlObserver = startTurnControlObserver({
-      session: options.session,
+    const controlObserver = turnControlObserver.observe({
       sessionId: payload.sessionId,
       turnId: payload.turnId,
       attemptId: started.attempt.id,
+      jobId: job.id,
+      startedAt: started.attempt.startedAt,
       registration: activeRegistration
     })
     try {

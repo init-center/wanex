@@ -17,6 +17,7 @@ import type {
 import type {
   JsonValue,
   MessagePart,
+  RuntimeEvent,
   SchedulerJobRecord,
   TextMessagePart
 } from "@wanex/protocol"
@@ -1217,6 +1218,50 @@ describe("@wanex/runtime/host", () => {
     ).resolves.toHaveLength(0)
     await host.dispose()
   })
+
+  it("shares one durable control query across all active host workers", async () => {
+    const eventQuery = deferred<RuntimeEvent[]>()
+    let queryCount = 0
+    const target = requireTestStorageHandle().core
+    const storage = new Proxy(target, {
+      get(current, property) {
+        if (property === "queryEvents") {
+          return (_request: Parameters<CoreStore["queryEvents"]>[0]) => {
+            queryCount += 1
+            return eventQuery.promise
+          }
+        }
+        const value = Reflect.get(current, property, current)
+        return typeof value === "function" ? value.bind(current) : value
+      }
+    }) as CoreStore
+    const provider = new SharedObserverGateProvider(8)
+    const host = await createHost({ workerCount: 8, provider }, storage)
+    try {
+      for (let index = 0; index < 8; index += 1) {
+        await host.submitUserTurn({
+          content: [{ type: "text", text: `shared observer ${index}` }],
+          sessionId: `ses_host_shared_observer_${index}`
+        })
+      }
+
+      const running = host.runOnce()
+      await provider.ready.promise
+      expect(queryCount).toBe(1)
+
+      eventQuery.resolve([])
+      provider.release.resolve()
+      const result = await running
+      expect(result.results.map((item) => item.worker.status)).toEqual(
+        Array.from({ length: 8 }, () => "completed")
+      )
+      expect(queryCount).toBe(1)
+    } finally {
+      eventQuery.resolve([])
+      provider.release.resolve()
+      await host.dispose()
+    }
+  })
 })
 
 class ConcurrentProbeProvider implements ProviderAdapter {
@@ -1257,6 +1302,25 @@ class DispatchProbeProvider extends ConcurrentProbeProvider {
   ): AsyncIterable<ProviderEvent> {
     this.started.resolve()
     yield* textEvents(this.responseText)
+  }
+}
+
+class SharedObserverGateProvider extends ConcurrentProbeProvider {
+  readonly ready = deferred<void>()
+  readonly release = deferred<void>()
+  private entered = 0
+
+  constructor(private readonly expected: number) {
+    super()
+  }
+
+  override async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    this.entered += 1
+    if (this.entered === this.expected) {
+      this.ready.resolve()
+    }
+    await this.release.promise
+    yield* textEvents(`shared: ${userText(request.messages)}`)
   }
 }
 

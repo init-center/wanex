@@ -3,6 +3,7 @@ import { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
 import { WanexMediaGenerationRuntime } from "../media-generation/index.js"
 import type { CoreStore } from "@wanex/storage"
 import type { ActiveExecutionAbortRegistry } from "../jobs/active-abort.js"
+import type { TurnControlEventObserver } from "../execution/worker/turn-control-observer.js"
 import type { WanexRuntimeHostBehaviorOptions } from "./types.js"
 
 export const DEFAULT_RUNTIME_HOST_WORKER_COUNT = 1
@@ -11,6 +12,7 @@ export interface CreateRuntimeHostAgentWorkersRequest
   extends WanexRuntimeHostBehaviorOptions {
   readonly storage: CoreStore
   readonly activeAbortRegistry: ActiveExecutionAbortRegistry
+  readonly turnControlObserver: TurnControlEventObserver
 }
 
 export function createRuntimeHostAgentWorkers(
@@ -24,6 +26,7 @@ export function createRuntimeHostAgentWorkers(
     new WanexAgentRuntime({
       storage: request.storage,
       activeAbortRegistry: request.activeAbortRegistry,
+      turnControlObserver: request.turnControlObserver,
       workerId: `runtime_host_worker_${index}_${randomUUID()}`,
       ...(request.modelEndpointId === undefined
         ? {}

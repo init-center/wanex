@@ -3,6 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
+  installedTuiTeamAgentSetupReadySteps,
+  installedTuiTeamComposerReadySteps,
   parseTuiProofArgs,
   writeInstalledTuiProofReceipt
 } from "./prove-tui-distribution.mjs"
@@ -19,6 +21,30 @@ afterEach(async () => {
 })
 
 describe("installed TUI proof receipt", () => {
+  it("waits for semantic Team interaction readiness and stable agent identity", () => {
+    expect(installedTuiTeamAgentSetupReadySteps()).toEqual([
+      "expect -exact \"Add an agent before sending\"",
+      "expect -re {Send \\|[^\\r\\n]*Enter send}",
+      "send -- \"\\033OR\"",
+      "expect -exact \"Group details\"",
+      "send -- \"\\r\"",
+      "expect -exact $secondary_prompt",
+      "send -- \"\\r\"",
+      "expect -exact \"Agent added\"",
+      "expect -exact \"Group details\""
+    ])
+  })
+
+  it("uses an unambiguous Escape and draft echo to prove Team composer readiness", () => {
+    expect(installedTuiTeamComposerReadySteps()).toEqual([
+      "expect -re {Send \\|[^\\r\\n]*Enter send}",
+      "send -- \"\\033\\\[27u\"",
+      "send -- \"$team_prompt\"",
+      "expect -exact $team_prompt",
+      "send -- \"\\r\""
+    ])
+  })
+
   it("accepts an explicit staged native artifact directory", () => {
     expect(parseTuiProofArgs([
       "--",

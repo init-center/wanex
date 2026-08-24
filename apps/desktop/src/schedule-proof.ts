@@ -29,8 +29,38 @@ export interface WanexDesktopScheduleCreateAdmission {
   readonly firstPartialResponseVisible: true
 }
 
+export type WanexDesktopScheduleSettlementReader = (
+  scheduleId: string,
+  enabled: boolean,
+) => HTMLElement | undefined
+
+export function wanexDesktopScheduleSettlementReaderSource(): string {
+  return readWanexDesktopSettledScheduleRow.toString()
+}
+
+function readWanexDesktopSettledScheduleRow(
+  scheduleId: string,
+  enabled: boolean,
+): HTMLElement | undefined {
+  const escaped = globalThis.CSS?.escape?.(scheduleId) ??
+    scheduleId.replace(/[^a-zA-Z0-9_-]/g, "\\$&")
+  const candidate = document.querySelector(`[data-ui-schedule="${escaped}"]`)
+  if (!(candidate instanceof HTMLElement)) return undefined
+  const toggle = candidate.querySelector("[data-ui-schedule-toggle]")
+  const stateMatches = enabled
+    ? candidate.textContent?.includes("Disabled") !== true
+    : candidate.textContent?.includes("Disabled") === true
+  return stateMatches &&
+    toggle instanceof HTMLButtonElement &&
+    !toggle.disabled &&
+    toggle.title === (enabled ? "Disable schedule" : "Enable schedule")
+    ? candidate
+    : undefined
+}
+
 export async function runWanexDesktopScheduleCreateAdmissionProof(
   expected: WanexDesktopScheduleProofExpected,
+  settledScheduleRow: WanexDesktopScheduleSettlementReader,
 ): Promise<WanexDesktopScheduleCreateAdmission> {
   const startedAt = performance.now()
   await waitFor(() => providerReady() ? true : undefined, 10_000, "provider_ready")
@@ -69,12 +99,12 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
   }
   submit(form)
   const row = await waitFor(() => scheduleRowByTitle(expected.title), 10_000, "created_row")
-  await waitFor(() =>
-    document.querySelector("[data-ui-schedule-status]")?.textContent?.includes("Schedule created")
-      ? true
-      : undefined
-  , 10_000, "created_status")
   const scheduleId = requiredAttribute(row, "data-ui-schedule")
+  await waitFor(
+    () => settledScheduleRow(scheduleId, true),
+    10_000,
+    "created_settlement",
+  )
   closeSettings()
 
   const session = await waitFor(
@@ -251,6 +281,7 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
 export async function runWanexDesktopScheduleCreateSettlementProof(
   expected: WanexDesktopScheduleProofExpected,
   admission: WanexDesktopScheduleCreateAdmission,
+  settledScheduleRow: WanexDesktopScheduleSettlementReader,
 ): Promise<WanexDesktopScheduleCreateProofResult> {
   const settlementStartedAt = performance.now()
   await waitFor(() =>
@@ -266,13 +297,11 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
     throw new Error("Desktop Schedule proof disable control is unavailable")
   }
   toggle.click()
-  await waitFor(() => {
-    const current = scheduleRow(admission.scheduleId)
-    return current?.textContent?.includes("Disabled") === true &&
-      document.querySelector("[data-ui-schedule-status]")?.textContent?.includes("Schedule disabled")
-      ? true
-      : undefined
-  }, 10_000, "disabled")
+  await waitFor(
+    () => settledScheduleRow(admission.scheduleId, false),
+    10_000,
+    "disabled",
+  )
   const disabledAt = performance.now()
   await new Promise((resolve) => setTimeout(resolve, expected.quietWindowMs))
   const disabledQuietWindowObserved =
@@ -364,6 +393,7 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
 
 export async function runWanexDesktopScheduleRestoreProof(
   expected: WanexDesktopScheduleProofExpected,
+  settledScheduleRow: WanexDesktopScheduleSettlementReader,
 ): Promise<WanexDesktopScheduleRestoreProofResult> {
   const startedAt = performance.now()
   await waitFor(() => providerReady() ? true : undefined, 10_000, "provider_ready")
@@ -394,11 +424,11 @@ export async function runWanexDesktopScheduleRestoreProof(
     return control instanceof HTMLButtonElement && !control.disabled ? control : undefined
   }, 10_000, "enable_control")
   enable.click()
-  await waitFor(() =>
-    document.querySelector("[data-ui-schedule-status]")?.textContent?.includes("Schedule enabled")
-      ? true
-      : undefined
-  , 10_000, "enabled")
+  await waitFor(
+    () => settledScheduleRow(scheduleId, true),
+    10_000,
+    "enabled",
+  )
   closeSettings()
   const submittedAt = performance.now()
   const restoredExecution = await waitFor(() => {
@@ -421,12 +451,11 @@ export async function runWanexDesktopScheduleRestoreProof(
     return control instanceof HTMLButtonElement && !control.disabled ? control : undefined
   }, 10_000, "disable_control")
   disable.click()
-  await waitFor(() =>
-    scheduleRow(scheduleId)?.textContent?.includes("Disabled") === true &&
-    document.querySelector("[data-ui-schedule-status]")?.textContent?.includes("Schedule disabled")
-      ? true
-      : undefined
-  , 10_000, "disabled")
+  await waitFor(
+    () => settledScheduleRow(scheduleId, false),
+    10_000,
+    "disabled",
+  )
   const disabledAt = performance.now()
   const userCountAtDisable = rowIds("user").size
   await new Promise((resolve) => setTimeout(resolve, expected.quietWindowMs))
@@ -446,12 +475,14 @@ export async function runWanexDesktopScheduleRestoreProof(
       : undefined
   }, 10_000, "remove_confirmation")
   confirm.click()
-  await waitFor(() =>
-    scheduleRow(scheduleId) === undefined &&
-    document.querySelector("[data-ui-schedule-status]")?.textContent?.includes("Schedule removed")
+  await waitFor(() => {
+    const create = document.querySelector("[data-ui-schedule-create]")
+    return scheduleRow(scheduleId) === undefined &&
+      create instanceof HTMLButtonElement &&
+      !create.disabled
       ? true
       : undefined
-  , 10_000, "removed")
+  }, 10_000, "removed")
   const providerEvidenceRedacted = redacted()
   const internalIdentityEvidenceHidden = visibleIdentityHidden()
   return {

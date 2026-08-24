@@ -66,27 +66,38 @@ function createWanexDesktopProviderLifecycleProof(
         document.querySelectorAll("[data-ui-provider]").length === 2
       )
       await openProviderSettings()
-      const selectedProvider = [...document.querySelectorAll(
-        "[data-ui-provider]"
-      )].find((provider) =>
-        provider.getAttribute("data-ui-conversation-model-id") ===
-          expected.selectedDraftModelId
-      )
-      const edit = selectedProvider?.querySelector("[data-ui-provider-edit]")
-      if (!(edit instanceof HTMLButtonElement)) {
-        throw new Error("selected proof Provider edit control is missing")
-      }
+      const edit = await waitFor(() => {
+        const selectedProvider = [...document.querySelectorAll(
+          "[data-ui-provider]"
+        )].find((provider) =>
+          provider.getAttribute("data-ui-conversation-model-id") ===
+            expected.selectedDraftModelId
+        )
+        const candidate = selectedProvider?.querySelector(
+          "[data-ui-provider-edit]"
+        )
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          ? candidate
+          : undefined
+      })
       edit.click()
       const form = await waitFor(() => {
         const candidate = document.querySelector("[data-ui-provider-form]")
-        return candidate instanceof HTMLFormElement ? candidate : undefined
+        const credential = candidate instanceof HTMLFormElement
+          ? candidate.elements.namedItem("credential")
+          : undefined
+        const submit = candidate?.querySelector('button[type="submit"]')
+        return candidate instanceof HTMLFormElement &&
+          credential instanceof HTMLInputElement &&
+          !credential.required &&
+          credential.value === "" &&
+          submit instanceof HTMLButtonElement &&
+          !submit.disabled
+          ? candidate
+          : undefined
       })
       const credential = form.elements.namedItem("credential")
-      if (
-        !(credential instanceof HTMLInputElement) ||
-        credential.required ||
-        credential.value !== ""
-      ) {
+      if (!(credential instanceof HTMLInputElement)) {
         throw new Error("Provider edit did not make credential optional")
       }
       setProviderField(form, "conversationModelId", expected.selectedModelId)
@@ -96,9 +107,17 @@ function createWanexDesktopProviderLifecycleProof(
           `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
         ) !== null
       )
-      const edited = document.querySelector(
-        `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
-      )
+      const edited = await waitFor(() => {
+        const candidate = document.querySelector(
+          `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
+        )
+        const remove = candidate?.querySelector("[data-ui-provider-remove]")
+        return candidate !== null &&
+          remove instanceof HTMLButtonElement &&
+          !remove.disabled
+          ? candidate
+          : undefined
+      })
       const selectedEndpointId =
         edited?.getAttribute("data-ui-conversation-endpoint-id") ?? ""
       if (selectedEndpointId.length === 0) {
@@ -113,13 +132,15 @@ function createWanexDesktopProviderLifecycleProof(
     },
     async removeSelectedAndRunFallback(reportProgress) {
       await openProviderSettings()
-      const selected = document.querySelector(
-        `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
-      )
-      const remove = selected?.querySelector("[data-ui-provider-remove]")
-      if (!(remove instanceof HTMLButtonElement)) {
-        throw new Error("selected proof Provider remove control is missing")
-      }
+      const remove = await waitFor(() => {
+        const selected = document.querySelector(
+          `[data-ui-provider][data-ui-conversation-model-id="${expected.selectedModelId}"]`
+        )
+        const candidate = selected?.querySelector("[data-ui-provider-remove]")
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          ? candidate
+          : undefined
+      })
       const connectionId = remove.getAttribute("data-ui-provider-remove") ?? ""
       const originalConfirm = window.confirm
       window.confirm = () => true
@@ -206,7 +227,12 @@ function createWanexDesktopProviderLifecycleProof(
   }): Promise<void> {
     const form = await waitFor(() => {
       const candidate = document.querySelector("[data-ui-provider-form]")
-      return candidate instanceof HTMLFormElement ? candidate : undefined
+      const submit = candidate?.querySelector('button[type="submit"]')
+      return candidate instanceof HTMLFormElement &&
+        submit instanceof HTMLButtonElement &&
+        !submit.disabled
+        ? candidate
+        : undefined
     })
     setProviderField(form, "presetId", "openai-compatible")
     setProviderField(form, "baseUrl", request.baseUrl)
@@ -215,10 +241,14 @@ function createWanexDesktopProviderLifecycleProof(
     const active = form.elements.namedItem("makeConversationActive")
     if (active instanceof HTMLInputElement) active.checked = request.active
     submitProviderFormElement(form)
-    await waitFor(() =>
-      document.querySelector('[data-ui-provider-status]')?.textContent
-        ?.includes("Provider saved") === true
-    )
+    await waitFor(() => {
+      const candidate = document.querySelector(
+        '[data-ui-provider-form] button[type="submit"]'
+      )
+      return candidate instanceof HTMLButtonElement && !candidate.disabled
+        ? true
+        : undefined
+    })
   }
 
   async function openProviderSettings(): Promise<void> {

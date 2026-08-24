@@ -11,22 +11,23 @@ import {
   runWanexDesktopScheduleCreateAdmissionProof,
   runWanexDesktopScheduleCreateSettlementProof,
   runWanexDesktopScheduleRestoreProof,
+  wanexDesktopScheduleSettlementReaderSource,
   type WanexDesktopScheduleCreateAdmission,
   type WanexDesktopScheduleProofExpected,
 } from "./schedule-proof.js"
 
 export function wanexDesktopScheduleCreateAdmissionProofScript(): string {
-  return `(${runWanexDesktopScheduleCreateAdmissionProof.toString()})(${JSON.stringify(expected())})`
+  return `(${runWanexDesktopScheduleCreateAdmissionProof.toString()})(${JSON.stringify(expected())}, ${wanexDesktopScheduleSettlementReaderSource()})`
 }
 
 export function wanexDesktopScheduleCreateSettlementProofScript(
   admission: WanexDesktopScheduleCreateAdmission,
 ): string {
-  return `(${runWanexDesktopScheduleCreateSettlementProof.toString()})(${JSON.stringify(expected())}, ${JSON.stringify(admission)})`
+  return `(${runWanexDesktopScheduleCreateSettlementProof.toString()})(${JSON.stringify(expected())}, ${JSON.stringify(admission)}, ${wanexDesktopScheduleSettlementReaderSource()})`
 }
 
 export function wanexDesktopScheduleRestoreProofScript(): string {
-  return `(${runWanexDesktopScheduleRestoreProof.toString()})(${JSON.stringify(expected())})`
+  return `(${runWanexDesktopScheduleRestoreProof.toString()})(${JSON.stringify(expected())}, ${wanexDesktopScheduleSettlementReaderSource()})`
 }
 
 function expected(): WanexDesktopScheduleProofExpected {

@@ -55,6 +55,30 @@ export const installedTuiProofPath = join(
   "installed-proof.json"
 )
 
+export function installedTuiTeamAgentSetupReadySteps() {
+  return [
+    "expect -exact \"Add an agent before sending\"",
+    "expect -re {Send \\|[^\\r\\n]*Enter send}",
+    "send -- \"\\033OR\"",
+    "expect -exact \"Group details\"",
+    "send -- \"\\r\"",
+    "expect -exact $secondary_prompt",
+    "send -- \"\\r\"",
+    "expect -exact \"Agent added\"",
+    "expect -exact \"Group details\""
+  ]
+}
+
+export function installedTuiTeamComposerReadySteps() {
+  return [
+    "expect -re {Send \\|[^\\r\\n]*Enter send}",
+    "send -- \"\\033\\\[27u\"",
+    "send -- \"$team_prompt\"",
+    "expect -exact $team_prompt",
+    "send -- \"\\r\""
+  ]
+}
+
 export async function writeInstalledTuiProofReceipt(
   receipt,
   outputPath = installedTuiProofPath
@@ -556,14 +580,7 @@ async function runInstalledFullScreenTui(options) {
           "send -- \"\\r\"",
           "expect -exact \"Group created\"",
           "expect -exact $team_title",
-          "expect -exact \"Add an agent before sending\"",
-          "send -- \"\\033OR\"",
-          "expect -exact \"Group details\"",
-          "send -- \"\\r\"",
-          "expect -exact \"existing agent conversation\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Agent added\"",
-          "expect -exact \"Group details\"",
+          ...installedTuiTeamAgentSetupReadySteps(),
           "send -- \"\\033\\\[B\"",
           "send -- \"\\033\\\[B\"",
           "send -- \"\\r\"",
@@ -574,10 +591,7 @@ async function runInstalledFullScreenTui(options) {
           "send -- \"\\r\"",
           "expect -exact \"Coordinator updated\"",
           "expect -exact \"Group details\"",
-          "send -- \"\\033\"",
-          "after 250",
-          "expect -re {Send \\|[^\\r\\n]*Enter send}",
-          "send -- \"$team_prompt\\r\"",
+          ...installedTuiTeamComposerReadySteps(),
           "expect -exact \"Coordinator replied\"",
           "expect -exact $team_reply",
           "send -- \"\\017\"",

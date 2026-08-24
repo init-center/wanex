@@ -3830,3 +3830,29 @@ execution back to the direct Host. Local ARM64 focused stress and Rosetta
 darwin-x64 Node 26.7.0 process-tree stress each passed 20 runs; Runtime 288,
 Plugin 64, Workspace 102, and Eval Harness 17 tests pass. CODING-2 remains
 blocked until the next single consolidated matrix is fully green.
+
+Run `32711691741` for commit `6571f7b` passed all four Verify jobs, Packed Core,
+Linux Distribution, and the real darwin-x64 POSIX cleanup regression. The three
+remaining Distribution failures were Product-proof readiness defects: TUI sent
+F3 while Team canonical refresh was still busy, darwin-x64 clicked a disabled
+Provider remove control, and Windows coupled canonical Schedule disable state to
+transient feedback text. The nineteenth correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1424-coding-1d-nineteenth-cross-platform-product-readiness-proof-correction.md`
+
+Installed TUI proof must wait for the ready footer before F3, select agents by
+stable Session identity, and use explicit CSI-u Escape plus draft echo to prove
+composer ownership. Do not restore width-dependent description matching, raw
+ESC plus a fixed sleep, or content-only readiness. Desktop Provider proof must
+require enabled form/edit/remove controls. Schedule proof must use canonical row
+state, inverse toggle command, and released pending controls; transient status
+text is not mutation settlement authority.
+
+Desktop 48, Web 132, TUI 106, and TUI script 10 tests pass. The external
+installed TUI proof and complete packaged Desktop proof pass locally; the latter
+retains five lifecycle samples, complete Provider fallback, five-second Schedule
+create/relaunch/disable/remove behavior, no `EPERM` rename, and no process
+residue. Structure, public-contract, workspace-hygiene, distribution,
+distribution-graph, distribution-footprint, and host-distribution audits pass.
+Submit this as one matrix; CODING-2 remains blocked until all four Verify and
+Distribution targets plus Packed Core are green.

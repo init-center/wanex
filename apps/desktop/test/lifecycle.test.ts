@@ -14,6 +14,11 @@ import {
 import {
   requiredWanexDesktopPackagedProofStep,
 } from "../src/packaged-renderer-proof.js"
+import {
+  wanexDesktopScheduleCreateAdmissionProofScript,
+  wanexDesktopScheduleCreateSettlementProofScript,
+  wanexDesktopScheduleRestoreProofScript,
+} from "../src/schedule-proof-script.js"
 import { wanexDesktopTeamProofScript } from "../src/team-proof.js"
 import {
   wanexDesktopPluginInstallProofScript,
@@ -99,11 +104,42 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(script).toContain("createWanexDesktopProviderLifecycleProof")
     expect(script).toContain("providerEditedWithoutCredential")
     expect(script).toContain("removeSelectedAndRunFallback")
+    expect(script).toContain("!candidate.disabled")
+    expect(script).toContain("submit instanceof HTMLButtonElement")
+    expect(script).toContain("!submit.disabled")
     expect(script).toContain("desktop-proof-selected-model")
     expect(script).toContain("conversationTimelineSemantics")
     expect(script).toContain("message-header")
     expect(script).not.toContain('querySelector("header strong")')
     expect(script).not.toContain("scrollIntoView")
+  })
+
+  it("proves Schedule mutations through canonical state and action settlement", () => {
+    const admission = wanexDesktopScheduleCreateAdmissionProofScript()
+    const settlement = wanexDesktopScheduleCreateSettlementProofScript({
+      ok: true,
+      scheduleId: "schedule-proof",
+      sessionId: "session-proof",
+      rendererInteractive: 1,
+      visibleFormCreated: true,
+      isolatedSessionSelected: true,
+      activeModelSelected: true,
+      skipMisfireSelected: true,
+      enabledAtCreation: true,
+      scheduleCreated: true,
+      scheduleSessionVisible: true,
+      firstUserVisible: true,
+      firstPartialResponseVisible: true,
+    })
+    const restore = wanexDesktopScheduleRestoreProofScript()
+
+    for (const script of [admission, settlement, restore]) {
+      expect(script).toContain("settledScheduleRow")
+      expect(script).toContain(
+        'toggle.title === (enabled ? "Disable schedule" : "Enable schedule")',
+      )
+      expect(script).not.toContain("data-ui-schedule-status")
+    }
   })
 
   it("uses explicit secret-free scripts after Provider configuration", () => {

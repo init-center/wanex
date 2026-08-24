@@ -27,6 +27,7 @@ import {
 import {
   wanexDesktopScheduleCreateAdmissionProofScript,
   wanexDesktopScheduleCreateSettlementProofScript,
+  wanexDesktopScheduleDisableBeforeReleaseProofScript,
   wanexDesktopScheduleRestoreProofScript,
 } from "./schedule-proof-script.js";
 import type {
@@ -166,9 +167,19 @@ export async function runWanexDesktopPackagedRendererProof(input: {
       throw new Error("desktop Schedule admission proof failed");
     }
     await new Promise((resolve) => setTimeout(resolve, WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS));
+    const preRelease = (await input.window.webContents.executeJavaScript(
+      wanexDesktopScheduleDisableBeforeReleaseProofScript(admission),
+      true,
+    )) as { readonly disabledBeforeRelease: true; readonly userCountAtDisable: 1 };
+    if (
+      preRelease?.disabledBeforeRelease !== true ||
+      preRelease.userCountAtDisable !== 1
+    ) {
+      throw new Error("desktop Schedule pre-release proof failed");
+    }
     process.stdout.write(`${WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER}\n`);
     return (await input.window.webContents.executeJavaScript(
-      wanexDesktopScheduleCreateSettlementProofScript(admission),
+      wanexDesktopScheduleCreateSettlementProofScript(admission, preRelease),
       true,
     )) as WanexDesktopScheduleProofResult;
   }

@@ -1220,7 +1220,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
   } else if (step === "relaunch-schedule-create") {
     const expectedKeys = [
       "activeModelSelected",
-      "disabledBeforeShutdown",
+      "disabledBeforeRelease",
       "disabledQuietWindowObserved",
       "enabledAtCreation",
       "firstFinalResponseVisible",
@@ -1253,7 +1253,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.firstUserVisible !== true ||
       renderer.firstPartialResponseVisible !== true ||
       renderer.firstFinalResponseVisible !== true ||
-      renderer.disabledBeforeShutdown !== true ||
+      renderer.disabledBeforeRelease !== true ||
       renderer.disabledQuietWindowObserved !== true ||
       renderer.internalIdentityEvidenceHidden !== true
   } else if (step === "relaunch-schedule-restore") {

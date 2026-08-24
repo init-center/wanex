@@ -9,10 +9,12 @@ import {
 } from "./proof-contract.js"
 import {
   runWanexDesktopScheduleCreateAdmissionProof,
+  runWanexDesktopScheduleDisableBeforeReleaseProof,
   runWanexDesktopScheduleCreateSettlementProof,
   runWanexDesktopScheduleRestoreProof,
   wanexDesktopScheduleSettlementReaderSource,
   type WanexDesktopScheduleCreateAdmission,
+  type WanexDesktopScheduleCreatePreRelease,
   type WanexDesktopScheduleProofExpected,
 } from "./schedule-proof.js"
 
@@ -22,8 +24,15 @@ export function wanexDesktopScheduleCreateAdmissionProofScript(): string {
 
 export function wanexDesktopScheduleCreateSettlementProofScript(
   admission: WanexDesktopScheduleCreateAdmission,
+  preRelease: WanexDesktopScheduleCreatePreRelease,
 ): string {
-  return `(${runWanexDesktopScheduleCreateSettlementProof.toString()})(${JSON.stringify(expected())}, ${JSON.stringify(admission)}, ${wanexDesktopScheduleSettlementReaderSource()})`
+  return `(${runWanexDesktopScheduleCreateSettlementProof.toString()})(${JSON.stringify(expected())}, ${JSON.stringify(admission)}, ${JSON.stringify(preRelease)}, ${wanexDesktopScheduleSettlementReaderSource()})`
+}
+
+export function wanexDesktopScheduleDisableBeforeReleaseProofScript(
+  admission: WanexDesktopScheduleCreateAdmission,
+): string {
+  return `(${runWanexDesktopScheduleDisableBeforeReleaseProof.toString()})(${JSON.stringify(admission)}, ${wanexDesktopScheduleSettlementReaderSource()})`
 }
 
 export function wanexDesktopScheduleRestoreProofScript(): string {

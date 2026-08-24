@@ -1217,7 +1217,7 @@ function scheduleRuntimeReceipt(step) {
         firstUserVisible: true,
         firstPartialResponseVisible: true,
         firstFinalResponseVisible: true,
-        disabledBeforeShutdown: true,
+        disabledBeforeRelease: true,
         disabledQuietWindowObserved: true,
       }
     : {

@@ -29,6 +29,11 @@ export interface WanexDesktopScheduleCreateAdmission {
   readonly firstPartialResponseVisible: true
 }
 
+export interface WanexDesktopScheduleCreatePreRelease {
+  readonly disabledBeforeRelease: true
+  readonly userCountAtDisable: 1
+}
+
 export type WanexDesktopScheduleSettlementReader = (
   scheduleId: string,
   enabled: boolean,
@@ -281,6 +286,7 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
 export async function runWanexDesktopScheduleCreateSettlementProof(
   expected: WanexDesktopScheduleProofExpected,
   admission: WanexDesktopScheduleCreateAdmission,
+  preRelease: WanexDesktopScheduleCreatePreRelease,
   settledScheduleRow: WanexDesktopScheduleSettlementReader,
 ): Promise<WanexDesktopScheduleCreateProofResult> {
   const settlementStartedAt = performance.now()
@@ -291,21 +297,16 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
   , 15_000, "final_response")
   const settledAt = performance.now()
   await openSettings()
-  const row = await waitFor(() => scheduleRow(admission.scheduleId), 10_000, "created_row")
-  const toggle = row.querySelector("[data-ui-schedule-toggle]")
-  if (!(toggle instanceof HTMLButtonElement) || toggle.disabled) {
-    throw new Error("Desktop Schedule proof disable control is unavailable")
-  }
-  toggle.click()
   await waitFor(
     () => settledScheduleRow(admission.scheduleId, false),
     10_000,
-    "disabled",
+    "disabled_before_release",
   )
   const disabledAt = performance.now()
   await new Promise((resolve) => setTimeout(resolve, expected.quietWindowMs))
   const disabledQuietWindowObserved =
-    scheduleRow(admission.scheduleId)?.textContent?.includes("Disabled") === true
+    scheduleRow(admission.scheduleId)?.textContent?.includes("Disabled") === true &&
+    conversationRows("user").length === preRelease.userCountAtDisable
   const providerEvidenceRedacted = redacted()
   const internalIdentityEvidenceHidden = visibleIdentityHidden()
   return {
@@ -325,7 +326,7 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
     firstUserVisible: admission.firstUserVisible,
     firstPartialResponseVisible: admission.firstPartialResponseVisible,
     firstFinalResponseVisible: true,
-    disabledBeforeShutdown: true,
+    disabledBeforeRelease: preRelease.disabledBeforeRelease,
     disabledQuietWindowObserved,
     timingsMs: {
       rendererInteractive: admission.rendererInteractive,
@@ -372,6 +373,80 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
 
   function cssEscape(value: string): string {
     return globalThis.CSS?.escape?.(value) ?? value.replace(/[^a-zA-Z0-9_-]/g, "\\$&")
+  }
+
+  async function waitFor<T>(
+    read: () => T | false | undefined,
+    timeoutMs: number,
+    stage: string,
+  ): Promise<T> {
+    const end = Date.now() + timeoutMs
+    for (;;) {
+      const value = read()
+      if (value !== undefined && value !== false) return value
+      const remaining = end - Date.now()
+      if (remaining <= 0) break
+      await new Promise((resolve) => setTimeout(resolve, Math.min(50, remaining)))
+    }
+    throw new Error(`Desktop Schedule proof timed out during ${stage}`)
+  }
+}
+
+export async function runWanexDesktopScheduleDisableBeforeReleaseProof(
+  admission: WanexDesktopScheduleCreateAdmission,
+  settledScheduleRow: WanexDesktopScheduleSettlementReader,
+): Promise<WanexDesktopScheduleCreatePreRelease> {
+  await openSettings()
+  const row = await waitFor(
+    () => settledScheduleRow(admission.scheduleId, true),
+    10_000,
+    "enabled_before_release",
+  )
+  const toggle = row.querySelector("[data-ui-schedule-toggle]")
+  if (!(toggle instanceof HTMLButtonElement) || toggle.disabled) {
+    throw new Error("Desktop Schedule proof disable control is unavailable")
+  }
+  toggle.click()
+  await waitFor(
+    () => settledScheduleRow(admission.scheduleId, false),
+    10_000,
+    "disabled_before_release",
+  )
+  const userCountAtDisable = conversationRows("user").length
+  if (userCountAtDisable !== 1) {
+    throw new Error("Desktop Schedule proof observed an overlapping execution")
+  }
+  closeSettings()
+  return { disabledBeforeRelease: true, userCountAtDisable: 1 }
+
+  async function openSettings(): Promise<void> {
+    if (document.querySelector("[data-ui-settings-panel]") !== null) return
+    const trigger = await waitFor(() => {
+      const candidate = document.querySelector('[data-ui-action="open-settings"]')
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_trigger")
+    trigger.click()
+    await waitFor(
+      () => document.querySelector("[data-ui-settings-panel]") ?? undefined,
+      10_000,
+      "settings_panel",
+    )
+  }
+
+  function closeSettings(): void {
+    const close = document.querySelector(
+      '[data-ui-settings-panel] button[aria-label="Close settings"]',
+    )
+    if (!(close instanceof HTMLButtonElement)) {
+      throw new Error("Desktop Schedule proof Settings close control is unavailable")
+    }
+    close.click()
+  }
+
+  function conversationRows(role: "user" | "assistant"): Element[] {
+    return [...document.querySelectorAll(
+      `[data-ui-conversation-row][data-ui-role="${role}"]`,
+    )]
   }
 
   async function waitFor<T>(

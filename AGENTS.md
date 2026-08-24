@@ -3856,3 +3856,29 @@ residue. Structure, public-contract, workspace-hygiene, distribution,
 distribution-graph, distribution-footprint, and host-distribution audits pass.
 Submit this as one matrix; CODING-2 remains blocked until all four Verify and
 Distribution targets plus Packed Core are green.
+
+Run `32717823880` passed all four Verify jobs, Packed Core, Linux Distribution,
+and darwin-x64 Distribution. The remaining ARM TUI failure was one monolithic
+PTY process exhausting its absolute deadline after Provider lifecycle and
+before Team completion. The Windows Desktop failure was a Schedule request
+crossing the response-settlement-to-disable window before process shutdown.
+The twentieth correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1425-coding-1d-twentieth-product-proof-workflow-isolation-correction.md`
+
+Installed TUI proof now runs Provider lifecycle, coordinated Team, and final
+Provider removal as three independently bounded processes over one installed
+package and one store. Require process absence and terminal restoration after
+each journey, and keep separate transcripts. Do not recombine these workflows,
+increase their 90-second budgets, add retries or fixed sleeps, or replace the
+shared store with independent fixtures.
+
+Packaged Desktop Schedule proof disables the canonical Schedule while its first
+held execution is still active, requires one scheduled user message after two
+crossed deadlines, and only then releases the Provider response. Relaunch owns
+the second execution after explicit re-enable. Do not allow two creation-step
+requests, depend on process shutdown winning the recurrence race, or restore the
+obsolete `disabledBeforeShutdown` receipt field. Local Desktop 48 tests, TUI
+script 11 tests, external installed TUI proof, and complete packaged Desktop
+proof pass. CODING-2 remains blocked until the next single consolidated matrix
+passes every target.

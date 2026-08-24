@@ -49,6 +49,114 @@ const installedPrimaryAssistantText = "installed TUI canonical Provider reply"
 const installedTeamTitle = "Installed coordination"
 const installedTeamUserText = "installed TUI coordinated group proof"
 const installedTeamAssistantText = "installed TUI coordinated Team reply"
+const installedTuiPtyJourneyTimeoutMs = 90_000
+
+export function installedTuiPtyJourneyIds() {
+  return ["provider-lifecycle", "team", "final-provider-removal"]
+}
+
+export function installedTuiProviderJourneySteps() {
+  return [
+    "expect -exact \"Wanex Provider Setup\"",
+    "expect -exact \"Provider \\[1-4\\]: \"",
+    "send -- \"4\\r\"",
+    "expect -exact \"Model ID: \"",
+    "send -- \"installed-product-tui-model\\r\"",
+    "expect -exact \"Base URL: \"",
+    "send -- \"$base_url\\r\"",
+    "expect -exact \"API key: \"",
+    "send -- \"$credential\\r\"",
+    "set credential \"\"",
+    "expect -exact \"Ready | installed-product-tui-model\"",
+    "send -- \"\\033\\\[19~\"",
+    "expect -exact \"Wanex Provider Management\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"1\\r\"",
+    "expect -exact \"Provider \\[1-4\\]: \"",
+    "send -- \"4\\r\"",
+    "expect -exact \"Model ID: \"",
+    "send -- \"installed-secondary-model\\r\"",
+    "expect -exact \"Base URL: \"",
+    "send -- \"$secondary_base_url\\r\"",
+    "expect -exact \"API key: \"",
+    "send -- \"$secondary_credential\\r\"",
+    "set secondary_credential \"\"",
+    "expect -exact \"Provider added.\"",
+    "expect -exact \"Press Enter to continue...\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"5\\r\"",
+    "expect -exact \"Ready | installed-product-tui-model\"",
+    "send -- \"\\033OQ\"",
+    "expect -exact \"Models\"",
+    "send -- \"\\033\\\[B\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Model selected | installed-secondary-model\"",
+    "expect -re {Send \\|[^\\r\\n]*Enter submit}",
+    "send -- \"$secondary_prompt\\r\"",
+    "expect -exact $secondary_reply",
+    "expect -exact \"Wanex | completed\"",
+    "send -- \"\\033\\\[19~\"",
+    "expect -exact \"Wanex Provider Management\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"2\\r\"",
+    "expect -exact \"Provider \\[1-2\\]: \"",
+    "send -- \"$secondary_choice\\r\"",
+    "expect -exact \"API key: \"",
+    "send -- \"$rotated_credential\\r\"",
+    "set rotated_credential \"\"",
+    "expect -exact \"Credential rotated.\"",
+    "expect -exact \"Press Enter to continue...\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"5\\r\"",
+    "expect -exact \"Ready | installed-secondary-model\"",
+    "expect -re {Send \\|[^\\r\\n]*Enter submit}",
+    "send -- \"$rotated_prompt\\r\"",
+    "expect -exact $rotated_reply",
+    "expect -exact \"Wanex | completed\"",
+    "send -- \"\\033\\\[19~\"",
+    "expect -exact \"Wanex Provider Management\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"3\\r\"",
+    "expect -exact \"Provider \\[1-2\\]: \"",
+    "send -- \"$secondary_choice\\r\"",
+    "expect -exact \"New model ID for installed-secondary-model: \"",
+    "send -- \"installed-secondary-model-edited\\r\"",
+    "expect -exact \"Model ID updated.\"",
+    "expect -exact \"Press Enter to continue...\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"5\\r\"",
+    "expect -exact \"Ready | installed-secondary-model-edited\"",
+    "expect -re {Send \\|[^\\r\\n]*Enter submit}",
+    "send -- \"$edited_prompt\\r\"",
+    "expect -exact $edited_reply",
+    "expect -exact \"Wanex | completed\"",
+    "send -- \"\\033\\\[19~\"",
+    "expect -exact \"Wanex Provider Management\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"4\\r\"",
+    "expect -exact \"Provider \\[1-2\\]: \"",
+    "send -- \"$secondary_choice\\r\"",
+    "expect -exact \"Type REMOVE to delete\"",
+    "send -- \"REMOVE\\r\"",
+    "expect -exact \"Provider removed. Active model: \"",
+    "expect -exact \"Press Enter to continue...\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"5\\r\"",
+    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -re {Send \\|[^\\r\\n]*Enter submit}",
+    "send -- \"$fallback_prompt\\r\"",
+    "expect -exact $fallback_reply",
+    "expect -exact \"Wanex | completed\"",
+    "send -- \"\\021\"",
+    "expect eof",
+    "set status [wait]",
+    "exit [lindex $status 3]"
+  ]
+}
 
 export const installedTuiProofPath = join(
   distributionRoot,
@@ -76,6 +184,73 @@ export function installedTuiTeamComposerReadySteps() {
     "send -- \"$team_prompt\"",
     "expect -exact $team_prompt",
     "send -- \"\\r\""
+  ]
+}
+
+export function installedTuiTeamJourneySteps() {
+  return [
+    "expect -exact \"Ready | installed-product-tui-model\"",
+    "send -- \"\\017\"",
+    "expect -exact \"Conversations\"",
+    "expect -exact \"New group\"",
+    "send -- \"\\033\\\[B\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Give this group a short title.\"",
+    "send -- \"$team_title\\r\"",
+    "expect -exact \"Group mode\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Group created\"",
+    "expect -exact $team_title",
+    ...installedTuiTeamAgentSetupReadySteps(),
+    "send -- \"\\033\\\[B\"",
+    "send -- \"\\033\\\[B\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Set as coordinator\"",
+    "send -- \"\\033\\\[B\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Set coordinator?\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Coordinator updated\"",
+    "expect -exact \"Group details\"",
+    ...installedTuiTeamComposerReadySteps(),
+    "expect -exact \"Coordinator replied\"",
+    "expect -exact $team_reply",
+    "send -- \"\\017\"",
+    "expect -exact \"Conversations\"",
+    "expect -exact $team_title",
+    "send -- \"\\033\\\[A\"",
+    "send -- \"\\033\\\[A\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Conversation selected\"",
+    "expect -exact $fallback_prompt",
+    "send -- \"\\021\"",
+    "expect eof",
+    "set status [wait]",
+    "exit [lindex $status 3]"
+  ]
+}
+
+export function installedTuiFinalRemovalJourneySteps() {
+  return [
+    "expect -exact \"Ready | installed-product-tui-model\"",
+    "send -- \"\\033\\\[19~\"",
+    "expect -exact \"Wanex Provider Management\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"4\\r\"",
+    "expect -exact \"Provider \\[1-1\\]: \"",
+    "send -- \"1\\r\"",
+    "expect -exact \"Type REMOVE to delete\"",
+    "send -- \"REMOVE\\r\"",
+    "expect -exact \"No configured conversation Provider remains.\"",
+    "expect -exact \"Press Enter to continue...\"",
+    "send -- \"\\r\"",
+    "expect -exact \"Action \\[1-5\\]: \"",
+    "send -- \"5\\r\"",
+    "expect -exact \"Select a model provider\"",
+    "send -- \"\\021\"",
+    "expect eof",
+    "set status [wait]",
+    "exit [lindex $status 3]"
   ]
 }
 
@@ -335,6 +510,19 @@ async function installExternalTui(options) {
   return { projectDir, installedWanexClosure }
 }
 
+async function runInstalledTuiPtyJourney(options) {
+  return execFileAsync(
+    "/usr/bin/expect",
+    [options.script, options.transcript, ...options.args],
+    {
+      cwd: options.projectDir,
+      env: options.environment,
+      timeout: installedTuiPtyJourneyTimeoutMs,
+      maxBuffer: 20 * 1024 * 1024
+    }
+  )
+}
+
 async function runInstalledLineTui(options) {
   const providerEnv = providerEnvironment(options.provider)
   const storeDir = join(options.projectDir, ".proof-line-store")
@@ -384,13 +572,21 @@ async function runInstalledLineTui(options) {
 
 async function runInstalledFullScreenTui(options) {
   const storeDir = join(options.projectDir, ".proof-pty-store")
-  const transcript = join(options.projectDir, "pty-transcript.txt")
-  const relaunchTranscript = join(
+  const providerTranscript = join(
     options.projectDir,
-    "pty-relaunch-transcript.txt"
+    "pty-provider-transcript.txt"
   )
-  const expectScript = join(options.projectDir, "pty-proof.exp")
-  const relaunchExpectScript = join(options.projectDir, "pty-relaunch-proof.exp")
+  const teamTranscript = join(options.projectDir, "pty-team-transcript.txt")
+  const finalRemovalTranscript = join(
+    options.projectDir,
+    "pty-final-removal-transcript.txt"
+  )
+  const providerExpectScript = join(options.projectDir, "pty-provider-proof.exp")
+  const teamExpectScript = join(options.projectDir, "pty-team-proof.exp")
+  const finalRemovalExpectScript = join(
+    options.projectDir,
+    "pty-final-removal-proof.exp"
+  )
   const credentialInput = join(options.projectDir, ".pty-credential-input")
   const secondaryCredentialInput = join(
     options.projectDir,
@@ -421,8 +617,9 @@ async function runInstalledFullScreenTui(options) {
   const environment = tuiEnvironment({ WANEX_STORE_DIR: storeDir })
   let stdout = ""
   let stderr = ""
-  let transcriptText = ""
-  let relaunchTranscriptText = ""
+  let providerTranscriptText = ""
+  let teamTranscriptText = ""
+  let finalRemovalTranscriptText = ""
   let failure
   try {
     await Promise.all([
@@ -439,7 +636,7 @@ async function runInstalledFullScreenTui(options) {
         mode: 0o600
       }),
       writeFile(
-        expectScript,
+        providerExpectScript,
         [
           "set timeout 60",
           "match_max 1048576",
@@ -461,9 +658,6 @@ async function runInstalledFullScreenTui(options) {
           "set edited_reply [lindex $argv 14]",
           "set fallback_prompt [lindex $argv 15]",
           "set fallback_reply [lindex $argv 16]",
-          "set team_title [lindex $argv 17]",
-          "set team_prompt [lindex $argv 18]",
-          "set team_reply [lindex $argv 19]",
           "set channel [open $credential_input r]",
           "set credential [read -nonewline $channel]",
           "close $channel",
@@ -475,142 +669,32 @@ async function runInstalledFullScreenTui(options) {
           "close $channel",
           "log_file -noappend -a $transcript",
           "spawn -noecho $node $entry fullscreen",
-          "expect -exact \"Wanex Provider Setup\"",
-          "expect -exact \"Provider \\[1-4\\]: \"",
-          "send -- \"4\\r\"",
-          "expect -exact \"Model ID: \"",
-          "send -- \"installed-product-tui-model\\r\"",
-          "expect -exact \"Base URL: \"",
-          "send -- \"$base_url\\r\"",
-          "expect -exact \"API key: \"",
-          "send -- \"$credential\\r\"",
-          "set credential \"\"",
-          "expect -exact \"Ready | installed-product-tui-model\"",
-          "send -- \"\\033\\\[19~\"",
-          "expect -exact \"Wanex Provider Management\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"1\\r\"",
-          "expect -exact \"Provider \\[1-4\\]: \"",
-          "send -- \"4\\r\"",
-          "expect -exact \"Model ID: \"",
-          "send -- \"installed-secondary-model\\r\"",
-          "expect -exact \"Base URL: \"",
-          "send -- \"$secondary_base_url\\r\"",
-          "expect -exact \"API key: \"",
-          "send -- \"$secondary_credential\\r\"",
-          "set secondary_credential \"\"",
-          "expect -exact \"Provider added.\"",
-          "expect -exact \"Press Enter to continue...\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"5\\r\"",
-          "expect -exact \"Ready | installed-product-tui-model\"",
-          "send -- \"\\033OQ\"",
-          "expect -exact \"Models\"",
-          "send -- \"\\033\\\[B\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Model selected | installed-secondary-model\"",
-          "expect -re {Send \\|[^\\r\\n]*Enter submit}",
-          "send -- \"$secondary_prompt\\r\"",
-          "expect -exact $secondary_reply",
-          "expect -exact \"Wanex | completed\"",
-          "send -- \"\\033\\\[19~\"",
-          "expect -exact \"Wanex Provider Management\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"2\\r\"",
-          "expect -exact \"Provider \\[1-2\\]: \"",
-          "send -- \"$secondary_choice\\r\"",
-          "expect -exact \"API key: \"",
-          "send -- \"$rotated_credential\\r\"",
-          "set rotated_credential \"\"",
-          "expect -exact \"Credential rotated.\"",
-          "expect -exact \"Press Enter to continue...\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"5\\r\"",
-          "expect -exact \"Ready | installed-secondary-model\"",
-          "expect -re {Send \\|[^\\r\\n]*Enter submit}",
-          "send -- \"$rotated_prompt\\r\"",
-          "expect -exact $rotated_reply",
-          "expect -exact \"Wanex | completed\"",
-          "send -- \"\\033\\\[19~\"",
-          "expect -exact \"Wanex Provider Management\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"3\\r\"",
-          "expect -exact \"Provider \\[1-2\\]: \"",
-          "send -- \"$secondary_choice\\r\"",
-          "expect -exact \"New model ID for installed-secondary-model: \"",
-          "send -- \"installed-secondary-model-edited\\r\"",
-          "expect -exact \"Model ID updated.\"",
-          "expect -exact \"Press Enter to continue...\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"5\\r\"",
-          "expect -exact \"Ready | installed-secondary-model-edited\"",
-          "expect -re {Send \\|[^\\r\\n]*Enter submit}",
-          "send -- \"$edited_prompt\\r\"",
-          "expect -exact $edited_reply",
-          "expect -exact \"Wanex | completed\"",
-          "send -- \"\\033\\\[19~\"",
-          "expect -exact \"Wanex Provider Management\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"4\\r\"",
-          "expect -exact \"Provider \\[1-2\\]: \"",
-          "send -- \"$secondary_choice\\r\"",
-          "expect -exact \"Type REMOVE to delete\"",
-          "send -- \"REMOVE\\r\"",
-          "expect -exact \"Provider removed. Active model: \"",
-          "expect -exact \"Press Enter to continue...\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"5\\r\"",
-          "expect -exact \"Ready | installed-product-tui-model\"",
-          "expect -re {Send \\|[^\\r\\n]*Enter submit}",
-          "send -- \"$fallback_prompt\\r\"",
-          "expect -exact $fallback_reply",
-          "expect -exact \"Wanex | completed\"",
-          "send -- \"\\017\"",
-          "expect -exact \"Conversations\"",
-          "expect -exact \"New group\"",
-          "send -- \"\\033\\\[B\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Give this group a short title.\"",
-          "send -- \"$team_title\\r\"",
-          "expect -exact \"Group mode\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Group created\"",
-          "expect -exact $team_title",
-          ...installedTuiTeamAgentSetupReadySteps(),
-          "send -- \"\\033\\\[B\"",
-          "send -- \"\\033\\\[B\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Set as coordinator\"",
-          "send -- \"\\033\\\[B\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Set coordinator?\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Coordinator updated\"",
-          "expect -exact \"Group details\"",
-          ...installedTuiTeamComposerReadySteps(),
-          "expect -exact \"Coordinator replied\"",
-          "expect -exact $team_reply",
-          "send -- \"\\017\"",
-          "expect -exact \"Conversations\"",
-          "expect -exact $team_title",
-          "send -- \"\\033\\\[A\"",
-          "send -- \"\\033\\\[A\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Conversation selected\"",
-          "expect -exact $fallback_prompt",
-          "send -- \"\\021\"",
-          "expect eof",
-          "set status [wait]",
-          "exit [lindex $status 3]"
+          ...installedTuiProviderJourneySteps()
         ].join("\n") + "\n",
         "utf8"
       ),
       writeFile(
-        relaunchExpectScript,
+        teamExpectScript,
+        [
+          "set timeout 60",
+          "match_max 1048576",
+          "log_user 0",
+          "set transcript [lindex $argv 0]",
+          "set node [lindex $argv 1]",
+          "set entry [lindex $argv 2]",
+          "set secondary_prompt [lindex $argv 3]",
+          "set fallback_prompt [lindex $argv 4]",
+          "set team_title [lindex $argv 5]",
+          "set team_prompt [lindex $argv 6]",
+          "set team_reply [lindex $argv 7]",
+          "log_file -noappend -a $transcript",
+          "spawn -noecho $node $entry fullscreen",
+          ...installedTuiTeamJourneySteps()
+        ].join("\n") + "\n",
+        "utf8"
+      ),
+      writeFile(
+        finalRemovalExpectScript,
         [
           "set timeout 60",
           "match_max 1048576",
@@ -620,34 +704,15 @@ async function runInstalledFullScreenTui(options) {
           "set entry [lindex $argv 2]",
           "log_file -noappend -a $transcript",
           "spawn -noecho $node $entry fullscreen",
-          "expect -exact \"Ready | installed-product-tui-model\"",
-          "send -- \"\\033\\\[19~\"",
-          "expect -exact \"Wanex Provider Management\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"4\\r\"",
-          "expect -exact \"Provider \\[1-1\\]: \"",
-          "send -- \"1\\r\"",
-          "expect -exact \"Type REMOVE to delete\"",
-          "send -- \"REMOVE\\r\"",
-          "expect -exact \"No configured conversation Provider remains.\"",
-          "expect -exact \"Press Enter to continue...\"",
-          "send -- \"\\r\"",
-          "expect -exact \"Action \\[1-5\\]: \"",
-          "send -- \"5\\r\"",
-          "expect -exact \"Select a model provider\"",
-          "send -- \"\\021\"",
-          "expect eof",
-          "set status [wait]",
-          "exit [lindex $status 3]"
+          ...installedTuiFinalRemovalJourneySteps()
         ].join("\n") + "\n",
         "utf8"
       )
     ])
-    const result = await execFileAsync(
-      "/usr/bin/expect",
-      [
-        expectScript,
-        transcript,
+    const providerResult = await runInstalledTuiPtyJourney({
+      script: providerExpectScript,
+      transcript: providerTranscript,
+      args: [
         process.execPath,
         entry,
         options.provider.baseUrl,
@@ -663,38 +728,46 @@ async function runInstalledFullScreenTui(options) {
         editedUserText,
         "installed TUI secondary edited reply",
         fallbackUserText,
-        options.provider.assistantText,
+        options.provider.assistantText
+      ],
+      projectDir: options.projectDir,
+      environment
+    })
+    stdout = providerResult.stdout
+    stderr = providerResult.stderr
+    await assertNoProcessContaining(storeDir)
+
+    const teamResult = await runInstalledTuiPtyJourney({
+      script: teamExpectScript,
+      transcript: teamTranscript,
+      args: [
+        process.execPath,
+        entry,
+        secondaryUserText,
+        fallbackUserText,
         installedTeamTitle,
         installedTeamUserText,
         installedTeamAssistantText
       ],
-      {
-        cwd: options.projectDir,
-        env: environment,
-        timeout: 90_000,
-        maxBuffer: 20 * 1024 * 1024
-      }
-    )
-    stdout = result.stdout
-    stderr = result.stderr
+      projectDir: options.projectDir,
+      environment
+    })
+    stdout += teamResult.stdout
+    stderr += teamResult.stderr
+    await assertNoProcessContaining(storeDir)
 
-    const relaunch = await execFileAsync(
-      "/usr/bin/expect",
-      [
-        relaunchExpectScript,
-        relaunchTranscript,
+    const finalRemovalResult = await runInstalledTuiPtyJourney({
+      script: finalRemovalExpectScript,
+      transcript: finalRemovalTranscript,
+      args: [
         process.execPath,
         entry
       ],
-      {
-        cwd: options.projectDir,
-        env: environment,
-        timeout: 90_000,
-        maxBuffer: 20 * 1024 * 1024
-      }
-    )
-    stdout += relaunch.stdout
-    stderr += relaunch.stderr
+      projectDir: options.projectDir,
+      environment
+    })
+    stdout += finalRemovalResult.stdout
+    stderr += finalRemovalResult.stderr
     assertExactProviderRequest(options.secondaryProvider, {
       input: secondaryUserText,
       credential: options.secondaryProvider.credential,
@@ -726,10 +799,14 @@ async function runInstalledFullScreenTui(options) {
       )
     }
     await assertNoProcessContaining(storeDir)
-    transcriptText = await readFile(transcript, "utf8")
-    if (!transcriptText.includes(options.provider.assistantText)) {
+    providerTranscriptText = await readFile(providerTranscript, "utf8")
+    if (!providerTranscriptText.includes(options.provider.assistantText)) {
       throw new Error("installed TUI PTY transcript misses assistant output")
     }
+    if (!providerTranscriptText.includes(fallbackUserText)) {
+      throw new Error("installed TUI Provider journey misses fallback evidence")
+    }
+    teamTranscriptText = await readFile(teamTranscript, "utf8")
     for (const value of [
       installedTeamTitle,
       installedTeamUserText,
@@ -737,35 +814,40 @@ async function runInstalledFullScreenTui(options) {
       "Coordinator replied",
       fallbackUserText
     ]) {
-      if (!transcriptText.includes(value)) {
+      if (!teamTranscriptText.includes(value)) {
         throw new Error(`installed TUI PTY transcript misses Team evidence: ${value}`)
       }
     }
     assertNoForbiddenValues(
-      transcriptText,
+      teamTranscriptText,
       ["participant_", "round_", "delivery_", "team_conversation_"],
       "installed TUI PTY Team transcript"
     )
-    if (!transcriptText.includes("\x1b[?2004l")) {
-      throw new Error(
-        "installed TUI PTY transcript misses terminal restoration"
-      )
+    finalRemovalTranscriptText = await readFile(finalRemovalTranscript, "utf8")
+    for (const [label, value] of [
+      ["Provider", providerTranscriptText],
+      ["Team", teamTranscriptText],
+      ["final removal", finalRemovalTranscriptText]
+    ]) {
+      if (!value.includes("\x1b[?2004l")) {
+        throw new Error(`installed TUI ${label} journey missed terminal restoration`)
+      }
     }
-    relaunchTranscriptText = await readFile(relaunchTranscript, "utf8")
-    if (relaunchTranscriptText.includes("Wanex Provider Setup")) {
+    if (
+      teamTranscriptText.includes("Wanex Provider Setup") ||
+      finalRemovalTranscriptText.includes("Wanex Provider Setup")
+    ) {
       throw new Error("installed TUI relaunch repeated Provider setup")
     }
-    if (!relaunchTranscriptText.includes("Ready | installed-product-tui-model")) {
+    if (
+      !teamTranscriptText.includes("Ready | installed-product-tui-model") ||
+      !finalRemovalTranscriptText.includes("Ready | installed-product-tui-model")
+    ) {
       throw new Error("installed TUI relaunch missed configured model")
     }
-    if (!relaunchTranscriptText.includes("Select a model provider")) {
+    if (!finalRemovalTranscriptText.includes("Select a model provider")) {
       throw new Error(
         "installed TUI final removal missed unconfigured readiness"
-      )
-    }
-    if (!relaunchTranscriptText.includes("\x1b[?2004l")) {
-      throw new Error(
-        "installed TUI relaunch missed terminal restoration"
       )
     }
     assertTerminalPrivacy(stdout + stderr, options.provider, {
@@ -787,27 +869,24 @@ async function runInstalledFullScreenTui(options) {
       ],
       "installed TUI PTY store"
     )
-    await assertFilesDoNotContain(
-      transcript,
-      [
-        options.provider.credential,
-        options.secondaryProvider.credential,
-        rotatedCredential
-      ],
-      "installed TUI PTY transcript"
-    )
-    await assertFilesDoNotContain(
-      relaunchTranscript,
-      [
-        options.provider.credential,
-        options.secondaryProvider.credential,
-        rotatedCredential
-      ],
-      "installed TUI PTY relaunch transcript"
-    )
+    for (const [label, path] of [
+      ["Provider", providerTranscript],
+      ["Team", teamTranscript],
+      ["final removal", finalRemovalTranscript]
+    ]) {
+      await assertFilesDoNotContain(
+        path,
+        [
+          options.provider.credential,
+          options.secondaryProvider.credential,
+          rotatedCredential
+        ],
+        `installed TUI PTY ${label} transcript`
+      )
+    }
   } catch (error) {
     const transcriptDiagnostic = await readTranscriptDiagnostic(
-      [transcript, relaunchTranscript],
+      [providerTranscript, teamTranscript, finalRemovalTranscript],
       [
         options.provider.credential,
         options.secondaryProvider.credential,
@@ -850,8 +929,9 @@ async function runInstalledFullScreenTui(options) {
     rm(credentialInput, { force: true }),
     rm(secondaryCredentialInput, { force: true }),
     rm(rotatedCredentialInput, { force: true }),
-    rm(expectScript, { force: true }),
-    rm(relaunchExpectScript, { force: true })
+    rm(providerExpectScript, { force: true }),
+    rm(teamExpectScript, { force: true }),
+    rm(finalRemovalExpectScript, { force: true })
   ])
   if (failure !== undefined && cleanupFailure !== undefined) {
     throw new Error(
@@ -892,9 +972,12 @@ async function runInstalledFullScreenTui(options) {
       publicReply: installedTeamAssistantText,
       originalSessionRestored: true
     },
+    journeyCount: installedTuiPtyJourneyIds().length,
     stdoutBytes: Buffer.byteLength(stdout),
     transcriptBytes:
-      Buffer.byteLength(transcriptText) + Buffer.byteLength(relaunchTranscriptText)
+      Buffer.byteLength(providerTranscriptText) +
+      Buffer.byteLength(teamTranscriptText) +
+      Buffer.byteLength(finalRemovalTranscriptText)
   }
 }
 
@@ -917,7 +1000,7 @@ async function readTranscriptDiagnostic(paths, forbidden) {
       .replace(/\r/g, "")
       .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001a\u001c-\u001f\u007f]/g, "")
     diagnostics.push(
-      `${path.endsWith("relaunch-transcript.txt") ? "relaunch" : "primary"} ` +
+      `${path.split("pty-").at(-1)?.replace("-transcript.txt", "") ?? "PTY"} ` +
       `transcript tail:\n${output.slice(-16_000)}`
     )
   }

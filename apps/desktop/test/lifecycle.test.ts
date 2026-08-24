@@ -17,6 +17,7 @@ import {
 import {
   wanexDesktopScheduleCreateAdmissionProofScript,
   wanexDesktopScheduleCreateSettlementProofScript,
+  wanexDesktopScheduleDisableBeforeReleaseProofScript,
   wanexDesktopScheduleRestoreProofScript,
 } from "../src/schedule-proof-script.js"
 import { wanexDesktopTeamProofScript } from "../src/team-proof.js"
@@ -116,7 +117,7 @@ describe("Product Desktop lifecycle and navigation", () => {
 
   it("proves Schedule mutations through canonical state and action settlement", () => {
     const admission = wanexDesktopScheduleCreateAdmissionProofScript()
-    const settlement = wanexDesktopScheduleCreateSettlementProofScript({
+    const schedule = {
       ok: true,
       scheduleId: "schedule-proof",
       sessionId: "session-proof",
@@ -130,16 +131,23 @@ describe("Product Desktop lifecycle and navigation", () => {
       scheduleSessionVisible: true,
       firstUserVisible: true,
       firstPartialResponseVisible: true,
+    } as const
+    const preRelease = wanexDesktopScheduleDisableBeforeReleaseProofScript(schedule)
+    const settlement = wanexDesktopScheduleCreateSettlementProofScript(schedule, {
+      disabledBeforeRelease: true,
+      userCountAtDisable: 1,
     })
     const restore = wanexDesktopScheduleRestoreProofScript()
 
-    for (const script of [admission, settlement, restore]) {
+    for (const script of [admission, preRelease, settlement, restore]) {
       expect(script).toContain("settledScheduleRow")
       expect(script).toContain(
         'toggle.title === (enabled ? "Disable schedule" : "Enable schedule")',
       )
       expect(script).not.toContain("data-ui-schedule-status")
     }
+    expect(preRelease).toContain("observed an overlapping execution")
+    expect(settlement).toContain("userCountAtDisable")
   })
 
   it("uses explicit secret-free scripts after Provider configuration", () => {

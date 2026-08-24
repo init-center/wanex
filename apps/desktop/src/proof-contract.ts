@@ -259,7 +259,7 @@ export interface WanexDesktopScheduleCreateProofResult
   readonly firstUserVisible: boolean
   readonly firstPartialResponseVisible: boolean
   readonly firstFinalResponseVisible: boolean
-  readonly disabledBeforeShutdown: boolean
+  readonly disabledBeforeRelease: boolean
   readonly disabledQuietWindowObserved: boolean
 }
 

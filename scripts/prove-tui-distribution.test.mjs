@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import {
   installedTuiTeamAgentSetupReadySteps,
   installedTuiTeamComposerReadySteps,
+  installedTuiProviderJourneySteps,
+  installedTuiTeamJourneySteps,
+  installedTuiFinalRemovalJourneySteps,
+  installedTuiPtyJourneyIds,
   parseTuiProofArgs,
   writeInstalledTuiProofReceipt
 } from "./prove-tui-distribution.mjs"
@@ -43,6 +47,39 @@ describe("installed TUI proof receipt", () => {
       "expect -exact $team_prompt",
       "send -- \"\\r\""
     ])
+  })
+
+  it("isolates persisted Provider, Team, and final-removal PTY journeys", () => {
+    expect(installedTuiPtyJourneyIds()).toEqual([
+      "provider-lifecycle",
+      "team",
+      "final-provider-removal"
+    ])
+    const provider = installedTuiProviderJourneySteps()
+    expect(provider[0]).toBe('expect -exact "Wanex Provider Setup"')
+    expect(provider).toContain('expect -exact "Provider added."')
+    expect(provider).toContain('expect -exact "Credential rotated."')
+    expect(provider).toContain('expect -exact "Model ID updated."')
+    expect(provider).toContain(
+      'expect -exact "Provider removed. Active model: "'
+    )
+    expect(provider).toContain('expect -exact $fallback_reply')
+    expect(provider.at(-1)).toBe("exit [lindex $status 3]")
+
+    const team = installedTuiTeamJourneySteps()
+    expect(team[0]).toBe('expect -exact "Ready | installed-product-tui-model"')
+    expect(team).toContain('expect -exact "Group created"')
+    expect(team).toContain('expect -exact "Coordinator replied"')
+    expect(team).toContain('expect -exact $fallback_prompt')
+    expect(team.at(-1)).toBe("exit [lindex $status 3]")
+
+    const removal = installedTuiFinalRemovalJourneySteps()
+    expect(removal[0]).toBe('expect -exact "Ready | installed-product-tui-model"')
+    expect(removal).toContain(
+      'expect -exact "No configured conversation Provider remains."'
+    )
+    expect(removal).toContain('expect -exact "Select a model provider"')
+    expect(removal.at(-1)).toBe("exit [lindex $status 3]")
   })
 
   it("accepts an explicit staged native artifact directory", () => {

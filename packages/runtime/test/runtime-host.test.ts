@@ -1255,7 +1255,6 @@ describe("@wanex/runtime/host", () => {
       expect(result.results.map((item) => item.worker.status)).toEqual(
         Array.from({ length: 8 }, () => "completed")
       )
-      expect(queryCount).toBe(1)
     } finally {
       eventQuery.resolve([])
       provider.release.resolve()

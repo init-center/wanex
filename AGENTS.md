@@ -3907,3 +3907,22 @@ Rust, structure, public-contract, Storage/RPC, and distribution audits pass.
 This local evidence proves and removes the duplicated load but does not claim
 the sole Windows failure cause until the next matrix confirms it. CODING-2
 remains blocked until that single consolidated matrix is fully green.
+
+Run `32756717815` for commit `92a2061` passed complete Verify on Linux,
+darwin-arm64, and darwin-x64. Windows passed all three direct shared-observer
+tests but stopped in the new eight-worker Host regression after its decisive
+gate had already proved eight active Providers shared one blocked query. The
+test incorrectly required the total query count to remain one after releasing
+the query and Providers; Windows settlement exceeded one 250ms interval, so
+the one shared observer correctly continued sequential observation and reached
+10 queries. The twenty-second correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1427-coding-1d-twenty-second-shared-observer-test-lifecycle-correction.md`
+
+Remove only that invalid post-settlement total-count assertion. Retain the
+deterministic in-flight sharing assertion and all eight completed-worker
+results. Do not increase the interval, add a delay, assert an arbitrary total
+query ceiling, or add a Windows branch. The failed Runtime package prevented
+the Windows remote multi-owner Eval from running, and the gate skipped Packed
+Core and Distribution, so CODING-2 remains blocked until the next single
+consolidated matrix passes every target.

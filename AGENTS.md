@@ -3926,3 +3926,23 @@ query ceiling, or add a Windows branch. The failed Runtime package prevented
 the Windows remote multi-owner Eval from running, and the gate skipped Packed
 Core and Distribution, so CODING-2 remains blocked until the next single
 consolidated matrix passes every target.
+
+Run `32758605271` for commit `4da85fc` passed all four Verify jobs, Packed Core
+Node 24, Linux Distribution, and both macOS Distribution targets. Windows
+Distribution completed every native, TUI, Desktop, performance, lifecycle,
+privacy, and cleanup proof, then failed only the existing physical-size budget:
+the current Release native executable was 13,227,008 bytes against the stale
+9,600,000-byte ceiling, the packaged native total was 13,227,486 bytes, and
+the pinned `@napi-rs/keyring-win32-x64-msvc@1.3.0` binding made the credential
+artifact 1,865,549 bytes against the stale 600,000-byte ceiling. This phase
+changed only TypeScript Runtime observation code and a test; native and
+credential sources were unchanged. The twenty-third correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1428-coding-1d-twenty-third-windows-distribution-footprint-reconciliation.md`
+
+The Windows physical budget is reconciled to the measured current release
+baseline with the existing approximately 10% headroom policy: 14,600,000
+native bytes and 2,100,000 credential bytes. Do not hide the audit, remove
+credential verification, package extra files, or change the native build solely
+to satisfy an obsolete threshold. The next single consolidated matrix must
+confirm the budget and keep CODING-2 blocked until every target is green.

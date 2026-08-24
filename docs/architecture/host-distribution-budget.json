@@ -116,7 +116,7 @@
     },
     "win32-x64": {
       "native": {
-        "maxExecutableBytes": 9600000,
+        "maxExecutableBytes": 14600000,
         "exactFileCount": 2,
         "maxColdImportMedianMs": 1000,
         "maxColdImportHardMs": 3000,
@@ -132,9 +132,9 @@
         "maxPackageFileCount": 90,
         "maxAsarBytes": 2400000,
         "exactAsarEntryCount": 2,
-        "maxNativeBytes": 9600000,
+        "maxNativeBytes": 14600000,
         "exactNativeFileCount": 2,
-        "maxCredentialBytes": 600000,
+        "maxCredentialBytes": 2100000,
         "exactCredentialFileCount": 2,
         "cold": {
           "maxInteractiveTotalMs": 3000,

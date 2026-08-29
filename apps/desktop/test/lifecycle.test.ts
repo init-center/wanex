@@ -30,7 +30,7 @@ import {
   resolveWanexDesktopWindowChrome,
 } from "../src/window-policy.js"
 
-describe("Product Desktop lifecycle and navigation", () => {
+describe("Desktop lifecycle and navigation", () => {
   it("closes owned resources exactly once", async () => {
     let closes = 0
     const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
@@ -43,10 +43,10 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(closes).toBe(1)
   })
 
-  it("allows only the exact app-owned Product origin", () => {
+  it("allows only the exact app-owned Assistant origin", () => {
     const origin = "http://127.0.0.1:41235/"
     expect(isWanexDesktopOwnedNavigation(
-      "http://127.0.0.1:41235/wanex/web/request",
+      "http://127.0.0.1:41235/wanex/assistant/request",
       origin
     )).toBe(true)
     expect(isWanexDesktopOwnedNavigation(
@@ -57,7 +57,7 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(isWanexDesktopOwnedNavigation("file:///tmp/escape", origin)).toBe(false)
   })
 
-  it("integrates the macOS traffic lights into the Product topbar", () => {
+  it("integrates the macOS traffic lights into the Assistant topbar", () => {
     expect(resolveWanexDesktopWindowChrome("darwin")).toEqual({
       documentChrome: "integrated-macos",
       title: "",
@@ -90,7 +90,7 @@ describe("Product Desktop lifecycle and navigation", () => {
     expect(script).toContain("[data-ui-conversation-timeline]")
     expect(script).toContain("workflowsContextual")
     expect(script).toContain("conversationIdentityIntegrity")
-    expect(script).toContain("soleProductRenderer")
+    expect(script).toContain("soleAssistantRenderer")
     expect(script).toContain("unknownRouteRejected")
     expect(script).toContain("sessionNavigationTruth")
     expect(script).toContain("canonicalTranscriptIntegrity")

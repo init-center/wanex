@@ -39,7 +39,7 @@ class BindingBackedWanexLocalKeychainSecretStore implements SecretStorePort {
     readonly binding: WanexLocalKeychainBinding
   }) {
     this.namespace = normalizeWanexLocalCredentialNamespace(options.namespace)
-    this.service = `com.wanex.product.${this.namespace}`
+    this.service = `com.wanex.assistant.${this.namespace}`
     this.binding = options.binding
   }
 

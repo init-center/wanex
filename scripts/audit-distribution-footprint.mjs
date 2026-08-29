@@ -11,28 +11,38 @@ const enforce = process.argv.includes("--enforce")
 const entries = [
   { name: "@wanex/runtime", kind: "cold-runtime-facade" },
   { name: "@wanex/cli", kind: "cold-product" },
+  { name: "@wanex/coding", kind: "trusted-coding" },
   { name: "@wanex/app", kind: "slim-hot-product" },
-  { name: "@wanex/product", kind: "slim-hot-product" },
-  { name: "@wanex/plugin-command-host", kind: "hot-product" },
+  { name: "@wanex/assistant", kind: "slim-hot-product" },
+  { name: "@wanex/assistant-plugin-host", kind: "hot-product" },
   { name: "@wanex/desktop", kind: "interactive-product" },
-  { name: "@wanex/local-host", kind: "interactive-product" },
-  { name: "@wanex/web", kind: "interactive-product" },
+  { name: "@wanex/assistant-host", kind: "interactive-product" },
+  { name: "@wanex/assistant-ui", kind: "interactive-product" },
   { name: "@wanex/tui", kind: "interactive-product" },
 ]
 
 const forbiddenPackages = [
   "@wanex/plugin",
-  "@wanex/connector"
+  "@wanex/connector",
+  "@wanex/workspace"
 ]
 
 const concreteAdapterPackages = []
+
+const codingClosure = [
+  "@wanex/coding",
+  "@wanex/protocol",
+  "@wanex/runtime",
+  "@wanex/storage",
+  "@wanex/workspace"
+]
 
 const tuiForbiddenDependencies = [
   "@wanex/connector",
   "@wanex/gateway",
   "@wanex/plugin",
   "@wanex/desktop",
-  "@wanex/web",
+  "@wanex/assistant-ui",
   "@wanex/team",
   "electron",
   "react",
@@ -244,20 +254,55 @@ function buildEntryReport(request) {
 }
 
 function footprintFailures(entry) {
-  if (entry.entry === "@wanex/plugin-command-host") {
+  if (entry.entry === "@wanex/coding") {
+    const failures = []
+    if (entry.missing.length > 0) {
+      failures.push({
+        code: "footprint_entry_missing",
+        entry: entry.entry,
+        message: "trusted Coding footprint audit entry is missing",
+        detail: { missing: entry.missing }
+      })
+      return failures
+    }
+    const missingPackages = codingClosure.filter(
+      (packageName) => !entry.workspaceClosure.includes(packageName)
+    )
+    const unexpectedPackages = entry.workspaceClosure.filter(
+      (packageName) => !codingClosure.includes(packageName)
+    )
+    if (missingPackages.length > 0) {
+      failures.push({
+        code: "footprint_coding_required_closure_missing",
+        entry: entry.entry,
+        message: "trusted Coding is missing required capability closure",
+        detail: { packages: missingPackages }
+      })
+    }
+    if (unexpectedPackages.length > 0) {
+      failures.push({
+        code: "footprint_coding_unexpected_closure",
+        entry: entry.entry,
+        message: "trusted Coding includes unrelated application or optional capability closure",
+        detail: { packages: unexpectedPackages }
+      })
+    }
+    return failures
+  }
+  if (entry.entry === "@wanex/assistant-plugin-host") {
     const failures = []
     if (!entry.contains.pluginRuntime) {
       failures.push({
         code: "footprint_required_plugin_runtime_missing",
         entry: entry.entry,
-        message: "product command host must include plugin runtime"
+        message: "Assistant Plugin Host must include Plugin Runtime"
       })
     }
     if (entry.contains.connectorRuntime) {
       failures.push({
         code: "footprint_unrelated_connector_runtime",
         entry: entry.entry,
-        message: "product command host must not include connector runtime"
+        message: "Assistant Plugin Host must not include Connector Runtime"
       })
     }
     return failures
@@ -313,7 +358,7 @@ function footprintFailures(entry) {
     failures.push({
       code: "footprint_forbidden_closure",
       entry: entry.entry,
-      message: `${entry.kind} entry includes forbidden plugin/connector closure`,
+      message: `${entry.kind} entry includes a forbidden optional capability closure`,
       detail: {
         packages: entry.contains.forbiddenPackages
       }
@@ -393,13 +438,26 @@ function printTextReport(report) {
           : entry.contains.concreteAdapters.join(", ")
       }`
     )
-    console.log(
-      `  forbidden closure: ${
-        entry.contains.forbiddenPackages.length === 0
-          ? "none"
-          : entry.contains.forbiddenPackages.join(", ")
-      }`
-    )
+    if (entry.entry === "@wanex/coding") {
+      console.log(
+        `  exact Coding closure: ${
+          entry.workspaceClosure.length === codingClosure.length &&
+          codingClosure.every((packageName) =>
+            entry.workspaceClosure.includes(packageName)
+          )
+            ? "yes"
+            : "no"
+        }`
+      )
+    } else {
+      console.log(
+        `  forbidden closure: ${
+          entry.contains.forbiddenPackages.length === 0
+            ? "none"
+            : entry.contains.forbiddenPackages.join(", ")
+        }`
+      )
+    }
     if (entry.entry === "@wanex/tui") {
       console.log(
         `  TUI forbidden dependencies: ${

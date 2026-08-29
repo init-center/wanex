@@ -249,6 +249,18 @@ interface AppendSessionMessageRequest {
 }
 
 // @public (undocumented)
+interface ApplicationScopeBinding {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+    // (undocumented)
+    readonly metadata: JsonValue_2;
+}
+
+// @public (undocumented)
 export interface ApplyConfigMutationsCommand {
     // (undocumented)
     command: "apply-config-mutations";
@@ -714,13 +726,19 @@ export interface BeginWorkspaceTaskRunWire {
     // (undocumented)
     access: WorkspaceTaskAccessWire;
     // (undocumented)
+    agent_id: NullableString;
+    // (undocumented)
     attempt_id: string;
     // (undocumented)
     claim_token: string;
     // (undocumented)
+    execution_environment: JsonValue;
+    // (undocumented)
     id: string;
     // (undocumented)
     isolation_id: string;
+    // (undocumented)
+    job_id: NullableString;
     // (undocumented)
     lease_ms: number;
     // (undocumented)
@@ -1482,6 +1500,8 @@ export interface CreateSessionCommand {
     // (undocumented)
     kind: NullableSessionKindWire;
     // (undocumented)
+    scope: NullableSessionScopeWire;
+    // (undocumented)
     title: NullableString;
 }
 
@@ -1491,6 +1511,8 @@ interface CreateSessionRequest {
     readonly id?: SessionId;
     // (undocumented)
     readonly kind?: SessionKind;
+    // (undocumented)
+    readonly scope?: SessionScope;
     // (undocumented)
     readonly title?: string;
 }
@@ -1985,6 +2007,107 @@ export interface ExecuteApprovedPlanWire {
     proposal_id: string;
     // (undocumented)
     turn: SubmitSessionTurnWire;
+}
+
+// @public (undocumented)
+interface ExecutionCapabilitySnapshot {
+    // (undocumented)
+    readonly artifactExport: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly filesystem: {
+        readonly enforcement: "library_guard" | "os";
+        readonly effects: readonly ExecutionFileEffect[];
+    };
+    // (undocumented)
+    readonly isolation: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly network: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly process: {
+        readonly oneShot: true;
+        readonly managed: boolean;
+        readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    };
+    // (undocumented)
+    readonly pty: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly secretProjection: {
+        readonly supported: boolean;
+    };
+}
+
+// @public (undocumented)
+interface ExecutionEnvironmentBinding {
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    readonly capabilityDigest: string;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly providerRevision: string;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+type ExecutionFileEffect = "read" | "write" | "create" | "remove";
+
+// @public (undocumented)
+interface ExecutionFileSystemPolicy {
+    // (undocumented)
+    readonly maxDirectoryEntries: number;
+    // (undocumented)
+    readonly maxReadBytes: number;
+    // (undocumented)
+    readonly roots: readonly {
+        readonly id: string;
+        readonly effects: readonly ExecutionFileEffect[];
+    }[];
+}
+
+// @public (undocumented)
+interface ExecutionPolicySnapshot {
+    // (undocumented)
+    readonly filesystem: ExecutionFileSystemPolicy;
+    // (undocumented)
+    readonly isolation: "none" | "os";
+    // (undocumented)
+    readonly network: "unrestricted" | "denied";
+    // (undocumented)
+    readonly process: ExecutionProcessPolicy;
+    // (undocumented)
+    readonly pty: boolean;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+interface ExecutionProcessPolicy {
+    // (undocumented)
+    readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    // (undocumented)
+    readonly environmentVariables: readonly string[];
+    // (undocumented)
+    readonly managed: boolean;
+    // (undocumented)
+    readonly oneShot: boolean;
 }
 
 // @public (undocumented)
@@ -2563,6 +2686,14 @@ export interface GetSessionCommand {
     command: "get-session";
     // (undocumented)
     id: string;
+}
+
+// @public (undocumented)
+export interface GetSessionTurnCommand {
+    // (undocumented)
+    command: "get-session-turn";
+    // (undocumented)
+    turn_id: string;
 }
 
 // @public (undocumented)
@@ -3567,9 +3698,13 @@ export interface ListSessionsCommand {
 // @public (undocumented)
 interface ListSessionsRequest {
     // (undocumented)
+    readonly before?: SessionPageCursor;
+    // (undocumented)
     readonly kind?: SessionKind;
     // (undocumented)
     readonly limit?: number;
+    // (undocumented)
+    readonly scope?: SessionScope;
     // (undocumented)
     readonly status?: SessionStatus;
     // (undocumented)
@@ -3581,9 +3716,13 @@ interface ListSessionsRequest {
 // @public (undocumented)
 export interface ListSessionsWire {
     // (undocumented)
+    before: NullableSessionPageCursorWire;
+    // (undocumented)
     kind: NullableSessionKindWire;
     // (undocumented)
     limit: NullableUnsigned32;
+    // (undocumented)
+    scope: NullableSessionScopeWire;
     // (undocumented)
     status: NullableSessionStatusWire;
     // (undocumented)
@@ -3635,7 +3774,11 @@ export interface ListSessionTurnControlsWire {
 // @public (undocumented)
 export interface ListSessionTurnsCommand {
     // (undocumented)
+    before: NullableSessionTurnPageCursorWire;
+    // (undocumented)
     command: "list-session-turns";
+    // (undocumented)
+    limit: number | null;
     // (undocumented)
     session_id: string;
     // (undocumented)
@@ -3646,6 +3789,10 @@ export interface ListSessionTurnsCommand {
 
 // @public (undocumented)
 interface ListSessionTurnsRequest {
+    // (undocumented)
+    readonly before?: SessionTurnPageCursor;
+    // (undocumented)
+    readonly limit?: number;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
@@ -4005,6 +4152,8 @@ export interface ListWorkspaceTaskRunsWire {
     limit: NullableInteger;
     // (undocumented)
     repository_id: NullableString;
+    // (undocumented)
+    run_ids: [string, ...string[]] | null;
     // (undocumented)
     state: NullableWorkspaceTaskRunStateWire;
     // (undocumented)
@@ -4933,6 +5082,12 @@ export type NullableSessionInputStateWire = SessionInputStateWire | null;
 export type NullableSessionKindWire = SessionKindWire | null;
 
 // @public (undocumented)
+export type NullableSessionPageCursorWire = SessionPageCursorWire | null;
+
+// @public (undocumented)
+export type NullableSessionScopeWire = SessionScopeWire | null;
+
+// @public (undocumented)
 export type NullableSessionStatusWire = SessionStatusWire | null;
 
 // @public (undocumented)
@@ -4940,6 +5095,9 @@ export type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | nu
 
 // @public (undocumented)
 export type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
+
+// @public (undocumented)
+export type NullableSessionTurnPageCursorWire = SessionTurnPageCursorWire | null;
 
 // @public (undocumented)
 export type NullableSessionTurnStateWire = SessionTurnStateWire | null;
@@ -7151,6 +7309,22 @@ interface SessionMessageRecord {
 }
 
 // @public (undocumented)
+interface SessionPageCursor {
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
+export interface SessionPageCursorWire {
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    updated_at: number;
+}
+
+// @public (undocumented)
 interface SessionRecord {
     // (undocumented)
     readonly archivedAt?: number;
@@ -7163,6 +7337,8 @@ interface SessionRecord {
     // (undocumented)
     readonly revision: number;
     // (undocumented)
+    readonly scope?: SessionScope;
+    // (undocumented)
     readonly status: SessionStatus;
     // (undocumented)
     readonly title?: string;
@@ -7171,7 +7347,23 @@ interface SessionRecord {
 }
 
 // @public (undocumented)
-export type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
+interface SessionScope {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+}
+
+// @public (undocumented)
+export interface SessionScopeWire {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: string;
+}
+
+// @public (undocumented)
+export type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | GetSessionTurnCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
 
 // @public (undocumented)
 export interface SessionStateTransitionWire {
@@ -7205,6 +7397,8 @@ export interface SessionStore {
     finishProviderInvocation(request: FinishProviderInvocationRequest): Promise<FinishProviderInvocationReceipt | null>;
     // (undocumented)
     getSession(id: string): Promise<SessionRecord | null>;
+    // (undocumented)
+    getSessionTurn(turnId: string): Promise<SessionTurnRecord | null>;
     // (undocumented)
     interruptSessionTurn(request: InterruptSessionTurnRequest): Promise<InterruptSessionTurnReceipt>;
     // (undocumented)
@@ -7243,6 +7437,26 @@ export interface SessionStore {
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
+}
+
+// @public (undocumented)
+interface SessionTurnContextEvidence {
+    // (undocumented)
+    readonly instructions?: SessionTurnContextSourceEvidence;
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly skills?: SessionTurnContextSourceEvidence;
+}
+
+// @public (undocumented)
+interface SessionTurnContextSourceEvidence {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly sourceCount: number;
+    // (undocumented)
+    readonly state: "available" | "unavailable";
 }
 
 // @public (undocumented)
@@ -7299,17 +7513,19 @@ export type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
     // (undocumented)
+    readonly applicationScope?: ApplicationScopeBinding;
+    // (undocumented)
     readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[];
     // (undocumented)
     readonly completion: SessionTurnCompletionBinding;
     // (undocumented)
-    readonly contextSnapshot?: JsonValue_2;
+    readonly contextEvidence?: SessionTurnContextEvidence;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
     readonly digest: string;
     // (undocumented)
-    readonly environmentSnapshot?: JsonValue_2;
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly modelEndpoint: ModelEndpointExecutionBinding;
     // (undocumented)
@@ -7324,6 +7540,22 @@ interface SessionTurnExecutionBinding {
 
 // @public (undocumented)
 type SessionTurnId = string;
+
+// @public (undocumented)
+interface SessionTurnPageCursor {
+    // (undocumented)
+    readonly createdAt: number;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+}
+
+// @public (undocumented)
+export interface SessionTurnPageCursorWire {
+    // (undocumented)
+    created_at: number;
+    // (undocumented)
+    turn_id: string;
+}
 
 // @public (undocumented)
 interface SessionTurnRecord {
@@ -7676,7 +7908,7 @@ export interface SteerSessionTurnWire {
 }
 
 // @public (undocumented)
-export const STORAGE_RPC_SCHEMA_SHA256: "703bad100cd0b8c67f5b5894134589c0fcbd2a69d49fb9054f00dd4247370691";
+export const STORAGE_RPC_SCHEMA_SHA256: "43ae191af0da7509b1669749020e953e84cc3a545baf34817a0564a35d6b67bd";
 
 // @public (undocumented)
 export interface StorageHandle {

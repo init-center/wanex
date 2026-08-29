@@ -4,30 +4,35 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  auditPackagedProductDesktop,
-  auditProductDesktopStaging,
-  buildProductDesktop,
+  auditPackagedDesktop,
+  auditDesktopStaging,
+  buildDesktop,
+  createDesktopNativeArtifactStagePlan,
   normalizeAsarEntry,
   packageRoot,
-  productDesktopResourcesDir,
-  stageProductDesktopCredentialArtifact,
+  desktopResourcesDir,
+  stageDesktopCredentialArtifact,
   stagingDir,
   workspaceRoot,
 } from "../scripts/build.mjs";
 import {
-  PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT,
-  summarizeProductDesktopSamples,
+  materializeInstalledDesktop,
+  verifyInstalledDesktopCopy,
+} from "../scripts/proof.mjs";
+import {
+  DESKTOP_PROOF_SAMPLE_COUNT,
+  summarizeDesktopSamples,
 } from "../scripts/metrics.mjs";
 import {
   assertRelaunchJourneyFixtureRequests,
   assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
-  createProductDesktopProofProcessEnvironment,
-  measureProductDesktopSample,
-  removeProductDesktopProofRoot,
+  createDesktopProofProcessEnvironment,
+  measureDesktopSample,
+  removeDesktopProofRoot,
 } from "../scripts/proof.mjs";
 import {
-  writeProductDesktopFailureReport,
+  writeDesktopFailureReport,
 } from "../scripts/proof/failure-report.mjs";
 import {
   requiredWanexDesktopPackagedProofStep,
@@ -50,20 +55,75 @@ afterEach(async () => {
   );
 });
 
-describe("Product Desktop packaging policy", () => {
-  it("builds one two-entry dependency-free application bundle", async () => {
-    await expect(buildProductDesktop()).resolves.toEqual({
-      kind: "wanex.product-desktop.staging-receipt",
-      fileCount: 2,
+describe("Desktop packaging policy", () => {
+  it("requires an external installation root and verifies the copied package", async () => {
+    const sourceRoot = await temporaryDirectory("wanex-installed-source-");
+    const sourcePackage = join(sourceRoot, "Wanex.app");
+    await mkdir(join(sourcePackage, "Contents"), { recursive: true });
+    await writeFile(join(sourcePackage, "Contents", "app.asar"), "asar", "utf8");
+    await expect(materializeInstalledDesktop({
+      sourcePackageDir: sourcePackage,
+      installationRoot: join(workspaceRoot, "target", "invalid-install"),
+    })).rejects.toThrow("outside the source workspace");
+
+    const installationRoot = await temporaryDirectory("wanex-installed-copy-");
+    const installed = await materializeInstalledDesktop({
+      sourcePackageDir: sourcePackage,
+      installationRoot: join(installationRoot, "已安装 应用"),
+    });
+    await expect(verifyInstalledDesktopCopy({
+      sourcePackageDir: sourcePackage,
+      installedPackageDir: installed.packageDir,
+    })).resolves.toEqual({
+      packageFileCount: 1,
+      packageBytes: 4,
+    });
+    await writeFile(join(installed.packageDir, "Contents", "app.asar"), "changed", "utf8");
+    await expect(verifyInstalledDesktopCopy({
+      sourcePackageDir: sourcePackage,
+      installedPackageDir: installed.packageDir,
+    })).rejects.toThrow("differs from its source package");
+  });
+
+  it("refreshes the host native artifact as part of Desktop packaging", () => {
+    const plan = createDesktopNativeArtifactStagePlan({
+      workspaceRoot,
+      platform: "darwin",
+      arch: "arm64",
+      nodeExecutable: "/usr/local/bin/node",
+    });
+    expect(plan).toEqual({
+      command: "/usr/local/bin/node",
+      args: [
+        expect.stringContaining("tsx"),
+        join(workspaceRoot, "scripts/stage-native-artifact.ts"),
+        "--target",
+        "darwin-arm64",
+      ],
+      cwd: workspaceRoot,
+      targetId: "darwin-arm64",
+    });
+  });
+
+  it("builds one dependency-free application bundle with a private preload", async () => {
+    await expect(buildDesktop()).resolves.toEqual({
+      kind: "wanex.desktop.staging-receipt",
+      fileCount: 3,
       bytes: expect.any(Number),
       hasNodeModules: false,
     });
     const manifest = JSON.parse(
       await readFile(join(stagingDir, "package.json"), "utf8"),
     );
-    expect(manifest.productName).toBe("Wanex");
+    expect(manifest.assistantName).toBe("Wanex");
     expect(manifest).not.toHaveProperty("dependencies");
     const main = await readFile(join(stagingDir, "main.cjs"), "utf8");
+    const preload = await readFile(join(stagingDir, "preload.cjs"), "utf8");
+    expect(main).toContain("data-ui-product-renderer");
+    expect(main).toContain("data-ui-coding-shell");
+    expect(preload).toContain("wanexCoding");
+    expect(preload).toContain("contextBridge");
+    expect(preload).not.toContain(workspaceRoot);
     expect(main).not.toMatch(/(?:\bfrom\s*|\bimport\s*\()\s*["']@wanex\//);
     expect(main).not.toContain(workspaceRoot);
     expect(main).not.toContain("sourceMappingURL");
@@ -71,20 +131,27 @@ describe("Product Desktop packaging policy", () => {
       /(?:\bimport\s*\(|\brequire\s*\()\s*["']@wanex\/local-credential-store\/keychain["']/,
     );
     expect(main).toContain(
-      "Product Desktop requires its verified injected credential binding",
+      "Desktop requires its verified injected credential binding",
     );
   });
 
-  it("freezes the no-IPC exact-origin renderer policy", async () => {
+  it("freezes the semantic IPC and exact-origin renderer policy", async () => {
     const main = await readFile(join(packageRoot, "src/main.ts"), "utf8");
     const manifest = JSON.parse(
       await readFile(join(packageRoot, "package.json"), "utf8"),
     );
     expect(manifest.dependencies).toEqual({
+      "@wanex/assistant-host": "workspace:*",
+      "@wanex/assistant-plugin-host": "workspace:*",
+      "@wanex/assistant-ui": "workspace:*",
+      "@wanex/coding": "workspace:*",
       "@wanex/local-credential-store": "workspace:*",
-      "@wanex/local-host": "workspace:*",
       "@wanex/plugin": "workspace:*",
-      "@wanex/plugin-command-host": "workspace:*",
+      "@wanex/runtime": "workspace:*",
+      "@wanex/workspace": "workspace:*",
+      "lucide-react": "1.28.0",
+      "react": "19.2.8",
+      "react-dom": "19.2.8",
     });
     expect(main).toContain("contextIsolation: true");
     expect(main).toContain("nodeIntegration: false");
@@ -93,11 +160,11 @@ describe("Product Desktop packaging policy", () => {
     expect(main).toContain('on("will-navigate"');
     expect(main).toContain("setPermissionRequestHandler");
     expect(main).toContain("setPermissionCheckHandler");
-    expect(main).toContain("startLocalWebApp");
-    expect(main).toContain("loadURL(product.url)");
-    expect(main).not.toMatch(/\bipcMain\b|\bipcRenderer\b|\bcontextBridge\b/);
+    expect(main).toContain("startAssistantWebApp");
+    expect(main).toContain("loadURL(assistant.url)");
+    expect(main).toContain("ipcMain");
+    expect(main).toContain("preload:");
     expect(main).not.toContain("@wanex/runtime");
-    expect(main).not.toContain("preload:");
     expect(main).not.toContain("loadFile(");
   });
 
@@ -156,17 +223,17 @@ describe("Product Desktop packaging policy", () => {
   });
 
   it("stages exactly one target keyring binding with integrity evidence", async () => {
-    const root = await temporaryDirectory("wanex-product-desktop-keyring-");
+    const root = await temporaryDirectory("wanex-desktop-keyring-");
     const binaryPath = join(root, "fixture.node");
     await writeFile(binaryPath, "fixture-keyring", "utf8");
     await expect(
-      stageProductDesktopCredentialArtifact({
+      stageDesktopCredentialArtifact({
         platform: "darwin",
         arch: "arm64",
         binaryPath,
       }),
     ).resolves.toMatchObject({
-      kind: "wanex.product-desktop.credential-staging-receipt",
+      kind: "wanex.desktop.credential-staging-receipt",
       target: "darwin-arm64",
       fileCount: 2,
       bytes: 15,
@@ -175,29 +242,29 @@ describe("Product Desktop packaging policy", () => {
   });
 
   it("rejects staging dependencies and unexpected files", async () => {
-    await buildProductDesktop();
-    const root = await copyToTemp(stagingDir, "wanex-product-desktop-stage-");
+    await buildDesktop();
+    const root = await copyToTemp(stagingDir, "wanex-desktop-stage-");
     const manifestPath = join(root, "package.json");
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     manifest.dependencies = { bad: "1.0.0" };
     await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
-    await expect(auditProductDesktopStaging(root)).rejects.toThrow(
+    await expect(auditDesktopStaging(root)).rejects.toThrow(
       "must not declare dependencies",
     );
     delete manifest.dependencies;
     await writeFile(manifestPath, JSON.stringify(manifest), "utf8");
-    await writeFile(join(root, "preload.cjs"), "module.exports = {}\n", "utf8");
-    await expect(auditProductDesktopStaging(root)).rejects.toThrow(
+    await writeFile(join(root, "unexpected.cjs"), "module.exports = {}\n", "utf8");
+    await expect(auditDesktopStaging(root)).rejects.toThrow(
       "unexpected files",
     );
   });
 
   it("audits one ASAR and both exact external native resources", async () => {
-    await buildProductDesktop();
-    const root = await temporaryDirectory("wanex-product-desktop-package-");
+    await buildDesktop();
+    const root = await temporaryDirectory("wanex-desktop-package-");
     const stagedNativeDir = await createNativeFixture();
     const stagedCredentialDir = await createCredentialFixture();
-    const resources = productDesktopResourcesDir(root);
+    const resources = desktopResourcesDir(root);
     await mkdir(resources, { recursive: true });
     await createPackage(stagingDir, join(resources, "app.asar"));
     await Promise.all([
@@ -207,7 +274,7 @@ describe("Product Desktop packaging policy", () => {
       }),
     ]);
     await expect(
-      auditPackagedProductDesktop({
+      auditPackagedDesktop({
         packageDir: root,
         stagedNativeDir,
         stagedCredentialDir,
@@ -215,7 +282,7 @@ describe("Product Desktop packaging policy", () => {
     ).resolves.toMatchObject({
       hasApplicationNodeModules: false,
       hasAsarUnpacked: false,
-      asarEntryCount: 2,
+      asarEntryCount: 3,
       nativeFileCount: 2,
       credentialFileCount: 2,
     });
@@ -225,7 +292,7 @@ describe("Product Desktop packaging policy", () => {
       "utf8",
     );
     await expect(
-      auditPackagedProductDesktop({
+      auditPackagedDesktop({
         packageDir: root,
         stagedNativeDir,
         stagedCredentialDir,
@@ -240,15 +307,15 @@ describe("Product Desktop packaging policy", () => {
     expect(normalizeAsarEntry("../unexpected.js")).toBe("/../unexpected.js");
   });
 
-  it("freezes one cold and four warm Product Desktop samples", () => {
-    expect(PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT).toBe(5);
+  it("freezes one cold and four warm Desktop samples", () => {
+    expect(DESKTOP_PROOF_SAMPLE_COUNT).toBe(5);
     expect(assertCanonicalProofArgs([])).toBeUndefined();
     expect(assertCanonicalProofArgs(["--"])).toBeUndefined();
     expect(() => assertCanonicalProofArgs(["--samples", "5"])).toThrow(
-      "unknown Product Desktop proof argument",
+      "unknown Desktop proof argument",
     );
     expect(
-      summarizeProductDesktopSamples([
+      summarizeDesktopSamples([
         sample(0, "cold", 50, 500),
         sample(1, "warm", 10, 100),
         sample(2, "warm", 20, 200),
@@ -282,7 +349,7 @@ describe("Product Desktop packaging policy", () => {
     let now = 0;
     let audited = false;
     await expect(
-      measureProductDesktopSample(
+      measureDesktopSample(
         async () => {
           now = 25;
           return { stdout: "", stderr: "" };
@@ -300,7 +367,7 @@ describe("Product Desktop packaging policy", () => {
     expect(audited).toBe(true);
 
     await expect(
-      measureProductDesktopSample(
+      measureDesktopSample(
         async () => ({ stdout: "", stderr: "" }),
         async () => {
           throw new Error("process inspection failed");
@@ -310,7 +377,7 @@ describe("Product Desktop packaging policy", () => {
   });
 
   it("removes inherited proof secrets from Provider relaunch processes", () => {
-    const environment = createProductDesktopProofProcessEnvironment(
+    const environment = createDesktopProofProcessEnvironment(
       {
         KEEP_ME: "retained",
         WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: "inherited-secret",
@@ -332,7 +399,7 @@ describe("Product Desktop packaging policy", () => {
   });
 
   it("cleans only its owned proof root after immutable extension materialization", async () => {
-    const root = await temporaryDirectory("wanex-product-desktop-cleanup-");
+    const root = await temporaryDirectory("wanex-desktop-cleanup-");
     const sealed = join(root, "extensions", "plugin", "1.0.0", "digest", "bin");
     const executable = join(sealed, "plugin-host");
     await mkdir(sealed, { recursive: true });
@@ -342,18 +409,18 @@ describe("Product Desktop packaging policy", () => {
       await chmod(sealed, 0o555);
     }
 
-    await removeProductDesktopProofRoot(root);
+    await removeDesktopProofRoot(root);
     tempDirs.splice(tempDirs.indexOf(root), 1);
     await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
   it("persists bounded failure evidence before the proof root is removed", async () => {
-    const proofRoot = await temporaryDirectory("wanex-product-desktop-failure-");
-    const outputRoot = await temporaryDirectory("wanex-product-desktop-report-");
+    const proofRoot = await temporaryDirectory("wanex-desktop-failure-");
+    const outputRoot = await temporaryDirectory("wanex-desktop-report-");
     await writeFile(
       join(proofRoot, "runtime-receipt-0.json"),
       JSON.stringify({
-        kind: "wanex.product-desktop.runtime-receipt",
+        kind: "wanex.desktop.runtime-receipt",
         ok: false,
         failurePhase: "renderer_proof",
         failureProofStep: "lifecycle",
@@ -396,10 +463,10 @@ describe("Product Desktop packaging policy", () => {
       "utf8",
     );
     const error = Object.assign(new Error("outer-secret"), {
-      code: "product_desktop_process_failed",
+      code: "assistant_desktop_process_failed",
     });
 
-    const report = await writeProductDesktopFailureReport({
+    const report = await writeDesktopFailureReport({
       error,
       proofRoot,
       providerRequests: [
@@ -420,11 +487,11 @@ describe("Product Desktop packaging policy", () => {
     });
 
     expect(report).toMatchObject({
-      kind: "wanex.product-desktop.proof-receipt",
+      kind: "wanex.desktop.proof-receipt",
       ok: false,
       failure: {
         name: "Error",
-        code: "product_desktop_process_failed",
+        code: "assistant_desktop_process_failed",
       },
       runtimeFailures: [{
         failurePhase: "renderer_proof",
@@ -468,18 +535,18 @@ describe("Product Desktop packaging policy", () => {
       },
     });
     const persisted = await readFile(
-      join(outputRoot, "product-desktop-report.json"),
+      join(outputRoot, "desktop-report.json"),
       "utf8",
     );
     expect(JSON.parse(persisted)).toEqual(report);
     expect(persisted).not.toMatch(
       /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret/,
     );
-    await removeProductDesktopProofRoot(proofRoot);
+    await removeDesktopProofRoot(proofRoot);
     tempDirs.splice(tempDirs.indexOf(proofRoot), 1);
     await expect(stat(proofRoot)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(
-      readFile(join(outputRoot, "product-desktop-report.json"), "utf8"),
+      readFile(join(outputRoot, "desktop-report.json"), "utf8"),
     ).resolves.toBe(persisted);
   });
 
@@ -495,7 +562,7 @@ describe("Product Desktop packaging policy", () => {
       body: { messages: [{ content: `secret-message-${index}` }] },
     }));
 
-    const report = await writeProductDesktopFailureReport({
+    const report = await writeDesktopFailureReport({
       error: new Error("bounded fixture evidence"),
       proofRoot,
       providerRequests,
@@ -517,7 +584,7 @@ describe("Product Desktop packaging policy", () => {
       authorized: true,
     });
     const persisted = await readFile(
-      join(outputRoot, "product-desktop-report.json"),
+      join(outputRoot, "desktop-report.json"),
       "utf8",
     );
     expect(persisted).not.toMatch(/secret-model|secret-message|chat\/completions/);
@@ -529,7 +596,7 @@ describe("Product Desktop packaging policy", () => {
     await writeFile(
       join(proofRoot, "runtime-receipt-0.json"),
       JSON.stringify({
-        kind: "wanex.product-desktop.runtime-receipt",
+        kind: "wanex.desktop.runtime-receipt",
         ok: false,
         failurePhase: "renderer_proof",
         error: { name: "Error", code: "desktop_renderer_proof_failed" },
@@ -542,7 +609,7 @@ describe("Product Desktop packaging policy", () => {
       "utf8",
     );
 
-    const report = await writeProductDesktopFailureReport({
+    const report = await writeDesktopFailureReport({
       error: new Error("renderer failed"),
       proofRoot,
       outputRoot,
@@ -979,7 +1046,7 @@ describe("Product Desktop packaging policy", () => {
     )).toThrow("runtime proof failed");
   });
 
-  it("freezes the native and Product Desktop release matrix", async () => {
+  it("freezes the native and Desktop release matrix", async () => {
     const workflow = await readFile(
       join(workspaceRoot, ".github/workflows/desktop.yml"),
       "utf8",
@@ -1015,16 +1082,16 @@ describe("Product Desktop packaging policy", () => {
     );
     expect(workflow).toContain("target/distribution/tui");
     expect(workflow).toContain(
-      "target/distribution/product-desktop/electron-artifact.json",
+      "target/distribution/desktop/electron-artifact.json",
     );
     expect(workflow).toContain(
-      "target/distribution/product-desktop/product-desktop-proof-normal.png",
+      "target/distribution/desktop/desktop-proof-normal.png",
     );
     expect(workflow).toContain(
-      "target/distribution/product-desktop/product-desktop-proof-narrow.png",
+      "target/distribution/desktop/desktop-proof-narrow.png",
     );
     expect(workflow).not.toContain(
-      "target/distribution/product-desktop/product-desktop-proof.png",
+      "target/distribution/desktop/desktop-proof.png",
     );
     expect(workflow).not.toContain("--samples");
     expect(workflow).toContain("name: Packed Core Node 24");
@@ -1067,7 +1134,7 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
 
 function teamRuntimeReceipt() {
   return {
-    kind: "wanex.product-desktop.runtime-receipt",
+    kind: "wanex.desktop.runtime-receipt",
     ok: true,
     proofStep: "relaunch-team",
     renderer: {
@@ -1176,7 +1243,7 @@ function pluginRuntimeReceipt(step) {
         commandAbsentAfterRemoval: true,
       };
   return {
-    kind: "wanex.product-desktop.runtime-receipt",
+    kind: "wanex.desktop.runtime-receipt",
     ok: true,
     proofStep: step,
     renderer,
@@ -1234,7 +1301,7 @@ function scheduleRuntimeReceipt(step) {
         canonicalRemovedStateVisible: true,
       };
   return {
-    kind: "wanex.product-desktop.runtime-receipt",
+    kind: "wanex.desktop.runtime-receipt",
     ok: true,
     proofStep: step,
     renderer,
@@ -1256,7 +1323,7 @@ async function copyToTemp(source, prefix) {
 }
 
 async function createNativeFixture() {
-  const root = await temporaryDirectory("wanex-product-desktop-native-");
+  const root = await temporaryDirectory("wanex-desktop-native-");
   const executableDir = join(root, "fixture-target");
   await mkdir(executableDir, { recursive: true });
   await Promise.all([
@@ -1275,7 +1342,7 @@ async function createNativeFixture() {
 }
 
 async function createCredentialFixture() {
-  const root = await temporaryDirectory("wanex-product-desktop-credential-");
+  const root = await temporaryDirectory("wanex-desktop-credential-");
   await Promise.all([
     writeFile(
       join(root, "desktop-credential-artifact.json"),

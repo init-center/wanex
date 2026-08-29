@@ -2,6 +2,7 @@ import type {
   BeginWorkspaceTaskCollectionRequest,
   BeginWorkspaceTaskReleaseRequest,
   BeginWorkspaceTaskRunRequest,
+  ClaimWorkspaceTaskContinuationRequest,
   ClaimWorkspaceTaskRecoveryRequest,
   FinalizeWorkspaceTaskCollectionRequest,
   FinalizeWorkspaceTaskReleaseRequest,
@@ -11,11 +12,15 @@ import type {
   MarkWorkspaceTaskAttentionRequest,
   RenewWorkspaceTaskRunRequest,
 } from "@wanex/protocol";
-import { toRpcJsonValue } from "./codec-common.js";
+import {
+  toRpcJsonValue,
+  toRpcJsonValueFromUnknown,
+} from "./codec-common.js";
 import { workspaceChangeSetToJson } from "./codec-workspace-values.js";
 import type {
   BeginWorkspaceTaskCollectionWire,
   BeginWorkspaceTaskRunWire,
+  ClaimWorkspaceTaskContinuationWire,
   ClaimWorkspaceTaskRecoveryWire,
   FinalizeWorkspaceTaskCollectionWire,
   ListWorkspaceTaskAttemptsWire,
@@ -36,6 +41,9 @@ export function toRpcBeginWorkspaceTaskRunRequest(
     access: request.access,
     repository_id: request.repositoryId,
     isolation_id: request.isolationId,
+    execution_environment: toRpcJsonValueFromUnknown(request.executionEnvironment),
+    job_id: request.jobId ?? null,
+    agent_id: request.agentId ?? null,
     attempt_id: request.attemptId,
     owner_id: request.ownerId,
     claim_token: request.claimToken,
@@ -52,6 +60,19 @@ export function toRpcClaimWorkspaceTaskRecoveryRequest(
     owner_id: request.ownerId,
     claim_token: request.claimToken,
     lease_ms: request.leaseMs,
+  };
+}
+
+export function toRpcClaimWorkspaceTaskContinuationRequest(
+  request: ClaimWorkspaceTaskContinuationRequest,
+): ClaimWorkspaceTaskContinuationWire {
+  return {
+    run_id: request.runId,
+    attempt_id: request.attemptId,
+    owner_id: request.ownerId,
+    claim_token: request.claimToken,
+    lease_ms: request.leaseMs,
+    execution_environment: toRpcJsonValueFromUnknown(request.executionEnvironment),
   };
 }
 
@@ -143,12 +164,30 @@ export function toRpcListWorkspaceTaskRunsRequest(
   request: ListWorkspaceTaskRunsRequest,
 ): ListWorkspaceTaskRunsWire {
   return {
+    run_ids: toRpcWorkspaceTaskRunIds(request.runIds),
     workspace_id: request.workspaceId ?? null,
     repository_id: request.repositoryId ?? null,
     state: request.state ?? null,
     lease_expires_before: request.leaseExpiresBefore ?? null,
     limit: request.limit ?? null,
   };
+}
+
+function toRpcWorkspaceTaskRunIds(
+  runIds: readonly string[] | undefined,
+): [string, ...string[]] | null {
+  if (runIds === undefined) return null;
+  if (
+    runIds.length === 0 ||
+    runIds.length > 128 ||
+    runIds.some((runId) => runId.length === 0) ||
+    new Set(runIds).size !== runIds.length
+  ) {
+    throw new Error(
+      "workspace task runIds must contain 1 to 128 unique non-empty ids",
+    );
+  }
+  return [...runIds] as [string, ...string[]];
 }
 
 export function toRpcListWorkspaceTaskAttemptsRequest(

@@ -1,8 +1,11 @@
+import type { ExecutionProcess } from "@wanex/runtime/execution"
+
 export interface WorkspaceSnapshotRequest {
   readonly repositoryRoot: string
   readonly worktreeParent: string
   readonly isolationId: string
   readonly serviceBin: string
+  readonly executionProcess: ExecutionProcess
   readonly gitBin?: string
   readonly timeoutMs?: number
 }

@@ -98,10 +98,7 @@ pub fn run_workspace_transaction_helper(root: &Path, transaction_id: &str) -> Re
         .into());
     }
     validate_transaction_argument(transaction_id)?;
-    let lock_path = root
-        .join(".wanex")
-        .join("locks")
-        .join("workspace-mutation.lock");
+    let lock_path = crate::workspace_lock::workspace_mutation_lock_path(&root)?;
     let stdin = io::stdin();
     let stdout = io::stdout();
     run_locked_transaction(

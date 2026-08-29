@@ -7,7 +7,7 @@ import type {
   ConversationSelection,
   HomeReadModel,
   TeamConversationPageReadModel,
-} from "@wanex/product";
+} from "@wanex/assistant";
 import {
   truncateToWidth,
   visibleWidth,
@@ -46,7 +46,7 @@ export function projectTuiFullScreen(options: {
   readonly errorMessage: string | undefined;
 }): TuiFullScreenProjection {
   const selectedSessionId = sessionIdFromSelection(options.selection);
-  const selected = options.home?.product.sessions.recent.find(
+  const selected = options.home?.assistant.sessions.recent.find(
     (session) => session.sessionId === selectedSessionId,
   );
   const selectedTeam =

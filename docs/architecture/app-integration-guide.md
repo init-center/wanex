@@ -67,7 +67,7 @@ then call
 `interrupted | recovery_required` projection.
 
 The headless `@wanex/app` blocking `runAgentTurn(...)` helper remains a
-convenience API over the same processor; interactive Product surfaces use the
+convenience API over the same processor; interactive product surfaces use the
 tracked asynchronous operation contract instead. The helper does not construct
 a competing per-turn worker. Local
 submissions wake the worker immediately, while fallback polling still detects
@@ -85,12 +85,12 @@ an immutable execution binding, so a profile switch affects only later turns.
 Regeneration submits a new input, turn, job, and binding with a
 `regeneratesTurnId` reference; it never rewrites or retries the old turn.
 
-## Product Composition
+## Application Composition
 
 Optional plugins, connectors, teams, workspace mutation, TUI, and A2UI are
-selected independently above App. There is no full-composition facade. Product
-code owns start order, stop order, grants, secret resolution, and safe
-projections for each selected capability.
+selected independently above App. There is no full-composition facade. The
+product composition owns start order, stop order, grants, secret resolution,
+and safe projections for each selected capability.
 
 Electron/Tauri main processes own Runtime/App and expose narrow IPC/preload
 contracts. Browser and renderer processes never spawn the system service or
@@ -100,10 +100,10 @@ subject.
 
 Provider configuration follows the same trust boundary. Trusted hosts may
 store and edit provider base URLs, secret references, and protocol-specific
-settings. Renderer-facing Product read models expose only profile identity,
+settings. Renderer-facing product read models expose only profile identity,
 provider/model identity, active state, credential-configured state, and bounded
 readiness. Endpoint URLs, secret references, protocol-version fields, and raw
-provider wire data never cross the Product surface or desktop IPC response.
+provider wire data never cross the product surface or desktop IPC response.
 
 ## Lifecycle Order
 

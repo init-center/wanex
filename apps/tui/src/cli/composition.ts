@@ -1,6 +1,6 @@
 import { resolve } from "node:path"
 import type { JsonValue } from "@wanex/protocol"
-import type { StartLocalProductHostOptions } from "@wanex/local-host/application"
+import type { StartAssistantHostOptions } from "@wanex/assistant-host/application"
 import { modelEndpointFromJson } from "@wanex/runtime/provider"
 import {
   EnvSecretProvider,
@@ -27,7 +27,7 @@ const supportedProviderProtocols = new Set([
 ])
 
 export interface TuiCliComposition {
-  readonly hostOptions: StartLocalProductHostOptions
+  readonly hostOptions: StartAssistantHostOptions
   readonly trustedProviderHost?: TuiTrustedProviderHost
 }
 
@@ -77,7 +77,7 @@ export function createTuiCliComposition(
 
 export function resolveTuiCliModelEndpoint(
   env: TuiCliEnvironment
-): StartLocalProductHostOptions["modelEndpoint"] {
+): StartAssistantHostOptions["modelEndpoint"] {
   const values = endpointValues(env)
   if (values.every((value) => value === undefined)) {
     return undefined

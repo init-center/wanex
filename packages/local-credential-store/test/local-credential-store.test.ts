@@ -52,8 +52,8 @@ describe("@wanex/local-credential-store", () => {
     expect(resolved.disposed).toBe(true)
     expect(() => resolved.reveal()).toThrow("secret has been disposed")
     expect(accesses).toEqual([
-      `com.wanex.product.${namespace}:desktop-provider.revision-2`,
-      `com.wanex.product.${namespace}:desktop-provider.revision-2`
+      `com.wanex.assistant.${namespace}:desktop-provider.revision-2`,
+      `com.wanex.assistant.${namespace}:desktop-provider.revision-2`
     ])
 
     await store.delete(ref)

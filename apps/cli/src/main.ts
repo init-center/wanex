@@ -22,7 +22,7 @@ import {
 
 export async function main(
   argv: readonly string[],
-  env: CliEnvironment = process.env
+  env: CliEnvironment
 ): Promise<CliResult> {
   try {
     const command = parseCommand(argv, env)

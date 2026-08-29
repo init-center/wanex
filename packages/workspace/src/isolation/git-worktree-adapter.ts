@@ -1,5 +1,4 @@
 import { resolve } from "node:path"
-import { NativeWorkspaceSnapshotClient } from "../snapshot/index.js"
 import type { RepositoryLocator } from "../locator/index.js"
 import { deterministicGitWorktreeIdentity } from "./identity.js"
 import { optionalLeaseFields, withOptionalLeaseFields } from "./lease.js"
@@ -14,12 +13,14 @@ import type {
 export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
   private readonly repositoryId: string
   private readonly locator: RepositoryLocator
-  private readonly snapshot: NonNullable<GitWorktreeIsolationAdapterOptions["snapshot"]>
+  private readonly snapshot: GitWorktreeIsolationAdapterOptions["snapshot"]
+  private readonly executionScope: GitWorktreeIsolationAdapterOptions["executionScope"]
 
   constructor(options: GitWorktreeIsolationAdapterOptions) {
     this.repositoryId = requireRepositoryId(options.repositoryId)
     this.locator = options.locator
-    this.snapshot = options.snapshot ?? new NativeWorkspaceSnapshotClient()
+    this.snapshot = options.snapshot
+    this.executionScope = options.executionScope
   }
 
   async prepare(
@@ -35,6 +36,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
       worktreeParent: repository.worktreeParent,
       isolationId,
       serviceBin: repository.serviceBin,
+      executionProcess: this.executionScope.process,
       ...(repository.gitBin === undefined ? {} : { gitBin: repository.gitBin }),
       timeoutMs: repository.gitTimeoutMs
     })
@@ -90,6 +92,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
         worktreeParent: repository.worktreeParent,
         isolationId: lease.id,
         serviceBin: repository.serviceBin,
+        executionProcess: this.executionScope.process,
         ...(repository.gitBin === undefined ? {} : { gitBin: repository.gitBin }),
         timeoutMs: repository.gitTimeoutMs
       }
@@ -126,6 +129,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
         worktreeParent: repository.worktreeParent,
         isolationId: identity.id,
         serviceBin: repository.serviceBin,
+        executionProcess: this.executionScope.process,
         ...(repository.gitBin === undefined ? {} : { gitBin: repository.gitBin }),
         timeoutMs: repository.gitTimeoutMs
       }

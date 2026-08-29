@@ -36,6 +36,7 @@
       "commands": [
         "create-session",
         "get-session",
+        "get-session-turn",
         "list-sessions",
         "rename-session",
         "archive-session",
@@ -170,6 +171,7 @@
         "list-workspace-change-transaction-attempts",
         "begin-workspace-task-run",
         "claim-workspace-task-recovery",
+        "claim-workspace-task-continuation",
         "renew-workspace-task-run",
         "mark-workspace-task-active",
         "begin-workspace-task-collection",

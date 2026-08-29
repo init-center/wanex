@@ -46,7 +46,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 18
+const expectedSchemaVersion = 20
 
 const tempDirs: string[] = []
 let testStorageHandle: StorageHandle | undefined

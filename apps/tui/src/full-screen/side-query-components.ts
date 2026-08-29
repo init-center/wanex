@@ -5,7 +5,7 @@ import {
   type SelectList,
   type SelectListTheme
 } from "@earendil-works/pi-tui"
-import type { SideQueryReadModel } from "@wanex/product"
+import type { SideQueryReadModel } from "@wanex/assistant"
 import { createTerminalSafeSelectList } from "./components.js"
 import { boundedTuiLines } from "./projection.js"
 import { terminalSingleLineText } from "./terminal-text.js"
@@ -94,7 +94,7 @@ export class TuiSideQueryReviewOverlay implements Component {
       details.push(fit("Answer", width))
       details.push(...boundedTuiLines(query.answerText, width, 12))
       if (query.answerTruncated === true) {
-        details.push(fit("Answer was bounded by Product.", width))
+        details.push(fit("Answer was bounded by Assistant.", width))
       }
     }
     if (query.error !== undefined) {

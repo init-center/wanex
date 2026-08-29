@@ -15,7 +15,7 @@ import { terminalSingleLineText } from "./terminal-text.js"
 import type {
   PlanGenerationReadModel,
   PlanProposalReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 
 export class TuiFullScreenFrame implements Component {
   private title = "Wanex"

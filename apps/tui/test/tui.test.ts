@@ -13,11 +13,11 @@ import {
   createShell,
   createSurfaceAdapter,
   type Shell
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   createInProcessSurfaceClientTransport,
   createSurfaceClient
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import {
   createTuiCliSecretResolver,
   createTuiHostSurfaceClient,
@@ -182,7 +182,7 @@ describe("@wanex/tui", () => {
 
   it("renders setup-required capability interactions as a read-only fallback", () => {
     const capabilityRequest = {
-      kind: "product.capability-request" as const,
+      kind: "assistant.capability-request" as const,
       operation: "image.generate" as const,
       requirements: [
         {
@@ -199,9 +199,9 @@ describe("@wanex/tui", () => {
       setupRequired: true
     }
     const rendered = renderTuiConversationOperation({
-      kind: "product.conversation-operation.found",
+      kind: "assistant.conversation-operation.found",
       operation: {
-        kind: "product.conversation-operation",
+        kind: "assistant.conversation-operation",
         operationId: "operation_tui_capability",
         sessionId: "session_tui_capability",
         state: "succeeded",
@@ -268,9 +268,9 @@ describe("@wanex/tui", () => {
 
   it("renders bounded Tool approvals and parses explicit approval decisions", () => {
     const rendered = renderTuiConversationOperation({
-      kind: "product.conversation-operation.found",
+      kind: "assistant.conversation-operation.found",
       operation: {
-        kind: "product.conversation-operation",
+        kind: "assistant.conversation-operation",
         operationId: "operation_tui_approval",
         sessionId: "session_tui_approval",
         state: "waiting",
@@ -352,9 +352,9 @@ describe("@wanex/tui", () => {
 
   it("renders bounded capacity evidence and validates explicit model selection", () => {
     const rendered = renderTuiConversationOperation({
-      kind: "product.conversation-operation.found",
+      kind: "assistant.conversation-operation.found",
       operation: {
-        kind: "product.conversation-operation",
+        kind: "assistant.conversation-operation",
         operationId: "operation_tui_capacity",
         sessionId: "session_tui_capacity",
         state: "failed",
@@ -510,7 +510,7 @@ describe("@wanex/tui", () => {
             snapshot: resolveAppExtensionContributions([contribution])
           })
         },
-        productCommands: {
+        assistantCommands: {
           extensionExecutor: {
             supports(handlerRef) {
               return handlerRef.startsWith("wanex.plugin-action:")
@@ -611,7 +611,7 @@ describe("@wanex/tui", () => {
   it("reads execution activity from the interactive line session", async () => {
     await withSurface(async ({ app, settlements, surface }) => {
       const jobSettled = settlements.waitForJob("job_tui_execution_activity")
-      await app.dispatchProductCommand({
+      await app.dispatchAssistantCommand({
         command: "submitConversationOperation",
         input: {
           text: "seed TUI execution activity",
@@ -640,7 +640,7 @@ describe("@wanex/tui", () => {
     })
   })
 
-  it("projects canonical product state into a rendered frame", async () => {
+  it("projects canonical assistant state into a rendered frame", async () => {
     await withSurface(async ({ surface }) => {
       const snapshot = surface.snapshot()
       const frame = renderTuiFrame(snapshot)
@@ -650,7 +650,7 @@ describe("@wanex/tui", () => {
         descriptor: {
           ok: true,
           value: {
-            kind: "product.surface-descriptor",
+            kind: "assistant.surface-descriptor",
             commandCount: 73
           }
         },
@@ -666,13 +666,13 @@ describe("@wanex/tui", () => {
         home: {
           ok: true,
           value: {
-            kind: "product.home"
+            kind: "assistant.home"
           }
         },
         settings: {
           ok: true,
           value: {
-            kind: "product.settings",
+            kind: "assistant.settings",
             profile: {
               activeModelEndpointId: "tui-test"
             },
@@ -686,11 +686,11 @@ describe("@wanex/tui", () => {
         },
         commandCatalog: {
           ok: true,
-          command: "readProductCommands",
+          command: "readAssistantCommands",
           value: {
             commands: expect.arrayContaining([
               expect.objectContaining({
-                id: "product.agent.submit",
+                id: "assistant.agent.submit",
                 title: "Submit Agent Turn"
               })
             ]),
@@ -704,39 +704,39 @@ describe("@wanex/tui", () => {
         mode: "chat",
         layout: "single",
         commandCount: 73,
-        productCommandCount: 14,
+        assistantCommandCount: 14,
         statusCount: 8
       })
       expect(frame.text).toContain("Workbench")
       expect(frame.text).toContain("model:tui-test")
       expect(frame.text).toContain("provider:ready")
       expect(frame.text).toContain("theme:system")
-      expect(frame.text).toContain("product-commands:14")
+      expect(frame.text).toContain("assistant-commands:14")
       expect(frame.text).not.toContain("Palette")
     })
   })
 
-  it("executes canonical Product commands through the surface client", async () => {
+  it("executes canonical Assistant commands through the surface client", async () => {
     await withSurface(async ({ settlements, surface }) => {
       const conversationSettled = settlements.waitForSession(
-        "ses_product_app_tui"
+        "ses_assistant_app_tui"
       )
       const submitted = await surface.client.submitConversationOperation({
         text: "application tui first turn",
-        sessionId: "ses_product_app_tui"
+        sessionId: "ses_assistant_app_tui"
       })
       expect(submitted).toMatchObject({
         ok: true,
         command: "submitConversationOperation",
         value: {
-          kind: "product.conversation-operation.found",
-          operation: { sessionId: "ses_product_app_tui" }
+          kind: "assistant.conversation-operation.found",
+          operation: { sessionId: "ses_assistant_app_tui" }
         }
       })
       await conversationSettled
 
       const selected = await surface.client.selectSession({
-        sessionId: "ses_product_app_tui"
+        sessionId: "ses_assistant_app_tui"
       })
       expect(selected).toMatchObject({
         ok: true,
@@ -744,15 +744,15 @@ describe("@wanex/tui", () => {
       })
 
       const read = await surface.client.readTrackedConversationOperation({
-        sessionId: "ses_product_app_tui"
+        sessionId: "ses_assistant_app_tui"
       })
       expect(read).toMatchObject({
         ok: true,
         command: "readTrackedConversationOperation",
         value: {
-          kind: "product.conversation-operation.found",
+          kind: "assistant.conversation-operation.found",
           operation: {
-            sessionId: "ses_product_app_tui",
+            sessionId: "ses_assistant_app_tui",
             state: "succeeded"
           }
         }
@@ -766,7 +766,7 @@ describe("@wanex/tui", () => {
 
       const regenerated =
         await surface.client.regenerateTrackedConversationOperation({
-          sessionId: "ses_product_app_tui"
+          sessionId: "ses_assistant_app_tui"
         })
       expect(regenerated).toMatchObject({
         ok: true,
@@ -789,7 +789,7 @@ describe("@wanex/tui", () => {
           state: {
             selection: {
               kind: "session",
-              sessionId: "ses_product_app_tui"
+              sessionId: "ses_assistant_app_tui"
             }
           }
         }
@@ -798,7 +798,7 @@ describe("@wanex/tui", () => {
         ok: true,
         events: expect.arrayContaining([
           expect.objectContaining({
-            type: "product.surface.state_changed",
+            type: "assistant.surface.state_changed",
             command: "regenerateTrackedConversationOperation"
           })
         ])
@@ -816,7 +816,7 @@ describe("@wanex/tui", () => {
           ok: true,
           command: "submitConversationOperation",
           value: {
-            kind: "product.conversation-operation.rejected"
+            kind: "assistant.conversation-operation.rejected"
           }
         })
 
@@ -845,8 +845,8 @@ describe("@wanex/tui", () => {
           surface,
           input: lines([
             "ask tui ask should not bypass provider setup",
-            'preview product.agent.submit {"text":"preview should not bypass provider setup"}',
-            'execute product.agent.submit {"text":"execute should not bypass provider setup"}',
+            'preview assistant.agent.submit {"text":"preview should not bypass provider setup"}',
+            'execute assistant.agent.submit {"text":"execute should not bypass provider setup"}',
             "quit"
           ]),
           write(chunk) {
@@ -885,7 +885,7 @@ describe("@wanex/tui", () => {
     )
   })
 
-  it("creates its host surface client through the product message transport", async () => {
+  it("creates its host surface client through the assistant message transport", async () => {
     const storeDir = await createStoreDir()
     const app = await createShell({
       storage: {
@@ -900,11 +900,11 @@ describe("@wanex/tui", () => {
         modelId: "tui-host-test-model"
       })
     })
-    const productSurface = createSurfaceAdapter(app)
+    const assistantSurface = createSurfaceAdapter(app)
     try {
       const operations: string[] = []
       const client = createTuiHostSurfaceClient({
-        surface: productSurface,
+        surface: assistantSurface,
         observeRequest(request) {
           operations.push(request.operation)
         }
@@ -917,7 +917,7 @@ describe("@wanex/tui", () => {
       expect(descriptor).toMatchObject({
         ok: true,
         value: {
-          kind: "product.surface-descriptor",
+          kind: "assistant.surface-descriptor",
           commandCount: 73
         }
       })
@@ -927,14 +927,14 @@ describe("@wanex/tui", () => {
           requestId: "req_tui_host_status"
         },
         value: {
-          kind: "product.status"
+          kind: "assistant.status"
         }
       })
       expect(events).toMatchObject({
         ok: true,
         events: [
           expect.objectContaining({
-            type: "product.surface.command_completed",
+            type: "assistant.surface.command_completed",
             command: "status"
           })
         ]
@@ -945,7 +945,7 @@ describe("@wanex/tui", () => {
         "readSurfaceEvents"
       ])
     } finally {
-      await productSurface.dispose()
+      await assistantSurface.dispose()
       await app.dispose()
     }
   })
@@ -984,14 +984,14 @@ describe("@wanex/tui", () => {
     expect(frame.text).not.toContain("Error:")
   })
 
-  it("runs an injected line session through the product surface client", async () => {
+  it("runs an injected line session through the assistant surface client", async () => {
     await withSurface(async ({ app, settlements, surface }) => {
       const conversationSettled = settlements.waitForSession(
-        "ses_product_app_tui_line"
+        "ses_assistant_app_tui_line"
       )
       await app.submitConversationOperation({
         text: "seed application tui line session",
-        sessionId: "ses_product_app_tui_line"
+        sessionId: "ses_assistant_app_tui_line"
       })
       await conversationSettled
       await surface.refresh()
@@ -1008,8 +1008,8 @@ describe("@wanex/tui", () => {
           "events 5",
           "commands",
           "palette",
-          'preview product.agent.submit {"text":"preview through application tui line"}',
-          "execute product.status",
+          'preview assistant.agent.submit {"text":"preview through application tui line"}',
+          "execute assistant.status",
           "refresh",
           "quit"
         ]),
@@ -1036,7 +1036,7 @@ describe("@wanex/tui", () => {
         errorCount: 1,
         quit: true
       })
-      expect(result.activeSessionId).toBe("ses_product_app_tui_line")
+      expect(result.activeSessionId).toBe("ses_assistant_app_tui_line")
       expect(output).toContain("Workbench")
       expect(output).toContain("Type help for commands.")
       expect(output).not.toContain("palette <index|palette-id|command-id>")
@@ -1048,15 +1048,15 @@ describe("@wanex/tui", () => {
       expect(output).toContain("cancel:")
       expect(output).toContain("Events")
       expect(output).toContain("Commands")
-      expect(output).toContain("product.agent.submit - Submit Agent Turn")
+      expect(output).toContain("assistant.agent.submit - Submit Agent Turn")
       expect(output).toContain("source:builtin/")
       expect(output).toContain("error: unknown command: palette")
       expect(output).toContain("Command preview")
       expect(output).toContain("status:runnable")
       expect(output).toContain("Command execution")
-      expect(output).toContain("command:product.status")
+      expect(output).toContain("command:assistant.status")
       expect(output).toContain("valueKind:object")
-      expect(output).toContain("command:product.agent.submit")
+      expect(output).toContain("command:assistant.agent.submit")
       expect(output).toContain("input:accepted")
       expect(output).toContain("refreshed")
       expect(output).toContain("bye")
@@ -1065,7 +1065,7 @@ describe("@wanex/tui", () => {
 
   it("renders and dismisses a real side query from Surface invalidation", async () => {
     await withSurface(async ({ app, settlements, surface }) => {
-      const sessionId = "ses_product_app_tui_side_query"
+      const sessionId = "ses_assistant_app_tui_side_query"
       const settled = settlements.waitForSession(sessionId)
       await app.submitConversationOperation({
         sessionId,
@@ -1127,7 +1127,7 @@ describe("@wanex/tui", () => {
         readonly queryId?: string
       }> = []
       const running = {
-        kind: "product.side-query" as const,
+        kind: "assistant.side-query" as const,
         queryId: "sideq_tui_exact",
         sessionId: "ses_tui_exact",
         modelEndpointId: "provider_tui_exact",
@@ -1152,7 +1152,7 @@ describe("@wanex/tui", () => {
             ...seedEnvelope,
             command: "readSideQuery" as const,
             value: {
-              kind: "product.side-query.found" as const,
+              kind: "assistant.side-query.found" as const,
               query: running
             }
           }
@@ -1176,7 +1176,7 @@ describe("@wanex/tui", () => {
             ...seedEnvelope,
             command: "dismissSideQuery" as const,
             value: {
-              kind: "product.side-query.dismissed" as const,
+              kind: "assistant.side-query.dismissed" as const,
               queryId: input.queryId
             }
           }
@@ -1250,7 +1250,7 @@ describe("@wanex/tui", () => {
       const seedEnvelope = surface.snapshot().conversation
       if (!seedEnvelope.ok) throw new Error("expected conversation envelope")
       const operation = {
-        kind: "product.conversation-operation" as const,
+        kind: "assistant.conversation-operation" as const,
         operationId: "operation_tui_steer",
         sessionId: "ses_tui_steer",
         state: "running" as const,
@@ -1275,7 +1275,7 @@ describe("@wanex/tui", () => {
             ...seedEnvelope,
             command: "readTrackedConversationOperation" as const,
             value: {
-              kind: "product.conversation-operation.found" as const,
+              kind: "assistant.conversation-operation.found" as const,
               operation
             }
           }
@@ -1293,14 +1293,14 @@ describe("@wanex/tui", () => {
             ...seedEnvelope,
             command: "steerTrackedConversationOperation" as const,
             value: {
-              kind: "product.conversation-operation.found" as const,
+              kind: "assistant.conversation-operation.found" as const,
               operation: {
                 ...operation,
                 capabilities: { ...operation.capabilities, steerable: false },
                 steering: {
                   pending: [
                     {
-                      steeringId: "product_conversation_steering_tui",
+                      steeringId: "assistant_conversation_steering_tui",
                       text: input.text,
                       textTruncated: false,
                       createdAt: 3,
@@ -1354,7 +1354,7 @@ describe("@wanex/tui", () => {
     const provider = await listenTuiPlanProvider()
     await withSurface(
       async ({ app, settlements, surface }) => {
-        const sessionId = "ses_product_app_tui_plan"
+        const sessionId = "ses_assistant_app_tui_plan"
         const seedSettled = settlements.waitForSession(sessionId)
         await app.submitConversationOperation({
           sessionId,
@@ -1455,7 +1455,7 @@ describe("@wanex/tui", () => {
     const request = JSON.stringify({
       objective: "Complete the canonical TUI Goal journey",
       successCriteria: ["The Goal reaches a verified terminal state"],
-      boundaries: ["Use the Product Surface"],
+      boundaries: ["Use the Assistant Surface"],
       constraints: ["Do not retain private Goal evidence"],
       stopPolicy: {
         maxAttempts: 1,
@@ -1468,7 +1468,7 @@ describe("@wanex/tui", () => {
       input: {
         objective: "Complete the canonical TUI Goal journey",
         successCriteria: ["The Goal reaches a verified terminal state"],
-        boundaries: ["Use the Product Surface"],
+        boundaries: ["Use the Assistant Surface"],
         constraints: ["Do not retain private Goal evidence"],
         stopPolicy: {
           maxAttempts: 1,
@@ -1486,7 +1486,7 @@ describe("@wanex/tui", () => {
     })
 
     await withSurface(async ({ app, settlements, surface }) => {
-      const sessionId = "ses_product_app_tui_goal"
+      const sessionId = "ses_assistant_app_tui_goal"
       const settled = settlements.waitForSession(sessionId)
       await app.submitConversationOperation({
         sessionId,
@@ -1560,25 +1560,25 @@ describe("@wanex/tui", () => {
       limit: 3
     })
     expect(() =>
-      parseTuiCliCommand(["palette", "product.workbench.open"])
+      parseTuiCliCommand(["palette", "assistant.workbench.open"])
     ).toThrow("unknown TUI command: palette")
     expect(
       parseTuiCliCommand([
         "preview",
-        "product.agent.submit",
+        "assistant.agent.submit",
         '{"text":"preview cli parse"}'
       ])
     ).toEqual({
       name: "preview",
-      commandId: "product.agent.submit",
+      commandId: "assistant.agent.submit",
       input: {
         text: "preview cli parse"
       }
     })
-    expect(parseTuiCliCommand(["execute", "product.status"])).toEqual(
+    expect(parseTuiCliCommand(["execute", "assistant.status"])).toEqual(
       {
         name: "execute",
-        commandId: "product.status"
+        commandId: "assistant.status"
       }
     )
     expect(
@@ -1594,7 +1594,7 @@ describe("@wanex/tui", () => {
       name: "fullscreen"
     })
     expect(() =>
-      parseTuiCliCommand(["preview", "product.agent.submit", "{"])
+      parseTuiCliCommand(["preview", "assistant.agent.submit", "{"])
     ).toThrow("command input must be valid JSON")
     expect(() =>
       parseTuiCliCommand(["events", "--limit", "0"])
@@ -1640,7 +1640,7 @@ describe("@wanex/tui", () => {
     })
   })
 
-  it("CLI commands renders the typed product command catalog", async () => {
+  it("CLI commands renders the typed assistant command catalog", async () => {
     const env = await cliEnv()
 
     const text = await runTuiCli(["commands"], env)
@@ -1651,9 +1651,9 @@ describe("@wanex/tui", () => {
       stderr: ""
     })
     expect(text.stdout).toContain("Commands")
-    expect(text.stdout).toContain("product.agent.submit - Submit Agent Turn")
+    expect(text.stdout).toContain("assistant.agent.submit - Submit Agent Turn")
     expect(text.stdout).toContain(
-      "handler:wanex.product.backend.submitConversationOperation"
+      "handler:wanex.assistant.backend.submitConversationOperation"
     )
 
     const parsed = JSON.parse(json.stdout) as {
@@ -1672,7 +1672,7 @@ describe("@wanex/tui", () => {
         ok: true,
         commandCount: 14,
         commands: expect.arrayContaining([
-          expect.objectContaining({ id: "product.agent.submit" })
+          expect.objectContaining({ id: "assistant.agent.submit" })
         ])
       }
     })
@@ -1682,7 +1682,7 @@ describe("@wanex/tui", () => {
     const env = await cliEnv()
 
     const result = await runTuiCli(
-      ["palette", "product.status"],
+      ["palette", "assistant.status"],
       env
     )
 
@@ -1691,11 +1691,11 @@ describe("@wanex/tui", () => {
     expect(result.stderr).toContain("unknown TUI command: palette")
   })
 
-  it("CLI preview command reads product command invocation policy without executing it", async () => {
+  it("CLI preview command reads assistant command invocation policy without executing it", async () => {
     const env = await cliEnv()
 
     const result = await runTuiCli(
-      ["preview", "product.agent.submit", '{"text":"preview cli"}'],
+      ["preview", "assistant.agent.submit", '{"text":"preview cli"}'],
       env
     )
 
@@ -1717,18 +1717,18 @@ describe("@wanex/tui", () => {
       ok: true,
       value: {
         ok: true,
-        command: "previewProductCommandInvocation",
+        command: "previewAssistantCommandInvocation",
         value: {
           kind: "runnable",
-          commandId: "product.agent.submit"
+          commandId: "assistant.agent.submit"
         }
       }
     })
   })
 
-  it("CLI execute command returns only the bounded product summary", async () => {
+  it("CLI execute command returns only the bounded assistant summary", async () => {
     const env = await cliEnv()
-    const result = await runTuiCli(["execute", "product.status"], env)
+    const result = await runTuiCli(["execute", "assistant.status"], env)
 
     expect(result.exitCode).toBe(0)
     expect(result.stderr).toBe("")
@@ -1739,8 +1739,8 @@ describe("@wanex/tui", () => {
       ok: true,
       value: {
         kind: "completed",
-        commandId: "product.status",
-        handlerRef: "wanex.product.backend.status",
+        commandId: "assistant.status",
+        handlerRef: "wanex.assistant.backend.status",
         summary: {
           valueKind: "object",
           message: "Command completed",
@@ -1795,7 +1795,7 @@ describe("@wanex/tui", () => {
     const assistantText = "canonical real Provider reply in TUI"
     const userText = "hello through the trusted TUI composition"
     const secretRef = "env://WANEX_TUI_REAL_PROVIDER_KEY"
-    const secretValue = "product-tui-real-provider-secret"
+    const secretValue = "assistant-tui-real-provider-secret"
     const provider = await listenTuiConversationProvider(assistantText)
     const env = await realProviderCliEnv({
       baseUrl: provider.baseUrl,
@@ -1829,7 +1829,7 @@ describe("@wanex/tui", () => {
     expect(provider.requests[0]).toMatchObject({
       authorization: `Bearer ${secretValue}`,
       body: {
-        model: "product-tui-real-provider-model",
+        model: "assistant-tui-real-provider-model",
         messages: expect.arrayContaining([
           expect.objectContaining({ role: "user", content: userText })
         ])
@@ -1849,7 +1849,7 @@ describe("@wanex/tui", () => {
     const assistantText = "canonical full-screen real Provider reply"
     const userText = "hello from the installed full-screen TUI"
     const secretRef = "env://WANEX_TUI_FULLSCREEN_PROVIDER_KEY"
-    const secretValue = "product-tui-fullscreen-provider-secret"
+    const secretValue = "assistant-tui-fullscreen-provider-secret"
     const provider = await listenTuiConversationProvider(assistantText)
     const env = await realProviderCliEnv({
       baseUrl: provider.baseUrl,
@@ -1877,7 +1877,7 @@ describe("@wanex/tui", () => {
     expect(provider.requests[0]).toMatchObject({
       authorization: `Bearer ${secretValue}`,
       body: {
-        model: "product-tui-real-provider-model",
+        model: "assistant-tui-real-provider-model",
         messages: expect.arrayContaining([
           expect.objectContaining({ role: "user", content: userText })
         ])
@@ -1940,7 +1940,7 @@ describe("@wanex/tui", () => {
         const jobSettled = settlementFixture.settlements.waitForJob(
           "job_tui_cli_execution"
         )
-        await seed.dispatchProductCommand({
+        await seed.dispatchAssistantCommand({
           command: "submitConversationOperation",
           input: {
             text: "seed one-shot execution activity",
@@ -1994,12 +1994,12 @@ async function withSurface(
       storage: settlementFixture.storage
     })
     try {
-      const productSurface = createSurfaceAdapter(app, {
+      const assistantSurface = createSurfaceAdapter(app, {
         now: () => 11_111
       })
       try {
         const client = createSurfaceClient(
-          createInProcessSurfaceClientTransport(productSurface)
+          createInProcessSurfaceClientTransport(assistantSurface)
         )
         const surface = await createTuiSurface({
           client,
@@ -2011,7 +2011,7 @@ async function withSurface(
           surface
         })
       } finally {
-        await productSurface.dispose()
+        await assistantSurface.dispose()
       }
     } finally {
       await app.dispose()
@@ -2047,13 +2047,13 @@ async function realProviderCliEnv(options: {
   return {
     WANEX_STORE_DIR: await createStoreDir(),
     WANEX_SYSTEM_SERVICE_BIN: serviceBin,
-    WANEX_MODEL_ENDPOINT_ID: "product-tui-real-provider",
-    WANEX_PROVIDER_CONNECTION_ID: "product-tui-real-provider-connection",
+    WANEX_MODEL_ENDPOINT_ID: "assistant-tui-real-provider",
+    WANEX_PROVIDER_CONNECTION_ID: "assistant-tui-real-provider-connection",
     WANEX_PROVIDER_PROTOCOL: "openai-chat-completions",
     WANEX_PROVIDER_ID: "openai-compatible",
     WANEX_PROVIDER_BASE_URL: options.baseUrl,
     WANEX_PROVIDER_SECRET_REF: options.secretRef,
-    WANEX_PROVIDER_MODEL_ID: "product-tui-real-provider-model",
+    WANEX_PROVIDER_MODEL_ID: "assistant-tui-real-provider-model",
     WANEX_MODEL_OPERATIONS: "conversation",
     WANEX_MODEL_INPUT_MODALITIES: "text",
     WANEX_MODEL_OUTPUT_MODALITIES: "text",
@@ -2218,7 +2218,7 @@ async function waitForTrackedConversationOperation(
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const result = await app.readTrackedConversationOperation({ sessionId })
     if (
-      result.kind === "product.conversation-operation.found" &&
+      result.kind === "assistant.conversation-operation.found" &&
       result.operation.state !== "running" &&
       result.operation.state !== "queued"
     ) {
@@ -2240,7 +2240,7 @@ async function listenTuiPlanProvider(): Promise<{ readonly baseUrl: string }> {
       requestCount === 2
         ? JSON.stringify({
             title: "Canonical TUI Plan",
-            summary: "Review and execute through the Product Surface",
+            summary: "Review and execute through the Assistant Surface",
             steps: [{ id: "execute", title: "Execute canonically" }]
           })
         : requestCount === 1

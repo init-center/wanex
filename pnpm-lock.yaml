@@ -56,6 +56,80 @@ importers:
         specifier: 4.1.10
         version: 4.1.10(@types/node@26.1.1)(happy-dom@20.11.1)(vite@8.0.16(@types/node@26.1.1)(esbuild@0.28.1)(tsx@4.23.1)(yaml@2.9.0))
 
+  apps/assistant:
+    dependencies:
+      '@wanex/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+      '@wanex/extension':
+        specifier: workspace:*
+        version: link:../../packages/extension
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+    devDependencies:
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
+  apps/assistant-host:
+    dependencies:
+      '@wanex/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+      '@wanex/assistant':
+        specifier: workspace:*
+        version: link:../assistant
+      '@wanex/assistant-ui':
+        specifier: workspace:*
+        version: link:../../packages/assistant-ui
+      '@wanex/local-credential-store':
+        specifier: workspace:*
+        version: link:../../packages/local-credential-store
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@wanex/team':
+        specifier: workspace:*
+        version: link:../../packages/team
+      croner:
+        specifier: 10.0.1
+        version: 10.0.1
+    devDependencies:
+      happy-dom:
+        specifier: 20.11.1
+        version: 20.11.1
+
+  apps/assistant-plugin-host:
+    dependencies:
+      '@wanex/assistant':
+        specifier: workspace:*
+        version: link:../assistant
+      '@wanex/extension':
+        specifier: workspace:*
+        version: link:../../packages/extension
+      '@wanex/plugin':
+        specifier: workspace:*
+        version: link:../../packages/plugin
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+
   apps/cli:
     dependencies:
       '@wanex/app':
@@ -71,20 +145,56 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
 
+  apps/coding:
+    dependencies:
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@wanex/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+
   apps/desktop:
     dependencies:
+      '@wanex/assistant-host':
+        specifier: workspace:*
+        version: link:../assistant-host
+      '@wanex/assistant-plugin-host':
+        specifier: workspace:*
+        version: link:../assistant-plugin-host
+      '@wanex/assistant-ui':
+        specifier: workspace:*
+        version: link:../../packages/assistant-ui
+      '@wanex/coding':
+        specifier: workspace:*
+        version: link:../coding
       '@wanex/local-credential-store':
         specifier: workspace:*
         version: link:../../packages/local-credential-store
-      '@wanex/local-host':
-        specifier: workspace:*
-        version: link:../local-host
       '@wanex/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
-      '@wanex/plugin-command-host':
+      '@wanex/runtime':
         specifier: workspace:*
-        version: link:../plugin-command-host
+        version: link:../../packages/runtime
+      '@wanex/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
+      lucide-react:
+        specifier: 1.28.0
+        version: 1.28.0(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
     devDependencies:
       '@electron/asar':
         specifier: ^4.2.1
@@ -95,86 +205,18 @@ importers:
       '@electron/packager':
         specifier: ^20.0.4
         version: 20.0.4(supports-color@8.1.1)
+      '@types/react':
+        specifier: 19.2.18
+        version: 19.2.18
+      '@types/react-dom':
+        specifier: 19.2.4
+        version: 19.2.4(@types/react@19.2.18)
       electron:
         specifier: 43.2.0
         version: 43.2.0(supports-color@8.1.1)
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
-
-  apps/local-host:
-    dependencies:
-      '@wanex/app':
-        specifier: workspace:*
-        version: link:../../packages/app
-      '@wanex/local-credential-store':
-        specifier: workspace:*
-        version: link:../../packages/local-credential-store
-      '@wanex/product':
-        specifier: workspace:*
-        version: link:../product
-      '@wanex/protocol':
-        specifier: workspace:*
-        version: link:../../packages/protocol
-      '@wanex/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      '@wanex/storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
-      '@wanex/team':
-        specifier: workspace:*
-        version: link:../../packages/team
-      '@wanex/web':
-        specifier: workspace:*
-        version: link:../web
-      croner:
-        specifier: 10.0.1
-        version: 10.0.1
-    devDependencies:
-      happy-dom:
-        specifier: 20.11.1
-        version: 20.11.1
-
-  apps/plugin-command-host:
-    dependencies:
-      '@wanex/extension':
-        specifier: workspace:*
-        version: link:../../packages/extension
-      '@wanex/plugin':
-        specifier: workspace:*
-        version: link:../../packages/plugin
-      '@wanex/product':
-        specifier: workspace:*
-        version: link:../product
-      '@wanex/protocol':
-        specifier: workspace:*
-        version: link:../../packages/protocol
-      '@wanex/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      '@wanex/storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
-
-  apps/product:
-    dependencies:
-      '@wanex/app':
-        specifier: workspace:*
-        version: link:../../packages/app
-      '@wanex/extension':
-        specifier: workspace:*
-        version: link:../../packages/extension
-      '@wanex/protocol':
-        specifier: workspace:*
-        version: link:../../packages/protocol
-    devDependencies:
-      '@wanex/runtime':
-        specifier: workspace:*
-        version: link:../../packages/runtime
-      '@wanex/storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
 
   apps/tui:
     dependencies:
@@ -184,18 +226,18 @@ importers:
       '@wanex/app':
         specifier: workspace:*
         version: link:../../packages/app
+      '@wanex/assistant':
+        specifier: workspace:*
+        version: link:../assistant
+      '@wanex/assistant-host':
+        specifier: workspace:*
+        version: link:../assistant-host
       '@wanex/extension':
         specifier: workspace:*
         version: link:../../packages/extension
       '@wanex/local-credential-store':
         specifier: workspace:*
         version: link:../../packages/local-credential-store
-      '@wanex/local-host':
-        specifier: workspace:*
-        version: link:../local-host
-      '@wanex/product':
-        specifier: workspace:*
-        version: link:../product
       '@wanex/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -213,11 +255,26 @@ importers:
         specifier: 5.5.0
         version: 5.5.0
 
-  apps/web:
+  packages/app:
     dependencies:
-      '@wanex/product':
+      '@wanex/extension':
         specifier: workspace:*
-        version: link:../product
+        version: link:../extension
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../storage
+
+  packages/assistant-ui:
+    dependencies:
+      '@wanex/assistant':
+        specifier: workspace:*
+        version: link:../../apps/assistant
       lucide-react:
         specifier: 1.28.0
         version: 1.28.0(react@19.2.8)
@@ -244,21 +301,6 @@ importers:
         specifier: 20.11.1
         version: 20.11.1
 
-  packages/app:
-    dependencies:
-      '@wanex/extension':
-        specifier: workspace:*
-        version: link:../extension
-      '@wanex/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@wanex/runtime':
-        specifier: workspace:*
-        version: link:../runtime
-      '@wanex/storage':
-        specifier: workspace:*
-        version: link:../storage
-
   packages/connector:
     dependencies:
       '@wanex/protocol':
@@ -276,24 +318,27 @@ importers:
       '@wanex/app':
         specifier: workspace:*
         version: link:../app
+      '@wanex/assistant':
+        specifier: workspace:*
+        version: link:../../apps/assistant
+      '@wanex/assistant-host':
+        specifier: workspace:*
+        version: link:../../apps/assistant-host
+      '@wanex/assistant-plugin-host':
+        specifier: workspace:*
+        version: link:../../apps/assistant-plugin-host
+      '@wanex/assistant-ui':
+        specifier: workspace:*
+        version: link:../assistant-ui
       '@wanex/cli':
         specifier: workspace:*
         version: link:../../apps/cli
       '@wanex/extension':
         specifier: workspace:*
         version: link:../extension
-      '@wanex/local-host':
-        specifier: workspace:*
-        version: link:../../apps/local-host
       '@wanex/plugin':
         specifier: workspace:*
         version: link:../plugin
-      '@wanex/plugin-command-host':
-        specifier: workspace:*
-        version: link:../../apps/plugin-command-host
-      '@wanex/product':
-        specifier: workspace:*
-        version: link:../../apps/product
       '@wanex/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -312,9 +357,6 @@ importers:
       '@wanex/tui':
         specifier: workspace:*
         version: link:../../apps/tui
-      '@wanex/web':
-        specifier: workspace:*
-        version: link:../../apps/web
       '@wanex/workspace':
         specifier: workspace:*
         version: link:../workspace
@@ -1153,6 +1195,7 @@ packages:
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
     engines: {node: '>=14.6'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xterm/headless@5.5.0':
     resolution: {integrity: sha512-5xXB7kdQlFBP82ViMJTwwEc3gKCLGKR/eoxQm4zge7GPBl86tCdI0IdPJjoKd8mUSFXz5V7i/25sfsEkP4j46g==}

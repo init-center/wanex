@@ -1,4 +1,4 @@
-import type { ExecuteCommandResult } from "@wanex/product/surface"
+import type { ExecuteCommandResult } from "@wanex/assistant/surface"
 import type { TuiRenderedCommandExecution } from "../model.js"
 
 export function renderTuiCommandExecution(

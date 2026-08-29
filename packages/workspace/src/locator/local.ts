@@ -1,4 +1,3 @@
-import { mkdir, realpath } from "node:fs/promises"
 import { isAbsolute, relative, resolve } from "node:path"
 import type {
   LocatedRepository,
@@ -35,17 +34,18 @@ export class LocalRepositoryLocator implements RepositoryLocator {
     if (configured === undefined) {
       throw new Error("workspace repository identity is not registered")
     }
-    const repositoryRoot = await realpath(resolve(configured.repositoryRoot)).catch(() => {
+    const repositoryRoot = await configured.fileSystem.canonicalize(resolve(configured.repositoryRoot)).catch(() => {
       throw new Error("workspace repository is unavailable")
     })
-    const worktreeParent = await realpath(resolve(configured.worktreeParent)).catch(async () => {
-      try {
-        await mkdir(resolve(configured.worktreeParent), { recursive: true })
-        return await realpath(resolve(configured.worktreeParent))
-      } catch {
-        throw new Error("workspace repository worktree parent is unavailable")
-      }
-    })
+    const configuredParent = resolve(configured.worktreeParent)
+    let worktreeParent = await configured.fileSystem.canonicalize(configuredParent).catch(() => null)
+    if (worktreeParent === null) {
+      await configured.fileSystem.createDirectory(configuredParent, { recursive: true })
+      worktreeParent = await configured.fileSystem.canonicalize(configuredParent)
+    }
+    if ((await configured.fileSystem.metadata(worktreeParent))?.kind !== "directory") {
+      throw new Error("workspace repository worktree parent is unavailable")
+    }
     if (isContainedPath(repositoryRoot, worktreeParent)) {
       throw new Error("workspace repository worktree parent must be outside the repository")
     }
@@ -54,10 +54,8 @@ export class LocalRepositoryLocator implements RepositoryLocator {
       repositoryRoot,
       worktreeParent,
       serviceBin: configured.serviceBin,
+      fileSystem: configured.fileSystem,
       ...(configured.gitBin === undefined ? {} : { gitBin: configured.gitBin }),
-      ...(configured.executionHost === undefined
-        ? {}
-        : { executionHost: configured.executionHost }),
       gitTimeoutMs: configured.gitTimeoutMs ?? DEFAULT_GIT_TIMEOUT_MS
     }
   }

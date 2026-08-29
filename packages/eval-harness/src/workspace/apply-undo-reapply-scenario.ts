@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { WorkspaceRuntime } from "@wanex/workspace"
+import { createWorkspaceExecution } from "./execution.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
 
@@ -9,13 +10,19 @@ export const workspaceApplyUndoReapplyScenario = createEvalScenario({
   title: "Workspace changes can be applied, undone, and reapplied",
   tags: ["workspace", "coding-agent"],
   async run(context) {
-    const workspace = new WorkspaceRuntime({
-      storage: context.storage,
-      rootDir: context.workspaceRootDir,
-      serviceBin: context.serviceBin,
-      workspaceId: "eval_workspace_apply",
-      principalId: "agent_eval_workspace_apply"
-    })
+    const execution = await createWorkspaceExecution(
+      "native_eval_workspace_apply",
+      context.workspaceRootDir
+    )
+    try {
+      const workspace = new WorkspaceRuntime({
+        storage: context.storage,
+        rootDir: context.workspaceRootDir,
+        serviceBin: context.serviceBin,
+        executionScope: execution.scope,
+        workspaceId: "eval_workspace_apply",
+        principalId: "agent_eval_workspace_apply"
+      })
     await mkdir(join(context.workspaceRootDir, "src"), { recursive: true })
     const targetPath = join(context.workspaceRootDir, "src/app.ts")
     await writeFile(targetPath, "one\n", "utf8")
@@ -63,9 +70,12 @@ export const workspaceApplyUndoReapplyScenario = createEvalScenario({
       operations.join(",") === "apply,undo,apply",
       "history should record apply, undo, apply"
     )
-    return {
-      state: reapplied.changeSet.currentState,
-      operations
+      return {
+        state: reapplied.changeSet.currentState,
+        operations
+      }
+    } finally {
+      await execution.environment.close()
     }
   }
 })

@@ -42,6 +42,58 @@ describe("storage execution evidence codecs", () => {
     ).toThrow("endpointDigest does not match its content")
   })
 
+  it("decodes private-free context evidence and rejects snapshot or shape drift", () => {
+    const valid = turnRecord()
+    const evidence = {
+      revision: 1,
+      instructions: {
+        state: "available",
+        sourceCount: 2,
+        digest: "1".repeat(64)
+      },
+      skills: {
+        state: "available",
+        sourceCount: 1,
+        digest: "2".repeat(64)
+      }
+    }
+    const binding = valid.execution_binding as Record<string, any>
+    binding.contextEvidence = evidence
+    binding.digest = digestJson(
+      unsignedBinding(binding as { readonly digest: string })
+    )
+    valid.execution_binding_digest = binding.digest
+    expect(
+      fromRpcSessionTurnRecord(valid as unknown as JsonValue)
+        .executionBinding.contextEvidence
+    ).toEqual(evidence)
+
+    const old = structuredClone(valid)
+    const oldBinding = old.execution_binding as Record<string, any>
+    oldBinding.contextSnapshot = evidence
+    delete oldBinding.contextEvidence
+    oldBinding.digest = digestJson(
+      unsignedBinding(oldBinding as { readonly digest: string })
+    )
+    old.execution_binding_digest = oldBinding.digest
+    expect(() => fromRpcSessionTurnRecord(old as unknown as JsonValue)).toThrow(
+      "unknown field"
+    )
+
+    const nested = structuredClone(valid)
+    const nestedBinding = nested.execution_binding as Record<string, any>
+    const nestedEvidence = nestedBinding.contextEvidence as Record<string, any>
+    const nestedInstructions = nestedEvidence.instructions as Record<string, any>
+    nestedInstructions.extra = true
+    nestedBinding.digest = digestJson(
+      unsignedBinding(nestedBinding as { readonly digest: string })
+    )
+    nested.execution_binding_digest = nestedBinding.digest
+    expect(() => fromRpcSessionTurnRecord(nested as unknown as JsonValue)).toThrow(
+      "execution_binding.contextEvidence.instructions contains missing or unknown fields"
+    )
+  })
+
   it("decodes complete media bindings and rejects altered request evidence", () => {
     const valid = mediaRecord()
     expect(

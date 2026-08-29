@@ -19,6 +19,8 @@ import {
 import type {
   EphemeralQueryResult,
   ModelEndpoint,
+  SessionRecord,
+  SessionScope,
   UserMessageInputPart
 } from "@wanex/protocol"
 import {
@@ -170,25 +172,27 @@ export class WanexAgentRuntime {
     const modelEndpoint = await this.resolveAdmissionModelEndpoint(
       request.modelEndpointId
     )
+    const title = request.title ?? deriveAutomaticSessionTitle(request.content)
+    const existingSession = request.sessionId === undefined
+      ? null
+      : await this.session.get(request.sessionId)
+    if (existingSession !== null) {
+      assertRequestedSessionScope(existingSession, request.sessionScope)
+    }
     const admitted = await admitUserMessage(
       this.storage,
       modelEndpoint,
       request.content
     )
-    const title = request.title ?? deriveAutomaticSessionTitle(request.content)
-    const session =
-      request.sessionId === undefined
-        ? await this.session.create({
-            id: `ses_${randomUUID()}`,
-            title,
-            kind: "agent"
-          })
-        : ((await this.session.get(request.sessionId)) ??
-          (await this.session.create({
-            id: request.sessionId,
-            title,
-            kind: "agent"
-          })))
+    const session = existingSession ?? await this.session.create({
+      id: request.sessionId ?? `ses_${randomUUID()}`,
+      title,
+      kind: "agent",
+      ...(request.sessionScope === undefined
+        ? {}
+        : { scope: request.sessionScope })
+    })
+    assertRequestedSessionScope(session, request.sessionScope)
     const inputId = request.inputId ?? `inp_${randomUUID()}`
     const turnId = request.turnId ?? `turn_${randomUUID()}`
     const agentContext =
@@ -206,6 +210,12 @@ export class WanexAgentRuntime {
         : { maxOutputTokens: request.maxOutputTokens }),
       resources: admitted.resources,
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+      ...(request.executionEnvironment === undefined
+        ? {}
+        : { executionEnvironment: request.executionEnvironment }),
+      ...(request.applicationScope === undefined
+        ? {}
+        : { applicationScope: request.applicationScope }),
       ...(agentContext === undefined ? {} : { agentContext })
     })
     const submissionRequest = {
@@ -266,6 +276,12 @@ export class WanexAgentRuntime {
         ? {}
         : { maxOutputTokens: request.maxOutputTokens }),
       ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+      ...(request.executionEnvironment === undefined
+        ? {}
+        : { executionEnvironment: request.executionEnvironment }),
+      ...(request.applicationScope === undefined
+        ? {}
+        : { applicationScope: request.applicationScope }),
       ...(agentContext === undefined ? {} : { agentContext })
     })
   }
@@ -389,6 +405,24 @@ function withDefaultContextCompilerResolver(
       ...resolved,
       contextCompiler: resolved.contextCompiler ?? defaultContextCompiler
     }
+  }
+}
+
+function assertRequestedSessionScope(
+  session: SessionRecord,
+  requested: SessionScope | undefined
+): void {
+  if (requested === undefined) {
+    if (session.scope !== undefined) {
+      throw new Error("existing scoped session requires an exact requested session scope")
+    }
+    return
+  }
+  if (
+    session.scope?.kind !== requested.kind ||
+    session.scope.id !== requested.id
+  ) {
+    throw new Error("existing session does not match the requested session scope")
   }
 }
 

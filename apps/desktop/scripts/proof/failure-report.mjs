@@ -2,7 +2,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { distributionRoot } from "../build.mjs"
 
-export async function writeProductDesktopFailureReport({
+export async function writeDesktopFailureReport({
   error,
   proofRoot,
   providerRequests = [],
@@ -10,7 +10,7 @@ export async function writeProductDesktopFailureReport({
 }) {
   const runtimeFailures = await readRuntimeFailures(proofRoot)
   const report = {
-    kind: "wanex.product-desktop.proof-receipt",
+    kind: "wanex.desktop.proof-receipt",
     ok: false,
     host: { platform: process.platform, arch: process.arch },
     failure: boundedProofError(error),
@@ -19,7 +19,7 @@ export async function writeProductDesktopFailureReport({
   }
   await mkdir(outputRoot, { recursive: true })
   await writeFile(
-    join(outputRoot, "product-desktop-report.json"),
+    join(outputRoot, "desktop-report.json"),
     `${JSON.stringify(report, null, 2)}\n`,
     "utf8"
   )
@@ -59,11 +59,11 @@ async function readRuntimeFailures(proofRoot) {
 
 function boundedRuntimeFailure(value) {
   if (!isRecord(value) ||
-    value.kind !== "wanex.product-desktop.runtime-receipt" ||
+    value.kind !== "wanex.desktop.runtime-receipt" ||
     value.ok !== false) return undefined
   const renderer = boundedRendererFailure(value.renderer)
   return {
-    kind: "wanex.product-desktop.runtime-receipt",
+    kind: "wanex.desktop.runtime-receipt",
     ok: false,
     failurePhase: boundedIdentifier(value.failurePhase, "unknown_phase"),
     ...(typeof value.failureProofStep === "string"
@@ -87,8 +87,8 @@ function boundedRuntimeFailure(value) {
         ? boundedIdentifier(value.error.name, "Error")
         : "Error",
       code: isRecord(value.error)
-        ? boundedIdentifier(value.error.code, "product_desktop_failed")
-        : "product_desktop_failed"
+        ? boundedIdentifier(value.error.code, "assistant_desktop_failed")
+        : "assistant_desktop_failed"
     },
     ...(renderer === undefined ? {} : { renderer })
   }
@@ -174,8 +174,8 @@ function boundedProofError(error) {
       ? boundedIdentifier(error.name, "Error")
       : "UnknownError",
     code: isRecord(error)
-      ? boundedIdentifier(error.code, "product_desktop_proof_failed")
-      : "product_desktop_proof_failed"
+      ? boundedIdentifier(error.code, "assistant_desktop_proof_failed")
+      : "assistant_desktop_proof_failed"
   }
 }
 

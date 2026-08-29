@@ -32,7 +32,7 @@ function commonRequest(
   bytes: Uint8Array,
   source?: ResourceSource
 ): IngestResourceRequest {
-  const kind = output.kind ?? kindForMediaType(output.mediaType)
+  const kind = output.kind ?? resourceKindForMediaType(output.mediaType)
   return {
     content: bytes,
     ...(output.mediaType === undefined ? {} : { mediaType: output.mediaType }),
@@ -47,7 +47,9 @@ function commonRequest(
   }
 }
 
-function kindForMediaType(mediaType: string | undefined): ResourceKind {
+export function resourceKindForMediaType(
+  mediaType: string | undefined
+): ResourceKind {
   if (mediaType?.startsWith("image/")) {
     return "image"
   }

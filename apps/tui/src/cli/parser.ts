@@ -36,7 +36,7 @@ export function parseTuiCliCommand(
     return { name: first }
   }
   if (first === "preview" || first === "execute") {
-    return parseProductCommand(first, rest)
+    return parseAssistantCommand(first, rest)
   }
   if (first === "execution") {
     return parseExecutionCommand(rest)
@@ -92,13 +92,13 @@ function parseEventsCommand(rest: readonly string[]): TuiCliCommand {
   }
 }
 
-function parseProductCommand(
+function parseAssistantCommand(
   name: "preview" | "execute",
   rest: readonly string[]
 ): TuiCliCommand {
   const [commandId, inputText, ...extra] = rest
   if (commandId === undefined || commandId.trim().length === 0) {
-    throw new Error(`${name} requires a product command id`)
+    throw new Error(`${name} requires a assistant command id`)
   }
   if (extra.length > 0) {
     throw new Error(`${name} accepts at most one JSON input argument`)

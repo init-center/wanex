@@ -14,33 +14,28 @@ export const WANEX_WORKSPACE_GIT = "wanex-workspace-git" as const
 
 export class WorkspaceGitRuntime {
   private readonly repositoryId: string
-  private readonly locator: WorkspaceGitRuntimeOptions["locator"]
+  private readonly worktreeParent: string
 
   constructor(options: WorkspaceGitRuntimeOptions) {
     this.repositoryId = options.repositoryId
-    this.locator = options.locator
+    this.worktreeParent = options.worktreeParent
   }
 
   async collectWorktree(
     request: CollectWorktreeRequest
   ): Promise<WorktreeCollection> {
-    const repository = await this.locator.locate(this.repositoryId)
     const leaseAttention = validateLease(
       request.lease,
       this.repositoryId,
-      repository.worktreeParent
+      this.worktreeParent
     )
     if (leaseAttention !== undefined) {
       return { status: "attention", diff: [], attention: [leaseAttention] }
     }
     const baseRevision = requireBaseRevision(request.lease)
     const git = new GitCommandClient({
-      repoDir: repository.repositoryRoot,
-      ...(repository.gitBin === undefined ? {} : { gitBin: repository.gitBin }),
-      ...(repository.executionHost === undefined
-        ? {}
-        : { executionHost: repository.executionHost }),
-      timeoutMs: repository.gitTimeoutMs
+      repoDir: request.lease.rootDir,
+      executionProcess: request.executionScope.process
     })
     let diff
     try {
@@ -66,6 +61,7 @@ export class WorkspaceGitRuntime {
         changes.push(
           await fileChangeForEntry({
             git,
+            fileSystem: request.executionScope.fileSystem,
             lease: request.lease,
             baseRevision,
             entry

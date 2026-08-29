@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import { sha256Text, type ChangeSet } from "../src/changesets/index.js"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WorkspaceRuntime, type WorkspaceMutationIdentity } from "../src/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "./execution.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -15,6 +19,7 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (clients.length > 0) await clients.pop()?.dispose()
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
@@ -153,6 +158,7 @@ describe("@wanex/workspace transaction runtime", () => {
       storage: clientFor(environment.storeDir),
       rootDir: environment.rootDir,
       serviceBin,
+      executionScope: environment.executionScope,
       workspaceId: "workspace_test"
     })
     expect((await restarted.getHistory(changeSet.id))?.operations[0]?.receipt.files[0]).toMatchObject({
@@ -168,12 +174,18 @@ describe("@wanex/workspace transaction runtime", () => {
   it("serializes independent concurrent mutations with native workspace ownership", async () => {
     const storeDir = await temporaryDirectory("wanex-workspace-store-")
     const rootDir = await temporaryDirectory("wanex-workspace-root-")
+    const execution = await createWorkspaceTestExecution({
+      rootDir,
+      managedProcess: true
+    })
     const runtimeA = new WorkspaceRuntime({
       storage: clientFor(storeDir), rootDir, serviceBin,
+      executionScope: execution.scope,
       workspaceId: "workspace_test", principalId: "agent_a"
     })
     const runtimeB = new WorkspaceRuntime({
       storage: clientFor(storeDir), rootDir, serviceBin,
+      executionScope: execution.scope,
       workspaceId: "workspace_test", principalId: "agent_b"
     })
     await writeFile(join(rootDir, "a.txt"), "base-a\n", "utf8")
@@ -203,14 +215,19 @@ async function createRuntime() {
   const storeDir = await temporaryDirectory("wanex-workspace-store-")
   const rootDir = await temporaryDirectory("wanex-workspace-root-")
   const client = clientFor(storeDir)
+  const execution = await createWorkspaceTestExecution({
+    rootDir,
+    managedProcess: true
+  })
   const runtime = new WorkspaceRuntime({
     storage: client,
     rootDir,
     serviceBin,
+    executionScope: execution.scope,
     workspaceId: "workspace_test",
     principalId: "agent_test"
   })
-  return { storeDir, rootDir, client, runtime }
+  return { storeDir, rootDir, client, runtime, executionScope: execution.scope }
 }
 
 function clientFor(storeDir: string): StorageTestStore {

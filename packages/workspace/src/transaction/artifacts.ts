@@ -3,14 +3,16 @@ import type {
   WorkspaceChangeTransactionFilePlan
 } from "@wanex/protocol"
 import { WorkspaceTransactionCleanupRequiredError } from "./errors.js"
-import { spawnNativeWorkspaceTransaction } from "./native-helper.js"
+import { spawnWorkspaceTransaction } from "./process-executor.js"
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 
 export async function cleanupCommittedArtifacts(input: {
   readonly canonicalRoot: string
   readonly serviceBin: string
+  readonly executionScope: BorrowedExecutionScope
   readonly transactionId: string
   readonly files: readonly WorkspaceChangeTransactionFilePlan[]
-  readonly helper: Awaited<ReturnType<typeof spawnNativeWorkspaceTransaction>>
+  readonly helper: Awaited<ReturnType<typeof spawnWorkspaceTransaction>>
 }): Promise<void> {
   try {
     await input.helper.cleanup(input.files)
@@ -18,10 +20,11 @@ export async function cleanupCommittedArtifacts(input: {
   } catch (firstError) {
     await input.helper.terminate()
     try {
-      const retry = await spawnNativeWorkspaceTransaction({
+      const retry = await spawnWorkspaceTransaction({
         rootDir: input.canonicalRoot,
         serviceBin: input.serviceBin,
-        transactionId: input.transactionId
+        transactionId: input.transactionId,
+        executionScope: input.executionScope
       })
       try {
         await retry.cleanup(input.files)
@@ -40,14 +43,16 @@ export async function cleanupCommittedArtifacts(input: {
 export async function cleanupTerminalArtifacts(input: {
   readonly canonicalRoot: string
   readonly serviceBin: string
+  readonly executionScope: BorrowedExecutionScope
   readonly transactionId: string
   readonly files: readonly WorkspaceChangeTransactionFileRecord[]
 }): Promise<void> {
   if (input.files.length === 0) return
-  const helper = await spawnNativeWorkspaceTransaction({
+  const helper = await spawnWorkspaceTransaction({
     rootDir: input.canonicalRoot,
     serviceBin: input.serviceBin,
-    transactionId: input.transactionId
+    transactionId: input.transactionId,
+    executionScope: input.executionScope
   })
   try {
     await cleanupCommittedArtifacts({

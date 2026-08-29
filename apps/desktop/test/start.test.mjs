@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  assertCanonicalProductDesktopStartArgs,
-  createProductDesktopStartPlan,
+  assertCanonicalDesktopStartArgs,
+  createDesktopStartPlan,
 } from "../scripts/start.mjs";
 
-describe("Product Desktop direct development start", () => {
+describe("Desktop direct development start", () => {
   it.each([
     ["darwin", "wanex-system-service"],
     ["linux", "wanex-system-service"],
@@ -25,7 +25,7 @@ describe("Product Desktop direct development start", () => {
       WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: '["/forbidden-extension"]',
     };
 
-    const plan = createProductDesktopStartPlan({
+    const plan = createDesktopStartPlan({
       workspaceRoot,
       platform,
       electronExecutable: join(workspaceRoot, "tooling", "electron"),
@@ -44,7 +44,7 @@ describe("Product Desktop direct development start", () => {
           workspaceRoot,
           "target",
           "distribution",
-          "product-desktop",
+          "desktop",
           "staging-app",
         ),
       ],
@@ -61,7 +61,7 @@ describe("Product Desktop direct development start", () => {
           workspaceRoot,
           "target",
           "distribution",
-          "product-desktop",
+          "desktop",
           "credentials",
         ),
       },
@@ -98,10 +98,10 @@ describe("Product Desktop direct development start", () => {
   });
 
   it("rejects arguments instead of creating a second launch mode", () => {
-    expect(assertCanonicalProductDesktopStartArgs([])).toBeUndefined();
-    expect(assertCanonicalProductDesktopStartArgs(["--"])).toBeUndefined();
+    expect(assertCanonicalDesktopStartArgs([])).toBeUndefined();
+    expect(assertCanonicalDesktopStartArgs(["--"])).toBeUndefined();
     expect(() =>
-      assertCanonicalProductDesktopStartArgs(["--proof"]),
-    ).toThrow("unknown Product Desktop start argument: --proof");
+      assertCanonicalDesktopStartArgs(["--proof"]),
+    ).toThrow("unknown Desktop start argument: --proof");
   });
 });

@@ -30,7 +30,7 @@ export async function runSideQueryCommand(options: {
     }),
     "readSideQuery"
   )
-  if (current.kind === "product.side-query.missing") {
+  if (current.kind === "assistant.side-query.missing") {
     options.state.sideQueryId = undefined
     options.state.sideQueryState = undefined
     throw new Error(`side query disappeared after start: ${started.queryId}`)
@@ -81,7 +81,7 @@ export async function reconcileTuiSideQueryInvalidation(options: {
     }),
     "readSideQuery"
   )
-  if (current.kind === "product.side-query.missing") {
+  if (current.kind === "assistant.side-query.missing") {
     options.state.sideQueryId = undefined
     options.state.sideQueryState = undefined
     return
@@ -230,7 +230,7 @@ export async function runExecutePlanCommand(options: {
   await writeLine(
     options.sessionOptions,
     renderTuiPlanProposal({
-      kind: "product.plan-proposal.found",
+      kind: "assistant.plan-proposal.found",
       proposal: result.proposal
     })
   )
@@ -256,7 +256,7 @@ export async function reconcileTuiPlanInvalidation(options: {
       }),
       "readPlanGeneration"
     )
-    if (result.kind === "product.plan-generation.found") {
+    if (result.kind === "assistant.plan-generation.found") {
       const changed =
         options.state.planGenerationState !== result.generation.state
       rememberPlanGeneration(options.state, result.generation)
@@ -296,7 +296,7 @@ function rememberPlanProposal(
   state: TuiLineSessionState,
   proposal: Parameters<typeof renderTuiPlanProposal>[0]
 ): void {
-  if (proposal.kind !== "product.plan-proposal.found") return
+  if (proposal.kind !== "assistant.plan-proposal.found") return
   state.planProposalId = proposal.proposal.proposalId
   state.planProposalRevision = proposal.proposal.revision
 }
@@ -423,7 +423,7 @@ export async function reconcileTuiGoalInvalidation(options: {
   const previousState = options.state.goalState
   rememberGoal(options.state, result)
   if (
-    result.kind === "product.goal.found" &&
+    result.kind === "assistant.goal.found" &&
     (result.goal.revision !== previousRevision || result.goal.state !== previousState)
   ) {
     await writeLine(options.sessionOptions, renderTuiGoal(result))
@@ -434,13 +434,13 @@ function rememberGoal(
   state: TuiLineSessionState,
   result: Parameters<typeof renderTuiGoal>[0]
 ): void {
-  if (result.kind === "product.goal.found") {
+  if (result.kind === "assistant.goal.found") {
     state.goalId = result.goal.goalId
     state.goalRevision = result.goal.revision
     state.goalState = result.goal.state
     return
   }
-  if (result.kind === "product.goal") {
+  if (result.kind === "assistant.goal") {
     state.goalId = result.goalId
     state.goalRevision = result.revision
     state.goalState = result.state

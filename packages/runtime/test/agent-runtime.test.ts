@@ -161,6 +161,43 @@ describe("@wanex/runtime/host agent runtime", () => {
     }
   })
 
+  it("persists requested Session scope and rejects cross-scope reuse", async () => {
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_session_scope",
+      fakeResponseText: "unused"
+    })
+    const sessionId = "ses_agent_runtime_session_scope"
+    const sessionScope = {
+      kind: "coding.repository",
+      id: "repository_runtime_scope"
+    } as const
+
+    try {
+      const submitted = await runtime.submitUserTurn({
+        content: [{ type: "text", text: "scoped input" }],
+        sessionId,
+        sessionScope
+      })
+      expect(submitted.session.scope).toEqual(sessionScope)
+      await expect(runtime.submitUserTurn({
+        content: [{ type: "text", text: "missing scope input" }],
+        sessionId
+      })).rejects.toThrow("requires an exact requested session scope")
+      await expect(runtime.submitUserTurn({
+        content: [{ type: "text", text: "foreign input" }],
+        sessionId,
+        sessionScope: {
+          kind: sessionScope.kind,
+          id: "repository_runtime_foreign"
+        }
+      })).rejects.toThrow("does not match the requested session scope")
+      await expect(runtime.session.listInputs({ sessionId })).resolves.toHaveLength(1)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
   it("derives deterministic navigation identity across message forms", async () => {
     const runtime = new WanexAgentRuntime({
       storage: await createTestStore(),

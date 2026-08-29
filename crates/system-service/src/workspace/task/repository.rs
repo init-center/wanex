@@ -10,9 +10,9 @@ use uuid::Uuid;
 
 pub(super) const RUN_SELECT: &str = "SELECT
     id, workspace_id, principal_id, access, repository_id, isolation_id,
-    state, base_revision, runtime_ref, execution_outcome, outcome, summary,
-    resource_ids_json, changeset_id, proposal_id, failure_json,
-    created_at, updated_at, finished_at
+    execution_environment_json, job_id, agent_id, state, base_revision, runtime_ref,
+    execution_outcome, outcome, summary, resource_ids_json, changeset_id, proposal_id,
+    failure_json, created_at, updated_at, finished_at
  FROM workspace_task_run";
 
 pub(super) const ATTEMPT_SELECT: &str = "SELECT
@@ -27,11 +27,31 @@ pub(super) fn existing_claim_result(
     token_hash: &str,
     now: i64,
 ) -> Result<WorkspaceTaskClaimResult> {
-    let attempt = get_attempt_tx(tx, &request.attempt_id)?.ok_or_else(|| {
-        SystemServiceError::Conflict(
-            "workspace task begin replay does not match the original attempt".to_string(),
-        )
-    })?;
+    if run.state == "released" {
+        return Ok(WorkspaceTaskClaimResult {
+            status: "already_terminal".to_string(),
+            snapshot: snapshot_tx(tx, run)?,
+        });
+    }
+    let active = get_active_attempt_tx(tx, &run.id)?;
+    if run.state == "attention" {
+        return Ok(WorkspaceTaskClaimResult {
+            status: "busy".to_string(),
+            snapshot: WorkspaceTaskRunSnapshot {
+                run,
+                active_attempt: active,
+            },
+        });
+    }
+    let Some(attempt) = get_attempt_tx(tx, &request.attempt_id)? else {
+        return Ok(WorkspaceTaskClaimResult {
+            status: "busy".to_string(),
+            snapshot: WorkspaceTaskRunSnapshot {
+                run,
+                active_attempt: active,
+            },
+        });
+    };
     if attempt.run_id != run.id
         || attempt.owner_id != request.owner_id
         || attempt.claim_token_sha256 != token_hash
@@ -41,13 +61,6 @@ pub(super) fn existing_claim_result(
             "workspace task begin replay changed attempt identity".to_string(),
         ));
     }
-    if run.state == "released" {
-        return Ok(WorkspaceTaskClaimResult {
-            status: "already_terminal".to_string(),
-            snapshot: snapshot_tx(tx, run)?,
-        });
-    }
-    let active = get_active_attempt_tx(tx, &run.id)?;
     let status = match active.as_ref() {
         Some(active) if active.id == attempt.id && active.lease_expires_at > now => "claimed",
         _ => "busy",
@@ -70,6 +83,9 @@ pub(super) fn assert_same_run(
         || run.access != request.access
         || run.repository_id != request.repository_id
         || run.isolation_id != request.isolation_id
+        || run.execution_environment != request.execution_environment
+        || run.job_id != request.job_id
+        || run.agent_id != request.agent_id
     {
         return Err(SystemServiceError::Conflict(format!(
             "workspace task run id already exists with different identity: {}",
@@ -197,8 +213,9 @@ pub(super) fn finish_attempt_tx(
 }
 
 pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceTaskRunRecord> {
-    let resources_json: String = row.get(12)?;
-    let failure_json: Option<String> = row.get(15)?;
+    let execution_environment_json: String = row.get(6)?;
+    let resources_json: String = row.get(15)?;
+    let failure_json: Option<String> = row.get(18)?;
     Ok(WorkspaceTaskRunRecord {
         id: row.get(0)?,
         workspace_id: row.get(1)?,
@@ -206,34 +223,45 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceT
         access: row.get(3)?,
         repository_id: row.get(4)?,
         isolation_id: row.get(5)?,
-        state: row.get(6)?,
-        base_revision: row.get(7)?,
-        runtime_ref: row.get(8)?,
-        execution_outcome: row.get(9)?,
-        outcome: row.get(10)?,
-        summary: row.get(11)?,
+        execution_environment: serde_json::from_str(&execution_environment_json).map_err(
+            |error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    6,
+                    rusqlite::types::Type::Text,
+                    Box::new(error),
+                )
+            },
+        )?,
+        job_id: row.get(7)?,
+        agent_id: row.get(8)?,
+        state: row.get(9)?,
+        base_revision: row.get(10)?,
+        runtime_ref: row.get(11)?,
+        execution_outcome: row.get(12)?,
+        outcome: row.get(13)?,
+        summary: row.get(14)?,
         resource_ids: serde_json::from_str(&resources_json).map_err(|error| {
             rusqlite::Error::FromSqlConversionFailure(
-                12,
+                15,
                 rusqlite::types::Type::Text,
                 Box::new(error),
             )
         })?,
-        changeset_id: row.get(13)?,
-        proposal_id: row.get(14)?,
+        changeset_id: row.get(16)?,
+        proposal_id: row.get(17)?,
         failure: failure_json
             .map(|raw| serde_json::from_str(&raw))
             .transpose()
             .map_err(|error| {
                 rusqlite::Error::FromSqlConversionFailure(
-                    15,
+                    18,
                     rusqlite::types::Type::Text,
                     Box::new(error),
                 )
             })?,
-        created_at: row.get(16)?,
-        updated_at: row.get(17)?,
-        finished_at: row.get(18)?,
+        created_at: row.get(19)?,
+        updated_at: row.get(20)?,
+        finished_at: row.get(21)?,
     })
 }
 

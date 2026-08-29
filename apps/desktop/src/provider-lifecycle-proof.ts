@@ -156,7 +156,7 @@ function createWanexDesktopProviderLifecycleProof(
       } finally {
         window.confirm = originalConfirm
       }
-      const surface = document.querySelector('[data-ui-product-shell]')
+      const surface = document.querySelector('[data-ui-assistant-shell]')
       const modelSelect = surface?.querySelector(
         '[data-ui-model-selector] select[name="endpointId"]'
       )
@@ -199,7 +199,7 @@ function createWanexDesktopProviderLifecycleProof(
       }
       await waitFor(() => {
         const currentSurface = document.querySelector(
-          '[data-ui-product-shell]'
+          '[data-ui-assistant-shell]'
         )
         const rows = [
           ...(currentSurface?.querySelectorAll(
@@ -309,6 +309,6 @@ function createWanexDesktopProviderLifecycleProof(
       if (value !== undefined && value !== false) return value
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
-    throw new Error("Product Desktop proof condition timed out")
+    throw new Error("Desktop proof condition timed out")
   }
 }

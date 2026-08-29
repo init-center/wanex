@@ -6,8 +6,8 @@ import {
 } from "@earendil-works/pi-tui"
 import type {
   ConversationOperationReadModel
-} from "@wanex/product"
-import type { SurfaceEvent } from "@wanex/product/surface"
+} from "@wanex/assistant"
+import type { SurfaceEvent } from "@wanex/assistant/surface"
 import {
   stopTuiConversation,
   submitTuiConversationText,
@@ -267,7 +267,7 @@ export function createTuiFullScreen(
     perform,
     refreshCanonical,
     adoptOperation(result) {
-      if (result?.kind === "product.conversation-operation.found") {
+      if (result?.kind === "assistant.conversation-operation.found") {
         adoptOperation(result.operation)
       }
     },
@@ -429,7 +429,7 @@ export function createTuiFullScreen(
       if (!result.accepted) {
         editor.setText(draft)
         state.draft = draft
-        state.errorMessage = result.message ?? "Product rejected the message"
+        state.errorMessage = result.message ?? "Assistant rejected the message"
       } else {
         if (draft.length > 0) editor.addToHistory(draft)
         state.draft = ""
@@ -659,7 +659,7 @@ export function createTuiFullScreen(
       return
     }
     state.lastEventSequence = event.sequence
-    if (event.type === "product.surface.command-catalog.invalidated") {
+    if (event.type === "assistant.surface.command-catalog.invalidated") {
       commandPalette?.invalidate()
       scheduleCanonicalRefresh()
       return
@@ -667,10 +667,10 @@ export function createTuiFullScreen(
     plan?.handleInvalidation(event)
     goal?.handleInvalidation(event)
     sideQuery?.handleInvalidation(event)
-    if (event.type === "product.surface.side-query.invalidated") {
+    if (event.type === "assistant.surface.side-query.invalidated") {
       return
     }
-    if (event.type === "product.surface.team.invalidated") {
+    if (event.type === "assistant.surface.team.invalidated") {
       const selectedConversationId = teamConversationIdFromSelection(
         currentSelection()
       )
@@ -686,9 +686,9 @@ export function createTuiFullScreen(
     }
     if (
       event.type ===
-        "product.surface.conversation.assistant-text-delta" &&
+        "assistant.surface.conversation.assistant-text-delta" &&
       event.conversation?.kind ===
-        "product.conversation.assistant-text-delta" &&
+        "assistant.conversation.assistant-text-delta" &&
       event.conversation.sessionId === currentSessionId() &&
       event.conversation.operationId === state.operation?.operationId
     ) {

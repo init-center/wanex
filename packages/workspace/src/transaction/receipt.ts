@@ -7,7 +7,7 @@ import type {
 import type { WorkspaceStore } from "@wanex/storage/workspace"
 import type {
   ChangeSetReceipt,
-  LocalWorkspaceReader
+  WorkspaceFileReader
 } from "../changesets/index.js"
 import { appliedFileRecord } from "../changesets/records.js"
 import { sha256 } from "./common.js"
@@ -77,7 +77,7 @@ export async function replayTerminalTransaction(input: {
 
 export async function rebuildTransactionReceipt(input: {
   readonly storage: WorkspaceStore
-  readonly reader: LocalWorkspaceReader
+  readonly reader: WorkspaceFileReader
   readonly snapshot: WorkspaceChangeTransactionSnapshot
 }): Promise<ChangeSetReceipt> {
   const transaction = input.snapshot.transaction

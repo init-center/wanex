@@ -2,17 +2,17 @@ import { DelegationGraphRuntime } from "@wanex/team/delegation/graph"
 import { createEvalScenario } from "./runner.js"
 import { assert } from "./scenario-utils.js"
 
-export const delegationGraphProductSmokeScenario = createEvalScenario({
-  id: "delegation-graph.product-smoke",
+export const delegationGraphAssistantSmokeScenario = createEvalScenario({
+  id: "delegation-graph.assistant-smoke",
   title: "Delegation graph step syncs terminal work and materializes dependents",
-  tags: ["delegation", "graph", "scheduler", "product-path"],
+  tags: ["delegation", "graph", "scheduler", "assistant-path"],
   async run(context) {
     const runtime = new DelegationGraphRuntime({
       storage: context.storage,
       principalId: "principal_eval_delegation_graph"
     })
     const graph = await runtime.createGraph({
-      id: "graph_eval_product",
+      id: "graph_eval_assistant",
       title: "Eval delegation graph",
       idempotencyKey: "eval-delegation-graph"
     })

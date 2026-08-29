@@ -1,4 +1,4 @@
-import type { StartGoalRequest } from "@wanex/product/surface"
+import type { StartGoalRequest } from "@wanex/assistant/surface"
 
 export type TuiLineCommand =
   | {

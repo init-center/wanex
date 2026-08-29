@@ -1,4 +1,4 @@
-export const WANEX_DESKTOP_PROOF_HEADING = "Desktop product proof"
+export const WANEX_DESKTOP_PROOF_HEADING = "Desktop assistant proof"
 export const WANEX_DESKTOP_PROOF_CODE = "structured timeline"
 export const WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID = "desktop-proof-primary-model"
 export const WANEX_DESKTOP_PROOF_SELECTED_DRAFT_MODEL_ID =
@@ -12,6 +12,23 @@ export const WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID =
   "desktop-proof-relaunch-model"
 export const WANEX_DESKTOP_PROOF_RELAUNCH_RESPONSE =
   `Proof response from ${WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID}`
+export const WANEX_DESKTOP_PROOF_CODING_MESSAGE =
+  "WANEX_CODING_PROOF_V1 Create and review the coding proof file"
+export const WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID =
+  "call_desktop_proof_coding_changes"
+export const WANEX_DESKTOP_PROOF_CODING_TOOL_NAME =
+  "workspace_apply_changeset"
+export const WANEX_DESKTOP_PROOF_CODING_FILE = "coding-proof.txt"
+export const WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT =
+  "created by the Wanex coding proof\n"
+export const WANEX_DESKTOP_PROOF_CODING_RESPONSE =
+  "The reviewed coding proof change is complete"
+export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE =
+  "WANEX_CODING_RECOVERY_PROOF_V1 Reconcile the recoverable coding operation"
+export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME =
+  "coding_recovery_probe"
+export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE =
+  "The recoverable coding operation was reconciled"
 export const WANEX_DESKTOP_PROOF_TEAM_TITLE = "Installed team acceptance"
 export const WANEX_DESKTOP_PROOF_TEAM_MESSAGE =
   "Prove the installed team delivery path"
@@ -189,7 +206,7 @@ export interface WanexDesktopRendererProofResult {
   readonly selectedSessionTitle: string
   readonly listedSessionTitle: string
   readonly conversationIdentityIntegrity: boolean
-  readonly soleProductRenderer: boolean
+  readonly soleAssistantRenderer: boolean
   readonly unknownRouteRejected: boolean
   readonly sessionNavigationTruth: boolean
   readonly canonicalTranscriptIntegrity: boolean
@@ -216,6 +233,7 @@ export interface WanexDesktopRendererProofResult {
 export type WanexDesktopProviderRelaunchProofStep =
   | "relaunch-configure"
   | "relaunch-chat"
+  | "relaunch-coding"
   | "relaunch-cancel-regenerate"
   | "relaunch-guided-follow-up"
   | "relaunch-side-query"
@@ -487,6 +505,45 @@ export interface WanexDesktopProviderRelaunchProofResult {
   readonly cleanupCompleted: boolean
   readonly credentialCleanupPending: boolean
   readonly chatBlocked: boolean
+  readonly timingsMs: {
+    readonly rendererInteractive: number
+    readonly conversationSettlement: number
+    readonly rendererPostSettlement: number
+  }
+}
+
+export interface WanexDesktopCodingProofResult {
+  readonly ok: boolean
+  readonly step: "relaunch-coding"
+  readonly providerReady: boolean
+  readonly providerEvidenceRedacted: boolean
+  readonly initialAssistantVisible: boolean
+  readonly codingSurfaceSelected: boolean
+  readonly emptyProjectStateVisible: boolean
+  readonly projectSelected: boolean
+  readonly projectId: string
+  readonly projectPathEvidenceHidden: boolean
+  readonly sessionCreated: boolean
+  readonly sessionId: string
+  readonly userMessageVisible: boolean
+  readonly approvalVisible: boolean
+  readonly toolNameVisible: boolean
+  readonly approvalResolved: boolean
+  readonly turnSucceeded: boolean
+  readonly proposalVisible: boolean
+  readonly responseVisible: boolean
+  readonly proposalReviewed: boolean
+  readonly proposalApplyRequested: boolean
+  readonly proposalApplied: boolean
+  readonly proposalUndone: boolean
+  readonly noFabricatedToolResult: boolean
+  readonly recoveryVisible: boolean
+  readonly recoveryToolNameVisible: boolean
+  readonly recoveryRetryAvailable: boolean
+  readonly recoveryRetried: boolean
+  readonly recoveryTurnSucceeded: boolean
+  readonly recoveryResponseVisible: boolean
+  readonly recoverySessionPreserved: boolean
   readonly timingsMs: {
     readonly rendererInteractive: number
     readonly conversationSettlement: number

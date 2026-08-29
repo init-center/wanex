@@ -110,7 +110,7 @@ export function parseTuiLineCommand(
       return parseApprovalDecisionCommand(name, rest)
     case "preview":
     case "execute":
-      return parseProductCommandInvocation(name, rest)
+      return parseAssistantCommandInvocation(name, rest)
     case "execution":
       return parseExecutionCommand(rest)
     case "events":
@@ -261,14 +261,14 @@ function parseWorkbenchCommand(rest: string): TuiLineCommand {
   }
 }
 
-function parseProductCommandInvocation(
+function parseAssistantCommandInvocation(
   name: "preview" | "execute",
   rest: string
 ): TuiLineCommand {
   const parsed = parseSelectorJsonInput({
     commandName: name,
     rest,
-    selectorLabel: "a product command id"
+    selectorLabel: "a assistant command id"
   })
   if (!parsed.ok) {
     return {
@@ -279,7 +279,7 @@ function parseProductCommandInvocation(
   if (parsed.selector === undefined) {
     return {
       kind: "error",
-      message: `${name} requires a product command id`
+      message: `${name} requires a assistant command id`
     }
   }
   return {

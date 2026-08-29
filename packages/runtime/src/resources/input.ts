@@ -34,9 +34,13 @@ export interface AdmittedUserMessage {
   readonly resources: readonly ResourceInputEvidence[]
 }
 
-export async function admitUserMessage(
+/**
+ * Assigns stable message-part ids before durable Session admission. Provider
+ * capability checks remain in admitUserMessage; this function only turns the
+ * caller-facing input into the canonical durable representation.
+ */
+export async function canonicalizeUserMessageInput(
   storage: Pick<CoreStore, "getResource">,
-  endpoint: ModelEndpoint,
   input: readonly UserMessageInputPart[]
 ): Promise<AdmittedUserMessage> {
   if (input.length === 0) {
@@ -45,7 +49,6 @@ export async function admitUserMessage(
   const content: MessagePart[] = []
   const resources: ResourceInputEvidence[] = []
   const resourceIds = new Set<string>()
-  let totalResourceBytes = 0
   for (const [index, part] of input.entries()) {
     if (part.type === "text") {
       if (part.text.length === 0) {
@@ -65,18 +68,35 @@ export async function admitUserMessage(
     if (resource === null) {
       throw new Error(`agent runtime resource not found: ${part.resourceId}`)
     }
+    assertResourceAvailable(resource)
     const evidence = resourceEvidence(resource)
+    resources.push(evidence)
+    content.push({ type: "resource", id: `user_resource_${index}`, ...evidence })
+  }
+  return { content, resources }
+}
+
+export async function admitUserMessage(
+  storage: Pick<CoreStore, "getResource">,
+  endpoint: ModelEndpoint,
+  input: readonly UserMessageInputPart[]
+): Promise<AdmittedUserMessage> {
+  const admitted = await canonicalizeUserMessageInput(storage, input)
+  let totalResourceBytes = 0
+  for (const evidence of admitted.resources) {
+    const resource = await storage.getResource({ resourceId: evidence.resourceId })
+    if (resource === null) {
+      throw new Error(`agent runtime resource not found: ${evidence.resourceId}`)
+    }
     totalResourceBytes = validateResourceForEndpoint(
       endpoint,
       resource,
       evidence,
       totalResourceBytes
     )
-    resources.push(evidence)
-    content.push({ type: "resource", id: `user_resource_${index}`, ...evidence })
   }
-  assertResourceCount(endpoint, resources.length)
-  return { content, resources }
+  assertResourceCount(endpoint, admitted.resources.length)
+  return admitted
 }
 
 export async function validateCanonicalUserMessage(

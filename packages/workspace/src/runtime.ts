@@ -1,5 +1,5 @@
 import {
-  LocalWorkspaceReader,
+  WorkspaceFileReader,
   planChangeSetApply,
   planChangeSetUndo
 } from "./changesets/index.js"
@@ -30,7 +30,7 @@ export class WorkspaceRuntime {
   readonly transactionLeaseMs: number
 
   private readonly storage: WorkspaceStore
-  private readonly reader: LocalWorkspaceReader
+  private readonly reader: WorkspaceFileReader
   private readonly principalId: PrincipalId
   private readonly transactions: WorkspaceChangeTransactionRuntime
 
@@ -40,11 +40,15 @@ export class WorkspaceRuntime {
     this.transactionLeaseMs =
       options.transactionLeaseMs ?? DEFAULT_WORKSPACE_TRANSACTION_LEASE_MS
     this.principalId = options.principalId ?? DEFAULT_PRINCIPAL_ID
-    this.reader = new LocalWorkspaceReader(options.rootDir)
+    this.reader = new WorkspaceFileReader(
+      options.rootDir,
+      options.executionScope.fileSystem
+    )
     this.transactions = new WorkspaceChangeTransactionRuntime({
       storage: options.storage,
       rootDir: options.rootDir,
       serviceBin: options.serviceBin,
+      executionScope: options.executionScope,
       leaseMs: this.transactionLeaseMs
     })
   }

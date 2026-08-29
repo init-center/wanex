@@ -88,6 +88,18 @@ interface AppendSessionMessageRequest {
 }
 
 // @public (undocumented)
+interface ApplicationScopeBinding {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+    // (undocumented)
+    readonly metadata: JsonValue;
+}
+
+// @public (undocumented)
 interface ApplySessionTurnControlReceipt {
     // (undocumented)
     readonly control: SessionTurnControlRecord;
@@ -120,6 +132,15 @@ interface ArchiveSessionRequest {
     // (undocumented)
     readonly sessionId: SessionId;
 }
+
+// @public (undocumented)
+export function assertApplicationScopeBindingValid(binding: ApplicationScopeBinding): void;
+
+// @public (undocumented)
+export function assertExecutionEnvironmentBindingEqual(actual: ExecutionEnvironmentBinding, expected: ExecutionEnvironmentBinding, label?: string): void;
+
+// @public (undocumented)
+export function assertExecutionEnvironmentBindingValid(binding: ExecutionEnvironmentBinding): void;
 
 // @public (undocumented)
 interface BeginProviderInvocationRequest {
@@ -195,6 +216,31 @@ interface BeginToolExecutionRequest {
     readonly turnId: string;
     // (undocumented)
     readonly workerId: string;
+}
+
+// @public (undocumented)
+export interface BindExecutionScopeRequest {
+    // (undocumented)
+    readonly fileSystemRoots: readonly {
+        readonly id: string;
+        readonly path: string;
+    }[];
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly scopeId: string;
+    // (undocumented)
+    readonly supervisorClaim?: ChildSupervisorClaim;
+}
+
+// @public (undocumented)
+export interface BorrowedExecutionScope {
+    // (undocumented)
+    readonly binding: ExecutionEnvironmentBinding;
+    // (undocumented)
+    readonly fileSystem: ExecutionFileSystem;
+    // (undocumented)
+    readonly process: ExecutionProcess;
 }
 
 // @public (undocumented)
@@ -316,6 +362,28 @@ interface CancelJobRequest {
 type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
+export interface ChildManagedProcess extends ChildProcessRun {
+    // (undocumented)
+    closeInput(): Promise<void>;
+    // (undocumented)
+    readonly events: AsyncIterable<ChildProcessEvent>;
+    // (undocumented)
+    write(input: Uint8Array): Promise<void>;
+}
+
+// @public (undocumented)
+export type ChildProcessEvent = {
+    readonly type: "stdout";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "stderr";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "terminal";
+    readonly evidence: ChildTerminalEvidence;
+};
+
+// @public (undocumented)
 export interface ChildProcessRun {
     // (undocumented)
     terminate(reason: "timed_out" | "cancelled"): Promise<void>;
@@ -327,6 +395,8 @@ export interface ChildProcessRun {
 export interface ChildSupervisor {
     // (undocumented)
     start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
+    // (undocumented)
+    readonly startManaged?: (request: ChildSupervisorStartRequest) => Promise<ChildManagedProcess>;
 }
 
 // @public (undocumented)
@@ -351,6 +421,8 @@ export interface ChildSupervisorStartRequest {
     readonly cwd: string;
     // (undocumented)
     readonly environment: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly inputMode: "closed" | "open";
     // (undocumented)
     readonly program: string;
     // (undocumented)
@@ -470,11 +542,20 @@ interface ContextTokenEstimator {
 }
 
 // @public (undocumented)
+export function createApplicationScopeBinding(request: {
+    readonly kind: string;
+    readonly id: string;
+    readonly metadata: JsonValue;
+}): ApplicationScopeBinding;
+
+// @public (undocumented)
 interface CreateSessionRequest {
     // (undocumented)
     readonly id?: SessionId;
     // (undocumented)
     readonly kind?: SessionKind;
+    // (undocumented)
+    readonly scope?: SessionScope;
     // (undocumented)
     readonly title?: string;
 }
@@ -730,6 +811,43 @@ export class ExecutionAbortedError extends Error {
 }
 
 // @public (undocumented)
+export interface ExecutionCapabilitySnapshot {
+    // (undocumented)
+    readonly artifactExport: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly filesystem: {
+        readonly enforcement: "library_guard" | "os";
+        readonly effects: readonly ExecutionFileEffect[];
+    };
+    // (undocumented)
+    readonly isolation: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly network: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly process: {
+        readonly oneShot: true;
+        readonly managed: boolean;
+        readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    };
+    // (undocumented)
+    readonly pty: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly secretProjection: {
+        readonly supported: boolean;
+    };
+}
+
+// @public (undocumented)
 export class ExecutionCleanupRequiredError extends Error {
     constructor();
 }
@@ -738,9 +856,117 @@ export class ExecutionCleanupRequiredError extends Error {
 export type ExecutionCleanupStatus = "not_required" | "completed" | "failed";
 
 // @public (undocumented)
-export interface ExecutionHost {
+export interface ExecutionDirectoryEntry {
     // (undocumented)
-    execute(request: ExecutionRequest): Promise<ExecutionResult>;
+    readonly kind: ExecutionFileMetadata["kind"];
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+export interface ExecutionEnvironment {
+    // (undocumented)
+    bind(request: BindExecutionScopeRequest): Promise<ExecutionScope>;
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly descriptor: ExecutionEnvironmentDescriptor;
+    // (undocumented)
+    resolveBinding(request: {
+        readonly policy: ExecutionPolicySnapshot;
+    }): ExecutionEnvironmentBinding;
+}
+
+// @public (undocumented)
+export interface ExecutionEnvironmentBinding {
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    readonly capabilityDigest: string;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly providerRevision: string;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+export class ExecutionEnvironmentClosedError extends Error {
+    constructor();
+}
+
+// @public (undocumented)
+export interface ExecutionEnvironmentDescriptor {
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly kind: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly providerRevision: string;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+export type ExecutionFileEffect = "read" | "write" | "create" | "remove";
+
+// @public (undocumented)
+export interface ExecutionFileMetadata {
+    // (undocumented)
+    readonly kind: "file" | "directory" | "symlink" | "other";
+    // (undocumented)
+    readonly modifiedAt: number;
+    // (undocumented)
+    readonly size: number;
+}
+
+// @public (undocumented)
+export interface ExecutionFileSystem {
+    // (undocumented)
+    canonicalize(path: string): Promise<string>;
+    // (undocumented)
+    createDirectory(path: string, options?: {
+        readonly recursive?: boolean;
+    }): Promise<void>;
+    // (undocumented)
+    list(path: string): Promise<readonly ExecutionDirectoryEntry[]>;
+    // (undocumented)
+    metadata(path: string): Promise<ExecutionFileMetadata | null>;
+    // (undocumented)
+    read(path: string): Promise<Uint8Array>;
+    // (undocumented)
+    readRange(path: string, options: {
+        readonly offset: number;
+        readonly length: number;
+    }): Promise<Uint8Array>;
+    // (undocumented)
+    remove(path: string, options?: {
+        readonly recursive?: boolean;
+    }): Promise<void>;
+}
+
+// @public (undocumented)
+interface ExecutionFileSystemPolicy {
+    // (undocumented)
+    readonly maxDirectoryEntries: number;
+    // (undocumented)
+    readonly maxReadBytes: number;
+    // (undocumented)
+    readonly roots: readonly {
+        readonly id: string;
+        readonly effects: readonly ExecutionFileEffect[];
+    }[];
 }
 
 // @public (undocumented)
@@ -763,6 +989,42 @@ export interface ExecutionOutputLimit {
     readonly stderrBytes?: number;
     // (undocumented)
     readonly stdoutBytes?: number;
+}
+
+// @public (undocumented)
+export interface ExecutionPolicySnapshot {
+    // (undocumented)
+    readonly filesystem: ExecutionFileSystemPolicy;
+    // (undocumented)
+    readonly isolation: "none" | "os";
+    // (undocumented)
+    readonly network: "unrestricted" | "denied";
+    // (undocumented)
+    readonly process: ExecutionProcessPolicy;
+    // (undocumented)
+    readonly pty: boolean;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+export interface ExecutionProcess {
+    // (undocumented)
+    execute(request: ExecutionRequest): Promise<ExecutionResult>;
+    // (undocumented)
+    start(request: ManagedExecutionRequest): Promise<ManagedExecutionProcess>;
+}
+
+// @public (undocumented)
+interface ExecutionProcessPolicy {
+    // (undocumented)
+    readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    // (undocumented)
+    readonly environmentVariables: readonly string[];
+    // (undocumented)
+    readonly managed: boolean;
+    // (undocumented)
+    readonly oneShot: boolean;
 }
 
 // @public (undocumented)
@@ -809,6 +1071,17 @@ export interface ExecutionResult {
     readonly stdout: ExecutionOutput;
     // (undocumented)
     readonly termination: ExecutionTerminationReason;
+}
+
+// @public (undocumented)
+export interface ExecutionScope extends BorrowedExecutionScope {
+    // (undocumented)
+    close(): Promise<void>;
+}
+
+// @public (undocumented)
+export class ExecutionScopeClosedError extends Error {
+    constructor();
 }
 
 // @public (undocumented)
@@ -1112,9 +1385,13 @@ interface ListSessionMessagesRequest {
 // @public (undocumented)
 interface ListSessionsRequest {
     // (undocumented)
+    readonly before?: SessionPageCursor;
+    // (undocumented)
     readonly kind?: SessionKind;
     // (undocumented)
     readonly limit?: number;
+    // (undocumented)
+    readonly scope?: SessionScope;
     // (undocumented)
     readonly status?: SessionStatus;
     // (undocumented)
@@ -1141,6 +1418,10 @@ interface ListSessionTurnControlsRequest {
 
 // @public (undocumented)
 interface ListSessionTurnsRequest {
+    // (undocumented)
+    readonly before?: SessionTurnPageCursor;
+    // (undocumented)
+    readonly limit?: number;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
@@ -1173,6 +1454,50 @@ interface ListToolExecutionsRequest {
     readonly state?: ToolExecutionState;
     // (undocumented)
     readonly turnId?: string;
+}
+
+// @public (undocumented)
+export type ManagedExecutionEvent = {
+    readonly type: "stdout";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "stderr";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "terminal";
+    readonly result: ExecutionResult;
+};
+
+// @public (undocumented)
+export interface ManagedExecutionProcess {
+    // (undocumented)
+    closeInput(): Promise<void>;
+    // (undocumented)
+    readonly events: AsyncIterable<ManagedExecutionEvent>;
+    // (undocumented)
+    terminate(reason?: "cancelled" | "timed_out"): Promise<void>;
+    // (undocumented)
+    wait(): Promise<ExecutionResult>;
+    // (undocumented)
+    write(input: string | Uint8Array): Promise<void>;
+}
+
+// @public (undocumented)
+export interface ManagedExecutionRequest {
+    // (undocumented)
+    readonly args?: readonly string[];
+    // (undocumented)
+    readonly cwd: string;
+    // (undocumented)
+    readonly environment?: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly output?: ExecutionOutputLimit;
+    // (undocumented)
+    readonly program: string;
+    // (undocumented)
+    readonly signal?: RuntimeAbortSignal;
+    // (undocumented)
+    readonly timeoutMs?: number;
 }
 
 // @public (undocumented)
@@ -1500,6 +1825,8 @@ export class NativeChildSupervisor implements ChildSupervisor {
     constructor(options: NativeChildSupervisorOptions);
     // (undocumented)
     start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
+    // (undocumented)
+    startManaged(request: ChildSupervisorStartRequest): Promise<ChildManagedProcess>;
 }
 
 // @public (undocumented)
@@ -1515,6 +1842,8 @@ type NativeChildSupervisorErrorCode = "spawn_failed" | "startup_timeout" | "inva
 // @public (undocumented)
 interface NativeChildSupervisorOptions {
     // (undocumented)
+    readonly launchEnvironmentOverrides?: Readonly<Record<string, string>>;
+    // (undocumented)
     readonly serviceArgsPrefix?: readonly string[];
     // (undocumented)
     readonly serviceBin: string;
@@ -1525,22 +1854,34 @@ interface NativeChildSupervisorOptions {
 }
 
 // @public (undocumented)
-export class NodeExecutionHost implements ExecutionHost {
-    constructor(options?: NodeExecutionHostOptions);
+export class NativeExecutionEnvironment implements ExecutionEnvironment {
+    constructor(options: NativeExecutionEnvironmentOptions);
     // (undocumented)
-    execute(request: ExecutionRequest): Promise<ExecutionResult>;
+    bind(request: BindExecutionScopeRequest): Promise<ExecutionScope>;
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly descriptor: ExecutionEnvironmentDescriptor;
+    // (undocumented)
+    resolveBinding(request: {
+        readonly policy: ExecutionPolicySnapshot;
+    }): ExecutionEnvironmentBinding;
 }
 
 // @public (undocumented)
-export interface NodeExecutionHostOptions {
-    // (undocumented)
-    readonly baseEnvironment?: NodeJS.ProcessEnv;
-    // (undocumented)
-    readonly childSupervisor?: ChildSupervisor;
+export interface NativeExecutionEnvironmentOptions {
     // (undocumented)
     readonly cleanupTimeoutMs?: number;
     // (undocumented)
     readonly defaultOutputLimitBytes?: number;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly launchEnvironmentOverrides?: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly managedProcess?: boolean;
     // (undocumented)
     readonly maxOutputLimitBytes?: number;
     // (undocumented)
@@ -1548,12 +1889,56 @@ export interface NodeExecutionHostOptions {
     // (undocumented)
     readonly platform?: NodeJS.Platform;
     // (undocumented)
+    readonly providerRevision?: string;
+    // (undocumented)
+    readonly strategy: NativeExecutionStrategy;
+    // (undocumented)
+    readonly terminationGraceMs?: number;
+    // (undocumented)
+    readonly windowsTreeTerminator?: WindowsTreeTerminator;
+}
+
+// @public (undocumented)
+export interface NativeExecutionProcessOptions {
+    // (undocumented)
+    readonly allowedEnvironmentVariables: readonly string[];
+    // (undocumented)
+    readonly allowManagedProcess: boolean;
+    // (undocumented)
+    readonly allowOneShotProcess: boolean;
+    // (undocumented)
+    readonly cleanupTimeoutMs?: number;
+    // (undocumented)
+    readonly defaultOutputLimitBytes?: number;
+    // (undocumented)
+    readonly launchEnvironment: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly maxOutputLimitBytes?: number;
+    // (undocumented)
+    readonly maxStdinBytes?: number;
+    // (undocumented)
+    readonly onManagedProcess?: (process: ManagedExecutionProcess) => void;
+    // (undocumented)
+    readonly onManagedProcessSettled?: (process: ManagedExecutionProcess) => void;
+    // (undocumented)
+    readonly platform?: NodeJS.Platform;
+    // (undocumented)
+    readonly strategy: NativeExecutionStrategy;
+    // (undocumented)
     readonly supervisorClaim?: ChildSupervisorClaim;
     // (undocumented)
     readonly terminationGraceMs?: number;
     // (undocumented)
     readonly windowsTreeTerminator?: WindowsTreeTerminator;
 }
+
+// @public (undocumented)
+export type NativeExecutionStrategy = {
+    readonly kind: "direct";
+} | {
+    readonly kind: "supervised";
+    readonly childSupervisor: ChildSupervisor;
+};
 
 // @public (undocumented)
 interface PreparedAgentContext {
@@ -2285,6 +2670,9 @@ interface RetryPolicy {
 }
 
 // @public (undocumented)
+export function reviewedNativeLaunchEnvironment(source: NodeJS.ProcessEnv, additions?: Readonly<Record<string, string>>): Readonly<Record<string, string>>;
+
+// @public (undocumented)
 type RunControlPolicy = "queue_after_current" | "abort_current_then_run" | "steer_at_safe_point";
 
 // @public (undocumented)
@@ -2506,6 +2894,14 @@ interface SessionMessageRecord {
 }
 
 // @public (undocumented)
+interface SessionPageCursor {
+    // (undocumented)
+    readonly sessionId: SessionId;
+    // (undocumented)
+    readonly updatedAt: number;
+}
+
+// @public (undocumented)
 interface SessionRecord {
     // (undocumented)
     readonly archivedAt?: number;
@@ -2518,11 +2914,21 @@ interface SessionRecord {
     // (undocumented)
     readonly revision: number;
     // (undocumented)
+    readonly scope?: SessionScope;
+    // (undocumented)
     readonly status: SessionStatus;
     // (undocumented)
     readonly title?: string;
     // (undocumented)
     readonly updatedAt: number;
+}
+
+// @public (undocumented)
+interface SessionScope {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
 }
 
 // @public (undocumented)
@@ -2535,6 +2941,26 @@ export type SessionTurnAgentContextResolver = (request: ResolveSessionTurnAgentC
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
+}
+
+// @public (undocumented)
+interface SessionTurnContextEvidence {
+    // (undocumented)
+    readonly instructions?: SessionTurnContextSourceEvidence;
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly skills?: SessionTurnContextSourceEvidence;
+}
+
+// @public (undocumented)
+interface SessionTurnContextSourceEvidence {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly sourceCount: number;
+    // (undocumented)
+    readonly state: "available" | "unavailable";
 }
 
 // @public (undocumented)
@@ -2585,17 +3011,19 @@ type SessionTurnControlStatus = "pending" | "applied" | "rejected" | "cancelled"
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
     // (undocumented)
+    readonly applicationScope?: ApplicationScopeBinding;
+    // (undocumented)
     readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[];
     // (undocumented)
     readonly completion: SessionTurnCompletionBinding;
     // (undocumented)
-    readonly contextSnapshot?: JsonValue;
+    readonly contextEvidence?: SessionTurnContextEvidence;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
     readonly digest: string;
     // (undocumented)
-    readonly environmentSnapshot?: JsonValue;
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly modelEndpoint: ModelEndpointExecutionBinding;
     // (undocumented)
@@ -2639,6 +3067,14 @@ export interface SessionTurnJobPayload {
     readonly inputId: string;
     // (undocumented)
     readonly sessionId: string;
+    // (undocumented)
+    readonly turnId: SessionTurnId;
+}
+
+// @public (undocumented)
+interface SessionTurnPageCursor {
+    // (undocumented)
+    readonly createdAt: number;
     // (undocumented)
     readonly turnId: SessionTurnId;
 }
@@ -2924,6 +3360,7 @@ export function supervisorRequestFromExecution(request: ExecutionRequest, input:
     readonly childId: string;
     readonly environment: Readonly<Record<string, string>>;
     readonly stdin: Uint8Array;
+    readonly inputMode: "closed" | "open";
     readonly stdoutLimitBytes: number;
     readonly stderrLimitBytes: number;
     readonly terminationGraceMs: number;
@@ -3599,6 +4036,13 @@ interface ToolRuntimeBinding {
     readonly implementationId: string;
     // (undocumented)
     readonly implementationRevision: string;
+}
+
+// @public (undocumented)
+export class UnsupportedExecutionCapabilityError extends Error {
+    constructor(capability: string);
+    // (undocumented)
+    readonly capability: string;
 }
 
 // @public (undocumented)

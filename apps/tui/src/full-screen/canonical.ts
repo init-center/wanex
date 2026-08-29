@@ -4,7 +4,7 @@ import type {
   ConversationOperationReadModel,
   HomeReadModel,
   TeamConversationPageReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { TuiFullScreenClient } from "./types.js"
 import {
   sessionIdFromSelection,
@@ -47,7 +47,7 @@ export async function readTuiFullScreenCanonical(options: {
       transcript: undefined,
       attachments: undefined,
       team:
-        teamResult.kind === "product.team-conversation.found"
+        teamResult.kind === "assistant.team-conversation.found"
           ? teamResult.page
           : undefined
     }
@@ -83,11 +83,11 @@ export async function readTuiFullScreenCanonical(options: {
   return {
     home,
     operation:
-      operationResult?.kind === "product.conversation-operation.found"
+      operationResult?.kind === "assistant.conversation-operation.found"
         ? operationResult.operation
         : undefined,
     transcript:
-      transcriptResult?.kind === "product.session-transcript.found"
+      transcriptResult?.kind === "assistant.session-transcript.found"
         ? transcriptResult.transcript
         : undefined,
     attachments,

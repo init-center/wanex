@@ -3,11 +3,11 @@ import type { ModelEndpoint } from "@wanex/protocol"
 import type {
   Shell,
   ShellOptions
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   resolveCredentialEndpoints,
   unresolvedConversationModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type {
   WanexAppProviderMutationCoordinator
 } from "@wanex/app/provider-mutation"

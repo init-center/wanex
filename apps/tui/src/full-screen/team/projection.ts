@@ -4,7 +4,7 @@ import type {
   TeamMessageReadModel,
   TeamParticipantReadModel,
   TeamRoundReadModel,
-} from "@wanex/product"
+} from "@wanex/assistant"
 import { terminalSingleLineText } from "../terminal-text.js"
 
 export function projectTuiTeamTimeline(

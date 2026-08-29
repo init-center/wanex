@@ -8,9 +8,9 @@ import {
 } from "../src/extensions.js";
 
 describe("Desktop local extension boundary", () => {
-  it("owns the immutable install base under Product user data", () => {
-    expect(extensionInstallBaseDir("/product/user-data")).toBe(
-      join("/product/user-data", "extensions"),
+  it("owns the immutable install base under Assistant user data", () => {
+    expect(extensionInstallBaseDir("/assistant/user-data")).toBe(
+      join("/assistant/user-data", "extensions"),
     );
     expect(() => extensionInstallBaseDir("  ")).toThrow(
       "Desktop user-data directory must not be empty",
@@ -78,7 +78,7 @@ describe("Desktop local extension boundary", () => {
   it("rejects proof-only host failure composition outside proof mode", () => {
     expect(() => createDesktopExtensionProofComposition({
       proofEnabled: false,
-      userDataDir: "/product/user-data",
+      userDataDir: "/assistant/user-data",
       selectLocalPackage: async () => undefined,
       failHostCreationOnce: {
         pluginId: "proof.extension",

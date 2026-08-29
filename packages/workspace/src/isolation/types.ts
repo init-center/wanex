@@ -1,5 +1,9 @@
 import type { RepositoryLocator } from "../locator/index.js"
 import type { WorkspaceSnapshotClient } from "../snapshot/index.js"
+import type {
+  BorrowedExecutionScope,
+  ExecutionFileSystem
+} from "@wanex/runtime/execution"
 
 export type WorkspaceIsolationKind = "fixed" | "git_worktree"
 
@@ -39,11 +43,13 @@ export interface WorkspaceIsolationAdapter {
 
 export interface FixedWorkspaceIsolationAdapterOptions {
   readonly rootDir: string
+  readonly fileSystem: ExecutionFileSystem
   readonly workspaceId?: string
 }
 
 export interface GitWorktreeIsolationAdapterOptions {
   readonly repositoryId: string
   readonly locator: RepositoryLocator
-  readonly snapshot?: WorkspaceSnapshotClient
+  readonly snapshot: WorkspaceSnapshotClient
+  readonly executionScope: BorrowedExecutionScope
 }

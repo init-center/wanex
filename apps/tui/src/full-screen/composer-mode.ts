@@ -1,4 +1,4 @@
-import type { ConversationOperationReadModel } from "@wanex/product"
+import type { ConversationOperationReadModel } from "@wanex/assistant"
 import type { TuiComposerMode } from "../application/conversation-actions.js"
 
 export function switchTuiComposerMode(options: {

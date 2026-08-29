@@ -1,4 +1,4 @@
-import type { StartGoalRequest } from "@wanex/product/surface"
+import type { StartGoalRequest } from "@wanex/assistant/surface"
 import type { TuiLineCommand } from "./model.js"
 
 export function parseGoalStartCommand(rest: string): TuiLineCommand {

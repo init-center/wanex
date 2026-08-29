@@ -63,7 +63,7 @@ export async function runAskCommand(options: {
         : { sessionId: state.activeSessionId })
     })
   const value = expectSurfaceValue(result, "submitConversationOperation")
-  if (value.kind === "product.conversation-operation.rejected") {
+  if (value.kind === "assistant.conversation-operation.rejected") {
     state.blockedCommandCount += 1
   } else {
     state.activeSessionId = value.operation.sessionId
@@ -90,7 +90,7 @@ export async function runSteerCommand(options: {
     ),
     "readTrackedConversationOperation"
   )
-  if (current.kind !== "product.conversation-operation.found") {
+  if (current.kind !== "assistant.conversation-operation.found") {
     state.blockedCommandCount += 1
     await writeLine(
       sessionOptions,
@@ -110,7 +110,7 @@ export async function runSteerCommand(options: {
     ),
     "steerTrackedConversationOperation"
   )
-  if (value.kind === "product.conversation-operation.rejected") {
+  if (value.kind === "assistant.conversation-operation.rejected") {
     state.blockedCommandCount += 1
   }
   await sessionOptions.surface.refresh()
@@ -153,8 +153,8 @@ export async function runWorkbenchCommand(options: {
   )
   const value = expectSurfaceValue(result, "openWorkbench")
   if (
-    value.kind === "product.workbench.opened" ||
-    value.kind === "product.workbench.failed"
+    value.kind === "assistant.workbench.opened" ||
+    value.kind === "assistant.workbench.failed"
   ) {
     if (value.sessionId !== undefined) {
       state.activeSessionId = value.sessionId
@@ -230,7 +230,7 @@ export async function runRegenerateCommand(options: {
     result,
     "regenerateTrackedConversationOperation"
   )
-  if (value.kind === "product.conversation-operation.rejected") {
+  if (value.kind === "assistant.conversation-operation.rejected") {
     state.blockedCommandCount += 1
   } else {
     state.activeSessionId = value.operation.sessionId
@@ -273,7 +273,7 @@ export async function runApprovalDecisionCommand(options: {
     ),
     "readTrackedConversationOperation"
   )
-  if (current.kind !== "product.conversation-operation.found") {
+  if (current.kind !== "assistant.conversation-operation.found") {
     throw new Error("no tracked conversation approval is available")
   }
   const approval = current.operation.approvals?.items.find(
@@ -296,13 +296,13 @@ export async function runApprovalDecisionCommand(options: {
     "resolveTrackedConversationApproval"
   )
   options.state.approvalCommandCount += 1
-  if (resolved.kind === "product.conversation-operation.rejected") {
+  if (resolved.kind === "assistant.conversation-operation.rejected") {
     options.state.blockedCommandCount += 1
   }
   await options.sessionOptions.surface.refresh()
   await writeLine(
     options.sessionOptions,
-    resolved.kind === "product.conversation-approval.resolved"
+    resolved.kind === "assistant.conversation-approval.resolved"
       ? renderTuiConversationOperation(resolved.operation).text
       : renderTuiConversationOperation(resolved).text
   )
@@ -322,7 +322,7 @@ export async function reconcileTuiConversationInvalidation(options: {
     "readTrackedConversationOperation"
   )
   if (
-    current.kind === "product.conversation-operation.found" &&
+    current.kind === "assistant.conversation-operation.found" &&
     current.operation.operationId !== options.operationId
   ) {
     return

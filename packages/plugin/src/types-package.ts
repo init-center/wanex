@@ -5,12 +5,12 @@ import type {
   WANEX_PLUGIN_PACKAGE_TRUST_KIND,
   WANEX_PLUGIN_SUBPROCESS_ENTRY_KIND
 } from "./types-constants.js"
-import type { PluginSandboxAccessRequest } from "./types-sandbox.js"
+import type { PluginPermissionRequest } from "./types-permission.js"
 
 export interface PluginSubprocessManifestEntryAction {
   readonly actionId: string
   readonly capability: PluginCapability
-  readonly sandbox?: PluginSandboxAccessRequest
+  readonly permissions?: PluginPermissionRequest
 }
 
 export interface PluginSubprocessManifestEntry {

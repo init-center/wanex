@@ -57,8 +57,8 @@ pnpm test:native-runtime-proof
 pnpm test:host-distribution-budget
 pnpm check:desktop
 pnpm test:desktop
-pnpm test:web-demo
-pnpm test:local-host-smoke-script
+pnpm test:assistant-web-demo
+pnpm test:assistant-host-smoke-script
 pnpm test:tui-script
 pnpm test:verify-script
 pnpm test:runner
@@ -108,7 +108,7 @@ round bounds, A2UI projection, remote storage control-plane isolation,
 runtime-host execution over remote HTTP storage, worker failure isolation,
 delegation through runtime-host, and delegation graph step advancement continue
 to work through an executable product path, not only through package-local
-tests. It also covers the direct Local Host lifecycle and desktop-host
+tests. It also covers the direct Assistant Host lifecycle and desktop-host
 subpath so the first local upper Web product entry remains executable through
 its public package contract.
 The remote Runtime Host path uses two independent host owners, eight combined
@@ -152,7 +152,7 @@ principle: default App and cold/headless product paths stay free of optional
 plugin loading, npm plugin dependencies, connector adapters, and renderer
 closure. `@wanex/extension` remains dependency-free. Plugin execution is owned
 by `@wanex/plugin` and projected into product commands only by
-`@wanex/plugin-command-host`.
+`@wanex/assistant-plugin-host`.
 The package packlist audit prevents package defaults from including tests,
 fixtures, runtime stores, runtime logs, JSONL debug streams, or generated
 support bundles. It also enforces the current source-first manifest policy:
@@ -197,22 +197,22 @@ pnpm proof:sdk-consumers -- --native-target <target> \
   --native-package-report target/sdk/native/<target>/report.json
 ```
 
-Native and Product Desktop lifecycle/performance proofs run before the npm external
+Native and Desktop lifecycle/performance proofs run before the npm external
 consumer journey. The external journey starts the System Service repeatedly
 and therefore must not warm host caches or perturb the fixed cold/warm
 measurement cohorts. Package generation and installation then consume the
 already audited immutable native artifact without changing it.
 
 `proof:desktop` is a hard gate for packaged startup, Provider and conversation
-behavior, supported Product workflows, privacy, shutdown, and process cleanup.
+behavior, supported Assistant workflows, privacy, shutdown, and process cleanup.
 Its normal/narrow screenshots are retained as nonblank diagnostics; temporary
 layout, focus, drawer, styling, and exact requested viewport dimensions are not
 release gates. A future UI acceptance gate must be frozen against the rebuilt
-Product UI and must not revive selectors or geometry from the pre-rebuild
+Assistant UI and must not revive selectors or geometry from the pre-rebuild
 surface by compatibility.
 
 The job uploads the target-native npm tarball and portable report beside the
-existing native/Product Desktop receipts.
+existing native/Desktop receipts.
 
 The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or
@@ -230,8 +230,8 @@ Use the individual commands when narrowing a failure:
 ```bash
 pnpm doctor:toolchain
 pnpm test:toolchain-doctor
-pnpm test:web-demo
-pnpm test:local-host-smoke-script
+pnpm test:assistant-web-demo
+pnpm test:assistant-host-smoke-script
 pnpm test:verify-script
 pnpm test:runner
 pnpm test:public-contract-audit
@@ -263,18 +263,18 @@ For focused iteration, prefer package-local checks plus the structure audit
 before running a full gate:
 
 ```bash
-pnpm --filter @wanex/local-host check
-pnpm --filter @wanex/local-host test -- web-host
+pnpm --filter @wanex/assistant-host check
+pnpm --filter @wanex/assistant-host test -- web-host
 pnpm audit:structure
 ```
 
 For a bounded local product-path check that avoids the full workspace gate:
 
 ```bash
-pnpm --silent smoke:local-host
+pnpm --silent smoke:assistant-host
 ```
 
-This command starts Local Host through a temporary profile root outside
+This command starts Assistant Host through a temporary profile root outside
 the workspace, verifies the local Web document, layout action, workbench start
 action, and product privacy boundary, prints one JSON result to stdout, closes
 the host, and exits. Use the `--silent` pnpm form when stdout must be directly
@@ -284,10 +284,10 @@ replace `pnpm verify` at release, handoff, or CI boundaries.
 For a focused application feedback check across Web and TUI:
 
 ```bash
-pnpm smoke:product-feedback
+pnpm smoke:assistant-feedback
 ```
 
-This command reuses the `product.app-feedback-matrix-contract` eval scenario. It
+This command reuses the `assistant.app-feedback-matrix-contract` eval scenario. It
 checks that provider-not-ready execution is reported as blocked in both Web and
 TUI, then trusted provider setup makes the same paths succeed without leaking
 secrets, store paths, service binary paths, or setup APIs to renderer-facing
@@ -394,5 +394,5 @@ cargo build -p wanex-system-service
 It does not recursively run package-local emitting `tsc` builds and does not
 write package-local `dist/` directories. Use `pnpm release:sdk` for generated
 manifests, deterministic tarballs, API/package validation, and the external
-consumer smoke. Registry publication, signing, provenance upload, CLI/Product
+consumer smoke. Registry publication, signing, provenance upload, CLI/product
 packaging, and platform system-service embedding remain separate release work.

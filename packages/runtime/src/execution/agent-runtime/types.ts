@@ -5,6 +5,8 @@ import type {
   ProviderEventObserver
 } from "../../provider/index.js"
 import type {
+  ApplicationScopeBinding,
+  ExecutionEnvironmentBinding,
   MessagePart,
   SchedulerJobRecord,
   RunControlPolicy,
@@ -13,6 +15,7 @@ import type {
   SessionInputOrigin,
   SessionMessageRecord,
   SessionRecord,
+  SessionScope,
   SubmitSessionTurnRequest,
   SubmitSessionTurnReceipt,
   SessionTurnExecutionBinding,
@@ -57,6 +60,7 @@ export interface WanexAgentRuntimeOptions {
 export interface SubmitUserTurnRequest {
   readonly content: readonly UserMessageInputPart[]
   readonly sessionId?: SessionId
+  readonly sessionScope?: SessionScope
   readonly title?: string
   readonly principalId?: string
   readonly idempotencyKey?: string
@@ -68,6 +72,8 @@ export interface SubmitUserTurnRequest {
   readonly modelEndpointId?: string
   readonly maxSteps?: number
   readonly maxOutputTokens?: number
+  readonly executionEnvironment?: ExecutionEnvironmentBinding
+  readonly applicationScope?: ApplicationScopeBinding
   readonly regeneratesTurnId?: string
   readonly origin?: SessionInputOrigin
   readonly intent?: SessionInputIntent
@@ -97,6 +103,8 @@ export interface PrepareSessionTurnExecutionBindingRequest {
   readonly origin?: SessionInputOrigin
   readonly modelEndpointId?: string
   readonly maxOutputTokens?: number
+  readonly executionEnvironment?: ExecutionEnvironmentBinding
+  readonly applicationScope?: ApplicationScopeBinding
 }
 
 export type PreparedSessionTurnExecutionBinding = SessionTurnExecutionBinding

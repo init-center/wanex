@@ -4,7 +4,7 @@ import type {
   ConversationOperationReadModel,
   HomeReadModel,
   TeamConversationPageReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { TuiComposerMode } from "../application/conversation-actions.js"
 import type { TuiFullScreenState } from "./types.js"
 

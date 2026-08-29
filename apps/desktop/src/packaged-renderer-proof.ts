@@ -16,6 +16,7 @@ import type {
   WanexDesktopPluginProofResult,
   WanexDesktopScheduleProofResult,
   WanexDesktopTeamProofResult,
+  WanexDesktopCodingProofResult,
 } from "./proof-contract.js";
 import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
@@ -23,6 +24,13 @@ import {
   WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER,
   WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS,
   WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER,
+  WANEX_DESKTOP_PROOF_CODING_FILE,
+  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RESPONSE,
+  WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
 } from "./proof-contract.js";
 import {
   wanexDesktopScheduleCreateAdmissionProofScript,
@@ -44,6 +52,7 @@ import {
   wanexDesktopPluginInstallProofScript,
   wanexDesktopPluginRestoreProofScript,
 } from "./plugin-management-proof.js";
+import { wanexDesktopCodingProofScript } from "./coding-proof.js";
 
 export type WanexDesktopPackagedProofStep =
   | "lifecycle"
@@ -63,9 +72,10 @@ export class DesktopRendererProofError extends Error {
       | WanexDesktopProviderRelaunchProofResult
       | WanexDesktopPluginProofResult
       | WanexDesktopScheduleProofResult
-      | WanexDesktopTeamProofResult,
+      | WanexDesktopTeamProofResult
+      | WanexDesktopCodingProofResult,
   ) {
-    super("desktop Product renderer proof failed");
+    super("desktop Assistant renderer proof failed");
     this.name = "DesktopRendererProofError";
   }
 }
@@ -77,6 +87,7 @@ export function requiredWanexDesktopPackagedProofStep(
     value === "lifecycle" ||
     value === "relaunch-configure" ||
     value === "relaunch-chat" ||
+    value === "relaunch-coding" ||
     value === "relaunch-cancel-regenerate" ||
     value === "relaunch-guided-follow-up" ||
     value === "relaunch-side-query" ||
@@ -108,6 +119,7 @@ export async function runWanexDesktopPackagedRendererProof(input: {
   | WanexDesktopPluginProofResult
   | WanexDesktopScheduleProofResult
   | WanexDesktopTeamProofResult
+  | WanexDesktopCodingProofResult
 > {
   if (input.step === "lifecycle") {
     return (await input.window.webContents.executeJavaScript(
@@ -153,6 +165,20 @@ export async function runWanexDesktopPackagedRendererProof(input: {
       wanexDesktopTeamProofScript(),
       true,
     )) as WanexDesktopTeamProofResult;
+  }
+  if (input.step === "relaunch-coding") {
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopCodingProofScript({
+        message: WANEX_DESKTOP_PROOF_CODING_MESSAGE,
+        toolName: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
+        file: WANEX_DESKTOP_PROOF_CODING_FILE,
+        response: WANEX_DESKTOP_PROOF_CODING_RESPONSE,
+        recoveryMessage: WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
+        recoveryToolName: WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
+        recoveryResponse: WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
+      }),
+      true,
+    )) as WanexDesktopCodingProofResult;
   }
   if (input.step === "relaunch-schedule-create") {
     const admission = (await input.window.webContents.executeJavaScript(

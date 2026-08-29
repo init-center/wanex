@@ -5,7 +5,7 @@ import type {
 import type {
   PlanProposalReadModel,
   RevisePlanProposalRequest
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { PlanProposalStep } from "@wanex/protocol"
 import {
   TuiStructuredFormOverlay,

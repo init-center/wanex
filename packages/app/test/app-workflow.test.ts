@@ -95,7 +95,7 @@ describe("@wanex/app workflow commands", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_guided",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: expect.arrayContaining([
           expect.objectContaining({
             inputId: "inp_wanex_app_guided_follow_up",
@@ -426,7 +426,7 @@ describe("@wanex/app workflow commands", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_envelope_scheduled",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: [
           expect.objectContaining({
             kind: "scheduler",
@@ -449,7 +449,7 @@ describe("@wanex/app workflow commands", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_envelope_interactive",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: [
           expect.objectContaining({
             kind: "interactive",
@@ -465,7 +465,7 @@ describe("@wanex/app workflow commands", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_envelope_channel",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: [
           expect.objectContaining({
             kind: "connector",

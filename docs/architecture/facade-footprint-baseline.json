@@ -15,17 +15,17 @@
     "@wanex/plugin",
     "@wanex/team",
     "@wanex/workspace",
-    "@wanex/product",
-    "@wanex/plugin-command-host",
-    "@wanex/local-host",
+    "@wanex/assistant",
+    "@wanex/assistant-plugin-host",
+    "@wanex/assistant-host",
     "@wanex/tui",
-    "@wanex/web"
+    "@wanex/assistant-ui"
   ],
   "facades": {
     "runtime": {
       "entry": "packages/runtime/src/index.ts",
-      "maxOutputBytes": 511656,
-      "maxInputCount": 268,
+      "maxOutputBytes": 539044,
+      "maxInputCount": 274,
       "allowedWorkspacePackages": [
         "@wanex/protocol",
         "@wanex/runtime",
@@ -34,8 +34,8 @@
     },
     "app": {
       "entry": "packages/app/src/index.ts",
-      "maxOutputBytes": 1424800,
-      "maxInputCount": 465,
+      "maxOutputBytes": 1451721,
+      "maxInputCount": 471,
       "allowedWorkspacePackages": [
         "@wanex/app",
         "@wanex/protocol",

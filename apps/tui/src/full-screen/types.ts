@@ -4,10 +4,10 @@ import type {
   ConversationHistoryReadModel,
   ConversationOperationReadModel,
   TeamConversationPageReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type {
   SurfaceClient
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import type { Terminal } from "@earendil-works/pi-tui"
 import type { TuiComposerMode } from "../application/conversation-actions.js"
 import type { TuiAttachmentHost } from "../model.js"
@@ -29,9 +29,9 @@ export type TuiFullScreenClient = Pick<
   | "startNewConversation"
   | "listModelEndpoints"
   | "setActiveModelEndpoint"
-  | "readProductCommands"
-  | "previewProductCommandInvocation"
-  | "executeProductCommand"
+  | "readAssistantCommands"
+  | "previewAssistantCommandInvocation"
+  | "executeAssistantCommand"
   | "readConversationAttachments"
   | "removeConversationAttachment"
   | "submitConversationOperation"

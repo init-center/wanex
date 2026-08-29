@@ -66,7 +66,7 @@ export interface WanexAppReadSessionTranscriptRequest {
 export interface WanexAppSessionInputProvenanceReadModel {
   readonly sessionId: SessionId;
   readonly rows: readonly WanexAppSessionInputProvenanceRow[];
-  readonly hasProductClientField: boolean;
+  readonly hasClientField: boolean;
 }
 
 export type WanexAppSessionInputProvenanceKind = SessionInputOriginKind;

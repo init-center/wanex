@@ -10,7 +10,7 @@ use crate::{
     PlanProposalReferenceRecord, PlanProposalSourceRecord, PluginInstallRecord,
     PluginManifestRecord, ProviderInvocationRecord, ResourceRecord, ResourceSource, Result,
     RuntimeEvent, SchedulerJobRecord, SessionAttemptRecord, SessionInputRecord,
-    SessionMessageRecord, SessionRecord, SessionTurnControlRecord, SessionTurnRecord,
+    SessionMessageRecord, SessionRecord, SessionScope, SessionTurnControlRecord, SessionTurnRecord,
     TeamConversationRecord, TeamDelegationOperationRecord, TeamDelegationTaskRecord,
     TeamDeliveryRecord, TeamDiscussionRoundRecord, TeamMessageRecord, TeamParticipantRecord,
     TeamRoutingDecisionRecord, ToolExecutionAttemptRecord, ToolExecutionRecord,
@@ -49,11 +49,16 @@ pub(crate) fn row_to_session(row: &rusqlite::Row<'_>) -> rusqlite::Result<Sessio
         id: row.get(0)?,
         title: row.get(1)?,
         kind: row.get(2)?,
-        status: row.get(3)?,
-        revision: row.get(4)?,
-        created_at: row.get(5)?,
-        updated_at: row.get(6)?,
-        archived_at: row.get(7)?,
+        scope: match (row.get(3)?, row.get(4)?) {
+            (Some(kind), Some(id)) => Some(SessionScope { kind, id }),
+            (None, None) => None,
+            _ => return Err(rusqlite::Error::InvalidQuery),
+        },
+        status: row.get(5)?,
+        revision: row.get(6)?,
+        created_at: row.get(7)?,
+        updated_at: row.get(8)?,
+        archived_at: row.get(9)?,
     })
 }
 

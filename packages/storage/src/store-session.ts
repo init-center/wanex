@@ -87,7 +87,10 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
       command: "create-session",
       id: request.id ?? null,
       title: request.title ?? null,
-      kind: request.kind ?? null
+      kind: request.kind ?? null,
+      scope: request.scope === undefined
+        ? null
+        : { kind: request.scope.kind, id: request.scope.id }
     })
     return fromRpcSessionRecord(value)
   }
@@ -303,10 +306,25 @@ export class SessionStoreMethods extends RpcStoreFacetBase {
       command: "list-session-turns",
       session_id: request.sessionId,
       state: request.state ?? null,
-      turn_ids: request.turnIds === undefined ? null : [...request.turnIds]
+      turn_ids: request.turnIds === undefined ? null : [...request.turnIds],
+      before: request.before === undefined
+        ? null
+        : {
+            created_at: request.before.createdAt,
+            turn_id: request.before.turnId
+          },
+      limit: request.limit ?? null
     })
     assertArray(value, "session turns")
     return value.map(fromRpcSessionTurnRecord)
+  }
+
+  async getSessionTurn(turnId: string): Promise<SessionTurnRecord | null> {
+    const value = await this.callSession({
+      command: "get-session-turn",
+      turn_id: turnId
+    })
+    return value === null ? null : fromRpcSessionTurnRecord(value)
   }
 
   async listSessionAttempts(

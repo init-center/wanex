@@ -6,6 +6,8 @@ export function pluginActionDescriptorFromDefinitionLike(
   return {
     capability: definition.capability,
     version: definition.version,
-    ...(definition.sandbox === undefined ? {} : { sandbox: definition.sandbox })
+    ...(definition.permissions === undefined
+      ? {}
+      : { permissions: definition.permissions })
   }
 }

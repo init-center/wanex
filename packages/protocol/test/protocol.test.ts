@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
+  isAgentHostClientMessage,
+  isAgentHostMessage,
+  isAgentHostServerMessage,
+  createAgentHostClient,
   createRuntimeEvent,
   type DelegationGraphState,
   type GetJobRequest,
@@ -40,6 +44,11 @@ import {
   type SessionInputOrigin,
   type SessionTurnControlRecord,
   type SteerSessionTurnRequest,
+  type AgentHostCommandRequest,
+  type AgentHostEvent,
+  type AgentHostEventReplayResponse,
+  type AgentHostHandshakeResponse,
+  WANEX_AGENT_HOST_PROTOCOL_VERSION,
   isTerminalSessionInputState,
   normalizeToolActivityPresentation,
   SESSION_TURN_CONTEXT_CAPACITY_ERROR_KIND,
@@ -50,6 +59,330 @@ import {
 describe("@wanex/protocol", () => {
   it("exposes the frozen protocol version", () => {
     expect(WANEX_PROTOCOL_VERSION).toBe(1)
+  })
+
+  it("validates the transport-neutral Agent Host contract", () => {
+    const command: AgentHostCommandRequest = {
+      kind: "wanex.agent-host.operation.request",
+      operationKind: "command",
+      requestId: "req_1",
+      idempotencyKey: "idem_1",
+      domain: "assistant",
+      operation: "conversation.submit",
+      payload: { sessionId: "ses_1", text: "hello" }
+    }
+    const handshake: AgentHostHandshakeResponse = {
+      kind: "wanex.agent-host.handshake.response",
+      protocolVersion: WANEX_AGENT_HOST_PROTOCOL_VERSION,
+      connectionId: "conn_1",
+      host: {
+        hostId: "host_1",
+        instanceId: "instance_1",
+        connectionKind: "in_process",
+        executionLocation: "local"
+      },
+      capabilities: {
+        revision: 1,
+        domains: ["assistant"],
+        features: [
+          "canonical_reads",
+          "ordered_events",
+          "event_replay",
+          "idempotent_commands"
+        ],
+        maxFrameBytes: 1024 * 1024,
+        maxEventPageSize: 100,
+        eventReplay: "bounded"
+      }
+    }
+
+    expect(isAgentHostClientMessage(command)).toBe(true)
+    expect(isAgentHostServerMessage(handshake)).toBe(true)
+    expect(isAgentHostMessage(command)).toBe(true)
+    expect(isAgentHostMessage(handshake)).toBe(true)
+  })
+
+  it("requires command idempotency and rejects unknown envelope fields", () => {
+    expect(
+      isAgentHostClientMessage({
+        kind: "wanex.agent-host.operation.request",
+        operationKind: "command",
+        requestId: "req_1",
+        domain: "assistant",
+        operation: "conversation.submit",
+        payload: {},
+        idempotencyKey: ""
+      })
+    ).toBe(false)
+
+    expect(
+      isAgentHostClientMessage({
+        kind: "wanex.agent-host.operation.request",
+        operationKind: "read",
+        requestId: "req_1",
+        domain: "assistant",
+        operation: "conversation.read",
+        payload: {},
+        unexpected: true
+      })
+    ).toBe(false)
+  })
+
+  it("requires canonical reread after an event replay gap", () => {
+    const gap: AgentHostEventReplayResponse = {
+      kind: "wanex.agent-host.events.replay.response",
+      requestId: "req_replay",
+      outcome: "gap",
+      gap: {
+        reason: "cursor_before_window",
+        canonicalReadRequired: true
+      }
+    }
+    expect(isAgentHostServerMessage(gap)).toBe(true)
+    expect(
+      isAgentHostServerMessage({
+        ...gap,
+        gap: { reason: "cursor_before_window", canonicalReadRequired: false }
+      })
+    ).toBe(false)
+  })
+
+  it("keeps asynchronous operation outcomes unambiguous", () => {
+    expect(
+      isAgentHostServerMessage({
+        kind: "wanex.agent-host.operation.response",
+        requestId: "req_1",
+        operationKind: "command",
+        outcome: "accepted"
+      })
+    ).toBe(false)
+    expect(
+      isAgentHostServerMessage({
+        kind: "wanex.agent-host.operation.response",
+        requestId: "req_1",
+        operationKind: "command",
+        outcome: "failed",
+        operationId: "op_1",
+        result: { ok: false },
+        error: {
+          code: "application_failure",
+          message: "failed",
+          retryable: false
+        }
+      })
+    ).toBe(false)
+    expect(
+      isAgentHostServerMessage({
+        kind: "wanex.agent-host.operation.response",
+        requestId: "req_1",
+        operationKind: "command",
+        outcome: "accepted",
+        operationId: "op_1"
+      })
+    ).toBe(true)
+  })
+
+  it("rejects malformed event pages and non-finite JSON payloads", () => {
+    const event: AgentHostEvent = {
+      kind: "wanex.agent-host.event",
+      streamId: "stream_1",
+      sequence: 2,
+      eventId: "event_2",
+      domain: "coding",
+      type: "workspace.task.updated",
+      payload: { state: "running" },
+      occurredAt: 10
+    }
+    expect(
+      isAgentHostServerMessage({
+        kind: "wanex.agent-host.events.replay.response",
+        requestId: "req_replay",
+        outcome: "replayed",
+        page: {
+          streamId: "stream_1",
+          events: [event],
+          earliestSequence: 1,
+          latestSequence: 1,
+          hasMore: false
+        }
+      })
+    ).toBe(false)
+    expect(
+      isAgentHostClientMessage({
+        kind: "wanex.agent-host.operation.request",
+        operationKind: "read",
+        requestId: "req_1",
+        domain: "assistant",
+        operation: "snapshot.read",
+        payload: { value: Number.NaN }
+      })
+    ).toBe(false)
+  })
+
+  it("provides one validated client port over any message transport", async () => {
+    const requests: unknown[] = []
+    const listeners = new Set<(event: unknown) => void>()
+    const client = createAgentHostClient(
+      {
+        async send(request) {
+          requests.push(request)
+          if (request.kind === "wanex.agent-host.handshake.request") {
+            return {
+              kind: "wanex.agent-host.handshake.response",
+              protocolVersion: 1,
+              connectionId: "conn_client",
+              host: {
+                hostId: "host_client",
+                instanceId: "instance_client",
+                connectionKind: "in_process",
+                executionLocation: "local"
+              },
+              capabilities: {
+                revision: 1,
+                domains: ["assistant"],
+                features: ["canonical_reads", "idempotent_commands"],
+                maxFrameBytes: 1024,
+                maxEventPageSize: 10,
+                eventReplay: "bounded"
+              }
+            }
+          }
+          if (request.kind === "wanex.agent-host.events.replay.request") {
+            return {
+              kind: "wanex.agent-host.events.replay.response",
+              requestId: request.requestId,
+              outcome: "replayed",
+              page: {
+                streamId: request.streamId,
+                events: [],
+                earliestSequence: 0,
+                latestSequence: 0,
+                hasMore: false
+              }
+            }
+          }
+          return {
+            kind: "wanex.agent-host.operation.response",
+            requestId: request.requestId,
+            operationKind: request.operationKind,
+            outcome: "completed",
+            result: { ok: true }
+          }
+        },
+        subscribe(listener) {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        }
+      },
+      (() => {
+        let sequence = 0
+        return () => `client_request_${++sequence}`
+      })()
+    )
+
+    await expect(
+      client.handshake({
+        protocolVersion: 1,
+        clientId: "client_1",
+        accessToken: "access_1",
+        requestedDomains: ["assistant"]
+      })
+    ).resolves.toMatchObject({ connectionId: "conn_client" })
+    await expect(
+      client.command({
+        idempotencyKey: "idem_1",
+        domain: "assistant",
+        operation: "conversation.submit",
+        payload: { text: "hello" }
+      })
+    ).resolves.toMatchObject({ outcome: "completed" })
+    await expect(
+      client.read({
+        domain: "assistant",
+        operation: "snapshot.read",
+        payload: {}
+      })
+    ).resolves.toMatchObject({ operationKind: "read" })
+    await expect(
+      client.replay({ streamId: "stream_1", afterSequence: 0, limit: 10 })
+    ).resolves.toMatchObject({ outcome: "replayed" })
+
+    const received: AgentHostEvent[] = []
+    client.subscribe((event) => received.push(event))
+    for (const listener of listeners) listener({
+      kind: "wanex.agent-host.event",
+      streamId: "stream_1",
+      sequence: 1,
+      eventId: "event_1",
+      domain: "assistant",
+      type: "snapshot.changed",
+      payload: {},
+      occurredAt: 1
+    })
+    expect(received).toHaveLength(1)
+    expect(requests).toHaveLength(4)
+  })
+
+  it("surfaces Host errors and rejects mismatched operation responses", async () => {
+    const client = createAgentHostClient({
+      async send(request) {
+        if (request.kind === "wanex.agent-host.operation.request") {
+          return {
+            kind: "wanex.agent-host.error",
+            requestId: request.requestId,
+            error: {
+              code: "unauthorized",
+              message: "denied",
+              retryable: false
+            }
+          }
+        }
+        return {
+          kind: "wanex.agent-host.error",
+          error: {
+            code: "unauthenticated",
+            message: "handshake required",
+            retryable: true
+          }
+        }
+      },
+      subscribe: () => () => undefined
+    }, () => "client_error")
+
+    await expect(
+      client.command({
+        idempotencyKey: "idem_error",
+        domain: "assistant",
+        operation: "conversation.submit",
+        payload: {}
+      })
+    ).rejects.toMatchObject({
+      code: "unauthorized",
+      message: "denied"
+    })
+
+    const mismatched = createAgentHostClient(
+      {
+        async send() {
+          return {
+            kind: "wanex.agent-host.operation.response",
+            requestId: "different_request",
+            operationKind: "read",
+            outcome: "completed",
+            result: {}
+          }
+        },
+        subscribe: () => () => undefined
+      },
+      () => "expected_request"
+    )
+    await expect(
+      mismatched.read({
+        domain: "assistant",
+        operation: "snapshot.read",
+        payload: {}
+      })
+    ).rejects.toMatchObject({ code: "invalid_response" })
   })
 
   it("normalizes bounded UI-neutral Tool activity evidence", () => {
@@ -156,14 +489,14 @@ describe("@wanex/protocol", () => {
       sourceRef: "channel:primary",
       parentRef: "delivery:abc",
       metadata: {
-        productClient: "desktop"
+        client: "desktop"
       }
     }
     const intent: SessionInputIntent = "follow_up"
     const policy: RunControlPolicy = "queue_after_current"
 
     expect(origin.kind).toBe("connector")
-    expect(origin.metadata?.productClient).toBe("desktop")
+    expect(origin.metadata?.client).toBe("desktop")
     expect(intent).toBe("follow_up")
     expect(policy).toBe("queue_after_current")
   })

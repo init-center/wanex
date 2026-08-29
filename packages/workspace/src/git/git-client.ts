@@ -1,6 +1,5 @@
 import {
-  NodeExecutionHost,
-  type ExecutionHost,
+  type ExecutionProcess,
   type ExecutionResult
 } from "@wanex/runtime/execution"
 import { resolve } from "node:path"
@@ -13,20 +12,20 @@ export class GitCommandClient {
   readonly repoDir: string
 
   private readonly gitBin: string
-  private readonly executionHost: ExecutionHost
+  private readonly executionProcess: ExecutionProcess
   private readonly timeoutMs: number
   private readonly outputLimitBytes: number
 
   constructor(options: {
     readonly repoDir: string
     readonly gitBin?: string
-    readonly executionHost?: ExecutionHost
+    readonly executionProcess: ExecutionProcess
     readonly timeoutMs?: number
     readonly outputLimitBytes?: number
   }) {
     this.repoDir = resolve(options.repoDir)
     this.gitBin = options.gitBin ?? "git"
-    this.executionHost = options.executionHost ?? new NodeExecutionHost()
+    this.executionProcess = options.executionProcess
     this.timeoutMs = options.timeoutMs ?? DEFAULT_GIT_TIMEOUT_MS
     this.outputLimitBytes =
       options.outputLimitBytes ?? DEFAULT_GIT_OUTPUT_LIMIT_BYTES
@@ -44,11 +43,15 @@ export class GitCommandClient {
     return (await this.execute(resolve(rootDir), args)).stdout.text
   }
 
+  async worktreeBuffer(rootDir: string, args: readonly string[]): Promise<Buffer> {
+    return Buffer.from((await this.execute(resolve(rootDir), args)).stdout.bytes)
+  }
+
   private async execute(
     cwd: string,
     args: readonly string[]
   ): Promise<ExecutionResult> {
-    const result = await this.executionHost.execute({
+    const result = await this.executionProcess.execute({
       program: this.gitBin,
       args: ["-C", cwd, ...args],
       cwd,

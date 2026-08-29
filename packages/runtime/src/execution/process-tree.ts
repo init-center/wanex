@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
 import type { ChildProcessWithoutNullStreams } from "node:child_process"
+import { reviewedNativeLaunchEnvironment } from "./native-launch-environment.js"
 import type { WindowsTreeTerminator } from "./types.js"
 
 export interface ProcessTreeTerminationRequest {
@@ -64,6 +65,7 @@ export async function terminateProcessTree(
 }
 
 export function createTaskkillTreeTerminator(): WindowsTreeTerminator {
+  const launchEnvironment = reviewedNativeLaunchEnvironment(process.env)
   return {
     async terminate(pid) {
       await new Promise<void>((resolve, reject) => {
@@ -71,6 +73,7 @@ export function createTaskkillTreeTerminator(): WindowsTreeTerminator {
           "taskkill",
           ["/PID", String(pid), "/T", "/F"],
           {
+            env: launchEnvironment,
             windowsHide: true,
             stdio: "ignore",
             shell: false

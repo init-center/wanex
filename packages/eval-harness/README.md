@@ -1,6 +1,6 @@
 # @wanex/eval-harness
 
-Structured scenario runner for product-level Wanex regressions.
+Structured scenario runner for assistant-level Wanex regressions.
 
 The harness is intentionally small:
 
@@ -17,22 +17,22 @@ explicit single-agent instruction/skill context composition, App Command Runtime
 CLI/command-port/JSON/backend-shell/overview/TUI surface, Web application,
 local application, TUI CLI, and TUI line-session command
 discovery/selector/detail/bounded-diagnostics contracts, plugins, connector
-product contracts, TUI contribution/controller dispatch, memory compaction,
+assistant contracts, TUI contribution/controller dispatch, memory compaction,
 resources, workspace proposal flows, provider fidelity, team bounds, A2UI
 projection, remote storage control-plane isolation, runtime-host execution over
 remote HTTP storage, worker failure isolation, delegation through runtime-host,
 and delegation graph step advancement, including terminal dependency policy for
-failed, cancelled, and retrying graph work. The reference product flow also
+failed, cancelled, and retrying graph work. The reference assistant flow also
 includes a durable delegation graph recipe with app-owned scheduler job
 execution.
 
-The harness validates product contracts through reviewed public entries and
+The harness validates assistant contracts through reviewed public entries and
 deterministic fixtures. It does not count as a real consumer and cannot retain
-an otherwise unjustified package. Product backend scenarios use
-`@wanex/product/backend`; ordinary App scenarios use `@wanex/app`; local
-Web application lifecycle scenarios use `@wanex/local-host`.
+an otherwise unjustified package. Assistant backend scenarios use
+`@wanex/assistant/backend`; ordinary App scenarios use `@wanex/app`; local
+Web application lifecycle scenarios use `@wanex/assistant-host`.
 
-Generic product-contract scenarios should not import leaf examples. Use public
+Generic assistant-contract scenarios should not import leaf examples. Use public
 runtime packages, deterministic adapters, and fixtures instead.
 
 ## CLI
@@ -64,10 +64,10 @@ The command emits JSON and exits with code `1` if any selected scenario fails.
 
 ## Entry Contract
 
-Use this package for executable product-contract coverage.
+Use this package for executable assistant-contract coverage.
 
 | Use when | Avoid when |
 | --- | --- |
 | A runtime/app integration needs regression coverage across packages. | A runtime package wants to depend on eval behavior. |
-| A product recipe should be proven through public runtime contracts. | A scenario can be covered by a focused package unit test only. |
+| An Assistant recipe should be proven through public runtime contracts. | A scenario can be covered by a focused package unit test only. |
 | Release verification needs machine-readable smoke output. | Leaf examples would become implementation dependencies. |

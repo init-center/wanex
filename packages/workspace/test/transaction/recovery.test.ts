@@ -12,12 +12,16 @@ import {
   type StorageTestStore
 } from "@wanex/storage/testing"
 import type { WorkspaceStore } from "@wanex/storage/workspace"
-import { spawnNativeWorkspaceTransaction } from "../../src/transaction/native-helper.js"
+import { spawnWorkspaceTransaction } from "../../src/transaction/process-executor.js"
 import {
   WorkspaceChangeTransactionRuntime,
   WorkspaceTransactionRecoveryRequiredError
 } from "../../src/transaction/runtime.js"
 import { WorkspaceRuntime } from "../../src/runtime.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "../execution.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -27,6 +31,7 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (clients.length > 0) await clients.pop()?.dispose()
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
@@ -114,7 +119,8 @@ describe("workspace transaction recovery", () => {
     const runtime = new WorkspaceChangeTransactionRuntime({
       storage: flakyStorage,
       rootDir: environment.rootDir,
-      serviceBin
+      serviceBin,
+      executionScope: environment.executionScope
     })
 
     await expect(runtime.execute({
@@ -235,6 +241,7 @@ describe("workspace transaction recovery", () => {
       storage: environment.storage,
       rootDir: environment.rootDir,
       serviceBin,
+      executionScope: environment.executionScope,
       workspaceId: environment.workspaceId,
       principalId: "recovery_test"
     })
@@ -444,6 +451,10 @@ describe("workspace transaction recovery", () => {
 async function recoveryEnvironment(label: string, transactionId?: string) {
   const storeDir = await temporaryDirectory(`wanex-recovery-store-${label}-`)
   const rootDir = await temporaryDirectory(`wanex-recovery-root-${label}-`)
+  const execution = await createWorkspaceTestExecution({
+    rootDir,
+    managedProcess: true
+  })
   const storage = createStorageTestStore({
     kind: "local-system-service",
     mode: "persistent",
@@ -460,10 +471,12 @@ async function recoveryEnvironment(label: string, transactionId?: string) {
     workspaceId,
     changeSetId,
     transactionId,
+    executionScope: execution.scope,
     runtime: new WorkspaceChangeTransactionRuntime({
       storage,
       rootDir,
-      serviceBin
+      serviceBin,
+      executionScope: execution.scope
     })
   }
 }
@@ -524,10 +537,11 @@ async function beginPreparedTransaction(
     ...identity,
     files
   })
-  const helper = await spawnNativeWorkspaceTransaction({
+  const helper = await spawnWorkspaceTransaction({
     rootDir: environment.rootDir,
     serviceBin,
-    transactionId: environment.transactionId
+    transactionId: environment.transactionId,
+    executionScope: environment.executionScope
   })
   await helper.prepare(files)
   await environment.storage.markWorkspaceChangeTransactionPrepared(identity)

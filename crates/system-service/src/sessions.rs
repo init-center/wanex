@@ -2,12 +2,15 @@ use crate::event_store::append_event_tx;
 use crate::rows::{row_to_session, row_to_session_input, row_to_session_turn};
 use crate::{
     AdmissionReceipt, AdmitSessionInput, EnqueueJob, EventScope, ListSessions, RenameSession,
-    Result, RetryPolicy, SchedulerJobKind, SessionInputRecord, SessionRecord,
-    SessionStateTransition, SessionTurnRecord, SubmitSessionTurn, SubmitSessionTurnReceipt,
-    SystemService, SystemServiceError,
+    Result, RetryPolicy, SchedulerJobKind, SchedulerJobRecord, SessionInputRecord, SessionRecord,
+    SessionScope, SessionStateTransition, SessionTurnRecord, SubmitSessionTurn,
+    SubmitSessionTurnReceipt, SystemService, SystemServiceError,
 };
 use rusqlite::{params, params_from_iter, types::Value as SqlValue, OptionalExtension};
 use uuid::Uuid;
+
+const SESSION_SELECT: &str = "SELECT id, title, kind, scope_kind, scope_id, status, revision,
+    created_at, updated_at, archived_at FROM session";
 
 pub(crate) const SESSION_TURN_SELECT: &str = "SELECT id, session_id, primary_input_id,
     job_id, state, execution_binding_json, execution_binding_digest, max_steps,
@@ -21,6 +24,7 @@ impl SystemService {
         id: Option<&str>,
         title: Option<&str>,
         kind: Option<&str>,
+        scope: Option<&SessionScope>,
     ) -> Result<SessionRecord> {
         let now = crate::util::now_ms();
         let id = id
@@ -28,13 +32,23 @@ impl SystemService {
             .unwrap_or_else(|| format!("ses_{}", Uuid::now_v7()));
         let title = title.map(normalize_session_title).transpose()?;
         let kind = kind.unwrap_or("chat");
+        validate_session_scope(scope)?;
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         tx.execute(
             "INSERT INTO session (
-                id, title, kind, status, revision, created_at, updated_at, archived_at
-             ) VALUES (?, ?, ?, 'active', 1, ?, ?, NULL)",
-            params![id, title, kind, now, now],
+                id, title, kind, scope_kind, scope_id, status, revision,
+                created_at, updated_at, archived_at
+             ) VALUES (?, ?, ?, ?, ?, 'active', 1, ?, ?, NULL)",
+            params![
+                id,
+                title,
+                kind,
+                scope.map(|value| value.kind.as_str()),
+                scope.map(|value| value.id.as_str()),
+                now,
+                now
+            ],
         )?;
         append_event_tx(
             &tx,
@@ -47,6 +61,7 @@ impl SystemService {
             &serde_json::json!({
                 "sessionId": id,
                 "kind": kind,
+                "scope": scope,
                 "status": "active",
                 "revision": 1
             }),
@@ -60,8 +75,7 @@ impl SystemService {
     pub fn get_session(&self, id: &str) -> Result<Option<SessionRecord>> {
         let conn = self.connect()?;
         conn.query_row(
-            "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
-             FROM session WHERE id = ?",
+            &format!("{SESSION_SELECT} WHERE id = ?"),
             params![id],
             row_to_session,
         )
@@ -91,6 +105,17 @@ impl SystemService {
             clauses.push("updated_at > ?");
             values.push(SqlValue::Integer(updated_after));
         }
+        if let Some(scope) = &request.scope {
+            clauses.push("scope_kind = ? AND scope_id = ?");
+            values.push(SqlValue::Text(scope.kind.clone()));
+            values.push(SqlValue::Text(scope.id.clone()));
+        }
+        if let Some(before) = &request.before {
+            clauses.push("(updated_at < ? OR (updated_at = ? AND id > ?))");
+            values.push(SqlValue::Integer(before.updated_at));
+            values.push(SqlValue::Integer(before.updated_at));
+            values.push(SqlValue::Text(before.session_id.clone()));
+        }
         values.push(SqlValue::Integer(limit));
 
         let where_clause = if clauses.is_empty() {
@@ -99,8 +124,7 @@ impl SystemService {
             format!(" WHERE {}", clauses.join(" AND "))
         };
         let sql = format!(
-            "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
-             FROM session{where_clause}
+            "{SESSION_SELECT}{where_clause}
              ORDER BY updated_at DESC, id ASC LIMIT ?"
         );
         let mut stmt = conn.prepare(&sql)?;
@@ -390,49 +414,64 @@ pub(crate) fn submit_session_turn_tx(
         .map(serde_json::to_string)
         .transpose()?;
 
-    if let Some(existing) =
-        find_input_by_idempotency_tx(tx, &request.session_id, &request.idempotency_key)?
-    {
-        ensure_matching_submit_input(&existing, request, input_type, intent)?;
-        let turn = get_turn_by_input_tx(tx, &existing.id)?.ok_or_else(|| {
-            SystemServiceError::Invariant(
-                "idempotent session input exists without its durable turn".to_string(),
-            )
-        })?;
-        let job = crate::scheduler::get_job_tx(tx, &turn.job_id)?;
-        return Ok(SubmitSessionTurnReceipt {
-            admission: admission_receipt(&existing),
-            turn,
-            job,
-        });
+    let existing_input =
+        find_input_by_idempotency_tx(tx, &request.session_id, &request.idempotency_key)?;
+    if let Some(existing) = existing_input.as_ref() {
+        ensure_matching_submit_input(existing, request, input_type, intent)?;
+        if request.id.as_deref().is_some_and(|id| id != existing.id) {
+            return Err(SystemServiceError::Invariant(
+                "conflicting repeated session turn submission".to_string(),
+            ));
+        }
+        if let Some(turn) = get_turn_by_input_tx(tx, &existing.id)? {
+            let job = crate::scheduler::get_job_tx(tx, &turn.job_id)?;
+            ensure_matching_submit_turn(existing, &turn, &job, request)?;
+            return Ok(SubmitSessionTurnReceipt {
+                admission: admission_receipt(existing),
+                turn,
+                job,
+            });
+        }
+        if existing.status != "admitted" {
+            return Err(SystemServiceError::Invariant(
+                "session input without a turn must remain admitted".to_string(),
+            ));
+        }
     }
 
     require_active_session_tx(tx, &request.session_id)?;
     require_follow_up_head_tx(tx, request, intent)?;
 
-    tx.execute(
-        "INSERT INTO session_input (
-            id, session_id, principal_id, idempotency_key, input_type,
-            content_json, origin_json, intent, run_control_policy,
-            expected_turn_id, status, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admitted', ?, ?)",
-        params![
-            input_id,
-            request.session_id,
-            request.principal_id,
-            request.idempotency_key,
-            input_type,
-            serde_json::to_string(&request.content)?,
-            origin_json,
-            intent,
-            request.run_control_policy.as_deref(),
-            request.expected_turn_id.as_deref(),
-            now,
-            now
-        ],
-    )?;
-    let input = get_input_tx(tx, &input_id)?;
-    append_input_admitted_event_tx(tx, &input, now)?;
+    let input = if let Some(existing) = existing_input {
+        existing
+    } else {
+        tx.execute(
+            "INSERT INTO session_input (
+                id, session_id, principal_id, idempotency_key, input_type,
+                content_json, origin_json, intent, run_control_policy,
+                expected_turn_id, status, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'admitted', ?, ?)",
+            params![
+                input_id,
+                request.session_id,
+                request.principal_id,
+                request.idempotency_key,
+                input_type,
+                serde_json::to_string(&request.content)?,
+                origin_json,
+                intent,
+                request.run_control_policy.as_deref(),
+                request.expected_turn_id.as_deref(),
+                now,
+                now
+            ],
+        )?;
+        let input = get_input_tx(tx, &input_id)?;
+        append_input_admitted_event_tx(tx, &input, now)?;
+        input
+    };
+
+    let input_id = input.id.clone();
 
     let job_idempotency_key = request
         .job_idempotency_key
@@ -672,6 +711,80 @@ fn ensure_matching_submit_input(
     Ok(())
 }
 
+fn ensure_matching_submit_turn(
+    existing: &SessionInputRecord,
+    turn: &SessionTurnRecord,
+    job: &SchedulerJobRecord,
+    request: &SubmitSessionTurn,
+) -> Result<()> {
+    if request.id.as_deref().is_some_and(|id| id != existing.id)
+        || request.turn_id.as_deref().is_some_and(|id| id != turn.id)
+        || request
+            .job_id
+            .as_deref()
+            .is_some_and(|id| id != turn.job_id)
+        || turn.session_id != request.session_id
+        || turn.primary_input_id != existing.id
+        || turn.max_steps != request.max_steps.unwrap_or(32)
+        || turn.regenerates_turn_id != request.regenerates_turn_id
+        || !execution_binding_semantically_equal(
+            &turn.execution_binding,
+            &request.execution_binding,
+        )
+    {
+        return Err(SystemServiceError::Invariant(
+            "conflicting repeated session turn submission".to_string(),
+        ));
+    }
+
+    let expected_job_idempotency_key = request
+        .job_idempotency_key
+        .clone()
+        .unwrap_or_else(|| format!("session.turn:{}:{}", request.session_id, existing.id));
+    let expected_payload = serde_json::json!({
+        "sessionId": request.session_id,
+        "turnId": turn.id,
+        "inputId": existing.id
+    });
+    let expected_concurrency_key = format!("session:{}", request.session_id);
+    if job.kind != "session.turn"
+        || job.id != turn.job_id
+        || job.principal_id != request.principal_id
+        || job.payload != expected_payload
+        || job.idempotency_key.as_deref() != Some(expected_job_idempotency_key.as_str())
+        || job.not_before != request.not_before
+        || job.priority != request.priority.unwrap_or(0)
+        || job.concurrency_key.as_deref() != Some(expected_concurrency_key.as_str())
+        || job.max_attempts != 1
+        || job.retry_policy != RetryPolicy::default()
+        || job.budget_grant_id != request.budget_grant_id
+        || request
+            .scheduled_at
+            .is_some_and(|scheduled_at| job.scheduled_at != scheduled_at)
+    {
+        return Err(SystemServiceError::Invariant(
+            "conflicting repeated session turn scheduler job".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn execution_binding_semantically_equal(
+    existing: &serde_json::Value,
+    requested: &serde_json::Value,
+) -> bool {
+    let (Some(existing), Some(requested)) = (existing.as_object(), requested.as_object()) else {
+        return false;
+    };
+    let mut existing = existing.clone();
+    let mut requested = requested.clone();
+    existing.remove("digest");
+    existing.remove("createdAt");
+    requested.remove("digest");
+    requested.remove("createdAt");
+    existing == requested
+}
+
 pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<String> {
     let object = binding.as_object().ok_or_else(|| {
         SystemServiceError::InvalidJobRequest("execution_binding must be an object".to_string())
@@ -684,10 +797,11 @@ pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<St
         "capabilityRoutes",
         "resources",
         "recovery",
-        "contextSnapshot",
+        "contextEvidence",
         "toolSnapshot",
         "permissionSnapshot",
-        "environmentSnapshot",
+        "executionEnvironment",
+        "applicationScope",
     ];
     if object
         .keys()
@@ -753,6 +867,23 @@ pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<St
             )
         })?;
     validate_recovery_binding(recovery)?;
+    if let Some(context_evidence) = object.get("contextEvidence") {
+        validate_context_evidence(context_evidence)?;
+    }
+    if let Some(execution_environment) = object.get("executionEnvironment") {
+        crate::execution_environment::validate_binding(
+            execution_environment,
+            "execution_binding.executionEnvironment",
+        )
+        .map_err(SystemServiceError::InvalidJobRequest)?;
+    }
+    if let Some(application_scope) = object.get("applicationScope") {
+        crate::execution_environment::validate_application_scope(
+            application_scope,
+            "execution_binding.applicationScope",
+        )
+        .map_err(SystemServiceError::InvalidJobRequest)?;
+    }
 
     let mut unsigned = object.clone();
     unsigned.remove("digest");
@@ -806,6 +937,78 @@ fn validate_recovery_binding(recovery: &serde_json::Map<String, serde_json::Valu
         {
             return Err(SystemServiceError::InvalidJobRequest(format!(
                 "execution_binding.recovery.{key} must be a positive integer"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_context_evidence(value: &serde_json::Value) -> Result<()> {
+    let evidence = value.as_object().ok_or_else(|| {
+        SystemServiceError::InvalidJobRequest(
+            "execution_binding.contextEvidence must be an object".to_string(),
+        )
+    })?;
+    let allowed_keys = ["revision", "instructions", "skills"];
+    if evidence
+        .keys()
+        .any(|key| !allowed_keys.contains(&key.as_str()))
+        || evidence.get("revision").is_none()
+    {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "execution_binding.contextEvidence contains missing or unknown fields".to_string(),
+        ));
+    }
+    if evidence.get("revision").and_then(serde_json::Value::as_i64) != Some(1) {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "execution_binding.contextEvidence.revision must be 1".to_string(),
+        ));
+    }
+    for (name, source) in [
+        ("instructions", evidence.get("instructions")),
+        ("skills", evidence.get("skills")),
+    ] {
+        let Some(source) = source else { continue };
+        let source = source.as_object().ok_or_else(|| {
+            SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.contextEvidence.{name} must be an object"
+            ))
+        })?;
+        require_exact_keys(
+            source,
+            &["state", "sourceCount", "digest"],
+            &format!("execution_binding.contextEvidence.{name}"),
+        )?;
+        let state = source
+            .get("state")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| matches!(*value, "available" | "unavailable"));
+        if state.is_none() {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.contextEvidence.{name}.state is invalid"
+            )));
+        }
+        let source_count = source
+            .get("sourceCount")
+            .and_then(serde_json::Value::as_i64)
+            .filter(|value| (0..=4096).contains(value));
+        if source_count.is_none() {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.contextEvidence.{name}.sourceCount is invalid"
+            )));
+        }
+        let digest = source
+            .get("digest")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| {
+                value.len() == 64
+                    && value
+                        .bytes()
+                        .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+            });
+        if digest.is_none() {
+            return Err(SystemServiceError::InvalidJobRequest(format!(
+                "execution_binding.contextEvidence.{name}.digest is invalid"
             )));
         }
     }
@@ -1454,8 +1657,7 @@ fn validate_session_revision(session_id: &str, expected_revision: i64) -> Result
 
 fn require_session_tx(tx: &rusqlite::Transaction<'_>, session_id: &str) -> Result<SessionRecord> {
     tx.query_row(
-        "SELECT id, title, kind, status, revision, created_at, updated_at, archived_at
-         FROM session WHERE id = ?",
+        &format!("{SESSION_SELECT} WHERE id = ?"),
         params![session_id],
         row_to_session,
     )
@@ -1653,6 +1855,30 @@ fn validate_list_sessions(request: &ListSessions) -> Result<()> {
     if request.limit == Some(0) {
         return Err(SystemServiceError::InvalidInput(
             "session list limit must be positive".to_string(),
+        ));
+    }
+    validate_session_scope(request.scope.as_ref())?;
+    if let Some(before) = &request.before {
+        if before.updated_at < 0 || before.session_id.is_empty() {
+            return Err(SystemServiceError::InvalidInput(
+                "session page cursor is invalid".to_string(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn validate_session_scope(scope: Option<&SessionScope>) -> Result<()> {
+    let Some(scope) = scope else {
+        return Ok(());
+    };
+    if scope.kind.is_empty()
+        || scope.kind.chars().count() > 128
+        || scope.id.is_empty()
+        || scope.id.chars().count() > 512
+    {
+        return Err(SystemServiceError::InvalidInput(
+            "session scope kind/id must contain 1 to 128/512 characters".to_string(),
         ));
     }
     Ok(())

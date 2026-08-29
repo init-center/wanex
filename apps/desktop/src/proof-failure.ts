@@ -7,7 +7,7 @@ export function createWanexDesktopProofFailureReceipt(input: {
   readonly proofStep?: string;
 }): unknown {
   return {
-    kind: "wanex.product-desktop.runtime-receipt",
+    kind: "wanex.desktop.runtime-receipt",
     ok: false,
     failurePhase: input.failurePhase,
     ...(input.proofStep === undefined
@@ -102,6 +102,10 @@ function classifyRendererProofFailure(error: unknown): string {
   if (message.includes("side-query proof timed out during parent settlement")) {
     return "side_query_parent_settlement_timeout";
   }
+  const codingTimeout = message.match(/Coding proof timed out: ([a-z_]+)/);
+  if (codingTimeout !== null) {
+    return `coding_${codingTimeout[1] ?? "renderer"}_timeout`;
+  }
   const relaunchTimeout = message.match(
     /Provider relaunch proof timed out during [^:]+:([a-z_]+):([^`\n]*)/,
   );
@@ -124,6 +128,20 @@ function classifyRendererProofFailure(error: unknown): string {
     return `schedule_${scheduleTimeout[1] ?? "renderer"}_timeout`.slice(0, 256);
   }
   for (const stage of [
+    "coding_navigation",
+    "coding_surface",
+    "coding_project",
+    "coding_composer",
+    "coding_submit",
+    "coding_user_message",
+    "coding_approval",
+    "coding_proposal",
+    "coding_turn",
+    "coding_response",
+    "coding_proposal_review",
+    "coding_proposal_apply_request",
+    "coding_proposal_apply",
+    "coding_proposal_undo",
     "chat_ready",
     "transcript_restore",
     "composer_ready",
@@ -189,5 +207,5 @@ function readErrorCode(error: unknown): string {
   ) {
     return error.code;
   }
-  return "product_desktop_failed";
+  return "assistant_desktop_failed";
 }

@@ -3,8 +3,8 @@ import { readFile, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
-  PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT,
-  summarizeProductDesktopSamples
+  DESKTOP_PROOF_SAMPLE_COUNT,
+  summarizeDesktopSamples
 } from "../apps/desktop/scripts/metrics.mjs"
 import {
   NATIVE_RELEASE_SAMPLE_COUNT,
@@ -65,7 +65,7 @@ export function parseHostDistributionAuditArgs(args) {
   )
   let desktopReceiptPath = join(
     workspaceRoot,
-    "target/distribution/product-desktop/product-desktop-report.json"
+    "target/distribution/desktop/desktop-report.json"
   )
   let tuiReceiptPath = join(
     workspaceRoot,
@@ -212,172 +212,181 @@ export function auditHostDistributionData(request) {
   }
 
   if (targetBudget.desktop !== undefined) {
-    const desktopBudget = requireRecord(targetBudget.desktop, "Product Desktop budget")
-    const coldBudget = requireRecord(desktopBudget.cold, "Product Desktop cold budget")
-    const warmBudget = requireRecord(desktopBudget.warm, "Product Desktop warm budget")
-    const desktop = requireRecord(request.desktop, "Product Desktop proof receipt")
-    const packaged = requireRecord(desktop.packaged, "Product Desktop packaged receipt")
+    const desktopBudget = requireRecord(targetBudget.desktop, "Desktop budget")
+    const coldBudget = requireRecord(desktopBudget.cold, "Desktop cold budget")
+    const warmBudget = requireRecord(desktopBudget.warm, "Desktop warm budget")
+    const desktop = requireRecord(request.desktop, "Desktop proof receipt")
+    const packaged = requireRecord(desktop.packaged, "Desktop packaged receipt")
+    const installed = requireRecord(
+      desktop.installed,
+      "Desktop installed proof"
+    )
     const declaredSummary = requireRecord(
       desktop.summary,
-      "Product Desktop proof summary"
+      "Desktop proof summary"
     )
-    const samples = requireArray(desktop.samples, "Product Desktop proof samples")
+    const samples = requireArray(desktop.samples, "Desktop proof samples")
     const schedule = requireRecord(
       desktop.schedule,
-      "Product Desktop Schedule proof summary"
+      "Desktop Schedule proof summary"
     )
-    const summary = summarizeProductDesktopSamples(samples)
+    const summary = summarizeDesktopSamples(samples)
     const coldTimings = requireRecord(
       summary.cold.timingsMs,
-      "Product Desktop cold timings"
+      "Desktop cold timings"
     )
     const warmMetrics = requireRecord(
       summary.warm.metrics,
-      "Product Desktop warm metrics"
+      "Desktop warm metrics"
     )
-    expectEqual(failures, "Product Desktop receipt kind", desktop.kind, "wanex.product-desktop.proof-receipt")
-    expectEqual(failures, "Product Desktop receipt ok", desktop.ok, true)
-    expectEqual(failures, "Product Desktop target", `${packaged.platform}-${packaged.arch}`, request.targetId)
+    expectEqual(failures, "Desktop receipt kind", desktop.kind, "wanex.desktop.proof-receipt")
+    expectEqual(failures, "Desktop receipt ok", desktop.ok, true)
+    expectEqual(failures, "Desktop target", `${packaged.platform}-${packaged.arch}`, request.targetId)
+    expectEqual(failures, "Desktop external installation", installed.externalToWorkspace, true)
+    expectEqual(failures, "Desktop installed package shape", installed.packageShapeVerified, true)
+    expectEqual(failures, "Desktop executed installed copy", installed.executedFromInstalledCopy, true)
+    expectEqual(failures, "Desktop installed package file count", installed.packageFileCount, packaged.fileCount)
+    expectEqual(failures, "Desktop installed package bytes", installed.packageBytes, packaged.unpackedBytes)
     expectEqual(
       failures,
-      "Product Desktop sample count",
+      "Desktop sample count",
       desktop.sampleCount,
-      PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT
+      DESKTOP_PROOF_SAMPLE_COUNT
     )
     if (JSON.stringify(declaredSummary) !== JSON.stringify(summary)) {
-      failures.push("Product Desktop declared summary does not match raw samples")
+      failures.push("Desktop declared summary does not match raw samples")
     }
-    expectEqual(failures, "Product Desktop EPERM rename exclusion", desktop.noEpermRename, true)
-    expectEqual(failures, "Product Desktop process cleanup", desktop.noOwnedProcessAfterRun, true)
-    expectEqual(failures, "Product Desktop real Product document", desktop.realProductDocument, true)
-    expectEqual(failures, "Product Desktop screenshot evidence", desktop.screenshotsNonBlank, true)
+    expectEqual(failures, "Desktop EPERM rename exclusion", desktop.noEpermRename, true)
+    expectEqual(failures, "Desktop process cleanup", desktop.noOwnedProcessAfterRun, true)
+    expectEqual(failures, "Desktop real Product document", desktop.realDesktopDocument, true)
+    expectEqual(failures, "Desktop screenshot evidence", desktop.screenshotsNonBlank, true)
     expectEqual(
       failures,
-      "Product Desktop Schedule interval seconds",
+      "Desktop Schedule interval seconds",
       schedule.intervalSeconds,
       5
     )
     expectMinimum(
       failures,
-      "Product Desktop Schedule held duration ms",
+      "Desktop Schedule held duration ms",
       schedule.heldForMs,
       10_000
     )
     expectMinimum(
       failures,
-      "Product Desktop Schedule crossed deadlines",
+      "Desktop Schedule crossed deadlines",
       schedule.crossedDeadlineCount,
       2
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule create Provider request count",
+      "Desktop Schedule create Provider request count",
       schedule.createProviderRequestCount,
       1
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule restore Provider request count",
+      "Desktop Schedule restore Provider request count",
       schedule.restoreProviderRequestCount,
       1
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule non-overlap",
+      "Desktop Schedule non-overlap",
       schedule.nonOverlapVerified,
       true
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule disabled quiet window",
+      "Desktop Schedule disabled quiet window",
       schedule.disabledQuietWindowVerified,
       true
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule same-profile restore",
+      "Desktop Schedule same-profile restore",
       schedule.sameProfileRestored,
       true
     )
     expectEqual(
       failures,
-      "Product Desktop Schedule removal",
+      "Desktop Schedule removal",
       schedule.removed,
       true
     )
-    expectEqual(failures, "Product Desktop ASAR entry count", packaged.asarEntryCount, desktopBudget.exactAsarEntryCount)
-    expectEqual(failures, "Product Desktop native file count", packaged.nativeFileCount, desktopBudget.exactNativeFileCount)
-    expectEqual(failures, "Product Desktop credential file count", packaged.credentialFileCount, desktopBudget.exactCredentialFileCount)
-    expectEqual(failures, "Product Desktop node_modules exclusion", packaged.hasApplicationNodeModules, false)
-    expectEqual(failures, "Product Desktop ASAR unpacked exclusion", packaged.hasAsarUnpacked, false)
-    expectMaximum(failures, "Product Desktop unpacked bytes", packaged.unpackedBytes, desktopBudget.maxUnpackedBytes)
-    expectMaximum(failures, "Product Desktop package file count", packaged.fileCount, desktopBudget.maxPackageFileCount)
-    expectMaximum(failures, "Product Desktop ASAR bytes", packaged.asarBytes, desktopBudget.maxAsarBytes)
-    expectMaximum(failures, "Product Desktop native bytes", packaged.nativeBytes, desktopBudget.maxNativeBytes)
-    expectMaximum(failures, "Product Desktop credential bytes", packaged.credentialBytes, desktopBudget.maxCredentialBytes)
+    expectEqual(failures, "Desktop ASAR entry count", packaged.asarEntryCount, desktopBudget.exactAsarEntryCount)
+    expectEqual(failures, "Desktop native file count", packaged.nativeFileCount, desktopBudget.exactNativeFileCount)
+    expectEqual(failures, "Desktop credential file count", packaged.credentialFileCount, desktopBudget.exactCredentialFileCount)
+    expectEqual(failures, "Desktop node_modules exclusion", packaged.hasApplicationNodeModules, false)
+    expectEqual(failures, "Desktop ASAR unpacked exclusion", packaged.hasAsarUnpacked, false)
+    expectMaximum(failures, "Desktop unpacked bytes", packaged.unpackedBytes, desktopBudget.maxUnpackedBytes)
+    expectMaximum(failures, "Desktop package file count", packaged.fileCount, desktopBudget.maxPackageFileCount)
+    expectMaximum(failures, "Desktop ASAR bytes", packaged.asarBytes, desktopBudget.maxAsarBytes)
+    expectMaximum(failures, "Desktop native bytes", packaged.nativeBytes, desktopBudget.maxNativeBytes)
+    expectMaximum(failures, "Desktop credential bytes", packaged.credentialBytes, desktopBudget.maxCredentialBytes)
     expectMaximum(
       failures,
-      "Product Desktop cold interactive total ms",
+      "Desktop cold interactive total ms",
       coldTimings.interactiveTotal,
       coldBudget.maxInteractiveTotalMs
     )
     expectMaximum(
       failures,
-      "Product Desktop cold conversation settlement ms",
+      "Desktop cold conversation settlement ms",
       coldTimings.conversationSettlement,
       coldBudget.maxConversationSettlementMs
     )
     expectMaximum(
       failures,
-      "Product Desktop cold proof wall time ms",
+      "Desktop cold proof wall time ms",
       coldTimings.wallTime,
       coldBudget.maxProofWallTimeMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm artifact verification maximum ms",
+      "Desktop warm artifact verification maximum ms",
       maximum(warmMetrics, "artifactVerification"),
       warmBudget.maxArtifactVerificationMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm host startup median ms",
+      "Desktop warm host startup median ms",
       median(warmMetrics, "hostStartup"),
       warmBudget.maxHostStartupMedianMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm host startup hard maximum ms",
+      "Desktop warm host startup hard maximum ms",
       maximum(warmMetrics, "hostStartup"),
       warmBudget.maxHostStartupHardMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm shutdown maximum ms",
+      "Desktop warm shutdown maximum ms",
       maximum(warmMetrics, "shutdown"),
       warmBudget.maxShutdownMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm interactive total median ms",
+      "Desktop warm interactive total median ms",
       median(warmMetrics, "interactiveTotal"),
       warmBudget.maxInteractiveTotalMedianMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm interactive total hard maximum ms",
+      "Desktop warm interactive total hard maximum ms",
       maximum(warmMetrics, "interactiveTotal"),
       warmBudget.maxInteractiveTotalHardMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm conversation settlement maximum ms",
+      "Desktop warm conversation settlement maximum ms",
       maximum(warmMetrics, "conversationSettlement"),
       warmBudget.maxConversationSettlementMs
     )
     expectMaximum(
       failures,
-      "Product Desktop warm proof wall time maximum ms",
+      "Desktop warm proof wall time maximum ms",
       maximum(warmMetrics, "wallTime"),
       warmBudget.maxProofWallTimeMs
     )
@@ -419,7 +428,7 @@ export function auditHostDistributionData(request) {
       }
     }
   } else if (request.desktop !== undefined) {
-    failures.push("headless target must not provide a Product Desktop receipt")
+    failures.push("headless target must not provide a Desktop receipt")
   }
 
   if (targetBudget.tui !== undefined) {

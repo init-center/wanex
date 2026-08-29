@@ -3,7 +3,7 @@ import type {
   TuiRenderedFrame,
   TuiSurfaceSnapshot
 } from "../model.js"
-import type { ReadGoalResult } from "@wanex/product/surface"
+import type { ReadGoalResult } from "@wanex/assistant/surface"
 import { selectedSessionId } from "../selection.js"
 
 export function renderTuiFrame(
@@ -13,7 +13,7 @@ export function renderTuiFrame(
   const sessionId = selectedSessionId(state)
   const settings = snapshot.settings.ok ? snapshot.settings.value : undefined
   const eventCount = snapshot.events.ok ? snapshot.events.events.length : 0
-  const productCommandCount = snapshot.commandCatalog.ok
+  const assistantCommandCount = snapshot.commandCatalog.ok
     ? snapshot.commandCatalog.value.commands.length
     : 0
   const conversationState = snapshot.conversation.ok
@@ -45,7 +45,7 @@ export function renderTuiFrame(
       `session:${sessionId ?? "none"}`,
       `conversation:${conversationState}`,
       `goal:${goalState}`,
-      `product-commands:${productCommandCount}`,
+      `assistant-commands:${assistantCommandCount}`,
       `events:${eventCount}`,
       `diagnostics:${snapshot.diagnostics.length}`
     ].join(" | "),
@@ -66,7 +66,7 @@ export function renderTuiFrame(
     commandCount: snapshot.descriptor.ok
       ? snapshot.descriptor.value.commandCount
       : 0,
-    productCommandCount,
+    assistantCommandCount,
     statusCount: statusLabels.length,
     diagnosticCount: snapshot.diagnostics.length,
     eventCount,
@@ -78,21 +78,21 @@ export function renderTuiFrame(
 function goalStateFromResult(
   result: ReadGoalResult
 ): string {
-  if (result.kind === "product.goal.found") return result.goal.state
-  if (result.kind === "product.goal.missing") return "missing"
+  if (result.kind === "assistant.goal.found") return result.goal.state
+  if (result.kind === "assistant.goal.missing") return "missing"
   return "no-session"
 }
 
 function conversationStateFromResult(
   result: TuiConversationOperation
 ): string {
-  if (result.kind === "product.conversation-operation.found") {
+  if (result.kind === "assistant.conversation-operation.found") {
     return result.operation.state
   }
-  if (result.kind === "product.conversation-operation.rejected") {
+  if (result.kind === "assistant.conversation-operation.rejected") {
     return "rejected"
   }
-  if (result.kind === "product.conversation-operation.missing") {
+  if (result.kind === "assistant.conversation-operation.missing") {
     return "missing"
   }
   return "untracked"

@@ -8,8 +8,8 @@ import type {
   GoalReadModel,
   ReadGoalResult,
   StartGoalRequest
-} from "@wanex/product"
-import type { SurfaceEvent } from "@wanex/product/surface"
+} from "@wanex/assistant"
+import type { SurfaceEvent } from "@wanex/assistant/surface"
 import { TuiConfirmationOverlay } from "./components.js"
 import {
   TuiGoalReviewOverlay,
@@ -86,7 +86,7 @@ export function createTuiGoal(options: {
     isOpen: () => active,
     handleInvalidation(event) {
       if (
-        event.type !== "product.surface.goal.invalidated" ||
+        event.type !== "assistant.surface.goal.invalidated" ||
         event.goal === undefined
       ) {
         return
@@ -134,7 +134,7 @@ export function createTuiGoal(options: {
     if (!isCurrent(token)) return
     if (!result.ok) throw new Error(result.error.message)
     applyGoal(result.value)
-    if (result.value.kind === "product.goal.no-session") {
+    if (result.value.kind === "assistant.goal.no-session") {
       rejectAndClose(token, result.value.message)
       return
     }
@@ -355,7 +355,7 @@ export function createTuiGoal(options: {
   }
 
   function applyGoal(result: ReadGoalResult): void {
-    if (result.kind === "product.goal.found") {
+    if (result.kind === "assistant.goal.found") {
       goal = result.goal
       goalId = result.goal.goalId
       return

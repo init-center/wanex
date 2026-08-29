@@ -7,8 +7,8 @@ import type {
 import type {
   ReadSideQueryResult,
   SideQueryReadModel
-} from "@wanex/product"
-import type { SurfaceEvent } from "@wanex/product/surface"
+} from "@wanex/assistant"
+import type { SurfaceEvent } from "@wanex/assistant/surface"
 import {
   TuiStructuredFormOverlay,
   type TuiStructuredFormField
@@ -69,7 +69,7 @@ export function createTuiSideQuery(options: {
     isOpen: () => active,
     handleInvalidation(event) {
       if (
-        event.type !== "product.surface.side-query.invalidated" ||
+        event.type !== "assistant.surface.side-query.invalidated" ||
         event.sideQuery === undefined ||
         event.sideQuery.queryId !== queryId
       ) {
@@ -292,7 +292,7 @@ export function createTuiSideQuery(options: {
   }
 
   function applyQuery(result: ReadSideQueryResult): void {
-    if (result.kind === "product.side-query.found") {
+    if (result.kind === "assistant.side-query.found") {
       query = result.query
       queryId = result.query.queryId
       return

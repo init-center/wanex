@@ -12,4 +12,4 @@ target/
 !.env.example
 
 # Local visual-proof state.
-apps/local-host/.wanex-*-visual/
+apps/*/.wanex-*-visual/

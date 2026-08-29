@@ -8,13 +8,17 @@ import { WanexSessionCore } from "@wanex/runtime/sessions"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WanexWorker } from "@wanex/runtime/jobs"
 import {
+  NativeExecutionEnvironment,
+  type ExecutionEnvironment
+} from "@wanex/runtime/execution"
+import {
   createPluginActionWorker,
   createSubprocessPluginActionHost,
   createSubprocessPluginActionHostFromManifest,
   createTrustedSubprocessPluginActionHostFromInstall,
   createTrustedSubprocessPluginActionHostFromManifest,
   createPluginPermissionGrantGuard,
-  createPluginSandboxGuard,
+  createPluginPermissionGuard,
   pluginInstallPlanFromJson,
   pluginPackageTrustRecordFromJson,
   pluginPackageTrustRecordFromInstallPlan,
@@ -38,9 +42,14 @@ const pluginHostFixture = join(
 
 const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
+const executionEnvironments = new Set<ExecutionEnvironment>()
 let workerCounter = 0
 
 afterEach(async () => {
+  await Promise.allSettled(
+    [...executionEnvironments].map(async (environment) => await environment.close())
+  )
+  executionEnvironments.clear()
   while (clients.length > 0) {
     await clients.pop()?.dispose()
   }
@@ -475,7 +484,7 @@ describe("@wanex/plugin", () => {
     expect(JSON.stringify(result.job?.lastError)).toContain("JSON-safe")
   })
 
-  it("denies declared sandbox access by default before running handlers", async () => {
+  it("denies declared permission access by default before running handlers", async () => {
     const { runtime, storage } = await createRuntime()
     await runtime.registerManifest({
       pluginId: "connector.telegram",
@@ -497,7 +506,7 @@ describe("@wanex/plugin", () => {
         "fetch-profile": {
           version: "1.0.0",
           capability: "network.fetch",
-          sandbox: {
+          permissions: {
             networks: ["api.telegram.example"],
             resources: ["telegram:profile"],
             fileSystemPaths: ["/tmp/wanex/plugin-cache"]
@@ -515,15 +524,15 @@ describe("@wanex/plugin", () => {
     expect(result.status).toBe("failed")
     expect(called).toBe(false)
     if (result.status !== "failed") {
-      throw new Error("expected failed sandbox denial")
+      throw new Error("expected failed permission denial")
     }
     const lastError = JSON.stringify(result.job?.lastError)
-    expect(lastError).toContain("plugin sandbox denied")
+    expect(lastError).toContain("plugin permission denied")
     expect(lastError).not.toContain("api.telegram.example")
     expect(lastError).not.toContain("/tmp/wanex/plugin-cache")
   })
 
-  it("allows sandboxed plugin.action jobs when policy permits requested access", async () => {
+  it("allows plugin.action jobs when permission policy permits requested access", async () => {
     const { runtime, storage } = await createRuntime()
     await runtime.registerManifest({
       pluginId: "connector.telegram",
@@ -546,7 +555,7 @@ describe("@wanex/plugin", () => {
           "fetch-profile": {
             version: "1.0.0",
             capability: "network.fetch",
-            sandbox: {
+            permissions: {
               networks: ["api.telegram.example"],
               resources: ["telegram:profile"],
               fileSystemPaths: ["/tmp/wanex/plugin-cache"],
@@ -557,7 +566,7 @@ describe("@wanex/plugin", () => {
         }
       },
       {
-        sandbox: createPluginSandboxGuard({
+        permissionGuard: createPluginPermissionGuard({
           pluginId: "connector.telegram",
           version: "1.0.0",
           decision: "allow",
@@ -574,7 +583,7 @@ describe("@wanex/plugin", () => {
 
     expect(result.status).toBe("completed")
     if (result.status !== "completed") {
-      throw new Error("expected completed sandboxed action")
+      throw new Error("expected completed permission-guarded action")
     }
     expect(result.job.result).toMatchObject({
       fetched: true,
@@ -605,7 +614,7 @@ describe("@wanex/plugin", () => {
           "fetch-profile": {
             version: "1.0.0",
             capability: "network.fetch",
-            sandbox: {
+            permissions: {
               networks: ["api.telegram.example"],
               resources: ["telegram:profile"],
               maxExecutionMs: 500
@@ -615,7 +624,7 @@ describe("@wanex/plugin", () => {
         }
       },
       {
-        sandbox: createPluginPermissionGrantGuard([
+        permissionGuard: createPluginPermissionGrantGuard([
           {
             pluginId: "connector.telegram",
             version: "1.0.0",
@@ -665,7 +674,7 @@ describe("@wanex/plugin", () => {
           "fetch-profile": {
             version: "1.0.0",
             capability: "network.fetch",
-            sandbox: {
+            permissions: {
               networks: ["api.telegram.example"]
             },
             handler: () => {
@@ -676,7 +685,7 @@ describe("@wanex/plugin", () => {
         }
       },
       {
-        sandbox: createPluginPermissionGrantGuard([
+        permissionGuard: createPluginPermissionGrantGuard([
           {
             pluginId: "connector.telegram",
             version: "1.0.0",
@@ -696,7 +705,7 @@ describe("@wanex/plugin", () => {
       throw new Error("expected failed missing permission grant")
     }
     expect(JSON.stringify(result.job?.lastError)).toContain(
-      "plugin sandbox denied"
+      "plugin permission denied"
     )
   })
 
@@ -724,7 +733,7 @@ describe("@wanex/plugin", () => {
           "fetch-profile": {
             version: "1.0.0",
             capability: "network.fetch",
-            sandbox: {
+            permissions: {
               networks: ["api.telegram.example"]
             },
             handler: () => {
@@ -735,7 +744,7 @@ describe("@wanex/plugin", () => {
         }
       },
       {
-        sandbox: createPluginPermissionGrantGuard([
+        permissionGuard: createPluginPermissionGrantGuard([
           {
             pluginId: "connector.telegram",
             decision: "allow",
@@ -761,11 +770,11 @@ describe("@wanex/plugin", () => {
       throw new Error("expected failed deny precedence")
     }
     expect(JSON.stringify(result.job?.lastError)).toContain(
-      "plugin sandbox denied"
+      "plugin permission denied"
     )
   })
 
-  it("denies plugin.action jobs when the sandbox policy omits the action capability", async () => {
+  it("denies plugin.action jobs when the permission policy omits the action capability", async () => {
     const { runtime, storage } = await createRuntime()
     await runtime.registerManifest({
       pluginId: "connector.telegram",
@@ -797,7 +806,7 @@ describe("@wanex/plugin", () => {
         }
       },
       {
-        sandbox: createPluginSandboxGuard({
+        permissionGuard: createPluginPermissionGuard({
           pluginId: "connector.telegram",
           version: "1.0.0",
           decision: "allow",
@@ -811,14 +820,14 @@ describe("@wanex/plugin", () => {
     expect(result.status).toBe("failed")
     expect(called).toBe(false)
     if (result.status !== "failed") {
-      throw new Error("expected failed sandbox capability denial")
+      throw new Error("expected failed permission capability denial")
     }
     expect(JSON.stringify(result.job?.lastError)).toContain(
-      "plugin sandbox denied"
+      "plugin permission denied"
     )
   })
 
-  it("does not execute injected action hosts after sandbox denial", async () => {
+  it("does not execute injected action hosts after permission denial", async () => {
     const { runtime, storage } = await createRuntime()
     await runtime.registerManifest({
       pluginId: "connector.telegram",
@@ -839,7 +848,7 @@ describe("@wanex/plugin", () => {
       resolve: () => ({
         capability: "network.fetch",
         version: "1.0.0",
-        sandbox: { networks: ["api.telegram.example"] }
+        permissions: { networks: ["api.telegram.example"] }
       }),
       execute: () => {
         executed = true
@@ -853,10 +862,10 @@ describe("@wanex/plugin", () => {
     expect(result.status).toBe("failed")
     expect(executed).toBe(false)
     if (result.status !== "failed") {
-      throw new Error("expected failed host sandbox denial")
+      throw new Error("expected failed host permission denial")
     }
     expect(JSON.stringify(result.job?.lastError)).toContain(
-      "plugin sandbox denied"
+      "plugin permission denied"
     )
   })
 
@@ -886,7 +895,9 @@ describe("@wanex/plugin", () => {
         }
       ],
       command: execPath,
-      args: [pluginHostFixture]
+      args: [pluginHostFixture],
+      cwd: dirname(execPath),
+      executionEnvironment: pluginExecutionEnvironment()
     })
     const worker = createPluginWorker(storage, undefined, { host })
 
@@ -1026,7 +1037,7 @@ describe("@wanex/plugin", () => {
     )
   })
 
-  it("parses subprocess manifest entries with action sandbox declarations", () => {
+  it("parses subprocess manifest entries with action permission declarations", () => {
     const entry = pluginSubprocessManifestEntryFromJson({
       kind: "wanex.plugin.host.subprocess.v1",
       command: execPath,
@@ -1036,7 +1047,7 @@ describe("@wanex/plugin", () => {
         {
           actionId: "fetch-profile",
           capability: "network.fetch",
-          sandbox: {
+          permissions: {
             networks: ["api.telegram.example"],
             resources: ["telegram:profile"],
             maxExecutionMs: 500
@@ -1053,7 +1064,7 @@ describe("@wanex/plugin", () => {
         {
           actionId: "fetch-profile",
           capability: "network.fetch",
-          sandbox: {
+          permissions: {
             networks: ["api.telegram.example"],
             resources: ["telegram:profile"],
             maxExecutionMs: 500
@@ -1097,7 +1108,21 @@ describe("@wanex/plugin", () => {
           }
         ]
       })
-    ).toThrow(/package version is authoritative/)
+    ).toThrow(/unsupported field: version/)
+
+    expect(() =>
+      pluginSubprocessManifestEntryFromJson({
+        kind: "wanex.plugin.host.subprocess.v1",
+        command: execPath,
+        actions: [
+          {
+            actionId: "legacy-sandbox-action",
+            capability: "channel.deliver",
+            sandbox: { maxExecutionMs: 500 }
+          }
+        ]
+      })
+    ).toThrow(/unsupported field: sandbox/)
   })
 
   it("creates subprocess action hosts from plugin manifest entries", async () => {
@@ -1129,7 +1154,13 @@ describe("@wanex/plugin", () => {
       jobId: "job_plugin_action_manifest_subprocess"
     })
     const worker = createPluginWorker(storage, undefined, {
-      host: createSubprocessPluginActionHostFromManifest(manifest)
+      host: createSubprocessPluginActionHostFromManifest(
+        manifest,
+        {
+          cwd: process.cwd(),
+          executionEnvironment: pluginExecutionEnvironment()
+        }
+      )
     })
 
     const result = await worker.runOnce()
@@ -1197,14 +1228,16 @@ describe("@wanex/plugin", () => {
     expect(() =>
       createTrustedSubprocessPluginActionHostFromManifest({
         manifest,
-        trust: trustRecord({ decision: "review-required" })
+        trust: trustRecord({ decision: "review-required" }),
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/trust decision is not allow/)
 
     expect(() =>
       createTrustedSubprocessPluginActionHostFromManifest({
         manifest,
-        trust: trustRecord({ signatureVerified: false })
+        trust: trustRecord({ signatureVerified: false }),
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/signature is not verified/)
   })
@@ -1221,14 +1254,16 @@ describe("@wanex/plugin", () => {
     expect(() =>
       createTrustedSubprocessPluginActionHostFromManifest({
         manifest,
-        trust: trustRecord({ pluginId: "connector.other" })
+        trust: trustRecord({ pluginId: "connector.other" }),
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/pluginId does not match/)
 
     expect(() =>
       createTrustedSubprocessPluginActionHostFromManifest({
         manifest,
-        trust: trustRecord({ version: "2.0.0" })
+        trust: trustRecord({ version: "2.0.0" }),
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/version does not match/)
   })
@@ -1271,7 +1306,8 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, undefined, {
       host: createTrustedSubprocessPluginActionHostFromManifest({
         manifest,
-        trust: trustRecord({ installRootDir: installRoot })
+        trust: trustRecord({ installRootDir: installRoot }),
+        executionEnvironment: pluginExecutionEnvironment()
       })
     })
 
@@ -1322,7 +1358,8 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, undefined, {
       host: createTrustedSubprocessPluginActionHostFromInstall({
         manifest: registered.manifest,
-        install: registered.install
+        install: registered.install,
+        executionEnvironment: pluginExecutionEnvironment()
       })
     })
 
@@ -1370,7 +1407,8 @@ describe("@wanex/plugin", () => {
     const worker = createPluginWorker(storage, undefined, {
       host: await runtime.createTrustedSubprocessActionHost(
         "connector.telegram",
-        "1.0.0"
+        "1.0.0",
+        pluginExecutionEnvironment()
       )
     })
 
@@ -1401,11 +1439,16 @@ describe("@wanex/plugin", () => {
     expect(() =>
       createTrustedSubprocessPluginActionHostFromInstall({
         manifest: registered.manifest,
-        install: disabled
+        install: disabled,
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/plugin install is not installed: disabled/)
     await expect(
-      runtime.createTrustedSubprocessActionHost("connector.telegram", "1.0.0")
+      runtime.createTrustedSubprocessActionHost(
+        "connector.telegram",
+        "1.0.0",
+        pluginExecutionEnvironment()
+      )
     ).rejects.toThrow(/plugin install is not installed: disabled/)
 
     const removed = await runtime.updateInstallState({
@@ -1417,7 +1460,8 @@ describe("@wanex/plugin", () => {
     expect(() =>
       createTrustedSubprocessPluginActionHostFromInstall({
         manifest: registered.manifest,
-        install: removed
+        install: removed,
+        executionEnvironment: pluginExecutionEnvironment()
       })
     ).toThrow(/plugin install is not installed: removed/)
   })
@@ -1675,9 +1719,9 @@ describe("@wanex/plugin", () => {
     ).rejects.toThrow(/plugin install already exists with different content/)
   })
 
-  it("validates plugin sandbox policies and action access requests", async () => {
+  it("validates plugin permission policies and action access requests", async () => {
     expect(() =>
-      createPluginSandboxGuard({
+      createPluginPermissionGuard({
         pluginId: "connector.telegram",
         decision: "allow",
         capabilities: ["network.fetch"],
@@ -1705,7 +1749,7 @@ describe("@wanex/plugin", () => {
         "fetch-profile": {
           version: "1.0.0",
           capability: "network.fetch",
-          sandbox: { maxExecutionMs: 0 },
+          permissions: { maxExecutionMs: 0 },
           handler: () => ({ unreachable: true })
         }
       }
@@ -1715,7 +1759,7 @@ describe("@wanex/plugin", () => {
 
     expect(result.status).toBe("failed")
     if (result.status !== "failed") {
-      throw new Error("expected failed sandbox request validation")
+      throw new Error("expected failed permission request validation")
     }
     expect(JSON.stringify(result.job?.lastError)).toContain(
       "maxExecutionMs must be positive"
@@ -1784,7 +1828,7 @@ function createPluginWorker(
   catalog: Parameters<typeof registerPluginActionJobHandler>[1]["catalog"],
   options: Pick<
     Parameters<typeof registerPluginActionJobHandler>[1],
-    "host" | "sandbox"
+    "host" | "permissionGuard"
   > = {}
 ): WanexWorker {
   const session = new WanexSessionCore({ storage })
@@ -1818,13 +1862,21 @@ function createFixtureSubprocessHost(
       }
     ],
     command: execPath,
-    args: [pluginHostFixture],
-    env: {
-      WANEX_PLUGIN_FIXTURE_MODE: mode
-    },
+    args: [pluginHostFixture, mode],
+    cwd: dirname(execPath),
+    executionEnvironment: pluginExecutionEnvironment(),
     timeoutMs,
     ...(stdoutLimitBytes === undefined ? {} : { stdoutLimitBytes })
   })
+}
+
+function pluginExecutionEnvironment(): ExecutionEnvironment {
+  const environment = new NativeExecutionEnvironment({
+    environmentId: `native_plugin_test_${executionEnvironments.size + 1}`,
+    strategy: { kind: "direct" }
+  })
+  executionEnvironments.add(environment)
+  return environment
 }
 
 function subprocessManifestEntry(

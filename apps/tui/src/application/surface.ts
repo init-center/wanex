@@ -37,7 +37,7 @@ async function readSnapshot(
     options.client.status(),
     options.client.readHome(homeOptions),
     options.client.readSettings(),
-    options.client.readProductCommands(),
+    options.client.readAssistantCommands(),
     options.client.readTrackedConversationOperation(),
     options.client.readGoal(),
     options.client.readSurfaceEvents({ limit: options.eventLimit ?? 20 })

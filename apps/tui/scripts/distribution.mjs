@@ -245,9 +245,9 @@ async function createWanexSourceResolver() {
     "packages/extension",
     "packages/local-credential-store",
     "packages/app",
-    "apps/product",
+    "apps/assistant",
     "packages/team",
-    "apps/local-host",
+    "apps/assistant-host",
     "apps/tui"
   ]
   const entries = new Map()

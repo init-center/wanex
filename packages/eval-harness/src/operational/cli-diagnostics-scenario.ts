@@ -14,7 +14,7 @@ const LONG_TURN_PROMPT = "cli diagnostics ".repeat(900)
 export const cliDiagnosticsOperationalScenario = createEvalScenario({
   id: "cli.diagnostics-operational",
   title: "CLI diagnostics projects queued memory maintenance without execution",
-  tags: ["cli", "diagnostics", "memory", "product-path"],
+  tags: ["cli", "diagnostics", "memory", "assistant-path"],
   async run(context) {
     await runCli(context, [
       "model-endpoint",

@@ -1,4 +1,5 @@
 import type {
+  BeginToolExecutionReceipt,
   JsonValue,
   ToolCallMessagePart,
   ToolExecutionRecord
@@ -39,6 +40,12 @@ export interface PreparedToolExecution {
   readonly tool: ToolDefinition | undefined
   readonly descriptor: ToolDescriptor
   readonly permission: ToolPermissionDecision
+}
+
+/** @internal */
+export interface BegunToolExecution {
+  readonly receipt: BeginToolExecutionReceipt
+  readonly reused?: ToolExecutionOutcome
 }
 
 export class ToolRegistry {
@@ -107,11 +114,10 @@ export class ToolRegistry {
   }
 
   /** @internal */
-  async executePrepared(
+  async beginPreparedExecution(
     request: ToolExecutionRequest,
     prepared: PreparedToolExecution
-  ): Promise<ToolExecutionOutcome> {
-    throwIfToolInvocationAborted(request.signal)
+  ): Promise<BegunToolExecution> {
     const { tool, descriptor, permission } = prepared
     const callPresentation =
       tool === undefined || permission.status === "deny"
@@ -149,8 +155,74 @@ export class ToolRegistry {
     })
     if (!receipt.created) {
       const reused = recoverOrReuse(request, descriptor, permission, receipt)
-      if (reused !== undefined) return reused
+      if (reused !== undefined) return { receipt, reused }
     }
+    return { receipt }
+  }
+
+  /** @internal */
+  async cancelPreparedExecution(
+    request: ToolExecutionRequest,
+    prepared: PreparedToolExecution,
+    begun: BegunToolExecution
+  ): Promise<ToolExecutionOutcome> {
+    if (begun.reused !== undefined) return begun.reused
+    const { descriptor, permission } = prepared
+    const execution = begun.receipt.execution
+    const invocationAttempt = begun.receipt.invocationAttempt
+    if (execution.state !== "running" || invocationAttempt === undefined) {
+      return await this.executePrepared(request, prepared, begun)
+    }
+    const result = toolResultPart(
+      request.call.toolCallId,
+      jsonToolResultContent({
+        error: "tool_cancelled",
+        message: "tool invocation cancelled before start"
+      }),
+      true
+    )
+    if (await request.storage.finishToolExecution({
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      sessionAttemptId: request.attemptId,
+      inputId: request.inputId,
+      jobId: request.jobId,
+      workerId: request.workerId,
+      leaseToken: request.leaseToken,
+      executionId: execution.id,
+      invocationAttemptId: invocationAttempt.id,
+      state: "cancelled",
+      content: result.content,
+      contentDigest: result.contentDigest,
+      isError: true,
+      error: { reason: "aborted", message: "tool invocation cancelled before start" }
+    }) === null) {
+      throw new Error("tool execution lost its lease while recording cancellation")
+    }
+    return {
+      state: "completed",
+      descriptor,
+      permission,
+      result,
+      invoked: false
+    }
+  }
+
+  /** @internal */
+  async executePrepared(
+    request: ToolExecutionRequest,
+    prepared: PreparedToolExecution,
+    begun?: BegunToolExecution
+  ): Promise<ToolExecutionOutcome> {
+    throwIfToolInvocationAborted(request.signal)
+    const { tool, descriptor, permission } = prepared
+    const started = begun ?? await this.beginPreparedExecution(request, prepared)
+    if (started.reused !== undefined) return started.reused
+    const receipt = started.receipt
+    const callPresentation =
+      tool === undefined || permission.status === "deny"
+        ? undefined
+        : presentToolCall(tool, request.call.input)
     if (permission.status === "approval_required") {
       if (receipt.approvalSuspension !== undefined) {
         return {

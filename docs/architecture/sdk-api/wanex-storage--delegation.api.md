@@ -460,13 +460,19 @@ interface BeginWorkspaceTaskRunWire {
     // (undocumented)
     access: WorkspaceTaskAccessWire;
     // (undocumented)
+    agent_id: NullableString;
+    // (undocumented)
     attempt_id: string;
     // (undocumented)
     claim_token: string;
     // (undocumented)
+    execution_environment: JsonValue$1;
+    // (undocumented)
     id: string;
     // (undocumented)
     isolation_id: string;
+    // (undocumented)
+    job_id: NullableString;
     // (undocumented)
     lease_ms: number;
     // (undocumented)
@@ -861,6 +867,8 @@ interface CreateSessionCommand {
     id: NullableString;
     // (undocumented)
     kind: NullableSessionKindWire;
+    // (undocumented)
+    scope: NullableSessionScopeWire;
     // (undocumented)
     title: NullableString;
 }
@@ -1623,6 +1631,14 @@ interface GetSessionCommand {
     command: "get-session";
     // (undocumented)
     id: string;
+}
+
+// @public (undocumented)
+interface GetSessionTurnCommand {
+    // (undocumented)
+    command: "get-session-turn";
+    // (undocumented)
+    turn_id: string;
 }
 
 // @public (undocumented)
@@ -2445,9 +2461,13 @@ interface ListSessionsCommand {
 // @public (undocumented)
 interface ListSessionsWire {
     // (undocumented)
+    before: NullableSessionPageCursorWire;
+    // (undocumented)
     kind: NullableSessionKindWire;
     // (undocumented)
     limit: NullableUnsigned32;
+    // (undocumented)
+    scope: NullableSessionScopeWire;
     // (undocumented)
     status: NullableSessionStatusWire;
     // (undocumented)
@@ -2483,7 +2503,11 @@ interface ListSessionTurnControlsWire {
 // @public (undocumented)
 interface ListSessionTurnsCommand {
     // (undocumented)
+    before: NullableSessionTurnPageCursorWire;
+    // (undocumented)
     command: "list-session-turns";
+    // (undocumented)
+    limit: number | null;
     // (undocumented)
     session_id: string;
     // (undocumented)
@@ -2817,6 +2841,8 @@ interface ListWorkspaceTaskRunsWire {
     limit: NullableInteger;
     // (undocumented)
     repository_id: NullableString;
+    // (undocumented)
+    run_ids: [string, ...string[]] | null;
     // (undocumented)
     state: NullableWorkspaceTaskRunStateWire;
     // (undocumented)
@@ -3318,6 +3344,12 @@ type NullableSessionInputStateWire = SessionInputStateWire | null;
 type NullableSessionKindWire = SessionKindWire | null;
 
 // @public (undocumented)
+type NullableSessionPageCursorWire = SessionPageCursorWire | null;
+
+// @public (undocumented)
+type NullableSessionScopeWire = SessionScopeWire | null;
+
+// @public (undocumented)
 type NullableSessionStatusWire = SessionStatusWire | null;
 
 // @public (undocumented)
@@ -3325,6 +3357,9 @@ type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | null;
 
 // @public (undocumented)
 type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
+
+// @public (undocumented)
+type NullableSessionTurnPageCursorWire = SessionTurnPageCursorWire | null;
 
 // @public (undocumented)
 type NullableSessionTurnStateWire = SessionTurnStateWire | null;
@@ -4747,7 +4782,23 @@ type SessionInputStateWire = "admitted" | "control_pending" | "promoted" | "comp
 type SessionKindWire = "chat" | "agent";
 
 // @public (undocumented)
-type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
+interface SessionPageCursorWire {
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    updated_at: number;
+}
+
+// @public (undocumented)
+interface SessionScopeWire {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: string;
+}
+
+// @public (undocumented)
+type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | GetSessionTurnCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
 
 // @public (undocumented)
 interface SessionStateTransitionWire {
@@ -4765,6 +4816,14 @@ type SessionTurnControlKindWire = "interrupt" | "steer";
 
 // @public (undocumented)
 type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+
+// @public (undocumented)
+interface SessionTurnPageCursorWire {
+    // (undocumented)
+    created_at: number;
+    // (undocumented)
+    turn_id: string;
+}
 
 // @public (undocumented)
 type SessionTurnSettlementOutcomeWire = "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { open } from "node:fs/promises"
+import type { ExecutionFileSystem } from "@wanex/runtime/execution"
 import type { JsonValue } from "@wanex/protocol"
 import type {
   ToolDefinition,
@@ -9,6 +9,7 @@ import type {
 import { createToolRuntimeBinding, jsonToolResultContent } from "@wanex/runtime/tools"
 import { WorkspacePathResolver } from "../path-policy.js"
 import { inputRecord, requiredString } from "./input.js"
+import { requireWorkspaceToolScopeId } from "./scope.js"
 
 const DEFAULT_MAX_FILE_BYTES = 10 * 1024 * 1024
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024
@@ -35,15 +36,19 @@ export class WorkspaceReadTextTool implements ToolDefinition {
   readonly runtimeBinding
 
   private readonly paths: WorkspacePathResolver
+  private readonly fileSystem: ExecutionFileSystem
   private readonly maxFileBytes: number
   private readonly maxOutputBytes: number
 
   constructor(options: {
+    readonly scopeId: string
     readonly rootDir: string
+    readonly fileSystem: ExecutionFileSystem
     readonly maxFileBytes?: number
     readonly maxOutputBytes?: number
   }) {
-    this.paths = new WorkspacePathResolver(options.rootDir)
+    this.fileSystem = options.fileSystem
+    this.paths = new WorkspacePathResolver(options.rootDir, options.fileSystem)
     this.maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_FILE_BYTES
     this.maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
     validateReadLimits(this.maxFileBytes, this.maxOutputBytes)
@@ -51,7 +56,7 @@ export class WorkspaceReadTextTool implements ToolDefinition {
       implementationId: "wanex.workspace.tool.read-text",
       implementationRevision: "1",
       configuration: {
-        rootDir: options.rootDir,
+        scopeId: requireWorkspaceToolScopeId(options.scopeId),
         maxFileBytes: this.maxFileBytes,
         maxOutputBytes: this.maxOutputBytes
       }
@@ -97,6 +102,7 @@ export class WorkspaceReadTextTool implements ToolDefinition {
   async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
     const path = requiredString(inputRecord(invocation.input), "path")
     const result = await readBoundedText(
+      this.fileSystem,
       await this.paths.resolveRead(path),
       this.maxFileBytes,
       this.maxOutputBytes
@@ -113,6 +119,7 @@ export class WorkspaceReadTextTool implements ToolDefinition {
 }
 
 async function readBoundedText(
+  fileSystem: ExecutionFileSystem,
   path: string,
   maxFileBytes: number,
   maxOutputBytes: number
@@ -123,27 +130,27 @@ async function readBoundedText(
   readonly truncated: boolean
   readonly sha256: string
 }> {
-  const handle = await open(path, "r")
-  try {
-    const file = await handle.stat()
-    if (!file.isFile()) {
+  const file = await fileSystem.metadata(path)
+  if (file === null || file.kind !== "file") {
       throw new Error("workspace read target is not a file")
-    }
-    if (file.size > maxFileBytes) {
-      throw new Error(
-        `workspace read file exceeds limit: ${file.size} > ${maxFileBytes}`
-      )
-    }
-    const hash = createHash("sha256")
-    const retained: Buffer[] = []
-    let retainedBytes = 0
-    let position = 0
-    const buffer = Buffer.alloc(Math.min(64 * 1024, Math.max(1, maxFileBytes)))
+  }
+  if (file.size > maxFileBytes) {
+    throw new Error(
+      `workspace read file exceeds limit: ${file.size} > ${maxFileBytes}`
+    )
+  }
+  const hash = createHash("sha256")
+  const retained: Buffer[] = []
+  let retainedBytes = 0
+  let position = 0
+  const chunkBytes = Math.min(64 * 1024, Math.max(1, maxFileBytes))
 
-    while (true) {
-      const read = await handle.read(buffer, 0, buffer.byteLength, position)
-      if (read.bytesRead === 0) break
-      const chunk = buffer.subarray(0, read.bytesRead)
+  while (position < file.size) {
+      const chunk = await fileSystem.readRange(path, {
+        offset: position,
+        length: Math.min(chunkBytes, file.size - position)
+      })
+      if (chunk.byteLength === 0) break
       if (chunk.includes(0)) {
         throw new Error("workspace read target is not UTF-8 text")
       }
@@ -153,18 +160,15 @@ async function readBoundedText(
         retained.push(Buffer.from(chunk.subarray(0, take)))
         retainedBytes += take
       }
-      position += read.bytesRead
-    }
+      position += chunk.byteLength
+  }
 
-    return {
-      text: Buffer.concat(retained).toString("utf8"),
-      totalBytes: position,
-      retainedBytes,
-      truncated: position > retainedBytes,
-      sha256: hash.digest("hex")
-    }
-  } finally {
-    await handle.close()
+  return {
+    text: Buffer.concat(retained).toString("utf8"),
+    totalBytes: position,
+    retainedBytes,
+    truncated: position > retainedBytes,
+    sha256: hash.digest("hex")
   }
 }
 

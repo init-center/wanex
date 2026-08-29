@@ -17,7 +17,7 @@ afterEach(async () => {
   ))
 })
 
-describe("Product Desktop credential artifact", () => {
+describe("Desktop credential artifact", () => {
   it("validates target, size, digest, and binding shape", async () => {
     const dir = await temporaryDirectory()
     const body = Buffer.from("fake-keyring-binding")

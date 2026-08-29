@@ -78,32 +78,26 @@ describe("@wanex/runtime/context instruction", () => {
         sourceCount: 3,
         sources: [
           expect.objectContaining({
-            id: expect.stringMatching(/^global:/u),
             scope: "global",
-            path: globalInstructions,
             target: "AGENTS.md",
             order: 0,
             byteLength: Buffer.byteLength("Global rule"),
-            hash: snapshot.sources[0]?.hash,
-            mtimeMs: 1
+            hash: snapshot.sources[0]?.hash
           }),
           expect.objectContaining({
-            id: expect.stringMatching(/^project:/u),
             scope: "project",
-            path: repoInstructions,
             order: 1,
             hash: snapshot.sources[1]?.hash
           }),
           expect.objectContaining({
-            id: expect.stringMatching(/^project:/u),
             scope: "project",
-            path: packageInstructions,
             order: 2,
             hash: snapshot.sources[2]?.hash
           })
         ]
       }
     })
+    expect(JSON.stringify(part?.providerMetadata)).not.toContain(fixtureRoot)
   })
 
   it("keeps project instructions out of context until the workspace is trusted", async () => {

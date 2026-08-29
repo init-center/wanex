@@ -1,15 +1,16 @@
-import type { RepositoryLocator } from "../locator/index.js"
 import type { WorkspaceIsolationLease } from "../isolation/index.js"
 import type { ChangeSet } from "../changesets/index.js"
 import type { GitProjectionAttention } from "./projection.js"
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 
 export interface WorkspaceGitRuntimeOptions {
   readonly repositoryId: string
-  readonly locator: RepositoryLocator
+  readonly worktreeParent: string
 }
 
 export interface CollectWorktreeRequest {
   readonly lease: WorkspaceIsolationLease
+  readonly executionScope: BorrowedExecutionScope
   readonly changeSetId: string
   readonly title?: string
 }

@@ -24,7 +24,80 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Current Post-Gate Route
+## Authoritative Current Route (2026-08-29)
+
+Route 5D Domain Binding And Local Consumer is complete locally. Assistant and
+Coding own their Agent Host operation catalogs, payload validation, command
+mapping, and event projection. Runtime remains transport-neutral, and Desktop
+owns native execution-environment composition through injection. The evidence
+is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1488-route-5d-domain-binding-and-local-consumer-completion.md`
+
+The next route must be freshly reviewed and frozen before implementation. The
+highest-value candidate is a client-facing Host composition route: first a
+typed local consumer factory for Desktop/TUI, then Unix IPC against the same
+domain bindings. Remote authenticated control follows only after local
+reconnect, replay-gap recovery, capability authorization, and resource-grant
+semantics have executable evidence.
+
+Route 5E-1 Typed Host Consumers And Local Composition is now complete locally.
+The typed Assistant/Coding consumer façades, explicit in-process lifecycle,
+strict Coding cancellation correction, and verification evidence are recorded
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1490-route-5e-1-typed-host-consumers-and-local-composition-completion.md`
+
+The remaining Route 5E plan is frozen for implementation in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1489-route-5e-host-consumer-composition-and-coding-start-admission-plan.md`
+
+Route 5E-2 Durable Coding Start Admission is complete locally. The Coding
+start command now requires a bounded caller-owned idempotency key, derives
+stable Session/Input/Turn/Job/Workspace Task identities, persists the
+Coding-owned request digest, and converges exact retries to one durable
+operation across Host replacement. Its evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1491-route-5e-2-durable-coding-start-admission-completion.md`
+
+Route 5E-3 Durable Attach And Active Operation Observation is complete locally.
+Exact duplicates attach to the canonical active operation without a second
+Workspace claim or Provider invocation. Bounded observation, canonical
+rereads, cancellation, terminal replay, and task-first crash-window
+continuation are covered. Workspace continuation records a previously missing
+prepared identity exactly once under its live lease. Its evidence is recorded
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1493-route-5e-3-durable-attach-and-active-operation-observation-completion.md`
+
+Route 5E-3D Coding Start Host Exposure is complete locally. The typed Coding
+Host client now exposes durable `coding.turn.start`, maps the envelope key
+directly to Coding admission, rejects key smuggling, and passes equivalent
+in-process and Unix IPC tests. Its evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1495-route-5e-3d-coding-start-host-exposure-completion.md`
+
+The post-phase review froze Route 5E-4 Cross-Platform Local Host Transport in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1496-post-route-5e-3d-architecture-review-and-route-5e-4-cross-platform-local-host-plan.md`
+
+Route 5E-4 Windows named-pipe implementation is in progress in the existing
+`@wanex/runtime/host` entry. Unix behavior and platform-gated source tests
+pass, but actual Windows runtime evidence is still required and is recorded
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1497-route-5e-4-cross-platform-local-host-transport-progress.md`
+
+Do not claim this route complete from a Mac-only run. Preserve the existing
+Agent Host frames and typed Coding binding. Do not force trusted Desktop/TUI
+consumers through Host merely for symmetry. Remote TLS, control-plane
+authentication, a Gateway, compatibility aliases, and a new package remain
+outside this route.
+
+The route records below are historical evidence and do not override the
+authoritative current route above.
+
+## Historical Route Records
 
 The current Product UI route has completed Phase UI-10 Trusted-host Resource
 Delivery Contract. Resource identity and bounded reads remain below Product,
@@ -2689,7 +2762,7 @@ Local Host now exposes only Product Team commands; raw Team Runtime remains in
 trusted composition. Product peer submit uses deterministic local-user
 authority, exact persisted participant targets for replay, owner-scoped reads,
 one open round, and commit-after-notify advisory events. Do not restore raw
-`LocalWebApp` Team mutation methods, foreign-principal reads, arbitrary active
+`AssistantWebApp` Team mutation methods, foreign-principal reads, arbitrary active
 user authors, or delivery-order reconstruction of persisted message targets.
 
 TEAM-9D is next. Before adding Surface/Web commands, replace the unpublished
@@ -3602,7 +3675,7 @@ Windows Git error; do not treat the diagnostic change as a Windows fix, do not
 skip Workspace tests, and do not push a platform-specific correction. CODING-2
 remains blocked until one consolidated matrix passes all four targets.
 
-The next route is CODING-2 Trusted Coding Host Composition, beginning with an
+The next route is CODING-2 Trusted Coding Composition, beginning with an
 entry and static-closure audit. Do not start CODING-2 implementation or Coding
 UI until the corrected CODING-1D submission passes linux-x64, darwin-arm64,
 darwin-x64, and win32-x64. To conserve private GitHub Actions minutes, finish
@@ -3946,3 +4019,544 @@ native bytes and 2,100,000 credential bytes. Do not hide the audit, remove
 credential verification, package extra files, or change the native build solely
 to satisfy an obsolete threshold. The next single consolidated matrix must
 confirm the budget and keep CODING-2 blocked until every target is green.
+
+Run `32762783292` for commit `cbbd1d0` passed all four Verify jobs, Packed Core,
+Linux/Windows/darwin-x64 Distribution, and every darwin-arm64 functional proof.
+darwin-arm64 attempt 1 failed only a non-repeating cold interactive sample at
+`3178.1ms` against `3000ms`; attempt 2 passed that metric at `2560.66ms` but
+exposed the stale `60ms` warm artifact-verification maximum with a `98.65ms`
+sample. Phase PLUGIN-4D had already recorded `75.29ms`, and the current cold
+sample reached `100.53ms`. The twenty-fourth reconciliation is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1429-coding-1d-twenty-fourth-darwin-arm64-artifact-verification-budget-reconciliation.md`
+
+The darwin-arm64 artifact-verification maximum is now `120ms`, derived from the
+largest reviewed sample plus bounded headroom. Artifact hashing remains
+mandatory on every process launch. Do not change the cold interactive budget,
+cache or skip verification, add retries, rerun a failed proof to manufacture a
+pass, or push this budget/documentation-only correction by itself. CODING-2A
+may proceed locally; the next substantive consolidated submission must confirm
+the corrected physical budget in the full matrix.
+
+CODING-2A Entry And Closure Audit is complete. Its measured closure evidence,
+owner decision, static guard, and CODING-2B frozen scope are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1430-phase-coding-2a-entry-and-closure-audit-completion.md`
+
+Trusted Coding composition will live in one thin private application leaf,
+`@wanex/coding`, because repository path trust, optional Workspace/native
+closure, and repository/task/process lifecycle are distinct from Runtime/App,
+Product/Renderer, CLI interaction, and the existing broad Local Host. Do not
+put Workspace into generic Runtime/App/CLI/Product closures, make Local Host a
+universal composition package, or move Host path/data ownership into
+`@wanex/workspace`. Distribution graph and footprint audits now reject
+Workspace in generic cold/slim entries. CODING-2B must implement only trusted
+repository open/recovery/close composition; task/Turn/tool binding remains
+CODING-2C.
+
+CODING-2B Trusted Repository Lifecycle is complete locally. Its implementation,
+ownership, recovery, package-governance, and exact-closure evidence are recorded
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1431-phase-coding-2b-trusted-repository-lifecycle-completion.md`
+
+The private `@wanex/coding` now canonicalizes trusted absolute Git paths,
+derives stable opaque repository/Workspace identities, requires Host data and
+the repository to be disjoint in both directions, composes existing Workspace
+owners, performs one bounded open-time recovery admission, and closes owned
+resources idempotently while preserving injected Storage ownership. Its exact
+workspace closure is Coding, Protocol, Runtime, Storage, and Workspace.
+Do not expose repository/data/System Service paths, add Product or renderer
+state, register tools globally, add a second agent loop, timer, polling path,
+Gateway, compatibility alias, or schema in this Host. CODING-2C must begin with
+an explicit Tool/Turn binding audit and reuse Runtime session/turn/attempt and
+Workspace task/ChangeSet authorities rather than introducing parallel state.
+
+CODING-2C Tool And Turn Binding is complete locally. Its implementation,
+cross-owner recovery semantics, privacy proof, admission correction, and
+focused verification are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1433-phase-coding-2c-tool-and-turn-binding-completion.md`
+
+Coding now runs each writable Runtime Turn inside one durable Workspace
+task and isolated Git worktree. Runtime remains the sole Session/Turn/provider/
+Tool authority; Workspace remains the sole task/worktree/ChangeSet/Proposal
+authority. Persisted bindings contain only opaque scope/environment identity.
+Approval suspension retains the exact worktree, terminal settlement collects
+net Git changes, and failed/cancelled changed work becomes an incomplete
+Proposal. Open-time task recovery uses durable `jobId` to cancel the exact
+orphan Turn. A shared-checkout transaction in `attention` rejects writable
+admission with `repository_not_ready`.
+
+Do not restore absolute roots in Tool bindings, accept model-supplied
+ChangeSet ids, run a generic competing Runtime worker over the Coding Store,
+resume an abandoned worktree by guess, expose shared checkout to Coding Tools,
+or add Product/UI state to Coding. The next route is CODING-2D Headless
+Vertical Acceptance. It must reuse Workspace Proposal review/apply/undo and
+prove a complete open -> Turn -> Proposal -> explicit apply -> explicit undo ->
+relaunch journey before any Coding UI begins.
+
+CODING-2D Headless Vertical Acceptance is complete locally. Its trusted review
+facade, bounded projections, native Git lock correction, relaunch evidence,
+test structure, and verification are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1435-phase-coding-2d-headless-vertical-acceptance-completion.md`
+
+`CodingRepository` now exposes bounded Proposal read/decision/apply/undo
+operations while Workspace remains the sole Proposal state machine and
+transaction authority. Review and mutation receipts contain portable relative
+paths, hashes, bounded previews/items, and omission counts; they never expose
+trusted roots or authority objects. Cross-repository access fails closed.
+
+Git workspace snapshot and transaction helpers now share one System Service
+OS lock in the Git common directory, including linked worktrees. Non-Git roots
+retain the root-local `.wanex` lock. Do not add a process-local checkout mutex,
+restore Git-root internal lock files, filter an entire `.wanex` tree from user
+changes, or create a second apply/undo path in Coding.
+
+CODING-2 is complete as a headless composition milestone. The next route is
+CODING-3 Product Integration planning. It must define one Product/App-facing
+repository, Turn progress, approval, Proposal review, apply/undo, cancellation,
+and recovery contract before Desktop/TUI UI work. Do not expose Coding,
+Storage, Workspace Runtime, absolute paths, claim tokens, or native process
+details directly to a renderer, and do not resume package splitting without a
+measured owner boundary.
+
+CODING-3A Application Contract Foundation is complete locally. Its package
+correction, capability boundary, bounded projections, event semantics,
+acceptance evidence, and CODING-3B gate are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1437-phase-coding-3a-application-contract-foundation-completion.md`
+
+`@wanex/coding` is the sole unpublished package identity. Its root exports
+only safe Application types/errors; trusted construction is available only
+through `@wanex/coding/host`, whose sole startup path is
+`startCodingApplication`. Do not restore `@wanex/coding-host`, export the
+raw Host constructor, accept renderer-selected paths below the trusted Host,
+put Workspace into `@wanex/product`, add a contract-only package without an
+independent owner, or turn advisory events into canonical state.
+
+The Coding Application now supports safe project reads, active Turn
+start/read/cancel/approval, bounded Proposal review/apply/undo, and bounded
+ordered invalidation replay. It does not yet provide durable history after
+process replacement. CODING-3B must derive bounded project-scoped Session/Turn
+and Proposal recovery projection from canonical Runtime/Workspace persistence.
+Use opaque keyset cursors and canonical re-reads; do not add a renderer cache,
+offset pagination, polling loop, Gateway, raw diagnostics, or trusted
+task/worktree/claim authority to the Application contract.
+
+CODING-3B Durable Projection And Relaunch is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1438-phase-coding-3b-durable-projection-and-relaunch-plan.md`
+
+The pre-implementation audit found that per-input `SessionInputOrigin` cannot
+serve as a bounded Session ownership/query partition. Add one neutral immutable
+`SessionScope` to Session create/record/list semantics, indexed by exact kind/id.
+Coding uses `coding.repository` as data; Protocol/Storage must not interpret
+that application value. Keep per-input origin as provenance. Do not implement
+project history by globally scanning Sessions, filtering input rows, grouping
+Scheduler payloads, or adding a Coding-private index/state table.
+
+Session and Turn history must use compound tie-safe keyset windows. Add exact
+bounded Workspace task-id lookup so one Turn page does not issue one Storage
+RPC per Turn. Application cursors are versioned, checksummed, and bound to
+project/session scope but are never authority. The live operation map remains
+only for cancellation/approval; canonical reads must survive Host replacement.
+
+CODING-3B Durable Projection And Relaunch is complete locally. Its canonical
+scope/query design, relaunch acceptance, verification evidence, and
+best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1439-phase-coding-3b-durable-projection-and-relaunch-completion.md`
+
+Sessions now carry an optional immutable generic `SessionScope`; Coding uses
+the opaque `coding.repository` kind without teaching Protocol, Storage, or
+Runtime what a repository is. Keep `SessionInputOrigin` as per-input
+provenance. Do not restore the removed Session-input ownership scan, add a
+Coding-private index/table, or use Scheduler payloads as Session ownership.
+
+Project Session and Turn history is bounded and tie-safe. Exact durable Turn
+read uses the generic `get-session-turn` Storage command, and Turn pages batch
+exact Workspace task ids. Application cursors are versioned, checksummed, and
+project/Session-bound but never authority; canonical scope and task evidence
+must always be revalidated. Do not replace exact reads with global scans,
+offset pagination, one-RPC-per-Turn lookup, or a renderer cache.
+
+The next route is CODING-3C Product Adapter Acceptance, but implementation must
+not begin until a separate plan freezes the minimum transcript, transport, and
+Desktop/TUI acceptance contract. UI visual polish remains deferred. CODING-3C
+must consume the safe `CodingApplication` root, never `@wanex/coding/host`, and
+must not add a Gateway, polling loop, presentation database, duplicate state
+machine, or package abstraction without two concrete consumers and a measured
+owner boundary.
+
+CODING-3C Product Adapter Acceptance is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1440-phase-coding-3c-product-adapter-acceptance-plan.md`
+
+Implement one count- and byte-bounded Coding transcript, one strict correlated
+command/event transport, one browser-safe typed client, and message/in-process
+acceptance inside the existing `@wanex/coding` owner. Event streams must expose
+an instance identity so reconnect can distinguish retained replay from Host
+replacement; gaps always settle through canonical rereads. Do not add a
+package, Gateway, polling fallback, renderer state store, generic Product edge,
+visual UI, compatibility alias, or direct presentation import of
+`@wanex/coding/host`.
+
+CODING-3C Product Adapter Acceptance is complete locally. Its transcript,
+transport, event-recovery, Desktop/TUI-style acceptance, distribution, and
+verification evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1441-phase-coding-3c-product-adapter-acceptance-completion.md`
+
+The safe `@wanex/coding` root now exposes one strict `wanex.coding/1` typed
+client over message or in-process transports. Only `@wanex/coding/host` creates
+the endpoint holding Application authority. Transcript pages are project- and
+Session-scoped, keyset-paged, count/part/UTF-8 bounded, and omit raw Provider,
+Tool, execution, path, claim, and native authority. Client response validation
+is exact for nested models, finite enums, portable paths, and Resource hashes.
+
+Events remain advisory and are ordered by `(streamId, sequence)`; stream
+replacement, retention loss, and cursor-ahead states require canonical rereads.
+Do not add polling fallback, a renderer database, durable presentation events,
+a Gateway, generic Product dependency, transport compatibility protocol, or a
+new package for adapters.
+
+CODING-3 is complete as a product-integration-contract milestone. Stop before
+visual Coding UI implementation. The next action is a separate post-CODING-3
+architecture and product-entry review; freeze its route before changing code.
+Do not assume the existing generic chat Desktop/TUI owners should absorb Coding
+or Workspace dependencies without a measured composition and distribution
+boundary.
+
+The post-CODING-3 entry audit and CODING-4 route are frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1442-post-coding-3-review-and-coding-4-route-plan.md`
+
+The existing Product/Web/Local Host/Desktop/TUI packages are concrete owners of
+the current general chat product, not neutral shells. CODING-4 continues under
+the existing `@wanex/coding` product owner unless an independently measured
+executable, trust, platform-dependency, or distribution boundary justifies a
+new identity. Do not create a generic Desktop shell, Web shell, design-system
+package, TUI bridge, or broad multi-product closure speculatively.
+
+CODING-4A Repository Context Admission is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1443-phase-coding-4a-repository-context-admission-plan.md`
+
+Each writable Coding Turn must prepare immutable project instructions and lazy
+Skills from its exact isolated Workspace task root before Runtime admission.
+Project context is trusted only after trusted project open, refreshes for the
+next Turn without a watcher/restart, and never enters the durable Coding
+environment or Application read model as paths/bodies. Reuse Runtime context
+owners and compose scoped Workspace Tools under the Coding Tool policy. Add no
+package, schema, RPC, polling loop, compatibility option, or UI in CODING-4A.
+
+CODING-4A Repository Context Admission is complete locally. Its implementation,
+durable privacy correction, test evidence, and best-practice review are
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1444-phase-coding-4a-repository-context-admission-completion.md`
+
+Each writable Turn now prepares trusted hierarchical `AGENTS.md` and lazy
+Skills from its exact isolated Workspace task root. Context changes apply to a
+later Turn without Host restart; an admitted Turn keeps its immutable context.
+The durable binding field is `contextEvidence`, containing only bounded state,
+source counts, and full SHA-256 digests. Do not restore `contextSnapshot`,
+persist instruction/Skill paths or bodies, expose source paths in catalog
+replay metadata, add a watcher, or create a second context implementation.
+
+The next route is CODING-4B Live Turn Projection. It must first freeze a
+bounded transient projection contract for visible assistant text and safe
+structured activity. Provider chunks are not durable state. Hidden reasoning,
+raw Tool arguments/results, partial Tool JSON, trusted paths, and native
+authority remain excluded from the Application/transport surface. Loss or
+replacement settles through canonical rereads; no polling fallback, event
+database, or compatibility protocol is allowed.
+
+CODING-4B Live Turn Projection is complete locally. Its implementation and
+verification evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1446-phase-coding-4b-transient-live-turn-projection-completion.md`
+
+The Coding Application now exposes only a bounded, memory-only live Turn
+projection and invalidation event. It reuses the existing Provider observer;
+it must not grow a second Provider loop, live database, polling fallback,
+Gateway, renderer, or compatibility alias.
+
+The post-CODING-4B review and CODING-4C route are frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1447-post-coding-4b-review-and-coding-4c-plan.md`
+
+CODING-4C Trusted Local Product Composition is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1448-phase-coding-4c-trusted-local-product-composition-plan.md`
+
+Coding now has one trusted `resolveModelEndpointId` composition port. When
+provided, it is called once per new Turn with opaque Turn identity and an
+optional requested endpoint. The returned endpoint ID is resolved from
+canonical Storage by Runtime and frozen into that Turn's execution binding;
+the next Turn can therefore observe configuration changes without restarting
+the Host, while an admitted Turn remains immutable. Do not combine this port
+with the static `modelEndpointId`, pass endpoint objects or credentials
+through it, expose it to a renderer, or add a duplicate Provider settings
+owner. Direct Provider injection remains an explicit trusted test/fallback
+mode. No watcher, polling loop, Gateway, package, schema, or compatibility
+alias is justified by this phase.
+
+CODING-4C Trusted Local Product Composition is complete locally. Its
+implementation, dynamic-selection tests, and best-practice review are
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1449-phase-coding-4c-trusted-local-product-composition-completion.md`
+
+The review after CODING-4C initially proposed an independent CODING-4D
+workbench. That proposal is retained below as historical evidence and is
+superseded before implementation. Its safety requirements still apply: any
+Coding workbench consumes only the safe `@wanex/coding` Application/client
+surface and never gives a renderer Host, Storage, Runtime, Provider,
+credentials, repository paths, or native authority.
+
+The post-CODING-4C product-entry review and CODING-4D route are frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1450-post-coding-4c-product-entry-review-and-coding-4d-route-plan.md`
+
+The previously frozen CODING-4D standalone Desktop plan is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1451-phase-coding-4d-desktop-workbench-foundation-plan.md`
+
+That plan was superseded before implementation by the 2026-08-27 unified
+product, Host, execution, Sandbox, remote, and Mobile review. Do not create
+`@wanex/coding-desktop`. The governing target architecture and route are:
+
+`/Users/asuna/workspace/my/wanex/docs/architecture/product-host-execution-strategy.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1452-unified-product-host-execution-and-mobile-route.md`
+
+Wanex ships one user-visible Product per platform while keeping Assistant and
+Coding as separate application domains. The current ambiguous
+`@wanex/product` package must be directly renamed to `@wanex/assistant` during
+the first route, with no alias or forwarding package. The existing
+`@wanex/desktop` becomes the unified Electron shell; it composes Assistant and
+Coding through their safe application clients and keeps trusted Host authority
+in Electron main.
+
+The next implementation route is Route 1 Product Ownership And Naming Reset.
+Before editing package identities, audit Product/Web/Local Host/Plugin Command
+Host/TUI ownership and freeze the exact atomic rename. After that, Route 2
+establishes one capability-based Execution Environment boundary under the
+existing Runtime execution owner. Route 3 integrates the first real Coding
+workbench into the existing Desktop. Local OS Sandbox and container providers
+follow only after the environment contract is proven.
+
+Do not add a Chat/Work/Coding Kernel enum, mandatory Gateway, standalone Coding
+Desktop, speculative shell/bridge/design-system package, remote Store as an
+execution protocol, transparent database/workspace synchronization, or silent
+Sandbox-to-Native fallback. One Session has one authoritative Agent Host and
+Store. Client placement, Host placement, Store authority, execution placement,
+and Sandbox policy remain orthogonal.
+
+Mobile Device Capability is explicitly maturity-gated. The first Mobile route
+owns cloud conversations and remote Host control. A later Device Capability
+Bridge is a leased Tool Provider and does not own Session/Runtime/Store state.
+This-app and OS-mediated structured actions may become production capabilities;
+cross-application platform actions remain experimental, and general screen
+automation has no release commitment. Do not call the Bridge an Agent Host,
+depend on Android AppFunctions for the first Mobile release, use Accessibility
+as the default Tool contract, or silently replace a missing structured action
+with simulated input.
+
+Route 1 Product Ownership And Atomic Assistant Rename is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1453-route-1-product-ownership-and-atomic-assistant-rename-plan.md`
+
+The current Product/Web/Local Host/Plugin Command Host graph is entirely the
+Assistant application domain. Rename it atomically to `@wanex/assistant`,
+`@wanex/assistant-ui`, `@wanex/assistant-host`, and
+`@wanex/assistant-plugin-host`, including directories, live APIs, wire kinds,
+scripts, fixtures, and current governance. Keep `@wanex/desktop`, `@wanex/tui`,
+`@wanex/cli`, and `@wanex/coding` unchanged. Old package identities may remain
+only as governance tombstones or historical evidence; do not add package,
+export, protocol, route, bin, environment-variable, or script aliases. Route 1
+changes no Kernel semantics and must not begin Execution Environment or Coding
+UI work.
+
+Route 1 Product Ownership And Atomic Assistant Rename is complete locally. Its
+atomic package/API/route/distribution rename, neutral Desktop correction,
+governance evidence, SDK report update, canonical Coding cursor correction,
+verification evidence, and best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1454-route-1-product-ownership-and-atomic-assistant-rename-completion.md`
+
+The only active Assistant identities are `@wanex/assistant`,
+`@wanex/assistant-ui`, `@wanex/assistant-host`, and
+`@wanex/assistant-plugin-host`. Do not restore the old Product/Web/Local Host/
+Plugin Command Host packages, imports, wire kinds, routes, bins, environment
+variables, scripts, or compatibility aliases. `@wanex/desktop` and
+`@wanex/tui` remain neutral unified platform owners; do not rename their proof
+contracts into the Assistant domain.
+
+The final bounded `WANEX_TEST_CONCURRENCY=2 pnpm verify` passed all package
+checks/tests, 64 Eval scenarios, installed TUI proof, compiled SDK and external
+consumer proof, Rust formatting/tests/Clippy, and every enforced architecture
+audit. Route 1 is closed. Do not begin Route 2 until a fresh Execution
+Environment audit and frozen plan prove how every process, filesystem, Git,
+PTY/LSP, network, secret, resource, and artifact path is mediated without a
+silent Native fallback or a second authority.
+
+The Route 2 Execution Environment audit and implementation plan are frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1455-route-2-execution-environment-foundation-plan.md`
+
+Route 2 uses the existing `@wanex/runtime/execution` owner and adds no package.
+Directly replace `ExecutionHost`, `NodeExecutionHost`, and the misnamed
+`environmentSnapshot`; do not retain aliases, deprecated fields, dual writes,
+or compatibility decoders. Durable Turn evidence is split into typed neutral
+`executionEnvironment` evidence and a typed opaque `applicationScope` envelope.
+The same exact environment binding is persisted on the Workspace task and
+revalidated before recovery performs I/O.
+
+No production Workspace, Git, Plugin, or Coding path may construct a Native
+executor when injection is missing. A missing or unsupported environment fails
+at admission. The Native provider must use an explicit direct or supervised
+strategy, Coding requires supervised cleanup, and child launch variables come
+from a reviewed allowlist rather than broad `process.env` inheritance. Native
+reports no OS isolation, library-only filesystem guarding, unrestricted
+network, unsupported PTY, explicit-only Secret projection, and bounded artifact
+export. Never present it as sandboxed.
+
+Process and filesystem placement are one environment decision. Workspace keeps
+Git/worktree/snapshot/transaction semantics; Coding keeps LSP semantics over a
+managed process; Runtime Resources keeps artifact persistence; Provider HTTP,
+Storage transport, Host listeners, binary bootstrap, and credential-store
+startup remain explicit control-plane I/O. Project instructions and Skills,
+Workspace Tools, Git projection, native helpers, transaction recovery, Plugin
+subprocesses, and environment-local artifact export must use the admitted
+environment.
+
+Implement Route 2 only in the frozen 2A through 2D order. Each subphase ends
+with focused checks and a best-practice/package review. Do not begin Desktop
+Coding UI, remote Host protocol, OS sandbox, container, PTY product, or LSP
+product in this route. Accumulate the complete local route, run one bounded
+`WANEX_TEST_CONCURRENCY=2 pnpm verify`, and make one deliberate consolidated
+submission to conserve GitHub Actions minutes.
+
+Route 2A Contract Reset And Native Provider is complete locally. Its contract,
+consumer migration, in-phase corrections, verification evidence, and Route 2B
+boundary are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1459-route-2a-execution-environment-foundation-completion.md`
+
+The only current execution contracts are `ExecutionEnvironment`, borrowed
+`ExecutionScope`, `ExecutionProcess`, `ManagedExecutionProcess`, and
+`ExecutionFileSystem`. The only current concrete provider is the explicit
+`NativeExecutionEnvironment`; it requires a direct or supervised strategy and
+truthfully reports no OS isolation, library-guarded filesystem access,
+unrestricted network, no PTY, no Secret projection, and no artifact exporter.
+Do not restore `ExecutionHost`, `NodeExecutionHost`, optional Native fallback
+construction, broad child `process.env` inheritance, Plugin execution-host
+naming, compatibility aliases, or dual execution paths.
+
+The detailed Route 2B boundary is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1460-route-2b-workspace-mediation-plan.md`
+
+Route 2B Workspace Mediation is complete locally. Its implementation,
+in-phase corrections, full verification evidence, and best-practice review are
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1461-route-2b-workspace-mediation-completion.md`
+
+Production Workspace now imports no `node:fs`, `node:fs/promises`, or
+`node:child_process`. Repository control and exact task authority are separate
+borrowed Scopes from one selected `ExecutionEnvironment`; task handling,
+Workspace Tools, and writable Git collection use only the exact task Scope.
+Snapshot and transaction helpers run through injected process capability, and
+the old Native snapshot/transaction source identities have no compatibility
+files. Do not collapse repository and task Scopes, restore direct Native
+helpers, close task authority before Git collection, or use raw configured
+paths where a canonical `LocatedRepository` identity exists.
+
+Route 2C Durable Binding And Coding Composition is complete locally. Its
+detailed frozen plan and completion evidence are:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1462-route-2c-durable-binding-and-coding-composition-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1463-route-2c-durable-binding-and-coding-composition-completion.md`
+
+Route 2C directly replaces `environmentSnapshot` with typed neutral
+`executionEnvironment` evidence and a strict opaque `applicationScope`
+envelope, persists the exact environment binding on Workspace tasks, and
+validates it before recovery performs physical I/O. Do not add an alias,
+compatibility decoder, dual write, absolute durable path, Secret value,
+process handle, or claim token.
+
+Route 2D Plugin, Artifact, Conformance, And Audit Closure is complete locally.
+Its frozen contract and completion evidence are:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1464-route-2d-plugin-artifact-conformance-and-audit-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1465-route-2d-plugin-artifact-conformance-and-audit-completion.md`
+
+Plugin permission terminology has directly replaced the misleading sandbox
+contract. Plugin compiles one action-specific policy, each subprocess owns one
+bounded Scope lifecycle, Native rejects constraints it cannot enforce, and
+ambient credentials are not inherited. Resource-owned artifact export accepts
+only a least-authority filesystem view, provider conformance includes denied
+zero-I/O behavior, and the AST execution-boundary audit is enforced by
+`pnpm verify`.
+
+The final `WANEX_TEST_CONCURRENCY=2 pnpm verify` passed all package tests, 64
+Eval scenarios, 158 Rust tests, SDK and installed TUI proofs, and every
+architecture gate. Route 2 is complete.
+
+Route 3 Unified Desktop Coding Workbench is audited and frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1466-route-3-unified-desktop-coding-workbench-plan.md`
+
+Implement it only in Route 3A trusted composition/strict bridge, Route 3B
+event-driven workbench, and Route 3C packaged vertical acceptance order. Extend
+the existing `@wanex/desktop`; do not create `coding-desktop`, `coding-web`, a
+generic shell/design-system package, a Gateway, a renderer database, polling,
+or a Kernel Chat/Work/Coding mode. Assistant and Coding remain separate domain
+owners. Absolute project paths, Host/Storage/Runtime/Workspace authority,
+credentials, and Electron primitives remain in trusted main/Host composition.
+The renderer receives only the existing safe application clients and bounded
+read models. Native project selection is semantic IPC with no renderer path
+input. Do not begin remote Host, OS sandbox/container, PTY/LSP, TUI Coding, or
+Mobile work during Route 3.
+
+Route 3A Trusted Desktop Composition And Strict Bridge is complete locally.
+Its implementation and verification evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1467-route-3a-trusted-desktop-composition-and-strict-bridge-completion.md`
+
+The active Desktop composition starts Coding lazily after trusted native
+project selection, shares the local profile/Storage and credential authority
+with Assistant, and exposes only semantic IPC through a sandboxed preload.
+Coding requests, command responses, project selections, and event envelopes
+are validated at the production process boundary using the public
+`@wanex/coding` transport validators. Real Coding Host composition and shared
+profile lifecycle tests pass. Do not add another IPC parser, renderer path
+input, Host/Storage/Runtime authority to the Renderer, standalone Coding
+package, Gateway, polling loop, or compatibility alias.
+
+Route 3A's consolidated local release gate passed exactly once with
+`WANEX_TEST_CONCURRENCY=1 pnpm verify`: all TypeScript package tests and
+architecture audits passed, all 64 Eval scenarios passed, the installed TUI
+proof passed, 158 Rust tests plus formatting and Clippy passed, and the
+compiled SDK/external consumer proofs passed. Keep this low-concurrency gate
+for expensive consolidated verification; do not repeatedly launch it for
+focused edits or use CI as a debugger.
+
+The next active route is Route 3B Event-Driven Coding Workbench. It is the
+first actual Coding product surface in the unified Desktop. Before editing,
+re-audit ownership between the current Assistant Web renderer, Desktop's
+trusted bridge, and the Coding application. Then implement the workbench in
+the existing unified Desktop renderer. It must consume only safe Coding
+client/read models, use invalidation-driven canonical rereads, and keep
+project paths, credentials, execution scopes, process handles, and internal
+job/attempt/claim/lease identities out of ordinary UI. Do not create a
+`coding-web` or `coding-desktop` package, add Coding routes to Assistant Host,
+move Coding semantics into Assistant, add polling, or retain compatibility
+aliases.

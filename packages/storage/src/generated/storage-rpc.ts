@@ -91,12 +91,15 @@ export type SessionsStorageRpcCommand =
   | ListSessionInputsCommand
   | ListSessionMessagesCommand
   | ListSessionTurnsCommand
+  | GetSessionTurnCommand
   | ListSessionAttemptsCommand
   | AppendSessionMessageCommand;
 export type NullableSessionKindWire = SessionKindWire | null;
 export type SessionKindWire = "chat" | "agent";
+export type NullableSessionScopeWire = SessionScopeWire | null;
 export type NullableSessionStatusWire = SessionStatusWire | null;
 export type SessionStatusWire = "active" | "archived";
+export type NullableSessionPageCursorWire = SessionPageCursorWire | null;
 export type MessagePartsWire = JsonValue[];
 export type NullableSessionInputOriginWire = SessionInputOriginWire | null;
 export type NullableSessionInputIntentWire = SessionInputIntentWire | null;
@@ -125,6 +128,7 @@ export type SessionTurnStateWire =
   | "cancelled"
   | "interrupted"
   | "recovery_required";
+export type NullableSessionTurnPageCursorWire = SessionTurnPageCursorWire | null;
 export type ContextStorageRpcCommand =
   | BeginContextEpochCommand
   | MarkContextEpochDispatchedCommand
@@ -239,6 +243,7 @@ export type WorkspaceStorageRpcCommand =
   | ListWorkspaceChangeTransactionAttemptsCommand
   | BeginWorkspaceTaskRunCommand
   | ClaimWorkspaceTaskRecoveryCommand
+  | ClaimWorkspaceTaskContinuationCommand
   | RenewWorkspaceTaskRunCommand
   | MarkWorkspaceTaskActiveCommand
   | BeginWorkspaceTaskCollectionCommand
@@ -740,6 +745,11 @@ export interface CreateSessionCommand {
   id: NullableString;
   title: NullableString;
   kind: NullableSessionKindWire;
+  scope: NullableSessionScopeWire;
+}
+export interface SessionScopeWire {
+  kind: string;
+  id: string;
 }
 export interface GetSessionCommand {
   command: "get-session";
@@ -754,7 +764,13 @@ export interface ListSessionsWire {
   status: NullableSessionStatusWire;
   updated_before: NullableInteger;
   updated_after: NullableInteger;
+  scope: NullableSessionScopeWire;
+  before: NullableSessionPageCursorWire;
   limit: NullableUnsigned32;
+}
+export interface SessionPageCursorWire {
+  updated_at: number;
+  session_id: string;
 }
 export interface RenameSessionCommand {
   command: "rename-session";
@@ -994,7 +1010,17 @@ export interface ListSessionTurnsCommand {
   command: "list-session-turns";
   session_id: string;
   state: NullableSessionTurnStateWire;
+  before: NullableSessionTurnPageCursorWire;
+  limit: number | null;
   turn_ids: string[] | null;
+}
+export interface SessionTurnPageCursorWire {
+  created_at: number;
+  turn_id: string;
+}
+export interface GetSessionTurnCommand {
+  command: "get-session-turn";
+  turn_id: string;
 }
 export interface ListSessionAttemptsCommand {
   command: "list-session-attempts";
@@ -1969,6 +1995,9 @@ export interface BeginWorkspaceTaskRunWire {
   access: WorkspaceTaskAccessWire;
   repository_id: string;
   isolation_id: string;
+  execution_environment: JsonValue;
+  job_id: NullableString;
+  agent_id: NullableString;
   attempt_id: string;
   owner_id: string;
   claim_token: string;
@@ -1984,6 +2013,18 @@ export interface ClaimWorkspaceTaskRecoveryWire {
   owner_id: string;
   claim_token: string;
   lease_ms: number;
+}
+export interface ClaimWorkspaceTaskContinuationCommand {
+  command: "claim-workspace-task-continuation";
+  request: ClaimWorkspaceTaskContinuationWire;
+}
+export interface ClaimWorkspaceTaskContinuationWire {
+  run_id: string;
+  attempt_id: string;
+  owner_id: string;
+  claim_token: string;
+  lease_ms: number;
+  execution_environment: JsonValue;
 }
 export interface RenewWorkspaceTaskRunCommand {
   command: "renew-workspace-task-run";
@@ -2068,6 +2109,7 @@ export interface ListWorkspaceTaskRunsCommand {
   request: ListWorkspaceTaskRunsWire;
 }
 export interface ListWorkspaceTaskRunsWire {
+  run_ids: [string, ...string[]] | null;
   workspace_id: NullableString;
   repository_id: NullableString;
   state: NullableWorkspaceTaskRunStateWire;
@@ -3150,4 +3192,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "703bad100cd0b8c67f5b5894134589c0fcbd2a69d49fb9054f00dd4247370691" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "92e8aa36101180826326daef4c1dd47b772d655acff97d72cf8ec04db97e122d" as const

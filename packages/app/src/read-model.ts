@@ -60,7 +60,7 @@ export function projectWanexAppSessionInputProvenanceReadModel(
   return {
     sessionId,
     rows: inputs.map(projectWanexAppSessionInputProvenance),
-    hasProductClientField: JSON.stringify(inputs).includes('"client"'),
+    hasClientField: JSON.stringify(inputs).includes('"client"'),
   };
 }
 

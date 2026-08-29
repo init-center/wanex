@@ -21,7 +21,7 @@ export function renderInstructionSnapshot(
     "Follow these instructions when they apply to the current workspace and task.",
     "",
     ...sources.flatMap((source) => [
-      `Instructions from: ${source.path}`,
+      `Instructions from ${source.scope} source ${source.order + 1} (${source.target}):`,
       source.content.trimEnd()
     ])
   ].join("\n")
@@ -61,27 +61,21 @@ function sourceProvenance(
   source: InstructionSource
 ): JsonValue {
   const provenance: InstructionSourceProvenance = {
-    id: source.id,
     scope: source.scope,
-    path: source.path,
     target: source.target,
     order: source.order,
     byteLength: source.byteLength,
     hash: source.hash,
-    ...(source.mtimeMs === undefined ? {} : { mtimeMs: source.mtimeMs })
   }
   return provenanceToJson(provenance)
 }
 
 function provenanceToJson(provenance: InstructionSourceProvenance): JsonValue {
   return {
-    id: provenance.id,
     scope: provenance.scope,
-    path: provenance.path,
     target: provenance.target,
     order: provenance.order,
     byteLength: provenance.byteLength,
     hash: provenance.hash,
-    ...(provenance.mtimeMs === undefined ? {} : { mtimeMs: provenance.mtimeMs })
   }
 }

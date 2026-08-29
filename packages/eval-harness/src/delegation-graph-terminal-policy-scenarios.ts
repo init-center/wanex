@@ -6,7 +6,7 @@ import { createEvalScenario } from "./runner.js"
 export const delegationGraphTerminalPolicyScenario = createEvalScenario({
   id: "delegation-graph.terminal-policy",
   title: "Delegation graph terminal policy gates dependents by dependency kind",
-  tags: ["delegation", "graph", "scheduler", "product-path", "multi-agent"],
+  tags: ["delegation", "graph", "scheduler", "assistant-path", "multi-agent"],
   async run(context) {
     const runtime = new DelegationGraphRuntime({
       storage: context.storage,

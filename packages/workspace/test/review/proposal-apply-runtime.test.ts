@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it } from "vitest"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WorkspaceRuntime } from "../../src/index.js"
 import { WorkspaceProposalApplyRuntime } from "../../src/review/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "../execution.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -15,6 +19,7 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (clients.length > 0) {
     await clients.pop()?.dispose()
   }
@@ -532,10 +537,15 @@ async function createRuntime(): Promise<{
     serviceBin
   })
   clients.push(storage)
+  const execution = await createWorkspaceTestExecution({
+    rootDir,
+    managedProcess: true
+  })
   const workspace = new WorkspaceRuntime({
     storage,
     rootDir,
     serviceBin,
+    executionScope: execution.scope,
     workspaceId: "workspace_apply_runtime",
     principalId: "agent_apply_runtime"
   })

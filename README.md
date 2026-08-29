@@ -22,12 +22,12 @@ Wanex is now a workspace-stage runtime kernel with:
 - connector/channel runtime contracts and reference adapters;
 - resource/media and A2UI projection contracts;
 - app-facing runtime composition;
-- public Runtime/App facades, a concrete desktop Product, local application
+- public Runtime/App facades, a concrete desktop Assistant, local application
   Web/TUI hosts, and a regression harness.
 
 The Kernel is not coupled to Electron, a gateway-first daemon, a UI renderer,
 a marketplace, or a concrete channel SDK bundle. The workspace includes one
-private Electron leaf that packages the concrete desktop Product.
+private Electron leaf that packages the concrete desktop Assistant.
 
 ## App Entry Points
 
@@ -56,68 +56,69 @@ Optional capabilities are explicit:
   `@wanex/runtime/provider`; applications never parse provider SSE.
 - Advanced trusted hosts that deliberately own storage bootstrap use the
   explicit `@wanex/runtime/bootstrap` subpath.
-- Product regression entry: `@wanex/eval-harness`.
+- Assistant regression entry: `@wanex/eval-harness`.
 
-`@wanex/product` is the first concrete upper app backend shell. It consumes
+`@wanex/assistant` is the first concrete upper app backend shell. It consumes
 the typed `@wanex/app` contract, owns its command catalog and selected
-session/layout/mode/preference state, and exposes a Product-owned command
+session/layout/mode/preference state, and exposes an Assistant-owned command
 adapter and surface client without selecting
 plugin runtime, connector runtime, runtime-composition, runtime-host, or raw
 storage as default app dependencies.
 
-`@wanex/plugin-command-host` is the explicit hot application entry for
+`@wanex/assistant-plugin-host` is the explicit hot application entry for
 plugin-backed commands. It shares one injected store across submission, worker
-execution, and activity reads, exposes a Product creation binding, and owns
-explicit worker start/stop lifecycle without creating a second Product Shell.
+execution, and activity reads, exposes an Assistant creation binding, and owns
+explicit worker start/stop lifecycle without creating a second Assistant Shell.
 Its optional trusted management handle couples native local-package selection,
 one-shot review, exact install-state CAS, immutable materialization, and catalog
 refresh without exposing paths to a renderer. Default application/Web/TUI
 packages do not depend on it.
 
 `@wanex/tui` is an optional leaf terminal surface over application.
-It consumes `@wanex/product/surface` and projects application state
+It consumes `@wanex/assistant/surface` and projects application state
 into Pi full-screen and injected line-session presentation without becoming
-part of the default application closure. Product's dynamic command catalog is
+part of the default application closure. Assistant's dynamic command catalog is
 its only generic command authority.
 
-`@wanex/web` is the browser-safe upper Web surface. application
-Local owns its thin Node host as the `@wanex/local-host/web-host`
+`@wanex/assistant-ui` is the shared browser-safe Assistant UI capability.
+Assistant Host owns its thin Node host as the
+`@wanex/assistant-host/web-host`
 subpath. Together they expose application through a renderer-neutral request
 envelope, not a gateway or framework runtime.
 
-`@wanex/local-host` is the direct local Web application product entry. A
-trusted local backend uses it to open local profile/store storage, create
-application, attach Web application, and serve the thin Node host while keeping
+`@wanex/assistant-host` is the direct local Assistant application entry.
+A trusted local backend uses it to open local profile/store storage, create the
+Assistant application, attach Assistant Web, and serve the thin Node host while keeping
 renderers away from store paths, service binary paths, secrets, and raw storage
 clients. Its trusted host handle exposes narrow `settings` and
 `modelEndpoints` facades so desktop, CLI, and local backend code do not need
 to mutate storage or provider config directly. Use `readSnapshot()` for a safe
 startup/status read model.
 
-`@wanex/local-host/desktop-host` is the framework-free trusted desktop
-main-process subpath over Local Host. It starts the local product
+`@wanex/assistant-host/desktop-host` is the framework-free trusted desktop
+main-process subpath over Assistant Host. It starts the local Assistant
 lifecycle, exposes a safe request envelope for snapshots, Web application
 requests, and redacted model-endpoint reads/switching, and closes resources
 without depending on Electron, Tauri, or a packaged desktop runtime.
 
-`@wanex/desktop` is the actual private Electron Product. It owns
-one secure BrowserWindow, starts Product Local on an ephemeral loopback origin,
-loads the real Product Web UI, and closes the Host and System Service before
+`@wanex/desktop` is the actual private Electron platform product. It owns
+one secure BrowserWindow, starts Assistant Host on an ephemeral loopback origin,
+loads the real Assistant Web UI, and closes the Host and System Service before
 exit. It ships one ASAR plus explicit System Service and keyring artifacts;
 there is no application `node_modules`, preload, generic IPC bridge, Gateway,
 or restart supervisor.
 
-To start the real persistent desktop Product directly from the repository:
+To start the real persistent Desktop directly from the repository:
 
 ```bash
 pnpm start:desktop
 ```
 
 This command builds the host System Service and Desktop artifacts, then opens
-the normal Provider onboarding and Product lifecycle. It does not use the
+the normal Provider onboarding and Assistant lifecycle. It does not use the
 isolated fake endpoint or receipt behavior reserved for packaged proof.
 
-To package and prove the desktop Product on the current host:
+To package and prove Desktop on the current host:
 
 ```bash
 pnpm stage:native -- --target darwin-arm64
@@ -125,7 +126,7 @@ pnpm proof:desktop
 ```
 
 The proof drives five isolated lifecycle samples and a separate eleven-process
-same-profile journey through the visible Product DOM. The relaunch journey
+same-profile journey through the visible Assistant DOM. The relaunch journey
 proves credential-free conversation continuity, attachment picker/paste/drop
 input, ordinary composer-driven image generation through `image_generate`,
 trusted Resource preview, explicit Plan review and approval followed by
@@ -137,28 +138,28 @@ one tool-free Side Query that remains outside canonical history while its
 parent continues normally,
 exact Provider cleanup, and a final unconfigured reopen. It
 preserves a screenshot under
-`target/distribution/product-desktop` and verifies complete process cleanup.
+`target/distribution/desktop` and verifies complete process cleanup.
 
-To try the direct local product host after building the system-service binary:
+To try Assistant Host after building the system-service binary:
 
 ```bash
 cargo build -p wanex-system-service
-pnpm --filter @wanex/local-host start -- \
-  --profile-root ./.wanex-local-host \
+pnpm --filter @wanex/assistant-host start -- \
+  --profile-root ./.wanex-assistant \
   --profile-id default \
   --model-endpoint-id local \
   --provider-model-id local-model
 ```
 
-The root demo aliases delegate to `@wanex/local-host` for seeded/blank
+The root demo aliases delegate to `@wanex/assistant-host` for seeded/blank
 Web application behavior:
 
 ```bash
-pnpm demo:web:blank
+pnpm demo:assistant-web:blank
 ```
 
-Use `pnpm demo:web:seeded` for a pre-populated session or
-`pnpm demo:web -- --open` to open the system browser. The local
+Use `pnpm demo:assistant-web:seeded` for a pre-populated session or
+`pnpm demo:assistant-web -- --open` to open the system browser. The local
 browser receives progress through an authenticated event stream and performs
 canonical reconciliation after invalidation or uncertainty.
 
@@ -172,17 +173,17 @@ pnpm demo:tui:interactive
 pnpm demo:tui:fullscreen
 ```
 
-The `fullscreen` alias starts the Pi-powered interactive Product TUI. Use
+The `fullscreen` alias starts the Pi-powered interactive Assistant TUI. Use
 `Ctrl+Q` to exit. The `interactive` alias remains the injected line-oriented
 surface for automation and simple terminal consumers.
 
-For a bounded low-thermal Local Host path check, run:
+For a bounded low-thermal Assistant Host path check, run:
 
 ```bash
-pnpm --silent smoke:local-host
+pnpm --silent smoke:assistant-host
 ```
 
-The smoke command starts Local Host with a temporary profile root outside
+The smoke command starts Assistant Host with a temporary profile root outside
 the workspace, verifies the local Web document, layout action, workbench start
 action, and product privacy boundary, prints one JSON result to stdout, closes
 the host, and exits. Use the `--silent` pnpm form when stdout must be directly
@@ -193,7 +194,7 @@ To check the user-visible provider feedback contract across Web and TUI without
 running the full eval suite:
 
 ```bash
-pnpm smoke:product-feedback
+pnpm smoke:assistant-feedback
 ```
 
 This focused smoke reuses the application feedback matrix eval scenario. It
@@ -220,12 +221,12 @@ required verification gate.
 ```text
 apps/
   cli/
-  product/
-  plugin-command-host/
+  assistant/
+  assistant-plugin-host/
   desktop/
-  local-host/
+  assistant-host/
   tui/
-  web/
+  assistant-ui/
 crates/
   system-service/
 packages/
@@ -367,8 +368,8 @@ For focused iteration, prefer package-local checks first, then run
 `pnpm audit:structure`:
 
 ```bash
-pnpm --filter @wanex/local-host check
-pnpm --filter @wanex/local-host test -- web-host
+pnpm --filter @wanex/assistant-host check
+pnpm --filter @wanex/assistant-host test -- web-host
 pnpm audit:structure
 ```
 

@@ -8,7 +8,10 @@ import type {
   WorkspaceTaskRunState
 } from "@wanex/protocol"
 import type { ProviderArtifactOutput } from "@wanex/runtime/resources"
-import type { ChildSupervisor, ExecutionHost } from "@wanex/runtime/execution"
+import type {
+  BorrowedExecutionScope,
+  ExecutionEnvironment,
+} from "@wanex/runtime/execution"
 import type { WorkspaceTaskStore } from "./storage.js"
 import type { WorkspaceIsolationAdapter } from "../isolation/index.js"
 import type { WorkspaceGitRuntime } from "../git/index.js"
@@ -26,7 +29,7 @@ export interface WorkspaceTaskRuntimeOptions {
   readonly leaseMs?: number
   readonly workspaceId?: string
   readonly principalId?: PrincipalId
-  readonly childSupervisor?: ChildSupervisor
+  readonly executionEnvironment: ExecutionEnvironment
 }
 
 export interface WorkspaceTaskRequest {
@@ -42,6 +45,12 @@ export interface WorkspaceTaskRequest {
 
 export interface RecoverWorkspaceTaskRequest {
   readonly runId: string
+}
+
+export interface ResumeWorkspaceTaskRequest {
+  readonly runId: string
+  readonly input: JsonValue
+  readonly handler: WorkspaceTaskHandler
 }
 
 export type WorkspaceTaskRecoveryAdmissionOutcome =
@@ -89,7 +98,7 @@ export interface WorkspaceTaskContext {
   readonly access: WorkspaceTaskAccess
   readonly input: JsonValue
   readonly rootDir: string
-  readonly executionHost?: ExecutionHost
+  readonly executionScope: BorrowedExecutionScope
 }
 
 export type WorkspaceTaskHandler = (
@@ -118,6 +127,16 @@ export interface WorkspaceTaskError {
   readonly message: string
   readonly name?: string
   readonly details?: JsonValue
+}
+
+export class WorkspaceTaskAttentionError extends Error {
+  readonly failure: WorkspaceTaskError
+
+  constructor(failure: WorkspaceTaskError) {
+    super(failure.message)
+    this.name = failure.name ?? "WorkspaceTaskAttentionError"
+    this.failure = failure
+  }
 }
 
 export interface WorkspaceTaskJobPayload {

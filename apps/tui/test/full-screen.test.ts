@@ -24,12 +24,12 @@ import type {
   TeamConversationSummary,
   TeamConversationPageReadModel,
   TeamParticipantReadModel,
-} from "@wanex/product";
+} from "@wanex/assistant";
 import type {
   SurfaceClientCommandEnvelope,
   SurfaceEvent,
   SurfaceEventListener,
-} from "@wanex/product/surface";
+} from "@wanex/assistant/surface";
 import {
   createTuiFullScreen,
   type TuiFullScreenClient,
@@ -39,7 +39,7 @@ import { teamComposerAvailability } from "../src/full-screen/team/composer.js";
 import type { TuiAttachmentHost } from "../src/model.js";
 import { TuiVirtualTerminal } from "./full-screen/virtual-terminal.js";
 
-describe("product full-screen TUI", () => {
+describe("assistant full-screen TUI", () => {
   it("renders canonical history and keeps a CJK multiline composer stable across resize", async () => {
     const client = new FullScreenClientFixture();
     client.transcript = transcript([
@@ -93,11 +93,11 @@ describe("product full-screen TUI", () => {
       expect(fullScreen.state()).toMatchObject({
         selection: {
           kind: "team",
-          conversationId: "team_product_tui",
+          conversationId: "team_assistant_tui",
         },
         team: {
           conversation: {
-            conversationId: "team_product_tui",
+            conversationId: "team_assistant_tui",
             title: "Research group",
           },
         },
@@ -121,7 +121,7 @@ describe("product full-screen TUI", () => {
       expect(client.submissions).toHaveLength(0);
       expect(client.teamRoundSubmissions).toHaveLength(1);
       expect(client.teamRoundSubmissions[0]).toMatchObject({
-        conversationId: "team_product_tui",
+        conversationId: "team_assistant_tui",
         text: "must not become a Session turn",
       });
       expect(fullScreen.state().team?.messages.at(-1)?.content).toEqual([
@@ -147,7 +147,7 @@ describe("product full-screen TUI", () => {
       const picker = await terminal.text();
       expect(picker).toContain("New group");
       expect(picker).toContain("Research group");
-      expect(picker).not.toContain("team_product_tui");
+      expect(picker).not.toContain("team_assistant_tui");
 
       terminal.sendInput("\u001b[B");
       terminal.sendInput("\u001b[B");
@@ -158,7 +158,7 @@ describe("product full-screen TUI", () => {
         () => fullScreen.state().selection?.kind === "team",
       );
       expect(client.teamSelections).toEqual([
-        { conversationId: "team_product_tui" },
+        { conversationId: "team_assistant_tui" },
       ]);
     } finally {
       await fullScreen.stop();
@@ -188,7 +188,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.teamCoordinatorUpdates.length === 1);
       expect(client.teamCoordinatorUpdates).toEqual([
         {
-          conversationId: "team_product_tui",
+          conversationId: "team_assistant_tui",
           expectedCoordinatorParticipantId: "participant_agent",
           coordinatorParticipantId: null,
         },
@@ -243,7 +243,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.teamParticipantUpdates.length === 1);
       expect(client.teamParticipantUpdates).toEqual([
         {
-          conversationId: "team_product_tui",
+          conversationId: "team_assistant_tui",
           participantId: "participant_reviewer",
           state: "left",
         },
@@ -361,7 +361,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\r");
       await eventually(() => client.teamParticipantAdds.length === 1);
       expect(client.teamParticipantAdds[0]).toMatchObject({
-        conversationId: "team_product_tui",
+        conversationId: "team_assistant_tui",
         agentSessionId: "agent_session_private",
       });
       const request = client.teamParticipantAdds[0] as { readonly idempotencyKey: string };
@@ -465,7 +465,7 @@ describe("product full-screen TUI", () => {
     try {
       await fullScreen.start();
       expect(fullScreen.state().transcript?.sessionId).toBe(
-        "session_product_tui",
+        "session_assistant_tui",
       );
       expect(fullScreen.state().team).toBeUndefined();
 
@@ -473,7 +473,7 @@ describe("product full-screen TUI", () => {
       await fullScreen.refresh();
       expect(fullScreen.state().selection).toEqual({
         kind: "team",
-        conversationId: "team_product_tui",
+        conversationId: "team_assistant_tui",
       });
       expect(fullScreen.state().team?.conversation.title).toBe(
         "Research group",
@@ -482,15 +482,15 @@ describe("product full-screen TUI", () => {
       expect(fullScreen.state().attachments).toBeUndefined();
       expect(fullScreen.state().operation).toBeUndefined();
 
-      await client.selectSession({ sessionId: "session_product_tui" });
+      await client.selectSession({ sessionId: "session_assistant_tui" });
       await fullScreen.refresh();
       expect(fullScreen.state().selection).toEqual({
         kind: "session",
-        sessionId: "session_product_tui",
+        sessionId: "session_assistant_tui",
       });
       expect(fullScreen.state().team).toBeUndefined();
       expect(fullScreen.state().transcript?.sessionId).toBe(
-        "session_product_tui",
+        "session_assistant_tui",
       );
     } finally {
       await fullScreen.stop();
@@ -508,8 +508,8 @@ describe("product full-screen TUI", () => {
       expect(client.readCounts.team).toBe(1);
 
       client.emitTeamInvalidation(1, "team_other");
-      client.emitTeamInvalidation(2, "team_product_tui");
-      client.emitTeamInvalidation(3, "team_product_tui");
+      client.emitTeamInvalidation(2, "team_assistant_tui");
+      client.emitTeamInvalidation(3, "team_assistant_tui");
       await eventually(() => client.readCounts.team === 2);
       await settleEventLoop();
       expect(client.readCounts.team).toBe(2);
@@ -521,7 +521,7 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("clears accepted input and restores rejected input with Product feedback", async () => {
+  it("clears accepted input and restores rejected input with Assistant feedback", async () => {
     const client = new FullScreenClientFixture();
     const terminal = new TuiVirtualTerminal(72, 18);
     const fullScreen = createTuiFullScreen({ client, terminal });
@@ -533,7 +533,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.submissions.length === 1);
       await eventually(() => !fullScreen.state().busy);
       expect(client.submissions).toEqual([
-        { text: "accepted message", sessionId: "session_product_tui" },
+        { text: "accepted message", sessionId: "session_assistant_tui" },
       ]);
       expect(fullScreen.state()).toMatchObject({
         draft: "",
@@ -629,7 +629,7 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("dispatches queue, guide, stop, and approval through typed Product requests", async () => {
+  it("dispatches queue, guide, stop, and approval through typed Assistant requests", async () => {
     const client = new FullScreenClientFixture();
     client.operation = operation({
       terminal: false,
@@ -654,8 +654,8 @@ describe("product full-screen TUI", () => {
       await eventually(() => !fullScreen.state().busy);
       expect(client.approvals).toEqual([
         {
-          sessionId: "session_product_tui",
-          approvalId: "approval_product_tui",
+          sessionId: "session_assistant_tui",
+          approvalId: "approval_assistant_tui",
           expectedApprovalRevision: 3,
           decision: "approve_once",
           reason: "approved in TUI",
@@ -670,8 +670,8 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.queued.length === 1);
       await eventually(() => !fullScreen.state().busy);
       expect(client.queued[0]).toEqual({
-        operationId: "operation_product_tui",
-        sessionId: "session_product_tui",
+        operationId: "operation_assistant_tui",
+        sessionId: "session_assistant_tui",
         text: "queued follow-up",
       });
 
@@ -682,8 +682,8 @@ describe("product full-screen TUI", () => {
       await eventually(() => !fullScreen.state().busy);
       expect(client.guided[0]).toMatchObject({
         input: {
-          operationId: "operation_product_tui",
-          sessionId: "session_product_tui",
+          operationId: "operation_assistant_tui",
+          sessionId: "session_assistant_tui",
           text: "guide now",
         },
         requestId: expect.stringMatching(/^tui-steer-/),
@@ -692,7 +692,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\u0018");
       await eventually(() => client.cancellations.length === 1);
       expect(client.cancellations[0]).toEqual({
-        sessionId: "session_product_tui",
+        sessionId: "session_assistant_tui",
         reason: "user requested cancellation from TUI",
       });
     } finally {
@@ -830,8 +830,8 @@ describe("product full-screen TUI", () => {
       ...client.commandCatalog,
       commands: [
         ...client.commandCatalog.commands,
-        productCommand({
-          id: "product.shutdown",
+        assistantCommand({
+          id: "assistant.shutdown",
           title: "Shutdown",
           paletteVisibility: "hidden",
         }),
@@ -848,7 +848,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.readCounts.commands === 1);
       await terminal.waitForRender();
       const catalogView = await terminal.text();
-      expect(catalogView).toContain("Product commands");
+      expect(catalogView).toContain("Assistant commands");
       expect(catalogView).toContain("Status");
       expect(catalogView).toContain("Plugin Action");
       expect(catalogView).not.toContain("Shutdown");
@@ -903,7 +903,7 @@ describe("product full-screen TUI", () => {
     const client = new FullScreenClientFixture();
     client.commandCatalog = {
       commands: [
-        productCommand({
+        assistantCommand({
           id: commandId,
           title: `插件${osc}\n动作 👩‍💻\u202e`,
           sourceKind: "plugin",
@@ -943,9 +943,9 @@ describe("product full-screen TUI", () => {
     const client = new FullScreenClientFixture();
     client.commandCatalog = {
       commands: [
-        productCommand({
-          id: "product.configure",
-          title: "Configure Product",
+        assistantCommand({
+          id: "assistant.configure",
+          title: "Configure Assistant",
           inputSchema: {
             type: "object",
             properties: {
@@ -1001,7 +1001,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\r");
       await eventually(() => client.commandPreviews.length === 1);
       expect(client.commandPreviews[0]).toEqual({
-        commandId: "product.configure",
+        commandId: "assistant.configure",
         input: {
           name: "Wanex",
           mode: "fast",
@@ -1022,12 +1022,12 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("keeps open-object syntax local and preserves Product preview rejection", async () => {
+  it("keeps open-object syntax local and preserves Assistant preview rejection", async () => {
     const client = new FullScreenClientFixture();
     client.rejectCommandPreview = true;
     client.commandCatalog = {
       commands: [
-        productCommand({
+        assistantCommand({
           id: "plugin.open-input",
           title: "Open Input Action",
           sourceKind: "plugin",
@@ -1064,7 +1064,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput('{"known":"value","dynamic":true}');
       terminal.sendInput("\r");
       await eventually(
-        () => fullScreen.state().errorMessage === "preview blocked by Product",
+        () => fullScreen.state().errorMessage === "preview blocked by Assistant",
       );
       expect(client.commandPreviews).toEqual([
         {
@@ -1079,11 +1079,11 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("surfaces execution rejection without synthesizing Product state", async () => {
+  it("surfaces execution rejection without synthesizing Assistant state", async () => {
     const client = new FullScreenClientFixture();
     client.rejectCommandExecution = true;
     client.commandCatalog = {
-      commands: [productCommand({ id: "product.status", title: "Status" })],
+      commands: [assistantCommand({ id: "assistant.status", title: "Status" })],
       diagnostics: [],
     };
     const terminal = new TuiVirtualTerminal(80, 22);
@@ -1105,10 +1105,10 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\r");
       await eventually(
         () =>
-          fullScreen.state().errorMessage === "execution rejected by Product",
+          fullScreen.state().errorMessage === "execution rejected by Assistant",
       );
       expect(client.commandExecutions).toEqual([
-        { commandId: "product.status" },
+        { commandId: "assistant.status" },
       ]);
       expect(client.readCounts.home).toBe(initialHomeReads);
       expect(fullScreen.state().draft).toBe("execution-safe draft");
@@ -1128,7 +1128,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\u0010");
       await eventually(() => client.readCounts.commands === 1);
       await terminal.waitForRender();
-      expect(await terminal.text()).toContain("Product commands");
+      expect(await terminal.text()).toContain("Assistant commands");
 
       client.operation = operation({
         terminal: false,
@@ -1138,7 +1138,7 @@ describe("product full-screen TUI", () => {
       await fullScreen.refresh();
       const approvalView = await terminal.text();
       expect(approvalView).toContain("Tool approval");
-      expect(approvalView).not.toContain("Product commands");
+      expect(approvalView).not.toContain("Assistant commands");
       expect(fullScreen.state().draft).toBe("approval-safe draft");
 
       terminal.sendInput("\u0010");
@@ -1190,7 +1190,7 @@ describe("product full-screen TUI", () => {
       expect(attachmentCalls).toEqual([
         {
           path: "/trusted/input/diagram.png",
-          sessionId: "session_product_tui",
+          sessionId: "session_assistant_tui",
         },
       ]);
       expect(fullScreen.state().draft).toBe("attachment-safe draft");
@@ -1213,7 +1213,7 @@ describe("product full-screen TUI", () => {
       expect(client.attachmentRemovals).toEqual([
         {
           resourceId: "resource_diagram",
-          sessionId: "session_product_tui",
+          sessionId: "session_assistant_tui",
         },
       ]);
       expect(fullScreen.state().draft).toBe("attachment-safe draft");
@@ -1225,7 +1225,7 @@ describe("product full-screen TUI", () => {
 
   it("renders hostile attachment labels as inert single-line terminal text", async () => {
     const client = new FullScreenClientFixture();
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_hostile_label",
         label: "diagram\u001b[31m\u001b]0;attacker-title\u0007\nnext\u202Ename",
@@ -1261,11 +1261,11 @@ describe("product full-screen TUI", () => {
     );
     client.home = {
       ...client.home,
-      product: {
-        ...client.home.product,
+      assistant: {
+        ...client.home.assistant,
         sessions: {
-          ...client.home.product.sessions,
-          recent: client.home.product.sessions.recent.map((session) => ({
+          ...client.home.assistant.sessions,
+          recent: client.home.assistant.sessions.recent.map((session) => ({
             ...session,
             title: `项目${osc}\n讨论 👩‍💻\u202e`,
           })),
@@ -1306,7 +1306,7 @@ describe("product full-screen TUI", () => {
       },
     ]);
     client.operation = operation({ terminal: false });
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_hostile_everywhere",
         label: `图像${osc}\n附件\u202e.png`,
@@ -1430,7 +1430,7 @@ describe("product full-screen TUI", () => {
 
   it("preserves an attachment-only draft on rejection and consumes it on acceptance", async () => {
     const client = new FullScreenClientFixture();
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_photo",
         label: "photo.png",
@@ -1448,7 +1448,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => !fullScreen.state().busy);
       expect(client.submissions[0]).toEqual({
         text: "",
-        sessionId: "session_product_tui",
+        sessionId: "session_assistant_tui",
       });
       expect(fullScreen.state().errorMessage).toBe("provider is unavailable");
       expect(fullScreen.state().attachments?.attachments).toHaveLength(1);
@@ -1467,7 +1467,7 @@ describe("product full-screen TUI", () => {
 
   it("keeps the composer and canonical drafts after a trusted attachment host error", async () => {
     const client = new FullScreenClientFixture();
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_existing",
         label: "existing.pdf",
@@ -1517,7 +1517,7 @@ describe("product full-screen TUI", () => {
       "Second conversation",
       "Second history",
     );
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_first",
         label: "first.png",
@@ -1621,7 +1621,7 @@ describe("product full-screen TUI", () => {
       expect(client.planStarts).toEqual([
         {
           text: "Prepare the reviewed implementation",
-          sessionId: "session_product_tui",
+          sessionId: "session_assistant_tui",
         },
       ]);
       expect(fullScreen.state().draft).toBe("composer draft survives Plan");
@@ -1781,7 +1781,7 @@ describe("product full-screen TUI", () => {
         {
           id: "opaque-step-two",
           title: "Apply the reviewed change",
-          detail: "Keep the existing Product authority.",
+          detail: "Keep the existing Assistant authority.",
           metadata: { owner: "executor" },
         },
       ],
@@ -1957,7 +1957,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\u001bOS");
       await eventually(() => client.readCounts.planProposal === 2);
       expect(await terminal.text()).toContain("Create Plan");
-      await client.selectSession({ sessionId: "session_product_tui" });
+      await client.selectSession({ sessionId: "session_assistant_tui" });
       await fullScreen.refresh();
       expect(await terminal.text()).not.toContain("Create Plan");
       expect(fullScreen.state().draft).toBe("Plan priority draft");
@@ -2044,7 +2044,7 @@ describe("product full-screen TUI", () => {
 
       expect(client.goalStarts).toEqual([
         {
-          sessionId: "session_product_tui",
+          sessionId: "session_assistant_tui",
           objective: "实现稳定版本 👩‍💻\n覆盖 Windows",
           successCriteria: ["测试通过", "无身份泄露"],
           boundaries: ["仅修改 TUI"],
@@ -2192,7 +2192,7 @@ describe("product full-screen TUI", () => {
       terminal.sendInput("\u001b[15~");
       await eventually(() => client.readCounts.goal === readsWithApproval + 1);
       expect(await terminal.text()).toContain("Create Goal");
-      await client.selectSession({ sessionId: "session_product_tui" });
+      await client.selectSession({ sessionId: "session_assistant_tui" });
       await fullScreen.refresh();
       expect(await terminal.text()).not.toContain("Create Goal");
       expect(fullScreen.state().draft).toBe("Goal priority draft");
@@ -2201,7 +2201,7 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("preserves Product no-Session Goal feedback without admitting work", async () => {
+  it("preserves Assistant no-Session Goal feedback without admitting work", async () => {
     const client = new FullScreenClientFixture();
     await client.startNewConversation();
     const terminal = new TuiVirtualTerminal(80, 22);
@@ -2273,8 +2273,8 @@ describe("product full-screen TUI", () => {
       expect(answer).toContain("第二段 👩‍💻");
       expect(answer).not.toContain("attacker-side-query-title");
       expect(answer).not.toContain("opaque-side-query");
-      expect(answer).not.toContain("session_product_tui");
-      expect(answer).not.toContain("endpoint_product_tui");
+      expect(answer).not.toContain("session_assistant_tui");
+      expect(answer).not.toContain("endpoint_assistant_tui");
       expect(terminal.titles).toEqual(["Wanex"]);
 
       client.sideQuery = {
@@ -2382,7 +2382,7 @@ describe("product full-screen TUI", () => {
       await fullScreen.start();
       terminal.sendInput("failure-safe composer draft");
       terminal.sendInput("\u001b[17~");
-      terminal.sendInput("question rejected by Product");
+      terminal.sendInput("question rejected by Assistant");
       terminal.sendInput("\r");
       await eventually(() => client.sideQueryStarts.length === 1);
       await eventually(() => !fullScreen.state().busy);
@@ -2393,7 +2393,7 @@ describe("product full-screen TUI", () => {
       expect(fullScreen.state().draft).toBe("failure-safe composer draft");
       const output = await terminal.text();
       expect(output).toContain("Unable to start Side Query");
-      expect(output).toContain("question rejected by Product");
+      expect(output).toContain("question rejected by Assistant");
       expect(output).not.toContain("opaque-side-query-secret");
     } finally {
       await fullScreen.stop();
@@ -2435,9 +2435,9 @@ describe("product full-screen TUI", () => {
       expect(reboundView).toContain(
         "Question belongs to the conversation selected when it started.",
       );
-      expect(reboundView).not.toContain("session_product_tui");
+      expect(reboundView).not.toContain("session_assistant_tui");
       expect(reboundView).not.toContain("session_second");
-      expect(client.sideQuery?.sessionId).toBe("session_product_tui");
+      expect(client.sideQuery?.sessionId).toBe("session_assistant_tui");
 
       terminal.sendInput("\r");
       await eventually(() => client.sideQueryCancellations.length === 1);
@@ -2453,7 +2453,7 @@ describe("product full-screen TUI", () => {
   it("reviews canonical recovery automatically and submits exact structured success evidence", async () => {
     const client = new FullScreenClientFixture();
     client.operation = recoveryOperation();
-    client.setAttachments("session_product_tui", [
+    client.setAttachments("session_assistant_tui", [
       attachmentDraft({
         resourceId: "resource_recovery_attachment",
         label: "recovery-context.png",
@@ -2473,10 +2473,10 @@ describe("product full-screen TUI", () => {
       expect(automatic).toContain("Abandon turn");
       expect(automatic).toContain("F7 recovery");
       for (const opaque of [
-        "opaque-recovery-product-tui",
-        "opaque-reconciliation-product-tui",
-        "operation_product_tui",
-        "session_product_tui",
+        "opaque-recovery-assistant-tui",
+        "opaque-reconciliation-assistant-tui",
+        "operation_assistant_tui",
+        "session_assistant_tui",
       ]) {
         expect(automatic).not.toContain(opaque);
       }
@@ -2509,8 +2509,8 @@ describe("product full-screen TUI", () => {
 
       expect(client.recoveryResolutions).toEqual([
         {
-          sessionId: "session_product_tui",
-          recoveryId: "opaque-recovery-product-tui",
+          sessionId: "session_assistant_tui",
+          recoveryId: "opaque-recovery-assistant-tui",
           expectedRecoveryRevision: 7,
           decision: "confirm_succeeded",
           reason: "verified against the remote service",
@@ -2530,8 +2530,8 @@ describe("product full-screen TUI", () => {
       expect(fullScreen.state().attachments?.attachments).toHaveLength(1);
       expect(terminal.titles).toEqual(["Wanex"]);
       const settled = await terminal.text();
-      expect(settled).not.toContain("opaque-recovery-product-tui");
-      expect(settled).not.toContain("opaque-reconciliation-product-tui");
+      expect(settled).not.toContain("opaque-recovery-assistant-tui");
+      expect(settled).not.toContain("opaque-reconciliation-assistant-tui");
     } finally {
       await fullScreen.stop();
     }
@@ -2562,8 +2562,8 @@ describe("product full-screen TUI", () => {
       await eventually(() => !fullScreen.state().busy);
 
       expect(client.recoveryResolutions[0]).toEqual({
-        sessionId: "session_product_tui",
-        recoveryId: "opaque-recovery-product-tui",
+        sessionId: "session_assistant_tui",
+        recoveryId: "opaque-recovery-assistant-tui",
         expectedRecoveryRevision: 7,
         decision: "confirm_failed",
         reason: "remote service reports a terminal failure",
@@ -2612,7 +2612,7 @@ describe("product full-screen TUI", () => {
       await eventually(() => !fullScreen.state().busy);
 
       expect(client.recoveryResolutions[0]).toMatchObject({
-        recoveryId: "opaque-recovery-product-tui",
+        recoveryId: "opaque-recovery-assistant-tui",
         expectedRecoveryRevision: 7,
       });
       expect(fullScreen.state().errorMessage).toBe(
@@ -2661,7 +2661,7 @@ describe("product full-screen TUI", () => {
     }
   });
 
-  it("switches model explicitly before confirmed regeneration and retries Product rejection", async () => {
+  it("switches model explicitly before confirmed regeneration and retries Assistant rejection", async () => {
     const client = new FullScreenClientFixture();
     const failed = operation({ terminal: true, state: "failed" });
     client.operation = {
@@ -2670,7 +2670,7 @@ describe("product full-screen TUI", () => {
         code: "conversation_context_capacity_exceeded",
         category: "capacity",
         message: "context exceeds the selected model",
-        modelEndpointId: "endpoint_product_tui",
+        modelEndpointId: "endpoint_assistant_tui",
         capacity: {
           reasons: ["input_tokens_exceeded"],
           inputTokens: 16_000,
@@ -2722,8 +2722,8 @@ describe("product full-screen TUI", () => {
       await eventually(() => client.regenerations.length === 2);
       await eventually(() => !fullScreen.state().busy);
       expect(client.regenerations).toEqual([
-        { sessionId: "session_product_tui" },
-        { sessionId: "session_product_tui" },
+        { sessionId: "session_assistant_tui" },
+        { sessionId: "session_assistant_tui" },
       ]);
       expect(fullScreen.state()).toMatchObject({
         draft: "regeneration keeps my composer",
@@ -2768,7 +2768,7 @@ describe("product full-screen TUI", () => {
     await eventually(() => client.readCounts.commands === 1);
     await eventually(() => !fullScreen.state().busy);
     await terminal.waitForRender();
-    expect(await terminal.text()).toContain("Product commands");
+    expect(await terminal.text()).toContain("Assistant commands");
     terminal.sendInput("\u0011");
     await eventually(() => terminal.lifecycle().stopCount === 1);
     await expect(fullScreen.waitUntilStopped()).resolves.toBe("quit");
@@ -2855,8 +2855,8 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   rejectTeamCoordinator = false;
   commandCatalog: CommandCatalogReadModel = {
     commands: [
-      productCommand({ id: "product.status", title: "Status" }),
-      productCommand({
+      assistantCommand({ id: "assistant.status", title: "Status" }),
+      assistantCommand({
         id: "plugin.example",
         title: "Plugin Action",
         sourceKind: "plugin",
@@ -2936,7 +2936,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     ConversationAttachmentsReadModel
   >();
   readonly modelEndpoints: ModelEndpointReadModel[] = [
-    modelEndpoint("endpoint_product_tui", "deepseek", "deepseek-chat", true),
+    modelEndpoint("endpoint_assistant_tui", "deepseek", "deepseek-chat", true),
     modelEndpoint("endpoint_openai", "openai", "gpt-5.4", false),
   ];
 
@@ -2957,17 +2957,17 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       input?.conversationId ?? selectedTeamConversationId(this.home.state);
     if (conversationId === undefined) {
       return envelope("readTeamConversation", {
-        kind: "product.team-conversation.no-selection" as const,
+        kind: "assistant.team-conversation.no-selection" as const,
       });
     }
     if (conversationId !== this.team.conversation.conversationId) {
       return envelope("readTeamConversation", {
-        kind: "product.team-conversation.missing" as const,
+        kind: "assistant.team-conversation.missing" as const,
         conversationId,
       });
     }
     return envelope("readTeamConversation", {
-      kind: "product.team-conversation.found" as const,
+      kind: "assistant.team-conversation.found" as const,
       page: this.team,
     });
   }
@@ -2978,9 +2978,9 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       return failureEnvelope("listTeamConversations", "Team listing rejected");
     }
     return envelope("listTeamConversations", {
-      kind: "product.team-conversation-list" as const,
+      kind: "assistant.team-conversation-list" as const,
       availability: {
-        kind: "product.team-availability" as const,
+        kind: "assistant.team-availability" as const,
         state: "ready" as const,
         reason: "configured" as const,
         capabilities: {
@@ -3039,7 +3039,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     };
     this.teamConversations.push(conversation);
     this.team = {
-      kind: "product.team-conversation-page",
+      kind: "assistant.team-conversation-page",
       conversation,
       participants: [],
       messages: [],
@@ -3197,7 +3197,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       observedAt: 4,
     };
     return envelope("submitTeamRound", {
-      kind: "product.team-round.submitted" as const,
+      kind: "assistant.team-round.submitted" as const,
       conversation: this.team.conversation,
       message,
       round,
@@ -3232,19 +3232,19 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.readCounts.transcript += 1;
     const sessionId = input?.sessionId ?? selectedSessionId(this.home.state);
     const selectedTranscript =
-      sessionId === "session_product_tui"
+      sessionId === "session_assistant_tui"
         ? this.transcript
         : sessionId === undefined
           ? undefined
           : this.transcripts.get(sessionId);
     if (selectedTranscript === undefined) {
       return envelope("readSessionTranscript", {
-        kind: "product.session-transcript.no-session" as const,
+        kind: "assistant.session-transcript.no-session" as const,
         message: "select a session before reading its transcript",
       });
     }
     return envelope("readSessionTranscript", {
-      kind: "product.session-transcript.found" as const,
+      kind: "assistant.session-transcript.found" as const,
       sessionId: selectedTranscript.sessionId,
       transcript: selectedTranscript,
     });
@@ -3321,9 +3321,9 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     return envelope("setActiveModelEndpoint", activeEndpoint);
   }
 
-  async readProductCommands() {
+  async readAssistantCommands() {
     this.readCounts.commands += 1;
-    return envelope("readProductCommands", this.commandCatalog);
+    return envelope("readAssistantCommands", this.commandCatalog);
   }
 
   async readConversationAttachments(input?: { readonly sessionId?: string }) {
@@ -3351,7 +3351,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     const next = conversationAttachments(sessionId, attachments);
     this.attachmentDrafts.set(attachmentKey(sessionId), next);
     return envelope("removeConversationAttachment", {
-      kind: "product.conversation-attachment.removed" as const,
+      kind: "assistant.conversation-attachment.removed" as const,
       removed: attachments.length !== current.attachments.length,
       resourceId: input.resourceId,
       attachments: next,
@@ -3368,7 +3368,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     );
   }
 
-  async previewProductCommandInvocation(input: {
+  async previewAssistantCommandInvocation(input: {
     readonly commandId: string;
     readonly input?: unknown;
   }) {
@@ -3379,15 +3379,15 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     );
     if (command === undefined) throw new Error("command is required");
     if (this.rejectCommandPreview) {
-      return envelope("previewProductCommandInvocation", {
+      return envelope("previewAssistantCommandInvocation", {
         kind: "rejected" as const,
         commandId: input.commandId,
         reason: "invalid_input" as const,
-        message: "preview blocked by Product",
+        message: "preview blocked by Assistant",
         command,
       });
     }
-    return envelope("previewProductCommandInvocation", {
+    return envelope("previewAssistantCommandInvocation", {
       kind: "runnable" as const,
       commandId: input.commandId,
       handlerRef: command.handlerRef,
@@ -3396,7 +3396,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     });
   }
 
-  async executeProductCommand(input: {
+  async executeAssistantCommand(input: {
     readonly commandId: string;
     readonly input?: unknown;
   }) {
@@ -3407,15 +3407,15 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     );
     if (command === undefined) throw new Error("command is required");
     if (this.rejectCommandExecution) {
-      return envelope("executeProductCommand", {
+      return envelope("executeAssistantCommand", {
         kind: "rejected" as const,
         commandId: input.commandId,
         reason: "execution_failed" as const,
-        message: "execution rejected by Product",
+        message: "execution rejected by Assistant",
         handlerRef: command.handlerRef,
       });
     }
-    return envelope("executeProductCommand", {
+    return envelope("executeAssistantCommand", {
       kind: "completed" as const,
       commandId: input.commandId,
       handlerRef: command.handlerRef,
@@ -3443,11 +3443,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     }
     const queryId = `opaque-side-query-${++this.sideQueryCounter}`;
     this.sideQuery = {
-      kind: "product.side-query",
+      kind: "assistant.side-query",
       queryId,
-      sessionId: selectedSessionId(this.home.state) ?? "session_product_tui",
+      sessionId: selectedSessionId(this.home.state) ?? "session_assistant_tui",
       modelEndpointId:
-        this.home.providerReadiness.activeEndpointId ?? "endpoint_product_tui",
+        this.home.providerReadiness.activeEndpointId ?? "endpoint_assistant_tui",
       state: "running",
       question: input.question,
       ...(input.maxOutputTokens === undefined
@@ -3465,11 +3465,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     const value: ReadSideQueryResult =
       this.sideQuery?.queryId === input.queryId
         ? {
-            kind: "product.side-query.found",
+            kind: "assistant.side-query.found",
             query: this.sideQuery,
           }
         : {
-            kind: "product.side-query.missing",
+            kind: "assistant.side-query.missing",
             queryId: input.queryId,
           };
     return envelope("readSideQuery", value);
@@ -3502,7 +3502,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     }
     this.sideQuery = undefined;
     return envelope("dismissSideQuery", {
-      kind: "product.side-query.dismissed" as const,
+      kind: "assistant.side-query.dismissed" as const,
       queryId: input.queryId,
     });
   }
@@ -3514,9 +3514,9 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.planStarts.push(input);
     const operationId = `opaque-plan-operation-${++this.planGenerationCounter}`;
     this.planGeneration = {
-      kind: "product.plan-generation",
+      kind: "assistant.plan-generation",
       operationId,
-      sessionId: input.sessionId ?? "session_product_tui",
+      sessionId: input.sessionId ?? "session_assistant_tui",
       state: "running",
       startedAt: 10,
       updatedAt: 10,
@@ -3529,12 +3529,12 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.planGenerationReads.push(input);
     if (this.planGeneration?.operationId !== input.operationId) {
       return envelope("readPlanGeneration", {
-        kind: "product.plan-generation.missing" as const,
+        kind: "assistant.plan-generation.missing" as const,
         operationId: input.operationId,
       });
     }
     return envelope("readPlanGeneration", {
-      kind: "product.plan-generation.found" as const,
+      kind: "assistant.plan-generation.found" as const,
       generation: this.planGeneration,
     });
   }
@@ -3560,7 +3560,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     }
     this.planGeneration = undefined;
     return envelope("dismissPlanGeneration", {
-      kind: "product.plan-generation.dismissed" as const,
+      kind: "assistant.plan-generation.dismissed" as const,
       operationId: input.operationId,
     });
   }
@@ -3571,10 +3571,10 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     if (this.planProposal === undefined) {
       return input?.proposalId === undefined
         ? envelope("readPlanProposal", {
-            kind: "product.plan-proposal.no-selection" as const,
+            kind: "assistant.plan-proposal.no-selection" as const,
           })
         : envelope("readPlanProposal", {
-            kind: "product.plan-proposal.missing" as const,
+            kind: "assistant.plan-proposal.missing" as const,
             proposalId: input.proposalId,
           });
     }
@@ -3583,12 +3583,12 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       input.proposalId !== this.planProposal.proposalId
     ) {
       return envelope("readPlanProposal", {
-        kind: "product.plan-proposal.missing" as const,
+        kind: "assistant.plan-proposal.missing" as const,
         proposalId: input.proposalId,
       });
     }
     return envelope("readPlanProposal", {
-      kind: "product.plan-proposal.found" as const,
+      kind: "assistant.plan-proposal.found" as const,
       proposal: this.planProposal,
     });
   }
@@ -3619,7 +3619,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       updatedAt: 12,
     };
     return envelope("revisePlanProposal", {
-      kind: "product.plan-proposal.found" as const,
+      kind: "assistant.plan-proposal.found" as const,
       proposal: this.planProposal,
     });
   }
@@ -3650,7 +3650,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       decidedAt: 12,
     };
     return envelope("decidePlanProposal", {
-      kind: "product.plan-proposal.found" as const,
+      kind: "assistant.plan-proposal.found" as const,
       proposal: this.planProposal,
     });
   }
@@ -3683,10 +3683,10 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       updatedAt: 13,
     };
     return envelope("executePlanProposal", {
-      kind: "product.plan-execution.submitted" as const,
+      kind: "assistant.plan-execution.submitted" as const,
       proposal: this.planProposal,
       operation: {
-        kind: "product.conversation-operation.found" as const,
+        kind: "assistant.conversation-operation.found" as const,
         operation: this.operation,
       },
     });
@@ -3712,7 +3712,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     const sessionId = input?.sessionId ?? selectedSessionId(this.home.state);
     if (input?.goalId === undefined && sessionId === undefined) {
       return envelope("readGoal", {
-        kind: "product.goal.no-session" as const,
+        kind: "assistant.goal.no-session" as const,
         message: "select a session before reading its Goal" as const,
       });
     }
@@ -3722,13 +3722,13 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       (input?.goalId === undefined && sessionId !== this.goal.sessionId)
     ) {
       return envelope("readGoal", {
-        kind: "product.goal.missing" as const,
+        kind: "assistant.goal.missing" as const,
         ...(input?.goalId === undefined ? {} : { goalId: input.goalId }),
         ...(sessionId === undefined ? {} : { sessionId }),
       });
     }
     return envelope("readGoal", {
-      kind: "product.goal.found" as const,
+      kind: "assistant.goal.found" as const,
       goal: this.goal,
     });
   }
@@ -3738,7 +3738,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.goal = goalReadModel({
       revision: 1,
       state: "active",
-      sessionId: input.sessionId ?? "session_product_tui",
+      sessionId: input.sessionId ?? "session_assistant_tui",
       objective: input.objective,
       boundaries: input.boundaries ?? [],
       constraints: input.constraints ?? [],
@@ -3829,13 +3829,13 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     );
     this.home = {
       ...this.home,
-      product: {
-        ...this.home.product,
+      assistant: {
+        ...this.home.assistant,
         sessions: {
-          ...this.home.product.sessions,
-          recentCount: this.home.product.sessions.recentCount + 1,
+          ...this.home.assistant.sessions,
+          recentCount: this.home.assistant.sessions.recentCount + 1,
           recent: [
-            ...this.home.product.sessions.recent,
+            ...this.home.assistant.sessions.recent,
             {
               sessionId,
               title,
@@ -3857,12 +3857,12 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       "readTrackedConversationOperation",
       this.operation === undefined
         ? {
-            kind: "product.conversation-operation.untracked" as const,
-            sessionId: "session_product_tui",
+            kind: "assistant.conversation-operation.untracked" as const,
+            sessionId: "session_assistant_tui",
             message: "no active operation",
           }
         : {
-            kind: "product.conversation-operation.found" as const,
+            kind: "assistant.conversation-operation.found" as const,
             operation: this.operation,
           },
     );
@@ -3872,10 +3872,10 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.submissions.push(input);
     if (this.rejectSubmission) {
       return envelope("submitConversationOperation", {
-        kind: "product.conversation-operation.rejected" as const,
+        kind: "assistant.conversation-operation.rejected" as const,
         reason: "provider_not_ready" as const,
         message: this.submissionRejectionMessage,
-        sessionId: "session_product_tui",
+        sessionId: "session_assistant_tui",
       });
     }
     const sessionId =
@@ -3888,7 +3888,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.setAttachments(sessionId, []);
     this.operation = operation({ terminal: false });
     return envelope("submitConversationOperation", {
-      kind: "product.conversation-operation.found" as const,
+      kind: "assistant.conversation-operation.found" as const,
       operation: this.operation,
     });
   }
@@ -3896,7 +3896,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   async queueGuidedFollowUp(input: unknown) {
     this.queued.push(input);
     return envelope("queueGuidedFollowUp", {
-      kind: "product.conversation-operation.found" as const,
+      kind: "assistant.conversation-operation.found" as const,
       operation: this.requireOperation(),
     });
   }
@@ -3907,7 +3907,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   ) {
     this.guided.push({ input, requestId: options.requestId });
     return envelope("steerTrackedConversationOperation", {
-      kind: "product.conversation-operation.found" as const,
+      kind: "assistant.conversation-operation.found" as const,
       operation: this.requireOperation(),
     });
   }
@@ -3915,10 +3915,10 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   async cancelTrackedConversationOperation(input: unknown) {
     this.cancellations.push(input);
     return envelope("cancelTrackedConversationOperation", {
-      kind: "product.conversation-operation.cancel" as const,
+      kind: "assistant.conversation-operation.cancel" as const,
       status: "cancel_requested" as const,
       operation: {
-        kind: "product.conversation-operation.found" as const,
+        kind: "assistant.conversation-operation.found" as const,
         operation: this.requireOperation(),
       },
     });
@@ -3931,7 +3931,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     const current = this.requireOperation();
     if (this.rejectRegeneration) {
       return envelope("regenerateTrackedConversationOperation", {
-        kind: "product.conversation-operation.rejected" as const,
+        kind: "assistant.conversation-operation.rejected" as const,
         reason: "operation_not_terminal" as const,
         message: "regeneration rejected: opaque-operation-secret",
         sessionId: current.sessionId,
@@ -3946,7 +3946,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       updatedAt: current.updatedAt + 1,
     });
     return envelope("regenerateTrackedConversationOperation", {
-      kind: "product.conversation-operation.found" as const,
+      kind: "assistant.conversation-operation.found" as const,
       operation: this.operation,
     });
   }
@@ -3965,7 +3965,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       item.recoveryRevision !== input.expectedRecoveryRevision
     ) {
       return envelope("resolveTrackedConversationRecovery", {
-        kind: "product.conversation-operation.rejected" as const,
+        kind: "assistant.conversation-operation.rejected" as const,
         reason: "recovery_revision_stale" as const,
         message: "recovery rejected: opaque-recovery-secret",
         sessionId: current.sessionId,
@@ -3980,14 +3980,14 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       updatedAt: current.updatedAt + 1,
     });
     return envelope("resolveTrackedConversationRecovery", {
-      kind: "product.conversation-recovery.resolved" as const,
+      kind: "assistant.conversation-recovery.resolved" as const,
       decision: input.decision,
       action:
         input.decision === "abandon_turn"
           ? ("turn_abandoned" as const)
           : ("turn_requeued" as const),
       operation: {
-        kind: "product.conversation-operation.found" as const,
+        kind: "assistant.conversation-operation.found" as const,
         operation: this.operation,
       },
     });
@@ -3997,11 +3997,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.approvals.push(input);
     this.operation = operation({ terminal: false });
     return envelope("resolveTrackedConversationApproval", {
-      kind: "product.conversation-approval.resolved" as const,
+      kind: "assistant.conversation-approval.resolved" as const,
       decision: "approve_once" as const,
       action: "turn_requeued" as const,
       operation: {
-        kind: "product.conversation-operation.found" as const,
+        kind: "assistant.conversation-operation.found" as const,
         operation: this.operation,
       },
     });
@@ -4022,16 +4022,16 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.conversation.assistant-text-delta",
+      type: "assistant.surface.conversation.assistant-text-delta",
       command: "conversationEvent",
       at: sequence,
       conversation: {
-        kind: "product.conversation.assistant-text-delta",
+        kind: "assistant.conversation.assistant-text-delta",
         sequence,
         at: sequence,
-        operationId: "operation_product_tui",
-        sessionId: "session_product_tui",
-        partId: "part_product_tui",
+        operationId: "operation_assistant_tui",
+        sessionId: "session_assistant_tui",
+        partId: "part_assistant_tui",
         text,
         truncated: false,
       },
@@ -4042,15 +4042,15 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.conversation.operation-invalidated",
+      type: "assistant.surface.conversation.operation-invalidated",
       command: "conversationEvent",
       at: sequence,
       conversation: {
-        kind: "product.conversation.operation-invalidated",
+        kind: "assistant.conversation.operation-invalidated",
         sequence,
         at: sequence,
-        operationId: "operation_product_tui",
-        sessionId: "session_product_tui",
+        operationId: "operation_assistant_tui",
+        sessionId: "session_assistant_tui",
         cause: "execution_completed",
       },
     });
@@ -4060,11 +4060,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.team.invalidated",
+      type: "assistant.surface.team.invalidated",
       command: "teamEvent",
       at: sequence,
       team: {
-        kind: "product.team.invalidated",
+        kind: "assistant.team.invalidated",
         sequence,
         cause: "delivery_changed",
         at: sequence,
@@ -4081,11 +4081,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.side-query.invalidated",
+      type: "assistant.surface.side-query.invalidated",
       command: "sideQueryEvent",
       at: sequence,
       sideQuery: {
-        kind: "product.side-query.invalidated",
+        kind: "assistant.side-query.invalidated",
         sequence,
         at: sequence,
         queryId,
@@ -4102,15 +4102,15 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.plan.invalidated",
+      type: "assistant.surface.plan.invalidated",
       command: "planEvent",
       at: sequence,
       plan: {
-        kind: "product.plan.invalidated",
+        kind: "assistant.plan.invalidated",
         sequence,
         at: sequence,
         cause,
-        sessionId: "session_product_tui",
+        sessionId: "session_assistant_tui",
         ...options,
       },
     });
@@ -4132,11 +4132,11 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     this.emit({
       id: `surface:${sequence}`,
       sequence,
-      type: "product.surface.goal.invalidated",
+      type: "assistant.surface.goal.invalidated",
       command: "goalEvent",
       at: sequence,
       goal: {
-        kind: "product.goal.invalidated",
+        kind: "assistant.goal.invalidated",
         sequence,
         at: sequence,
         goalId: this.requireGoal().goalId,
@@ -4189,7 +4189,7 @@ function envelope<T>(
     event: {
       id: `event_${command}`,
       sequence: 1,
-      type: "product.surface.command_completed",
+      type: "assistant.surface.command_completed",
       command,
       at: 1,
     },
@@ -4207,7 +4207,7 @@ function failureEnvelope(
     event: {
       id: `event_${command}_failed`,
       sequence: 1,
-      type: "product.surface.command_rejected",
+      type: "assistant.surface.command_rejected",
       command,
       at: 1,
     },
@@ -4215,7 +4215,7 @@ function failureEnvelope(
 }
 
 function attachmentKey(sessionId: string | undefined): string {
-  return sessionId ?? "product:new-conversation";
+  return sessionId ?? "assistant:new-conversation";
 }
 
 function conversationAttachments(
@@ -4223,7 +4223,7 @@ function conversationAttachments(
   attachments: readonly AttachmentDraft[],
 ): ConversationAttachmentsReadModel {
   return {
-    kind: "product.conversation-attachments",
+    kind: "assistant.conversation-attachments",
     draftKey: attachmentKey(sessionId),
     ...(sessionId === undefined ? {} : { sessionId }),
     attachments,
@@ -4238,7 +4238,7 @@ function attachmentDraft(options: {
   readonly mediaType?: string;
 }): AttachmentDraft {
   return {
-    kind: "product.attachment",
+    kind: "assistant.attachment",
     resourceId: options.resourceId,
     resourceKind: options.resourceKind ?? "image",
     previewKind: options.previewKind ?? "image",
@@ -4251,7 +4251,7 @@ function attachmentDraft(options: {
   };
 }
 
-function productCommand(options: {
+function assistantCommand(options: {
   readonly id: string;
   readonly title: string;
   readonly sourceKind?: CommandCatalogReadModel["commands"][number]["sourceKind"];
@@ -4268,7 +4268,7 @@ function productCommand(options: {
     handlerRef: `${options.id}.handler`,
     sourceKind: options.sourceKind ?? "builtin",
     sourceScope: options.sourceScope ?? "builtin",
-    sourceId: options.sourceId ?? "product.backend",
+    sourceId: options.sourceId ?? "assistant.backend",
     trust: options.trust ?? "trusted",
     paletteVisibility: options.paletteVisibility ?? "visible",
     category: options.sourceKind === "plugin" ? "extension" : "system",
@@ -4280,21 +4280,21 @@ function productCommand(options: {
 
 function homeReadModel(): HomeReadModel {
   return {
-    kind: "product.home",
+    kind: "assistant.home",
     state: {
-      selection: { kind: "session", sessionId: "session_product_tui" },
+      selection: { kind: "session", sessionId: "session_assistant_tui" },
       layout: "single",
       mode: "chat",
       preferences: { theme: "system", density: "comfortable" },
     },
-    product: {
-      kind: "product.backend.overview",
+    assistant: {
+      kind: "assistant.backend.overview",
       generatedAt: 1,
       ready: true,
       lifecycle: {
         disposed: false,
         ready: true,
-        shutdownCommandId: "product.shutdown",
+        shutdownCommandId: "assistant.shutdown",
       },
       runtimeHost: {
         observed: true,
@@ -4313,7 +4313,7 @@ function homeReadModel(): HomeReadModel {
         errorCount: 0,
         attentionRequired: false,
       },
-      provider: { activeEndpointId: "endpoint_product_tui" },
+      provider: { activeEndpointId: "endpoint_assistant_tui" },
       context: {
         configured: false,
         revision: 0,
@@ -4357,7 +4357,7 @@ function homeReadModel(): HomeReadModel {
         recentLimit: 10,
         recent: [
           {
-            sessionId: "session_product_tui",
+            sessionId: "session_assistant_tui",
             title: "Project discussion",
             kind: "chat",
             status: "active",
@@ -4383,7 +4383,7 @@ function homeReadModel(): HomeReadModel {
     providerReadiness: {
       status: "ready",
       reason: "active_endpoint_ready",
-      activeEndpointId: "endpoint_product_tui",
+      activeEndpointId: "endpoint_assistant_tui",
       endpointCount: 1,
       canRun: true,
       attentionRequired: false,
@@ -4391,10 +4391,10 @@ function homeReadModel(): HomeReadModel {
       credentialConfigured: false,
     },
     integration: {
-      kind: "product.integration-contract",
-      recommendedPackage: "@wanex/product",
-      recommendedEntryPoint: "@wanex/product",
-      rendererEntryPoint: "@wanex/product/surface",
+      kind: "assistant.integration-contract",
+      recommendedPackage: "@wanex/assistant",
+      recommendedEntryPoint: "@wanex/assistant",
+      rendererEntryPoint: "@wanex/assistant/surface",
       backendDependencies: ["@wanex/app"],
       forbiddenDefaultDependencies: [
         "@wanex/storage",
@@ -4403,7 +4403,7 @@ function homeReadModel(): HomeReadModel {
         "@wanex/runtime/host",
       ],
       lifecycleSteps: ["create_app", "adapt_command_port", "dispose_app"],
-      productOwnedState: [
+      assistantOwnedState: [
         "selected_session",
         "panel_layout",
         "mode_routing",
@@ -4448,9 +4448,9 @@ function selectedTeamConversationId(
 
 function teamConversationPage(): TeamConversationPageReadModel {
   return {
-    kind: "product.team-conversation-page",
+    kind: "assistant.team-conversation-page",
     conversation: {
-      conversationId: "team_product_tui",
+      conversationId: "team_assistant_tui",
       title: "Research group",
       mode: "coordinated",
       state: "open",
@@ -4506,7 +4506,7 @@ function teamConversationPage(): TeamConversationPageReadModel {
 function transcript(
   rows: ConversationHistoryReadModel["rows"],
 ): ConversationHistoryReadModel {
-  return transcriptFor("session_product_tui", rows);
+  return transcriptFor("session_assistant_tui", rows);
 }
 
 function transcriptFor(
@@ -4551,7 +4551,7 @@ function planProposal(
   overrides: Partial<PlanProposalReadModel> = {},
 ): PlanProposalReadModel {
   return {
-    kind: "product.plan-proposal",
+    kind: "assistant.plan-proposal",
     proposalId: "opaque-plan-proposal",
     revision: 1,
     state: "open",
@@ -4562,13 +4562,13 @@ function planProposal(
       {
         id: "opaque-step-two",
         title: "Apply the reviewed change",
-        detail: "Keep the existing Product authority.",
+        detail: "Keep the existing Assistant authority.",
       },
     ],
     references: [],
-    source: { sessionId: "session_product_tui", headSequence: 1 },
+    source: { sessionId: "session_assistant_tui", headSequence: 1 },
     generation: {
-      endpointId: "endpoint_product_tui",
+      endpointId: "endpoint_assistant_tui",
       providerId: "deepseek",
       modelId: "deepseek-chat",
       generatedAt: 10,
@@ -4583,13 +4583,13 @@ function goalReadModel(
   overrides: Partial<GoalReadModel>,
 ): GoalReadModel {
   return {
-    kind: "product.goal",
+    kind: "assistant.goal",
     goalId: "opaque-goal-id",
-    sessionId: "session_product_tui",
+    sessionId: "session_assistant_tui",
     revision: 1,
     state: "active",
     objective: "Deliver the verified Goal",
-    boundaries: ["Keep the Product boundary"],
+    boundaries: ["Keep the Assistant boundary"],
     constraints: ["Do not add polling"],
     successCriteria: [
       { id: "opaque-criterion-id", description: "All checks pass" },
@@ -4660,9 +4660,9 @@ function operation(options: {
   readonly updatedAt?: number;
 }): ConversationOperationReadModel {
   return {
-    kind: "product.conversation-operation",
-    operationId: options.operationId ?? "operation_product_tui",
-    sessionId: options.sessionId ?? "session_product_tui",
+    kind: "assistant.conversation-operation",
+    operationId: options.operationId ?? "operation_assistant_tui",
+    sessionId: options.sessionId ?? "session_assistant_tui",
     state: options.state ?? (options.terminal ? "succeeded" : "running"),
     createdAt: 1,
     updatedAt: options.updatedAt ?? 2,
@@ -4678,7 +4678,7 @@ function operation(options: {
           approvals: {
             items: [
               {
-                approvalId: "approval_product_tui",
+                approvalId: "approval_assistant_tui",
                 approvalRevision: 3,
                 tool: {
                   name: "publish",
@@ -4737,7 +4737,7 @@ function recoveryOperation(
     recovery: {
       items: [
         {
-          recoveryId: "opaque-recovery-product-tui",
+          recoveryId: "opaque-recovery-assistant-tui",
           recoveryRevision: 7,
           tool: {
             name: "remote_deployment",
@@ -4748,7 +4748,7 @@ function recoveryOperation(
           evidence: {
             message: "The remote request was sent but its result was not observed.",
             messageTruncated: false,
-            reconciliationRef: "opaque-reconciliation-product-tui",
+            reconciliationRef: "opaque-reconciliation-assistant-tui",
           },
           attemptCount: 1,
           attempts: [

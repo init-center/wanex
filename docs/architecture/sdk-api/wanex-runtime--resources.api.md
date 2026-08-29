@@ -42,6 +42,51 @@ export interface ContextResourceSummary {
 }
 
 // @public (undocumented)
+interface EnvironmentArtifactScope {
+    // (undocumented)
+    readonly binding: {
+        readonly capabilities: {
+            readonly artifactExport: {
+                readonly supported: boolean;
+            };
+        };
+    };
+    // (undocumented)
+    readonly fileSystem: {
+        metadata(path: string): Promise<{
+            readonly kind: "file" | "directory" | "symlink" | "other";
+            readonly size: number;
+            readonly modifiedAt: number;
+        } | null>;
+        read(path: string): Promise<Uint8Array>;
+    };
+}
+
+// @public (undocumented)
+interface EnvironmentFileExportRequest {
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly expectedSha256?: string;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly maxBytes: number;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly origin?: ResourceOrigin;
+    // (undocumented)
+    readonly path: string;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
 interface IngestResourceRequest {
     // (undocumented)
     readonly content: Uint8Array;
@@ -631,6 +676,8 @@ export const WANEX_RUNTIME_RESOURCES: "wanex-runtime-resources";
 export class WanexResourceRuntime {
     constructor(options: WanexResourceRuntimeOptions);
     // (undocumented)
+    exportEnvironmentFile(scope: EnvironmentArtifactScope, request: EnvironmentFileExportRequest): Promise<ResourceRecord>;
+    // (undocumented)
     ingestBytes(request: IngestResourceRequest): Promise<ResourceRecord>;
     // (undocumented)
     ingestProviderOutput(output: ProviderArtifactOutput): Promise<ResourceRecord>;
@@ -639,7 +686,7 @@ export class WanexResourceRuntime {
 // @public (undocumented)
 export interface WanexResourceRuntimeOptions {
     // (undocumented)
-    readonly storage: RuntimeStore;
+    readonly storage: Pick<RuntimeStore, "ingestResource">;
 }
 
 // (No @packageDocumentation comment for this package)

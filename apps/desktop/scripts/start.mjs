@@ -4,12 +4,12 @@ import { createRequire } from "node:module"
 import { join } from "node:path"
 import { runProcessStep } from "../../../scripts/process-step.mjs"
 import {
-  buildProductDesktop,
-  stageProductDesktopCredentialArtifact,
+  buildDesktop,
+  stageDesktopCredentialArtifact,
   workspaceRoot
 } from "./build.mjs"
 
-const PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS = [
+const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_RECEIPT",
   "WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT",
   "WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT",
@@ -23,22 +23,22 @@ const PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS = [
 
 if (import.meta.main) {
   try {
-    assertCanonicalProductDesktopStartArgs(process.argv.slice(2))
-    await startProductDesktop()
+    assertCanonicalDesktopStartArgs(process.argv.slice(2))
+    await startDesktop()
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     process.exitCode = 1
   }
 }
 
-export function assertCanonicalProductDesktopStartArgs(args) {
+export function assertCanonicalDesktopStartArgs(args) {
   const normalized = args.filter((arg) => arg !== "--")
   if (normalized.length > 0) {
-    throw new Error(`unknown Product Desktop start argument: ${normalized[0]}`)
+    throw new Error(`unknown Desktop start argument: ${normalized[0]}`)
   }
 }
 
-export function createProductDesktopStartPlan(options = {}) {
+export function createDesktopStartPlan(options = {}) {
   const root = options.workspaceRoot ?? workspaceRoot
   const platform = options.platform ?? process.platform
   const environment = normalDesktopEnvironment({
@@ -55,7 +55,7 @@ export function createProductDesktopStartPlan(options = {}) {
       root,
       "target",
       "distribution",
-      "product-desktop",
+      "desktop",
       "credentials"
     )
   })
@@ -73,7 +73,7 @@ export function createProductDesktopStartPlan(options = {}) {
           root,
           "target",
           "distribution",
-          "product-desktop",
+          "desktop",
           "staging-app"
         )
       ],
@@ -83,22 +83,22 @@ export function createProductDesktopStartPlan(options = {}) {
   }
 }
 
-export async function startProductDesktop(options = {}) {
-  const plan = createProductDesktopStartPlan(options)
+export async function startDesktop(options = {}) {
+  const plan = createDesktopStartPlan(options)
   const runStep = options.runStep ?? runProcessStep
-  const buildDesktop = options.buildDesktop ?? buildProductDesktop
+  const buildDesktop = options.buildDesktop ?? buildDesktop
   const stageCredentials =
-    options.stageCredentials ?? stageProductDesktopCredentialArtifact
-  const runDesktop = options.runDesktop ?? runProductDesktopChild
+    options.stageCredentials ?? stageDesktopCredentialArtifact
+  const runDesktop = options.runDesktop ?? runDesktopChild
 
   await runStep(plan.serviceBuild, { cwd: plan.desktop.cwd })
-  console.log("\n==> Product Desktop artifacts")
+  console.log("\n==> Desktop artifacts")
   await Promise.all([buildDesktop(), stageCredentials()])
   console.log("\n==> Wanex Desktop")
   await runDesktop(plan.desktop)
 }
 
-export function runProductDesktopChild(plan, options = {}) {
+export function runDesktopChild(plan, options = {}) {
   const spawnProcess = options.spawnProcess ?? spawn
   const signalTarget = options.signalTarget ?? process
   return new Promise((resolve, reject) => {
@@ -142,7 +142,7 @@ export function runProductDesktopChild(plan, options = {}) {
 
 function normalDesktopEnvironment(options) {
   const environment = { ...options.env }
-  for (const key of PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS) {
+  for (const key of DESKTOP_PROOF_ENVIRONMENT_KEYS) {
     delete environment[key]
   }
   environment.WANEX_SYSTEM_SERVICE_BIN = options.serviceBin

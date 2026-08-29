@@ -25,9 +25,9 @@
     "@earendil-works/pi-tui": "0.83.0",
     "@wanex/app": "workspace:*",
     "@wanex/extension": "workspace:*",
-    "@wanex/local-host": "workspace:*",
+    "@wanex/assistant-host": "workspace:*",
     "@wanex/local-credential-store": "workspace:*",
-    "@wanex/product": "workspace:*",
+    "@wanex/assistant": "workspace:*",
     "@wanex/protocol": "workspace:*",
     "@wanex/runtime": "workspace:*",
     "strip-ansi": "7.2.0"

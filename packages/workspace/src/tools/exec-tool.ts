@@ -1,5 +1,9 @@
 import type { JsonValue } from "@wanex/protocol"
-import type { ExecutionHost, ExecutionOutput } from "@wanex/runtime/execution"
+import type {
+  ExecutionFileSystem,
+  ExecutionProcess,
+  ExecutionOutput
+} from "@wanex/runtime/execution"
 import type {
   ToolDefinition,
   ToolExecutionResult,
@@ -15,6 +19,7 @@ import {
   stringArray
 } from "./input.js"
 import type { WorkspaceProgramPolicy } from "./program-policy.js"
+import { requireWorkspaceToolScopeId } from "./scope.js"
 
 const DEFAULT_TIMEOUT_MS = 30_000
 const DEFAULT_MAX_TIMEOUT_MS = 5 * 60_000
@@ -52,7 +57,7 @@ export class WorkspaceExecTool implements ToolDefinition {
   readonly runtimeBinding
 
   private readonly paths: WorkspacePathResolver
-  private readonly executionHost: ExecutionHost
+  private readonly executionProcess: ExecutionProcess
   private readonly programPolicy: WorkspaceProgramPolicy
   private readonly defaultTimeoutMs: number
   private readonly maxTimeoutMs: number
@@ -61,8 +66,10 @@ export class WorkspaceExecTool implements ToolDefinition {
   private readonly maxArgBytes: number
 
   constructor(options: {
+    readonly scopeId: string
     readonly rootDir: string
-    readonly executionHost: ExecutionHost
+    readonly fileSystem: ExecutionFileSystem
+    readonly executionProcess: ExecutionProcess
     readonly programPolicy: WorkspaceProgramPolicy
     readonly defaultTimeoutMs?: number
     readonly maxTimeoutMs?: number
@@ -70,8 +77,8 @@ export class WorkspaceExecTool implements ToolDefinition {
     readonly maxArgs?: number
     readonly maxArgBytes?: number
   }) {
-    this.paths = new WorkspacePathResolver(options.rootDir)
-    this.executionHost = options.executionHost
+    this.paths = new WorkspacePathResolver(options.rootDir, options.fileSystem)
+    this.executionProcess = options.executionProcess
     this.programPolicy = options.programPolicy
     this.defaultTimeoutMs = options.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS
     this.maxTimeoutMs = options.maxTimeoutMs ?? DEFAULT_MAX_TIMEOUT_MS
@@ -89,7 +96,7 @@ export class WorkspaceExecTool implements ToolDefinition {
       implementationId: "wanex.workspace.tool.exec",
       implementationRevision: "1",
       configuration: {
-        rootDir: options.rootDir,
+        scopeId: requireWorkspaceToolScopeId(options.scopeId),
         programPolicy: options.programPolicy.snapshot(),
         defaultTimeoutMs: this.defaultTimeoutMs,
         maxTimeoutMs: this.maxTimeoutMs,
@@ -181,7 +188,7 @@ export class WorkspaceExecTool implements ToolDefinition {
     }
     const cwdInput = optionalString(input, "cwd")
     const cwd = await this.paths.resolveDirectory(cwdInput)
-    const result = await this.executionHost.execute({
+    const result = await this.executionProcess.execute({
       program: decision.executable,
       args,
       cwd,

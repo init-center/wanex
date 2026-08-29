@@ -26,9 +26,9 @@ export async function runTuiLineSession(
   let notificationTail = Promise.resolve()
   const unsubscribe = options.surface.client.subscribeSurfaceEvents((event) => {
     const notification =
-      event.type === "product.surface.conversation.operation-invalidated" &&
+      event.type === "assistant.surface.conversation.operation-invalidated" &&
       event.conversation?.kind ===
-        "product.conversation.operation-invalidated"
+        "assistant.conversation.operation-invalidated"
         ? async () =>
             await reconcileTuiConversationInvalidation({
               sessionOptions: options,
@@ -36,7 +36,7 @@ export async function runTuiLineSession(
               operationId: event.conversation!.operationId,
               sessionId: event.conversation!.sessionId
             })
-        : event.type === "product.surface.side-query.invalidated" &&
+        : event.type === "assistant.surface.side-query.invalidated" &&
       event.sideQuery !== undefined
         ? async () =>
             await reconcileTuiSideQueryInvalidation({
@@ -44,7 +44,7 @@ export async function runTuiLineSession(
               state,
               queryId: event.sideQuery!.queryId
             })
-        : event.type === "product.surface.plan.invalidated" &&
+        : event.type === "assistant.surface.plan.invalidated" &&
             event.plan !== undefined
           ? async () =>
               await reconcileTuiPlanInvalidation({
@@ -57,7 +57,7 @@ export async function runTuiLineSession(
                   ? {}
                   : { proposalId: event.plan!.proposalId })
               })
-          : event.type === "product.surface.goal.invalidated" &&
+          : event.type === "assistant.surface.goal.invalidated" &&
               event.goal !== undefined
             ? async () =>
                 await reconcileTuiGoalInvalidation({
@@ -67,7 +67,7 @@ export async function runTuiLineSession(
                   sessionId: event.goal!.sessionId
                 })
             : event.type ===
-                "product.surface.command-catalog.invalidated"
+                "assistant.surface.command-catalog.invalidated"
               ? async () => {
                   await options.surface.refresh()
                 }

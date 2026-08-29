@@ -1,6 +1,6 @@
 import type {
   CommandInvocationPreview
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 
 export function renderTuiCommandPreview(
   preview: CommandInvocationPreview

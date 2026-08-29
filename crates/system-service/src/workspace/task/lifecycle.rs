@@ -20,6 +20,12 @@ impl SystemService {
         validate_identity(&request.run_id, &request.attempt_id, &request.claim_token)?;
         validate_revision(request.base_revision.as_deref())?;
         validate_runtime_ref(request.runtime_ref.as_deref())?;
+        if request.base_revision.is_some() != request.runtime_ref.is_some() {
+            return Err(SystemServiceError::InvalidInput(
+                "workspace task base revision and runtime ref must be provided together"
+                    .to_string(),
+            ));
+        }
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
         let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
@@ -32,6 +38,45 @@ impl SystemService {
             now,
         )?;
         if run.state == "active" {
+            if run.base_revision.is_some() != run.runtime_ref.is_some() {
+                return Err(SystemServiceError::Invariant(
+                    "active workspace task has incomplete prepared identity".to_string(),
+                ));
+            }
+            if run.access == "writable"
+                && (request.base_revision.is_none() || request.runtime_ref.is_none())
+            {
+                return Err(SystemServiceError::InvalidInput(
+                    "writable workspace task requires base revision and runtime ref".to_string(),
+                ));
+            }
+            if run.base_revision.is_none()
+                && request.base_revision.is_some()
+                && request.runtime_ref.is_some()
+            {
+                tx.execute(
+                    "UPDATE workspace_task_run
+                     SET base_revision = ?, runtime_ref = ?, updated_at = ?
+                     WHERE id = ? AND state = 'active'
+                       AND base_revision IS NULL AND runtime_ref IS NULL",
+                    params![
+                        request.base_revision,
+                        request.runtime_ref,
+                        now,
+                        request.run_id
+                    ],
+                )?;
+                append_task_event(
+                    &tx,
+                    "workspace.task_run.identity_recorded",
+                    &request.run_id,
+                    "active",
+                    now,
+                )?;
+                let snapshot = snapshot_tx(&tx, require_run_tx(&tx, &request.run_id)?)?;
+                tx.commit()?;
+                return Ok(snapshot);
+            }
             if run.base_revision != request.base_revision || run.runtime_ref != request.runtime_ref
             {
                 return Err(SystemServiceError::Conflict(

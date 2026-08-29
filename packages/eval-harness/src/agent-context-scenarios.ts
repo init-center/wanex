@@ -16,7 +16,7 @@ import { assert } from "./scenario-utils.js"
 export const agentStarterContextContractScenario = createEvalScenario({
   id: "agent.starter-context-contract",
   title: "Cold single-agent starter context composes instructions and skills explicitly",
-  tags: ["agent", "instructions", "skills", "product-path"],
+  tags: ["agent", "instructions", "skills", "assistant-path"],
   async run(context) {
     const workspaceRoot = await mkdtemp(join(tmpdir(), "wanex-eval-agent-context-"))
     const cwd = join(workspaceRoot, "apps/demo")

@@ -6,7 +6,7 @@ import type {
   TUI,
 } from "@earendil-works/pi-tui"
 import { SelectList } from "@earendil-works/pi-tui"
-import type { HomeReadModel, TeamConversationSummary } from "@wanex/product"
+import type { HomeReadModel, TeamConversationSummary } from "@wanex/assistant"
 import type { TuiFullScreenClient } from "../types.js"
 import { TuiSelectOverlay } from "../components.js"
 import { selectedSessionId, teamConversationIdFromSelection } from "../../selection.js"
@@ -106,7 +106,7 @@ export function createTuiNavigation(options: {
     const selection = home?.state.selection
     const selectedSession = selectedSessionId(home?.state)
     const selectedTeam = teamConversationIdFromSelection(selection)
-    const sessions = home?.product.sessions.recent ?? []
+    const sessions = home?.assistant.sessions.recent ?? []
     const items: SelectItem[] = [
       { value: NEW_CONVERSATION, label: "New conversation", description: "Start with an empty composer" },
       ...sessions.map((session) => ({

@@ -38,7 +38,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
 );
-const expectedSchemaVersion = 18;
+const expectedSchemaVersion = 20;
 
 const tempDirs: string[] = [];
 const servers: Server[] = [];
@@ -80,6 +80,56 @@ function testTurnBinding(label: string) {
     },
   };
   return { digest: digestJson(binding), ...binding };
+}
+
+function testExecutionEnvironmentBinding(label: string) {
+  const capabilities = {
+    revision: 1 as const,
+    isolation: { enforcement: "none" as const },
+    filesystem: {
+      enforcement: "library_guard" as const,
+      effects: ["create", "read", "remove", "write"] as const,
+    },
+    process: {
+      oneShot: true as const,
+      managed: false,
+      cleanup: "runtime_process_tree" as const,
+    },
+    pty: { supported: false },
+    network: { enforcement: "none" as const },
+    secretProjection: { supported: false },
+    artifactExport: { supported: false },
+  };
+  const policy = {
+    revision: 1 as const,
+    filesystem: {
+      roots: [{
+        id: "workspace",
+        effects: ["create", "read", "remove", "write"] as const,
+      }],
+      maxReadBytes: 50 * 1024 * 1024,
+      maxDirectoryEntries: 100_000,
+    },
+    process: {
+      oneShot: true,
+      managed: false,
+      cleanup: "runtime_process_tree" as const,
+      environmentVariables: [],
+    },
+    network: "unrestricted" as const,
+    isolation: "none" as const,
+    pty: false,
+  };
+  return {
+    revision: 1 as const,
+    environmentId: `native_storage_${label}`,
+    providerId: "wanex.execution.native",
+    providerRevision: "1",
+    capabilities,
+    capabilityDigest: digestJson(capabilities),
+    policy,
+    policyDigest: digestJson(policy),
+  };
 }
 
 function testMediaGenerationBinding(label: string) {
@@ -680,6 +730,39 @@ describe("@wanex/storage", () => {
     expect(restored.archivedAt).toBeUndefined();
   });
 
+  it("round-trips scoped sessions and continues bounded session pages", async () => {
+    const client = await createClient();
+    const scope = {
+      kind: "coding.repository",
+      id: "repository_storage_page",
+    } as const;
+    for (const id of ["ses_storage_scope_a", "ses_storage_scope_b", "ses_storage_scope_c"]) {
+      await client.createSession({ id, kind: "agent", scope });
+    }
+    await client.createSession({
+      id: "ses_storage_scope_foreign",
+      kind: "agent",
+      scope: { kind: scope.kind, id: "repository_storage_foreign" },
+    });
+
+    const firstPage = await client.listSessions({ scope, limit: 2 });
+    expect(firstPage).toHaveLength(2);
+    expect(firstPage.every((session) => session.scope?.id === scope.id)).toBe(true);
+
+    const last = firstPage.at(-1)!;
+    const secondPage = await client.listSessions({
+      scope,
+      before: { updatedAt: last.updatedAt, sessionId: last.id },
+      limit: 2,
+    });
+    expect(secondPage.every((session) => session.scope?.id === scope.id)).toBe(true);
+    expect([...firstPage, ...secondPage].map((session) => session.id).sort()).toEqual([
+      "ses_storage_scope_a",
+      "ses_storage_scope_b",
+      "ses_storage_scope_c",
+    ]);
+  });
+
   it("persists exact durable turns and canonical ordering through the process boundary", async () => {
     const client = await createClient();
     await client.createSession({
@@ -704,6 +787,55 @@ describe("@wanex/storage", () => {
       executionBinding: testTurnBinding("storage_a"),
       maxSteps: 4,
     });
+    const replayBinding = testTurnBinding("storage_a");
+    const replayBindingWithNewAdmissionMetadata = {
+      ...replayBinding,
+      createdAt: 2,
+    };
+    const { digest: _oldDigest, ...replayBindingUnsigned } =
+      replayBindingWithNewAdmissionMetadata;
+    const replay = await client.submitSessionTurn({
+      id: "inp_storage_turn_a",
+      turnId: "turn_storage_a",
+      sessionId: "ses_storage_turn",
+      principalId: "user_storage",
+      idempotencyKey: "idem_storage_a",
+      content: [
+        {
+          type: "text",
+          id: "part_storage_a",
+          text: "first",
+        },
+      ],
+      jobId: "job_storage_a",
+      executionBinding: {
+        ...replayBindingWithNewAdmissionMetadata,
+        digest: digestJson(replayBindingUnsigned),
+      },
+      maxSteps: 4,
+    });
+    expect(replay.admission.inputId).toBe(first.admission.inputId);
+    expect(replay.turn.id).toBe(first.turn.id);
+    expect(replay.job.id).toBe(first.job.id);
+    await expect(
+      client.submitSessionTurn({
+        id: "inp_storage_turn_a",
+        turnId: "turn_storage_a",
+        sessionId: "ses_storage_turn",
+        principalId: "user_storage",
+        idempotencyKey: "idem_storage_a",
+        content: [
+          {
+            type: "text",
+            id: "part_storage_a",
+            text: "changed",
+          },
+        ],
+        jobId: "job_storage_a",
+        executionBinding: replayBinding,
+        maxSteps: 4,
+      }),
+    ).rejects.toThrow();
     const second = await client.submitSessionTurn({
       id: "inp_storage_turn_b",
       turnId: "turn_storage_b",
@@ -891,6 +1023,32 @@ describe("@wanex/storage", () => {
         turnIds: ["turn_storage_b"],
       }),
     ).resolves.toMatchObject([{ id: "turn_storage_b" }]);
+    await expect(client.getSessionTurn("turn_storage_b")).resolves.toMatchObject({
+      id: "turn_storage_b",
+      sessionId: "ses_storage_turn",
+    });
+    await expect(client.getSessionTurn("turn_storage_missing")).resolves.toBeNull();
+    const newestTurnPage = await client.listSessionTurns({
+      sessionId: "ses_storage_turn",
+      limit: 1,
+    });
+    expect(newestTurnPage.map((turn) => turn.id)).toEqual(["turn_storage_b"]);
+    await expect(
+      client.listSessionTurns({
+        sessionId: "ses_storage_turn",
+        before: {
+          createdAt: newestTurnPage[0]!.createdAt,
+          turnId: newestTurnPage[0]!.id,
+        },
+        limit: 1,
+      }),
+    ).resolves.toMatchObject([{ id: "turn_storage_a" }]);
+    await expect(
+      client.listSessionTurns({ sessionId: "ses_storage_turn" }),
+    ).resolves.toMatchObject([
+      { id: "turn_storage_a" },
+      { id: "turn_storage_b" },
+    ]);
     await expect(
       client.listSessionInputs({
         sessionId: "ses_storage_turn",
@@ -2615,6 +2773,7 @@ setInterval(() => {}, 1000)
       access: "writable",
       repositoryId: "repo_task_storage",
       isolationId: "wiso_task_storage",
+      executionEnvironment: testExecutionEnvironmentBinding("task"),
       attemptId: identity.attemptId,
       ownerId: "host_task_storage",
       claimToken,
@@ -2623,7 +2782,11 @@ setInterval(() => {}, 1000)
     expect(claim).toMatchObject({
       status: "claimed",
       snapshot: {
-        run: { state: "preparing", resourceIds: [] },
+        run: {
+          state: "preparing",
+          resourceIds: [],
+          executionEnvironment: testExecutionEnvironmentBinding("task"),
+        },
         activeAttempt: { kind: "execution", state: "active" },
       },
     });
@@ -2676,15 +2839,94 @@ setInterval(() => {}, 1000)
     ).resolves.toMatchObject({ run: { state: "released" } });
     await expect(
       client.listWorkspaceTaskRuns({
+        runIds: [identity.runId, "wtsk_storage_missing"],
         workspaceId: "workspace_task_storage",
         repositoryId: "repo_task_storage",
         state: "released",
       }),
     ).resolves.toHaveLength(1);
     await expect(
+      client.listWorkspaceTaskRuns({ runIds: [] }),
+    ).rejects.toThrow("runIds must contain 1 to 128 unique non-empty ids");
+    await expect(
+      client.listWorkspaceTaskRuns({
+        runIds: [identity.runId],
+        leaseExpiresBefore: Date.now(),
+      }),
+    ).rejects.toThrow("cannot be combined with recovery lease filtering");
+    await expect(
       client.listWorkspaceTaskAttempts({ runId: identity.runId }),
     ).resolves.toEqual([
       expect.objectContaining({ id: identity.attemptId, state: "completed" }),
+    ]);
+  });
+
+  it("claims a retained workspace task continuation through the storage RPC", async () => {
+    const client = await createClient();
+    const executionEnvironment = testExecutionEnvironmentBinding("continuation");
+    const original = {
+      runId: "wtsk_storage_continuation",
+      attemptId: "wtat_storage_continuation_original",
+      claimToken: "storage-continuation-original-token-abcdefghijklmnopqrstuvwxyz",
+    };
+    await client.beginWorkspaceTaskRun({
+      id: original.runId,
+      workspaceId: "workspace_storage_continuation",
+      principalId: "agent_storage_continuation",
+      access: "writable",
+      repositoryId: "repo_storage_continuation",
+      isolationId: "wiso_storage_continuation",
+      executionEnvironment,
+      attemptId: original.attemptId,
+      ownerId: "host_storage_continuation_original",
+      claimToken: original.claimToken,
+      leaseMs: 60_000,
+    });
+    await client.markWorkspaceTaskActive({
+      ...original,
+      baseRevision: "e".repeat(40),
+      runtimeRef: "refs/heads/wanex/storage-continuation",
+    });
+    await client.markWorkspaceTaskAttention({
+      ...original,
+      failure: {
+        type: "workspace_task.recovery_required",
+        message: "tool result was not observed",
+      },
+    });
+
+    const continuation = {
+      runId: original.runId,
+      attemptId: "wtat_storage_continuation_new",
+      ownerId: "host_storage_continuation",
+      claimToken: "storage-continuation-new-token-abcdefghijklmnopqrstuvwxyz",
+      leaseMs: 60_000,
+      executionEnvironment,
+    };
+    await expect(client.claimWorkspaceTaskContinuation(continuation)).resolves.toMatchObject({
+      status: "claimed",
+      snapshot: {
+        run: {
+          state: "active",
+          isolationId: "wiso_storage_continuation",
+          baseRevision: "e".repeat(40),
+          runtimeRef: "refs/heads/wanex/storage-continuation",
+        },
+        activeAttempt: { kind: "continuation", state: "active" },
+      },
+    });
+    const continued = await client.getWorkspaceTaskRun({ runId: original.runId });
+    expect(continued?.run.failure).toBeUndefined();
+    expect(continued?.run.finishedAt).toBeUndefined();
+    await expect(client.claimWorkspaceTaskContinuation(continuation)).resolves.toMatchObject({
+      status: "claimed",
+      snapshot: { activeAttempt: { id: continuation.attemptId } },
+    });
+    await expect(
+      client.listWorkspaceTaskAttempts({ runId: original.runId }),
+    ).resolves.toEqual([
+      expect.objectContaining({ kind: "execution", state: "failed" }),
+      expect.objectContaining({ kind: "continuation", state: "active" }),
     ]);
   });
 
@@ -2937,7 +3179,7 @@ setInterval(() => {}, 1000)
       sessionId: "ses_objective_storage",
       principalId: "agent_objective_storage",
       objective: "Reduce login LCP below 2.5s",
-      boundaries: ["apps/web"],
+      boundaries: ["packages/assistant-ui"],
       constraints: ["do not change public auth API"],
       successCriteria: [
         {

@@ -2,13 +2,13 @@
 import { readFile, writeFile } from "node:fs/promises"
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { projectModelsDevCatalog } from "../apps/local-host/src/model-catalog/validator.js"
-import { renderLocalModelCatalogSource } from "../apps/local-host/src/model-catalog/generation.js"
+import { projectModelsDevCatalog } from "../apps/assistant-host/src/model-catalog/validator.js"
+import { renderLocalModelCatalogSource } from "../apps/assistant-host/src/model-catalog/generation.js"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultOutput = resolve(
   rootDir,
-  "apps/local-host/src/model-catalog/snapshot.generated.ts"
+  "apps/assistant-host/src/model-catalog/snapshot.generated.ts"
 )
 const options = parseArgs(process.argv.slice(2))
 const payload = JSON.parse(await readFile(options.source, "utf8"))
@@ -17,7 +17,7 @@ const source = renderLocalModelCatalogSource(catalog)
 
 if (options.check) {
   const current = await readFile(options.output, "utf8")
-  if (current !== source) throw new Error("generated Product Local model catalog is stale")
+  if (current !== source) throw new Error("generated Assistant Host model catalog is stale")
 } else {
   await writeFile(options.output, source, "utf8")
 }

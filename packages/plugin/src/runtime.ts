@@ -101,7 +101,8 @@ export class PluginRuntime {
 
   async createTrustedSubprocessActionHost(
     pluginId: string,
-    version: string
+    version: string,
+    executionEnvironment: import("./types-action.js").SubprocessPluginActionHostOptions["executionEnvironment"]
   ): Promise<PluginActionHost> {
     const manifest = await this.getManifest(pluginId, version)
     if (manifest === null) {
@@ -116,7 +117,8 @@ export class PluginRuntime {
     }
     return createTrustedSubprocessPluginActionHostFromInstall({
       manifest,
-      install
+      install,
+      executionEnvironment
     })
   }
 

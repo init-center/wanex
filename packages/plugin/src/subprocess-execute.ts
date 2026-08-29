@@ -1,12 +1,11 @@
-import {
-  NodeExecutionHost,
-  type ExecutionHost,
-  type ExecutionResult
-} from "@wanex/runtime/execution"
+import { randomUUID } from "node:crypto"
+import { type ExecutionResult } from "@wanex/runtime/execution"
+import { compilePluginExecution } from "./execution-policy.js"
 import { parsePluginHostResponseMessage } from "./subprocess-response.js"
 import type {
   PluginHostExecuteMessage,
   PluginHostResponseMessage,
+  SubprocessPluginActionDescriptor,
   SubprocessPluginActionHostOptions
 } from "./types.js"
 
@@ -16,30 +15,40 @@ const DEFAULT_PLUGIN_SUBPROCESS_STDERR_LIMIT_BYTES = 8_192
 
 export async function executeSubprocessPluginAction(
   options: SubprocessPluginActionHostOptions,
+  descriptor: SubprocessPluginActionDescriptor,
   message: PluginHostExecuteMessage,
   signal: AbortSignal
 ): Promise<PluginHostResponseMessage> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_PLUGIN_SUBPROCESS_TIMEOUT_MS
+  const compiled = compilePluginExecution({
+    descriptor,
+    environment: options.executionEnvironment,
+    cwd: options.cwd,
+    scopeId: `plugin_${randomUUID().replaceAll("-", "")}`,
+    timeoutMs: options.timeoutMs ?? DEFAULT_PLUGIN_SUBPROCESS_TIMEOUT_MS
+  })
+  const timeoutMs = compiled.timeoutMs
   const stdoutLimitBytes =
     options.stdoutLimitBytes ?? DEFAULT_PLUGIN_SUBPROCESS_STDOUT_LIMIT_BYTES
   const stderrLimitBytes =
     options.stderrLimitBytes ?? DEFAULT_PLUGIN_SUBPROCESS_STDERR_LIMIT_BYTES
-  const executionHost = executionHostFor(options)
-  const result = await executionHost.execute({
-    program: options.command,
-    ...(options.args === undefined ? {} : { args: options.args }),
-    cwd: options.cwd ?? process.cwd(),
-    ...(options.executionHost === undefined || options.env === undefined
-      ? {}
-      : { environment: definedEnvironment(options.env) }),
-    stdin: `${JSON.stringify(message)}\n`,
-    signal,
-    timeoutMs,
-    output: {
-      stdoutBytes: stdoutLimitBytes,
-      stderrBytes: stderrLimitBytes
-    }
-  })
+  const executionScope = await options.executionEnvironment.bind(compiled.bind)
+  let result: ExecutionResult
+  try {
+    result = await executionScope.process.execute({
+      program: options.command,
+      ...(options.args === undefined ? {} : { args: options.args }),
+      cwd: options.cwd,
+      stdin: `${JSON.stringify(message)}\n`,
+      signal,
+      timeoutMs,
+      output: {
+        stdoutBytes: stdoutLimitBytes,
+        stderrBytes: stderrLimitBytes
+      }
+    })
+  } finally {
+    await executionScope.close()
+  }
 
   assertPluginExecutionCompleted(result, timeoutMs)
   if (result.stdout.truncated) {
@@ -52,14 +61,6 @@ export async function executeSubprocessPluginAction(
   } catch (error) {
     throw normalizePluginHostError(error)
   }
-}
-
-function executionHostFor(
-  options: SubprocessPluginActionHostOptions
-): ExecutionHost {
-  return options.executionHost ?? new NodeExecutionHost({
-    baseEnvironment: options.env ?? process.env
-  })
 }
 
 function assertPluginExecutionCompleted(
@@ -82,16 +83,6 @@ function assertPluginExecutionCompleted(
       `plugin subprocess exited with ${exitSummary(result)}${stderrSummary(result.stderr.text)}`
     )
   }
-}
-
-function definedEnvironment(
-  environment: NodeJS.ProcessEnv
-): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(environment).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined
-    )
-  )
 }
 
 function exitSummary(result: ExecutionResult): string {

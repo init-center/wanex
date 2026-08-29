@@ -1,14 +1,16 @@
 import {
   ExecutionCleanupRequiredError,
-  type ExecutionHost,
+  type ExecutionProcess,
+  type ManagedExecutionProcess,
+  type ManagedExecutionRequest,
   type ExecutionRequest,
   type ExecutionResult
 } from "@wanex/runtime/execution"
 
-export class WorkspaceTaskExecutionGuard implements ExecutionHost {
+export class WorkspaceTaskExecutionGuard implements ExecutionProcess {
   private cleanupFailure: ExecutionCleanupRequiredError | undefined
 
-  constructor(private readonly delegate: ExecutionHost) {}
+  constructor(private readonly delegate: ExecutionProcess) {}
 
   async execute(request: ExecutionRequest): Promise<ExecutionResult> {
     this.assertCleanupProven()
@@ -25,6 +27,21 @@ export class WorkspaceTaskExecutionGuard implements ExecutionHost {
       }
       throw error
     }
+  }
+
+  async start(request: ManagedExecutionRequest): Promise<ManagedExecutionProcess> {
+    this.assertCleanupProven()
+    const process = await this.delegate.start(request)
+    void process.wait().then((result) => {
+      if (result.cleanup === "failed") {
+        this.cleanupFailure ??= new ExecutionCleanupRequiredError()
+      }
+    }, (error: unknown) => {
+      if (error instanceof ExecutionCleanupRequiredError) {
+        this.cleanupFailure ??= error
+      }
+    })
+    return process
   }
 
   assertCleanupProven(): void {

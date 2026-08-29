@@ -37,7 +37,7 @@ export async function runWanexDesktopProviderGuidedFollowUpAdmissionProof(
   const startedAt = performance.now()
   const surface = await waitFor(() => {
     const candidate = document.querySelector(
-      '[data-ui-product-shell]'
+      '[data-ui-assistant-shell]'
     )
     const composer = candidate?.querySelector(
       '[data-ui-composer][data-ui-composer-mode="submit"]'

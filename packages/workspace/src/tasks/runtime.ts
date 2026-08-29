@@ -1,7 +1,10 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto"
-import type { ResourceRecord } from "@wanex/protocol"
+import type { ResourceRecord, WorkspaceTaskRunSnapshot } from "@wanex/protocol"
 import { WanexResourceRuntime } from "@wanex/runtime/resources"
-import { NodeExecutionHost } from "@wanex/runtime/execution"
+import {
+  assertExecutionEnvironmentBindingEqual,
+  type ExecutionScope
+} from "@wanex/runtime/execution"
 import type {
   WorkspaceIsolationAdapter,
   WorkspaceIsolationLease
@@ -22,11 +25,13 @@ import { WorkspaceTaskLeaseRenewal } from "./renewal.js"
 import { projectionAttentionToJson } from "../git/projection.js"
 import { recoverExpiredWorkspaceTasks } from "./recovery-admission.js"
 import type { WorkspaceTaskStore } from "./storage.js"
+import { WorkspaceTaskAttentionError } from "./types.js"
 import type {
   WorkspaceTaskContext,
   WorkspaceTaskError,
   WorkspaceTaskHandlerResult,
   RecoverWorkspaceTaskRequest,
+  ResumeWorkspaceTaskRequest,
   WorkspaceTaskReceipt,
   WorkspaceTaskRecoveryAdmissionRequest,
   WorkspaceTaskRecoveryAdmissionResult,
@@ -50,7 +55,7 @@ export class WorkspaceTaskRuntime {
   private readonly leaseMs: number
   private readonly defaultWorkspaceId: string
   private readonly defaultPrincipalId: string
-  private readonly childSupervisor: WorkspaceTaskRuntimeOptions["childSupervisor"]
+  private readonly executionEnvironment: WorkspaceTaskRuntimeOptions["executionEnvironment"]
 
   constructor(options: WorkspaceTaskRuntimeOptions) {
     this.storage = options.storage
@@ -66,7 +71,7 @@ export class WorkspaceTaskRuntime {
     }
     this.defaultWorkspaceId = options.workspaceId ?? DEFAULT_WORKSPACE_ID
     this.defaultPrincipalId = options.principalId ?? DEFAULT_PRINCIPAL_ID
-    this.childSupervisor = options.childSupervisor
+    this.executionEnvironment = options.executionEnvironment
   }
 
   async runTask(request: WorkspaceTaskRequest): Promise<WorkspaceTaskReceipt> {
@@ -74,6 +79,34 @@ export class WorkspaceTaskRuntime {
     const workspaceId = request.workspaceId ?? this.defaultWorkspaceId
     const principalId = request.principalId ?? this.defaultPrincipalId
     const isolationId = isolationIdFor(this.repositoryId, taskId)
+    const policy = createWorkspaceTaskExecutionPolicy(
+      request.access,
+      this.executionEnvironment.capabilities.process.cleanup,
+      this.executionEnvironment.capabilities.isolation.enforcement
+    )
+    const executionEnvironment = this.executionEnvironment.resolveBinding({ policy })
+    const current = request.id === undefined
+      ? null
+      : await this.storage.getWorkspaceTaskRun({ runId: taskId })
+    if (current !== null) {
+      assertWorkspaceTaskRunIdentity(current, {
+        workspaceId,
+        principalId,
+        access: request.access,
+        repositoryId: this.repositoryId,
+        isolationId,
+        ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
+        ...(request.agentId === undefined ? {} : { agentId: request.agentId })
+      })
+      assertExecutionEnvironmentBindingEqual(
+        current.run.executionEnvironment,
+        executionEnvironment,
+        "workspace task execution environment"
+      )
+      if (current.run.state === "released" || current.run.state === "attention") {
+        return await workspaceTaskReceiptFromSnapshot(this.storage, current)
+      }
+    }
     const attemptId = `wtat_${randomUUID().replaceAll("-", "")}`
     const claimToken = randomBytes(32).toString("hex")
     const identity = { runId: taskId, attemptId, claimToken }
@@ -84,12 +117,26 @@ export class WorkspaceTaskRuntime {
       access: request.access,
       repositoryId: this.repositoryId,
       isolationId,
+      executionEnvironment,
+      ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
+      ...(request.agentId === undefined ? {} : { agentId: request.agentId }),
       attemptId,
       ownerId: this.ownerId,
       claimToken,
       leaseMs: this.leaseMs
     })
+    assertExecutionEnvironmentBindingEqual(
+      claim.snapshot.run.executionEnvironment,
+      executionEnvironment,
+      "workspace task execution environment"
+    )
     if (claim.status === "already_terminal") {
+      return await workspaceTaskReceiptFromSnapshot(this.storage, claim.snapshot)
+    }
+    if (
+      claim.snapshot.run.state === "released" ||
+      claim.snapshot.run.state === "attention"
+    ) {
       return await workspaceTaskReceiptFromSnapshot(this.storage, claim.snapshot)
     }
     if (claim.status !== "claimed") {
@@ -101,6 +148,146 @@ export class WorkspaceTaskRuntime {
         error: { message: "workspace task is already active" }
       })
     }
+
+    return await this.executeClaimedTask(request, {
+      taskId,
+      workspaceId,
+      principalId,
+      isolationId,
+      identity,
+      policy,
+      environment: this.executionEnvironment,
+      executionBinding: executionEnvironment,
+      retainIsolationOnSetupFailure: false
+    })
+  }
+
+  async resumeTask(
+    request: ResumeWorkspaceTaskRequest
+  ): Promise<WorkspaceTaskReceipt> {
+    const taskId = requireOpaqueId(request.runId, "runId")
+    const current = await this.storage.getWorkspaceTaskRun({ runId: taskId })
+    if (current === null) {
+      throw new Error(`workspace task run does not exist: ${taskId}`)
+    }
+    if (current.run.repositoryId !== this.repositoryId) {
+      throw new Error("workspace task belongs to a different repository")
+    }
+    if (current.run.state === "released") {
+      return await workspaceTaskReceiptFromSnapshot(this.storage, current)
+    }
+    if (current.run.state !== "attention") {
+      return failedReceipt({
+        taskId,
+        access: current.run.access as WorkspaceTaskRequest["access"],
+        workspaceId: current.run.workspaceId,
+        principalId: current.run.principalId,
+        error: { message: "workspace task is not waiting for continuation" }
+      })
+    }
+    if (current.run.access !== "read_only" && current.run.access !== "writable") {
+      throw new Error(`workspace task access is invalid: ${current.run.access}`)
+    }
+    const access = current.run.access
+    const policy = createWorkspaceTaskExecutionPolicy(
+      access,
+      this.executionEnvironment.capabilities.process.cleanup,
+      this.executionEnvironment.capabilities.isolation.enforcement
+    )
+    const executionEnvironment = this.executionEnvironment.resolveBinding({ policy })
+    const attemptId = `wtat_${randomUUID().replaceAll("-", "")}`
+    const claimToken = randomBytes(32).toString("hex")
+    const identity = { runId: taskId, attemptId, claimToken }
+    const claim = await this.storage.claimWorkspaceTaskContinuation({
+      ...identity,
+      ownerId: this.ownerId,
+      leaseMs: this.leaseMs,
+      executionEnvironment
+    })
+    assertExecutionEnvironmentBindingEqual(
+      claim.snapshot.run.executionEnvironment,
+      executionEnvironment,
+      "workspace task continuation execution environment"
+    )
+    if (claim.status === "already_terminal") {
+      return await workspaceTaskReceiptFromSnapshot(this.storage, claim.snapshot)
+    }
+    if (claim.status !== "claimed") {
+      return failedReceipt({
+        taskId,
+        access,
+        workspaceId: current.run.workspaceId,
+        principalId: current.run.principalId,
+        error: { message: "workspace task continuation is already active" }
+      })
+    }
+
+    const stored = claim.snapshot.run
+    const resumedRequest: WorkspaceTaskRequest = {
+      id: stored.id,
+      workspaceId: stored.workspaceId,
+      principalId: stored.principalId,
+      access,
+      input: request.input,
+      ...(stored.jobId === undefined ? {} : { jobId: stored.jobId }),
+      ...(stored.agentId === undefined ? {} : { agentId: stored.agentId }),
+      handler: request.handler
+    }
+    return await this.executeClaimedTask(resumedRequest, {
+      taskId,
+      workspaceId: stored.workspaceId,
+      principalId: stored.principalId,
+      isolationId: stored.isolationId,
+      identity,
+      policy,
+      environment: this.executionEnvironment,
+      executionBinding: executionEnvironment,
+      retainIsolationOnSetupFailure: true,
+      expectedLease: {
+        ...(stored.baseRevision === undefined
+          ? {}
+          : { baseRevision: stored.baseRevision }),
+        ...(stored.runtimeRef === undefined
+          ? {}
+          : { branchName: stored.runtimeRef })
+      }
+    })
+  }
+
+  private async executeClaimedTask(
+    request: WorkspaceTaskRequest,
+    options: {
+      readonly taskId: string
+      readonly workspaceId: string
+      readonly principalId: string
+      readonly isolationId: string
+      readonly identity: {
+        readonly runId: string
+        readonly attemptId: string
+        readonly claimToken: string
+      }
+      readonly policy: ReturnType<typeof createWorkspaceTaskExecutionPolicy>
+      readonly environment: WorkspaceTaskRuntimeOptions["executionEnvironment"]
+      readonly executionBinding: import("@wanex/runtime/execution").ExecutionEnvironmentBinding
+      readonly retainIsolationOnSetupFailure: boolean
+      readonly expectedLease?: {
+        readonly baseRevision?: string
+        readonly branchName?: string
+      }
+    }
+  ): Promise<WorkspaceTaskReceipt> {
+    const {
+      taskId,
+      workspaceId,
+      principalId,
+      isolationId,
+      identity,
+      policy,
+      environment,
+      executionBinding,
+      retainIsolationOnSetupFailure,
+      expectedLease
+    } = options
 
     const renewal = new WorkspaceTaskLeaseRenewal({
       storage: this.storage,
@@ -126,10 +313,21 @@ export class WorkspaceTaskRuntime {
         throw new Error("workspace isolation adapter changed the durable isolation identity")
       }
       if (request.access === "writable" && lease.kind !== "git_worktree") {
-        await isolation.release(lease)
+        if (!retainIsolationOnSetupFailure) {
+          await isolation.release(lease)
+        }
         throw new Error(
           `writable workspace task requires runtime-owned git_worktree isolation: ${lease.kind}`
         )
+      }
+      if (
+        expectedLease !== undefined &&
+        (expectedLease.baseRevision !== undefined &&
+          lease.baseRevision !== expectedLease.baseRevision ||
+          expectedLease.branchName !== undefined &&
+          lease.branchName !== expectedLease.branchName)
+      ) {
+        throw new Error("workspace continuation changed the durable isolation identity")
       }
       renewal.assertHealthy()
       await this.storage.markWorkspaceTaskActive({
@@ -152,15 +350,48 @@ export class WorkspaceTaskRuntime {
       })
     }
 
-    const executionGuard =
-      this.childSupervisor === undefined
-        ? undefined
-        : new WorkspaceTaskExecutionGuard(
-            new NodeExecutionHost({
-              childSupervisor: this.childSupervisor,
-              supervisorClaim: identity
-            })
-          )
+    let executionScope: ExecutionScope | undefined
+    try {
+      executionScope = await environment.bind({
+        scopeId: identity.attemptId,
+        policy,
+        fileSystemRoots: [{ id: "workspace", path: lease.rootDir }],
+        ...(environment.capabilities.process.cleanup ===
+        "durable_supervisor"
+          ? { supervisorClaim: identity }
+          : {})
+      })
+      assertExecutionEnvironmentBindingEqual(
+        executionScope.binding,
+        executionBinding,
+        "workspace task bound execution environment"
+      )
+    } catch (error) {
+      await executionScope?.close().catch(() => {})
+      const taskError = serializeWorkspaceTaskError(error, [lease.rootDir])
+      await markAttentionBestEffort(this.storage, identity, taskError)
+      if (!retainIsolationOnSetupFailure) {
+        await releaseWorkspaceTaskLease(isolation, lease)
+      }
+      await renewal.stop()
+      return failedReceipt({
+        taskId,
+        access: request.access,
+        workspaceId,
+        principalId,
+        error: taskError
+      })
+    }
+    if (executionScope === undefined) {
+      throw new Error("workspace task execution Scope was not bound")
+    }
+    const executionGuard = new WorkspaceTaskExecutionGuard(executionScope.process)
+    let executionScopeClosed = false
+    const closeExecutionScope = async (): Promise<void> => {
+      if (executionScopeClosed) return
+      executionScopeClosed = true
+      await executionScope.close()
+    }
     const context: WorkspaceTaskContext = {
       taskId,
       workspaceId,
@@ -168,36 +399,50 @@ export class WorkspaceTaskRuntime {
       access: request.access,
       input: request.input,
       rootDir: lease.rootDir,
-      ...(executionGuard === undefined ? {} : { executionHost: executionGuard })
+      executionScope: {
+        binding: executionScope.binding,
+        fileSystem: executionScope.fileSystem,
+        process: executionGuard
+      }
     }
     let handlerResult: WorkspaceTaskHandlerResult = {}
     let handlerError: WorkspaceTaskError | undefined
     let resources: readonly ResourceRecord[] = []
     try {
       handlerResult = await request.handler(context)
-      executionGuard?.assertCleanupProven()
+      executionGuard.assertCleanupProven()
       resources = await ingestWorkspaceTaskArtifacts(
         this.resourceRuntime,
         handlerResult.artifacts ?? []
       )
       renewal.assertHealthy()
     } catch (error) {
+      if (error instanceof WorkspaceTaskAttentionError) {
+        let attentionError = error.failure
+        try {
+          await closeExecutionScope()
+          executionGuard.assertCleanupProven()
+        } catch (closeError) {
+          attentionError = combineWorkspaceTaskErrors(
+            attentionError,
+            serializeWorkspaceTaskError(closeError, [lease.rootDir])
+          )
+        }
+        await markAttentionBestEffort(this.storage, identity, attentionError)
+        await renewal.stop()
+        return withOptionalReceiptFields(
+          {
+            taskId,
+            status: "failed",
+            access: request.access,
+            workspaceId,
+            principalId,
+            resources: []
+          },
+          { error: attentionError }
+        )
+      }
       handlerError = serializeWorkspaceTaskError(error, [lease.rootDir])
-    }
-
-    try {
-      executionGuard?.assertCleanupProven()
-    } catch (error) {
-      const cleanupError = serializeWorkspaceTaskError(error, [lease.rootDir])
-      await markAttentionBestEffort(this.storage, identity, cleanupError)
-      await renewal.stop()
-      return failedReceipt({
-        taskId,
-        access: request.access,
-        workspaceId,
-        principalId,
-        error: cleanupError
-      })
     }
 
     let summary: string | undefined
@@ -216,8 +461,11 @@ export class WorkspaceTaskRuntime {
         const ids = projectionIds(workspaceId, taskId)
         const collection = await this.writableCollection.collectWorktree({
           lease,
+          executionScope,
           changeSetId: ids.changeSetId
         })
+        await closeExecutionScope()
+        executionGuard.assertCleanupProven()
         if (collection.status === "attention") {
           const projectionError: WorkspaceTaskError = {
             message: "workspace Git projection requires attention",
@@ -264,6 +512,8 @@ export class WorkspaceTaskRuntime {
           })
         }
       } else {
+        await closeExecutionScope()
+        executionGuard.assertCleanupProven()
         await this.storage.finalizeWorkspaceTaskCollection({
           ...identity,
           outcome:
@@ -275,7 +525,16 @@ export class WorkspaceTaskRuntime {
       renewal.assertHealthy()
     } catch (error) {
       const collectionError = serializeWorkspaceTaskError(error, [lease.rootDir])
-      await markAttentionBestEffort(this.storage, identity, collectionError)
+      let finalError = collectionError
+      try {
+        await closeExecutionScope()
+      } catch (closeError) {
+        finalError = combineWorkspaceTaskErrors(
+          finalError,
+          serializeWorkspaceTaskError(closeError, [lease.rootDir])
+        )
+      }
+      await markAttentionBestEffort(this.storage, identity, finalError)
       await renewal.stop()
       return withOptionalReceiptFields(
         {
@@ -290,8 +549,8 @@ export class WorkspaceTaskRuntime {
           summary,
           error:
             handlerError === undefined
-              ? collectionError
-              : combineWorkspaceTaskErrors(handlerError, collectionError)
+              ? finalError
+              : combineWorkspaceTaskErrors(handlerError, finalError)
         }
       )
     }
@@ -341,7 +600,8 @@ export class WorkspaceTaskRuntime {
         writableIsolation: this.writableIsolation,
         repositoryId: this.repositoryId,
         ownerId: this.ownerId,
-        leaseMs: this.leaseMs
+        leaseMs: this.leaseMs,
+        executionEnvironment: this.executionEnvironment
       },
       request
     )
@@ -358,7 +618,8 @@ export class WorkspaceTaskRuntime {
         repositoryId: this.repositoryId,
         ownerId: this.ownerId,
         leaseMs: this.leaseMs,
-        defaultWorkspaceId: this.defaultWorkspaceId
+        defaultWorkspaceId: this.defaultWorkspaceId,
+        executionEnvironment: this.executionEnvironment
       },
       request
     )
@@ -378,6 +639,35 @@ export class WorkspaceTaskRuntime {
             proposalId: snapshot.run.proposalId
           })) ?? undefined
     return { changeSet, proposal }
+  }
+}
+
+export function createWorkspaceTaskExecutionPolicy(
+  access: WorkspaceTaskRequest["access"],
+  cleanup: import("@wanex/runtime/execution").ExecutionPolicySnapshot["process"]["cleanup"],
+  isolation: import("@wanex/runtime/execution").ExecutionPolicySnapshot["isolation"]
+): import("@wanex/runtime/execution").ExecutionPolicySnapshot {
+  return {
+    revision: 1,
+    filesystem: {
+      roots: [{
+        id: "workspace",
+        effects: access === "writable"
+          ? ["read", "write", "create", "remove"]
+          : ["read"]
+      }],
+      maxReadBytes: 50 * 1024 * 1024,
+      maxDirectoryEntries: 100_000
+    },
+    process: {
+      oneShot: true,
+      managed: cleanup === "durable_supervisor",
+      cleanup,
+      environmentVariables: []
+    },
+    network: "unrestricted",
+    isolation,
+    pty: false
   }
 }
 
@@ -459,4 +749,30 @@ function requireOpaqueId(value: string, label: string): string {
     throw new Error(`${label} must be an opaque identifier`)
   }
   return value
+}
+
+function assertWorkspaceTaskRunIdentity(
+  snapshot: WorkspaceTaskRunSnapshot,
+  identity: {
+    readonly workspaceId: string
+    readonly principalId: string
+    readonly access: WorkspaceTaskRequest["access"]
+    readonly repositoryId: string
+    readonly isolationId: string
+    readonly jobId?: string
+    readonly agentId?: string
+  }
+): void {
+  const run = snapshot.run
+  if (
+    run.workspaceId !== identity.workspaceId ||
+    run.principalId !== identity.principalId ||
+    run.access !== identity.access ||
+    run.repositoryId !== identity.repositoryId ||
+    run.isolationId !== identity.isolationId ||
+    run.jobId !== identity.jobId ||
+    run.agentId !== identity.agentId
+  ) {
+    throw new Error(`workspace task run id already exists with different identity: ${run.id}`)
+  }
 }

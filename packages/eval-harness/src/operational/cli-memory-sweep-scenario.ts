@@ -13,7 +13,7 @@ const LONG_TURN_PROMPT = "cli memory ".repeat(900)
 export const cliMemorySweepOperationalScenario = createEvalScenario({
   id: "cli.memory-sweep-operational",
   title: "CLI memory sweep submits maintenance jobs idempotently",
-  tags: ["cli", "memory", "maintenance", "product-path"],
+  tags: ["cli", "memory", "maintenance", "assistant-path"],
   async run(context) {
     await runCli(context, [
       "model-endpoint",

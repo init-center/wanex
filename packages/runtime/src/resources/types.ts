@@ -57,7 +57,36 @@ export interface ProviderAsyncOperationArtifactOutput extends ProviderArtifactBa
 }
 
 export interface WanexResourceRuntimeOptions {
-  readonly storage: RuntimeStore
+  readonly storage: Pick<RuntimeStore, "ingestResource">
+}
+
+export interface EnvironmentFileExportRequest {
+  readonly path: string
+  readonly maxBytes: number
+  readonly expectedSha256?: string
+  readonly mediaType?: string
+  readonly kind?: ResourceKind
+  readonly origin?: ResourceOrigin
+  readonly label?: string
+  readonly width?: number
+  readonly height?: number
+  readonly durationMs?: number
+}
+
+export interface EnvironmentArtifactScope {
+  readonly binding: {
+    readonly capabilities: {
+      readonly artifactExport: { readonly supported: boolean }
+    }
+  }
+  readonly fileSystem: {
+    metadata(path: string): Promise<{
+      readonly kind: "file" | "directory" | "symlink" | "other"
+      readonly size: number
+      readonly modifiedAt: number
+    } | null>
+    read(path: string): Promise<Uint8Array>
+  }
 }
 
 export type ResourcePreviewKind =

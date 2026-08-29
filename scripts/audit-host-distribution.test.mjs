@@ -4,7 +4,7 @@ import {
   parseHostDistributionAuditArgs
 } from "./audit-host-distribution.mjs"
 import {
-  summarizeProductDesktopSamples
+  summarizeDesktopSamples
 } from "../apps/desktop/scripts/metrics.mjs"
 import { summarizeNativeRuntimeSamples } from "./native-runtime-metrics.mjs"
 
@@ -75,7 +75,7 @@ describe("host distribution budget", () => {
     ]))
   })
 
-  it("reports every native and Product Desktop ceiling violation", () => {
+  it("reports every native and Desktop ceiling violation", () => {
     const native = nativeReceipt()
     native.artifact.bytes = 101
     native.samples.forEach((sample) => {
@@ -86,7 +86,7 @@ describe("host distribution budget", () => {
     desktop.packaged.unpackedBytes = 101
     desktop.packaged.hasApplicationNodeModules = true
     desktop.samples[0].runtime.timingsMs.interactiveTotal = 101
-    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -97,9 +97,9 @@ describe("host distribution budget", () => {
     expect(result.failures).toEqual(expect.arrayContaining([
       expect.stringContaining("native executable bytes"),
       expect.stringContaining("native total median ms"),
-      expect.stringContaining("Product Desktop unpacked bytes"),
-      expect.stringContaining("Product Desktop node_modules exclusion"),
-      expect.stringContaining("Product Desktop cold interactive total ms")
+      expect.stringContaining("Desktop unpacked bytes"),
+      expect.stringContaining("Desktop node_modules exclusion"),
+      expect.stringContaining("Desktop cold interactive total ms")
     ]))
   })
 
@@ -125,7 +125,7 @@ describe("host distribution budget", () => {
     desktop.samples.slice(1, 4).forEach((sample) => {
       sample.runtime.timingsMs.interactiveTotal = 101
     })
-    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -133,14 +133,14 @@ describe("host distribution budget", () => {
       desktop
     })
     expect(result.failures).toEqual([
-      expect.stringContaining("Product Desktop warm interactive total median ms")
+      expect.stringContaining("Desktop warm interactive total median ms")
     ])
   })
 
   it("retains a hard warm ceiling for one pathological sample", () => {
     const desktop = desktopReceipt()
     desktop.samples[3].runtime.timingsMs.interactiveTotal = 201
-    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -149,7 +149,7 @@ describe("host distribution budget", () => {
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
-        "Product Desktop warm interactive total hard maximum ms"
+        "Desktop warm interactive total hard maximum ms"
       )
     ])
   })
@@ -157,7 +157,7 @@ describe("host distribution budget", () => {
   it("bounds asynchronous settlement separately from interactive startup", () => {
     const desktop = desktopReceipt()
     desktop.samples[2].runtime.timingsMs.conversationSettlement = 101
-    desktop.summary = summarizeProductDesktopSamples(desktop.samples)
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
@@ -166,12 +166,12 @@ describe("host distribution budget", () => {
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
-        "Product Desktop warm conversation settlement maximum ms"
+        "Desktop warm conversation settlement maximum ms"
       )
     ])
   })
 
-  it("rejects a declared Product Desktop summary that differs from raw samples", () => {
+  it("rejects a declared Desktop summary that differs from raw samples", () => {
     const desktop = desktopReceipt()
     desktop.summary.cold.timingsMs.interactiveTotal = 49
     const result = auditHostDistributionData({
@@ -181,7 +181,7 @@ describe("host distribution budget", () => {
       desktop
     })
     expect(result.failures).toEqual([
-      "Product Desktop declared summary does not match raw samples"
+      "Desktop declared summary does not match raw samples"
     ])
   })
 
@@ -280,7 +280,7 @@ function desktopBudget() {
     maxUnpackedBytes: 100,
     maxPackageFileCount: 100,
     maxAsarBytes: 100,
-    exactAsarEntryCount: 2,
+    exactAsarEntryCount: 3,
     maxNativeBytes: 100,
     exactNativeFileCount: 2,
     maxCredentialBytes: 100,
@@ -355,7 +355,7 @@ function desktopReceipt() {
     }
   }))
   return {
-    kind: "wanex.product-desktop.proof-receipt",
+    kind: "wanex.desktop.proof-receipt",
     ok: true,
     packaged: {
       platform: "darwin",
@@ -363,7 +363,7 @@ function desktopReceipt() {
       unpackedBytes: 50,
       fileCount: 50,
       asarBytes: 50,
-      asarEntryCount: 2,
+      asarEntryCount: 3,
       nativeBytes: 50,
       nativeFileCount: 2,
       credentialBytes: 50,
@@ -371,10 +371,17 @@ function desktopReceipt() {
       hasApplicationNodeModules: false,
       hasAsarUnpacked: false
     },
+    installed: {
+      externalToWorkspace: true,
+      packageFileCount: 50,
+      packageBytes: 50,
+      packageShapeVerified: true,
+      executedFromInstalledCopy: true
+    },
     sampleCount: 5,
     samples,
-    summary: summarizeProductDesktopSamples(samples),
-    realProductDocument: true,
+    summary: summarizeDesktopSamples(samples),
+    realDesktopDocument: true,
     screenshotsNonBlank: true,
     noEpermRename: true,
     noOwnedProcessAfterRun: true,

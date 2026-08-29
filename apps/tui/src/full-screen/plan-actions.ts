@@ -2,7 +2,7 @@ import type { SelectListTheme } from "@earendil-works/pi-tui"
 import type {
   PlanGenerationReadModel,
   PlanProposalReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   TuiPlanReviewOverlay,
   type TuiPlanAction

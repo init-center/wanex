@@ -32,7 +32,16 @@ import {
   WANEX_DESKTOP_PROOF_SCHEDULE_PARTIAL_RESPONSE,
   WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT,
   WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
-  WANEX_DESKTOP_PROOF_TEAM_MESSAGE
+  WANEX_DESKTOP_PROOF_TEAM_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_FILE,
+  WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT,
+  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
+  WANEX_DESKTOP_PROOF_CODING_RESPONSE,
+  WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
+  WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
 } from "../src/proof-contract.ts"
 
 const MAX_REQUEST_BYTES = 1024 * 1024
@@ -42,7 +51,7 @@ const GENERATED_IMAGE_BYTES = Buffer.from(
   "base64"
 )
 
-export async function listenProductDesktopProofProvider(options) {
+export async function listenDesktopProofProvider(options) {
   const requests = []
   let cancelRegenerateRequestCount = 0
   let guidedParentObserved = false
@@ -54,6 +63,8 @@ export async function listenProductDesktopProofProvider(options) {
   let sideQueryParent
   let scheduleRequestCount = 0
   let scheduleParent
+  let codingRequestCount = 0
+  let codingRecoveryRequestCount = 0
   const server = createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request)
@@ -69,7 +80,7 @@ export async function listenProductDesktopProofProvider(options) {
           model !== WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID ||
           body?.prompt !== WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT
         ) {
-          throw new Error("Product Desktop proof image generation request is invalid")
+          throw new Error("Desktop proof image generation request is invalid")
         }
         requests.push({
           path,
@@ -95,11 +106,14 @@ export async function listenProductDesktopProofProvider(options) {
       const sideQueryPhase = readSideQueryProofPhase(body)
       const teamPhase = readTeamProofPhase(body)
       const scheduleProof = readScheduleProof(body)
+      const codingProof = readCodingProof(body)
       const teamInputImages = teamPhase === undefined
         ? []
         : inspectLatestUserImageInputs(body)
       if (cancelRegenerate) cancelRegenerateRequestCount += 1
       if (scheduleProof) scheduleRequestCount += 1
+      if (codingProof !== undefined) codingRequestCount += 1
+      if (codingProof === "recovery_tool_call") codingRecoveryRequestCount += 1
       const requestEvidence = {
         path,
         model,
@@ -182,7 +196,23 @@ export async function listenProductDesktopProofProvider(options) {
                 schedulePhase: "restored",
                 scheduleAttempt: scheduleRequestCount
               }
-          : {})
+            : {}),
+        ...(codingProof === undefined
+          ? {}
+          : {
+              codingPhase: codingProof,
+              ...(codingProof === "tool_call"
+                ? {
+                    codingToolName: readCodingToolName(body),
+                    codingToolCallId: readCodingToolCallId(body)
+                  }
+                : codingProof === "recovery_tool_call"
+                  ? {
+                      codingToolName: readCodingRecoveryToolName(body),
+                      codingToolCallId: "call_desktop_proof_coding_recovery"
+                    }
+                  : { codingToolResultPresent: true })
+            })
       }
       requests.push(requestEvidence)
       if (scheduleProof) {
@@ -207,11 +237,71 @@ export async function listenProductDesktopProofProvider(options) {
           )
           return
         }
-        throw new Error("Product Desktop proof Schedule dispatched more than twice")
+        throw new Error("Desktop proof Schedule dispatched more than twice")
+      }
+      if (codingProof !== undefined) {
+        if (codingRequestCount === 1 && codingProof === "tool_call") {
+          writeEventStream(response, {
+            choices: [{
+              delta: {
+                tool_calls: [{
+                  index: 0,
+                  id: WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
+                  function: {
+                    name: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
+                    arguments: JSON.stringify({
+                      title: "Create coding proof file",
+                      changes: [{
+                        path: WANEX_DESKTOP_PROOF_CODING_FILE,
+                        kind: "create",
+                        targetText: WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT
+                      }]
+                    })
+                  }
+                }]
+              },
+              finish_reason: "tool_calls"
+            }]
+          })
+          return
+        }
+        if (codingRequestCount === 2 && codingProof === "final") {
+          writeTextEventStream(
+            response,
+            WANEX_DESKTOP_PROOF_CODING_RESPONSE
+          )
+          return
+        }
+        if (
+          codingProof === "recovery_tool_call" &&
+          codingRecoveryRequestCount <= 2
+        ) {
+          writeEventStream(response, {
+            choices: [{
+              delta: {
+                tool_calls: [{
+                  index: 0,
+                  id: "call_desktop_proof_coding_recovery",
+                  function: {
+                    name: WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
+                    arguments: JSON.stringify({ operation: "coding recovery" })
+                  }
+                }]
+              },
+              finish_reason: "tool_calls"
+            }]
+          })
+          return
+        }
+        if (codingProof === "recovery_final" && codingRecoveryRequestCount === 1) {
+          writeTextEventStream(response, WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE)
+          return
+        }
+        throw new Error("Desktop proof Coding did not follow the two-step Tool protocol")
       }
       if (guidedFollowUpPhase === "parent") {
         if (guidedParentObserved) {
-          throw new Error("Product Desktop proof guided parent was dispatched twice")
+          throw new Error("Desktop proof guided parent was dispatched twice")
         }
         guidedParentObserved = true
         guidedParentEvidence = requestEvidence
@@ -230,7 +320,7 @@ export async function listenProductDesktopProofProvider(options) {
       }
       if (sideQueryPhase === "parent") {
         if (sideQueryParentObserved) {
-          throw new Error("Product Desktop proof Side Query parent was dispatched twice")
+          throw new Error("Desktop proof Side Query parent was dispatched twice")
         }
         sideQueryParentObserved = true
         sideQueryParent = writeControlledTextEventStream(
@@ -253,7 +343,7 @@ export async function listenProductDesktopProofProvider(options) {
           sideQueryParent.released
         ) {
           throw new Error(
-            "Product Desktop proof Side Query did not run beside its active parent"
+            "Desktop proof Side Query did not run beside its active parent"
           )
         }
         sideQueryObserved = true
@@ -266,7 +356,7 @@ export async function listenProductDesktopProofProvider(options) {
           guidedParentEvidence?.guidedFollowUpSettled !== true
         ) {
           throw new Error(
-            "Product Desktop proof guided child started before parent settlement"
+            "Desktop proof guided child started before parent settlement"
           )
         }
         guidedChildObserved = true
@@ -356,7 +446,7 @@ export async function listenProductDesktopProofProvider(options) {
         response,
         imageGenerationPhase === "final"
           ? WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE
-          : productDesktopProofProviderResponse(model)
+          : desktopProofProviderResponse(model)
       )
     } catch (error) {
       response.writeHead(400, { "content-type": "application/json" })
@@ -372,7 +462,7 @@ export async function listenProductDesktopProofProvider(options) {
   const address = server.address()
   if (address === null || typeof address === "string") {
     await closeServer(server)
-    throw new Error("Product Desktop proof provider did not expose a TCP address")
+    throw new Error("Desktop proof provider did not expose a TCP address")
   }
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
@@ -541,6 +631,70 @@ function readScheduleProof(body) {
   return messageText(latestUser) === WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT
 }
 
+function readCodingProof(body) {
+  if (!Array.isArray(body?.messages)) return undefined
+  const latestUser = [...body.messages]
+    .reverse()
+    .find((message) => message?.role === "user")
+  const text = messageText(latestUser)
+  if (text === WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE) {
+    const hasRecoveryTool = Array.isArray(body.tools) && body.tools.some((tool) =>
+      tool?.type === "function" &&
+      tool.function?.name === WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME
+    )
+    const hasRecoveryResult = body.messages.some((message) =>
+      message?.role === "tool" &&
+      message.tool_call_id === "call_desktop_proof_coding_recovery"
+    )
+    if (hasRecoveryResult) return "recovery_final"
+    return hasRecoveryTool ? "recovery_tool_call" : undefined
+  }
+  if (!text.includes(WANEX_DESKTOP_PROOF_CODING_MESSAGE)) return undefined
+  const hasTool = Array.isArray(body.tools) && body.tools.some((tool) =>
+    tool?.type === "function" &&
+    tool.function?.name === WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
+  )
+  const hasResult = body.messages.some((message) =>
+    message?.role === "tool" &&
+    message.tool_call_id === WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID
+  )
+  if (hasResult) return "final"
+  return hasTool ? "tool_call" : undefined
+}
+
+function readCodingToolName(body) {
+  const tool = Array.isArray(body?.tools)
+    ? body.tools.find((candidate) =>
+      candidate?.type === "function" &&
+      candidate.function?.name === WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
+    )
+    : undefined
+  return typeof tool?.function?.name === "string"
+    ? tool.function.name
+    : undefined
+}
+
+function readCodingToolCallId(body) {
+  for (const message of body?.messages ?? []) {
+    for (const call of message?.tool_calls ?? []) {
+      if (typeof call?.id === "string") return call.id
+    }
+  }
+  return WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID
+}
+
+function readCodingRecoveryToolName(body) {
+  const tool = Array.isArray(body?.tools)
+    ? body.tools.find((candidate) =>
+      candidate?.type === "function" &&
+      candidate.function?.name === WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME
+    )
+    : undefined
+  return typeof tool?.function?.name === "string"
+    ? tool.function.name
+    : undefined
+}
+
 function messageText(message) {
   if (typeof message?.content === "string") return message.content
   if (!Array.isArray(message?.content)) return ""
@@ -642,11 +796,11 @@ function inspectImageInputs(body) {
       if (typeof url !== "string") continue
       const match = /^data:([^;,]+);base64,([A-Za-z0-9+/]*={0,2})$/.exec(url)
       if (match?.[1] === undefined || match[2] === undefined) {
-        throw new Error("Product Desktop proof Provider image input is invalid")
+        throw new Error("Desktop proof Provider image input is invalid")
       }
       const bytes = Buffer.from(match[2], "base64")
       if (bytes.byteLength === 0) {
-        throw new Error("Product Desktop proof Provider image input is empty")
+        throw new Error("Desktop proof Provider image input is empty")
       }
       images.push({ mediaType: match[1], sizeBytes: bytes.byteLength })
     }
@@ -664,7 +818,7 @@ function inspectLatestUserImageInputs(body) {
     : inspectImageInputs({ messages: [latestUser] })
 }
 
-export function productDesktopProofProviderResponse(model) {
+export function desktopProofProviderResponse(model) {
   return `Proof response from ${model}`
 }
 
@@ -675,7 +829,7 @@ async function readJsonBody(request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
     size += bytes.byteLength
     if (size > MAX_REQUEST_BYTES) {
-      throw new Error("Product Desktop proof provider request is too large")
+      throw new Error("Desktop proof provider request is too large")
     }
     chunks.push(bytes)
   }

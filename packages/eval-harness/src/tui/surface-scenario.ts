@@ -1,11 +1,11 @@
 import {
   createShell,
   createSurfaceAdapter
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   createInProcessSurfaceClientTransport,
   createSurfaceClient
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import {
   createTuiSurface,
   renderTuiFrame
@@ -19,12 +19,12 @@ import { createEvalScenario } from "../runner.js"
 import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
 import {
   createConversationSettlementFixture
-} from "../product/conversation-helpers.js"
+} from "../assistant/conversation-helpers.js"
 
 export const tuiSurfaceScenario = createEvalScenario({
-  id: "product.app-tui-surface-contract",
-  title: "TUI consumes product through the surface client",
-  tags: ["product", "tui", "surface-client", "upper-app", "product-path"],
+  id: "assistant.app-tui-surface-contract",
+  title: "TUI consumes assistant through the surface client",
+  tags: ["assistant", "tui", "surface-client", "upper-app", "assistant-path"],
   async run(context) {
     const storage = await createConversationSettlementFixture({
       serviceBin: context.serviceBin,
@@ -51,28 +51,28 @@ export const tuiSurfaceScenario = createEvalScenario({
       })
       const frame = renderTuiFrame(surface.snapshot())
       const conversationSettlement = storage.settlements.waitForNext({
-        sessionId: "ses_eval_product_app_tui"
+        sessionId: "ses_eval_assistant_app_tui"
       })
       const submitted = await surface.client.submitConversationOperation({
         text: "eval application tui turn",
-        sessionId: "ses_eval_product_app_tui"
+        sessionId: "ses_eval_assistant_app_tui"
       })
       assert(
         submitted.ok &&
-          submitted.value.kind === "product.conversation-operation.found",
-        "TUI submit should complete admission through Product Surface"
+          submitted.value.kind === "assistant.conversation-operation.found",
+        "TUI submit should complete admission through Assistant Surface"
       )
       await conversationSettlement
       const selected = await surface.client.selectSession({
-        sessionId: "ses_eval_product_app_tui"
+        sessionId: "ses_eval_assistant_app_tui"
       })
       const opened = await surface.client.openWorkbench()
       const operation = await surface.client.readTrackedConversationOperation({
-        sessionId: "ses_eval_product_app_tui"
+        sessionId: "ses_eval_assistant_app_tui"
       })
       const regenerated =
         await surface.client.regenerateTrackedConversationOperation({
-          sessionId: "ses_eval_product_app_tui"
+          sessionId: "ses_eval_assistant_app_tui"
         })
       const refreshed = await surface.refresh()
       const refreshedFrame = renderTuiFrame(refreshed)
@@ -80,7 +80,7 @@ export const tuiSurfaceScenario = createEvalScenario({
         "audit-distribution-footprint.mjs",
         ["--json"]
       )
-      const productPackage = entryByName(footprint, "@wanex/product")
+      const assistantPackage = entryByName(footprint, "@wanex/assistant")
       const tui = entryByName(footprint, "@wanex/tui")
       const canonicalSnapshot = surface.snapshot()
       const commandCatalog = canonicalSnapshot.commandCatalog
@@ -89,7 +89,7 @@ export const tuiSurfaceScenario = createEvalScenario({
         commandCatalog.ok &&
           commandCatalog.value.commands.length === 14 &&
           commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.submit"
+            (command) => command.id === "assistant.agent.submit"
           ) &&
           !Object.prototype.hasOwnProperty.call(canonicalSnapshot, "readModel") &&
           !Object.prototype.hasOwnProperty.call(canonicalSnapshot, "contributions"),
@@ -98,10 +98,10 @@ export const tuiSurfaceScenario = createEvalScenario({
       assert(
         frame.kind === "tui.frame" &&
           frame.ready &&
-          frame.productCommandCount === 14 &&
+          frame.assistantCommandCount === 14 &&
           frame.statusCount === 8 &&
           frame.text.includes("Workbench") &&
-          frame.text.includes("product-commands:14") &&
+          frame.text.includes("assistant-commands:14") &&
           frame.text.includes("model:eval-tui") &&
           frame.text.includes("provider:ready") &&
           frame.text.includes("theme:system") &&
@@ -114,28 +114,28 @@ export const tuiSurfaceScenario = createEvalScenario({
           opened.ok &&
           operation.ok &&
           regenerated.ok,
-        "TUI operations should complete through the Product Surface client"
+        "TUI operations should complete through the Assistant Surface client"
       )
       assert(
         refreshed.status.ok &&
           refreshed.status.value.state.selection?.kind === "session" &&
           refreshed.status.value.state.selection.sessionId ===
-            "ses_eval_product_app_tui",
-        "TUI refresh should observe selected product session"
+            "ses_eval_assistant_app_tui",
+        "TUI refresh should observe selected assistant session"
       )
       assert(
         refreshed.events.ok &&
           refreshed.events.events.some(
-            (event) => event.type === "product.surface.state_changed"
+            (event) => event.type === "assistant.surface.state_changed"
           ),
-        "TUI should read product surface events"
+        "TUI should read assistant surface events"
       )
       assert(
-        !productPackage.contains.pluginRuntime &&
-          !productPackage.contains.connectorRuntime &&
-          productPackage.contains.concreteAdapters.length === 0 &&
-          productPackage.contains.forbiddenPackages.length === 0,
-        "product default closure should remain slim"
+        !assistantPackage.contains.pluginRuntime &&
+          !assistantPackage.contains.connectorRuntime &&
+          assistantPackage.contains.concreteAdapters.length === 0 &&
+          assistantPackage.contains.forbiddenPackages.length === 0,
+        "assistant default closure should remain slim"
       )
       assert(
         !tui.contains.pluginRuntime &&
@@ -149,11 +149,11 @@ export const tuiSurfaceScenario = createEvalScenario({
       return {
         frameKind: frame.kind,
         frameReady: frame.ready,
-        productCommandCount: frame.productCommandCount,
+        assistantCommandCount: frame.assistantCommandCount,
         hasSubmitCommand:
           finalSnapshot.commandCatalog.ok &&
           finalSnapshot.commandCatalog.value.commands.some(
-            (command) => command.id === "product.agent.submit"
+            (command) => command.id === "assistant.agent.submit"
           ),
         statusCount: finalSnapshot.commandCatalog.ok ? 8 : 0,
         providerReadinessStatus: finalSnapshot.home.ok
@@ -171,11 +171,11 @@ export const tuiSurfaceScenario = createEvalScenario({
           : null,
         stateChanged: refreshed.events.ok
           ? refreshed.events.events.some(
-              (event) => event.type === "product.surface.state_changed"
+              (event) => event.type === "assistant.surface.state_changed"
             )
           : false,
         refreshedFrameReady: refreshedFrame.ready,
-        pluginRuntime: productPackage.contains.pluginRuntime,
+        pluginRuntime: assistantPackage.contains.pluginRuntime,
         tuiPluginRuntime: tui.contains.pluginRuntime,
         tuiConnectorRuntime: tui.contains.connectorRuntime,
         tuiConcreteAdapters: tui.contains.concreteAdapters

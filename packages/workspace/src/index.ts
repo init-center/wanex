@@ -16,7 +16,7 @@ export type {
   RepositoryLocator,
   RepositoryLocatorEntry
 } from "./locator/index.js"
-export { NativeWorkspaceSnapshotClient, WorkspaceSnapshotHelperError } from "./snapshot/index.js"
+export { ProcessWorkspaceSnapshotClient, WorkspaceSnapshotHelperError } from "./snapshot/index.js"
 export type {
   WorkspaceSnapshotClient,
   WorkspaceSnapshotRequest,

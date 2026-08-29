@@ -1,5 +1,6 @@
 import { WorkspaceProposalApplyRuntime } from "@wanex/workspace/review"
 import { WorkspaceRuntime } from "@wanex/workspace"
+import { createWorkspaceExecution } from "./execution.js"
 import { createEvalScenario } from "../runner.js"
 import { assert, putRequestedCreateProposal } from "../scenario-utils.js"
 
@@ -8,18 +9,24 @@ export const workspaceConflictScenario = createEvalScenario({
   title: "Same-path proposal batch is surfaced for review",
   tags: ["workspace", "multi-agent"],
   async run(context) {
-    const workspace = new WorkspaceRuntime({
-      storage: context.storage,
-      rootDir: context.workspaceRootDir,
-      serviceBin: context.serviceBin,
-      workspaceId: "eval_workspace",
-      principalId: "agent_eval_workspace"
-    })
-    const proposal = new WorkspaceProposalApplyRuntime({
-      storage: context.storage,
-      workspace,
-      actorId: "eval-harness"
-    })
+    const execution = await createWorkspaceExecution(
+      "native_eval_workspace_conflict",
+      context.workspaceRootDir
+    )
+    try {
+      const workspace = new WorkspaceRuntime({
+        storage: context.storage,
+        rootDir: context.workspaceRootDir,
+        serviceBin: context.serviceBin,
+        executionScope: execution.scope,
+        workspaceId: "eval_workspace",
+        principalId: "agent_eval_workspace"
+      })
+      const proposal = new WorkspaceProposalApplyRuntime({
+        storage: context.storage,
+        workspace,
+        actorId: "eval-harness"
+      })
     await putRequestedCreateProposal(context.storage, {
       proposalId: "wcp_eval_conflict_a",
       changeSetId: "cs_eval_conflict_a",
@@ -45,9 +52,12 @@ export const workspaceConflictScenario = createEvalScenario({
       plan.items.some((item) => item.status === "needs_review"),
       "one proposal should need review"
     )
-    return {
-      status: plan.status,
-      conflictCount: plan.items.flatMap((item) => item.conflicts).length
+      return {
+        status: plan.status,
+        conflictCount: plan.items.flatMap((item) => item.conflicts).length
+      }
+    } finally {
+      await execution.environment.close()
     }
   }
 })

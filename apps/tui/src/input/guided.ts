@@ -4,7 +4,7 @@ import type {
 } from "@wanex/extension"
 import type {
   CommandCatalogReadModel
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import {
   parseTuiCommandInputValue,
   tuiCommandInputAnnotation,

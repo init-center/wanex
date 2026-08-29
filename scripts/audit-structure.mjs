@@ -156,12 +156,12 @@ async function findTsFiles(dir) {
 
 async function findSourceIdentityViolations(rootDir) {
   const roots = [
-    join(rootDir, "apps", "product", "src"),
-    join(rootDir, "apps", "web", "src"),
-    join(rootDir, "apps", "local-host", "src"),
+    join(rootDir, "apps", "assistant", "src"),
+    join(rootDir, "packages", "assistant-ui", "src"),
+    join(rootDir, "apps", "assistant-host", "src"),
     join(rootDir, "apps", "desktop", "src"),
     join(rootDir, "apps", "tui", "src"),
-    join(rootDir, "apps", "plugin-command-host", "src")
+    join(rootDir, "apps", "assistant-plugin-host", "src")
   ]
   const files = (await Promise.all(roots.map((root) => findSourceFiles(root)))).flat()
   const violations = []

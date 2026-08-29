@@ -27,7 +27,7 @@ export async function runWanexDesktopTeamProof(
 ): Promise<WanexDesktopTeamProofResult> {
   const startedAt = performance.now()
   const ready = await waitForDom(() => {
-    const surface = document.querySelector("[data-ui-product-shell]")
+    const surface = document.querySelector("[data-ui-assistant-shell]")
     const newGroup = surface?.querySelector('button[aria-label="New group"]')
     const agentSession = [...(surface?.querySelectorAll(
       "[data-ui-session-select]",
@@ -41,7 +41,7 @@ export async function runWanexDesktopTeamProof(
       surface.querySelector('[data-ui-provider-state="ready"]') === null
     ) return undefined
     return { surface, newGroup }
-  }, 10_000, "product_ready")
+  }, 10_000, "assistant_ready")
   const rendererInteractive = performance.now() - startedAt
 
   ready.newGroup.click()

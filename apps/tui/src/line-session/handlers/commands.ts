@@ -48,12 +48,12 @@ export async function runPreviewCommand(options: {
     return
   }
   const result =
-    await sessionOptions.surface.client.previewProductCommandInvocation({
+    await sessionOptions.surface.client.previewAssistantCommandInvocation({
       commandId,
       ...(guided.input === undefined ? {} : { input: guided.input })
     })
   state.previewCommandCount += 1
-  const value = expectSurfaceValue(result, "previewProductCommandInvocation")
+  const value = expectSurfaceValue(result, "previewAssistantCommandInvocation")
   await writeLine(sessionOptions, renderTuiCommandPreview(value))
 }
 
@@ -70,7 +70,7 @@ export async function runExecuteCommand(options: {
     catalog.ok &&
     !catalog.value.commands.some((command) => command.id === commandId)
   ) {
-    throw new Error(`product command not found in catalog: ${commandId}`)
+    throw new Error(`assistant command not found in catalog: ${commandId}`)
   }
   const guided =
     input === undefined
@@ -84,11 +84,11 @@ export async function runExecuteCommand(options: {
     await handleGuidedCancellation(sessionOptions, state, guided)
     return
   }
-  const result = await sessionOptions.surface.client.executeProductCommand({
+  const result = await sessionOptions.surface.client.executeAssistantCommand({
     commandId,
     ...(guided.input === undefined ? {} : { input: guided.input })
   })
-  const value = expectSurfaceValue(result, "executeProductCommand")
+  const value = expectSurfaceValue(result, "executeAssistantCommand")
   state.executeCommandCount += 1
   if (value.kind === "rejected") {
     state.blockedCommandCount += 1

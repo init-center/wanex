@@ -17,7 +17,7 @@ import type {
   SurfaceClientCommandEnvelope,
   SurfaceClientDescriptorResult,
   SurfaceClientEventsResult
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 export interface CreateTuiSurfaceOptions {
   readonly client: SurfaceClient
   readonly homeOptions?: HomeOptions
@@ -75,7 +75,7 @@ export interface TuiRenderedFrame {
   readonly layout: string
   readonly selectedSessionId?: string
   readonly commandCount: number
-  readonly productCommandCount: number
+  readonly assistantCommandCount: number
   readonly statusCount: number
   readonly diagnosticCount: number
   readonly eventCount: number

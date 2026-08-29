@@ -3,11 +3,11 @@ import type {
   ConversationApprovalDecision,
   ConversationOperationFoundResult,
   ConversationOperationReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type {
   ReadTrackedConversationOperationResult,
   SurfaceClient
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 
 export type TuiComposerMode = "submit" | "queue" | "guide"
 
@@ -78,7 +78,7 @@ export async function submitTuiConversationText(
             { requestId: `tui-steer-${randomUUID()}` }
           )
   const value = expectSurfaceValue(envelope, modeCommand(mode))
-  if (value.kind === "product.conversation-operation.rejected") {
+  if (value.kind === "assistant.conversation-operation.rejected") {
     return {
       mode,
       accepted: false,
@@ -137,7 +137,7 @@ export async function resolveTuiApproval(options: {
     }),
     "resolveTrackedConversationApproval"
   )
-  if (value.kind === "product.conversation-operation.rejected") {
+  if (value.kind === "assistant.conversation-operation.rejected") {
     return {
       mode: "submit",
       accepted: false,
@@ -171,7 +171,7 @@ function foundResult(
 function foundOperation(
   value: ReadTrackedConversationOperationResult
 ): ConversationOperationReadModel | undefined {
-  return value.kind === "product.conversation-operation.found"
+  return value.kind === "assistant.conversation-operation.found"
     ? value.operation
     : undefined
 }

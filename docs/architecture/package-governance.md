@@ -53,30 +53,35 @@ After an intentional and documented boundary change, regenerate with:
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-The current Phase 861 completion baseline is:
+The current Route 2D completion baseline is:
 
 | Facade           |     Bytes | Static inputs | Workspace packages |
 | ---------------- | --------: | ------------: | -----------------: |
-| `@wanex/runtime` |   482,439 |           261 |                  3 |
-| `@wanex/app`     | 1,379,902 |           459 |                  4 |
+| `@wanex/runtime` |   539,044 |           274 |                  3 |
+| `@wanex/app`     | 1,451,721 |           471 |                  4 |
 
 These are reviewed ceilings, not performance targets. Phase 807 directly
 replaces placeholder compaction with model-derived semantic planning, bounded
 source serialization, durable Provider generation evidence, and active-epoch
 replay. Relative to the pre-Phase-807 ceiling, Runtime adds 15,142 bytes and App
 adds 14,879 bytes while the static input counts decrease by one. Runtime remains
-at three workspace packages and App remains at four. Product, Team, Plugin,
+at three workspace packages and App remains at four. Assistant, Team, Plugin,
 Connector, Workspace, TUI, and presentation packages remain outside both
 default root facades.
+
+The CODING-4A/4C admission work adds immutable context evidence and exact Turn
+binding without adding a static input or workspace package to either facade.
+The reviewed pre-release ceilings above include that implementation; Route 1
+changes application ownership names but does not widen either facade closure.
 
 Phase 808 adds 1,143 bytes to the shared Runtime closure for independent model
 context/input/output/resource limits and truthful Tool capability enforcement.
 App grows by the same 1,143 bytes because it transitively contains Runtime.
 Static input counts and workspace package sets do not change.
 
-Phases 809-810 add the inline capacity guard and Product recovery projection
+Phases 809-810 add the inline capacity guard and Assistant recovery projection
 without changing either workspace package set. Phase 811 adds only the private
-Product Desktop leaf above Product Local. It changes neither facade closure;
+Desktop leaf above Assistant Host. It changes neither facade closure;
 the reviewed exact ceilings above match the complete Phase 811 repository gate.
 
 Phase 860 adds the App-owned Provider mutation transaction as one explicit SDK
@@ -91,16 +96,46 @@ the local keychain adapter remains outside the App closure.
 Phase 861 adds trusted-host coordinator binding and exact release during App
 disposal or failed startup. This increases the App envelope by 740 bytes over
 the Phase 860 ceiling while preserving 459 inputs and the same four workspace
-packages. Product TUI directly declares App because its trusted executable
+packages. Assistant TUI directly declares App because its trusted executable
 host consumes the explicit Provider mutation subpath; the full-screen renderer
-still imports only Product Surface contracts, and neither keychain nor TUI
+still imports only Assistant Surface contracts, and neither keychain nor TUI
 code enters the App facade.
 
 TEAM-12C adds one reviewed leaf-recipe edge from `@wanex/tui` to the
-presentation-neutral `@wanex/local-host/application` entry. This removes a
-second TUI-specific Product/Team composition without starting Web or HTTP
+presentation-neutral `@wanex/assistant-host/application` entry. This removes a
+second TUI-specific Assistant/Team composition without starting Web or HTTP
 infrastructure and without changing either default facade closure. The reviewed
-workspace dependency graph now has 74 edges.
+workspace dependency graph then had 74 edges.
+
+CODING-2B adds one private Coding leaf and four reviewed dependency edges from
+`@wanex/coding` to Protocol, Runtime, Storage, and Workspace. The active
+graph now has 21 packages and 80 edges. Its exact five-package transitive
+closure is enforced independently; Runtime, App, CLI, and Assistant still reject
+Workspace in their generic closures.
+
+Route 2C directly replaces the untyped Turn `environmentSnapshot` with neutral
+`executionEnvironment` evidence and an opaque `applicationScope` envelope.
+Workspace durably stores the same environment binding, while Coding alone
+interprets its application scope and joins Turn/task evidence. The route adds
+no package or dependency edge; Runtime, Storage, Workspace, and Coding retain
+their existing ownership boundaries, and no compatibility field or decoder is
+kept. Its reviewed facade growth is exactly five static inputs in both root
+facades: the two Protocol evidence modules, the two Runtime validation modules,
+and the Storage execution-environment codec. Runtime grows by 21,408 bytes and
+App by 21,578 bytes. No Workspace, Coding, Host, presentation, Plugin, Team, or
+Connector source enters either generic facade closure.
+
+Route 2D adds exactly one private Runtime Resource input,
+`resources/environment-export.ts`, to both root facade closures. It contributes
+112 bytes to each measured bundle and no workspace package or dependency edge.
+The module is the bounded bridge from an admitted borrowed Execution Scope to
+the existing Resource Store; Plugin, Workspace, Host, Coding, and presentation
+sources remain outside both generic facades.
+
+CODING-3A corrects the unpublished package identity from a Host-only name to
+`@wanex/coding` without adding a package or dependency edge. The package root
+is application-safe and the explicit `/host` subpath retains trusted path and
+native lifecycle authority. No compatibility identity is retained.
 
 ## Audit
 

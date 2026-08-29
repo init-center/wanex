@@ -1,7 +1,7 @@
 import type {
   TeamConversationPageReadModel,
   TeamRoundReceipt,
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { TuiFullScreenClient } from "../types.js"
 import { createTeamIdempotencyKey } from "./model.js"
 

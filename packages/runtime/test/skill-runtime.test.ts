@@ -259,21 +259,18 @@ describe("../src/context/skill/index.js", () => {
       sourceCount: 1,
       sources: [
         expect.objectContaining({
-          id: expect.stringMatching(/^project:/u),
           scope: "project",
           name: "write-tests",
-          directory: skillFile(projectSkillsDir, "write-tests"),
-          path: skillFile(projectSkillsDir, "write-tests", "SKILL.md"),
           order: 0,
           byteLength: expect.any(Number),
           hash: snapshot.sources[0]?.hash,
           bodyHash: snapshot.sources[0]?.bodyHash,
           allowedTools: ["shell", "apply_patch"],
-          metadata: { owner: "quality" },
-          mtimeMs: 1
+          metadata: { owner: "quality" }
         })
       ]
     })
+    expect(JSON.stringify(part?.providerMetadata)).not.toContain(projectRoot)
     expect(JSON.stringify(part?.providerMetadata)).not.toContain(
       "SECRET FULL SKILL BODY"
     )

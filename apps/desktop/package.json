@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./credential-artifact": "./src/credential-artifact.ts",
     "./lifecycle": "./src/lifecycle.ts",
-    "./window-policy": "./src/window-policy.ts"
+    "./window-policy": "./src/window-policy.ts",
+    "./coding-bridge": "./src/coding-bridge.ts"
   },
   "scripts": {
     "start": "node ./scripts/start.mjs",
@@ -20,11 +21,20 @@
   },
   "dependencies": {
     "@wanex/local-credential-store": "workspace:*",
-    "@wanex/local-host": "workspace:*",
+    "@wanex/assistant-host": "workspace:*",
+    "@wanex/assistant-ui": "workspace:*",
     "@wanex/plugin": "workspace:*",
-    "@wanex/plugin-command-host": "workspace:*"
+    "@wanex/assistant-plugin-host": "workspace:*",
+    "@wanex/coding": "workspace:*",
+    "@wanex/runtime": "workspace:*",
+    "@wanex/workspace": "workspace:*",
+    "lucide-react": "1.28.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "@electron/asar": "^4.2.1",
     "@electron/get": "^5.0.0",
     "@electron/packager": "^20.0.4",

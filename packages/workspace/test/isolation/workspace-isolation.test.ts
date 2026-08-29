@@ -9,6 +9,11 @@ import {
   GitWorktreeIsolationAdapter
 } from "../../src/isolation/index.js"
 import { LocalRepositoryLocator } from "../../src/index.js"
+import { ProcessWorkspaceSnapshotClient } from "../../src/snapshot/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "../execution.js"
 
 const execFileAsync = promisify(execFile)
 const GIT_TEST_TIMEOUT_MS = 10_000
@@ -19,6 +24,7 @@ const serviceBin = join(
 const tempDirs: string[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
     if (dir) {
@@ -31,7 +37,7 @@ describe("@wanex/workspace/isolation", () => {
   it("resolves only registered opaque repositories and rejects unsafe parents", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
-    const locator = createLocator(repoDir, worktreeParentDir)
+    const { locator, executionScope } = await createLocator(repoDir, worktreeParentDir)
 
     await expect(locator.locate("unknown_repository")).rejects.toThrow(
       "not registered"
@@ -45,7 +51,8 @@ describe("@wanex/workspace/isolation", () => {
           repositoryId: "nested_repository",
           repositoryRoot: repoDir,
           worktreeParent: join(repoDir, ".wanex-worktrees"),
-          serviceBin
+          serviceBin,
+          fileSystem: executionScope.fileSystem
         }]
       }).locate("nested_repository")
     ).rejects.toThrow("outside the repository")
@@ -53,8 +60,10 @@ describe("@wanex/workspace/isolation", () => {
 
   it("returns a stable fixed workspace lease without owning cleanup", async () => {
     const rootDir = await tempDir("wanex-fixed-root-")
+    const execution = await createWorkspaceTestExecution({ rootDir })
     const adapter = new FixedWorkspaceIsolationAdapter({
       rootDir,
+      fileSystem: execution.scope.fileSystem,
       workspaceId: "main"
     })
 
@@ -82,10 +91,12 @@ describe("@wanex/workspace/isolation", () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
     const baseRevision = await git(repoDir, ["rev-parse", "HEAD"])
-    const locator = createLocator(repoDir, worktreeParentDir)
+    const { locator, executionScope } = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
 
     const lease = await adapter.prepare({
@@ -117,10 +128,12 @@ describe("@wanex/workspace/isolation", () => {
   it("captures dirty checkout state through a temporary index without changing the checkout", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
-    const locator = createLocator(repoDir, worktreeParentDir)
+    const { locator, executionScope } = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const head = await git(repoDir, ["rev-parse", "HEAD"])
     const branch = await git(repoDir, ["symbolic-ref", "--short", "HEAD"])
@@ -158,13 +171,19 @@ describe("@wanex/workspace/isolation", () => {
   it("locates and releases the same runtime resource after a host restart", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
+    const first = await createLocator(repoDir, worktreeParentDir)
     const lease = await new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator: createLocator(repoDir, worktreeParentDir)
+      locator: first.locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope: first.executionScope
     }).prepare({ isolationId: "wiso_restart" })
+    const second = await createLocator(repoDir, worktreeParentDir)
     const restarted = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator: createLocator(repoDir, worktreeParentDir)
+      locator: second.locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope: second.executionScope
     })
     await restarted.release(lease)
     await expect(stat(lease.rootDir)).rejects.toMatchObject({ code: "ENOENT" })
@@ -173,9 +192,12 @@ describe("@wanex/workspace/isolation", () => {
   it("makes runtime-owned git worktree release idempotent", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
+    const environment = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator: createLocator(repoDir, worktreeParentDir)
+      locator: environment.locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope: environment.executionScope
     })
 
     const lease = await adapter.prepare({
@@ -192,9 +214,12 @@ describe("@wanex/workspace/isolation", () => {
   it("rejects a forged worktree lease without deleting the owned branch", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
+    const environment = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_isolation_test",
-      locator: createLocator(repoDir, worktreeParentDir)
+      locator: environment.locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope: environment.executionScope
     })
     const lease = await adapter.prepare({
       isolationId: "wiso_forged_release",
@@ -244,13 +269,25 @@ async function git(repoDir: string, args: readonly string[]): Promise<string> {
   return stdout.trim()
 }
 
-function createLocator(repoDir: string, worktreeParentDir: string): LocalRepositoryLocator {
-  return new LocalRepositoryLocator({
-    repositories: [{
-      repositoryId: "repo_isolation_test",
-      repositoryRoot: repoDir,
-      worktreeParent: worktreeParentDir,
-      serviceBin
-    }]
+async function createLocator(repoDir: string, worktreeParentDir: string): Promise<{
+  readonly locator: LocalRepositoryLocator
+  readonly executionScope: import("@wanex/runtime/execution").ExecutionScope
+}> {
+  const execution = await createWorkspaceTestExecution({
+    rootDir: repoDir,
+    additionalRootDirs: [worktreeParentDir],
+    managedProcess: true
   })
+  return {
+    locator: new LocalRepositoryLocator({
+      repositories: [{
+        repositoryId: "repo_isolation_test",
+        repositoryRoot: repoDir,
+        worktreeParent: worktreeParentDir,
+        serviceBin,
+        fileSystem: execution.scope.fileSystem
+      }]
+    }),
+    executionScope: execution.scope
+  }
 }

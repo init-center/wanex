@@ -1,19 +1,19 @@
 import type {
   GoalReadModel,
   ReadGoalResult
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import { singleLine } from "../line-session/text.js"
 
 export function renderTuiGoal(
   result: ReadGoalResult | GoalReadModel
 ): string {
-  if (result.kind === "product.goal.no-session") {
+  if (result.kind === "assistant.goal.no-session") {
     return `GOAL\nstate:no-session | ${result.message}`
   }
-  if (result.kind === "product.goal.missing") {
+  if (result.kind === "assistant.goal.missing") {
     return `GOAL\nstate:missing${result.sessionId === undefined ? "" : ` | session:${result.sessionId}`}`
   }
-  const goal = result.kind === "product.goal.found" ? result.goal : result
+  const goal = result.kind === "assistant.goal.found" ? result.goal : result
   const attempts = goal.attempts.flatMap((attempt) => [
     `attempt:${attempt.attemptNumber} | trigger:${attempt.trigger} | job:${attempt.jobId}`,
     ...(attempt.review === undefined

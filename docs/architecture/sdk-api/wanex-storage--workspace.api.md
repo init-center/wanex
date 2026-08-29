@@ -502,13 +502,19 @@ interface BeginWorkspaceTaskRunRequest {
     // (undocumented)
     readonly access: WorkspaceTaskAccess;
     // (undocumented)
+    readonly agentId?: string;
+    // (undocumented)
     readonly attemptId: string;
     // (undocumented)
     readonly claimToken: string;
     // (undocumented)
+    readonly executionEnvironment: ExecutionEnvironmentBinding;
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly isolationId: string;
+    // (undocumented)
+    readonly jobId?: string;
     // (undocumented)
     readonly leaseMs: number;
     // (undocumented)
@@ -526,13 +532,19 @@ interface BeginWorkspaceTaskRunWire {
     // (undocumented)
     access: WorkspaceTaskAccessWire;
     // (undocumented)
+    agent_id: NullableString;
+    // (undocumented)
     attempt_id: string;
     // (undocumented)
     claim_token: string;
     // (undocumented)
+    execution_environment: JsonValue$1;
+    // (undocumented)
     id: string;
     // (undocumented)
     isolation_id: string;
+    // (undocumented)
+    job_id: NullableString;
     // (undocumented)
     lease_ms: number;
     // (undocumented)
@@ -969,6 +981,8 @@ interface CreateSessionCommand {
     // (undocumented)
     kind: NullableSessionKindWire;
     // (undocumented)
+    scope: NullableSessionScopeWire;
+    // (undocumented)
     title: NullableString;
 }
 
@@ -1183,6 +1197,107 @@ interface ExecuteApprovedPlanWire {
     proposal_id: string;
     // (undocumented)
     turn: SubmitSessionTurnWire;
+}
+
+// @public (undocumented)
+interface ExecutionCapabilitySnapshot {
+    // (undocumented)
+    readonly artifactExport: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly filesystem: {
+        readonly enforcement: "library_guard" | "os";
+        readonly effects: readonly ExecutionFileEffect[];
+    };
+    // (undocumented)
+    readonly isolation: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly network: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly process: {
+        readonly oneShot: true;
+        readonly managed: boolean;
+        readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    };
+    // (undocumented)
+    readonly pty: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly secretProjection: {
+        readonly supported: boolean;
+    };
+}
+
+// @public (undocumented)
+interface ExecutionEnvironmentBinding {
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    readonly capabilityDigest: string;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly providerRevision: string;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+type ExecutionFileEffect = "read" | "write" | "create" | "remove";
+
+// @public (undocumented)
+interface ExecutionFileSystemPolicy {
+    // (undocumented)
+    readonly maxDirectoryEntries: number;
+    // (undocumented)
+    readonly maxReadBytes: number;
+    // (undocumented)
+    readonly roots: readonly {
+        readonly id: string;
+        readonly effects: readonly ExecutionFileEffect[];
+    }[];
+}
+
+// @public (undocumented)
+interface ExecutionPolicySnapshot {
+    // (undocumented)
+    readonly filesystem: ExecutionFileSystemPolicy;
+    // (undocumented)
+    readonly isolation: "none" | "os";
+    // (undocumented)
+    readonly network: "unrestricted" | "denied";
+    // (undocumented)
+    readonly process: ExecutionProcessPolicy;
+    // (undocumented)
+    readonly pty: boolean;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+interface ExecutionProcessPolicy {
+    // (undocumented)
+    readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    // (undocumented)
+    readonly environmentVariables: readonly string[];
+    // (undocumented)
+    readonly managed: boolean;
+    // (undocumented)
+    readonly oneShot: boolean;
 }
 
 // @public (undocumented)
@@ -1663,6 +1778,14 @@ interface GetSessionCommand {
     command: "get-session";
     // (undocumented)
     id: string;
+}
+
+// @public (undocumented)
+interface GetSessionTurnCommand {
+    // (undocumented)
+    command: "get-session-turn";
+    // (undocumented)
+    turn_id: string;
 }
 
 // @public (undocumented)
@@ -2471,9 +2594,13 @@ interface ListSessionsCommand {
 // @public (undocumented)
 interface ListSessionsWire {
     // (undocumented)
+    before: NullableSessionPageCursorWire;
+    // (undocumented)
     kind: NullableSessionKindWire;
     // (undocumented)
     limit: NullableUnsigned32;
+    // (undocumented)
+    scope: NullableSessionScopeWire;
     // (undocumented)
     status: NullableSessionStatusWire;
     // (undocumented)
@@ -2509,7 +2636,11 @@ interface ListSessionTurnControlsWire {
 // @public (undocumented)
 interface ListSessionTurnsCommand {
     // (undocumented)
+    before: NullableSessionTurnPageCursorWire;
+    // (undocumented)
     command: "list-session-turns";
+    // (undocumented)
+    limit: number | null;
     // (undocumented)
     session_id: string;
     // (undocumented)
@@ -2912,6 +3043,8 @@ interface ListWorkspaceTaskRunsRequest {
     // (undocumented)
     readonly repositoryId?: string;
     // (undocumented)
+    readonly runIds?: readonly string[];
+    // (undocumented)
     readonly state?: WorkspaceTaskRunState;
     // (undocumented)
     readonly workspaceId?: string;
@@ -2925,6 +3058,8 @@ interface ListWorkspaceTaskRunsWire {
     limit: NullableInteger;
     // (undocumented)
     repository_id: NullableString;
+    // (undocumented)
+    run_ids: [string, ...string[]] | null;
     // (undocumented)
     state: NullableWorkspaceTaskRunStateWire;
     // (undocumented)
@@ -3411,6 +3546,12 @@ type NullableSessionInputStateWire = SessionInputStateWire | null;
 type NullableSessionKindWire = SessionKindWire | null;
 
 // @public (undocumented)
+type NullableSessionPageCursorWire = SessionPageCursorWire | null;
+
+// @public (undocumented)
+type NullableSessionScopeWire = SessionScopeWire | null;
+
+// @public (undocumented)
 type NullableSessionStatusWire = SessionStatusWire | null;
 
 // @public (undocumented)
@@ -3418,6 +3559,9 @@ type NullableSessionTurnControlKindWire = SessionTurnControlKindWire | null;
 
 // @public (undocumented)
 type NullableSessionTurnControlStatusWire = SessionTurnControlStatusWire | null;
+
+// @public (undocumented)
+type NullableSessionTurnPageCursorWire = SessionTurnPageCursorWire | null;
 
 // @public (undocumented)
 type NullableSessionTurnStateWire = SessionTurnStateWire | null;
@@ -4842,7 +4986,23 @@ type SessionInputStateWire = "admitted" | "control_pending" | "promoted" | "comp
 type SessionKindWire = "chat" | "agent";
 
 // @public (undocumented)
-type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
+interface SessionPageCursorWire {
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    updated_at: number;
+}
+
+// @public (undocumented)
+interface SessionScopeWire {
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: string;
+}
+
+// @public (undocumented)
+type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | GetSessionTurnCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
 
 // @public (undocumented)
 interface SessionStateTransitionWire {
@@ -4860,6 +5020,14 @@ type SessionTurnControlKindWire = "interrupt" | "steer";
 
 // @public (undocumented)
 type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancelled";
+
+// @public (undocumented)
+interface SessionTurnPageCursorWire {
+    // (undocumented)
+    created_at: number;
+    // (undocumented)
+    turn_id: string;
+}
 
 // @public (undocumented)
 type SessionTurnSettlementOutcomeWire = "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
@@ -6387,11 +6555,15 @@ interface WorkspaceTaskRunRecord {
     // (undocumented)
     readonly access: WorkspaceTaskAccess;
     // (undocumented)
+    readonly agentId?: string;
+    // (undocumented)
     readonly baseRevision?: string;
     // (undocumented)
     readonly changeSetId?: string;
     // (undocumented)
     readonly createdAt: number;
+    // (undocumented)
+    readonly executionEnvironment: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly executionOutcome?: WorkspaceTaskExecutionOutcome;
     // (undocumented)
@@ -6402,6 +6574,8 @@ interface WorkspaceTaskRunRecord {
     readonly id: string;
     // (undocumented)
     readonly isolationId: string;
+    // (undocumented)
+    readonly jobId?: string;
     // (undocumented)
     readonly outcome?: WorkspaceTaskRunOutcome;
     // (undocumented)

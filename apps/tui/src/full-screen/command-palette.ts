@@ -6,7 +6,7 @@ import type {
   CommandCatalogReadModel,
   CommandInvocationPreview,
   ExecuteCommandResult
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import type {
   OverlayHandle,
   SelectItem,
@@ -26,7 +26,7 @@ import {
 } from "./components.js"
 import type { TuiFullScreenClient } from "./types.js"
 
-type ProductCommand = CommandCatalogReadModel["commands"][number]
+type AssistantCommand = CommandCatalogReadModel["commands"][number]
 
 export interface TuiCommandPalette {
   open(): void
@@ -40,9 +40,9 @@ export function createTuiCommandPalette(options: {
   readonly theme: SelectListTheme
   readonly client: Pick<
     TuiFullScreenClient,
-    | "readProductCommands"
-    | "previewProductCommandInvocation"
-    | "executeProductCommand"
+    | "readAssistantCommands"
+    | "previewAssistantCommandInvocation"
+    | "executeAssistantCommand"
   >
   readonly canOpen: () => boolean
   readonly perform: (action: () => Promise<void>) => Promise<void>
@@ -61,12 +61,12 @@ export function createTuiCommandPalette(options: {
       const token = ++workflow
       void options.perform(async () => {
         try {
-          const envelope = await options.client.readProductCommands()
+          const envelope = await options.client.readAssistantCommands()
           if (!isCurrent(token)) return
           if (!envelope.ok) {
             rejectAndClose(
               token,
-              `readProductCommands failed: ${envelope.error.message}`
+              `readAssistantCommands failed: ${envelope.error.message}`
             )
             return
           }
@@ -74,7 +74,7 @@ export function createTuiCommandPalette(options: {
             (command) => command.paletteVisibility === "visible"
           )
           if (commands.length === 0) {
-            rejectAndClose(token, "No Product commands are available")
+            rejectAndClose(token, "No Assistant commands are available")
             return
           }
           showCommandPicker(commands, token)
@@ -87,13 +87,13 @@ export function createTuiCommandPalette(options: {
     invalidate() {
       if (!active) return
       close()
-      options.rejected("Product commands changed; reopen the command palette")
+      options.rejected("Assistant commands changed; reopen the command palette")
     },
     isOpen: () => active
   }
 
   function showCommandPicker(
-    commands: readonly ProductCommand[],
+    commands: readonly AssistantCommand[],
     token: number
   ): void {
     const byId = new Map(commands.map((command) => [command.id, command]))
@@ -103,7 +103,7 @@ export function createTuiCommandPalette(options: {
       description: commandDescription(command)
     }))
     showOverlay(
-      new TuiFilterableSelectOverlay("Product commands", items, {
+      new TuiFilterableSelectOverlay("Assistant commands", items, {
         theme: options.theme,
         onCancel: close,
         onSelect(item) {
@@ -116,7 +116,7 @@ export function createTuiCommandPalette(options: {
     )
   }
 
-  function collectCommandInput(command: ProductCommand, token: number): void {
+  function collectCommandInput(command: AssistantCommand, token: number): void {
     const schema = command.inputSchema
     if (schema === undefined) {
       void preview(command, undefined, token)
@@ -130,14 +130,14 @@ export function createTuiCommandPalette(options: {
   }
 
   function showOpenObjectInput(
-    command: ProductCommand,
+    command: AssistantCommand,
     schema: AppCommandInputSchema,
     token: number
   ): void {
     showOverlay(
       new TuiInputOverlay({
         title: `${command.title} input`,
-        description: "Enter one JSON object. Product validates its full schema before execution.",
+        description: "Enter one JSON object. Assistant validates its full schema before execution.",
         onCancel: close,
         onSubmit(raw) {
           const parsed = parseTuiCommandInputValue(schema, raw)
@@ -151,7 +151,7 @@ export function createTuiCommandPalette(options: {
   }
 
   function collectClosedObjectInput(
-    command: ProductCommand,
+    command: AssistantCommand,
     schema: AppCommandInputSchema,
     token: number
   ): void {
@@ -193,7 +193,7 @@ export function createTuiCommandPalette(options: {
   }
 
   function showOptionalDecision(
-    command: ProductCommand,
+    command: AssistantCommand,
     name: string,
     schema: AppCommandInputValueSchema,
     token: number,
@@ -218,7 +218,7 @@ export function createTuiCommandPalette(options: {
   }
 
   function collectValue(
-    command: ProductCommand,
+    command: AssistantCommand,
     name: string,
     schema: AppCommandInputValueSchema,
     token: number,
@@ -248,7 +248,7 @@ export function createTuiCommandPalette(options: {
     const annotation = tuiCommandInputAnnotation(schema)
     const jsonHint =
       schema.type === "object" || schema.type === "array"
-        ? `Enter a JSON ${schema.type}. Product validates nested constraints.`
+        ? `Enter a JSON ${schema.type}. Assistant validates nested constraints.`
         : undefined
     showOverlay(
       new TuiInputOverlay({
@@ -286,14 +286,14 @@ export function createTuiCommandPalette(options: {
   }
 
   async function preview(
-    command: ProductCommand,
+    command: AssistantCommand,
     input: unknown,
     token: number
   ): Promise<void> {
     hideOverlay()
     await options.perform(async () => {
       try {
-        const envelope = await options.client.previewProductCommandInvocation({
+        const envelope = await options.client.previewAssistantCommandInvocation({
           commandId: command.id,
           ...(input === undefined ? {} : { input })
         })
@@ -301,7 +301,7 @@ export function createTuiCommandPalette(options: {
         if (!envelope.ok) {
           rejectAndClose(
             token,
-            `previewProductCommandInvocation failed: ${envelope.error.message}`
+            `previewAssistantCommandInvocation failed: ${envelope.error.message}`
           )
           return
         }
@@ -317,7 +317,7 @@ export function createTuiCommandPalette(options: {
   }
 
   function showConfirmation(
-    command: ProductCommand,
+    command: AssistantCommand,
     input: unknown,
     previewResult: Extract<
       CommandInvocationPreview,
@@ -347,14 +347,14 @@ export function createTuiCommandPalette(options: {
   }
 
   async function execute(
-    command: ProductCommand,
+    command: AssistantCommand,
     input: unknown,
     token: number
   ): Promise<void> {
     hideOverlay()
     await options.perform(async () => {
       try {
-        const envelope = await options.client.executeProductCommand({
+        const envelope = await options.client.executeAssistantCommand({
           commandId: command.id,
           ...(input === undefined ? {} : { input })
         })
@@ -362,7 +362,7 @@ export function createTuiCommandPalette(options: {
         if (!envelope.ok) {
           rejectAndClose(
             token,
-            `executeProductCommand failed: ${envelope.error.message}`
+            `executeAssistantCommand failed: ${envelope.error.message}`
           )
           return
         }
@@ -469,13 +469,13 @@ function scalarChoices(
   return undefined
 }
 
-function commandDescription(command: ProductCommand): string {
+function commandDescription(command: AssistantCommand): string {
   return [command.category ?? "other", sourceLabel(command), command.id].join(
     " | "
   )
 }
 
-function sourceLabel(command: ProductCommand): string {
+function sourceLabel(command: AssistantCommand): string {
   return `${command.sourceKind}/${command.sourceScope}/${command.trust}`
 }
 

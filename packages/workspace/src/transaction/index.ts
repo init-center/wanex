@@ -1,4 +1,4 @@
-export { spawnNativeWorkspaceTransaction } from "./native-helper.js"
+export { spawnWorkspaceTransaction } from "./process-executor.js"
 export {
   WorkspaceChangeTransactionRuntime,
   WorkspaceTransactionCleanupRequiredError,
@@ -6,9 +6,9 @@ export {
 } from "./runtime.js"
 export { WorkspaceTransactionHelperError } from "./types.js"
 export type {
-  NativeWorkspaceTransactionExecutor,
-  NativeWorkspaceTransactionOptions,
-  NativeWorkspaceTransactionProgress,
+  WorkspaceTransactionExecutor,
+  WorkspaceTransactionOptions,
+  WorkspaceTransactionProgress,
   WorkspaceTransactionHelperErrorCode
 } from "./types.js"
 export type {

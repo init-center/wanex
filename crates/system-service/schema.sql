@@ -110,12 +110,18 @@ CREATE TABLE IF NOT EXISTS session (
   id TEXT PRIMARY KEY,
   title TEXT,
   kind TEXT NOT NULL,
+  scope_kind TEXT,
+  scope_id TEXT,
   status TEXT NOT NULL,
   revision INTEGER NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  archived_at INTEGER
+  archived_at INTEGER,
+  CHECK ((scope_kind IS NULL) = (scope_id IS NULL))
 );
+
+CREATE INDEX IF NOT EXISTS idx_session_scope_activity
+  ON session(scope_kind, scope_id, status, updated_at DESC, id ASC);
 
 CREATE TABLE IF NOT EXISTS session_input (
   id TEXT PRIMARY KEY,
@@ -565,6 +571,9 @@ CREATE TABLE IF NOT EXISTS workspace_task_run (
   access TEXT NOT NULL,
   repository_id TEXT NOT NULL,
   isolation_id TEXT NOT NULL UNIQUE,
+  execution_environment_json TEXT NOT NULL,
+  job_id TEXT,
+  agent_id TEXT,
   state TEXT NOT NULL,
   base_revision TEXT,
   runtime_ref TEXT,
@@ -585,6 +594,10 @@ CREATE INDEX IF NOT EXISTS idx_workspace_task_run_workspace_state
 
 CREATE INDEX IF NOT EXISTS idx_workspace_task_run_recovery
   ON workspace_task_run(state, updated_at, id);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_task_run_job
+  ON workspace_task_run(job_id)
+  WHERE job_id IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS workspace_task_attempt (
   id TEXT PRIMARY KEY,
@@ -1337,4 +1350,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (18, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (20, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

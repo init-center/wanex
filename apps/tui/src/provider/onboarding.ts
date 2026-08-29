@@ -1,7 +1,7 @@
 import type { Terminal } from "@earendil-works/pi-tui"
 import {
   type ProviderSetupInput
-} from "@wanex/product"
+} from "@wanex/assistant"
 import { TuiTrustedTerminalReader } from "../host/terminal-reader.js"
 import { readTuiProviderSetup } from "./input.js"
 

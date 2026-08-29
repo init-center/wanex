@@ -122,7 +122,7 @@ export type LegacyAuditState = "pending"
   it("rejects lower package source imports of upper app packages", async () => {
     await writeFile(
       upperAppImportFixturePath,
-      `import { create } from "@wanex/product"
+      `import { create } from "@wanex/assistant"
 
 export const auditUpperAppImportFixture = create
 `,
@@ -143,6 +143,30 @@ export const auditUpperAppImportFixture = create
     )
   })
 
+  it("rejects imports from removed Assistant package identities", async () => {
+    await writeFile(
+      upperAppImportFixturePath,
+      `import { create } from "@wanex/product"
+
+export const auditRemovedAssistantImportFixture = create
+`,
+      "utf8"
+    )
+
+    const result = await runAudit()
+
+    expect(result.code).toBe(1)
+    expect(result.report.failures).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "removed-assistant-package-import",
+          package: "@wanex/storage",
+          path: "packages/storage/src/__audit_upper_app_import_fixture.ts"
+        })
+      ])
+    )
+  })
+
   it("rejects lower package manifest dependencies on upper app packages", async () => {
     await mkdir(manifestDependencyFixtureSourceDir, { recursive: true })
     await writeFile(
@@ -156,7 +180,7 @@ export const auditUpperAppImportFixture = create
             ".": "./src/index.ts"
           },
           dependencies: {
-            "@wanex/product": "workspace:*"
+            "@wanex/assistant": "workspace:*"
           }
         },
         null,
@@ -197,10 +221,31 @@ export const auditUpperAppImportFixture = create
     )
   })
 
-  it("allows the TUI executable host to consume the local Product host", () => {
+  it("rejects dependencies on removed Assistant package identities", () => {
+    expect(findManifestDependencyViolations({
+      name: "@wanex/desktop",
+      dependencies: { "@wanex/local-host": "workspace:*" }
+    })).toEqual([
+      expect.objectContaining({
+        code: "removed-assistant-package-dependency",
+        package: "@wanex/desktop"
+      })
+    ])
+    expect(findManifestDependencyViolations({
+      name: "@wanex/desktop",
+      dependencies: { "@wanex/assistant-local-host": "workspace:*" }
+    })).toEqual([
+      expect.objectContaining({
+        code: "removed-assistant-package-dependency",
+        package: "@wanex/desktop"
+      })
+    ])
+  })
+
+  it("allows the TUI executable host to consume the Assistant Host", () => {
     expect(findManifestDependencyViolations({
       name: "@wanex/tui",
-      dependencies: { "@wanex/local-host": "workspace:*" }
+      dependencies: { "@wanex/assistant-host": "workspace:*" }
     })).toEqual([])
   })
 

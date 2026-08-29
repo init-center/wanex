@@ -26,7 +26,7 @@ resources on `dispose()`. There is no parallel App backend public subpath.
 Trusted hosts that provide long-lived Provider management use the explicit
 `@wanex/app/provider-mutation` capability subpath. It owns one storage-backed
 atomic endpoint/credential transaction but does not enter the App root,
-Product Surface, renderer, or Runtime. Ordinary App construction can instead
+Assistant Surface, renderer, or Runtime. Ordinary App construction can instead
 accept a one-shot trusted onboarding callback without exposing that mutator to
 the resulting App handle.
 
@@ -90,21 +90,33 @@ session protocol.
 
 ## Applications
 
+The names below describe the currently implemented source packages. The
+unified platform topology is frozen separately in
+[Product, Host, And Execution Strategy](product-host-execution-strategy.md).
+Route 1 directly replaced the ambiguous pre-release Product/Web/Assistant Host/
+Plugin Command Host identities with explicit Assistant owners. No compatibility
+package, export alias, route alias, or deprecated protocol remains.
+
 - `@wanex/cli`: executable headless CLI;
-- `@wanex/product`: validation product backend;
-- `@wanex/plugin-command-host`: optional composable Product plugin execution host;
-- `@wanex/desktop`: private packaged Electron Product and process owner;
-- `@wanex/local-host`: presentation-neutral local Product lifecycle plus
+- `@wanex/coding`: private Coding application domain. Its root owns only safe
+  application models/events; `/host` owns canonical repository admission,
+  disjoint Host data, bounded recovery, and Workspace lifecycle. Neither entry
+  is added to ordinary Runtime/App/Assistant closures;
+- `@wanex/assistant`: Assistant conversations, plans, goals, schedules, teams,
+  attachments, commands, and renderer-safe application surface;
+- `@wanex/assistant-plugin-host`: optional composable Assistant Plugin execution host;
+- `@wanex/desktop`: private packaged Electron platform and process owner;
+- `@wanex/assistant-host`: presentation-neutral local Assistant lifecycle plus
   explicit Web and desktop host wrappers;
-- `@wanex/web`: browser-safe Product surface;
-- `@wanex/tui`: terminal Product surface and executable host; its trusted host
-  consumes `@wanex/local-host/application`, while renderer modules consume only
-  Product Surface contracts;
+- `@wanex/assistant-ui`: shared browser Assistant UI capability and client;
+- `@wanex/tui`: terminal product and executable host; its trusted Assistant host
+  consumes `@wanex/assistant-host/application`, while renderer modules consume only
+  Assistant Surface contracts;
 
 `@wanex/local-credential-store` is an internal trusted-local-host platform
 adapter. Its root owns only opaque credential references and profile namespace
 derivation; explicit subpaths own injected and native keychain bindings. It is
-not an ordinary Product/SDK entry, Provider setup service, generic secret
+not an ordinary Assistant/SDK entry, Provider setup service, generic secret
 manager, or renderer dependency.
 
 `@wanex/protocol` remains internal cross-language contract source.
@@ -123,7 +135,7 @@ and rolled declarations.
 Generated Runtime metadata also owns exact optional dependencies on four
 target-restricted System Service artifacts. These native identities are
 generated npm artifacts rather than source packages, so they do not add to the
-20 source workspace packages. Runtime/App local bootstrap resolves the matching
+21 source workspace packages. Runtime/App local bootstrap resolves the matching
 installed package automatically; remote and injected storage require none.
 
 `@wanex/storage/testing` is a source-only test helper. It is not a generated
@@ -133,7 +145,7 @@ Internal `@wanex/protocol` implementation and types are bundled into each
 artifact that needs them and never appear as a packed dependency or module
 reference. Dependencies between justified public Wanex identities remain exact
 npm dependencies rather than peers or duplicated mega-bundle code. Apps,
-examples, Eval, CLI, and Product packages are not SDK artifacts.
+examples, Eval, CLI, and application packages are not SDK artifacts.
 
 Every generated public export has a committed API Extractor report. Normal SDK release
 proof fails on unapproved API drift, source/internal dependency leakage,

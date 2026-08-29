@@ -1,4 +1,4 @@
-import type { SurfaceEvent } from "@wanex/product/surface"
+import type { SurfaceEvent } from "@wanex/assistant/surface"
 
 const MAX_STARTUP_SURFACE_EVENTS = 256
 

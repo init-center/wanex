@@ -1,7 +1,7 @@
 import type {
   AttachmentDraft,
   ConversationAttachmentsReadModel,
-} from "@wanex/product";
+} from "@wanex/assistant";
 import type {
   OverlayHandle,
   SelectItem,
@@ -109,7 +109,7 @@ export function createTuiAttachmentManager(options: {
       new TuiInputOverlay({
         title: "Add attachment",
         description:
-          "The trusted Product host reads and prepares this file. The renderer does not retain its path.",
+          "The trusted Assistant host reads and prepares this file. The renderer does not retain its path.",
         onCancel: close,
         onSubmit(path) {
           if (path.trim().length === 0) return "path must not be empty";

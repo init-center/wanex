@@ -1,6 +1,7 @@
 import type { PrincipalId } from "./ids.js";
 import type { JsonValue } from "./json.js";
 import type { WorkspaceChangeSet } from "./workspace.js";
+import type { ExecutionEnvironmentBinding } from "./execution-environment.js";
 
 export type WorkspaceTaskAccess = "read_only" | "writable";
 export type WorkspaceTaskRunState =
@@ -18,7 +19,10 @@ export type WorkspaceTaskRunOutcome =
   | "execution_failed"
   | "cancelled";
 export type WorkspaceTaskExecutionOutcome = "completed" | "failed" | "cancelled";
-export type WorkspaceTaskAttemptKind = "execution" | "recovery";
+export type WorkspaceTaskAttemptKind =
+  | "execution"
+  | "recovery"
+  | "continuation";
 export type WorkspaceTaskAttemptState =
   | "active"
   | "completed"
@@ -33,6 +37,9 @@ export interface WorkspaceTaskRunRecord {
   readonly access: WorkspaceTaskAccess;
   readonly repositoryId: string;
   readonly isolationId: string;
+  readonly executionEnvironment: ExecutionEnvironmentBinding;
+  readonly jobId?: string;
+  readonly agentId?: string;
   readonly state: WorkspaceTaskRunState;
   readonly baseRevision?: string;
   readonly runtimeRef?: string;
@@ -78,6 +85,9 @@ export interface BeginWorkspaceTaskRunRequest {
   readonly access: WorkspaceTaskAccess;
   readonly repositoryId: string;
   readonly isolationId: string;
+  readonly executionEnvironment: ExecutionEnvironmentBinding;
+  readonly jobId?: string;
+  readonly agentId?: string;
   readonly attemptId: string;
   readonly ownerId: PrincipalId;
   readonly claimToken: string;
@@ -90,6 +100,15 @@ export interface ClaimWorkspaceTaskRecoveryRequest {
   readonly ownerId: PrincipalId;
   readonly claimToken: string;
   readonly leaseMs: number;
+}
+
+export interface ClaimWorkspaceTaskContinuationRequest {
+  readonly runId: string;
+  readonly attemptId: string;
+  readonly ownerId: PrincipalId;
+  readonly claimToken: string;
+  readonly leaseMs: number;
+  readonly executionEnvironment: ExecutionEnvironmentBinding;
 }
 
 export interface RenewWorkspaceTaskRunRequest {
@@ -153,6 +172,7 @@ export interface GetWorkspaceTaskRunRequest {
 }
 
 export interface ListWorkspaceTaskRunsRequest {
+  readonly runIds?: readonly string[];
   readonly workspaceId?: string;
   readonly repositoryId?: string;
   readonly state?: WorkspaceTaskRunState;

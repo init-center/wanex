@@ -13,7 +13,7 @@ clients, store paths, binary paths, provider secrets, or Runtime Host handles.
 
 Trusted hosts with persistent Provider management import the explicit
 `@wanex/app/provider-mutation` subpath. It is intentionally absent from the
-root facade and must never be forwarded through a Product Surface or renderer
+root facade and must never be forwarded through an Assistant Surface or renderer
 bridge. One-shot first-use setup is injected through App construction instead.
 
 ## Use when

@@ -11,6 +11,7 @@ import type {
   WorkspaceChangeTransactionFinalization
 } from "@wanex/protocol"
 import type { WorkspaceStore } from "@wanex/storage/workspace"
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 import type {
   WorkspaceMutationIdentity,
   WorkspaceProposalMutationIdentity
@@ -25,6 +26,7 @@ interface WorkspaceRuntimeCommonOptions {
 export interface WorkspaceRuntimeOptions extends WorkspaceRuntimeCommonOptions {
   readonly rootDir: string
   readonly serviceBin: string
+  readonly executionScope: BorrowedExecutionScope
   readonly transactionLeaseMs?: number
 }
 

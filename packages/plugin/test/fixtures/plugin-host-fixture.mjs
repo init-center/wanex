@@ -1,4 +1,4 @@
-import { stdin, stdout, stderr, env, exit, cwd } from "node:process"
+import { stdin, stdout, stderr, env, exit, cwd, argv } from "node:process"
 import { setTimeout as delay } from "node:timers/promises"
 
 const protocol = "wanex.plugin.host.v1"
@@ -7,7 +7,7 @@ const chunks = []
 stdin.setEncoding("utf8")
 stdin.on("data", (chunk) => chunks.push(chunk))
 stdin.on("end", async () => {
-  const mode = env.WANEX_PLUGIN_FIXTURE_MODE ?? "success"
+  const mode = argv[2] ?? "success"
   if (mode === "exit") {
     stderr.write("planned child exit\n")
     exit(7)
@@ -47,6 +47,7 @@ stdin.on("end", async () => {
         actionId: message.request.actionId,
         capability: message.request.capability,
         cwd: cwd(),
+        ambientCredential: env.WANEX_PLUGIN_AMBIENT_CREDENTIAL ?? null,
         payload: message.request.payload
       }
     })}\n`

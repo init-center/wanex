@@ -11,9 +11,9 @@ import type {
   ReadPlanProposalResult,
   ExecutePlanProposalResult,
   RevisePlanProposalRequest
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { PlanProposalStep } from "@wanex/protocol"
-import type { SurfaceEvent } from "@wanex/product/surface"
+import type { SurfaceEvent } from "@wanex/assistant/surface"
 import {
   TuiConfirmationOverlay,
   TuiInputOverlay,
@@ -95,7 +95,7 @@ export function createTuiPlan(options: {
     close,
     isOpen: () => active,
     handleInvalidation(event) {
-      if (event.type !== "product.surface.plan.invalidated" || event.plan === undefined) return
+      if (event.type !== "assistant.surface.plan.invalidated" || event.plan === undefined) return
       const planEvent = event.plan
       if (
         planEvent.sessionId !== undefined &&
@@ -315,7 +315,7 @@ export function createTuiPlan(options: {
           showRevisionEditorOverlay(token)
           return
         }
-        if (result.value.kind !== "product.plan-proposal.found") {
+        if (result.value.kind !== "assistant.plan-proposal.found") {
           throw new Error("revised Plan proposal is unavailable")
         }
         applyProposal(result.value)
@@ -574,7 +574,7 @@ export function createTuiPlan(options: {
   function applyGeneration(
     result: ReadPlanGenerationResult
   ): void {
-    if (result.kind === "product.plan-generation.found") {
+    if (result.kind === "assistant.plan-generation.found") {
       generation = result.generation
       generationOperationId = result.generation.operationId
       return
@@ -586,12 +586,12 @@ export function createTuiPlan(options: {
   }
 
   function applyProposal(result: ReadPlanProposalResult): void {
-    if (result.kind === "product.plan-proposal.found") {
+    if (result.kind === "assistant.plan-proposal.found") {
       proposal = result.proposal
       proposalId = result.proposal.proposalId
       return
     }
     proposal = undefined
-    if (result.kind !== "product.plan-proposal.no-selection") proposalId = result.proposalId
+    if (result.kind !== "assistant.plan-proposal.no-selection") proposalId = result.proposalId
   }
 }

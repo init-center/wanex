@@ -46,14 +46,11 @@ export interface InstructionSource {
 }
 
 export interface InstructionSourceProvenance {
-  readonly id: string
   readonly scope: InstructionScope
-  readonly path: string
   readonly target: string
   readonly order: number
   readonly byteLength: number
   readonly hash: string
-  readonly mtimeMs?: number
 }
 
 export type InstructionDiagnosticSeverity = "info" | "warning" | "error"

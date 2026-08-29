@@ -7,6 +7,20 @@ is the trusted backend entry. Optional plugins, connectors, teams, workspace,
 TUI, UI, and concrete adapters must not enter either cold closure unless the
 selected product imports them explicitly.
 
+The generic `@wanex/cli` and `@wanex/assistant` entries also remain free of the
+Workspace capability. Coding products select the dedicated trusted Coding
+leaf; they do not make Workspace a transitive cost of ordinary conversation
+products. Distribution graph and footprint audits reject Workspace in these
+generic entries.
+
+The private `@wanex/coding` leaf has the opposite executable contract: its
+workspace closure is exactly Coding, Protocol, Runtime, Storage, and
+Workspace. It must include Workspace, but must not absorb App, Assistant,
+Assistant Host, Assistant Web, TUI, Desktop, Team, Plugin, Connector, or
+another application leaf.
+The footprint audit enforces this exact closure rather than treating the Coding
+leaf as another generic cold entry.
+
 The Rust system service is a resolved distribution artifact. Consumers must
 not bundle arbitrary development `node_modules`, package-local tests, fixtures,
 stores, caches, or concrete connector SDKs into the default Runtime payload.
@@ -42,9 +56,9 @@ explicit binary because they intentionally expose the process boundary.
 The first-release native target matrix is intentionally closed:
 
 - `linux-x64` / `x86_64-unknown-linux-gnu` for headless Runtime/SDK;
-- `darwin-arm64` / `aarch64-apple-darwin` for headless and Product Desktop;
-- `darwin-x64` / `x86_64-apple-darwin` for headless and Product Desktop;
-- `win32-x64` / `x86_64-pc-windows-msvc` for headless and Product Desktop.
+- `darwin-arm64` / `aarch64-apple-darwin` for headless and Desktop;
+- `darwin-x64` / `x86_64-apple-darwin` for headless and Desktop;
+- `win32-x64` / `x86_64-pc-windows-msvc` for headless and Desktop.
 
 Linux arm64 and Windows arm64 are not inferred or cross-selected. A declared
 target becomes supported only after its own native runner stages and executes
@@ -73,7 +87,7 @@ pipeline.
   closure;
 - packlist audits exclude tests, fixtures, caches, stores, and bundles;
 - packed external consumers prove export maps and dependency closure;
-- Windows/Product Desktop validation must measure unpacked size and startup with the
+- Windows/Desktop validation must measure unpacked size and startup with the
   actual packaged system-service artifact.
 
 The native staging directory contains exactly `runtime-artifacts.json` plus one
@@ -87,8 +101,8 @@ Development builds retain their normal diagnostics; release staging must not
 ship a static symbol table inside the runtime executable merely to satisfy a
 later packaging step.
 
-Product Desktop packaging contains one dependency-free application ASAR with
-only `main.cjs` and `package.json`. External `native` and `credentials`
+Desktop packaging contains one dependency-free application ASAR with
+only `main.cjs`, `preload.cjs`, and `package.json`. External `native` and `credentials`
 directories contain byte-identical manifested System Service and current-target
 keyring artifacts. There is no application `node_modules`, preload, renderer
 fixture, or `app.asar.unpacked` tree. The packaged main verifies target,
@@ -97,8 +111,8 @@ native boundary.
 
 `docs/architecture/host-distribution-budget.json` owns executable/package
 bytes, exact ASAR/native/credential file counts, native cold lifecycle maxima,
-and separate Product Desktop cold/warm ceilings. Desktop interactivity ends
-after the real Product document is loaded and the visible composer admits a
+and separate Desktop cold/warm ceilings. Desktop interactivity ends
+after the real Assistant document is loaded and the visible composer admits a
 conversation without waiting for the asynchronous agent turn. Conversation
 settlement and complete proof wall time are reported and bounded separately.
 Static Runtime/App bundle bytes and input closure remain solely in the facade
@@ -114,7 +128,7 @@ and do not claim a host-cache reset. Native performance gates use both a median
 ceiling and a hard maximum: sustained regressions fail the median, while one
 pathological launch still cannot exceed the hard physical boundary.
 
-The Product Desktop proof has a different fixed contract: exactly one cold launch
+The Desktop proof has a different fixed contract: exactly one cold launch
 followed by four warm launches. It reports the cold timing directly and the
 warm median, maximum, and raw timings. The cold sample uses hard ceilings.
 Warm host startup and interactive total use both median and hard ceilings;
@@ -123,19 +137,19 @@ to use maxima. Neither short sample set can establish a meaningful p95, and no
 sample is trimmed or excluded from correctness.
 
 The release-blocking Desktop proof owns functional distribution behavior, not
-the temporary Product UI composition. It requires the packaged Renderer to
+the temporary Assistant UI composition. It requires the packaged Renderer to
 complete Provider onboarding/edit/removal/fallback, canonical conversations,
-the supported Product workflow journeys, privacy checks, shutdown, and process
+the supported Assistant workflow journeys, privacy checks, shutdown, and process
 cleanup. Normal and narrow screenshots must be captured and nonblank, but their
 layout, focus, drawer state, and exact requested content dimensions are
 diagnostic until the replacement UI freezes a new visual/accessibility
 acceptance contract. The receipt validates actual positive content/pixel
 dimensions and scale because a host window manager may cap a requested size.
 
-Product Desktop proof wall timing stops when the packaged process exits. Receipt
+Desktop proof wall timing stops when the packaged process exits. Receipt
 parsing and the mandatory process-table audit occur afterward and remain fatal
 correctness checks, but their cost is excluded from both interactivity and
-proof wall performance. Product streaming remains event-driven; the proof's
+proof wall performance. Assistant streaming remains event-driven; the proof's
 in-page observer checks the rendered DOM at a bounded 50ms interval until the
 new user and assistant rows are both visible.
 Each target owns its own cold and warm values; do not average heterogeneous
@@ -171,7 +185,7 @@ pnpm proof:sdk-consumers -- --native-target darwin-arm64 \
   --native-package-report target/sdk/native/darwin-arm64/report.json
 ```
 
-Run native and Product Desktop measurements before the external npm consumer proof.
+Run native and Desktop measurements before the external npm consumer proof.
 The latter deliberately starts the packaged service several times and must not
 contaminate cold/warm distribution evidence.
 

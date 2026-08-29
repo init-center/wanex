@@ -92,7 +92,7 @@ describe("@wanex/app schedule commands", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_schedule",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: [
           expect.objectContaining({
             inputId: "inp_wanex_app_schedule_tick_1",

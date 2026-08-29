@@ -68,7 +68,54 @@ impl SystemService {
     }
 
     pub fn list_session_turns(&self, request: &ListSessionTurns) -> Result<Vec<SessionTurnRecord>> {
+        if request.before.is_some() && request.limit.is_none() {
+            return Err(SystemServiceError::InvalidInput(
+                "session turn cursor requires a bounded limit".to_string(),
+            ));
+        }
+        if request
+            .limit
+            .is_some_and(|limit| !(1..=1000).contains(&limit))
+        {
+            return Err(SystemServiceError::InvalidInput(
+                "session turn limit must be between 1 and 1000".to_string(),
+            ));
+        }
+        if request
+            .before
+            .as_ref()
+            .is_some_and(|before| before.created_at < 0 || before.turn_id.is_empty())
+        {
+            return Err(SystemServiceError::InvalidInput(
+                "session turn page cursor is invalid".to_string(),
+            ));
+        }
         let conn = self.connect()?;
+        if let Some(limit) = request.limit {
+            let mut clauses = vec!["session_id = ?"];
+            let mut values = vec![rusqlite::types::Value::Text(request.session_id.clone())];
+            if let Some(state) = &request.state {
+                clauses.push("state = ?");
+                values.push(rusqlite::types::Value::Text(state.clone()));
+            }
+            if let Some(before) = &request.before {
+                clauses.push("(created_at < ? OR (created_at = ? AND id < ?))");
+                values.push(rusqlite::types::Value::Integer(before.created_at));
+                values.push(rusqlite::types::Value::Integer(before.created_at));
+                values.push(rusqlite::types::Value::Text(before.turn_id.clone()));
+            }
+            values.push(rusqlite::types::Value::Integer(limit));
+            let sql = format!(
+                "{SESSION_TURN_SELECT} WHERE {}
+                 ORDER BY created_at DESC, id DESC LIMIT ?",
+                clauses.join(" AND ")
+            );
+            let mut stmt = conn.prepare(&sql)?;
+            let rows = stmt.query_map(rusqlite::params_from_iter(values), row_to_session_turn)?;
+            let mut turns = collect_rows(rows)?;
+            turns.reverse();
+            return Ok(turns);
+        }
         let rows = if let Some(state) = &request.state {
             let mut stmt = conn.prepare(&format!(
                 "{SESSION_TURN_SELECT} WHERE session_id = ? AND state = ?
@@ -112,6 +159,22 @@ impl SystemService {
         let values = std::iter::once(session_id).chain(turn_ids.iter().map(String::as_str));
         let rows = stmt.query_map(params_from_iter(values), row_to_session_turn)?;
         collect_rows(rows)
+    }
+
+    pub fn get_session_turn(&self, turn_id: &str) -> Result<Option<SessionTurnRecord>> {
+        if turn_id.is_empty() {
+            return Err(SystemServiceError::InvalidInput(
+                "session turn id must not be empty".to_string(),
+            ));
+        }
+        let conn = self.connect()?;
+        conn.query_row(
+            &format!("{SESSION_TURN_SELECT} WHERE id = ?"),
+            params![turn_id],
+            row_to_session_turn,
+        )
+        .optional()
+        .map_err(Into::into)
     }
 
     pub fn list_session_attempts(

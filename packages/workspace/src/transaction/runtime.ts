@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto"
-import { realpath } from "node:fs/promises"
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 import type {
   JsonValue,
   RuntimeAbortSignal,
@@ -21,7 +21,7 @@ import {
   WorkspaceTransactionRecoveryRequiredError
 } from "./errors.js"
 import { WorkspaceTransactionLease } from "./lease.js"
-import { spawnNativeWorkspaceTransaction } from "./native-helper.js"
+import { spawnWorkspaceTransaction } from "./process-executor.js"
 import { recoverPendingTransactions } from "./recovery.js"
 import {
   finalizationResult,
@@ -75,17 +75,20 @@ export class WorkspaceChangeTransactionRuntime {
   private readonly storage: WorkspaceStore
   private readonly rootDir: string
   private readonly serviceBin: string
+  private readonly executionScope: BorrowedExecutionScope
   private readonly leaseMs: number
 
   constructor(options: {
     readonly storage: WorkspaceStore
     readonly rootDir: string
     readonly serviceBin: string
+    readonly executionScope: BorrowedExecutionScope
     readonly leaseMs?: number
   }) {
     this.storage = options.storage
     this.rootDir = options.rootDir
     this.serviceBin = options.serviceBin
+    this.executionScope = options.executionScope
     this.leaseMs =
       options.leaseMs ?? DEFAULT_WORKSPACE_TRANSACTION_LEASE_MS
     if (
@@ -101,7 +104,7 @@ export class WorkspaceChangeTransactionRuntime {
     request: ExecuteWorkspaceTransactionRequest
   ): Promise<ExecuteWorkspaceTransactionResult> {
     validateRequest(request)
-    const canonicalRoot = await realpath(this.rootDir)
+    const canonicalRoot = await this.executionScope.fileSystem.canonicalize(this.rootDir)
     await this.recoverPending(request.workspaceId, canonicalRoot)
     const transactionId = durableId("wtx", request.mutation.idempotencyKey)
     const operationId = durableId("wop", transactionId)
@@ -131,6 +134,7 @@ export class WorkspaceChangeTransactionRuntime {
       await cleanupTerminalArtifacts({
         canonicalRoot,
         serviceBin: this.serviceBin,
+        executionScope: this.executionScope,
         transactionId,
         files: claim.snapshot.files
       })
@@ -153,15 +157,16 @@ export class WorkspaceChangeTransactionRuntime {
       leaseMs: this.leaseMs
     })
     lease.start()
-    let helper: Awaited<ReturnType<typeof spawnNativeWorkspaceTransaction>> | undefined
+    let helper: Awaited<ReturnType<typeof spawnWorkspaceTransaction>> | undefined
     let files: readonly WorkspaceChangeTransactionFilePlan[] = []
     let commitStarted = false
     let terminalFinalization: WorkspaceChangeTransactionFinalization | undefined
     try {
-      helper = await spawnNativeWorkspaceTransaction({
+      helper = await spawnWorkspaceTransaction({
         rootDir: canonicalRoot,
         serviceBin: this.serviceBin,
-        transactionId
+        transactionId,
+        executionScope: this.executionScope
       })
       const receipt = await request.plan()
       if (receipt.changeSetId !== request.changeSetId) {
@@ -235,6 +240,7 @@ export class WorkspaceChangeTransactionRuntime {
       await cleanupCommittedArtifacts({
         canonicalRoot,
         serviceBin: this.serviceBin,
+        executionScope: this.executionScope,
         transactionId,
         files,
         helper
@@ -305,6 +311,7 @@ export class WorkspaceChangeTransactionRuntime {
       storage: this.storage,
       rootDir: this.rootDir,
       serviceBin: this.serviceBin,
+      executionScope: this.executionScope,
       leaseMs: this.leaseMs,
       workspaceId,
       ...(canonicalRoot === undefined ? {} : { canonicalRoot })

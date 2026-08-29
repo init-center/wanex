@@ -3,9 +3,12 @@ import type {
   ResourceRecord
 } from "@wanex/protocol"
 import type { RuntimeStore } from "@wanex/storage"
+import { exportEnvironmentFile } from "./environment-export.js"
 import { providerOutputToIngestRequest } from "./provider-output.js"
 import type {
   ProviderArtifactOutput,
+  EnvironmentArtifactScope,
+  EnvironmentFileExportRequest,
   WanexResourceRuntimeOptions
 } from "./types.js"
 
@@ -35,6 +38,7 @@ export { sha256Bytes, stableResourceLogicalPath } from "./path.js"
 export { providerOutputToIngestRequest } from "./provider-output.js"
 export {
   admitUserMessage,
+  canonicalizeUserMessageInput,
   assertTurnResourcesMatchBinding,
   validateCanonicalUserMessage,
   prepareProviderReplayResources,
@@ -50,7 +54,7 @@ export {
 } from "./projections.js"
 
 export class WanexResourceRuntime {
-  private readonly storage: RuntimeStore
+  private readonly storage: Pick<RuntimeStore, "ingestResource">
 
   constructor(options: WanexResourceRuntimeOptions) {
     this.storage = options.storage
@@ -66,5 +70,12 @@ export class WanexResourceRuntime {
 
   async ingestBytes(request: IngestResourceRequest): Promise<ResourceRecord> {
     return await this.storage.ingestResource(request)
+  }
+
+  async exportEnvironmentFile(
+    scope: EnvironmentArtifactScope,
+    request: EnvironmentFileExportRequest
+  ): Promise<ResourceRecord> {
+    return await exportEnvironmentFile(this.storage, scope, request)
   }
 }

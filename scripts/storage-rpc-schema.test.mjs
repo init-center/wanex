@@ -145,16 +145,54 @@ describe("storage RPC canonical schema", () => {
   })
 
   it("accepts every sessions command and rejects missing or open control fields", () => {
-    for (const [index, request] of sessionsRequests().entries()) {
+    const requests = sessionsRequests()
+    const schemaCommands = schema.$defs.SessionsStorageRpcCommand.oneOf.map(
+      ({ $ref }) => schema.$defs[$ref.split("/").at(-1)].properties.command.enum[0]
+    )
+    expect(requests.map(({ command }) => command).sort()).toEqual(
+      schemaCommands.sort()
+    )
+    for (const [index, request] of requests.entries()) {
       expect(
         validateWireEnvelope({
           storage_rpc_version: 1,
           request_id: `rpc_sessions_${index}`,
           request
         }),
-        JSON.stringify(validateWireEnvelope.errors)
+        `${request.command}: ${JSON.stringify(validateWireEnvelope.errors)}`
       ).toBe(true)
     }
+    expect(
+      validateWireEnvelope({
+        storage_rpc_version: 1,
+        request_id: "rpc_sessions_scoped_create",
+        request: {
+          command: "create-session",
+          id: "ses_schema_scoped",
+          title: null,
+          kind: "agent",
+          scope: { kind: "coding.repository", id: "repo_schema" }
+        }
+      }),
+      JSON.stringify(validateWireEnvelope.errors)
+    ).toBe(true)
+    expect(
+      validateWireEnvelope({
+        storage_rpc_version: 1,
+        request_id: "rpc_sessions_open_scope",
+        request: {
+          command: "create-session",
+          id: "ses_schema_scoped",
+          title: null,
+          kind: "agent",
+          scope: {
+            kind: "coding.repository",
+            id: "repo_schema",
+            extra: true
+          }
+        }
+      })
+    ).toBe(false)
     expect(
       validateWireEnvelope({
         storage_rpc_version: 1,
@@ -741,7 +779,13 @@ function mediaGenerationRequests() {
 function sessionsRequests() {
   const content = [{ type: "text", id: "part_schema", text: "hello" }]
   return [
-    { command: "create-session", id: null, title: null, kind: null },
+    {
+      command: "create-session",
+      id: null,
+      title: null,
+      kind: null,
+      scope: null
+    },
     { command: "get-session", id: "ses_schema" },
     {
       command: "list-sessions",
@@ -750,6 +794,8 @@ function sessionsRequests() {
         status: null,
         updated_before: null,
         updated_after: null,
+        scope: null,
+        before: null,
         limit: null
       }
     },
@@ -849,6 +895,58 @@ function sessionsRequests() {
       }
     },
     {
+      command: "begin-provider-invocation",
+      request: {
+        id: null,
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        step: 1,
+        invocation_number: 1,
+        request_digest: "request_digest_schema"
+      }
+    },
+    {
+      command: "mark-provider-invocation-output",
+      request: {
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        invocation_id: "pinv_schema",
+        provider_request_id: null
+      }
+    },
+    {
+      command: "finish-provider-invocation",
+      request: {
+        session_id: "ses_schema",
+        turn_id: "turn_schema",
+        attempt_id: "attempt_schema",
+        input_id: "inp_schema",
+        job_id: "job_schema",
+        worker_id: "worker_schema",
+        lease_token: "lease_schema",
+        invocation_id: "pinv_schema",
+        outcome: "succeeded",
+        assistant_message: content,
+        provider_state: [],
+        provider_request_id: null,
+        error: null
+      }
+    },
+    {
+      command: "list-provider-invocations",
+      request: { turn_id: "turn_schema" }
+    },
+    {
       command: "request-session-turn-cancel",
       request: {
         session_id: "ses_schema",
@@ -924,8 +1022,11 @@ function sessionsRequests() {
       command: "list-session-turns",
       session_id: "ses_schema",
       state: null,
-      turn_ids: null
+      turn_ids: null,
+      before: null,
+      limit: null
     },
+    { command: "get-session-turn", turn_id: "turn_schema" },
     { command: "list-session-attempts", turn_id: "turn_schema" },
     {
       command: "append-session-message",

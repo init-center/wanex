@@ -12,14 +12,15 @@ use wanex_system_service::{
     BeginWorkspaceChangeTransactionCommit, BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun,
     BudgetAmount, BudgetScopeKind, BudgetScopeRef, ChangeObjectiveState, ClaimJob,
     ClaimWorkspaceChangeProposalApply, ClaimWorkspaceChangeTransactionRecovery,
-    ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets, CommitBudget,
-    CompleteChannelDelivery, CompleteJob, ConfigMutationCondition, ContextEpochMutationIdentity,
-    CreateObjective, CreatePlanProposal, DoctorCheckState, EnqueueJob, EventScope,
-    ExecuteApprovedPlan, FailChannelDelivery, FailJob, FailTeamDeliveryMaterialization,
-    FinalizeWorkspaceChangeTransaction, FinalizeWorkspaceTaskCollection, FinishConnectorSession,
-    FinishContextEpochGeneration, GetActiveContextEpoch, GetPluginInstall, GetPluginManifest,
-    HeartbeatConnectorSession, HeartbeatJob, IngestChannelInboundEvent, IngestResource,
-    InterruptSessionTurn, ListChannelBindings, ListChannelInboundEvents, ListChannelProjections,
+    ClaimWorkspaceTaskContinuation, ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets,
+    CommitBudget, CompleteChannelDelivery, CompleteJob, ConfigMutationCondition,
+    ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal, DoctorCheckState,
+    EnqueueJob, EventScope, ExecuteApprovedPlan, FailChannelDelivery, FailJob,
+    FailTeamDeliveryMaterialization, FinalizeWorkspaceChangeTransaction,
+    FinalizeWorkspaceTaskCollection, FinishConnectorSession, FinishContextEpochGeneration,
+    GetActiveContextEpoch, GetPluginInstall, GetPluginManifest, HeartbeatConnectorSession,
+    HeartbeatJob, IngestChannelInboundEvent, IngestResource, InterruptSessionTurn,
+    ListChannelBindings, ListChannelInboundEvents, ListChannelProjections,
     ListConnectorCredentials, ListConnectorSessions, ListContextEpochs,
     ListDelegationGraphDependencies, ListDelegationGraphNodes, ListDelegationGraphs,
     ListObjectiveAttemptReviews, ListObjectiveAttempts, ListObjectiveVerifications,
@@ -31,13 +32,14 @@ use wanex_system_service::{
     ListWorkspaceChangeProposals, ListWorkspaceChangeSets, ListWorkspaceTaskAttempts,
     ListWorkspaceTaskRuns, MarkContextEpochOutputObserved,
     MarkWorkspaceChangeProposalRecoveryRequired, MarkWorkspaceChangeTransactionPrepared,
-    MarkWorkspaceTaskActive, MaterializeReadyDelegationGraphNode, MaterializeTeamDelivery,
-    PlanProposalContentRecord, PlanProposalGenerationRecord, PlanProposalReferenceRecord,
-    PlanProposalSourceRecord, ProjectChannelInboundEvent, ProjectTeamDeliveryOutcome,
-    PruneContextEpochs, PutChannelBinding, PutConnectorCredential, PutConnectorRegistration,
-    PutDelegationGraph, PutDelegationGraphDependency, PutDelegationGraphNode, PutPluginInstall,
-    PutPluginManifest, PutTeamConversation, PutTeamParticipant, PutWorkspaceChangeProposal,
-    PutWorkspaceChangeSet, QueryEvents, ReadTeamConversationPage, ReconcileObjectiveCancellation,
+    MarkWorkspaceTaskActive, MarkWorkspaceTaskAttention, MaterializeReadyDelegationGraphNode,
+    MaterializeTeamDelivery, PlanProposalContentRecord, PlanProposalGenerationRecord,
+    PlanProposalReferenceRecord, PlanProposalSourceRecord, ProjectChannelInboundEvent,
+    ProjectTeamDeliveryOutcome, PruneContextEpochs, PutChannelBinding, PutConnectorCredential,
+    PutConnectorRegistration, PutDelegationGraph, PutDelegationGraphDependency,
+    PutDelegationGraphNode, PutPluginInstall, PutPluginManifest, PutTeamConversation,
+    PutTeamParticipant, PutWorkspaceChangeProposal, PutWorkspaceChangeSet, QueryEvents,
+    ReadTeamConversationPage, ReconcileObjectiveCancellation,
     ReconcileWorkspaceChangeTransactionFiles, RecordBudgetUsage, RecordPlanProposalOperation,
     RecordWorkspaceChangeOperation, RecordWorkspaceChangeProposalOperation,
     RecordWorkspaceChangeTransactionFileCommitted, RecordWorkspaceChangeTransactionPlan,
@@ -45,16 +47,16 @@ use wanex_system_service::{
     RequestObjectiveCancel, RequestSessionTurnCancel, RequireToolExecutionRecovery, ReserveBudget,
     ResolveToolExecutionRecovery, ResourceCapability, ResourceSource, RetryPolicy, RetryStrategy,
     ReviewObjectiveAttempt, RevokeConnectorCredential, RouteTeamDelivery, RouteTeamMessage,
-    RuntimeEvent, SchedulerJobKind, SchedulerJobRecord, SessionStateTransition,
-    SetTeamConversationLead, SettleSessionTurn, SettleWorkspaceChangeProposalApply,
-    StartConnectorSession, StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
-    SubmitPluginAction, SubmitSessionTurn, SubmitSessionTurnReceipt, SystemService,
-    SystemServiceError, TeamTarget, ToolResultContentPart, UpdateChannelInboundEventState,
-    UpdateConnectorRegistrationState, UpdateDelegationGraphNodeState, UpdateDelegationGraphState,
-    UpdatePluginInstallState, UpdatePluginManifestState, UpdateTeamConversationState,
-    UpdateTeamParticipantState, WorkspaceChangeTransactionFileObservation,
-    WorkspaceChangeTransactionFilePlan, WorkspaceChangeTransactionProposalBinding,
-    WorkspaceTaskRunIdentity, CURRENT_SCHEMA_VERSION,
+    RuntimeEvent, SchedulerJobKind, SchedulerJobRecord, SessionPageCursor, SessionScope,
+    SessionStateTransition, SessionTurnPageCursor, SetTeamConversationLead, SettleSessionTurn,
+    SettleWorkspaceChangeProposalApply, StartConnectorSession, StartSessionTurnAttempt,
+    SteerSessionTurn, SubmitChannelDelivery, SubmitPluginAction, SubmitSessionTurn,
+    SubmitSessionTurnReceipt, SystemService, SystemServiceError, TeamTarget, ToolResultContentPart,
+    UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
+    UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
+    UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
+    WorkspaceChangeTransactionFileObservation, WorkspaceChangeTransactionFilePlan,
+    WorkspaceChangeTransactionProposalBinding, WorkspaceTaskRunIdentity, CURRENT_SCHEMA_VERSION,
 };
 
 fn test_execution_binding(label: &str) -> serde_json::Value {
@@ -102,6 +104,56 @@ fn test_execution_binding(label: &str) -> serde_json::Value {
         .unwrap()
         .insert("digest".to_string(), json!(digest));
     binding
+}
+
+fn test_execution_environment_binding(label: &str) -> serde_json::Value {
+    let capabilities = json!({
+        "revision": 1,
+        "isolation": { "enforcement": "none" },
+        "filesystem": {
+            "enforcement": "library_guard",
+            "effects": ["create", "read", "remove", "write"]
+        },
+        "process": {
+            "oneShot": true,
+            "managed": false,
+            "cleanup": "runtime_process_tree"
+        },
+        "pty": { "supported": false },
+        "network": { "enforcement": "none" },
+        "secretProjection": { "supported": false },
+        "artifactExport": { "supported": false }
+    });
+    let policy = json!({
+        "revision": 1,
+        "filesystem": {
+            "roots": [{
+                "id": "workspace",
+                "effects": ["create", "read", "remove", "write"]
+            }],
+            "maxReadBytes": 52_428_800,
+            "maxDirectoryEntries": 100_000
+        },
+        "process": {
+            "oneShot": true,
+            "managed": false,
+            "cleanup": "runtime_process_tree",
+            "environmentVariables": []
+        },
+        "network": "unrestricted",
+        "isolation": "none",
+        "pty": false
+    });
+    json!({
+        "revision": 1,
+        "environmentId": format!("environment_{label}"),
+        "providerId": "wanex.execution.native",
+        "providerRevision": "1",
+        "capabilityDigest": sha256_json(&capabilities),
+        "capabilities": capabilities,
+        "policyDigest": sha256_json(&policy),
+        "policy": policy
+    })
 }
 
 fn test_execution_binding_with_secret(label: &str, secret_ref: &str) -> serde_json::Value {
@@ -377,7 +429,7 @@ fn prepare_ambiguous_tool(
     let worker_id = format!("worker_tool_ambiguous_{suffix}");
     let tool_call_id = format!("call_tool_ambiguous_{suffix}");
     service
-        .create_session(Some(&session_id), None, Some("agent"))
+        .create_session(Some(&session_id), None, Some("agent"), None)
         .unwrap();
 
     let budget = with_budget.then(|| {
@@ -1039,7 +1091,7 @@ fn rejects_stale_context_predecessor_and_prunes_superseded_epochs() {
 
 fn seed_context_turns(service: &SystemService, session_id: &str, count: usize) {
     service
-        .create_session(Some(session_id), None, Some("agent"))
+        .create_session(Some(session_id), None, Some("agent"), None)
         .unwrap();
     for index in 1..=count {
         let suffix = format!("{session_id}_{index}");
@@ -2142,6 +2194,7 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
         attempt_id: "wtat_atomic".to_string(),
         claim_token: token.clone(),
     };
+    let execution_environment = test_execution_environment_binding("task_atomic");
     let claim = service
         .begin_workspace_task_run(&BeginWorkspaceTaskRun {
             id: identity.run_id.clone(),
@@ -2150,6 +2203,9 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             access: "writable".to_string(),
             repository_id: "repo_task_atomic".to_string(),
             isolation_id: "wiso_task_atomic".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: Some("job_task_atomic".to_string()),
+            agent_id: Some("agent_task_atomic_worker".to_string()),
             attempt_id: identity.attempt_id.clone(),
             owner_id: "host_task_atomic".to_string(),
             claim_token: token,
@@ -2168,6 +2224,9 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             access: "writable".to_string(),
             repository_id: "repo_task_atomic".to_string(),
             isolation_id: "wiso_task_atomic".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: Some("job_task_atomic".to_string()),
+            agent_id: Some("agent_task_atomic_worker".to_string()),
             attempt_id: identity.attempt_id.clone(),
             owner_id: "host_task_atomic".to_string(),
             claim_token: identity.claim_token.clone(),
@@ -2175,6 +2234,26 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
         })
         .unwrap();
     assert_eq!(exact_replay.status, "claimed");
+    let mut changed_environment = execution_environment.clone();
+    changed_environment["providerRevision"] = json!("2");
+    assert!(matches!(
+        service.begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: identity.run_id.clone(),
+            workspace_id: "workspace_task_atomic".to_string(),
+            principal_id: "agent_task_atomic".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_atomic".to_string(),
+            isolation_id: "wiso_task_atomic".to_string(),
+            execution_environment: changed_environment,
+            job_id: Some("job_task_atomic".to_string()),
+            agent_id: Some("agent_task_atomic_worker".to_string()),
+            attempt_id: identity.attempt_id.clone(),
+            owner_id: "host_task_atomic".to_string(),
+            claim_token: identity.claim_token.clone(),
+            lease_ms: 60_000,
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
     assert!(matches!(
         service.begin_workspace_task_run(&BeginWorkspaceTaskRun {
             id: identity.run_id.clone(),
@@ -2183,6 +2262,9 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             access: "writable".to_string(),
             repository_id: "repo_task_atomic".to_string(),
             isolation_id: "wiso_task_atomic".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: Some("job_task_changed".to_string()),
+            agent_id: Some("agent_task_atomic_worker".to_string()),
             attempt_id: identity.attempt_id.clone(),
             owner_id: "host_task_atomic".to_string(),
             claim_token: identity.claim_token.clone(),
@@ -2198,6 +2280,9 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             access: "writable".to_string(),
             repository_id: "repo_task_atomic".to_string(),
             isolation_id: "wiso_task_atomic".to_string(),
+            execution_environment,
+            job_id: Some("job_task_atomic".to_string()),
+            agent_id: Some("agent_task_atomic_worker".to_string()),
             attempt_id: identity.attempt_id.clone(),
             owner_id: "host_task_changed".to_string(),
             claim_token: "task-changed-token-000000000000000000000000000000000".to_string(),
@@ -2312,6 +2397,11 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
         .unwrap();
     assert_eq!(restored.run.state, "released");
     assert_eq!(restored.run.outcome.as_deref(), Some("proposed"));
+    assert_eq!(restored.run.job_id.as_deref(), Some("job_task_atomic"));
+    assert_eq!(
+        restored.run.agent_id.as_deref(),
+        Some("agent_task_atomic_worker")
+    );
     assert!(restored.active_attempt.is_none());
     let attempts = reopened
         .list_workspace_task_attempts(&ListWorkspaceTaskAttempts {
@@ -2353,6 +2443,9 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
             access: "writable".to_string(),
             repository_id: "repo_task_recovery".to_string(),
             isolation_id: "wiso_task_recovery".to_string(),
+            execution_environment: test_execution_environment_binding("task_recovery"),
+            job_id: None,
+            agent_id: None,
             attempt_id: "wtat_old".to_string(),
             owner_id: "host_old".to_string(),
             claim_token: old_token.clone(),
@@ -2367,6 +2460,7 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
     .unwrap();
     let due = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            run_ids: None,
             workspace_id: Some("workspace_task_recovery".to_string()),
             repository_id: Some("repo_task_recovery".to_string()),
             state: Some("preparing".to_string()),
@@ -2375,8 +2469,40 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
         })
         .unwrap();
     assert_eq!(due.len(), 1);
+    let exact = service
+        .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            run_ids: Some(vec![
+                "wtsk_recovery".to_string(),
+                "wtsk_recovery_missing".to_string(),
+            ]),
+            workspace_id: Some("workspace_task_recovery".to_string()),
+            repository_id: Some("repo_task_recovery".to_string()),
+            state: None,
+            lease_expires_before: None,
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(
+        exact
+            .iter()
+            .map(|snapshot| snapshot.run.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["wtsk_recovery"]
+    );
+    assert!(matches!(
+        service.list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            run_ids: Some(vec!["wtsk_recovery".to_string()]),
+            workspace_id: None,
+            repository_id: None,
+            state: None,
+            lease_expires_before: Some(test_now_ms()),
+            limit: None,
+        }),
+        Err(SystemServiceError::InvalidInput(_))
+    ));
     let other_repository = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            run_ids: None,
             workspace_id: Some("workspace_task_recovery".to_string()),
             repository_id: Some("repo_task_other".to_string()),
             state: Some("preparing".to_string()),
@@ -2430,6 +2556,243 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
 }
 
 #[test]
+fn workspace_task_continuation_reactivates_attention_without_changing_isolation() {
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    let execution_environment = test_execution_environment_binding("task_continuation");
+    let original_token = "task-continuation-original-token-000000000000000000000".to_string();
+    let original = WorkspaceTaskRunIdentity {
+        run_id: "wtsk_continuation".to_string(),
+        attempt_id: "wtat_continuation_original".to_string(),
+        claim_token: original_token.clone(),
+    };
+    service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: original.run_id.clone(),
+            workspace_id: "workspace_task_continuation".to_string(),
+            principal_id: "agent_task_continuation".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_continuation".to_string(),
+            isolation_id: "wiso_task_continuation".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: Some("job_task_continuation".to_string()),
+            agent_id: Some("agent_task_continuation_worker".to_string()),
+            attempt_id: original.attempt_id.clone(),
+            owner_id: "host_task_continuation_original".to_string(),
+            claim_token: original.claim_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    let base_revision = "d".repeat(40);
+    service
+        .mark_workspace_task_active(&MarkWorkspaceTaskActive {
+            run_id: original.run_id.clone(),
+            attempt_id: original.attempt_id.clone(),
+            claim_token: original.claim_token.clone(),
+            base_revision: Some(base_revision.clone()),
+            runtime_ref: Some("refs/heads/wanex/task-continuation".to_string()),
+        })
+        .unwrap();
+    service
+        .mark_workspace_task_attention(&MarkWorkspaceTaskAttention {
+            run_id: original.run_id.clone(),
+            attempt_id: original.attempt_id.clone(),
+            claim_token: original.claim_token.clone(),
+            failure: json!({
+                "type": "workspace_task.recovery_required",
+                "message": "tool result was not observed"
+            }),
+        })
+        .unwrap();
+
+    let ordinary_begin = service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: original.run_id.clone(),
+            workspace_id: "workspace_task_continuation".to_string(),
+            principal_id: "agent_task_continuation".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_continuation".to_string(),
+            isolation_id: "wiso_task_continuation".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: Some("job_task_continuation".to_string()),
+            agent_id: Some("agent_task_continuation_worker".to_string()),
+            attempt_id: original.attempt_id.clone(),
+            owner_id: "host_task_continuation_original".to_string(),
+            claim_token: original.claim_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    assert_eq!(ordinary_begin.status, "busy");
+    assert_eq!(ordinary_begin.snapshot.run.state, "attention");
+
+    let mut changed_environment = execution_environment.clone();
+    changed_environment["providerRevision"] = json!("changed");
+    assert!(matches!(
+        service.claim_workspace_task_continuation(&ClaimWorkspaceTaskContinuation {
+            run_id: original.run_id.clone(),
+            attempt_id: "wtat_continuation_changed".to_string(),
+            owner_id: "host_task_continuation".to_string(),
+            claim_token: "task-continuation-changed-token-000000000000000000000".to_string(),
+            lease_ms: 60_000,
+            execution_environment: changed_environment,
+        }),
+        Err(SystemServiceError::Conflict(_))
+    ));
+
+    let continuation_token =
+        "task-continuation-new-token-000000000000000000000000000000".to_string();
+    let continuation = ClaimWorkspaceTaskContinuation {
+        run_id: original.run_id.clone(),
+        attempt_id: "wtat_continuation_new".to_string(),
+        owner_id: "host_task_continuation".to_string(),
+        claim_token: continuation_token.clone(),
+        lease_ms: 60_000,
+        execution_environment: execution_environment.clone(),
+    };
+    let claimed = service
+        .claim_workspace_task_continuation(&continuation)
+        .unwrap();
+    assert_eq!(claimed.status, "claimed");
+    assert_eq!(claimed.snapshot.run.state, "active");
+    assert_eq!(claimed.snapshot.run.isolation_id, "wiso_task_continuation");
+    assert_eq!(
+        claimed.snapshot.run.base_revision.as_deref(),
+        Some(base_revision.as_str())
+    );
+    assert_eq!(
+        claimed.snapshot.run.runtime_ref.as_deref(),
+        Some("refs/heads/wanex/task-continuation")
+    );
+    assert!(claimed.snapshot.run.failure.is_none());
+    assert!(claimed.snapshot.run.finished_at.is_none());
+    assert_eq!(
+        claimed.snapshot.active_attempt.as_ref().unwrap().kind,
+        "continuation"
+    );
+
+    let replay = service
+        .claim_workspace_task_continuation(&continuation)
+        .unwrap();
+    assert_eq!(replay.status, "claimed");
+    assert_eq!(
+        replay.snapshot.active_attempt.unwrap().id,
+        "wtat_continuation_new"
+    );
+    let attempts = service
+        .list_workspace_task_attempts(&ListWorkspaceTaskAttempts {
+            run_id: original.run_id,
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(attempts.len(), 2);
+    assert_eq!(attempts[0].state, "failed");
+    assert_eq!(attempts[0].kind, "execution");
+    assert_eq!(attempts[1].state, "active");
+    assert_eq!(attempts[1].kind, "continuation");
+    assert!(serde_json::to_string(&claimed)
+        .unwrap()
+        .contains("wiso_task_continuation"));
+    assert!(!serde_json::to_string(&claimed)
+        .unwrap()
+        .contains(&continuation_token));
+}
+
+#[test]
+fn workspace_task_active_records_missing_prepared_identity_once() {
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    let execution_environment = test_execution_environment_binding("task_identity_recovery");
+    let original_token = "task-identity-original-token-000000000000000000000000".to_string();
+    let original = WorkspaceTaskRunIdentity {
+        run_id: "wtsk_identity_recovery".to_string(),
+        attempt_id: "wtat_identity_recovery_original".to_string(),
+        claim_token: original_token.clone(),
+    };
+    service
+        .begin_workspace_task_run(&BeginWorkspaceTaskRun {
+            id: original.run_id.clone(),
+            workspace_id: "workspace_task_identity_recovery".to_string(),
+            principal_id: "agent_task_identity_recovery".to_string(),
+            access: "writable".to_string(),
+            repository_id: "repo_task_identity_recovery".to_string(),
+            isolation_id: "wiso_task_identity_recovery".to_string(),
+            execution_environment: execution_environment.clone(),
+            job_id: None,
+            agent_id: None,
+            attempt_id: original.attempt_id.clone(),
+            owner_id: "host_task_identity_original".to_string(),
+            claim_token: original.claim_token.clone(),
+            lease_ms: 60_000,
+        })
+        .unwrap();
+    service
+        .mark_workspace_task_attention(&MarkWorkspaceTaskAttention {
+            run_id: original.run_id.clone(),
+            attempt_id: original.attempt_id,
+            claim_token: original.claim_token,
+            failure: json!({
+                "type": "workspace_task.recovery_required",
+                "message": "owner lost before worktree identity was recorded"
+            }),
+        })
+        .unwrap();
+
+    let continuation_token =
+        "task-identity-continuation-token-000000000000000000000000000".to_string();
+    let continuation = ClaimWorkspaceTaskContinuation {
+        run_id: original.run_id.clone(),
+        attempt_id: "wtat_identity_recovery_continuation".to_string(),
+        owner_id: "host_task_identity_continuation".to_string(),
+        claim_token: continuation_token,
+        lease_ms: 60_000,
+        execution_environment,
+    };
+    let claimed = service
+        .claim_workspace_task_continuation(&continuation)
+        .unwrap();
+    assert_eq!(claimed.snapshot.run.state, "active");
+    assert!(claimed.snapshot.run.base_revision.is_none());
+    assert!(claimed.snapshot.run.runtime_ref.is_none());
+
+    let base_revision = "e".repeat(40);
+    let runtime_ref = "refs/heads/wanex/task-identity-recovery".to_string();
+    let active = MarkWorkspaceTaskActive {
+        run_id: continuation.run_id.clone(),
+        attempt_id: continuation.attempt_id.clone(),
+        claim_token: continuation.claim_token.clone(),
+        base_revision: Some(base_revision.clone()),
+        runtime_ref: Some(runtime_ref.clone()),
+    };
+    let recorded = service.mark_workspace_task_active(&active).unwrap();
+    assert_eq!(recorded.run.state, "active");
+    assert_eq!(
+        recorded.run.base_revision.as_deref(),
+        Some(base_revision.as_str())
+    );
+    assert_eq!(
+        recorded.run.runtime_ref.as_deref(),
+        Some(runtime_ref.as_str())
+    );
+
+    let replay = service.mark_workspace_task_active(&active).unwrap();
+    assert_eq!(
+        replay.run.base_revision.as_deref(),
+        Some(base_revision.as_str())
+    );
+    assert_eq!(
+        replay.run.runtime_ref.as_deref(),
+        Some(runtime_ref.as_str())
+    );
+
+    let mut changed = active.clone();
+    changed.runtime_ref = Some("refs/heads/wanex/forged-identity".to_string());
+    assert!(matches!(
+        service.mark_workspace_task_active(&changed),
+        Err(SystemServiceError::Conflict(_))
+    ));
+}
+
+#[test]
 fn workspace_task_proposal_conflict_rolls_back_changeset_and_run_linkage() {
     let root = tempdir().unwrap();
     let service = SystemService::open(root.path()).unwrap();
@@ -2474,6 +2837,9 @@ fn workspace_task_proposal_conflict_rolls_back_changeset_and_run_linkage() {
             access: "writable".to_string(),
             repository_id: "repo_task_conflict".to_string(),
             isolation_id: "wiso_task_conflict".to_string(),
+            execution_environment: test_execution_environment_binding("task_conflict"),
+            job_id: None,
+            agent_id: None,
             attempt_id: identity.attempt_id.clone(),
             owner_id: "host_task_conflict".to_string(),
             claim_token: token,
@@ -2657,7 +3023,7 @@ fn records_plan_proposal_lifecycle_references_and_events() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_plan"), Some("Plan source"), Some("agent"))
+        .create_session(Some("ses_plan"), Some("Plan source"), Some("agent"), None)
         .unwrap();
     service
         .put_workspace_changeset(&PutWorkspaceChangeSet {
@@ -2829,6 +3195,8 @@ fn records_plan_proposal_lifecycle_references_and_events() {
         .list_session_turns(&ListSessionTurns {
             session_id: "ses_plan".to_string(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -2856,6 +3224,8 @@ fn records_plan_proposal_lifecycle_references_and_events() {
         .list_session_turns(&ListSessionTurns {
             session_id: "ses_plan".to_string(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -2974,6 +3344,7 @@ fn blocks_approved_plan_execution_after_source_head_drift() {
             Some("ses_plan_stale"),
             Some("Stale Plan source"),
             Some("agent"),
+            None,
         )
         .unwrap();
     let proposal = service
@@ -3059,6 +3430,8 @@ fn blocks_approved_plan_execution_after_source_head_drift() {
             .list_session_turns(&ListSessionTurns {
                 session_id: "ses_plan_stale".to_string(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()
             .len(),
@@ -3071,7 +3444,12 @@ fn objective_contract_binds_exact_turn_and_gates_success_with_verification() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_objective"), Some("Objective"), Some("agent"))
+        .create_session(
+            Some("ses_objective"),
+            Some("Objective"),
+            Some("agent"),
+            None,
+        )
         .unwrap();
 
     let request = test_objective_request(
@@ -3312,7 +3690,7 @@ fn objective_admission_yields_to_user_work_and_enforces_attempt_limit() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_objective_priority"), None, Some("agent"))
+        .create_session(Some("ses_objective_priority"), None, Some("agent"), None)
         .unwrap();
     let objective = service
         .create_objective(&test_objective_request(
@@ -3394,7 +3772,7 @@ fn objective_budget_is_reserved_per_attempt_and_enforced_after_settlement() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_objective_budget"), None, Some("agent"))
+        .create_session(Some("ses_objective_budget"), None, Some("agent"), None)
         .unwrap();
     let objective = service
         .create_objective(&test_objective_request(
@@ -3474,7 +3852,12 @@ fn objective_cancellation_waits_for_an_exact_running_turn_settlement() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_objective_cancel_queued"), None, Some("agent"))
+        .create_session(
+            Some("ses_objective_cancel_queued"),
+            None,
+            Some("agent"),
+            None,
+        )
         .unwrap();
     let queued_objective = service
         .create_objective(&test_objective_request(
@@ -3517,6 +3900,8 @@ fn objective_cancellation_waits_for_an_exact_running_turn_settlement() {
             .list_session_turns(&ListSessionTurns {
                 session_id: queued_submission.turn.session_id,
                 state: Some("cancelled".to_string()),
+                before: None,
+                limit: None,
             })
             .unwrap()
             .len(),
@@ -3524,7 +3909,12 @@ fn objective_cancellation_waits_for_an_exact_running_turn_settlement() {
     );
 
     service
-        .create_session(Some("ses_objective_cancel_running"), None, Some("agent"))
+        .create_session(
+            Some("ses_objective_cancel_running"),
+            None,
+            Some("agent"),
+            None,
+        )
         .unwrap();
     let running_objective = service
         .create_objective(&test_objective_request(
@@ -4093,7 +4483,7 @@ fn retains_secret_references_until_durable_execution_is_settled() {
     let service = SystemService::open(dir.path()).unwrap();
     let secret_ref = "wanex-keychain://namespace/provider.revision";
     service
-        .create_session(Some("ses_secret_liveness"), None, Some("agent"))
+        .create_session(Some("ses_secret_liveness"), None, Some("agent"), None)
         .unwrap();
     let mut request = test_turn_request(TestTurn {
         session_id: "ses_secret_liveness",
@@ -4381,7 +4771,12 @@ fn durable_turns_hide_queued_input_and_preserve_canonical_order() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_turn_order"), Some("Turn order"), Some("agent"))
+        .create_session(
+            Some("ses_turn_order"),
+            Some("Turn order"),
+            Some("agent"),
+            None,
+        )
         .unwrap();
 
     let first = submit_test_turn(
@@ -4641,10 +5036,10 @@ fn validates_complete_capability_routes_and_rejects_duplicate_requirements() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_capability_valid"), None, Some("agent"))
+        .create_session(Some("ses_capability_valid"), None, Some("agent"), None)
         .unwrap();
     service
-        .create_session(Some("ses_capability_duplicate"), None, Some("agent"))
+        .create_session(Some("ses_capability_duplicate"), None, Some("agent"), None)
         .unwrap();
     let media = media_generation_binding("turn-route");
     let route = json!({
@@ -4701,11 +5096,81 @@ fn validates_complete_capability_routes_and_rejects_duplicate_requirements() {
 }
 
 #[test]
+fn validates_private_free_context_evidence_and_rejects_snapshot_shape_drift() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_context_evidence"), None, Some("agent"), None)
+        .unwrap();
+
+    let mut valid = test_turn_request(TestTurn {
+        session_id: "ses_context_evidence",
+        input_id: "inp_context_evidence_valid",
+        turn_id: "turn_context_evidence_valid",
+        job_id: "job_context_evidence_valid",
+        principal_id: "context_evidence_user",
+        idempotency_key: "context_evidence_valid",
+        text: "submit private-free context evidence",
+    });
+    valid.execution_binding["contextEvidence"] = json!({
+        "revision": 1,
+        "instructions": {
+            "state": "available",
+            "sourceCount": 2,
+            "digest": "1".repeat(64)
+        },
+        "skills": {
+            "state": "available",
+            "sourceCount": 1,
+            "digest": "2".repeat(64)
+        }
+    });
+    refresh_execution_binding_digest(&mut valid.execution_binding);
+    service.submit_session_turn(&valid).unwrap();
+
+    let mut nested_extra = test_turn_request(TestTurn {
+        session_id: "ses_context_evidence",
+        input_id: "inp_context_evidence_nested_extra",
+        turn_id: "turn_context_evidence_nested_extra",
+        job_id: "job_context_evidence_nested_extra",
+        principal_id: "context_evidence_user",
+        idempotency_key: "context_evidence_nested_extra",
+        text: "reject context evidence nested extra",
+    });
+    nested_extra.execution_binding["contextEvidence"] =
+        valid.execution_binding["contextEvidence"].clone();
+    nested_extra.execution_binding["contextEvidence"]["instructions"]["extra"] = json!(true);
+    refresh_execution_binding_digest(&mut nested_extra.execution_binding);
+    assert!(matches!(
+        service.submit_session_turn(&nested_extra),
+        Err(SystemServiceError::InvalidJobRequest(_))
+    ));
+
+    let mut old_snapshot = test_turn_request(TestTurn {
+        session_id: "ses_context_evidence",
+        input_id: "inp_context_evidence_old_snapshot",
+        turn_id: "turn_context_evidence_old_snapshot",
+        job_id: "job_context_evidence_old_snapshot",
+        principal_id: "context_evidence_user",
+        idempotency_key: "context_evidence_old_snapshot",
+        text: "reject old context snapshot",
+    });
+    old_snapshot.execution_binding["contextSnapshot"] = json!({
+        "instructions": "must not be accepted"
+    });
+    refresh_execution_binding_digest(&mut old_snapshot.execution_binding);
+    assert!(matches!(
+        service.submit_session_turn(&old_snapshot),
+        Err(SystemServiceError::InvalidJobRequest(_))
+    ));
+}
+
+#[test]
 fn follow_up_admission_requires_the_exact_current_session_head() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_follow_up_head"), None, Some("agent"))
+        .create_session(Some("ses_follow_up_head"), None, Some("agent"), None)
         .unwrap();
 
     let parent = submit_test_turn(
@@ -4769,6 +5234,8 @@ fn follow_up_admission_requires_the_exact_current_session_head() {
             .list_session_turns(&ListSessionTurns {
                 session_id: "ses_follow_up_head".to_string(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()
             .len(),
@@ -4855,7 +5322,7 @@ fn exact_turn_job_input_identity_cannot_be_swapped() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_exact_turn"), None, Some("agent"))
+        .create_session(Some("ses_exact_turn"), None, Some("agent"), None)
         .unwrap();
     let first = submit_test_turn(
         &service,
@@ -4934,7 +5401,7 @@ fn different_sessions_can_own_turn_leases_concurrently() {
     let service = SystemService::open(dir.path()).unwrap();
     for session_id in ["ses_parallel_a", "ses_parallel_b"] {
         service
-            .create_session(Some(session_id), None, Some("agent"))
+            .create_session(Some(session_id), None, Some("agent"), None)
             .unwrap();
     }
     let first = submit_test_turn(
@@ -4977,7 +5444,7 @@ fn queued_cancel_is_terminal_but_running_cancel_waits_for_owner() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_cancel_queued"), None, Some("agent"))
+        .create_session(Some("ses_cancel_queued"), None, Some("agent"), None)
         .unwrap();
     let queued = submit_test_turn(
         &service,
@@ -5013,7 +5480,7 @@ fn queued_cancel_is_terminal_but_running_cancel_waits_for_owner() {
         .is_empty());
 
     service
-        .create_session(Some("ses_cancel_running"), None, Some("agent"))
+        .create_session(Some("ses_cancel_running"), None, Some("agent"), None)
         .unwrap();
     let running = submit_test_turn(
         &service,
@@ -5084,7 +5551,7 @@ fn worker_failure_settles_unstarted_and_promoted_turns_atomically() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_fail_before"), None, Some("agent"))
+        .create_session(Some("ses_fail_before"), None, Some("agent"), None)
         .unwrap();
     let before = submit_test_turn(
         &service,
@@ -5114,6 +5581,8 @@ fn worker_failure_settles_unstarted_and_promoted_turns_atomically() {
             .list_session_turns(&ListSessionTurns {
                 session_id: "ses_fail_before".to_string(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()[0]
             .state,
@@ -5131,7 +5600,7 @@ fn worker_failure_settles_unstarted_and_promoted_turns_atomically() {
         .is_empty());
 
     service
-        .create_session(Some("ses_fail_after"), None, Some("agent"))
+        .create_session(Some("ses_fail_after"), None, Some("agent"), None)
         .unwrap();
     let after = submit_test_turn(
         &service,
@@ -5163,6 +5632,8 @@ fn worker_failure_settles_unstarted_and_promoted_turns_atomically() {
         .list_session_turns(&ListSessionTurns {
             session_id: "ses_fail_after".to_string(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .pop()
@@ -5197,7 +5668,7 @@ fn non_successful_settlement_cannot_hide_an_open_provider_invocation() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_open_provider"), None, Some("agent"))
+        .create_session(Some("ses_open_provider"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -5253,6 +5724,8 @@ fn non_successful_settlement_cannot_hide_an_open_provider_invocation() {
             .list_session_turns(&ListSessionTurns {
                 session_id: submitted.turn.session_id.clone(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()[0]
             .state,
@@ -5286,7 +5759,7 @@ fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_expire_before"), None, Some("agent"))
+        .create_session(Some("ses_expire_before"), None, Some("agent"), None)
         .unwrap();
     let before = submit_test_turn(
         &service,
@@ -5337,7 +5810,7 @@ fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
         .unwrap();
 
     service
-        .create_session(Some("ses_expire_after"), None, Some("agent"))
+        .create_session(Some("ses_expire_after"), None, Some("agent"), None)
         .unwrap();
     let after = submit_test_turn(
         &service,
@@ -5357,7 +5830,7 @@ fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
     std::thread::sleep(Duration::from_millis(20));
 
     service
-        .create_session(Some("ses_expire_trigger"), None, Some("agent"))
+        .create_session(Some("ses_expire_trigger"), None, Some("agent"), None)
         .unwrap();
     let trigger = submit_test_turn(
         &service,
@@ -5381,6 +5854,8 @@ fn scheduler_lease_expiry_reuses_promoted_input_only_at_a_safe_checkpoint() {
         .list_session_turns(&ListSessionTurns {
             session_id: "ses_expire_after".to_string(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .pop()
@@ -5441,7 +5916,7 @@ fn restart_requeues_retryable_provider_failure_without_duplicate_input() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_provider_retry"), None, Some("agent"))
+        .create_session(Some("ses_provider_retry"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -5545,7 +6020,7 @@ fn restart_never_replays_a_dispatched_provider_invocation() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_provider_ambiguous"), None, Some("agent"))
+        .create_session(Some("ses_provider_ambiguous"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -5582,7 +6057,7 @@ fn restart_never_replays_a_dispatched_provider_invocation() {
 
     let recovered_service = SystemService::open(dir.path()).unwrap();
     recovered_service
-        .create_session(Some("ses_provider_trigger"), None, Some("agent"))
+        .create_session(Some("ses_provider_trigger"), None, Some("agent"), None)
         .unwrap();
     let trigger = submit_test_turn(
         &recovered_service,
@@ -5603,6 +6078,8 @@ fn restart_never_replays_a_dispatched_provider_invocation() {
         .list_session_turns(&ListSessionTurns {
             session_id: submitted.turn.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .pop()
@@ -5622,7 +6099,7 @@ fn restart_retries_only_idempotent_tools_with_a_new_fenced_attempt() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_tool_recovery"), None, Some("agent"))
+        .create_session(Some("ses_tool_recovery"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -5840,7 +6317,7 @@ fn restart_requires_recovery_for_non_idempotent_tool_without_blocking_other_sess
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_tool_unsafe"), None, Some("agent"))
+        .create_session(Some("ses_tool_unsafe"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -5922,7 +6399,7 @@ fn restart_requires_recovery_for_non_idempotent_tool_without_blocking_other_sess
 
     let recovered_service = SystemService::open(dir.path()).unwrap();
     recovered_service
-        .create_session(Some("ses_tool_independent"), None, Some("agent"))
+        .create_session(Some("ses_tool_independent"), None, Some("agent"), None)
         .unwrap();
     let independent = submit_test_turn(
         &recovered_service,
@@ -5944,6 +6421,8 @@ fn restart_requires_recovery_for_non_idempotent_tool_without_blocking_other_sess
         .list_session_turns(&ListSessionTurns {
             session_id: submitted.turn.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .pop()
@@ -6078,6 +6557,8 @@ fn ambiguous_tool_recovery_survives_restart_and_confirmations_requeue_exact_turn
             .list_session_turns(&ListSessionTurns {
                 session_id: fixture.submitted.turn.session_id.clone(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()[0]
             .state,
@@ -6331,6 +6812,8 @@ fn ambiguous_tool_confirmed_failure_and_abandonment_preserve_truthful_replay() {
         .list_session_turns(&ListSessionTurns {
             session_id: abandoned_fixture.submitted.turn.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap();
     assert_eq!(turns[0].state, "failed");
@@ -6362,7 +6845,7 @@ fn tool_execution_is_fenced_by_canonical_source_message() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_tool_fence"), None, Some("agent"))
+        .create_session(Some("ses_tool_fence"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -6446,7 +6929,7 @@ fn turn_controls_require_exact_attempt_and_owner_lease() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_turn_control"), None, Some("agent"))
+        .create_session(Some("ses_turn_control"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -6585,6 +7068,8 @@ fn turn_controls_require_exact_attempt_and_owner_lease() {
         .list_session_turns(&ListSessionTurns {
             session_id: submitted.turn.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .pop()
@@ -6598,7 +7083,7 @@ fn pending_steer_survives_safe_provider_checkpoint_recovery() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     service
-        .create_session(Some("ses_steer_recovery"), None, Some("agent"))
+        .create_session(Some("ses_steer_recovery"), None, Some("agent"), None)
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -6736,10 +7221,10 @@ fn lists_sessions_with_filters_and_limits() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     let chat = service
-        .create_session(Some("ses_list_chat"), Some("Chat"), Some("chat"))
+        .create_session(Some("ses_list_chat"), Some("Chat"), Some("chat"), None)
         .unwrap();
     let agent = service
-        .create_session(Some("ses_list_agent"), Some("Agent"), Some("agent"))
+        .create_session(Some("ses_list_agent"), Some("Agent"), Some("agent"), None)
         .unwrap();
 
     let all = service
@@ -6748,6 +7233,8 @@ fn lists_sessions_with_filters_and_limits() {
             status: None,
             updated_before: None,
             updated_after: None,
+            scope: None,
+            before: None,
             limit: Some(10),
         })
         .unwrap();
@@ -6760,6 +7247,8 @@ fn lists_sessions_with_filters_and_limits() {
             status: Some("active".to_string()),
             updated_before: None,
             updated_after: None,
+            scope: None,
+            before: None,
             limit: Some(10),
         })
         .unwrap();
@@ -6777,6 +7266,8 @@ fn lists_sessions_with_filters_and_limits() {
             status: None,
             updated_before: Some(agent.updated_at + 1),
             updated_after: Some(chat.updated_at - 1),
+            scope: None,
+            before: None,
             limit: Some(1),
         })
         .unwrap();
@@ -6785,11 +7276,169 @@ fn lists_sessions_with_filters_and_limits() {
 }
 
 #[test]
+fn pages_scoped_sessions_without_omissions_when_activity_timestamps_tie() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let scope = SessionScope {
+        kind: "coding.repository".to_string(),
+        id: "repository_tie_page".to_string(),
+    };
+    for id in ["ses_scope_a", "ses_scope_b", "ses_scope_c"] {
+        service
+            .create_session(Some(id), None, Some("agent"), Some(&scope))
+            .unwrap();
+    }
+    service
+        .create_session(
+            Some("ses_scope_foreign"),
+            None,
+            Some("agent"),
+            Some(&SessionScope {
+                kind: scope.kind.clone(),
+                id: "repository_foreign".to_string(),
+            }),
+        )
+        .unwrap();
+
+    let connection = rusqlite::Connection::open(service.db_path()).unwrap();
+    connection
+        .execute(
+            "UPDATE session SET updated_at = 42 WHERE id IN (?, ?, ?)",
+            rusqlite::params!["ses_scope_a", "ses_scope_b", "ses_scope_c"],
+        )
+        .unwrap();
+
+    let first_page = service
+        .list_sessions(&ListSessions {
+            kind: Some("agent".to_string()),
+            status: Some("active".to_string()),
+            updated_before: None,
+            updated_after: None,
+            scope: Some(scope.clone()),
+            before: None,
+            limit: Some(2),
+        })
+        .unwrap();
+    assert_eq!(
+        first_page
+            .iter()
+            .map(|session| session.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["ses_scope_a", "ses_scope_b"]
+    );
+    assert!(first_page
+        .iter()
+        .all(|session| session.scope == Some(scope.clone())));
+
+    let second_page = service
+        .list_sessions(&ListSessions {
+            kind: Some("agent".to_string()),
+            status: Some("active".to_string()),
+            updated_before: None,
+            updated_after: None,
+            scope: Some(scope.clone()),
+            before: Some(SessionPageCursor {
+                updated_at: first_page[1].updated_at,
+                session_id: first_page[1].id.clone(),
+            }),
+            limit: Some(2),
+        })
+        .unwrap();
+    assert_eq!(
+        second_page
+            .iter()
+            .map(|session| session.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["ses_scope_c"]
+    );
+}
+
+#[test]
+fn pages_session_turns_without_omissions_when_creation_timestamps_tie() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_turn_tie_page"), None, Some("agent"), None)
+        .unwrap();
+    for suffix in ["a", "b", "c"] {
+        submit_test_turn(
+            &service,
+            TestTurn {
+                session_id: "ses_turn_tie_page",
+                input_id: &format!("inp_turn_page_{suffix}"),
+                turn_id: &format!("turn_page_{suffix}"),
+                job_id: &format!("job_turn_page_{suffix}"),
+                principal_id: "principal_turn_page",
+                idempotency_key: &format!("turn-page:{suffix}"),
+                text: suffix,
+            },
+        );
+    }
+    let connection = rusqlite::Connection::open(service.db_path()).unwrap();
+    connection
+        .execute(
+            "UPDATE session_turn SET created_at = 42, updated_at = 42
+             WHERE session_id = ?",
+            ["ses_turn_tie_page"],
+        )
+        .unwrap();
+
+    let first_page = service
+        .list_session_turns(&ListSessionTurns {
+            session_id: "ses_turn_tie_page".to_string(),
+            state: None,
+            before: None,
+            limit: Some(2),
+        })
+        .unwrap();
+    assert_eq!(
+        first_page
+            .iter()
+            .map(|turn| turn.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["turn_page_b", "turn_page_c"]
+    );
+
+    let second_page = service
+        .list_session_turns(&ListSessionTurns {
+            session_id: "ses_turn_tie_page".to_string(),
+            state: None,
+            before: Some(SessionTurnPageCursor {
+                created_at: first_page[0].created_at,
+                turn_id: first_page[0].id.clone(),
+            }),
+            limit: Some(2),
+        })
+        .unwrap();
+    assert_eq!(
+        second_page
+            .iter()
+            .map(|turn| turn.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["turn_page_a"]
+    );
+    assert_eq!(
+        service
+            .list_session_turns(&ListSessionTurns {
+                session_id: "ses_turn_tie_page".to_string(),
+                state: None,
+                before: None,
+                limit: None,
+            })
+            .unwrap()
+            .iter()
+            .map(|turn| turn.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["turn_page_a", "turn_page_b", "turn_page_c"]
+    );
+}
+
+#[test]
 fn enforces_durable_session_lifecycle_revisions_and_admission_fences() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     let created = service
-        .create_session(Some("ses_lifecycle"), Some("Initial"), Some("chat"))
+        .create_session(Some("ses_lifecycle"), Some("Initial"), Some("chat"), None)
         .unwrap();
     assert_eq!(created.revision, 1);
     assert_eq!(created.status, "active");
@@ -6855,6 +7504,8 @@ fn enforces_durable_session_lifecycle_revisions_and_admission_fences() {
         .list_session_turns(&ListSessionTurns {
             session_id: created.id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -6925,11 +7576,77 @@ fn enforces_durable_session_lifecycle_revisions_and_admission_fences() {
 }
 
 #[test]
+fn promotes_a_durable_session_input_into_one_idempotent_turn() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_admitted_input"), None, Some("agent"), None)
+        .unwrap();
+
+    let request = test_turn_request(TestTurn {
+        session_id: "ses_admitted_input",
+        input_id: "inp_admitted_input",
+        turn_id: "turn_admitted_input",
+        job_id: "job_admitted_input",
+        principal_id: "principal_admitted_input",
+        idempotency_key: "admitted-input:turn",
+        text: "promote this admitted input",
+    });
+    service
+        .admit_session_input(&AdmitSessionInput {
+            id: request.id.clone(),
+            session_id: request.session_id.clone(),
+            principal_id: request.principal_id.clone(),
+            idempotency_key: request.idempotency_key.clone(),
+            input_type: request.input_type.clone(),
+            content: request.content.clone(),
+            origin: request.origin.clone(),
+            intent: request.intent.clone(),
+        })
+        .unwrap();
+
+    let promoted = service.submit_session_turn(&request).unwrap();
+    assert_eq!(promoted.admission.input_id, "inp_admitted_input");
+    assert_eq!(promoted.turn.id, "turn_admitted_input");
+    assert_eq!(promoted.turn.primary_input_id, "inp_admitted_input");
+    assert_eq!(promoted.turn.job_id, "job_admitted_input");
+    assert_eq!(
+        service
+            .list_session_inputs("ses_admitted_input")
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        service
+            .list_session_turns(&ListSessionTurns {
+                session_id: "ses_admitted_input".to_string(),
+                state: None,
+                before: None,
+                limit: None,
+            })
+            .unwrap()
+            .len(),
+        1
+    );
+
+    let replayed = service.submit_session_turn(&request).unwrap();
+    assert_eq!(replayed.admission.input_id, promoted.admission.input_id);
+    assert_eq!(replayed.turn.id, promoted.turn.id);
+    assert_eq!(replayed.job.id, promoted.job.id);
+}
+
+#[test]
 fn renaming_a_running_session_preserves_execution_and_transcript() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
     let session = service
-        .create_session(Some("ses_running_rename"), Some("Before"), Some("chat"))
+        .create_session(
+            Some("ses_running_rename"),
+            Some("Before"),
+            Some("chat"),
+            None,
+        )
         .unwrap();
     let submitted = submit_test_turn(
         &service,
@@ -6951,6 +7668,8 @@ fn renaming_a_running_session_preserves_execution_and_transcript() {
         .list_session_turns(&ListSessionTurns {
             session_id: session.id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap();
     let job_before = service
@@ -6979,6 +7698,8 @@ fn renaming_a_running_session_preserves_execution_and_transcript() {
             .list_session_turns(&ListSessionTurns {
                 session_id: session.id.clone(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap(),
         turns_before
@@ -8057,7 +8778,7 @@ fn enforces_durable_team_lead_authority_with_atomic_compare_and_set() {
         })
         .unwrap();
     service
-        .create_session(Some("ses_team_lead_a"), None, Some("agent"))
+        .create_session(Some("ses_team_lead_a"), None, Some("agent"), None)
         .unwrap();
     let agent_a = service
         .put_team_participant(&PutTeamParticipant {
@@ -8073,7 +8794,7 @@ fn enforces_durable_team_lead_authority_with_atomic_compare_and_set() {
         })
         .unwrap();
     service
-        .create_session(Some("ses_team_lead_b"), None, Some("agent"))
+        .create_session(Some("ses_team_lead_b"), None, Some("agent"), None)
         .unwrap();
     let agent_b = service
         .put_team_participant(&PutTeamParticipant {
@@ -8184,7 +8905,7 @@ fn enforces_durable_team_lead_authority_with_atomic_compare_and_set() {
         })
         .unwrap();
     service
-        .create_session(Some("ses_team_lead_foreign"), None, Some("agent"))
+        .create_session(Some("ses_team_lead_foreign"), None, Some("agent"), None)
         .unwrap();
     let foreign_agent = service
         .put_team_participant(&PutTeamParticipant {
@@ -8314,7 +9035,12 @@ fn enforces_fenced_orchestrated_direct_routing_policy() {
         })
         .unwrap();
     service
-        .create_session(Some("ses_team_orchestrated_lead"), None, Some("agent"))
+        .create_session(
+            Some("ses_team_orchestrated_lead"),
+            None,
+            Some("agent"),
+            None,
+        )
         .unwrap();
     let lead = service
         .put_team_participant(&PutTeamParticipant {
@@ -8330,7 +9056,12 @@ fn enforces_fenced_orchestrated_direct_routing_policy() {
         })
         .unwrap();
     service
-        .create_session(Some("ses_team_orchestrated_direct"), None, Some("agent"))
+        .create_session(
+            Some("ses_team_orchestrated_direct"),
+            None,
+            Some("agent"),
+            None,
+        )
         .unwrap();
     let direct = service
         .put_team_participant(&PutTeamParticipant {
@@ -8660,7 +9391,7 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
     for role in ["lead", "research", "review", "synthesis"] {
         let session_id = format!("ses_{suffix}_{role}");
         service
-            .create_session(Some(&session_id), None, Some("agent"))
+            .create_session(Some(&session_id), None, Some("agent"), None)
             .unwrap();
         let participant = service
             .put_team_participant(&PutTeamParticipant {
@@ -9095,6 +9826,8 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
         .list_session_turns(&ListSessionTurns {
             session_id: synthesis_task.target_session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .iter()
@@ -9104,6 +9837,8 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
             .list_session_turns(&ListSessionTurns {
                 session_id: research_task.target_session_id.clone(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()
             .iter()
@@ -9149,6 +9884,8 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
             .list_session_turns(&ListSessionTurns {
                 session_id: lead.2.clone(),
                 state: None,
+                before: None,
+                limit: None,
             })
             .unwrap()
             .iter()
@@ -9218,6 +9955,8 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
         .list_session_turns(&ListSessionTurns {
             session_id: lead.2.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .into_iter()
@@ -9513,6 +10252,8 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
         .list_session_turns(&ListSessionTurns {
             session_id: lead.2.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .into_iter()
@@ -9574,7 +10315,7 @@ fn persists_team_message_routing_and_delivery_ledger() {
         })
         .unwrap();
     let agent_session = service
-        .create_session(Some("ses_team_agent_one"), None, Some("agent"))
+        .create_session(Some("ses_team_agent_one"), None, Some("agent"), None)
         .unwrap();
     let agent = service
         .put_team_participant(&PutTeamParticipant {
@@ -10013,7 +10754,7 @@ fn persists_team_message_routing_and_delivery_ledger() {
     assert!(blocked_replay.round.is_none());
 
     let second_agent_session = service
-        .create_session(Some("ses_team_agent_two"), None, Some("agent"))
+        .create_session(Some("ses_team_agent_two"), None, Some("agent"), None)
         .unwrap();
     let second_agent = service
         .put_team_participant(&PutTeamParticipant {
@@ -10221,7 +10962,7 @@ fn rejects_a_second_open_peer_round_in_the_route_transaction() {
         })
         .unwrap();
     let session = service
-        .create_session(Some("ses_single_peer_agent"), None, Some("agent"))
+        .create_session(Some("ses_single_peer_agent"), None, Some("agent"), None)
         .unwrap();
     let agent = service
         .put_team_participant(&PutTeamParticipant {
@@ -10815,6 +11556,8 @@ fn materializes_team_delivery_with_exact_child_turn_and_replay_fencing() {
         .list_session_turns(&ListSessionTurns {
             session_id: fixture.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -10893,6 +11636,8 @@ fn rejects_team_delivery_materialization_after_participant_binding_changes() {
         .list_session_turns(&ListSessionTurns {
             session_id: fixture.session_id,
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -11079,6 +11824,8 @@ fn rolls_back_team_delivery_materialization_without_partial_child_records() {
         .list_session_turns(&ListSessionTurns {
             session_id: fixture.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .is_empty());
@@ -11621,6 +12368,8 @@ fn rolls_back_child_terminal_settlement_when_team_outcome_outbox_fails() {
         .list_session_turns(&ListSessionTurns {
             session_id: fixture.session_id.clone(),
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .into_iter()
@@ -11974,7 +12723,7 @@ fn create_team_delivery_fixture(service: &SystemService, suffix: &str) -> TeamDe
         })
         .unwrap();
     service
-        .create_session(Some(&session_id), None, Some("agent"))
+        .create_session(Some(&session_id), None, Some("agent"), None)
         .unwrap();
     let agent = service
         .put_team_participant(&PutTeamParticipant {
@@ -12075,7 +12824,7 @@ fn create_multi_delivery_round_fixture(
     for index in 0..participant_count {
         let session_id = format!("ses_team_multi_{suffix}_{index}");
         service
-            .create_session(Some(&session_id), None, Some("agent"))
+            .create_session(Some(&session_id), None, Some("agent"), None)
             .unwrap();
         let participant_id = format!("team_multi_agent_{suffix}_{index}");
         let principal_id = format!("team_multi_agent_principal_{suffix}_{index}");
@@ -13828,6 +14577,7 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
             Some("ses_projection"),
             Some("Projection Session"),
             Some("chat"),
+            None,
         )
         .unwrap();
     let session_inbound = service
@@ -14706,6 +15456,8 @@ fn deferred_media_failure_and_waiting_cancellation_wake_canonical_tool_errors() 
         .list_session_turns(&ListSessionTurns {
             session_id: cancelled.submitted.turn.session_id,
             state: None,
+            before: None,
+            limit: None,
         })
         .unwrap()
         .into_iter()
@@ -14923,7 +15675,7 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
     let worker_id = format!("worker_deferred_media_{label}");
     let tool_call_id = format!("call_deferred_media_{label}");
     service
-        .create_session(Some(&session_id), None, Some("agent"))
+        .create_session(Some(&session_id), None, Some("agent"), None)
         .unwrap();
     let mut submit = test_turn_request(TestTurn {
         session_id: &session_id,

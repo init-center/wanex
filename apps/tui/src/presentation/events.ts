@@ -1,6 +1,6 @@
 import type {
   SurfaceClientEventsResult
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import type {
   TuiRenderedEvents
 } from "../model.js"

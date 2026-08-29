@@ -22,7 +22,7 @@ import { assert } from "./scenario-utils.js"
 export const teamLeadDelegationDurableScenario = createEvalScenario({
   id: "team.lead-delegation-durable",
   title: "Team lead delegation survives host replacement and publishes once",
-  tags: ["team", "delegation", "runtime-host", "restart", "product-path"],
+  tags: ["team", "delegation", "runtime-host", "restart", "assistant-path"],
   async run(context) {
     const provider = new EvalTeamDelegationProvider()
     let hosts = createHosts(context.storage, provider)

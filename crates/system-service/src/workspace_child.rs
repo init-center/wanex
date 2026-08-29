@@ -3,7 +3,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, Read, Write};
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -31,10 +31,14 @@ struct StartFrame {
     args: Vec<String>,
     cwd: String,
     environment: BTreeMap<String, String>,
+    stdin_mode: String,
     stdin_base64: Option<String>,
     stdout_limit_bytes: u64,
     stderr_limit_bytes: u64,
     termination_grace_ms: Option<u64>,
+    terminal: Option<bool>,
+    terminal_columns: Option<u16>,
+    terminal_rows: Option<u16>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +51,9 @@ struct ControlFrame {
     child_id: String,
     claim_token_sha256: String,
     reason: Option<String>,
+    data_base64: Option<String>,
+    columns: Option<u16>,
+    rows: Option<u16>,
 }
 
 #[derive(Debug, Serialize)]
@@ -89,6 +96,23 @@ struct TerminalFrame<'a> {
     stderr_truncated: bool,
 }
 
+#[derive(Debug, Serialize)]
+struct InteractiveTerminalFrame<'a> {
+    protocol: u8,
+    kind: &'static str,
+    run_id: &'a str,
+    attempt_id: &'a str,
+    child_id: &'a str,
+    claim_token_sha256: &'a str,
+    exit_code: Option<i32>,
+    signal: Option<String>,
+    termination: &'static str,
+    cleanup: &'static str,
+    cleanup_error: Option<&'static str>,
+    output_observed_bytes: u64,
+    output_truncated: bool,
+}
+
 enum Event {
     Stdout(Vec<u8>),
     Stderr(Vec<u8>),
@@ -112,6 +136,7 @@ enum TerminationRequest {
 struct OutputState {
     observed: u64,
     limit: u64,
+    streamed: u64,
     head: Vec<u8>,
     tail: Vec<u8>,
 }
@@ -126,28 +151,34 @@ impl OutputState {
         Ok(Self {
             observed: 0,
             limit,
+            streamed: 0,
             head: Vec::new(),
             tail: Vec::new(),
         })
     }
 
-    fn append(&mut self, bytes: &[u8]) {
+    fn append(&mut self, bytes: &[u8]) -> Vec<u8> {
         self.observed = self.observed.saturating_add(bytes.len() as u64);
         let head_limit = self.limit.div_ceil(2) as usize;
         let tail_limit = (self.limit / 2) as usize;
         let mut offset = 0;
+        let live_limit = self.limit.saturating_sub(self.streamed) as usize;
+        let live_size = live_limit.min(bytes.len());
+        let live = bytes[..live_size].to_vec();
+        self.streamed = self.streamed.saturating_add(live_size as u64);
         if self.head.len() < head_limit {
             let retained = (head_limit - self.head.len()).min(bytes.len());
             self.head.extend_from_slice(&bytes[..retained]);
             offset = retained;
         }
         if tail_limit == 0 || offset >= bytes.len() {
-            return;
+            return live;
         }
         self.tail.extend_from_slice(&bytes[offset..]);
         if self.tail.len() > tail_limit {
             self.tail.drain(..self.tail.len() - tail_limit);
         }
+        live
     }
 
     fn retained(&self) -> Vec<u8> {
@@ -180,6 +211,14 @@ pub fn run_workspace_child_helper() -> Result<()> {
         return Err(invalid_input("workspace child stdin exceeds its limit"));
     }
 
+    if start.terminal.unwrap_or(false) {
+        return run_terminal_child(&start);
+    }
+
+    run_pipe_child(&start, stdin_bytes)
+}
+
+fn run_pipe_child(start: &StartFrame, stdin_bytes: Vec<u8>) -> Result<()> {
     let mut command = Command::new(&start.program);
     command
         .args(&start.args)
@@ -194,9 +233,13 @@ pub fn run_workspace_child_helper() -> Result<()> {
         SystemServiceError::Io(io::Error::other("workspace child process failed to spawn"))
     })?;
     let ownership = ChildOwnership::claim(&mut child)?;
-    if let Some(mut child_stdin) = child.stdin.take() {
-        child_stdin.write_all(&stdin_bytes)?;
-        drop(child_stdin);
+    let mut child_stdin = child.stdin.take();
+    if let Some(input) = child_stdin.as_mut() {
+        input.write_all(&stdin_bytes)?;
+        input.flush()?;
+    }
+    if start.stdin_mode == "closed" {
+        drop(child_stdin.take());
     }
 
     let (events_tx, events_rx) = mpsc::channel();
@@ -225,11 +268,350 @@ pub fn run_workspace_child_helper() -> Result<()> {
         },
     )?;
 
-    run_child_loop(&mut child, ownership, &events_rx, &mut output, &start)
+    run_child_loop(
+        &mut child,
+        child_stdin,
+        ownership,
+        &events_rx,
+        &mut output,
+        &start,
+    )
+}
+
+#[cfg(unix)]
+fn run_terminal_child(start: &StartFrame) -> Result<()> {
+    let columns = start
+        .terminal_columns
+        .ok_or_else(|| invalid_input("workspace child terminal columns are missing"))?;
+    let rows = start
+        .terminal_rows
+        .ok_or_else(|| invalid_input("workspace child terminal rows are missing"))?;
+    let mut command = Command::new(&start.program);
+    command
+        .args(&start.args)
+        .current_dir(&start.cwd)
+        .env_clear()
+        .envs(&start.environment);
+    let master = prepare_terminal_command(&mut command, columns, rows)?;
+    let mut child = command.spawn().map_err(|_| {
+        SystemServiceError::Io(io::Error::other("workspace child terminal failed to spawn"))
+    })?;
+    let ownership = ChildOwnership::claim(&mut child)?;
+    drop(child.stdin.take());
+    drop(child.stdout.take());
+    drop(child.stderr.take());
+
+    let (events_tx, events_rx) = mpsc::channel();
+    let reader = master.try_clone()?;
+    spawn_output_reader(Some(reader), events_tx.clone(), false);
+    let control_tx = events_tx.clone();
+    thread::Builder::new()
+        .name("wanex-workspace-child-control".to_string())
+        .spawn(move || {
+            let stdin = io::stdin();
+            read_control(stdin.lock(), control_tx);
+        })?;
+    drop(events_tx);
+
+    let stdout = io::stdout();
+    let mut output = stdout.lock();
+    write_json(
+        &mut output,
+        &ReadyFrame {
+            protocol: PROTOCOL,
+            kind: "workspace_child_ready",
+            run_id: &start.run_id,
+            attempt_id: &start.attempt_id,
+            child_id: &start.child_id,
+            claim_token_sha256: &start.claim_token_sha256,
+        },
+    )?;
+
+    run_terminal_child_loop(
+        &mut child,
+        master,
+        ownership,
+        &events_rx,
+        &mut output,
+        start,
+    )
+}
+
+#[cfg(not(unix))]
+fn run_terminal_child(_: &StartFrame) -> Result<()> {
+    Err(invalid_input(
+        "workspace child terminal is only supported on Unix",
+    ))
+}
+
+#[cfg(unix)]
+fn prepare_terminal_command(
+    command: &mut Command,
+    columns: u16,
+    rows: u16,
+) -> Result<std::fs::File> {
+    use std::os::fd::FromRawFd;
+    use std::os::unix::process::CommandExt;
+
+    let mut master = -1;
+    let mut slave = -1;
+    let window = libc::winsize {
+        ws_row: rows,
+        ws_col: columns,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let result = unsafe {
+        libc::openpty(
+            &mut master,
+            &mut slave,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::from_ref(&window).cast_mut(),
+        )
+    };
+    if result != 0 {
+        return Err(SystemServiceError::Io(io::Error::last_os_error()));
+    }
+
+    let master_file = unsafe { std::fs::File::from_raw_fd(master) };
+    let slave_file = unsafe { std::fs::File::from_raw_fd(slave) };
+    let stdin = slave_file.try_clone()?;
+    let stdout = slave_file.try_clone()?;
+    command
+        .stdin(Stdio::from(stdin))
+        .stdout(Stdio::from(stdout))
+        .stderr(Stdio::from(slave_file));
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            if libc::ioctl(libc::STDIN_FILENO, libc::TIOCSCTTY.into(), 0) == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    Ok(master_file)
+}
+
+#[cfg(unix)]
+fn resize_terminal(master: &std::fs::File, columns: u16, rows: u16) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    let window = libc::winsize {
+        ws_row: rows,
+        ws_col: columns,
+        ws_xpixel: 0,
+        ws_ypixel: 0,
+    };
+    let result = unsafe {
+        libc::ioctl(
+            master.as_raw_fd(),
+            libc::TIOCSWINSZ.into(),
+            std::ptr::from_ref(&window),
+        )
+    };
+    if result == -1 {
+        Err(io::Error::last_os_error())
+    } else {
+        Ok(())
+    }
+}
+
+#[cfg(unix)]
+fn run_terminal_child_loop(
+    child: &mut Child,
+    mut master: std::fs::File,
+    mut ownership: ChildOwnership,
+    events: &Receiver<Event>,
+    output: &mut impl Write,
+    start: &StartFrame,
+) -> Result<()> {
+    let mut output_state = OutputState::new(start.stdout_limit_bytes)?;
+    let mut output_closed = false;
+    let mut termination: Option<TerminationRequest> = None;
+    let mut cleanup = "completed";
+    let mut cleanup_error: Option<&'static str> = None;
+    let mut termination_deadline: Option<Instant> = None;
+    let mut termination_sent = false;
+    let mut force_sent = false;
+    let mut final_deadline_reached = false;
+    let mut terminate_failed = false;
+    let mut force_terminate_failed = false;
+    let mut membership_probe_failed = false;
+    let grace = Duration::from_millis(start.termination_grace_ms.unwrap_or(DEFAULT_GRACE_MS));
+    let mut status: Option<ExitStatus> = None;
+
+    loop {
+        if status.is_none() {
+            status = child.try_wait()?;
+        }
+        if (termination.is_some() || status.is_some()) && !termination_sent {
+            if ownership.terminate(child).is_err() {
+                terminate_failed = true;
+            }
+            termination_sent = true;
+            termination_deadline = Some(Instant::now() + grace);
+        }
+        let members_alive = match ownership.has_live_members(child) {
+            Ok(value) => value,
+            Err(_) => {
+                membership_probe_failed = true;
+                true
+            }
+        };
+        if members_alive && termination_sent {
+            if let Some(deadline) = termination_deadline {
+                if Instant::now() >= deadline && !force_sent {
+                    if ownership.force_terminate(child).is_err() {
+                        force_terminate_failed = true;
+                    }
+                    force_sent = true;
+                    termination_deadline = Some(Instant::now() + grace);
+                } else if Instant::now() >= deadline && force_sent {
+                    cleanup = "ambiguous";
+                    cleanup_error = Some(if force_terminate_failed {
+                        "force_terminate_failed"
+                    } else if terminate_failed {
+                        "terminate_failed"
+                    } else if membership_probe_failed {
+                        "membership_probe_failed"
+                    } else {
+                        "termination_unproven"
+                    });
+                    final_deadline_reached = true;
+                    termination_deadline = None;
+                }
+            }
+        }
+        if final_deadline_reached || (status.is_some() && output_closed && !members_alive) {
+            if !members_alive {
+                ownership.disarm();
+            }
+            let reason = termination
+                .as_ref()
+                .map(TerminationRequest::label)
+                .unwrap_or_else(|| {
+                    if status.as_ref().and_then(ExitStatus::code).is_some() {
+                        "exited"
+                    } else {
+                        "signaled"
+                    }
+                });
+            write_json(
+                output,
+                &InteractiveTerminalFrame {
+                    protocol: PROTOCOL,
+                    kind: "workspace_child_terminal",
+                    run_id: &start.run_id,
+                    attempt_id: &start.attempt_id,
+                    child_id: &start.child_id,
+                    claim_token_sha256: &start.claim_token_sha256,
+                    exit_code: status.as_ref().and_then(ExitStatus::code),
+                    signal: status.as_ref().and_then(signal_name),
+                    termination: reason,
+                    cleanup,
+                    cleanup_error,
+                    output_observed_bytes: output_state.observed,
+                    output_truncated: output_state.truncated(),
+                },
+            )?;
+            drop(master);
+            return Ok(());
+        }
+
+        match events.recv_timeout(Duration::from_millis(20)) {
+            Ok(Event::Stdout(bytes)) => {
+                let live = output_state.append(&bytes);
+                write_output(output, start, "workspace_child_stdout", &live)?;
+            }
+            Ok(Event::StdoutClosed) => output_closed = true,
+            Ok(Event::Stderr(_) | Event::StderrClosed) => {
+                cleanup = "ambiguous";
+                cleanup_error = Some("unexpected_terminal_stderr");
+                termination.get_or_insert(TerminationRequest::PipeEof);
+            }
+            Ok(Event::Control(ControlResult::Frame(frame))) => {
+                if !control_matches(&frame, start) {
+                    cleanup = "ambiguous";
+                    cleanup_error = Some("control_identity_mismatch");
+                    termination.get_or_insert(TerminationRequest::PipeEof);
+                    continue;
+                }
+                if frame.command == "terminate"
+                    && termination.is_none()
+                    && matches!(frame.reason.as_deref(), Some("cancelled" | "timed_out"))
+                    && frame.data_base64.is_none()
+                    && frame.columns.is_none()
+                    && frame.rows.is_none()
+                {
+                    termination = Some(match frame.reason.as_deref() {
+                        Some("timed_out") => TerminationRequest::TimedOut,
+                        _ => TerminationRequest::Cancelled,
+                    });
+                } else if frame.command == "stdin"
+                    && frame.reason.is_none()
+                    && frame.data_base64.is_some()
+                    && frame.columns.is_none()
+                    && frame.rows.is_none()
+                {
+                    let decoded = frame.data_base64.as_deref().and_then(|value| {
+                        base64::engine::general_purpose::STANDARD.decode(value).ok()
+                    });
+                    if let Some(bytes) = decoded.filter(|bytes| bytes.len() <= MAX_STDIN_BYTES) {
+                        if master
+                            .write_all(&bytes)
+                            .and_then(|_| master.flush())
+                            .is_ok()
+                        {
+                            continue;
+                        }
+                    }
+                    cleanup = "ambiguous";
+                    cleanup_error = Some("terminal_write_failed");
+                    termination.get_or_insert(TerminationRequest::PipeEof);
+                } else if frame.command == "resize"
+                    && frame.reason.is_none()
+                    && frame.data_base64.is_none()
+                    && frame.columns.is_some()
+                    && frame.rows.is_some()
+                {
+                    let columns = frame.columns.unwrap_or_default();
+                    let rows = frame.rows.unwrap_or_default();
+                    if (1..=1_000).contains(&columns) && (1..=1_000).contains(&rows) {
+                        if resize_terminal(&master, columns, rows).is_ok() {
+                            continue;
+                        }
+                    }
+                    cleanup = "ambiguous";
+                    cleanup_error = Some("terminal_resize_failed");
+                    termination.get_or_insert(TerminationRequest::PipeEof);
+                } else {
+                    cleanup = "ambiguous";
+                    cleanup_error = Some("control_command_invalid");
+                    termination.get_or_insert(TerminationRequest::PipeEof);
+                }
+            }
+            Ok(Event::Control(ControlResult::Eof)) => {
+                termination.get_or_insert(TerminationRequest::PipeEof);
+            }
+            Ok(Event::Control(ControlResult::Invalid)) => {
+                cleanup = "ambiguous";
+                cleanup_error = Some("control_frame_invalid");
+                termination.get_or_insert(TerminationRequest::PipeEof);
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => {
+                termination.get_or_insert(TerminationRequest::PipeEof);
+            }
+        }
+    }
 }
 
 fn run_child_loop(
     child: &mut Child,
+    mut child_stdin: Option<ChildStdin>,
     mut ownership: ChildOwnership,
     events: &Receiver<Event>,
     output: &mut impl Write,
@@ -300,18 +682,20 @@ fn run_child_loop(
             if !members_alive {
                 ownership.disarm();
             }
-            write_output(
-                output,
-                start,
-                "workspace_child_stdout",
-                &stdout_state.retained(),
-            )?;
-            write_output(
-                output,
-                start,
-                "workspace_child_stderr",
-                &stderr_state.retained(),
-            )?;
+            if start.stdin_mode == "closed" {
+                write_output(
+                    output,
+                    start,
+                    "workspace_child_stdout",
+                    &stdout_state.retained(),
+                )?;
+                write_output(
+                    output,
+                    start,
+                    "workspace_child_stderr",
+                    &stderr_state.retained(),
+                )?;
+            }
             let reason = termination
                 .as_ref()
                 .map(TerminationRequest::label)
@@ -346,8 +730,18 @@ fn run_child_loop(
         }
 
         match events.recv_timeout(Duration::from_millis(20)) {
-            Ok(Event::Stdout(bytes)) => stdout_state.append(&bytes),
-            Ok(Event::Stderr(bytes)) => stderr_state.append(&bytes),
+            Ok(Event::Stdout(bytes)) => {
+                let live = stdout_state.append(&bytes);
+                if start.stdin_mode == "open" {
+                    write_output(output, start, "workspace_child_stdout", &live)?;
+                }
+            }
+            Ok(Event::Stderr(bytes)) => {
+                let live = stderr_state.append(&bytes);
+                if start.stdin_mode == "open" {
+                    write_output(output, start, "workspace_child_stderr", &live)?;
+                }
+            }
             Ok(Event::StdoutClosed) => stdout_closed = true,
             Ok(Event::StderrClosed) => stderr_closed = true,
             Ok(Event::Control(ControlResult::Frame(frame))) => {
@@ -360,11 +754,38 @@ fn run_child_loop(
                 if frame.command == "terminate"
                     && termination.is_none()
                     && matches!(frame.reason.as_deref(), Some("cancelled" | "timed_out"))
+                    && frame.data_base64.is_none()
                 {
                     termination = Some(match frame.reason.as_deref() {
                         Some("timed_out") => TerminationRequest::TimedOut,
                         _ => TerminationRequest::Cancelled,
                     });
+                } else if frame.command == "stdin"
+                    && start.stdin_mode == "open"
+                    && frame.reason.is_none()
+                    && frame.data_base64.is_some()
+                    && child_stdin.is_some()
+                {
+                    let decoded = frame.data_base64.as_deref().and_then(|value| {
+                        base64::engine::general_purpose::STANDARD.decode(value).ok()
+                    });
+                    if let Some(bytes) = decoded.filter(|bytes| bytes.len() <= MAX_STDIN_BYTES) {
+                        if child_stdin.as_mut().is_some_and(|input| {
+                            input.write_all(&bytes).and_then(|_| input.flush()).is_ok()
+                        }) {
+                            continue;
+                        }
+                    }
+                    cleanup = "ambiguous";
+                    cleanup_error = Some("stdin_write_failed");
+                    termination.get_or_insert(TerminationRequest::PipeEof);
+                } else if frame.command == "stdin_close"
+                    && start.stdin_mode == "open"
+                    && frame.reason.is_none()
+                    && frame.data_base64.is_none()
+                    && child_stdin.is_some()
+                {
+                    drop(child_stdin.take());
                 } else {
                     cleanup = "ambiguous";
                     cleanup_error = Some("control_command_invalid");
@@ -514,6 +935,34 @@ fn validate_start(start: &StartFrame) -> Result<()> {
     if start.protocol != PROTOCOL || start.kind != "workspace_child_start" {
         return Err(invalid_input(
             "workspace child start frame is not supported",
+        ));
+    }
+    if !matches!(start.stdin_mode.as_str(), "closed" | "open") {
+        return Err(invalid_input("workspace child stdin mode is invalid"));
+    }
+    let terminal = start.terminal.unwrap_or(false);
+    if terminal {
+        if start.stdin_mode != "open"
+            || start.stderr_limit_bytes != 0
+            || start.terminal_columns.is_none()
+            || start.terminal_rows.is_none()
+            || start
+                .stdin_base64
+                .as_deref()
+                .is_some_and(|value| !value.is_empty())
+        {
+            return Err(invalid_input(
+                "workspace child terminal start frame is incomplete",
+            ));
+        }
+        let columns = start.terminal_columns.unwrap_or_default();
+        let rows = start.terminal_rows.unwrap_or_default();
+        if !(1..=1_000).contains(&columns) || !(1..=1_000).contains(&rows) {
+            return Err(invalid_input("workspace child terminal size is invalid"));
+        }
+    } else if start.terminal_columns.is_some() || start.terminal_rows.is_some() {
+        return Err(invalid_input(
+            "workspace child non-terminal start frame contains terminal size",
         ));
     }
     if !opaque_id(&start.run_id)

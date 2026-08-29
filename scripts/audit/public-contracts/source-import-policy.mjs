@@ -1,7 +1,11 @@
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { repositoryRelativePath } from "../repository-path.mjs"
-import { isAppPackage, upperAppPackages } from "./app-package-boundaries.mjs"
+import {
+  isAppPackage,
+  removedAssistantPackages,
+  upperAppPackages
+} from "./app-package-boundaries.mjs"
 
 const packageScopedSourceImportAllowlist = new Map([
   [
@@ -10,92 +14,92 @@ const packageScopedSourceImportAllowlist = new Map([
       [
         "@wanex/app",
         new Set([
-          "packages/eval-harness/src/product-bootstrap/app-default-entry-scenario.ts"
+          "packages/eval-harness/src/assistant-bootstrap/app-default-entry-scenario.ts"
         ])
       ],
       [
-        "@wanex/product",
+        "@wanex/assistant",
         new Set([
-          "packages/eval-harness/src/product-capability/command-port-scenario.ts",
-          "packages/eval-harness/src/product-capability/json-mapping-scenario.ts",
-          "packages/eval-harness/src/product-capability/readiness-scenario.ts",
-          "packages/eval-harness/src/product-backend-shell-scenarios.ts",
-          "packages/eval-harness/src/product-backend-diagnostics-scenarios.ts",
-          "packages/eval-harness/src/product-backend-integration-scenarios.ts",
-          "packages/eval-harness/src/product-backend-overview-scenarios.ts",
-          "packages/eval-harness/src/product-backend-workbench-scenarios.ts",
-          "packages/eval-harness/src/product/host-endpoint-scenario.ts",
-          "packages/eval-harness/src/product/plugin-command-product.ts",
-          "packages/eval-harness/src/product/plugin-action-scenario.ts",
-          "packages/eval-harness/src/product/conversation-helpers.ts",
-          "packages/eval-harness/src/product/conversation-lifecycle-scenario.ts",
-          "packages/eval-harness/src/product/guided-follow-up-scenario.ts",
-          "packages/eval-harness/src/product/goal-journey-scenario.ts",
-          "packages/eval-harness/src/product/long-session-continuity-scenario.ts",
-          "packages/eval-harness/src/product/plan-journey-scenario.ts",
-          "packages/eval-harness/src/product/recovery-review-scenario.ts",
-          "packages/eval-harness/src/product/same-turn-steering-scenario.ts",
-          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
-          "packages/eval-harness/src/product/side-query-scenario.ts",
-          "packages/eval-harness/src/product/surface-client-scenario.ts",
-          "packages/eval-harness/src/product/surface-message-transport-scenario.ts",
-          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product/web-surface-scenario.ts",
-          "packages/eval-harness/src/product-scenarios.ts",
+          "packages/eval-harness/src/assistant-capability/command-port-scenario.ts",
+          "packages/eval-harness/src/assistant-capability/json-mapping-scenario.ts",
+          "packages/eval-harness/src/assistant-capability/readiness-scenario.ts",
+          "packages/eval-harness/src/assistant-backend-shell-scenarios.ts",
+          "packages/eval-harness/src/assistant-backend-diagnostics-scenarios.ts",
+          "packages/eval-harness/src/assistant-backend-integration-scenarios.ts",
+          "packages/eval-harness/src/assistant-backend-overview-scenarios.ts",
+          "packages/eval-harness/src/assistant-backend-workbench-scenarios.ts",
+          "packages/eval-harness/src/assistant/host-endpoint-scenario.ts",
+          "packages/eval-harness/src/assistant/plugin-command-assistant.ts",
+          "packages/eval-harness/src/assistant/plugin-action-scenario.ts",
+          "packages/eval-harness/src/assistant/conversation-helpers.ts",
+          "packages/eval-harness/src/assistant/conversation-lifecycle-scenario.ts",
+          "packages/eval-harness/src/assistant/guided-follow-up-scenario.ts",
+          "packages/eval-harness/src/assistant/goal-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/long-session-continuity-scenario.ts",
+          "packages/eval-harness/src/assistant/plan-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/recovery-review-scenario.ts",
+          "packages/eval-harness/src/assistant/same-turn-steering-scenario.ts",
+          "packages/eval-harness/src/assistant/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/side-query-scenario.ts",
+          "packages/eval-harness/src/assistant/surface-client-scenario.ts",
+          "packages/eval-harness/src/assistant/surface-message-transport-scenario.ts",
+          "packages/eval-harness/src/assistant/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/assistant/web-surface-scenario.ts",
+          "packages/eval-harness/src/assistant-scenarios.ts",
           "packages/eval-harness/src/tui/host-message-transport-scenario.ts",
           "packages/eval-harness/src/tui/line-session-scenario.ts",
           "packages/eval-harness/src/tui/surface-scenario.ts",
-          "packages/eval-harness/src/product/declarative-input-scenario.ts",
-          "packages/eval-harness/src/tui-product/controller-path-scenario.ts",
-          "packages/eval-harness/src/tui-product/helpers.ts"
+          "packages/eval-harness/src/assistant/declarative-input-scenario.ts",
+          "packages/eval-harness/src/tui-assistant/controller-path-scenario.ts",
+          "packages/eval-harness/src/tui-assistant/helpers.ts"
         ])
       ],
       [
-        "@wanex/web",
+        "@wanex/assistant-host",
         new Set([
-          "packages/eval-harness/src/product/conversation-lifecycle-scenario.ts",
-          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product/goal-journey-scenario.ts",
-          "packages/eval-harness/src/product/guided-follow-up-scenario.ts",
-          "packages/eval-harness/src/product/long-session-continuity-scenario.ts",
-          "packages/eval-harness/src/product/recovery-review-scenario.ts",
-          "packages/eval-harness/src/product/same-turn-steering-scenario.ts",
-          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
-          "packages/eval-harness/src/product/web-surface-scenario.ts",
-          "packages/eval-harness/src/product/declarative-input-scenario.ts"
+          "packages/eval-harness/src/assistant/capability-setup-continuation-scenario.ts",
+          "packages/eval-harness/src/assistant/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/assistant/assistant-desktop-host-scenario.ts",
+          "packages/eval-harness/src/assistant/assistant-host-scenario.ts",
+          "packages/eval-harness/src/assistant/web-surface-scenario.ts"
         ])
       ],
       [
-        "@wanex/local-host",
+        "@wanex/assistant-ui",
         new Set([
-          "packages/eval-harness/src/product/capability-setup-continuation-scenario.ts",
-          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product/local-desktop-host-scenario.ts",
-          "packages/eval-harness/src/product/local-host-scenario.ts",
-          "packages/eval-harness/src/product/web-surface-scenario.ts"
+          "packages/eval-harness/src/assistant/conversation-lifecycle-scenario.ts",
+          "packages/eval-harness/src/assistant/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/assistant/goal-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/guided-follow-up-scenario.ts",
+          "packages/eval-harness/src/assistant/long-session-continuity-scenario.ts",
+          "packages/eval-harness/src/assistant/recovery-review-scenario.ts",
+          "packages/eval-harness/src/assistant/same-turn-steering-scenario.ts",
+          "packages/eval-harness/src/assistant/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/web-surface-scenario.ts",
+          "packages/eval-harness/src/assistant/declarative-input-scenario.ts"
         ])
       ],
       [
-        "@wanex/plugin-command-host",
+        "@wanex/assistant-plugin-host",
         new Set([
-          "packages/eval-harness/src/product/plugin-command-product.ts",
-          "packages/eval-harness/src/product/plugin-action-scenario.ts",
-          "packages/eval-harness/src/product/declarative-input-scenario.ts"
+          "packages/eval-harness/src/assistant/plugin-command-assistant.ts",
+          "packages/eval-harness/src/assistant/plugin-action-scenario.ts",
+          "packages/eval-harness/src/assistant/declarative-input-scenario.ts"
         ])
       ],
       [
         "@wanex/tui",
         new Set([
-          "packages/eval-harness/src/product/feedback-matrix-scenario.ts",
-          "packages/eval-harness/src/product/goal-journey-scenario.ts",
-          "packages/eval-harness/src/product/tool-approval-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/feedback-matrix-scenario.ts",
+          "packages/eval-harness/src/assistant/goal-journey-scenario.ts",
+          "packages/eval-harness/src/assistant/tool-approval-journey-scenario.ts",
           "packages/eval-harness/src/tui/cli-scenario.ts",
           "packages/eval-harness/src/tui/host-message-transport-scenario.ts",
           "packages/eval-harness/src/tui/line-session-scenario.ts",
           "packages/eval-harness/src/tui/surface-scenario.ts",
-          "packages/eval-harness/src/product/declarative-input-scenario.ts",
-          "packages/eval-harness/src/tui-product/controller-path-scenario.ts",
-          "packages/eval-harness/src/tui-product/helpers.ts"
+          "packages/eval-harness/src/assistant/declarative-input-scenario.ts",
+          "packages/eval-harness/src/tui-assistant/controller-path-scenario.ts",
+          "packages/eval-harness/src/tui-assistant/helpers.ts"
         ])
       ],
       [
@@ -103,7 +107,7 @@ const packageScopedSourceImportAllowlist = new Map([
         new Set([
           "packages/eval-harness/src/operational/cli-diagnostics-scenario.ts",
           "packages/eval-harness/src/operational/cli-memory-sweep-scenario.ts",
-          "packages/eval-harness/src/product-bootstrap/cli-support-bundle-scenario.ts"
+          "packages/eval-harness/src/assistant-bootstrap/cli-support-bundle-scenario.ts"
         ])
       ]
     ])
@@ -121,10 +125,14 @@ export async function findForbiddenSourceImports(options) {
         continue
       }
       violations.push({
-        code: "forbidden-upper-app-source-import",
+        code: removedAssistantPackages.includes(imported)
+          ? "removed-assistant-package-import"
+          : "forbidden-upper-app-source-import",
         package: options.packageName,
         path: relSourceFile,
-        message: `${options.packageName} must not import upper app package ${imported} from ${relSourceFile}`
+        message: removedAssistantPackages.includes(imported)
+          ? `${options.packageName} must not import removed Assistant owner ${imported} from ${relSourceFile}`
+          : `${options.packageName} must not import upper app package ${imported} from ${relSourceFile}`
       })
     }
   }
@@ -183,6 +191,9 @@ function packageNameFromSpecifier(specifier) {
 }
 
 function isForbiddenSourceImport(packageName, relSourceFile, imported) {
+  if (removedAssistantPackages.includes(imported)) {
+    return true
+  }
   if (isAppPackage(packageName)) {
     return false
   }

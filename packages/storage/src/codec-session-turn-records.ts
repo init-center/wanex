@@ -4,6 +4,7 @@ import type {
   RequestSessionTurnCancelReceipt,
   SessionAttemptRecord,
   SessionTurnExecutionBinding,
+  SessionTurnContextEvidence,
   SessionTurnRecoveryBinding,
   SessionTurnRecord,
   SettleSessionTurnReceipt,
@@ -30,6 +31,10 @@ import {
 } from "./codec-model-evidence.js"
 import { fromRpcSchedulerJobRecord } from "./codec-scheduler.js"
 import { fromRpcSessionMessageRecord } from "./codec-session-message-records.js"
+import {
+  readApplicationScopeBinding,
+  readExecutionEnvironmentBinding
+} from "./codec-execution-environment.js"
 
 export function fromRpcSessionTurnRecord(value: JsonValue): SessionTurnRecord {
   if (!isRecord(value)) {
@@ -202,10 +207,11 @@ export function readExecutionBinding(value: JsonValue | undefined): SessionTurnE
       "capabilityRoutes",
       "resources",
       "recovery",
-      ...("contextSnapshot" in value ? ["contextSnapshot"] : []),
+      ...("contextEvidence" in value ? ["contextEvidence"] : []),
       ...("toolSnapshot" in value ? ["toolSnapshot"] : []),
       ...("permissionSnapshot" in value ? ["permissionSnapshot"] : []),
-      ...("environmentSnapshot" in value ? ["environmentSnapshot"] : [])
+      ...("executionEnvironment" in value ? ["executionEnvironment"] : []),
+      ...("applicationScope" in value ? ["applicationScope"] : [])
     ],
     "execution_binding"
   )
@@ -241,10 +247,23 @@ export function readExecutionBinding(value: JsonValue | undefined): SessionTurnE
       recovery
     },
     {
-      contextSnapshot: value.contextSnapshot,
+      contextEvidence: readContextEvidence(value.contextEvidence),
       toolSnapshot: value.toolSnapshot,
       permissionSnapshot: value.permissionSnapshot,
-      environmentSnapshot: value.environmentSnapshot
+      executionEnvironment:
+        value.executionEnvironment === undefined
+          ? undefined
+          : readExecutionEnvironmentBinding(
+              value.executionEnvironment,
+              "execution_binding.executionEnvironment"
+            ),
+      applicationScope:
+        value.applicationScope === undefined
+          ? undefined
+          : readApplicationScopeBinding(
+              value.applicationScope,
+              "execution_binding.applicationScope"
+            )
     }
   ) as SessionTurnExecutionBinding
   const { digest: _digest, ...unsigned } = binding
@@ -252,6 +271,69 @@ export function readExecutionBinding(value: JsonValue | undefined): SessionTurnE
     throw new Error("execution_binding.digest does not match its content")
   }
   return binding
+}
+
+function readContextEvidence(
+  value: JsonValue | undefined
+): SessionTurnContextEvidence | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) {
+    throw new Error("execution_binding.contextEvidence must be an object")
+  }
+  requireExactKeys(
+    value,
+    [
+      "revision",
+      ...(value.instructions === undefined ? [] : ["instructions"]),
+      ...(value.skills === undefined ? [] : ["skills"])
+    ],
+    "execution_binding.contextEvidence"
+  )
+  const revision = expectNumber(
+    value.revision,
+    "execution_binding.contextEvidence.revision"
+  )
+  if (revision !== 1) {
+    throw new Error("execution_binding.contextEvidence.revision must be 1")
+  }
+  return withOptionalFields(
+    { revision: 1 as const },
+    {
+      instructions: readContextSourceEvidence(
+        value.instructions,
+        "execution_binding.contextEvidence.instructions"
+      ),
+      skills: readContextSourceEvidence(
+        value.skills,
+        "execution_binding.contextEvidence.skills"
+      )
+    }
+  )
+}
+
+function readContextSourceEvidence(
+  value: JsonValue | undefined,
+  label: string
+): SessionTurnContextEvidence["instructions"] | undefined {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new Error(`${label} must be an object`)
+  requireExactKeys(value, ["state", "sourceCount", "digest"], label)
+  const state = expectString(value.state, `${label}.state`)
+  if (state !== "available" && state !== "unavailable") {
+    throw new Error(`${label}.state is invalid`)
+  }
+  const sourceCount = expectNumber(value.sourceCount, `${label}.sourceCount`)
+  if (!Number.isSafeInteger(sourceCount) || sourceCount < 0) {
+    throw new Error(`${label}.sourceCount must be a non-negative safe integer`)
+  }
+  if (sourceCount > 4096) {
+    throw new Error(`${label}.sourceCount exceeds 4096 entries`)
+  }
+  return {
+    state,
+    sourceCount,
+    digest: expectSha256(value.digest, `${label}.digest`)
+  }
 }
 
 function readCompletionBinding(

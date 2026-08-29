@@ -74,7 +74,7 @@ duplicate command ids, ambiguous names/aliases, dangling action references, and
 out-of-budget values are rejected. The package/manifest version is the only
 action version source; actions do not carry a second version field.
 
-`@wanex/plugin-command-host` reparses the durable layout, validates command input
+`@wanex/assistant-plugin-host` reparses the durable layout, validates command input
 schemas with the neutral Extension schema parser, and derives exact-version
 handler references plus Plugin/user/user-enabled provenance. A malformed schema
 fails the complete generation projection; no partial command catalog is

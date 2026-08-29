@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
-  createProductDesktopPluginProofFixtures
+  createDesktopPluginProofFixtures
 } from "../scripts/plugin-fixture.mjs"
 
 const tempDirs = []
@@ -15,11 +15,11 @@ afterEach(async () => {
   ))
 })
 
-describe("Product Desktop Plugin proof fixture", () => {
+describe("Desktop Plugin proof fixture", () => {
   it("builds exact-version native packages without Node dependencies", async () => {
     const root = await mkdtemp(join(tmpdir(), "wanex-desktop-plugin-proof-"))
     tempDirs.push(root)
-    const fixtures = await createProductDesktopPluginProofFixtures({ root })
+    const fixtures = await createDesktopPluginProofFixtures({ root })
 
     expect(fixtures.pluginId).toBe("wanex.proof.extension")
     expect(fixtures.commandId).toBe("wanex.proof.extension.echo")

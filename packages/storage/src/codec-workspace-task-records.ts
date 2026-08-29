@@ -18,6 +18,7 @@ import {
   expectWorkspaceTaskAttemptState,
   expectWorkspaceTaskRunState,
 } from "./codec-workspace-value-enums.js";
+import { readExecutionEnvironmentBinding } from "./codec-execution-environment.js";
 
 export function fromRpcWorkspaceTaskRunRecord(
   value: JsonValue,
@@ -68,6 +69,10 @@ export function fromRpcWorkspaceTaskRunRecord(
       access,
       repositoryId: expectString(value.repository_id, "workspace_task_run.repository_id"),
       isolationId: expectString(value.isolation_id, "workspace_task_run.isolation_id"),
+      executionEnvironment: readExecutionEnvironmentBinding(
+        value.execution_environment,
+        "workspace_task_run.execution_environment"
+      ),
       state: expectWorkspaceTaskRunState(value.state, "workspace_task_run.state"),
       resourceIds,
       createdAt: expectNumber(value.created_at, "workspace_task_run.created_at"),
@@ -75,6 +80,8 @@ export function fromRpcWorkspaceTaskRunRecord(
     },
     {
       baseRevision: optionalString(value.base_revision, "workspace_task_run.base_revision"),
+      jobId: optionalString(value.job_id, "workspace_task_run.job_id"),
+      agentId: optionalString(value.agent_id, "workspace_task_run.agent_id"),
       runtimeRef: optionalString(value.runtime_ref, "workspace_task_run.runtime_ref"),
       executionOutcome,
       outcome,
@@ -97,7 +104,7 @@ export function fromRpcWorkspaceTaskAttemptRecord(
     throw new Error("workspace task attempt must be an object");
   }
   const kind = expectString(value.kind, "workspace_task_attempt.kind");
-  if (kind !== "execution" && kind !== "recovery") {
+  if (kind !== "execution" && kind !== "recovery" && kind !== "continuation") {
     throw new Error(`invalid workspace task attempt kind: ${kind}`);
   }
   return withOptionalFields(

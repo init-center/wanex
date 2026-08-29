@@ -1,8 +1,8 @@
 import { randomBytes, randomUUID } from "node:crypto"
-import { realpath } from "node:fs/promises"
 import type { WorkspaceChangeTransactionSnapshot } from "@wanex/protocol"
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 import type { WorkspaceStore } from "@wanex/storage/workspace"
-import { LocalWorkspaceReader } from "../changesets/index.js"
+import { WorkspaceFileReader } from "../changesets/index.js"
 import {
   cleanupCommittedArtifacts,
   transactionFilePlans
@@ -13,18 +13,20 @@ import {
   WorkspaceTransactionRecoveryRequiredError
 } from "./errors.js"
 import { WorkspaceTransactionLease } from "./lease.js"
-import { spawnNativeWorkspaceTransaction } from "./native-helper.js"
+import { spawnWorkspaceTransaction } from "./process-executor.js"
 import { rebuildTransactionReceipt } from "./receipt.js"
 
 export async function recoverPendingTransactions(input: {
   readonly storage: WorkspaceStore
   readonly rootDir: string
   readonly serviceBin: string
+  readonly executionScope: BorrowedExecutionScope
   readonly leaseMs: number
   readonly workspaceId: string
   readonly canonicalRoot?: string
 }): Promise<void> {
-  const canonicalRoot = input.canonicalRoot ?? await realpath(input.rootDir)
+  const canonicalRoot = input.canonicalRoot ??
+    await input.executionScope.fileSystem.canonicalize(input.rootDir)
   const snapshots = await listRecoverable(input.storage, input.workspaceId)
   if (snapshots.length > 100) {
     throw new Error("workspace recovery exceeds the bounded transaction limit")
@@ -70,6 +72,7 @@ async function recoverOne(input: {
   readonly storage: WorkspaceStore
   readonly rootDir: string
   readonly serviceBin: string
+  readonly executionScope: BorrowedExecutionScope
   readonly leaseMs: number
   readonly canonicalRoot: string
   readonly snapshot: WorkspaceChangeTransactionSnapshot
@@ -97,7 +100,7 @@ async function recoverOne(input: {
     leaseMs: input.leaseMs
   })
   lease.start()
-  let helper: Awaited<ReturnType<typeof spawnNativeWorkspaceTransaction>> | undefined
+  let helper: Awaited<ReturnType<typeof spawnWorkspaceTransaction>> | undefined
   try {
     if (claim.snapshot.files.length === 0) {
       await input.storage.finalizeWorkspaceChangeTransaction({
@@ -107,10 +110,11 @@ async function recoverOne(input: {
       return
     }
     const files = transactionFilePlans(claim.snapshot.files)
-    helper = await spawnNativeWorkspaceTransaction({
+    helper = await spawnWorkspaceTransaction({
       rootDir: input.canonicalRoot,
       serviceBin: input.serviceBin,
-      transactionId
+      transactionId,
+      executionScope: input.executionScope
     })
     const observations = await helper.inspect(files)
     const reconciliation = await input.storage.reconcileWorkspaceChangeTransactionFiles({
@@ -163,7 +167,10 @@ async function recoverOne(input: {
     lease.assertHealthy()
     const receipt = await rebuildTransactionReceipt({
       storage: input.storage,
-      reader: new LocalWorkspaceReader(input.rootDir),
+      reader: new WorkspaceFileReader(
+        input.rootDir,
+        input.executionScope.fileSystem
+      ),
       snapshot: reconciliation.snapshot
     })
     await input.storage.finalizeWorkspaceChangeTransaction({
@@ -176,6 +183,7 @@ async function recoverOne(input: {
       await cleanupCommittedArtifacts({
         canonicalRoot: input.canonicalRoot,
         serviceBin: input.serviceBin,
+        executionScope: input.executionScope,
         transactionId,
         files,
         helper

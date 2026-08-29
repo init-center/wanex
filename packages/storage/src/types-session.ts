@@ -81,6 +81,7 @@ export interface SessionStore {
   listSessionTurns(
     request: ListSessionTurnsRequest
   ): Promise<SessionTurnRecord[]>
+  getSessionTurn(turnId: string): Promise<SessionTurnRecord | null>
   listSessionAttempts(
     request: ListSessionAttemptsRequest
   ): Promise<SessionAttemptRecord[]>

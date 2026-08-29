@@ -10,6 +10,7 @@ mod doctor;
 mod error;
 mod event_store;
 mod events;
+mod execution_environment;
 mod media_generation;
 mod messages;
 mod models;
@@ -45,7 +46,7 @@ pub use workspace_snapshot::run_workspace_snapshot_helper;
 pub use workspace_transaction::run_workspace_transaction_helper;
 
 pub const SERVICE_NAME: &str = "wanex-system-service";
-pub const CURRENT_SCHEMA_VERSION: i64 = 18;
+pub const CURRENT_SCHEMA_VERSION: i64 = 20;
 const BASELINE_SCHEMA: &str = include_str!("../schema.sql");
 
 #[derive(Debug)]

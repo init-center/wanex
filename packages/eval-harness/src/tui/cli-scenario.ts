@@ -7,13 +7,13 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
+import { mktemp } from "../assistant-bootstrap/helpers.js"
 import { lines, parseOkJsonValue } from "./helpers.js"
 
 export const tuiCliScenario = createEvalScenario({
-  id: "product.app-tui-cli-contract",
-  title: "TUI CLI owns local host lifecycle for the TUI surface",
-  tags: ["product", "tui", "cli", "upper-app", "product-path"],
+  id: "assistant.app-tui-cli-contract",
+  title: "TUI CLI owns Assistant Host lifecycle for the TUI surface",
+  tags: ["assistant", "tui", "cli", "upper-app", "assistant-path"],
   async run(context) {
     const storeDir = await mktemp("wanex-eval-tui-cli-")
     try {
@@ -33,7 +33,7 @@ export const tuiCliScenario = createEvalScenario({
         env
       )
       const preview = await runTuiCli(
-        ["preview", "product.agent.submit", "{\"text\":\"eval application tui cli preview\"}"],
+        ["preview", "assistant.agent.submit", "{\"text\":\"eval application tui cli preview\"}"],
         env
       )
       const chunks: string[] = []
@@ -76,7 +76,7 @@ export const tuiCliScenario = createEvalScenario({
         "audit-distribution-footprint.mjs",
         ["--json"]
       )
-      const productPackage = entryByName(footprint, "@wanex/product")
+      const assistantPackage = entryByName(footprint, "@wanex/assistant")
       const tui = entryByName(footprint, "@wanex/tui")
 
       assert(
@@ -95,21 +95,21 @@ export const tuiCliScenario = createEvalScenario({
       assert(
         commandCatalogText.exitCode === 0 &&
           commandCatalogText.stdout.includes("Commands") &&
-          commandCatalogText.stdout.includes("product.agent.submit - Submit Agent Turn") &&
+          commandCatalogText.stdout.includes("assistant.agent.submit - Submit Agent Turn") &&
           commandCatalogValue.kind === "tui.command-catalog" &&
           commandCatalogValue.ok &&
           commandCatalogValue.commandCount === 14 &&
           commandCatalogValue.commands.some(
-            (command) => command.id === "product.agent.submit"
+            (command) => command.id === "assistant.agent.submit"
           ),
         "TUI CLI commands should render the typed command catalog"
       )
       assert(
         preview.exitCode === 0 &&
           previewValue.ok &&
-          previewValue.command === "previewProductCommandInvocation" &&
+          previewValue.command === "previewAssistantCommandInvocation" &&
           previewValue.value?.kind === "runnable" &&
-          previewValue.value.commandId === "product.agent.submit",
+          previewValue.value.commandId === "assistant.agent.submit",
         "TUI CLI preview command should read command invocation policy without execution"
       )
       assert(
@@ -126,11 +126,11 @@ export const tuiCliScenario = createEvalScenario({
         "TUI CLI events command should render a surface events view"
       )
       assert(
-        !productPackage.contains.pluginRuntime &&
-          !productPackage.contains.connectorRuntime &&
-          productPackage.contains.concreteAdapters.length === 0 &&
-          productPackage.contains.forbiddenPackages.length === 0,
-        "product default closure should stay slim with TUI CLI host present"
+        !assistantPackage.contains.pluginRuntime &&
+          !assistantPackage.contains.connectorRuntime &&
+          assistantPackage.contains.concreteAdapters.length === 0 &&
+          assistantPackage.contains.forbiddenPackages.length === 0,
+        "assistant default closure should stay slim with TUI CLI host present"
       )
       assert(
         !tui.contains.pluginRuntime &&
@@ -146,7 +146,7 @@ export const tuiCliScenario = createEvalScenario({
         overviewReady: overviewValue.ready,
         commandCatalogCount: commandCatalogValue.commandCount,
         commandCatalogHasSubmit: commandCatalogValue.commands.some(
-          (command) => command.id === "product.agent.submit"
+          (command) => command.id === "assistant.agent.submit"
         ),
         previewCommand: previewValue.command,
         previewKind: previewValue.value?.kind,
@@ -161,7 +161,7 @@ export const tuiCliScenario = createEvalScenario({
         eventsRendered: eventText.stdout.includes(
           "Events"
         ),
-        pluginRuntime: productPackage.contains.pluginRuntime,
+        pluginRuntime: assistantPackage.contains.pluginRuntime,
         tuiPluginRuntime: tui.contains.pluginRuntime,
         tuiConnectorRuntime: tui.contains.connectorRuntime
       }

@@ -8,7 +8,7 @@ import type {
   HomeReadModel,
   TeamConversationPageReadModel,
   TeamParticipantReadModel,
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { TuiFullScreenClient } from "../types.js"
 import {
   TuiConfirmationOverlay,
@@ -115,7 +115,7 @@ export function createTuiTeamDetails(options: {
 
   function showAddAgent(token: number): void {
     const page = currentPage(token)
-    const sessions = (options.home()?.product.sessions.recent ?? [])
+    const sessions = (options.home()?.assistant.sessions.recent ?? [])
       .filter((session) => session.kind === "agent")
     if (page === undefined || sessions.length === 0) {
       options.rejected("No agent conversations are available")

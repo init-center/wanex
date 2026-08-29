@@ -87,6 +87,18 @@ interface AppDiagnosticsSnapshot {
 }
 
 // @public (undocumented)
+interface ApplicationScopeBinding {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly kind: string;
+    // (undocumented)
+    readonly metadata: JsonValue;
+}
+
+// @public (undocumented)
 interface ArchiveSessionRequest {
     // (undocumented)
     readonly expectedRevision: number;
@@ -179,6 +191,107 @@ interface ExecutePlanProposalRequest {
     readonly principalId?: PrincipalId;
     // (undocumented)
     readonly proposalId: string;
+}
+
+// @public (undocumented)
+interface ExecutionCapabilitySnapshot {
+    // (undocumented)
+    readonly artifactExport: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly filesystem: {
+        readonly enforcement: "library_guard" | "os";
+        readonly effects: readonly ExecutionFileEffect[];
+    };
+    // (undocumented)
+    readonly isolation: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly network: {
+        readonly enforcement: "none" | "os";
+    };
+    // (undocumented)
+    readonly process: {
+        readonly oneShot: true;
+        readonly managed: boolean;
+        readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    };
+    // (undocumented)
+    readonly pty: {
+        readonly supported: boolean;
+    };
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly secretProjection: {
+        readonly supported: boolean;
+    };
+}
+
+// @public (undocumented)
+interface ExecutionEnvironmentBinding {
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    readonly capabilityDigest: string;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly policyDigest: string;
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    readonly providerRevision: string;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+type ExecutionFileEffect = "read" | "write" | "create" | "remove";
+
+// @public (undocumented)
+interface ExecutionFileSystemPolicy {
+    // (undocumented)
+    readonly maxDirectoryEntries: number;
+    // (undocumented)
+    readonly maxReadBytes: number;
+    // (undocumented)
+    readonly roots: readonly {
+        readonly id: string;
+        readonly effects: readonly ExecutionFileEffect[];
+    }[];
+}
+
+// @public (undocumented)
+interface ExecutionPolicySnapshot {
+    // (undocumented)
+    readonly filesystem: ExecutionFileSystemPolicy;
+    // (undocumented)
+    readonly isolation: "none" | "os";
+    // (undocumented)
+    readonly network: "unrestricted" | "denied";
+    // (undocumented)
+    readonly process: ExecutionProcessPolicy;
+    // (undocumented)
+    readonly pty: boolean;
+    // (undocumented)
+    readonly revision: 1;
+}
+
+// @public (undocumented)
+interface ExecutionProcessPolicy {
+    // (undocumented)
+    readonly cleanup: "runtime_process_tree" | "durable_supervisor";
+    // (undocumented)
+    readonly environmentVariables: readonly string[];
+    // (undocumented)
+    readonly managed: boolean;
+    // (undocumented)
+    readonly oneShot: boolean;
 }
 
 // @public (undocumented)
@@ -1345,19 +1458,41 @@ interface SessionTurnCompletionBinding {
 }
 
 // @public (undocumented)
+interface SessionTurnContextEvidence {
+    // (undocumented)
+    readonly instructions?: SessionTurnContextSourceEvidence;
+    // (undocumented)
+    readonly revision: 1;
+    // (undocumented)
+    readonly skills?: SessionTurnContextSourceEvidence;
+}
+
+// @public (undocumented)
+interface SessionTurnContextSourceEvidence {
+    // (undocumented)
+    readonly digest: string;
+    // (undocumented)
+    readonly sourceCount: number;
+    // (undocumented)
+    readonly state: "available" | "unavailable";
+}
+
+// @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)
     readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[];
     // (undocumented)
     readonly completion: SessionTurnCompletionBinding;
     // (undocumented)
-    readonly contextSnapshot?: JsonValue;
+    readonly contextEvidence?: SessionTurnContextEvidence;
     // (undocumented)
     readonly createdAt: number;
     // (undocumented)
     readonly digest: string;
     // (undocumented)
-    readonly environmentSnapshot?: JsonValue;
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly modelEndpoint: ModelEndpointExecutionBinding;
     // (undocumented)
@@ -3430,7 +3565,7 @@ export type WanexAppSessionInputProvenanceKind = SessionInputOriginKind;
 // @public (undocumented)
 export interface WanexAppSessionInputProvenanceReadModel {
     // (undocumented)
-    readonly hasProductClientField: boolean;
+    readonly hasClientField: boolean;
     // (undocumented)
     readonly rows: readonly WanexAppSessionInputProvenanceRow[];
     // (undocumented)

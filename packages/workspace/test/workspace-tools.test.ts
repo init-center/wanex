@@ -3,8 +3,9 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
-  NodeExecutionHost,
-  type ExecutionHost,
+  type ExecutionProcess,
+  type ManagedExecutionProcess,
+  type ManagedExecutionRequest,
   type ExecutionRequest,
   type ExecutionResult
 } from "@wanex/runtime/execution"
@@ -27,6 +28,10 @@ import {
   WorkspaceReadTextTool,
   registerWorkspaceCodingTools
 } from "../src/tools/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "./execution.js"
 
 const serviceBin = join(
   import.meta.dirname,
@@ -36,6 +41,7 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (clients.length > 0) {
     await clients.pop()?.dispose()
   }
@@ -52,9 +58,11 @@ describe("@wanex/workspace/tools", () => {
     const environment = await createEnvironment()
     const registry = new ToolRegistry()
     registerWorkspaceCodingTools(registry, {
+      scopeId: "workspace_tools_registration",
       rootDir: environment.rootDir,
       runtime: environment.runtime,
-      executionHost: new NodeExecutionHost(),
+      fileSystem: environment.executionScope.fileSystem,
+      executionProcess: environment.executionScope.process,
       programPolicy: new ExactWorkspaceProgramPolicy({ node: process.execPath })
     })
 
@@ -67,38 +75,64 @@ describe("@wanex/workspace/tools", () => {
 
   it("binds workspace roots, limits, identities, and program policy deterministically", async () => {
     const environment = await createEnvironment()
-    const host = new RecordingExecutionHost()
+    const host = new RecordingExecutionProcess()
     const first = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_scope",
       rootDir: environment.rootDir,
       runtime: environment.runtime,
       host,
+      fileSystem: environment.executionScope.fileSystem,
       programs: { node: process.execPath }
     })
     const same = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_scope",
       rootDir: environment.rootDir,
       runtime: environment.runtime,
       host,
+      fileSystem: environment.executionScope.fileSystem,
       programs: { node: process.execPath }
     })
     expect(same.snapshot()).toEqual(first.snapshot())
 
     const changedRoot = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_scope",
       rootDir: join(environment.rootDir, "other"),
       runtime: environment.runtime,
       host,
+      fileSystem: environment.executionScope.fileSystem,
       programs: { node: process.execPath }
     })
-    expect(toolBinding(changedRoot, "workspace_read_text")).not.toEqual(
+    expect(toolBinding(changedRoot, "workspace_read_text")).toEqual(
       toolBinding(first, "workspace_read_text")
     )
-    expect(toolBinding(changedRoot, "workspace_exec")).not.toEqual(
+    expect(toolBinding(changedRoot, "workspace_exec")).toEqual(
       toolBinding(first, "workspace_exec")
     )
 
-    const changedProgramPolicy = workspaceEvidenceRegistry({
+    const changedScope = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_other_scope",
       rootDir: environment.rootDir,
       runtime: environment.runtime,
       host,
+      fileSystem: environment.executionScope.fileSystem,
+      programs: { node: process.execPath }
+    })
+    for (const name of [
+      "workspace_apply_changeset",
+      "workspace_exec",
+      "workspace_read_text"
+    ]) {
+      expect(toolBinding(changedScope, name)).not.toEqual(toolBinding(first, name))
+    }
+    expect(JSON.stringify(first.snapshot())).not.toContain(environment.rootDir)
+    expect(JSON.stringify(first.snapshot())).not.toContain(process.execPath)
+
+    const changedProgramPolicy = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_scope",
+      rootDir: environment.rootDir,
+      runtime: environment.runtime,
+      host,
+      fileSystem: environment.executionScope.fileSystem,
       programs: { nodejs: process.execPath }
     })
     expect(toolBinding(changedProgramPolicy, "workspace_exec")).not.toEqual(
@@ -109,12 +143,15 @@ describe("@wanex/workspace/tools", () => {
       storage: environment.client,
       rootDir: environment.rootDir,
       serviceBin,
+      executionScope: environment.executionScope,
       workspaceId: "workspace_tools_other"
     })
     const changedWorkspace = workspaceEvidenceRegistry({
+      scopeId: "workspace_tools_scope",
       rootDir: environment.rootDir,
       runtime: changedRuntime,
       host,
+      fileSystem: environment.executionScope.fileSystem,
       programs: { node: process.execPath }
     })
     expect(toolBinding(changedWorkspace, "workspace_apply_changeset")).not.toEqual(
@@ -124,11 +161,13 @@ describe("@wanex/workspace/tools", () => {
 
   it("records permission denial before calling the execution host", async () => {
     const environment = await createEnvironment()
-    const host = new RecordingExecutionHost()
+    const host = new RecordingExecutionProcess()
     const registry = new ToolRegistry()
     registry.register(new WorkspaceExecTool({
+      scopeId: "workspace_tools_exec_denied",
       rootDir: environment.rootDir,
-      executionHost: host,
+      fileSystem: environment.executionScope.fileSystem,
+      executionProcess: host,
       programPolicy: new ExactWorkspaceProgramPolicy({ node: process.execPath })
     }))
 
@@ -150,11 +189,13 @@ describe("@wanex/workspace/tools", () => {
 
   it("rejects programs and escaped cwd before process execution", async () => {
     const environment = await createEnvironment()
-    const host = new RecordingExecutionHost()
+    const host = new RecordingExecutionProcess()
     const registry = new ToolRegistry()
     registry.register(new WorkspaceExecTool({
+      scopeId: "workspace_tools_exec_escape",
       rootDir: environment.rootDir,
-      executionHost: host,
+      fileSystem: environment.executionScope.fileSystem,
+      executionProcess: host,
       programPolicy: new ExactWorkspaceProgramPolicy({ node: process.execPath })
     }))
 
@@ -211,7 +252,9 @@ describe("@wanex/workspace/tools", () => {
     await writeFile(join(environment.rootDir, "notes.txt"), "abcdefghij", "utf8")
     const registry = new ToolRegistry()
     registry.register(new WorkspaceReadTextTool({
+      scopeId: "workspace_tools_read",
       rootDir: environment.rootDir,
+      fileSystem: environment.executionScope.fileSystem,
       maxFileBytes: 100,
       maxOutputBytes: 6
     }))
@@ -249,6 +292,7 @@ describe("@wanex/workspace/tools", () => {
     await writeFile(join(environment.rootDir, "app.ts"), "before\n", "utf8")
     const registry = new ToolRegistry()
     registry.register(new WorkspaceApplyChangeSetTool({
+      scopeId: "workspace_tools_apply",
       runtime: environment.runtime
     }))
 
@@ -258,7 +302,6 @@ describe("@wanex/workspace/tools", () => {
       toolCallId: "call_apply",
       toolName: "workspace_apply_changeset",
       input: {
-        id: "cs_workspace_tool",
         changes: [
           {
             path: "app.ts",
@@ -272,13 +315,23 @@ describe("@wanex/workspace/tools", () => {
     }))
 
     expect(outcome).toMatchObject({
-      result: { isError: false, content: [{ value: { status: "applied" } }] }
+      result: {
+        isError: false,
+        content: [{ value: {
+          changeSetId: expect.stringMatching(/^wcs_tool_[a-f0-9]{32}$/),
+          status: "applied"
+        } }]
+      }
     })
     expect(await readFile(join(environment.rootDir, "app.ts"), "utf8")).toBe(
       "after\n"
     )
+    const changeSetId = immediateJsonResult(outcome).changeSetId
+    if (typeof changeSetId !== "string") {
+      throw new Error("workspace apply Tool did not return a ChangeSet id")
+    }
     await environment.runtime.undoChangeSet({
-      changeSetId: "cs_workspace_tool",
+      changeSetId,
       mutation: {
         sourceKind: "host",
         sourceId: "workspace-tools-test:undo",
@@ -295,8 +348,10 @@ describe("@wanex/workspace/tools", () => {
     const environment = await createEnvironment()
     const registry = new ToolRegistry()
     registry.register(new WorkspaceExecTool({
+      scopeId: "workspace_tools_exec_allowed",
       rootDir: environment.rootDir,
-      executionHost: new NodeExecutionHost(),
+      fileSystem: environment.executionScope.fileSystem,
+      executionProcess: environment.executionScope.process,
       programPolicy: new ExactWorkspaceProgramPolicy({ node: process.execPath }),
       outputBytes: 128
     }))
@@ -353,16 +408,20 @@ function executionRequest(options: {
 }
 
 function workspaceEvidenceRegistry(options: {
+  readonly scopeId: string
   readonly rootDir: string
   readonly runtime: WorkspaceRuntime
-  readonly host: ExecutionHost
+  readonly host: ExecutionProcess
+  readonly fileSystem: import("@wanex/runtime/execution").ExecutionFileSystem
   readonly programs: Readonly<Record<string, string>>
 }): ToolRegistry {
   const registry = new ToolRegistry()
   registerWorkspaceCodingTools(registry, {
+    scopeId: options.scopeId,
     rootDir: options.rootDir,
     runtime: options.runtime,
-    executionHost: options.host,
+    fileSystem: options.fileSystem,
+    executionProcess: options.host,
     programPolicy: new ExactWorkspaceProgramPolicy(options.programs)
   })
   return registry
@@ -378,14 +437,42 @@ function toolBinding(registry: ToolRegistry, name: string) {
   return evidence.runtimeBinding
 }
 
+function immediateJsonResult(
+  outcome: Awaited<ReturnType<ToolRegistry["execute"]>>
+): Readonly<Record<string, import("@wanex/protocol").JsonValue>> {
+  const value = "result" in outcome && outcome.result?.content[0]?.type === "json"
+    ? outcome.result.content[0].value
+    : null
+  if (
+    !("result" in outcome) ||
+    outcome.result === undefined ||
+    outcome.result.content.length !== 1 ||
+    !isJsonRecord(value)
+  ) {
+    throw new Error("workspace Tool result is not an immediate JSON object")
+  }
+  return value
+}
+
+function isJsonRecord(
+  value: import("@wanex/protocol").JsonValue
+): value is Readonly<Record<string, import("@wanex/protocol").JsonValue>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 async function createEnvironment(): Promise<{
   readonly rootDir: string
   readonly client: StorageTestStore
   readonly runtime: WorkspaceRuntime
+  readonly executionScope: import("@wanex/runtime/execution").ExecutionScope
   readonly identity: ToolIdentity
 }> {
   const rootDir = await tempDir("wanex-workspace-tools-root-")
   const storeDir = await tempDir("wanex-workspace-tools-store-")
+  const execution = await createWorkspaceTestExecution({
+    rootDir,
+    managedProcess: true
+  })
   const client = createStorageTestStore({
     kind: "local-system-service",
     mode: "persistent",
@@ -447,8 +534,10 @@ async function createEnvironment(): Promise<{
       storage: client,
       rootDir,
       serviceBin,
+      executionScope: execution.scope,
       workspaceId: "workspace_tools"
     }),
+    executionScope: execution.scope,
     identity: {
       principalId: "principal_workspace_tools",
       sessionId: created.id,
@@ -492,7 +581,6 @@ function workspaceToolCalls(): import("@wanex/protocol").ToolCallMessagePart[] {
     }),
     toolCall("call_read", "workspace_read_text", { path: "notes.txt" }),
     toolCall("call_apply", "workspace_apply_changeset", {
-      id: "cs_workspace_tool",
       changes: [{
         path: "app.ts",
         kind: "update",
@@ -527,7 +615,7 @@ async function tempDir(prefix: string): Promise<string> {
   return dir
 }
 
-class RecordingExecutionHost implements ExecutionHost {
+class RecordingExecutionProcess implements ExecutionProcess {
   calls = 0
 
   async execute(request: ExecutionRequest): Promise<ExecutionResult> {
@@ -544,6 +632,10 @@ class RecordingExecutionHost implements ExecutionHost {
       stdout: output(),
       stderr: output()
     }
+  }
+
+  async start(_request: ManagedExecutionRequest): Promise<ManagedExecutionProcess> {
+    throw new Error("recording process does not support managed execution")
   }
 }
 

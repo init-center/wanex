@@ -2,7 +2,7 @@ import type { OverlayHandle, TUI } from "@earendil-works/pi-tui"
 import type {
   ConversationApprovalItem,
   ConversationOperationReadModel
-} from "@wanex/product"
+} from "@wanex/assistant"
 import { resolveTuiApproval } from "../application/conversation-actions.js"
 import { TuiApprovalOverlay } from "./components.js"
 import type { TuiFullScreenClient } from "./types.js"

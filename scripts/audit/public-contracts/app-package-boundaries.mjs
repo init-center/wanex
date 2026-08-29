@@ -1,18 +1,26 @@
 export const upperAppPackages = [
-  "@wanex/product",
-  "@wanex/plugin-command-host",
+  "@wanex/assistant",
+  "@wanex/assistant-plugin-host",
   "@wanex/desktop",
-  "@wanex/local-host",
-  "@wanex/web",
+  "@wanex/assistant-host",
+  "@wanex/assistant-ui",
   "@wanex/tui"
+]
+
+export const removedAssistantPackages = [
+  "@wanex/product",
+  "@wanex/web",
+  "@wanex/local-host",
+  "@wanex/assistant-local-host",
+  "@wanex/plugin-command-host"
 ]
 
 export function isAppPackage(packageName) {
   return packageName === "@wanex/cli" ||
-    packageName === "@wanex/product" ||
-    packageName === "@wanex/plugin-command-host" ||
+    packageName === "@wanex/assistant" ||
+    packageName === "@wanex/assistant-plugin-host" ||
     packageName === "@wanex/desktop" ||
-    packageName === "@wanex/local-host" ||
-    packageName === "@wanex/web" ||
+    packageName === "@wanex/assistant-host" ||
+    packageName === "@wanex/assistant-ui" ||
     packageName === "@wanex/tui"
 }

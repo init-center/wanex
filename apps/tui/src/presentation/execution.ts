@@ -1,4 +1,4 @@
-import type { ExecutionReferenceReadResult } from "@wanex/product/surface"
+import type { ExecutionReferenceReadResult } from "@wanex/assistant/surface"
 import type { TuiRenderedExecutionActivity } from "../model.js"
 
 export function renderTuiExecutionActivity(

@@ -4,6 +4,7 @@ import type {
   BeginWorkspaceTaskCollectionRequest,
   BeginWorkspaceTaskReleaseRequest,
   BeginWorkspaceTaskRunRequest,
+  ClaimWorkspaceTaskContinuationRequest,
   ClaimWorkspaceChangeProposalApplyRequest,
   ClaimWorkspaceChangeTransactionRecoveryRequest,
   ClaimWorkspaceTaskRecoveryRequest,
@@ -142,6 +143,9 @@ export interface WorkspaceStore {
   ): Promise<WorkspaceTaskClaimResult>;
   claimWorkspaceTaskRecovery(
     request: ClaimWorkspaceTaskRecoveryRequest,
+  ): Promise<WorkspaceTaskClaimResult>;
+  claimWorkspaceTaskContinuation(
+    request: ClaimWorkspaceTaskContinuationRequest,
   ): Promise<WorkspaceTaskClaimResult>;
   renewWorkspaceTaskRun(
     request: RenewWorkspaceTaskRunRequest,

@@ -60,8 +60,8 @@ export class SkillActivationTool implements ToolDefinition {
         snapshot: {
           complete: options.snapshot.complete,
           sources: options.snapshot.sources.map((source) => ({
-            id: source.id,
-            path: source.path,
+            scope: source.scope,
+            name: source.name,
             hash: source.hash,
             bodyHash: source.bodyHash
           }))

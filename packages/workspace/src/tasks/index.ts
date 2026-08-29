@@ -1,6 +1,9 @@
 export const WANEX_WORKSPACE_TASKS = "wanex-workspace-tasks" as const
 
-export { WorkspaceTaskRuntime } from "./runtime.js"
+export {
+  createWorkspaceTaskExecutionPolicy,
+  WorkspaceTaskRuntime
+} from "./runtime.js"
 export {
   workspaceTaskJobResultFromReceipt,
   workspaceTaskJobResultToJson
@@ -14,6 +17,7 @@ export { recoverExpiredWorkspaceTasks } from "./recovery-admission.js"
 export type {
   SubmitWorkspaceTaskJobRequest,
   RecoverWorkspaceTaskRequest,
+  ResumeWorkspaceTaskRequest,
   WorkspaceTaskContext,
   WorkspaceTaskError,
   WorkspaceTaskHandler,
@@ -33,4 +37,7 @@ export type {
   WorkspaceTaskStatus
 } from "./types.js"
 export type { WorkspaceTaskAccess } from "@wanex/protocol"
-export { WorkspaceTaskJobFailedError } from "./types.js"
+export {
+  WorkspaceTaskAttentionError,
+  WorkspaceTaskJobFailedError
+} from "./types.js"

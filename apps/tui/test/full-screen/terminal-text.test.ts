@@ -15,7 +15,7 @@ const identityTheme: SelectListTheme = {
   noMatch: (text) => text,
 };
 
-describe("product full-screen terminal text boundary", () => {
+describe("assistant full-screen terminal text boundary", () => {
   it("preserves ordinary Unicode while making single-line and multiline data inert", () => {
     const single = terminalSingleLineText(
       "  会话 👩‍💻\u001b[31m红色\u001b[0m\u001b]0;owned\u0007\n第二行\u202e  ",

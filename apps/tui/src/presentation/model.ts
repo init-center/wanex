@@ -33,7 +33,7 @@ export function tuiDiagnostics(
     ...commandDiagnostic(
       snapshot.commandCatalog,
       "tui.command_catalog_failed",
-      "readProductCommands"
+      "readAssistantCommands"
     ),
     ...commandDiagnostic(
       snapshot.conversation,

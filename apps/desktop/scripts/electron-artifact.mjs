@@ -21,7 +21,7 @@ export const workspaceRoot = dirname(dirname(packageRoot))
 export const electronZipDir = join(workspaceRoot, "target/tool-cache/electron")
 export const electronReceiptPath = join(
   workspaceRoot,
-  "target/distribution/product-desktop/electron-artifact.json"
+  "target/distribution/desktop/electron-artifact.json"
 )
 
 const electronPackage = JSON.parse(await readFile(

@@ -1,6 +1,6 @@
 import { readFile, stat } from "node:fs/promises"
 import { basename, extname } from "node:path"
-import type { Shell } from "@wanex/product"
+import type { Shell } from "@wanex/assistant"
 import type { ResourceKind } from "@wanex/protocol"
 import type { TuiAttachmentHost } from "../model.js"
 

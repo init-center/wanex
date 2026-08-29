@@ -20,18 +20,26 @@ existing owner.
 
 ## Active Layers
 
+This table records the current workspace identities. The unified Desktop
+topology is frozen in
+[Product, Host, And Execution Strategy](product-host-execution-strategy.md).
+Route 1 directly established the Assistant owners shown below. The removed
+Product/Web/Assistant Host/Plugin Command Host identities are tombstones, not
+forwarding packages. No second Coding Desktop executable is authorized.
+
 | Layer | Package identities |
 | --- | --- |
 | Contract and persistence | `@wanex/protocol`, `@wanex/storage`, `@wanex/storage-control-plane` |
 | Runtime facade | `@wanex/runtime` |
 | Optional kernel capabilities | `@wanex/mcp`, `@wanex/workspace`, `@wanex/team`, `@wanex/extension`, `@wanex/plugin`, `@wanex/connector` |
 | Trusted app facade | `@wanex/app` |
-| Products | `@wanex/cli`, `@wanex/product`, `@wanex/plugin-command-host`, `@wanex/desktop`, `@wanex/local-host`, `@wanex/web`, `@wanex/tui` |
+| Products and trusted hosts | `@wanex/cli`, `@wanex/coding`, `@wanex/assistant`, `@wanex/assistant-plugin-host`, `@wanex/desktop`, `@wanex/assistant-host`, `@wanex/assistant-ui`, `@wanex/tui` |
+| Shared product capabilities | `@wanex/connector`, `@wanex/extension`, `@wanex/mcp`, `@wanex/plugin`, `@wanex/storage`, `@wanex/storage-control-plane`, `@wanex/team`, `@wanex/workspace` |
 | Non-production proof | `@wanex/eval-harness` plus non-workspace external consumer fixtures |
 
 Production packages must not depend on examples or Eval. Lower layers must not
 depend on upper products. A leaf product may consume a reviewed, explicit
-Product or trusted-host recipe subpath when the direction follows ownership and
+Assistant or trusted-host recipe subpath when the direction follows ownership and
 avoids duplicating composition; each such package edge remains allowlisted and
 audited individually.
 Runtime and App defaults must remain free of Workspace, Team, Plugin, Connector,
@@ -79,21 +87,28 @@ Do not expose internal filesystem paths or create forwarding packages.
 - Extension owns contribution contracts, deterministic resolution, and static
   source hosting without runtime dependencies.
 - Plugin owns trust, install, sandbox, subprocess, catalog, and action workers;
-  Product command projection belongs to Command Host.
+  Assistant command projection belongs to Assistant Plugin Host.
 - Connector owns adapter contracts, packaging, leases, delivery, and
   supervision; it consumes Runtime Secrets rather than owning another resolver.
   Deterministic adapters are test fixtures only.
 - TUI owns terminal interaction, presentation, and terminal-host
   composition. Its executable host consumes the presentation-neutral
-  `@wanex/local-host/application` lifecycle instead of copying Product and Team
-  wiring. application remains the sole dynamic command and contribution
+  `@wanex/assistant-host/application` lifecycle instead of copying Assistant and Team
+  wiring. Assistant remains the sole dynamic command and contribution
   authority; the renderer consumes its safe catalog, preview, and execution
   surface without loading Plugin Runtime or maintaining a second shell model.
 - Desktop owns only Electron process, renderer trust, explicit
-  native-resource staging, and packaged lifecycle. Product Local remains the
-  framework-neutral local Host below it.
+  native-resource staging, and packaged lifecycle. Assistant Host remains
+  the framework-neutral local Assistant owner below it.
+- Coding owns one application-safe root contract and one explicit trusted Host
+  subpath. The Host owns repository admission, data placement, Workspace/native
+  composition, recovery, and lifecycle. Writable Turns bind Runtime execution
+  to durable Workspace tasks and isolated Git worktrees; the Application owns
+  bounded read models, command settlement, and ordered invalidations while
+  Proposal review/apply/undo remains a facade over Workspace authority. The
+  Coding leaf stays outside generic Runtime, App, CLI, and Assistant closures.
 
-The active workspace has 20 package manifests. Deleted identities are recorded
+The active workspace has 21 package manifests. Deleted identities are recorded
 only as governance tombstones and implementation history.
 
 ## Verification

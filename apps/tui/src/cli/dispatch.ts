@@ -15,12 +15,12 @@ export async function runTuiCliCommand(
 ): Promise<unknown> {
   switch (command.name) {
     case "preview":
-      return await surface.client.previewProductCommandInvocation({
+      return await surface.client.previewAssistantCommandInvocation({
         commandId: command.commandId,
         ...(command.input === undefined ? {} : { input: command.input })
       })
     case "execute":
-      return await surface.client.executeProductCommand({
+      return await surface.client.executeAssistantCommand({
         commandId: command.commandId,
         ...(command.input === undefined ? {} : { input: command.input })
       })

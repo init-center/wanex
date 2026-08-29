@@ -8,7 +8,7 @@ import {
 import type {
   ConversationRecoveryDecision,
   ConversationRecoveryItem
-} from "@wanex/product"
+} from "@wanex/assistant"
 import { createTerminalSafeSelectList } from "./components.js"
 import { boundedTuiLines } from "./projection.js"
 import { terminalSingleLineText } from "./terminal-text.js"

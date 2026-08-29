@@ -156,8 +156,8 @@ jobs:
             target/distribution/native-runtime-proof.json
             target/distribution/tui
             target/distribution/host-distribution-audit-${{ matrix.target }}.json
-            target/distribution/product-desktop/electron-artifact.json
-            target/distribution/product-desktop/product-desktop-report.json
-            target/distribution/product-desktop/product-desktop-proof-normal.png
-            target/distribution/product-desktop/product-desktop-proof-narrow.png
+            target/distribution/desktop/electron-artifact.json
+            target/distribution/desktop/desktop-report.json
+            target/distribution/desktop/desktop-proof-normal.png
+            target/distribution/desktop/desktop-proof-narrow.png
             target/sdk/native/${{ matrix.target }}

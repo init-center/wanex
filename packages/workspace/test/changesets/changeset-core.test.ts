@@ -3,15 +3,20 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
 import {
-  LocalWorkspaceReader,
+  WorkspaceFileReader,
   planChangeSetApply,
   planChangeSetUndo,
   sha256Text
 } from "../../src/changesets/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "../execution.js"
 
 const tempDirs: string[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop()
     if (dir !== undefined) await rm(dir, { recursive: true, force: true })
@@ -162,9 +167,10 @@ describe("@wanex/workspace/changesets planning", () => {
 
 async function workspace(): Promise<{
   readonly root: string
-  readonly reader: LocalWorkspaceReader
+  readonly reader: WorkspaceFileReader
 }> {
   const root = await mkdtemp(join(tmpdir(), "wanex-changeset-core-"))
   tempDirs.push(root)
-  return { root, reader: new LocalWorkspaceReader(root) }
+  const execution = await createWorkspaceTestExecution({ rootDir: root })
+  return { root, reader: new WorkspaceFileReader(root, execution.scope.fileSystem) }
 }

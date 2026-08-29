@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import type {
   TeamConversationPageReadModel,
   TeamParticipantReadModel,
-} from "@wanex/product"
+} from "@wanex/assistant"
 
 export interface TuiTeamDraft {
   readonly title: string

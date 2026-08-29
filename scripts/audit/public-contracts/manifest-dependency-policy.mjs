@@ -1,4 +1,7 @@
-import { upperAppPackages } from "./app-package-boundaries.mjs"
+import {
+  removedAssistantPackages,
+  upperAppPackages
+} from "./app-package-boundaries.mjs"
 
 const forbiddenConnectorAdapterDependencies = [
   "@wanex/runtime",
@@ -23,7 +26,16 @@ export function findManifestDependencyViolations(manifest) {
 }
 
 function findUpperAppDependencyViolations(manifest) {
-  return dependencyEntries(manifest)
+  const dependencies = dependencyEntries(manifest)
+  return [
+    ...dependencies
+      .filter((dependency) => removedAssistantPackages.includes(dependency.name))
+      .map((dependency) => ({
+        code: "removed-assistant-package-dependency",
+        package: manifest.name,
+        message: `${manifest.name} must not depend on removed Assistant owner ${dependency.name} in ${dependency.field}`
+      })),
+    ...dependencies
     .filter((dependency) =>
       upperAppPackages.includes(dependency.name) &&
         !isManifestLeafRecipeDependencyAllowed(manifest.name, dependency.name)
@@ -33,6 +45,7 @@ function findUpperAppDependencyViolations(manifest) {
       package: manifest.name,
       message: `${manifest.name} must not depend on upper app package ${dependency.name} in ${dependency.field}`
     }))
+  ]
 }
 
 function findConnectorAdapterDependencyViolations(manifest) {
@@ -63,31 +76,33 @@ function dependencyEntries(manifest) {
 
 function isManifestLeafRecipeDependencyAllowed(packageName, dependencyName) {
   return (
-    (dependencyName === "@wanex/product" &&
+    (dependencyName === "@wanex/assistant" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/local-host" &&
+    (dependencyName === "@wanex/assistant-host" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/web" &&
+    (dependencyName === "@wanex/assistant-ui" &&
       packageName === "@wanex/eval-harness") ||
     (dependencyName === "@wanex/tui" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/product" &&
-      packageName === "@wanex/web") ||
-    (dependencyName === "@wanex/product" &&
-      packageName === "@wanex/plugin-command-host") ||
-    (dependencyName === "@wanex/plugin-command-host" &&
+    (dependencyName === "@wanex/assistant" &&
+      packageName === "@wanex/assistant-plugin-host") ||
+    (dependencyName === "@wanex/assistant-plugin-host" &&
       packageName === "@wanex/eval-harness") ||
-    (dependencyName === "@wanex/local-host" &&
+    (dependencyName === "@wanex/assistant-host" &&
       packageName === "@wanex/desktop") ||
-    (dependencyName === "@wanex/plugin-command-host" &&
+    (dependencyName === "@wanex/assistant-plugin-host" &&
       packageName === "@wanex/desktop") ||
-    (dependencyName === "@wanex/local-host" &&
+    (dependencyName === "@wanex/assistant-ui" &&
+      packageName === "@wanex/desktop") ||
+    (dependencyName === "@wanex/assistant-host" &&
       packageName === "@wanex/tui") ||
-    (dependencyName === "@wanex/product" &&
-      packageName === "@wanex/local-host") ||
-    (dependencyName === "@wanex/web" &&
-      packageName === "@wanex/local-host") ||
-    (dependencyName === "@wanex/product" &&
+    (dependencyName === "@wanex/assistant" &&
+      packageName === "@wanex/assistant-host") ||
+    (dependencyName === "@wanex/assistant-ui" &&
+      packageName === "@wanex/assistant-host") ||
+    (dependencyName === "@wanex/assistant" &&
+      packageName === "@wanex/assistant-ui") ||
+    (dependencyName === "@wanex/assistant" &&
       packageName === "@wanex/tui") ||
     (dependencyName === "@wanex/app" &&
       packageName === "@wanex/eval-harness") ||

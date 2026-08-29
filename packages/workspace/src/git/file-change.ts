@@ -1,8 +1,8 @@
-import { lstat, readFile } from "node:fs/promises"
+import type { ExecutionFileSystem } from "@wanex/runtime/execution"
 import type { FileChange } from "../changesets/index.js"
 import type { WorkspaceIsolationLease } from "../isolation/index.js"
 import type { GitCommandClient } from "./git-client.js"
-import { resolveWorktreePath } from "./path.js"
+import { resolveWorktreeEntry, resolveWorktreePath } from "./path.js"
 import { projectionAttention, GitProjectionError } from "./projection.js"
 import type { GitProjectionAttention } from "./projection.js"
 import type { GitWorktreeDiffEntry } from "./types.js"
@@ -12,6 +12,7 @@ const UTF8_DECODER = new TextDecoder("utf-8", { fatal: true })
 
 export async function fileChangeForEntry(input: {
   readonly git: GitCommandClient
+  readonly fileSystem: ExecutionFileSystem
   readonly lease: WorkspaceIsolationLease
   readonly baseRevision: string
   readonly entry: GitWorktreeDiffEntry
@@ -51,11 +52,20 @@ export async function fileChangeForEntry(input: {
     return {
       path: input.entry.path,
       kind: "create",
-      targetText: await readWorktreeText(input.lease.rootDir, input.entry.path)
+      targetText: await readWorktreeText(
+        input.lease.rootDir,
+        input.entry.path,
+        input.fileSystem
+      )
     }
   }
 
-  const baseText = await readBaseText(input.git, input.baseRevision, input.entry.path)
+  const baseText = await readBaseText(
+    input.git,
+    input.lease.rootDir,
+    input.baseRevision,
+    input.entry.path
+  )
   if (input.entry.status === "D") {
     return { path: input.entry.path, kind: "delete", baseText }
   }
@@ -64,32 +74,39 @@ export async function fileChangeForEntry(input: {
     path: input.entry.path,
     kind: "update",
     baseText,
-    targetText: await readWorktreeText(input.lease.rootDir, input.entry.path)
+    targetText: await readWorktreeText(
+      input.lease.rootDir,
+      input.entry.path,
+      input.fileSystem
+    )
   }
 }
 
 async function inspectWorktreeFile(input: {
   readonly lease: WorkspaceIsolationLease
   readonly entry: GitWorktreeDiffEntry
+  readonly fileSystem: ExecutionFileSystem
 }): Promise<GitProjectionAttention | undefined> {
   if (input.entry.status === "D") {
     return undefined
   }
   try {
-    const stats = await lstat(
-      await resolveWorktreePath(input.lease.rootDir, input.entry.path)
+    const resolved = await resolveWorktreeEntry(
+      input.lease.rootDir,
+      input.entry.path,
+      input.fileSystem
     )
-    if (stats.isSymbolicLink()) {
+    if (resolved.metadata.kind === "symlink") {
       return { code: "link_or_reparse", path: input.entry.path }
     }
-    if (!stats.isFile()) {
+    if (resolved.metadata.kind !== "file") {
       return {
         code: "read_failed",
         path: input.entry.path,
         detail: "projected path is not a regular file"
       }
     }
-    if (stats.size > MAX_PROJECTED_FILE_BYTES) {
+    if (resolved.metadata.size > MAX_PROJECTED_FILE_BYTES) {
       return {
         code: "limit_exceeded",
         path: input.entry.path,
@@ -105,11 +122,12 @@ async function inspectWorktreeFile(input: {
 
 async function readBaseText(
   git: GitCommandClient,
+  rootDir: string,
   baseRevision: string,
   path: string
 ): Promise<string> {
   try {
-    const bytes = await git.repoBuffer(["show", `${baseRevision}:${path}`])
+    const bytes = await git.worktreeBuffer(rootDir, ["show", `${baseRevision}:${path}`])
     if (bytes.byteLength > MAX_PROJECTED_FILE_BYTES) {
       throw projectionAttention({ code: "limit_exceeded", path })
     }
@@ -120,8 +138,14 @@ async function readBaseText(
   }
 }
 
-async function readWorktreeText(rootDir: string, path: string): Promise<string> {
-  const bytes = await readFile(await resolveWorktreePath(rootDir, path))
+async function readWorktreeText(
+  rootDir: string,
+  path: string,
+  fileSystem: ExecutionFileSystem
+): Promise<string> {
+  const bytes = await fileSystem.read(
+    await resolveWorktreePath(rootDir, path, fileSystem)
+  )
   if (bytes.byteLength > MAX_PROJECTED_FILE_BYTES) {
     throw projectionAttention({ code: "limit_exceeded", path })
   }
@@ -130,13 +154,14 @@ async function readWorktreeText(rootDir: string, path: string): Promise<string> 
 
 async function readBaseMode(input: {
   readonly git: GitCommandClient
+  readonly lease: WorkspaceIsolationLease
   readonly baseRevision: string
   readonly entry: GitWorktreeDiffEntry
 }): Promise<string | undefined> {
   if (input.entry.status === "A") {
     return undefined
   }
-  const output = await input.git.repo([
+  const output = await input.git.worktree(input.lease.rootDir, [
     "ls-tree",
     "-z",
     input.baseRevision,
@@ -203,26 +228,35 @@ async function isModeOnlyChange(input: {
 
 async function isBinaryChange(input: {
   readonly git: GitCommandClient
+  readonly fileSystem: ExecutionFileSystem
   readonly lease: WorkspaceIsolationLease
   readonly baseRevision: string
   readonly entry: GitWorktreeDiffEntry
 }): Promise<boolean> {
   if (input.entry.status === "D") {
-    const bytes = await input.git.repoBuffer([
+    const bytes = await input.git.worktreeBuffer(input.lease.rootDir, [
       "show",
       `${input.baseRevision}:${input.entry.path}`
     ])
     return bytes.includes(0)
   }
-  return await isBinaryAtWorktree(input.git, input.lease.rootDir, input.entry.path)
+  return await isBinaryAtWorktree(
+    input.git,
+    input.lease.rootDir,
+    input.entry.path,
+    input.fileSystem
+  )
 }
 
 async function isBinaryAtWorktree(
   git: GitCommandClient,
   rootDir: string,
-  path: string
+  path: string,
+  fileSystem: ExecutionFileSystem
 ): Promise<boolean> {
-  const bytes = await readFile(await resolveWorktreePath(rootDir, path))
+  const bytes = await fileSystem.read(
+    await resolveWorktreePath(rootDir, path, fileSystem)
+  )
   if (bytes.includes(0)) {
     return true
   }

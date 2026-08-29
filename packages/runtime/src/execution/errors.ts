@@ -22,6 +22,27 @@ export class ExecutionCleanupRequiredError extends Error {
   }
 }
 
+export class ExecutionEnvironmentClosedError extends Error {
+  constructor() {
+    super("execution environment is closed")
+    this.name = "ExecutionEnvironmentClosedError"
+  }
+}
+
+export class ExecutionScopeClosedError extends Error {
+  constructor() {
+    super("execution scope is closed")
+    this.name = "ExecutionScopeClosedError"
+  }
+}
+
+export class UnsupportedExecutionCapabilityError extends Error {
+  constructor(readonly capability: string) {
+    super(`execution capability is unavailable: ${capability}`)
+    this.name = "UnsupportedExecutionCapabilityError"
+  }
+}
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }

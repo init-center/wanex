@@ -15,10 +15,10 @@ import {
   seedReplaySession
 } from "./helpers.js"
 
-export const memoryReplayProductPathScenario = createEvalScenario({
+export const memoryReplayAssistantPathScenario = createEvalScenario({
   id: "memory.compaction-agent-replay",
   title: "Agent runtime replay consumes a semantic checkpoint and exact recent tail",
-  tags: ["memory", "context", "agent", "product-path"],
+  tags: ["memory", "context", "agent", "assistant-path"],
   async run(context) {
     const session = new WanexSessionCore({ storage: context.storage })
     const provider = new MemorySemanticProvider()

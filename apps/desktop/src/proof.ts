@@ -108,7 +108,7 @@ async function runWanexDesktopRendererProof(
     failureStage = "renderer_ready"
     const ready = await waitFor(() => {
       const surface = document.querySelector(
-        '[data-ui-product-shell]'
+        '[data-ui-assistant-shell]'
       )
       const composer = surface?.querySelector(
         '[data-ui-composer][data-ui-composer-mode="submit"]'
@@ -175,7 +175,7 @@ async function runWanexDesktopRendererProof(
 
     const settled = await waitFor(() => {
       const surface = document.querySelector(
-        '[data-ui-product-shell]'
+        '[data-ui-assistant-shell]'
       )
       if (!(surface instanceof HTMLElement)) return undefined
       const users = addedRows(surface, initialUserRowIds, "user")
@@ -227,7 +227,7 @@ async function runWanexDesktopRendererProof(
       '[data-ui-action="open-commands"]'
     )
     if (!(commandOpener instanceof HTMLButtonElement) || commandOpener.disabled) {
-      throw new Error("Product command opener is unavailable")
+      throw new Error("Assistant command opener is unavailable")
     }
     commandOpener.click()
     const commandPalette = await waitFor(() => {
@@ -235,7 +235,7 @@ async function runWanexDesktopRendererProof(
       return palette instanceof HTMLElement ? palette : undefined
     }, "command_palette")
     const statusCommand = commandPalette.querySelector(
-      '[data-ui-command="product.status"]'
+      '[data-ui-command="assistant.status"]'
     )
     if (!(statusCommand instanceof HTMLButtonElement)) {
       throw new Error("Canonical status command is missing")
@@ -296,8 +296,8 @@ async function runWanexDesktopRendererProof(
     const timelineRect = timeline?.getBoundingClientRect()
     const latestAssistantRect = settled.latestAssistant.getBoundingClientRect()
     const rootHtml = settled.surface.innerHTML
-    const soleProductRenderer =
-      document.querySelectorAll("[data-ui-product-shell]").length === 1
+    const soleAssistantRenderer =
+      document.querySelectorAll("[data-ui-assistant-shell]").length === 1
     const unknownRouteRejected = await fetch(
       new URL("/__unknown-route__", location.href),
       { redirect: "manual" }
@@ -406,7 +406,7 @@ async function runWanexDesktopRendererProof(
         lifecycle.fallbackModelResponseVisible &&
         providerLifecycleWithoutRestart &&
         providerReady &&
-        soleProductRenderer &&
+        soleAssistantRenderer &&
         unknownRouteRejected &&
         conversationIdentityIntegrity &&
         canonicalTranscriptIntegrity &&
@@ -441,7 +441,7 @@ async function runWanexDesktopRendererProof(
       selectedSessionTitle: settled.selectedSessionTitle,
       listedSessionTitle: settled.listedSessionTitle,
       conversationIdentityIntegrity,
-      soleProductRenderer,
+      soleAssistantRenderer,
       unknownRouteRejected,
       sessionNavigationTruth,
       canonicalTranscriptIntegrity,
@@ -520,7 +520,7 @@ async function runWanexDesktopRendererProof(
   }
 
   function failedResult(stage: string): WanexDesktopRendererProofResult {
-    const surface = document.querySelector("[data-ui-product-shell]")
+    const surface = document.querySelector("[data-ui-assistant-shell]")
     const composer = surface?.querySelector("[data-ui-composer]")
     const textarea = composer?.querySelector("textarea[name=\"text\"]")
     const modelSelector = surface?.querySelector(
@@ -542,7 +542,7 @@ async function runWanexDesktopRendererProof(
       ok: false,
       failureStage: stage,
       failureDiagnostics: {
-        surfaceCount: document.querySelectorAll("[data-ui-product-shell]").length,
+        surfaceCount: document.querySelectorAll("[data-ui-assistant-shell]").length,
         userRowCount: surface?.querySelectorAll(
           '[data-ui-conversation-row][data-ui-role="user"]'
         ).length ?? 0,
@@ -601,7 +601,7 @@ async function runWanexDesktopRendererProof(
       selectedSessionTitle: "",
       listedSessionTitle: "",
       conversationIdentityIntegrity: false,
-      soleProductRenderer: false,
+      soleAssistantRenderer: false,
       unknownRouteRejected: false,
       sessionNavigationTruth: false,
       canonicalTranscriptIntegrity: false,

@@ -26,7 +26,6 @@ export function renderSkillSnapshot(options: RenderSkillSnapshotOptions): string
       `    <name>${escapeXml(source.name)}</name>`,
       `    <description>${escapeXml(source.description)}</description>`,
       `    <scope>${source.scope}</scope>`,
-      `    <location>${escapeXml(source.path)}</location>`,
       `    <body_hash>${escapeXml(source.bodyHash)}</body_hash>`,
       "  </skill>"
     ]),
@@ -66,11 +65,8 @@ function sortedSources(snapshot: SkillSnapshot): readonly SkillSource[] {
 
 function sourceProvenance(source: SkillSource): JsonValue {
   const provenance: SkillSourceProvenance = {
-    id: source.id,
     scope: source.scope,
     name: source.name,
-    directory: source.directory,
-    path: source.path,
     order: source.order,
     byteLength: source.byteLength,
     hash: source.hash,
@@ -79,18 +75,14 @@ function sourceProvenance(source: SkillSource): JsonValue {
       ? {}
       : { allowedTools: [...source.allowedTools] }),
     ...(source.metadata === undefined ? {} : { metadata: { ...source.metadata } }),
-    ...(source.mtimeMs === undefined ? {} : { mtimeMs: source.mtimeMs })
   }
   return provenanceToJson(provenance)
 }
 
 function provenanceToJson(provenance: SkillSourceProvenance): JsonValue {
   return {
-    id: provenance.id,
     scope: provenance.scope,
     name: provenance.name,
-    directory: provenance.directory,
-    path: provenance.path,
     order: provenance.order,
     byteLength: provenance.byteLength,
     hash: provenance.hash,
@@ -101,7 +93,6 @@ function provenanceToJson(provenance: SkillSourceProvenance): JsonValue {
     ...(provenance.metadata === undefined
       ? {}
       : { metadata: { ...provenance.metadata } }),
-    ...(provenance.mtimeMs === undefined ? {} : { mtimeMs: provenance.mtimeMs })
   }
 }
 

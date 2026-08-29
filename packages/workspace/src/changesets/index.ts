@@ -2,7 +2,7 @@ export const WANEX_WORKSPACE_CHANGESETS = "wanex-workspace-changesets" as const
 
 export { sha256Text } from "./hash.js"
 export { planChangeSetApply, planChangeSetUndo } from "./plan.js"
-export { LocalWorkspaceReader } from "./workspace.js"
+export { WorkspaceFileReader } from "./workspace.js"
 export type {
   AppliedFileChange,
   ChangeApplyStatus,

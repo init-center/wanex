@@ -34,7 +34,7 @@ export interface RunEvalCliOptions {
 
 export async function main(
   argv: readonly string[],
-  env: EvalCliEnvironment = process.env,
+  env: EvalCliEnvironment,
   options: RunEvalCliOptions = {}
 ): Promise<EvalCliResult> {
   return runEvalCli(argv, env, createWanexRegressionScenarios(), options)

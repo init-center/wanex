@@ -67,14 +67,14 @@ describe("installed TUI proof receipt", () => {
     expect(provider.at(-1)).toBe("exit [lindex $status 3]")
 
     const team = installedTuiTeamJourneySteps()
-    expect(team[0]).toBe('expect -exact "Ready | installed-product-tui-model"')
+    expect(team[0]).toBe('expect -exact "Ready | installed-assistant-tui-model"')
     expect(team).toContain('expect -exact "Group created"')
     expect(team).toContain('expect -exact "Coordinator replied"')
     expect(team).toContain('expect -exact $fallback_prompt')
     expect(team.at(-1)).toBe("exit [lindex $status 3]")
 
     const removal = installedTuiFinalRemovalJourneySteps()
-    expect(removal[0]).toBe('expect -exact "Ready | installed-product-tui-model"')
+    expect(removal[0]).toBe('expect -exact "Ready | installed-assistant-tui-model"')
     expect(removal).toContain(
       'expect -exact "No configured conversation Provider remains."'
     )

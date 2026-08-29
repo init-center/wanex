@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
+import { execFile } from "node:child_process"
 import { createRequire } from "node:module"
 import {
   cp,
@@ -13,9 +14,11 @@ import {
 } from "node:fs/promises"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
 import { extractFile, listPackage } from "@electron/asar"
 import { packager } from "@electron/packager"
 import { build } from "esbuild"
+import { resolvePackageBinary } from "../../../scripts/process-step.mjs"
 import {
   electronVersion,
   electronZipDir,
@@ -26,7 +29,7 @@ export const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 export const workspaceRoot = dirname(dirname(packageRoot))
 export const distributionRoot = join(
   workspaceRoot,
-  "target/distribution/product-desktop"
+  "target/distribution/desktop"
 )
 export const stagingDir = join(distributionRoot, "staging-app")
 export const packageOutputDir = join(distributionRoot, "packaged")
@@ -35,33 +38,42 @@ export const nativeArtifactDir = join(
   "target/distribution/native"
 )
 export const credentialArtifactDir = join(distributionRoot, "credentials")
+export const rendererBuildDir = join(distributionRoot, "renderer")
+const execFileAsync = promisify(execFile)
 if (import.meta.main) {
   const options = parseArgs(process.argv.slice(2))
   const receipt = options.package
-    ? await packageProductDesktop()
-    : await buildProductDesktop()
+    ? await packageDesktop()
+    : await buildDesktop()
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
 }
 
-export async function buildProductDesktop() {
+export async function buildDesktop() {
   await rm(stagingDir, { recursive: true, force: true })
   await mkdir(stagingDir, { recursive: true })
-  await bundleDesktopMain()
-  await writeFile(join(stagingDir, "package.json"), `${JSON.stringify({
-    name: "wanex-product-desktop",
-    productName: "Wanex",
-    version: "0.0.0",
-    private: true,
-    author: "Wanex Project",
-    main: "main.cjs"
-  }, null, 2)}\n`, "utf8")
-  return await auditProductDesktopStaging(stagingDir)
+  const rendererAssets = await bundleDesktopRenderer()
+  try {
+    await bundleDesktopMain(rendererAssets)
+    await bundleDesktopPreload()
+    await writeFile(join(stagingDir, "package.json"), `${JSON.stringify({
+      name: "wanex-desktop",
+      assistantName: "Wanex",
+      version: "0.0.0",
+      private: true,
+      author: "Wanex Project",
+      main: "main.cjs"
+    }, null, 2)}\n`, "utf8")
+    return await auditDesktopStaging(stagingDir)
+  } finally {
+    await rm(rendererBuildDir, { recursive: true, force: true })
+  }
 }
 
-export async function packageProductDesktop() {
-  const staging = await buildProductDesktop()
+export async function packageDesktop() {
+  const staging = await buildDesktop()
+  await prepareDesktopNativeArtifact()
   await assertNativeArtifactDirectory(nativeArtifactDir)
-  const credential = await stageProductDesktopCredentialArtifact()
+  const credential = await stageDesktopCredentialArtifact()
   await resolvePreparedElectronZipPath()
   await rm(packageOutputDir, { recursive: true, force: true })
   const outputPaths = await packager({
@@ -83,10 +95,10 @@ export async function packageProductDesktop() {
   })
   if (outputPaths.length !== 1) {
     throw new Error(
-      `expected one Product Desktop package, received ${outputPaths.length}`
+      `expected one Desktop package, received ${outputPaths.length}`
     )
   }
-  const packaged = await auditPackagedProductDesktop({
+  const packaged = await auditPackagedDesktop({
     packageDir: outputPaths[0],
     stagedNativeDir: nativeArtifactDir,
     stagedCredentialDir: credentialArtifactDir
@@ -94,18 +106,49 @@ export async function packageProductDesktop() {
   return { staging, credential, packaged }
 }
 
-export async function stageProductDesktopCredentialArtifact(options = {}) {
+export function createDesktopNativeArtifactStagePlan(options = {}) {
+  const root = options.workspaceRoot ?? workspaceRoot
+  const platform = options.platform ?? process.platform
+  const arch = options.arch ?? process.arch
+  const targetId = options.targetId ?? `${platform}-${arch}`
+  return {
+    command: options.nodeExecutable ?? process.execPath,
+    args: [
+      resolvePackageBinary("tsx", "tsx"),
+      join(root, "scripts/stage-native-artifact.ts"),
+      "--target",
+      targetId
+    ],
+    cwd: root,
+    targetId
+  }
+}
+
+export async function prepareDesktopNativeArtifact(options = {}) {
+  const plan = createDesktopNativeArtifactStagePlan(options)
+  await execFileAsync(plan.command, plan.args, {
+    cwd: plan.cwd,
+    maxBuffer: 20 * 1024 * 1024
+  })
+  return {
+    kind: "wanex.desktop.native-artifact-preparation-receipt",
+    targetId: plan.targetId,
+    outputDir: nativeArtifactDir
+  }
+}
+
+export async function stageDesktopCredentialArtifact(options = {}) {
   const platform = options.platform ?? process.platform
   const arch = options.arch ?? process.arch
   const target = credentialTarget(platform, arch)
   if (`${process.platform}-${process.arch}` !== target.id && options.binaryPath === undefined) {
-    throw new Error("Product Desktop credentials can only be staged on the host target")
+    throw new Error("Desktop credentials can only be staged on the host target")
   }
   const binaryPath = options.binaryPath ?? resolveInstalledKeyringBinary(target)
   const canonicalBinaryPath = await realpath(binaryPath)
   const binaryStatus = await stat(canonicalBinaryPath)
   if (!binaryStatus.isFile()) {
-    throw new Error("Product Desktop keyring binding must be a regular file")
+    throw new Error("Desktop keyring binding must be a regular file")
   }
   const binary = await readFile(canonicalBinaryPath)
   const manifest = {
@@ -134,7 +177,7 @@ export async function stageProductDesktopCredentialArtifact(options = {}) {
     writeFile(join(credentialArtifactDir, "keyring.node"), binary)
   ])
   return {
-    kind: "wanex.product-desktop.credential-staging-receipt",
+    kind: "wanex.desktop.credential-staging-receipt",
     target: target.id,
     fileCount: 2,
     bytes: binary.byteLength,
@@ -142,49 +185,49 @@ export async function stageProductDesktopCredentialArtifact(options = {}) {
   }
 }
 
-export async function auditProductDesktopStaging(root = stagingDir) {
+export async function auditDesktopStaging(root = stagingDir) {
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8"))
   if (
     manifest.main !== "main.cjs" ||
     manifest.author !== "Wanex Project" ||
     manifest.type !== undefined
   ) {
-    throw new Error("Product Desktop staging manifest has an invalid entry")
+    throw new Error("Desktop staging manifest has an invalid entry")
   }
   if (manifest.dependencies !== undefined || manifest.devDependencies !== undefined) {
-    throw new Error("Product Desktop staging manifest must not declare dependencies")
+    throw new Error("Desktop staging manifest must not declare dependencies")
   }
   const files = await listFiles(root)
-  const expected = ["main.cjs", "package.json"]
+  const expected = ["main.cjs", "package.json", "preload.cjs"]
   if (JSON.stringify(files.map((item) => item.path)) !== JSON.stringify(expected)) {
     throw new Error(
-      `Product Desktop staging contains unexpected files: ${files.map((item) => item.path).join(",")}`
+      `Desktop staging contains unexpected files: ${files.map((item) => item.path).join(",")}`
     )
   }
   const main = await readFile(join(root, "main.cjs"), "utf8")
   if (main.includes(workspaceRoot)) {
-    throw new Error("workspace path leaked into Product Desktop staging")
+    throw new Error("workspace path leaked into Desktop staging")
   }
   if (
     /sourceMappingURL/.test(main) ||
     /(?:\bfrom\s*|\bimport\s*\(|\brequire\s*\()\s*["']@wanex\//.test(main)
   ) {
-    throw new Error("unbundled source reference in Product Desktop staging")
+    throw new Error("unbundled source reference in Desktop staging")
   }
   return {
-    kind: "wanex.product-desktop.staging-receipt",
+    kind: "wanex.desktop.staging-receipt",
     fileCount: files.length,
     bytes: sumBytes(files),
     hasNodeModules: false
   }
 }
 
-export async function auditPackagedProductDesktop({
+export async function auditPackagedDesktop({
   packageDir,
   stagedNativeDir,
   stagedCredentialDir
 }) {
-  const resourcesDir = productDesktopResourcesDir(packageDir)
+  const resourcesDir = desktopResourcesDir(packageDir)
   const files = await listFiles(packageDir)
   const relativeResources = relative(packageDir, resourcesDir).replaceAll("\\", "/")
   const asarPath = `${relativeResources}/app.asar`
@@ -195,16 +238,16 @@ export async function auditPackagedProductDesktop({
     item.path.startsWith(credentialPrefix)
   )
   if (!files.some((item) => item.path === asarPath)) {
-    throw new Error("packaged Product Desktop application is missing app.asar")
+    throw new Error("packaged Desktop application is missing app.asar")
   }
   const absoluteAsarPath = join(packageDir, asarPath)
   const asarEntries = listPackage(absoluteAsarPath, { isPack: false })
     .map(normalizeAsarEntry)
     .sort()
-  const expectedAsarEntries = ["/main.cjs", "/package.json"]
+  const expectedAsarEntries = ["/main.cjs", "/package.json", "/preload.cjs"]
   if (JSON.stringify(asarEntries) !== JSON.stringify(expectedAsarEntries)) {
     throw new Error(
-      `packaged Product Desktop ASAR contains unexpected entries: ${asarEntries.join(",")}`
+      `packaged Desktop ASAR contains unexpected entries: ${asarEntries.join(",")}`
     )
   }
   const asarManifest = JSON.parse(
@@ -215,10 +258,10 @@ export async function auditPackagedProductDesktop({
     asarManifest.dependencies !== undefined ||
     asarManifest.devDependencies !== undefined
   ) {
-    throw new Error("packaged Product Desktop ASAR manifest violates policy")
+    throw new Error("packaged Desktop ASAR manifest violates policy")
   }
   if (files.some((item) => item.path.includes("app.asar.unpacked"))) {
-    throw new Error("packaged Product Desktop must not contain app.asar.unpacked")
+    throw new Error("packaged Desktop must not contain app.asar.unpacked")
   }
   await assertExactResourceCopy({
     label: "native",
@@ -241,12 +284,12 @@ export async function auditPackagedProductDesktop({
   )
   if (forbidden.length > 0) {
     throw new Error(
-      `forbidden packaged Product Desktop paths: ${forbidden.map((item) => item.path).join(",")}`
+      `forbidden packaged Desktop paths: ${forbidden.map((item) => item.path).join(",")}`
     )
   }
   const asarBytes = files.find((item) => item.path === asarPath)?.bytes ?? 0
   return {
-    kind: "wanex.product-desktop.package-receipt",
+    kind: "wanex.desktop.package-receipt",
     packageDir,
     platform: process.platform,
     arch: process.arch,
@@ -278,13 +321,43 @@ export function packagedExecutable(packageDir) {
   )
 }
 
-export function productDesktopResourcesDir(packageDir) {
+export function desktopResourcesDir(packageDir) {
   return process.platform === "darwin"
     ? join(packageDir, "Wanex.app/Contents/Resources")
     : join(packageDir, "resources")
 }
 
-async function bundleDesktopMain() {
+async function bundleDesktopRenderer() {
+  await rm(rendererBuildDir, { recursive: true, force: true })
+  await mkdir(rendererBuildDir, { recursive: true })
+  const javascriptPath = join(rendererBuildDir, "renderer.js")
+  await build({
+    absWorkingDir: workspaceRoot,
+    entryPoints: [join(packageRoot, "src/renderer/entry.tsx")],
+    outfile: javascriptPath,
+    bundle: true,
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    plugins: [await createWanexSourceResolver()],
+    sourcemap: false,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    minifyIdentifiers: true,
+    legalComments: "none",
+    logLevel: "silent"
+  })
+  const [clientScript, stylesheet] = await Promise.all([
+    readFile(javascriptPath, "utf8"),
+    readFile(javascriptPath.replace(/\.js$/, ".css"), "utf8")
+  ])
+  if (clientScript.length === 0 || stylesheet.length === 0) {
+    throw new Error("Desktop Renderer bundle is empty")
+  }
+  return { clientScript, stylesheet }
+}
+
+async function bundleDesktopMain(rendererAssets) {
   await build({
     absWorkingDir: workspaceRoot,
     entryPoints: [join(packageRoot, "src/main.ts")],
@@ -294,7 +367,51 @@ async function bundleDesktopMain() {
     format: "cjs",
     target: "es2022",
     external: ["electron"],
-    plugins: [await createWanexSourceResolver()],
+    plugins: [
+      createDesktopRendererAssetsResolver(rendererAssets),
+      await createWanexSourceResolver()
+    ],
+    sourcemap: false,
+    minifySyntax: true,
+    minifyWhitespace: true,
+    minifyIdentifiers: true,
+    legalComments: "none",
+    logLevel: "silent"
+  })
+}
+
+function createDesktopRendererAssetsResolver(rendererAssets) {
+  return {
+    name: "wanex-desktop-renderer-assets",
+    setup(buildContext) {
+      buildContext.onResolve(
+        { filter: /^\.\/renderer-assets\.js$/ },
+        () => ({
+          path: "wanex-desktop-renderer-assets",
+          namespace: "wanex-desktop-renderer-assets"
+        })
+      )
+      buildContext.onLoad(
+        { filter: /.*/, namespace: "wanex-desktop-renderer-assets" },
+        () => ({
+          contents: `export const desktopRendererAssets = ${JSON.stringify(rendererAssets)};`,
+          loader: "js"
+        })
+      )
+    }
+  }
+}
+
+async function bundleDesktopPreload() {
+  await build({
+    absWorkingDir: workspaceRoot,
+    entryPoints: [join(packageRoot, "src/preload.ts")],
+    outfile: join(stagingDir, "preload.cjs"),
+    bundle: true,
+    platform: "browser",
+    format: "cjs",
+    target: "es2022",
+    external: ["electron"],
     sourcemap: false,
     minifySyntax: true,
     minifyWhitespace: true,
@@ -314,10 +431,12 @@ async function createWanexSourceResolver() {
     "packages/team",
     "packages/local-credential-store",
     "packages/app",
-    "apps/product",
-    "apps/plugin-command-host",
-    "apps/web",
-    "apps/local-host"
+    "apps/assistant",
+    "apps/assistant-plugin-host",
+    "packages/assistant-ui",
+    "apps/assistant-host"
+    ,"packages/workspace"
+    ,"apps/coding"
   ]
   const entries = new Map()
   for (const packageDir of packageDirs) {
@@ -339,32 +458,32 @@ async function createWanexSourceResolver() {
     }
   }
   return {
-    name: "wanex-product-desktop-source-closure",
+    name: "wanex-desktop-source-closure",
     setup(buildContext) {
       buildContext.onResolve({ filter: /^@wanex\// }, (args) => {
         if (args.path === "@wanex/local-credential-store/keychain") {
           return {
             path: args.path,
-            namespace: "wanex-product-desktop-injected-credential-store"
+            namespace: "wanex-desktop-injected-credential-store"
           }
         }
         const path = entries.get(args.path)
         if (path === undefined) {
           return {
             errors: [{
-              text: `Product Desktop closure rejects workspace import: ${args.path}`
+              text: `Desktop closure rejects workspace import: ${args.path}`
             }]
           }
         }
         return { path }
       })
       buildContext.onLoad(
-        { filter: /.*/, namespace: "wanex-product-desktop-injected-credential-store" },
+        { filter: /.*/, namespace: "wanex-desktop-injected-credential-store" },
         () => ({
           contents: [
             "export class WanexLocalKeychainSecretStore {",
             "  constructor() {",
-            "    throw new Error('Product Desktop requires its verified injected credential binding')",
+            "    throw new Error('Desktop requires its verified injected credential binding')",
             "  }",
             "}"
           ].join("\n"),
@@ -385,13 +504,13 @@ async function assertExactResourceCopy({
 }) {
   if (packagedFiles.length !== expectedFileCount) {
     throw new Error(
-      `packaged Product Desktop ${label} resource must contain ${expectedFileCount} files, received ${packagedFiles.length}`
+      `packaged Desktop ${label} resource must contain ${expectedFileCount} files, received ${packagedFiles.length}`
     )
   }
   const stagedFiles = await listFiles(stagedDir)
   if (stagedFiles.length !== expectedFileCount) {
     throw new Error(
-      `staged Product Desktop ${label} resource must contain ${expectedFileCount} files`
+      `staged Desktop ${label} resource must contain ${expectedFileCount} files`
     )
   }
   for (const staged of stagedFiles) {
@@ -400,7 +519,7 @@ async function assertExactResourceCopy({
     )
     if (packaged === undefined || packaged.bytes !== staged.bytes) {
       throw new Error(
-        `packaged Product Desktop ${label} resource differs: ${staged.path}`
+        `packaged Desktop ${label} resource differs: ${staged.path}`
       )
     }
     const [stagedBytes, packagedBytes] = await Promise.all([
@@ -409,7 +528,7 @@ async function assertExactResourceCopy({
     ])
     if (!stagedBytes.equals(packagedBytes)) {
       throw new Error(
-        `packaged Product Desktop ${label} resource bytes differ: ${staged.path}`
+        `packaged Desktop ${label} resource bytes differ: ${staged.path}`
       )
     }
   }
@@ -446,7 +565,7 @@ function credentialTarget(platform, arch) {
     ["win32-x64", "@napi-rs/keyring-win32-x64-msvc"]
   ]).get(id)
   if (packageName === undefined) {
-    throw new Error(`unsupported Product Desktop target: ${id}`)
+    throw new Error(`unsupported Desktop target: ${id}`)
   }
   return { id, packageName }
 }
@@ -477,7 +596,7 @@ function parseArgs(args) {
   let packageApp = false
   for (const arg of args) {
     if (arg === "--package") packageApp = true
-    else throw new Error(`unknown Product Desktop build argument: ${arg}`)
+    else throw new Error(`unknown Desktop build argument: ${arg}`)
   }
   return { package: packageApp }
 }

@@ -57,8 +57,7 @@ pub fn run_workspace_snapshot_helper(
     }
 
     verify_repository(&repository_root, git_bin)?;
-    let git_common_dir = git_common_dir(&repository_root, git_bin)?;
-    let lock_path = git_common_dir.join("wanex-workspace-mutation.lock");
+    let lock_path = crate::workspace_lock::workspace_mutation_lock_path(&repository_root)?;
     let _lock = acquire_path_write_lock(&lock_path)?;
     verify_repository(&repository_root, git_bin)?;
 
@@ -333,17 +332,6 @@ fn verify_repository(root: &Path, git_bin: &str) -> Result<()> {
         ));
     }
     Ok(())
-}
-
-fn git_common_dir(root: &Path, git_bin: &str) -> Result<PathBuf> {
-    let reported = git_output(root, git_bin, &["rev-parse", "--git-common-dir"], &[])?;
-    let path = Path::new(&reported);
-    let path = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        root.join(path)
-    };
-    Ok(fs::canonicalize(path)?)
 }
 
 fn reject_special_objects(

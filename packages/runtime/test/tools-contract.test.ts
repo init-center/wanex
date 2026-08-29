@@ -328,6 +328,84 @@ describe("Runtime tool contract", () => {
     ])
   })
 
+  it("admits every parallel-safe Tool before an ambiguous batch can fence the Turn", async () => {
+    const registry = new ToolRegistry()
+    const first = ambiguousParallelTool("ambiguous_first")
+    const second = ambiguousParallelTool("ambiguous_second")
+    registry.register(first)
+    registry.register(second)
+    const storage = new MemoryToolExecutionStore()
+
+    await expect(runToolBatch(registry, {
+      ...identity,
+      calls: [first, second].map((tool, index) => ({
+        type: "tool_call" as const,
+        id: `part_ambiguous_${index}`,
+        toolCallId: `call_${tool.name}`,
+        toolName: tool.name,
+        input: {}
+      })),
+      permissionPolicy: new AllowAllToolsPolicy(),
+      storage,
+      signal: undefined,
+      timeoutMs: undefined,
+      maxConcurrency: 2,
+      budgetGrantId: undefined
+    })).rejects.toThrow("tool batch requires recovery")
+
+    expect(storage.beginCalls).toBe(2)
+    expect(await storage.listToolExecutions({})).toEqual([
+      expect.objectContaining({
+        toolName: "ambiguous_first",
+        state: "recovery_required"
+      }),
+      expect.objectContaining({
+        toolName: "ambiguous_second",
+        state: "recovery_required"
+      })
+    ])
+  })
+
+  it("durably cancels admitted Tools when a batch is aborted before invocation", async () => {
+    const registry = new ToolRegistry()
+    const first = controlledTool("cancel_first", "parallel_safe")
+    const second = controlledTool("cancel_second", "parallel_safe")
+    registry.register(first.tool)
+    registry.register(second.tool)
+    const storage = new MemoryToolExecutionStore()
+    const controller = new AbortController()
+    storage.onBegin = () => {
+      if (storage.beginCalls === 2) controller.abort()
+    }
+
+    await expect(runToolBatch(registry, {
+      ...identity,
+      calls: [first, second].map((controlled, index) => ({
+        type: "tool_call" as const,
+        id: `part_cancel_${index}`,
+        toolCallId: `call_${controlled.tool.name}`,
+        toolName: controlled.tool.name,
+        input: {}
+      })),
+      permissionPolicy: new AllowAllToolsPolicy(),
+      storage,
+      signal: controller.signal,
+      timeoutMs: undefined,
+      maxConcurrency: 2,
+      budgetGrantId: undefined
+    })).resolves.toMatchObject([
+      { isError: true, content: [{ value: { error: "tool_cancelled" } }] },
+      { isError: true, content: [{ value: { error: "tool_cancelled" } }] }
+    ])
+
+    expect(first.started.settled).toBe(false)
+    expect(second.started.settled).toBe(false)
+    expect(await storage.listToolExecutions({})).toEqual([
+      expect.objectContaining({ toolName: "cancel_first", state: "cancelled" }),
+      expect.objectContaining({ toolName: "cancel_second", state: "cancelled" })
+    ])
+  })
+
   it("suspends an exclusive Tool and reuses its persisted approval exactly once", async () => {
     const registry = new ToolRegistry()
     const tool = new RecordingTool()
@@ -1040,6 +1118,30 @@ class AmbiguousTool implements ToolDefinition {
   }
 }
 
+function ambiguousParallelTool(name: string): ToolDefinition {
+  return {
+    name,
+    description: "Lose a remote response after dispatch.",
+    inputSchema: { type: "object", additionalProperties: true },
+    risk: "external",
+    idempotent: false,
+    concurrency: "parallel_safe",
+    resultMode: "immediate",
+    runtimeBinding: createToolRuntimeBinding({
+      implementationId: `wanex.test.tool.${name}`,
+      implementationRevision: "1"
+    }),
+    async invoke(invocation) {
+      return {
+        outcome: "ambiguous",
+        toolCallId: invocation.toolCallId,
+        message: "remote response was lost",
+        reconciliationRef: `remote-${name}`
+      }
+    }
+  }
+}
+
 class HangingTool implements ToolDefinition {
   readonly name = "hang"
   readonly description = "Wait until invocation control stops the call."
@@ -1146,6 +1248,7 @@ class MemoryToolExecutionStore implements TestToolExecutionStore {
     }
   >()
   beginCalls = 0
+  onBegin: ((request: BeginToolExecutionRequest) => void) | undefined
 
   async deferToolExecution(): Promise<never> {
     throw new Error("deferred media handoff is not expected in this fixture")
@@ -1155,6 +1258,7 @@ class MemoryToolExecutionStore implements TestToolExecutionStore {
     request: BeginToolExecutionRequest
   ): Promise<BeginToolExecutionReceipt> {
     this.beginCalls += 1
+    this.onBegin?.(request)
     const existing = [...this.records.values()].find(
       (item) =>
         item.sourceMessageId === request.sourceMessageId &&

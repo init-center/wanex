@@ -5,16 +5,16 @@ import type {
   WorkerHandlerContext
 } from "@wanex/runtime/jobs"
 import {
-  defaultPluginSandboxPolicy,
+  defaultPluginPermissionPolicy,
   requireExecutablePluginManifest
 } from "./action-manifest.js"
 import { pluginActionJobPayloadFromJson } from "./action-payload.js"
 import { resolvePluginActionHost } from "./action-host-in-process.js"
 import { expectJsonValue } from "./internal-validation.js"
 import {
-  createPluginSandboxGuard,
-  validatePluginSandboxAccessRequest
-} from "./sandbox.js"
+  createPluginPermissionGuard,
+  validatePluginPermissionRequest
+} from "./permission.js"
 import type { PluginActionJobHandlerOptions } from "./types.js"
 
 export function createPluginActionJobHandler(
@@ -55,23 +55,25 @@ export function createPluginActionJobHandler(
       version: payload.version,
       capability: descriptor.capability,
     })
-    if (descriptor.sandbox !== undefined) {
-      validatePluginSandboxAccessRequest(descriptor.sandbox)
+    if (descriptor.permissions !== undefined) {
+      validatePluginPermissionRequest(descriptor.permissions)
     }
-    const defaultPolicy = defaultPluginSandboxPolicy(manifest)
-    const sandboxDecision = (
-      options.sandbox ?? createPluginSandboxGuard(defaultPolicy)
+    const defaultPolicy = defaultPluginPermissionPolicy(manifest)
+    const permissionDecision = (
+      options.permissionGuard ?? createPluginPermissionGuard(defaultPolicy)
     ).authorize({
       policy: defaultPolicy,
       plugin: manifest,
       actionId: payload.actionId,
       actionCapability: descriptor.capability,
       payload: payload.payload,
-      ...(descriptor.sandbox === undefined ? {} : { request: descriptor.sandbox })
+      ...(descriptor.permissions === undefined
+        ? {}
+        : { request: descriptor.permissions })
     })
-    if (sandboxDecision.status === "denied") {
+    if (permissionDecision.status === "denied") {
       throw new Error(
-        `plugin sandbox denied: ${manifest.pluginId}/${payload.actionId}`
+        `plugin permission denied: ${manifest.pluginId}/${payload.actionId}`
       )
     }
     const result = await host.execute({

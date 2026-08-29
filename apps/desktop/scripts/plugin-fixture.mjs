@@ -19,7 +19,7 @@ const fixtureSource = resolve(
   "../test/fixtures/plugin-host.rs"
 )
 
-export async function createProductDesktopPluginProofFixtures(options) {
+export async function createDesktopPluginProofFixtures(options) {
   const root = resolve(options.root)
   const platform = options.platform ?? process.platform
   const executableName = platform === "win32" ? "plugin-host.exe" : "plugin-host"

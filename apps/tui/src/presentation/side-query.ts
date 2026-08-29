@@ -1,4 +1,4 @@
-import type { SideQueryReadModel } from "@wanex/product/surface"
+import type { SideQueryReadModel } from "@wanex/assistant/surface"
 import { singleLine } from "../line-session/text.js"
 import type { TuiRenderedSideQuery } from "../model.js"
 

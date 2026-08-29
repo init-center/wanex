@@ -145,7 +145,7 @@ export async function runWanexDesktopProviderRelaunchProof(
 
   async function runConversation(): Promise<WanexDesktopProviderRelaunchProofResult> {
     const state = await waitFor(() => {
-      const surface = document.querySelector('[data-ui-product-shell]')
+      const surface = document.querySelector('[data-ui-assistant-shell]')
       const textarea = surface?.querySelector(
         '[data-ui-composer] textarea[name="text"]'
       )
@@ -250,7 +250,7 @@ export async function runWanexDesktopProviderRelaunchProof(
 
   async function removeProvider(): Promise<WanexDesktopProviderRelaunchProofResult> {
     await waitFor(() =>
-      document.querySelector('[data-ui-product-shell]') ?? undefined
+      document.querySelector('[data-ui-assistant-shell]') ?? undefined
     )
     await openProviderSettings()
     const initialConfiguredProviderCount = await waitFor(() => {
@@ -342,17 +342,17 @@ export async function runWanexDesktopProviderRelaunchProof(
     if (!dark.disabled) {
       dark.click()
       await waitFor(() =>
-        document.querySelector('[data-ui-product-shell][data-theme="dark"]') ?? undefined
+        document.querySelector('[data-ui-assistant-shell][data-theme="dark"]') ?? undefined
       , 10_000, "appearance_theme")
     }
     if (!compact.disabled) {
       compact.click()
       await waitFor(() =>
-        document.querySelector('[data-ui-product-shell][data-density="compact"]') ?? undefined
+        document.querySelector('[data-ui-assistant-shell][data-density="compact"]') ?? undefined
       , 10_000, "appearance_density")
     }
     return document.querySelector(
-      '[data-ui-product-shell][data-theme="dark"][data-density="compact"]'
+      '[data-ui-assistant-shell][data-theme="dark"][data-density="compact"]'
     ) !== null
   }
 
@@ -401,7 +401,7 @@ export async function runWanexDesktopProviderRelaunchProof(
   }
 
   function chatBlocked(): boolean {
-    const surface = document.querySelector('[data-ui-product-shell]')
+    const surface = document.querySelector('[data-ui-assistant-shell]')
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"], [data-ui-team-composer] textarea[name="team-message"]'
     )
@@ -428,7 +428,7 @@ export async function runWanexDesktopProviderRelaunchProof(
   }
 
   function chatBlockedDiagnostic(): string {
-    const surface = document.querySelector('[data-ui-product-shell]')
+    const surface = document.querySelector('[data-ui-assistant-shell]')
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"], [data-ui-team-composer] textarea[name="team-message"]'
     )
@@ -504,7 +504,7 @@ export async function runWanexDesktopProviderRelaunchProof(
   }> {
     const surface = await waitFor(() => {
       const candidate = document.querySelector(
-        '[data-ui-product-shell]'
+        '[data-ui-assistant-shell]'
       )
       return candidate instanceof Element ? candidate : undefined
     }, 10_000, "composer_ready")
@@ -537,7 +537,7 @@ export async function runWanexDesktopProviderRelaunchProof(
     }
     return await waitFor(() => {
       const currentSurface = document.querySelector(
-        '[data-ui-product-shell]'
+        '[data-ui-assistant-shell]'
       )
       const userRows = [...(currentSurface?.querySelectorAll(
         '[data-ui-conversation-row][data-ui-role="user"]'
@@ -582,7 +582,7 @@ export async function runWanexDesktopProviderRelaunchProof(
         : undefined
     }, 10_000, "conversation_settlement", () => {
       const currentSurface = document.querySelector(
-        '[data-ui-product-shell]'
+        '[data-ui-assistant-shell]'
       )
       const userRows = [...(currentSurface?.querySelectorAll(
         '[data-ui-conversation-row][data-ui-role="user"]'

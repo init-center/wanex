@@ -16,7 +16,7 @@ export async function runWanexDesktopProviderCancelRegenerateProof(
 ): Promise<WanexDesktopProviderRelaunchProofResult> {
   const ready = await context.waitFor(() => {
     const surface = document.querySelector(
-      '[data-ui-product-shell]'
+      '[data-ui-assistant-shell]'
     )
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"]'

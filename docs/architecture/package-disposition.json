@@ -19,6 +19,15 @@
       "rationale": "A separately executable CLI is a real product and lifecycle boundary.",
       "evidence": "Its bin/start path is production-facing; it will consume only Runtime/App public entries."
     },
+    "@wanex/coding": {
+      "path": "apps/coding",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/coding",
+      "targetPhase": "CODING-3A",
+      "rationale": "Coding application projection and trusted repository/native composition share one product owner with an explicit renderer/Host trust boundary and a distinct five-package dependency and resource closure.",
+      "evidence": "The package root is application-safe; the explicit /host subpath alone opens canonical Git repositories and owns Runtime/Storage/Workspace lifecycle. Bounded read models, command settlement, and ordered invalidations expose no trusted paths or authority objects."
+    },
     "@wanex/connector": {
       "path": "packages/connector",
       "role": "public-capability",
@@ -43,8 +52,8 @@
       "disposition": "retain",
       "targetOwner": "@wanex/extension",
       "targetPhase": "Phase 752",
-      "rationale": "A dependency-free contribution contract and deterministic resolver have multiple independent App and Product consumers.",
-      "evidence": "The contract and static host were consolidated; App, Product command host, and Product TUI compile against the retained owner."
+      "rationale": "A dependency-free contribution contract and deterministic resolver have multiple independent App and Assistant consumers.",
+      "evidence": "The contract and static host were consolidated; App, Assistant Plugin Host, and TUI compile against the retained owner."
     },
     "@wanex/local-credential-store": {
       "path": "packages/local-credential-store",
@@ -52,8 +61,8 @@
       "disposition": "retain",
       "targetOwner": "@wanex/local-credential-store",
       "targetPhase": "Phase 859",
-      "rationale": "Local keychain references and the native credential binding form one platform security and distribution boundary shared by independent Product Local/Desktop and Product TUI executables.",
-      "evidence": "Phase 859 moves the sole native adapter out of Product Local, deletes the old subpaths, and verifies both executable consumers without adding Product, Storage, Web, or execution authority to this package."
+      "rationale": "Local keychain references and the native credential binding form one platform security and distribution boundary shared by Assistant Host, Desktop, and TUI executables.",
+      "evidence": "Phase 859 moves the sole native adapter out of Assistant Host, deletes the old subpaths, and verifies both executable consumers without adding Assistant, Storage, Web, or execution authority to this package."
     },
     "@wanex/mcp": {
       "path": "packages/mcp",
@@ -71,25 +80,25 @@
       "targetOwner": "@wanex/plugin",
       "targetPhase": "Phase 752",
       "rationale": "Plugin trust, install, sandbox, subprocess, and worker lifecycle require one explicit optional security boundary.",
-      "evidence": "Plugin was renamed directly, Product command projection moved to its product owner, and 44 Plugin plus 8 Product host tests pass."
+      "evidence": "Plugin was renamed directly, Assistant command projection moved to its application owner, and the Plugin plus Assistant Host suites pass."
     },
-    "@wanex/product": {
-      "path": "apps/product",
+    "@wanex/assistant": {
+      "path": "apps/assistant",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/product",
-      "targetPhase": "Phase 751",
-      "rationale": "This is the frozen validation product backend and owns product-specific read models.",
-      "evidence": "Web, local, TUI, and plugin-command-host products consume it as their common product backend."
+      "targetOwner": "@wanex/assistant",
+      "targetPhase": "Route 1",
+      "rationale": "Assistant conversations, plans, goals, schedules, teams, attachments, command catalog, and renderer-safe read models form one application domain above App.",
+      "evidence": "Assistant Web, Assistant Host, Assistant Plugin Host, and TUI consume its safe root or explicit subpaths; Coding remains a separate application domain."
     },
-    "@wanex/plugin-command-host": {
-      "path": "apps/plugin-command-host",
+    "@wanex/assistant-plugin-host": {
+      "path": "apps/assistant-plugin-host",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/plugin-command-host",
-      "targetPhase": "PLUGIN-1",
-      "rationale": "Optional plugin action execution has a distinct process, security, dependency, and lifecycle boundary outside default application closure.",
-      "evidence": "The optional host reconstructs active Plugin generations from durable installs, publishes one immutable command catalog, owns the sole plugin.action worker and exact-version execution registry, and exposes a structurally compatible composition port without depending on Local Host. The packaged Desktop product leaf explicitly composes it; default Local Host, Web, TUI, Runtime, and App closures remain Plugin-free."
+      "targetOwner": "@wanex/assistant-plugin-host",
+      "targetPhase": "Route 1",
+      "rationale": "Optional Plugin action execution projects into the Assistant command surface and has a distinct process, security, dependency, and lifecycle boundary outside the default Assistant closure.",
+      "evidence": "The host reconstructs active Plugin generations, publishes one immutable Assistant command catalog, owns exact-version execution, and is composed explicitly by Desktop without entering Runtime, App, Assistant Web, or TUI default closures."
     },
     "@wanex/desktop": {
       "path": "apps/desktop",
@@ -97,17 +106,17 @@
       "disposition": "retain",
       "targetOwner": "@wanex/desktop",
       "targetPhase": "Phase 811",
-      "rationale": "Electron introduces a distinct executable process, renderer trust boundary, native-resource closure, and packaging lifecycle that must remain outside Product Local and every Kernel package.",
-      "evidence": "The packaged leaf loads the real Product Web document from its owned ephemeral loopback Host, stages exactly one System Service and keyring binding, composes optional Plugin management with an Electron-main native directory selector and user-data install root, and proves secure startup, conversation settlement, screenshot rendering, and complete process cleanup without application node_modules."
+      "rationale": "Electron introduces a distinct executable process, renderer trust boundary, native-resource closure, and packaging lifecycle that must remain outside Assistant Host and every Kernel package.",
+      "evidence": "The packaged leaf loads the real Assistant Web document from its owned ephemeral loopback Host, stages exactly one System Service and keyring binding, composes optional Plugin management with an Electron-main native directory selector and user-data install root, and proves secure startup, conversation settlement, screenshot rendering, and complete process cleanup without application node_modules."
     },
-    "@wanex/local-host": {
-      "path": "apps/local-host",
+    "@wanex/assistant-host": {
+      "path": "apps/assistant-host",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/local-host",
-      "targetPhase": "Phase 751",
-      "rationale": "The local executable host owns local lifecycle and distribution concerns.",
-      "evidence": "It owns the shared Web, desktop, and TUI local lifecycle and exposes one named optional Plugin composition port while remaining independent of Plugin Host and Plugin Runtime."
+      "targetOwner": "@wanex/assistant-host",
+      "targetPhase": "Route 1.1",
+      "rationale": "The authoritative Assistant Host owns Assistant storage, Provider, resource, schedule, Team, Web, and lifecycle composition independently of whether its client is local or remote.",
+      "evidence": "Desktop and TUI currently borrow its lifecycle in-process; a later remote Agent Host protocol may address the same owner without changing its package identity. Coding remains independently composed through @wanex/coding, so no generic multi-domain Host closure is claimed."
     },
     "@wanex/tui": {
       "path": "apps/tui",
@@ -116,16 +125,16 @@
       "targetOwner": "@wanex/tui",
       "targetPhase": "Phase 751",
       "rationale": "The terminal product is a distinct executable leaf with terminal-only dependencies.",
-      "evidence": "It owns the TUI entry and consumes the shared product backend."
+      "evidence": "It owns the TUI entry and consumes the Assistant application backend."
     },
-    "@wanex/web": {
-      "path": "apps/web",
+    "@wanex/assistant-ui": {
+      "path": "packages/assistant-ui",
       "role": "app",
       "disposition": "retain",
-      "targetOwner": "@wanex/web",
-      "targetPhase": "Phase 751",
-      "rationale": "The browser-safe product adapter has a distinct platform dependency boundary.",
-      "evidence": "Local and Node hosts consume it while it depends only on the application backend."
+      "targetOwner": "@wanex/assistant-ui",
+      "targetPhase": "Route 1",
+      "rationale": "The browser-safe Assistant UI and client are shared by multiple product hosts and have no storage or execution authority.",
+      "evidence": "Assistant Host and Desktop consume the same React/browser build while host packages retain lifecycle, storage, authentication, and execution ownership."
     },
     "@wanex/protocol": {
       "path": "packages/protocol",
@@ -183,11 +192,56 @@
     }
   },
   "tombstones": {
+    "@wanex/product": {
+      "path": "apps/product",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant",
+      "targetPhase": "Route 1",
+      "rationale": "Product described an architectural role rather than the Assistant domain actually owned by the package.",
+      "evidence": "The package, source directory, APIs, wire kinds, consumers, and governance moved directly to @wanex/assistant without an alias or forwarding package."
+    },
+    "@wanex/web": {
+      "path": "apps/web",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant-ui",
+      "targetPhase": "Route 1",
+      "rationale": "The implementation renders only the Assistant application surface and was not a generic Web owner.",
+      "evidence": "The package and directory moved directly to @wanex/assistant-ui without an alias or forwarding package."
+    },
+    "@wanex/local-host": {
+      "path": "apps/local-host",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant-host",
+      "targetPhase": "Route 1",
+      "rationale": "The closure owned the Assistant lifecycle rather than a generic multi-domain Agent Host.",
+      "evidence": "Route 1 first moved the package to the Assistant domain; Route 1.1 then removed the misleading placement qualifier. No old package, bin, route, environment variable, or compatibility alias remains."
+    },
+    "@wanex/assistant-local-host": {
+      "path": "apps/assistant-local-host",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant-host",
+      "targetPhase": "Route 1.1",
+      "rationale": "Local described one possible client-to-Host placement even though the authoritative Assistant Host can be controlled by local or later remote clients.",
+      "evidence": "The unpublished package, directory, bin, public Host API, wire discriminants, scripts, consumers, and governance moved directly to @wanex/assistant-host without an alias, forwarding package, or dual decoder."
+    },
+    "@wanex/plugin-command-host": {
+      "path": "apps/plugin-command-host",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant-plugin-host",
+      "targetPhase": "Route 1",
+      "rationale": "The host projects Plugin actions specifically into the Assistant command surface.",
+      "evidence": "The package, directory, host API, composition port, and status discriminants moved directly to @wanex/assistant-plugin-host without compatibility aliases."
+    },
     "@wanex/command-host": {
       "path": "apps/command-host",
       "role": "app",
       "disposition": "delete",
-      "targetOwner": "@wanex/plugin-command-host",
+      "targetOwner": "@wanex/assistant-plugin-host",
       "targetPhase": "PLUGIN-1",
       "rationale": "The generic identity obscured that this optional host owns only plugin-backed Product commands.",
       "evidence": "The package was renamed directly and its second Product Shell API was deleted without a forwarding package or alias."
@@ -358,10 +412,10 @@
       "path": "apps/web-node-host",
       "role": "app",
       "disposition": "delete",
-      "targetOwner": "@wanex/local-host/web-host",
+      "targetOwner": "@wanex/assistant-host/web-host",
       "targetPhase": "Phase 756",
-      "rationale": "The thin Node HTTP/browser host shares Local Host's deployment and lifecycle and has no independent publication or product consumer.",
-      "evidence": "Implementation and owner tests moved to Local Host, Eval consumes its explicit web-host subpath, and the old package was deleted without an alias."
+      "rationale": "The thin Node HTTP/browser host shares Assistant Host deployment and lifecycle and has no independent publication or product consumer.",
+      "evidence": "Implementation and owner tests moved to Assistant Host, Eval consumes its explicit web-host subpath, and the old package was deleted without an alias."
     },
     "@wanex/example-connector": {
       "path": "apps/example-connector",
@@ -439,7 +493,7 @@
       "path": "packages/plugin-action-adapter",
       "role": "internal",
       "disposition": "delete",
-      "targetOwner": "@wanex/plugin-command-host",
+      "targetOwner": "@wanex/assistant-plugin-host",
       "targetPhase": "Phase 752",
       "rationale": "Plugin action projection is host integration detail, not a standalone adapter package.",
       "evidence": "Implementation and owner tests moved to the current plugin command host owner; the old package was deleted without an alias in Phase 752."

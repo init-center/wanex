@@ -55,7 +55,7 @@ describe("@wanex/app", () => {
     })
     expect(result.provenance).toEqual({
       sessionId: "ses_wanex_app_smoke",
-      hasProductClientField: false,
+      hasClientField: false,
       rows: [
         expect.objectContaining({
           sessionId: "ses_wanex_app_smoke",
@@ -373,7 +373,7 @@ describe("@wanex/app", () => {
         })
       ).resolves.toEqual({
         sessionId: "ses_wanex_app_scheduler",
-        hasProductClientField: false,
+        hasClientField: false,
         rows: [
           expect.objectContaining({
             sessionId: "ses_wanex_app_scheduler",

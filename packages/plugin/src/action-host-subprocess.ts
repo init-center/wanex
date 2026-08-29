@@ -47,6 +47,18 @@ export function createSubprocessPluginActionHost(
       return pluginActionDescriptorFromDefinitionLike(descriptor)
     },
     async execute(request) {
+      const descriptor = descriptors.get(
+        pluginActionKey(
+          request.manifest.pluginId,
+          request.manifest.version,
+          request.actionId
+        )
+      )
+      if (descriptor === undefined) {
+        throw new Error(
+          `plugin action descriptor not found during execution: ${request.manifest.pluginId}/${request.actionId}`
+        )
+      }
       const message: PluginHostExecuteMessage = {
         protocol: WANEX_PLUGIN_HOST_PROTOCOL,
         type: "execute",
@@ -61,6 +73,7 @@ export function createSubprocessPluginActionHost(
       }
       const response = await executeSubprocessPluginAction(
         options,
+        descriptor,
         message,
         request.signal
       )
@@ -73,7 +86,11 @@ export function createSubprocessPluginActionHost(
 }
 
 export function createSubprocessPluginActionHostFromManifest(
-  manifest: PluginManifestRecord
+  manifest: PluginManifestRecord,
+  options: Pick<
+    SubprocessPluginActionHostOptions,
+    "cwd" | "executionEnvironment"
+  >
 ): PluginActionHost {
   if (manifest.entry === undefined) {
     throw new Error(`plugin manifest entry not found: ${manifest.pluginId}`)
@@ -85,9 +102,13 @@ export function createSubprocessPluginActionHostFromManifest(
       actionId: action.actionId,
       capability: action.capability,
       version: manifest.version,
-      ...(action.sandbox === undefined ? {} : { sandbox: action.sandbox })
+      ...(action.permissions === undefined
+        ? {}
+        : { permissions: action.permissions })
     })),
     command: entry.command,
+    cwd: options.cwd,
+    executionEnvironment: options.executionEnvironment,
     ...(entry.args === undefined ? {} : { args: entry.args }),
     ...(entry.timeoutMs === undefined ? {} : { timeoutMs: entry.timeoutMs }),
     ...(entry.stderrLimitBytes === undefined
@@ -99,6 +120,7 @@ export function createSubprocessPluginActionHostFromManifest(
 export function createTrustedSubprocessPluginActionHostFromManifest(options: {
   readonly manifest: PluginManifestRecord
   readonly trust: PluginPackageTrustRecord | JsonValue
+  readonly executionEnvironment: SubprocessPluginActionHostOptions["executionEnvironment"]
 }): PluginActionHost {
   const trust = isPluginPackageTrustRecord(options.trust)
     ? options.trust
@@ -114,10 +136,13 @@ export function createTrustedSubprocessPluginActionHostFromManifest(options: {
       actionId: action.actionId,
       capability: action.capability,
       version: options.manifest.version,
-      ...(action.sandbox === undefined ? {} : { sandbox: action.sandbox })
+      ...(action.permissions === undefined
+        ? {}
+        : { permissions: action.permissions })
     })),
     command: resolveTrustedPluginCommand(trust.install.rootDir, entry.command),
     cwd: trust.install.rootDir,
+    executionEnvironment: options.executionEnvironment,
     ...(entry.args === undefined ? {} : { args: entry.args }),
     ...(entry.timeoutMs === undefined ? {} : { timeoutMs: entry.timeoutMs }),
     ...(entry.stderrLimitBytes === undefined
@@ -129,11 +154,13 @@ export function createTrustedSubprocessPluginActionHostFromManifest(options: {
 export function createTrustedSubprocessPluginActionHostFromInstall(options: {
   readonly manifest: PluginManifestRecord
   readonly install: PluginInstallRecord
+  readonly executionEnvironment: SubprocessPluginActionHostOptions["executionEnvironment"]
 }): PluginActionHost {
   const trust = pluginPackageTrustRecordFromJson(options.install.trust)
   assertPluginInstallExecutable(options.manifest, options.install, trust)
   return createTrustedSubprocessPluginActionHostFromManifest({
     manifest: options.manifest,
+    executionEnvironment: options.executionEnvironment,
     trust: {
       ...trust,
       install: {

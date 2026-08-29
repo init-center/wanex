@@ -1,10 +1,10 @@
 import { isAbsolute, join } from "node:path";
 import { createTrustedSubprocessPluginActionHostFromInstall } from "@wanex/plugin";
 import {
-  createPluginCommandComposition,
-  type PluginCommandCompositionPort,
-  type PluginExecutionHostFactory,
-} from "@wanex/plugin-command-host";
+  createAssistantPluginComposition,
+  type AssistantPluginCompositionPort,
+  type PluginActionHostFactory,
+} from "@wanex/assistant-plugin-host";
 
 export interface NativeDirectorySelectionResult {
   readonly canceled: boolean;
@@ -64,7 +64,7 @@ export function createDesktopExtensionProofSelectionQueue(options: {
 
 export function createDesktopExtensionComposition(
   options: DesktopExtensionCompositionOptions,
-): PluginCommandCompositionPort {
+): AssistantPluginCompositionPort {
   return createExtensionComposition(options);
 }
 
@@ -76,12 +76,12 @@ export function createDesktopExtensionProofComposition(options: {
     readonly pluginId: string;
     readonly version: string;
   };
-}): PluginCommandCompositionPort {
+}): AssistantPluginCompositionPort {
   if (!options.proofEnabled) {
     throw new Error("Desktop extension host failure requires proof mode");
   }
   let failurePending = true;
-  const createActionHost: PluginExecutionHostFactory = async (request) => {
+  const createActionHost: PluginActionHostFactory = async (request) => {
     if (
       failurePending &&
       request.install.pluginId === options.failHostCreationOnce.pluginId &&
@@ -90,16 +90,20 @@ export function createDesktopExtensionProofComposition(options: {
       failurePending = false;
       throw new Error("proof-injected Plugin execution host load failure");
     }
-    return createTrustedSubprocessPluginActionHostFromInstall(request);
+    return createTrustedSubprocessPluginActionHostFromInstall({
+      manifest: request.manifest,
+      install: request.install,
+      executionEnvironment: request.executionEnvironment,
+    });
   };
   return createExtensionComposition(options, createActionHost);
 }
 
 function createExtensionComposition(
   options: DesktopExtensionCompositionOptions,
-  createActionHost?: PluginExecutionHostFactory,
-): PluginCommandCompositionPort {
-  return createPluginCommandComposition({
+  createActionHost?: PluginActionHostFactory,
+): AssistantPluginCompositionPort {
+  return createAssistantPluginComposition({
     principalId: "desktop-plugin-actions",
     ...(createActionHost === undefined ? {} : { createActionHost }),
     worker: {

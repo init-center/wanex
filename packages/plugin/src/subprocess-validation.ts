@@ -1,12 +1,22 @@
 import { PLUGIN_CAPABILITIES } from "./internal-validation.js"
-import { validatePluginSandboxAccessRequest } from "./sandbox.js"
+import { validatePluginPermissionRequest } from "./permission.js"
 import type { SubprocessPluginActionHostOptions } from "./types.js"
+import { isAbsolute } from "node:path"
 
 export function validateSubprocessPluginActionHostOptions(
   options: SubprocessPluginActionHostOptions
 ): void {
   if (options.command.length === 0) {
     throw new Error("plugin subprocess command must not be empty")
+  }
+  if (!isAbsolute(options.cwd) || options.cwd.includes("\0")) {
+    throw new Error("plugin subprocess cwd must be absolute")
+  }
+  if (
+    options.executionEnvironment === undefined ||
+    typeof options.executionEnvironment.bind !== "function"
+  ) {
+    throw new Error("plugin subprocess executionEnvironment is required")
   }
   if (options.timeoutMs !== undefined && options.timeoutMs <= 0) {
     throw new Error("plugin subprocess timeoutMs must be positive")
@@ -33,8 +43,8 @@ export function validateSubprocessPluginActionHostOptions(
     if (!PLUGIN_CAPABILITIES.has(descriptor.capability)) {
       throw new Error(`invalid plugin capability: ${descriptor.capability}`)
     }
-    if (descriptor.sandbox !== undefined) {
-      validatePluginSandboxAccessRequest(descriptor.sandbox)
+    if (descriptor.permissions !== undefined) {
+      validatePluginPermissionRequest(descriptor.permissions)
     }
   }
 }

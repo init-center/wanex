@@ -6,8 +6,8 @@ import type {
 import type { WorkerHandlerContext } from "@wanex/runtime/jobs"
 import type { PluginRuntimeStore } from "./storage.js"
 import type { WANEX_PLUGIN_HOST_PROTOCOL } from "./types-constants.js"
-import type { PluginSandboxAccessRequest, PluginSandboxGuard } from "./types-sandbox.js"
-import type { ExecutionHost } from "@wanex/runtime/execution"
+import type { PluginPermissionRequest, PluginPermissionGuard } from "./types-permission.js"
+import type { ExecutionEnvironment } from "@wanex/runtime/execution"
 
 export interface PluginActionHandlerContext {
   readonly job: WorkerHandlerContext["job"]
@@ -25,14 +25,14 @@ export type PluginActionHandler = (
 export interface PluginActionHandlerDefinition {
   readonly capability: PluginCapability
   readonly version: string
-  readonly sandbox?: PluginSandboxAccessRequest
+  readonly permissions?: PluginPermissionRequest
   readonly handler: PluginActionHandler
 }
 
 export interface PluginActionDescriptor {
   readonly capability: PluginCapability
   readonly version: string
-  readonly sandbox?: PluginSandboxAccessRequest
+  readonly permissions?: PluginPermissionRequest
 }
 
 export interface ResolvePluginActionRequest {
@@ -70,9 +70,8 @@ export interface SubprocessPluginActionHostOptions {
   readonly descriptors: readonly SubprocessPluginActionDescriptor[]
   readonly command: string
   readonly args?: readonly string[]
-  readonly cwd?: string
-  readonly env?: NodeJS.ProcessEnv
-  readonly executionHost?: ExecutionHost
+  readonly cwd: string
+  readonly executionEnvironment: ExecutionEnvironment
   readonly timeoutMs?: number
   readonly stdoutLimitBytes?: number
   readonly stderrLimitBytes?: number
@@ -114,7 +113,7 @@ export interface PluginActionJobHandlerOptions {
   readonly storage: PluginRuntimeStore
   readonly catalog?: PluginActionCatalog
   readonly host?: PluginActionHost
-  readonly sandbox?: PluginSandboxGuard
+  readonly permissionGuard?: PluginPermissionGuard
 }
 
 export interface PluginActionJobPayload {

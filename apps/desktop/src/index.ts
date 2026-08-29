@@ -14,6 +14,21 @@ export {
 } from "./lifecycle.js"
 export { isWanexDesktopOwnedNavigation } from "./window-policy.js"
 export {
+  DESKTOP_CODING_IPC,
+  isCodingCommandRequest,
+  isDesktopCodingProjectSelection,
+  type DesktopCodingProjectSelection,
+  type DesktopCodingRendererBridge,
+} from "./coding-bridge.js"
+export { installDesktopCodingIpc } from "./coding-ipc.js"
+export type {
+  DesktopCodingIpcEvent,
+  DesktopCodingIpcMain,
+  DesktopCodingWindow,
+  DesktopCodingWebContents,
+  InstallDesktopCodingIpcOptions,
+} from "./coding-ipc.js"
+export {
   createDesktopExtensionComposition,
   extensionInstallBaseDir,
   selectLocalExtensionDirectory,

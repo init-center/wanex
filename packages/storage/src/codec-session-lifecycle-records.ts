@@ -27,9 +27,21 @@ export function fromRpcSessionRecord(value: JsonValue): SessionRecord {
   }
   return withOptionalFields(record, {
     title: optionalString(value.title, "session.title"),
+    scope: sessionScope(value.scope),
     archivedAt:
       value.archived_at === null || value.archived_at === undefined
         ? undefined
         : expectNumber(value.archived_at, "session.archived_at")
   })
+}
+
+function sessionScope(value: JsonValue | undefined): SessionRecord["scope"] {
+  if (value === null || value === undefined) return undefined
+  if (!isRecord(value)) {
+    throw new Error("session.scope must be an object")
+  }
+  return {
+    kind: expectString(value.kind, "session.scope.kind"),
+    id: expectString(value.id, "session.scope.id")
+  }
 }

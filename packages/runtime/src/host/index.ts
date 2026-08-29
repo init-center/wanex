@@ -1,5 +1,7 @@
 export * from "./host.js"
 export * from "./diagnostics.js"
+export * from "./agent-host.js"
+export * from "./local-ipc.js"
 export { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
 export type {
   AgentRunOnceResult,

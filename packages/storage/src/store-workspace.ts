@@ -4,6 +4,7 @@ import type {
   BeginWorkspaceTaskCollectionRequest,
   BeginWorkspaceTaskReleaseRequest,
   BeginWorkspaceTaskRunRequest,
+  ClaimWorkspaceTaskContinuationRequest,
   ClaimWorkspaceChangeProposalApplyRequest,
   ClaimWorkspaceChangeTransactionRecoveryRequest,
   ClaimWorkspaceTaskRecoveryRequest,
@@ -80,6 +81,7 @@ import {
   toRpcClaimWorkspaceChangeProposalApplyRequest,
   toRpcClaimWorkspaceChangeTransactionRecoveryRequest,
   toRpcClaimWorkspaceTaskRecoveryRequest,
+  toRpcClaimWorkspaceTaskContinuationRequest,
   toRpcFinalizeWorkspaceChangeTransactionRequest,
   toRpcFinalizeWorkspaceTaskCollectionRequest,
   toRpcFinalizeWorkspaceTaskReleaseRequest,
@@ -414,6 +416,16 @@ export class WorkspaceStoreMethods extends RpcStoreFacetBase {
     const value = await this.callWorkspace({
       command: "claim-workspace-task-recovery",
       request: toRpcClaimWorkspaceTaskRecoveryRequest(request),
+    });
+    return fromRpcWorkspaceTaskClaimResult(value);
+  }
+
+  async claimWorkspaceTaskContinuation(
+    request: ClaimWorkspaceTaskContinuationRequest,
+  ): Promise<WorkspaceTaskClaimResult> {
+    const value = await this.callWorkspace({
+      command: "claim-workspace-task-continuation",
+      request: toRpcClaimWorkspaceTaskContinuationRequest(request),
     });
     return fromRpcWorkspaceTaskClaimResult(value);
   }

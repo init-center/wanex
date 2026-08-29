@@ -64,18 +64,14 @@ export interface SkillSource {
 }
 
 export interface SkillSourceProvenance {
-  readonly id: string
   readonly scope: SkillScope
   readonly name: string
-  readonly directory: string
-  readonly path: string
   readonly order: number
   readonly byteLength: number
   readonly hash: string
   readonly bodyHash: string
   readonly allowedTools?: readonly string[]
   readonly metadata?: Readonly<Record<string, string>>
-  readonly mtimeMs?: number
 }
 
 export type SkillDiagnosticSeverity = "info" | "warning" | "error"

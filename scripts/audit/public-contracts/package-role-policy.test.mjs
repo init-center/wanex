@@ -30,20 +30,20 @@ describe("package role policy", () => {
     expect(
       findPackageRoleDependencyViolations(
         {
-          name: "@wanex/product",
+          name: "@wanex/assistant",
           dependencies: {
             "@wanex/example-fixture": "workspace:*"
           }
         },
         {
-          "@wanex/product": "app",
+          "@wanex/assistant": "app",
           "@wanex/example-fixture": "example"
         }
       )
     ).toEqual([
       expect.objectContaining({
         code: "forbidden-production-example-dependency",
-        package: "@wanex/product",
+        package: "@wanex/assistant",
         dependency: "@wanex/example-fixture"
       })
     ])

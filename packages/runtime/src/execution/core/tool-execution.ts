@@ -7,6 +7,7 @@ import type {
   ToolResultMessagePart
 } from "@wanex/protocol"
 import type {
+  BegunToolExecution,
   PreparedToolExecution,
   ToolExecutionRequest,
   ToolPermissionPolicy,
@@ -106,10 +107,29 @@ export async function runToolBatch(
     prepared[index] = await tools.prepareExecution(executionRequest, existing)
   }
 
-  const executeCall = async (index: number): Promise<void> => {
+  const executeCall = async (
+    index: number,
+    begun?: BegunToolExecution
+  ): Promise<void> => {
     const call = request.calls[index]!
+    if (begun?.reused !== undefined) {
+      outcomes[index] = begun.reused
+      return
+    }
     if (request.signal?.aborted === true) {
-      outcomes[index] = completedWithoutInvocation(cancelledBeforeStart(call))
+      if (begun !== undefined) {
+        const preparedCall = prepared[index]
+        if (preparedCall === undefined) {
+          throw new Error("cancelled tool execution was not preflighted")
+        }
+        outcomes[index] = await tools.cancelPreparedExecution(
+          toolExecutionRequest(request, call),
+          preparedCall,
+          begun
+        )
+      } else {
+        outcomes[index] = completedWithoutInvocation(cancelledBeforeStart(call))
+      }
       return
     }
     const executionRequest = toolExecutionRequest(request, call)
@@ -117,29 +137,36 @@ export async function runToolBatch(
     if (preparedCall === undefined) {
       throw new Error("tool execution was not preflighted")
     }
-    const outcome = await tools.executePrepared(executionRequest, preparedCall)
+    const outcome = await tools.executePrepared(
+      executionRequest,
+      preparedCall,
+      begun
+    )
     outcomes[index] = outcome
     if (outcome.state === "recovery_required") recovery = outcome.recovery
     if (outcome.state === "suspended") suspension = outcome.receipt
     if (outcome.state === "approval_required") approval = outcome.receipt
   }
 
-  const runParallelGroup = async (indexes: readonly number[]): Promise<void> => {
+  const runParallelGroup = async (
+    indexes: readonly number[],
+    begun: readonly BegunToolExecution[] = []
+  ): Promise<void> => {
     let next = 0
-    let stopped = false
     const workerCount = Math.min(request.maxConcurrency, indexes.length)
     await Promise.all(Array.from({ length: workerCount }, async () => {
-      while (!stopped) {
+      // Every parallel-safe call must reach a durable outcome. Stopping the
+      // dispatch queue after the first ambiguous result can leave later calls
+      // without evidence, making a batch impossible to reconcile safely.
+      while (true) {
         const groupIndex = next
         next += 1
         const index = indexes[groupIndex]
         if (index === undefined) return
         try {
-          await executeCall(index)
-          if (recovery !== undefined) stopped = true
+          await executeCall(index, begun[index])
         } catch (error) {
           errors[index] = error
-          stopped = true
         }
       }
     }))
@@ -171,7 +198,16 @@ export async function runToolBatch(
       if (indexes.some((index) => prepared[index]?.permission.status === "approval_required")) {
         throw new Error("parallel-safe Tool group cannot require human approval")
       }
-      await runParallelGroup(indexes)
+      // Establish every logical execution before any Tool can fence the Turn
+      // for recovery. This keeps a parallel provider batch fully recoverable.
+      const begun = new Array<BegunToolExecution>(request.calls.length)
+      await Promise.all(indexes.map(async (index) => {
+        begun[index] = await tools.beginPreparedExecution(
+          toolExecutionRequest(request, request.calls[index]!),
+          prepared[index]!
+        )
+      }))
+      await runParallelGroup(indexes, begun)
     }
 
     if (recovery !== undefined) {

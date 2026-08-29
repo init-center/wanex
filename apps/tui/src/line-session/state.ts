@@ -2,7 +2,7 @@ import type {
   PlanGenerationReadModel,
   GoalReadModel,
   SideQueryReadModel
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import type {
   TuiLineSessionResult,
   TuiSurface
@@ -117,7 +117,7 @@ function selectedGoal(surface: TuiSurface): {
   readonly goalState: GoalReadModel["state"] | undefined
 } {
   const goal = surface.snapshot().goal
-  if (!goal.ok || goal.value.kind !== "product.goal.found") {
+  if (!goal.ok || goal.value.kind !== "assistant.goal.found") {
     return { goalId: undefined, goalRevision: undefined, goalState: undefined }
   }
   return {

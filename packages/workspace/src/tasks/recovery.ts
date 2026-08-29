@@ -1,5 +1,9 @@
 import { randomBytes, randomUUID } from "node:crypto"
 import type { WorkspaceTaskRunSnapshot } from "@wanex/protocol"
+import {
+  assertExecutionEnvironmentBindingEqual,
+  type ExecutionEnvironment
+} from "@wanex/runtime/execution"
 import type { WorkspaceIsolationAdapter } from "../isolation/index.js"
 import {
   serializeWorkspaceTaskError,
@@ -27,6 +31,7 @@ export async function recoverWorkspaceTask(
     readonly repositoryId: string
     readonly ownerId: string
     readonly leaseMs: number
+    readonly executionEnvironment: ExecutionEnvironment
   },
   request: RecoverWorkspaceTaskRequest
 ): Promise<WorkspaceTaskReceipt> {
@@ -36,6 +41,10 @@ export async function recoverWorkspaceTask(
   if (current.run.state === "released" || current.run.state === "attention") {
     return await workspaceTaskReceiptFromSnapshot(options.storage, current)
   }
+  const initialBindingError = executionBindingError(
+    options.executionEnvironment,
+    current
+  )
 
   const identity: WorkspaceTaskClaimIdentity = {
     runId,
@@ -53,6 +62,7 @@ export async function recoverWorkspaceTask(
   if (claim.status !== "claimed") {
     return failedRecoveryReceipt(claim.snapshot, "workspace task is already active")
   }
+  assertRepository(claim.snapshot, options.repositoryId)
 
   const renewal = new WorkspaceTaskLeaseRenewal({
     storage: options.storage,
@@ -61,6 +71,19 @@ export async function recoverWorkspaceTask(
   })
   renewal.start()
   try {
+    const bindingError =
+      initialBindingError ??
+      executionBindingError(options.executionEnvironment, claim.snapshot)
+    if (bindingError !== undefined) {
+      const attention = await options.storage.markWorkspaceTaskAttention({
+        ...identity,
+        failure: workspaceTaskFailureJson(
+          bindingError,
+          "workspace_task.execution_environment_changed"
+        )
+      })
+      return await workspaceTaskReceiptFromSnapshot(options.storage, attention)
+    }
     if (
       claim.snapshot.run.state === "preparing" ||
       claim.snapshot.run.state === "active" ||
@@ -105,6 +128,25 @@ export async function recoverWorkspaceTask(
     }
   } finally {
     await renewal.stop()
+  }
+}
+
+function executionBindingError(
+  executionEnvironment: ExecutionEnvironment,
+  snapshot: WorkspaceTaskRunSnapshot
+): ReturnType<typeof serializeWorkspaceTaskError> | undefined {
+  try {
+    const resolved = executionEnvironment.resolveBinding({
+      policy: snapshot.run.executionEnvironment.policy
+    })
+    assertExecutionEnvironmentBindingEqual(
+      resolved,
+      snapshot.run.executionEnvironment,
+      "workspace task recovery execution environment"
+    )
+    return undefined
+  } catch (error) {
+    return serializeWorkspaceTaskError(error)
   }
 }
 

@@ -1,4 +1,4 @@
-import { startLocalProductHost } from "@wanex/local-host/application"
+import { startAssistantHost } from "@wanex/assistant-host/application"
 import { createTuiCliComposition } from "./composition.js"
 import { parseTuiCliCommand } from "./parser.js"
 import { runTuiCliCommand } from "./dispatch.js"
@@ -29,7 +29,7 @@ export { createTuiCliComposition } from "./composition.js"
 
 export async function main(
   argv: readonly string[],
-  env: TuiCliEnvironment = process.env,
+  env: TuiCliEnvironment,
   io?: TuiCliIo
 ): Promise<TuiCliResult> {
   try {
@@ -49,10 +49,10 @@ export async function main(
               : { credentialStore: io.credentialStore })
           }
     )
-    const product = await startLocalProductHost(composition.hostOptions)
-    const app = product.shell
+    const assistant = await startAssistantHost(composition.hostOptions)
+    const app = assistant.shell
     try {
-      const client = createTuiHostSurfaceClient({ surface: product.surface })
+      const client = createTuiHostSurfaceClient({ surface: assistant.surface })
       const surface = await createTuiSurface({ client })
       const attachmentHost = createTuiAttachmentHost(app)
       switch (command.name) {
@@ -161,7 +161,7 @@ export async function main(
       const unreachable: never = command
       return fail(new Error(`unsupported TUI command: ${String(unreachable)}`))
     } finally {
-      await product.close()
+      await assistant.close()
     }
   } catch (error) {
     return fail(error)

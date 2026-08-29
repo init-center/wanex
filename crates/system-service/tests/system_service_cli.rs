@@ -784,7 +784,8 @@ fn cli_runs_durable_turn_flow() {
             "command": "create-session",
             "id": "ses_cli_phase2",
             "title": "CLI Phase 2",
-            "kind": "chat"
+            "kind": "chat",
+            "scope": null
         }),
     );
     assert_eq!(session["ok"], true);
@@ -936,7 +937,8 @@ fn cli_serve_process_handles_multiple_requests() {
             "command": "create-session",
             "id": "ses_serve",
             "title": "Serve",
-            "kind": "agent"
+            "kind": "agent",
+            "scope": null
         }),
     );
     assert_eq!(session["ok"], true);
@@ -1029,8 +1031,66 @@ fn workspace_child_fixture() {
     match std::env::var("WANEX_WORKSPACE_CHILD_FIXTURE").as_deref() {
         Ok("quick") => print!("workspace-child-fixture"),
         Ok("sleep") => std::thread::sleep(Duration::from_secs(30)),
+        Ok("echo") => {
+            let mut input = String::new();
+            std::io::stdin().read_to_string(&mut input).unwrap();
+            print!("reply:{input}");
+        }
         _ => {}
     }
+}
+
+#[test]
+fn workspace_child_helper_streams_managed_input_and_output() {
+    let root = tempdir().unwrap();
+    let mut start = workspace_child_start(root.path(), "echo");
+    start["stdin_mode"] = json!("open");
+    let mut helper = WorkspaceChildProcess::spawn(start);
+    assert_child_identity(&helper.read(), "workspace_child_ready");
+    helper.send_raw(
+        &json!({
+            "protocol": 1,
+            "command": "stdin",
+            "run_id": "wtsk_child_cli",
+            "attempt_id": "wtat_child_cli",
+            "child_id": "exch_child_cli",
+            "claim_token_sha256": "a".repeat(64),
+            "data_base64": STANDARD.encode("hello")
+        })
+        .to_string(),
+    );
+    helper.send_raw(
+        &json!({
+            "protocol": 1,
+            "command": "stdin_close",
+            "run_id": "wtsk_child_cli",
+            "attempt_id": "wtat_child_cli",
+            "child_id": "exch_child_cli",
+            "claim_token_sha256": "a".repeat(64)
+        })
+        .to_string(),
+    );
+    let mut output = Vec::new();
+    loop {
+        let frame = helper.read();
+        match frame["kind"].as_str() {
+            Some("workspace_child_stdout") => {
+                output.extend(
+                    STANDARD
+                        .decode(frame["data_base64"].as_str().unwrap())
+                        .unwrap(),
+                );
+            }
+            Some("workspace_child_terminal") => {
+                assert_eq!(frame["termination"], "exited");
+                assert_eq!(frame["cleanup"], "completed");
+                break;
+            }
+            other => panic!("unexpected child frame: {other:?}"),
+        }
+    }
+    assert!(String::from_utf8(output).unwrap().contains("reply:hello"));
+    helper.wait_success();
 }
 
 #[test]
@@ -1109,6 +1169,68 @@ fn workspace_child_helper_rejects_noncanonical_start_frames_before_ready() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn workspace_child_helper_supports_pty_input_and_resize() {
+    let root = tempdir().unwrap();
+    let mut helper = WorkspaceChildProcess::spawn(workspace_child_terminal_start(root.path()));
+    assert_child_identity(&helper.read(), "workspace_child_ready");
+
+    let identity = json!({
+        "protocol": 1,
+        "run_id": "wtsk_child_cli",
+        "attempt_id": "wtat_child_cli",
+        "child_id": "exch_child_cli",
+        "claim_token_sha256": "a".repeat(64)
+    });
+    let mut stdin_size = identity.clone();
+    stdin_size["command"] = json!("stdin");
+    stdin_size["data_base64"] = json!(STANDARD.encode(b"size\n"));
+    helper.send_raw(&stdin_size.to_string());
+
+    let mut resize = identity.clone();
+    resize["command"] = json!("resize");
+    resize["columns"] = json!(100);
+    resize["rows"] = json!(40);
+    helper.send_raw(&resize.to_string());
+
+    let mut stdin_finish = identity;
+    stdin_finish["command"] = json!("stdin");
+    stdin_finish["data_base64"] = json!(STANDARD.encode(b"size\nfinish\n"));
+    helper.send_raw(&stdin_finish.to_string());
+
+    let (terminal, output) = helper.read_terminal_with_output();
+    assert_child_identity(&terminal, "workspace_child_terminal");
+    assert_exact_keys(
+        &terminal,
+        &[
+            "protocol",
+            "kind",
+            "run_id",
+            "attempt_id",
+            "child_id",
+            "claim_token_sha256",
+            "exit_code",
+            "signal",
+            "termination",
+            "cleanup",
+            "cleanup_error",
+            "output_observed_bytes",
+            "output_truncated",
+        ],
+    );
+    assert_eq!(terminal["exit_code"], 0);
+    assert_eq!(terminal["termination"], "exited");
+    assert_eq!(terminal["cleanup"], "completed");
+    assert!(terminal["output_observed_bytes"].as_u64().unwrap() > 0);
+    let output = String::from_utf8_lossy(&output);
+    assert!(
+        output.contains("40 100"),
+        "PTY output did not reflect resize: {output:?}"
+    );
+    helper.wait_success();
 }
 
 #[test]
@@ -1200,10 +1322,15 @@ impl WorkspaceChildProcess {
     }
 
     fn read_terminal(&mut self) -> Value {
+        self.read_terminal_with_output().0
+    }
+
+    fn read_terminal_with_output(&mut self) -> (Value, Vec<u8>) {
+        let mut output = Vec::new();
         loop {
             let frame = self.read();
             if frame["kind"] == "workspace_child_terminal" {
-                return frame;
+                return (frame, output);
             }
             assert!(
                 matches!(
@@ -1212,6 +1339,13 @@ impl WorkspaceChildProcess {
                 ),
                 "unexpected child frame: {frame}"
             );
+            if frame["kind"] == "workspace_child_stdout" {
+                output.extend(
+                    STANDARD
+                        .decode(frame["data_base64"].as_str().unwrap())
+                        .unwrap(),
+                );
+            }
         }
     }
 
@@ -1232,6 +1366,7 @@ fn workspace_child_start(root: &Path, mode: &str) -> Value {
         "attempt_id": "wtat_child_cli",
         "child_id": "exch_child_cli",
         "claim_token_sha256": "a".repeat(64),
+        "stdin_mode": "closed",
         "program": std::env::current_exe().unwrap(),
         "args": ["--exact", "workspace_child_fixture", "--nocapture"],
         "cwd": root,
@@ -1240,6 +1375,30 @@ fn workspace_child_start(root: &Path, mode: &str) -> Value {
         "stdout_limit_bytes": 4096,
         "stderr_limit_bytes": 4096,
         "termination_grace_ms": 100
+    })
+}
+
+#[cfg(unix)]
+fn workspace_child_terminal_start(root: &Path) -> Value {
+    json!({
+        "protocol": 1,
+        "kind": "workspace_child_start",
+        "run_id": "wtsk_child_cli",
+        "attempt_id": "wtat_child_cli",
+        "child_id": "exch_child_cli",
+        "claim_token_sha256": "a".repeat(64),
+        "stdin_mode": "open",
+        "program": "/bin/sh",
+        "args": ["-c", "while IFS= read -r line; do case \"$line\" in size) stty size;; finish) printf 'echo:finish\\n'; exit 0;; *) printf 'echo:%s\\n' \"$line\";; esac; done"],
+        "cwd": root,
+        "environment": { "PATH": std::env::var("PATH").unwrap_or_default(), "TERM": "xterm-256color" },
+        "stdin_base64": "",
+        "stdout_limit_bytes": 4096,
+        "stderr_limit_bytes": 0,
+        "termination_grace_ms": 100,
+        "terminal": true,
+        "terminal_columns": 80,
+        "terminal_rows": 24
     })
 }
 

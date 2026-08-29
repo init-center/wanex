@@ -1,7 +1,7 @@
 import { agentStarterContextContractScenario } from "./agent-context-scenarios.js"
 import {
   delegationGraphTerminalPolicyScenario,
-  delegationGraphProductSmokeScenario,
+  delegationGraphAssistantSmokeScenario,
   teamLeadDelegationDurableScenario
 } from "./delegation-scenarios.js"
 import {
@@ -9,11 +9,11 @@ import {
   distributionHotPathCapabilityScenario,
   distributionPackagePacklistPolicyScenario
 } from "./distribution-scenarios.js"
-import { extensionPluginActionProductPathScenario } from "./product/plugin-action-scenario.js"
-import { declarativeCommandInputProductScenario } from "./product/declarative-input-scenario.js"
+import { extensionPluginActionAssistantPathScenario } from "./assistant/plugin-action-scenario.js"
+import { declarativeCommandInputAssistantScenario } from "./assistant/declarative-input-scenario.js"
 import {
   memoryCompactionDurableProjectionScenario,
-  memoryReplayProductPathScenario
+  memoryReplayAssistantPathScenario
 } from "./memory-scenarios.js"
 import {
   imageGenerationConversationScenario,
@@ -32,12 +32,12 @@ import {
   appDefaultEntryContractScenario,
   bootstrapLocalRuntimeOperationalScenario,
   cliSupportBundleOperationalScenario
-} from "./product-bootstrap-scenarios.js"
+} from "./assistant-bootstrap-scenarios.js"
 import {
-  productCapabilityReadinessScenario,
+  assistantCapabilityReadinessScenario,
   backendCommandPortScenario,
   backendJsonMappingScenario
-} from "./product-capability-scenarios.js"
+} from "./assistant-capability-scenarios.js"
 import {
   hostEndpointContractScenario,
   contractScenario,
@@ -55,22 +55,22 @@ import {
   capabilitySetupContinuationScenario,
   longSessionContinuityScenario,
   feedbackMatrixScenario,
-  localDesktopHostContractScenario,
-  localHostContractScenario,
+  assistantDesktopHostContractScenario,
+  assistantHostContractScenario,
   webSurfaceContractScenario
-} from "./product-scenarios.js"
+} from "./assistant-scenarios.js"
 import {
   tuiCliScenario,
   tuiHostMessageTransportScenario,
   tuiLineSessionScenario,
   tuiSurfaceScenario
 } from "./tui-scenarios.js"
-import { backendBackendShellScenario } from "./product-backend-shell-scenarios.js"
-import { backendDiagnosticsDetailScenario } from "./product-backend-diagnostics-scenarios.js"
-import { backendIntegrationContractScenario } from "./product-backend-integration-scenarios.js"
-import { backendOverviewScenario } from "./product-backend-overview-scenarios.js"
-import { backendWorkbenchScenario } from "./product-backend-workbench-scenarios.js"
-import { productSmokeMatrixScenario } from "./product-smoke-matrix-scenarios.js"
+import { backendBackendShellScenario } from "./assistant-backend-shell-scenarios.js"
+import { backendDiagnosticsDetailScenario } from "./assistant-backend-diagnostics-scenarios.js"
+import { backendIntegrationContractScenario } from "./assistant-backend-integration-scenarios.js"
+import { backendOverviewScenario } from "./assistant-backend-overview-scenarios.js"
+import { backendWorkbenchScenario } from "./assistant-backend-workbench-scenarios.js"
+import { assistantSmokeMatrixScenario } from "./assistant-smoke-matrix-scenarios.js"
 import { remoteStorageControlPlaneIsolationScenario } from "./remote-storage-scenarios.js"
 import {
   providerDeepSeekThinkingFidelityScenario,
@@ -91,7 +91,7 @@ import {
 export { agentStarterContextContractScenario } from "./agent-context-scenarios.js"
 export {
   delegationGraphTerminalPolicyScenario,
-  delegationGraphProductSmokeScenario,
+  delegationGraphAssistantSmokeScenario,
   teamLeadDelegationDurableScenario
 } from "./delegation-scenarios.js"
 export {
@@ -99,11 +99,11 @@ export {
   distributionHotPathCapabilityScenario,
   distributionPackagePacklistPolicyScenario
 } from "./distribution-scenarios.js"
-export { extensionPluginActionProductPathScenario } from "./product/plugin-action-scenario.js"
-export { declarativeCommandInputProductScenario } from "./product/declarative-input-scenario.js"
+export { extensionPluginActionAssistantPathScenario } from "./assistant/plugin-action-scenario.js"
+export { declarativeCommandInputAssistantScenario } from "./assistant/declarative-input-scenario.js"
 export {
   memoryCompactionDurableProjectionScenario,
-  memoryReplayProductPathScenario
+  memoryReplayAssistantPathScenario
 } from "./memory-scenarios.js"
 export {
   imageGenerationConversationScenario,
@@ -122,12 +122,12 @@ export {
   appDefaultEntryContractScenario,
   bootstrapLocalRuntimeOperationalScenario,
   cliSupportBundleOperationalScenario
-} from "./product-bootstrap-scenarios.js"
+} from "./assistant-bootstrap-scenarios.js"
 export {
-  productCapabilityReadinessScenario,
+  assistantCapabilityReadinessScenario,
   backendCommandPortScenario,
   backendJsonMappingScenario
-} from "./product-capability-scenarios.js"
+} from "./assistant-capability-scenarios.js"
 export {
   hostEndpointContractScenario,
   contractScenario,
@@ -144,22 +144,22 @@ export {
   capabilitySetupContinuationScenario,
   longSessionContinuityScenario,
   feedbackMatrixScenario,
-  localDesktopHostContractScenario,
-  localHostContractScenario,
+  assistantDesktopHostContractScenario,
+  assistantHostContractScenario,
   webSurfaceContractScenario
-} from "./product-scenarios.js"
+} from "./assistant-scenarios.js"
 export {
   tuiCliScenario,
   tuiHostMessageTransportScenario,
   tuiLineSessionScenario,
   tuiSurfaceScenario
 } from "./tui-scenarios.js"
-export { backendBackendShellScenario } from "./product-backend-shell-scenarios.js"
-export { backendDiagnosticsDetailScenario } from "./product-backend-diagnostics-scenarios.js"
-export { backendIntegrationContractScenario } from "./product-backend-integration-scenarios.js"
-export { backendOverviewScenario } from "./product-backend-overview-scenarios.js"
-export { backendWorkbenchScenario } from "./product-backend-workbench-scenarios.js"
-export { productSmokeMatrixScenario } from "./product-smoke-matrix-scenarios.js"
+export { backendBackendShellScenario } from "./assistant-backend-shell-scenarios.js"
+export { backendDiagnosticsDetailScenario } from "./assistant-backend-diagnostics-scenarios.js"
+export { backendIntegrationContractScenario } from "./assistant-backend-integration-scenarios.js"
+export { backendOverviewScenario } from "./assistant-backend-overview-scenarios.js"
+export { backendWorkbenchScenario } from "./assistant-backend-workbench-scenarios.js"
+export { assistantSmokeMatrixScenario } from "./assistant-smoke-matrix-scenarios.js"
 export { remoteStorageControlPlaneIsolationScenario } from "./remote-storage-scenarios.js"
 export {
   providerDeepSeekThinkingFidelityScenario,
@@ -178,8 +178,8 @@ export {
 
 export function createWanexRegressionScenarios(): readonly EvalScenario[] {
   return [
-    productSmokeMatrixScenario,
-    productCapabilityReadinessScenario,
+    assistantSmokeMatrixScenario,
+    assistantCapabilityReadinessScenario,
     backendCommandPortScenario,
     backendJsonMappingScenario,
     backendBackendShellScenario,
@@ -201,8 +201,8 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     hostEndpointContractScenario,
     webSurfaceContractScenario,
     feedbackMatrixScenario,
-    localDesktopHostContractScenario,
-    localHostContractScenario,
+    assistantDesktopHostContractScenario,
+    assistantHostContractScenario,
     tuiSurfaceScenario,
     tuiLineSessionScenario,
     tuiCliScenario,
@@ -210,10 +210,10 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     backendOverviewScenario,
     backendWorkbenchScenario,
     backendDiagnosticsDetailScenario,
-    extensionPluginActionProductPathScenario,
-    declarativeCommandInputProductScenario,
+    extensionPluginActionAssistantPathScenario,
+    declarativeCommandInputAssistantScenario,
     memoryCompactionDurableProjectionScenario,
-    memoryReplayProductPathScenario,
+    memoryReplayAssistantPathScenario,
     mediaGenerationAppPathScenario,
     imageGenerationConversationScenario,
     optionalCapabilityTurnBindingScenario,
@@ -228,7 +228,7 @@ export function createWanexRegressionScenarios(): readonly EvalScenario[] {
     runtimeHostRemoteMultiOwnerScenario,
     runtimeHostFailureIsolationScenario,
     teamLeadDelegationDurableScenario,
-    delegationGraphProductSmokeScenario,
+    delegationGraphAssistantSmokeScenario,
     delegationGraphTerminalPolicyScenario,
     appDefaultEntryContractScenario,
     bootstrapLocalRuntimeOperationalScenario,

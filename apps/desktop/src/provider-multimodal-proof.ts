@@ -49,7 +49,7 @@ export async function runWanexDesktopProviderMultimodalProof(
   context: WanexDesktopProviderJourneyProofContext
 ): Promise<WanexDesktopProviderRelaunchProofResult> {
   const state = await context.waitFor(() => {
-    const surface = document.querySelector('[data-ui-product-shell]')
+    const surface = document.querySelector('[data-ui-assistant-shell]')
     const input = surface?.querySelector("[data-ui-attachment-input]")
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"]'
@@ -78,7 +78,7 @@ export async function runWanexDesktopProviderMultimodalProof(
   )
   const unsupportedAttachmentRejected = await context.waitFor(() => {
     const currentSurface = document.querySelector(
-      '[data-ui-product-shell]'
+      '[data-ui-assistant-shell]'
     )
     const message = currentSurface?.querySelector('[role="alert"]')
       ?.textContent ?? ""
@@ -101,7 +101,7 @@ export async function runWanexDesktopProviderMultimodalProof(
   const attachmentPreviewVisible =
     firstResourceId.length > 0 &&
     firstPreview instanceof HTMLImageElement &&
-    isProductResourceDeliveryUrl(firstPreview.src)
+    isAssistantResourceDeliveryUrl(firstPreview.src)
   const remove = await context.waitFor(() => {
     const candidate = document.querySelector(
       '[data-ui-attachment] [data-ui-action="remove-conversation-attachment"]'
@@ -158,7 +158,7 @@ export async function runWanexDesktopProviderMultimodalProof(
       submitted.responseVisible &&
       canonical.resource.getAttribute("data-ui-resource-media-type") ===
         "image/png" &&
-      isProductResourceDeliveryUrl(canonical.preview.src) &&
+      isAssistantResourceDeliveryUrl(canonical.preview.src) &&
       context.redacted(),
     initialConfiguredProviderCount: 1,
     configuredProviderCount: 1,
@@ -288,12 +288,12 @@ export async function runWanexDesktopProviderMultimodalProof(
     return Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
   }
 
-  function isProductResourceDeliveryUrl(value: string): boolean {
+  function isAssistantResourceDeliveryUrl(value: string): boolean {
     try {
       const url = new URL(value)
       const tokens = url.searchParams.getAll("token")
       return (
-        url.pathname === "/wanex/web/resource-delivery" &&
+        url.pathname === "/wanex/assistant/resource-delivery" &&
         [...url.searchParams.keys()].every((key) => key === "token") &&
         tokens.length === 1 &&
         /^wrd_[A-Za-z0-9_-]{43}$/.test(tokens[0] ?? "")

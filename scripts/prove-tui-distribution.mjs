@@ -61,13 +61,13 @@ export function installedTuiProviderJourneySteps() {
     "expect -exact \"Provider \\[1-4\\]: \"",
     "send -- \"4\\r\"",
     "expect -exact \"Model ID: \"",
-    "send -- \"installed-product-tui-model\\r\"",
+    "send -- \"installed-assistant-tui-model\\r\"",
     "expect -exact \"Base URL: \"",
     "send -- \"$base_url\\r\"",
     "expect -exact \"API key: \"",
     "send -- \"$credential\\r\"",
     "set credential \"\"",
-    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -exact \"Ready | installed-assistant-tui-model\"",
     "send -- \"\\033\\\[19~\"",
     "expect -exact \"Wanex Provider Management\"",
     "expect -exact \"Action \\[1-5\\]: \"",
@@ -86,7 +86,7 @@ export function installedTuiProviderJourneySteps() {
     "send -- \"\\r\"",
     "expect -exact \"Action \\[1-5\\]: \"",
     "send -- \"5\\r\"",
-    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -exact \"Ready | installed-assistant-tui-model\"",
     "send -- \"\\033OQ\"",
     "expect -exact \"Models\"",
     "send -- \"\\033\\\[B\"",
@@ -146,7 +146,7 @@ export function installedTuiProviderJourneySteps() {
     "send -- \"\\r\"",
     "expect -exact \"Action \\[1-5\\]: \"",
     "send -- \"5\\r\"",
-    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -exact \"Ready | installed-assistant-tui-model\"",
     "expect -re {Send \\|[^\\r\\n]*Enter submit}",
     "send -- \"$fallback_prompt\\r\"",
     "expect -exact $fallback_reply",
@@ -189,7 +189,7 @@ export function installedTuiTeamComposerReadySteps() {
 
 export function installedTuiTeamJourneySteps() {
   return [
-    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -exact \"Ready | installed-assistant-tui-model\"",
     "send -- \"\\017\"",
     "expect -exact \"Conversations\"",
     "expect -exact \"New group\"",
@@ -232,7 +232,7 @@ export function installedTuiTeamJourneySteps() {
 
 export function installedTuiFinalRemovalJourneySteps() {
   return [
-    "expect -exact \"Ready | installed-product-tui-model\"",
+    "expect -exact \"Ready | installed-assistant-tui-model\"",
     "send -- \"\\033\\\[19~\"",
     "expect -exact \"Wanex Provider Management\"",
     "expect -exact \"Action \\[1-5\\]: \"",
@@ -348,10 +348,10 @@ export async function proveInstalledTui(options = {}) {
       })
       const secondaryProvider = await listenProvider({
         assistantText: "installed TUI secondary Provider reply",
-        credential: "installed-product-tui-secondary-secret",
+        credential: "installed-assistant-tui-secondary-secret",
         reply({ authorization, body }) {
           if (authorization ===
-            "Bearer installed-product-tui-secondary-secret") {
+            "Bearer installed-assistant-tui-secondary-secret") {
             return "installed TUI secondary initial reply"
           }
           if (body?.model === "installed-secondary-model-edited") {
@@ -604,7 +604,7 @@ async function runInstalledFullScreenTui(options) {
   const rotatedUserText = "installed TUI rotated proof"
   const editedUserText = "installed TUI edited proof"
   const fallbackUserText = "installed TUI fallback proof"
-  const rotatedCredential = "installed-product-tui-secondary-rotated-secret"
+  const rotatedCredential = "installed-assistant-tui-secondary-rotated-secret"
   const connectionIds = [
     customProviderConnectionId(options.provider.baseUrl),
     customProviderConnectionId(options.secondaryProvider.baseUrl)
@@ -786,12 +786,12 @@ async function runInstalledFullScreenTui(options) {
     assertExactProviderRequest(options.provider, {
       input: fallbackUserText,
       credential: options.provider.credential,
-      modelId: "installed-product-tui-model"
+      modelId: "installed-assistant-tui-model"
     })
     assertExactProviderRequest(options.provider, {
       input: installedTeamUserText,
       credential: options.provider.credential,
-      modelId: "installed-product-tui-model"
+      modelId: "installed-assistant-tui-model"
     })
     if (!options.provider.authorized) {
       throw new Error(
@@ -840,8 +840,8 @@ async function runInstalledFullScreenTui(options) {
       throw new Error("installed TUI relaunch repeated Provider setup")
     }
     if (
-      !teamTranscriptText.includes("Ready | installed-product-tui-model") ||
-      !finalRemovalTranscriptText.includes("Ready | installed-product-tui-model")
+      !teamTranscriptText.includes("Ready | installed-assistant-tui-model") ||
+      !finalRemovalTranscriptText.includes("Ready | installed-assistant-tui-model")
     ) {
       throw new Error("installed TUI relaunch missed configured model")
     }
@@ -1013,7 +1013,7 @@ async function listenProvider(options = {}) {
   const requests = []
   const assistantText = options.assistantText ??
     "installed TUI canonical Provider reply"
-  const credential = options.credential ?? "installed-product-tui-secret"
+  const credential = options.credential ?? "installed-assistant-tui-secret"
   const server = createServer(async (request, response) => {
     const chunks = []
     for await (const chunk of request) chunks.push(Buffer.from(chunk))
@@ -1063,13 +1063,13 @@ async function listenProvider(options = {}) {
 
 function providerEnvironment(provider) {
   return {
-    WANEX_MODEL_ENDPOINT_ID: "installed-product-tui-provider",
-    WANEX_PROVIDER_CONNECTION_ID: "installed-product-tui-connection",
+    WANEX_MODEL_ENDPOINT_ID: "installed-assistant-tui-provider",
+    WANEX_PROVIDER_CONNECTION_ID: "installed-assistant-tui-connection",
     WANEX_PROVIDER_PROTOCOL: "openai-chat-completions",
     WANEX_PROVIDER_ID: "openai-compatible",
     WANEX_PROVIDER_BASE_URL: provider.baseUrl,
     WANEX_PROVIDER_SECRET_REF: "env://WANEX_INSTALLED_TUI_PROVIDER_KEY",
-    WANEX_PROVIDER_MODEL_ID: "installed-product-tui-model",
+    WANEX_PROVIDER_MODEL_ID: "installed-assistant-tui-model",
     WANEX_MODEL_OPERATIONS: "conversation",
     WANEX_MODEL_INPUT_MODALITIES: "text",
     WANEX_MODEL_OUTPUT_MODALITIES: "text",
@@ -1096,10 +1096,10 @@ function errorMessage(error) {
 
 function cleanupInstalledTuiCredentials(options) {
   const namespace = createHash("sha256")
-    .update("wanex.product.local.secret-store.v1\u0000")
+    .update("wanex.assistant.local.secret-store.v1\u0000")
     .update(resolve(options.storeDir))
     .digest("hex")
-  const service = `com.wanex.product.${namespace}`
+  const service = `com.wanex.assistant.${namespace}`
   const requireFromProject = createRequire(join(options.projectDir, "package.json"))
   const { Entry, findCredentials } = requireFromProject("@napi-rs/keyring")
   const credentials = findCredentials(service)

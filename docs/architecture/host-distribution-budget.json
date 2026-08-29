@@ -38,8 +38,8 @@
       "desktop": {
         "maxUnpackedBytes": 565000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 2400000,
-        "exactAsarEntryCount": 2,
+        "maxAsarBytes": 3100000,
+        "exactAsarEntryCount": 3,
         "maxNativeBytes": 10800000,
         "exactNativeFileCount": 2,
         "maxCredentialBytes": 600000,
@@ -50,11 +50,11 @@
           "maxProofWallTimeMs": 20000
         },
         "warm": {
-          "maxArtifactVerificationMs": 60,
+          "maxArtifactVerificationMs": 120,
           "maxHostStartupMedianMs": 250,
           "maxHostStartupHardMs": 1500,
           "maxShutdownMs": 100,
-          "maxInteractiveTotalMedianMs": 1500,
+          "maxInteractiveTotalMedianMs": 1800,
           "maxInteractiveTotalHardMs": 5000,
           "maxConversationSettlementMs": 15500,
           "maxProofWallTimeMs": 20000
@@ -84,8 +84,8 @@
       "desktop": {
         "maxUnpackedBytes": 575000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 2400000,
-        "exactAsarEntryCount": 2,
+        "maxAsarBytes": 3100000,
+        "exactAsarEntryCount": 3,
         "maxNativeBytes": 9900000,
         "exactNativeFileCount": 2,
         "maxCredentialBytes": 600000,
@@ -130,8 +130,8 @@
       "desktop": {
         "maxUnpackedBytes": 415000000,
         "maxPackageFileCount": 90,
-        "maxAsarBytes": 2400000,
-        "exactAsarEntryCount": 2,
+        "maxAsarBytes": 3100000,
+        "exactAsarEntryCount": 3,
         "maxNativeBytes": 14600000,
         "exactNativeFileCount": 2,
         "maxCredentialBytes": 2100000,

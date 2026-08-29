@@ -1,6 +1,6 @@
 import type {
   SurfaceAdapter
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   createSurfaceHostEndpoint,
   createMessageSurfaceClientTransport,
@@ -8,7 +8,7 @@ import {
   type SurfaceClient,
   type SurfaceTransportRequest,
   type SurfaceTransportResponse
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 
 export interface TuiHostSurfaceClientOptions {
   readonly surface: SurfaceAdapter

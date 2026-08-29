@@ -56,11 +56,24 @@ pub struct SessionRecord {
     pub id: String,
     pub title: Option<String>,
     pub kind: String,
+    pub scope: Option<SessionScope>,
     pub status: String,
     pub revision: i64,
     pub created_at: i64,
     pub updated_at: i64,
     pub archived_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionScope {
+    pub kind: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionPageCursor {
+    pub updated_at: i64,
+    pub session_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -82,6 +95,8 @@ pub struct ListSessions {
     pub status: Option<String>,
     pub updated_before: Option<i64>,
     pub updated_after: Option<i64>,
+    pub scope: Option<SessionScope>,
+    pub before: Option<SessionPageCursor>,
     pub limit: Option<u32>,
 }
 
@@ -438,6 +453,9 @@ pub struct WorkspaceTaskRunRecord {
     pub access: String,
     pub repository_id: String,
     pub isolation_id: String,
+    pub execution_environment: Value,
+    pub job_id: Option<String>,
+    pub agent_id: Option<String>,
     pub state: String,
     pub base_revision: Option<String>,
     pub runtime_ref: Option<String>,
@@ -1127,6 +1145,9 @@ pub struct BeginWorkspaceTaskRun {
     pub access: String,
     pub repository_id: String,
     pub isolation_id: String,
+    pub execution_environment: Value,
+    pub job_id: Option<String>,
+    pub agent_id: Option<String>,
     pub attempt_id: String,
     pub owner_id: String,
     pub claim_token: String,
@@ -1140,6 +1161,16 @@ pub struct ClaimWorkspaceTaskRecovery {
     pub owner_id: String,
     pub claim_token: String,
     pub lease_ms: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClaimWorkspaceTaskContinuation {
+    pub run_id: String,
+    pub attempt_id: String,
+    pub owner_id: String,
+    pub claim_token: String,
+    pub lease_ms: i64,
+    pub execution_environment: Value,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1199,6 +1230,7 @@ pub struct MarkWorkspaceTaskAttention {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListWorkspaceTaskRuns {
+    pub run_ids: Option<Vec<String>>,
     pub workspace_id: Option<String>,
     pub repository_id: Option<String>,
     pub state: Option<String>,
@@ -2781,6 +2813,14 @@ pub struct StartSessionTurnAttemptReceipt {
 pub struct ListSessionTurns {
     pub session_id: String,
     pub state: Option<String>,
+    pub before: Option<SessionTurnPageCursor>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionTurnPageCursor {
+    pub created_at: i64,
+    pub turn_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

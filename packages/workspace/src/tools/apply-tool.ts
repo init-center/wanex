@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { JsonValue } from "@wanex/protocol"
 import type {
   ToolDefinition,
@@ -8,6 +9,7 @@ import { createToolRuntimeBinding, jsonToolResultContent } from "@wanex/runtime/
 import type { ChangeSet, FileChange } from "../changesets/index.js"
 import type { WorkspaceRuntime } from "../runtime.js"
 import { inputRecord, optionalString, requiredString } from "./input.js"
+import { requireWorkspaceToolScopeId } from "./scope.js"
 
 const DEFAULT_MAX_CHANGE_FILES = 32
 const DEFAULT_MAX_CHANGE_BYTES = 1024 * 1024
@@ -19,7 +21,6 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
   readonly inputSchema = {
     type: "object",
     properties: {
-      id: { type: "string", minLength: 1, maxLength: 256 },
       title: { type: "string", maxLength: 512 },
       changes: {
         type: "array",
@@ -38,7 +39,7 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
         }
       }
     },
-    required: ["id", "changes"],
+    required: ["changes"],
     additionalProperties: false
   } as const
   readonly risk = "mutating" as const
@@ -52,15 +53,18 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
   readonly runtimeBinding
 
   private readonly runtime: WorkspaceRuntime
+  private readonly scopeId: string
   private readonly maxFiles: number
   private readonly maxBytes: number
 
   constructor(options: {
+    readonly scopeId: string
     readonly runtime: WorkspaceRuntime
     readonly maxFiles?: number
     readonly maxBytes?: number
   }) {
     this.runtime = options.runtime
+    this.scopeId = requireWorkspaceToolScopeId(options.scopeId)
     this.maxFiles = options.maxFiles ?? DEFAULT_MAX_CHANGE_FILES
     this.maxBytes = options.maxBytes ?? DEFAULT_MAX_CHANGE_BYTES
     if (!Number.isInteger(this.maxFiles) || this.maxFiles <= 0) {
@@ -73,6 +77,7 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
       implementationId: "wanex.workspace.tool.apply-changeset",
       implementationRevision: "1",
       configuration: {
+        scopeId: this.scopeId,
         workspaceId: options.runtime.workspaceId,
         maxFiles: this.maxFiles,
         maxBytes: this.maxBytes
@@ -128,7 +133,8 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     const changeSet = parseChangeSet(
       invocation.input,
       this.maxFiles,
-      this.maxBytes
+      this.maxBytes,
+      changeSetId(this.scopeId, invocation.idempotencyKey)
     )
     const applied = await this.runtime.applyChangeSet({
       changeSet,
@@ -187,7 +193,8 @@ function changeSetPresentation(
 function parseChangeSet(
   input: JsonValue,
   maxFiles: number,
-  maxBytes: number
+  maxBytes: number,
+  id = "wcs_workspace_tool_presentation"
 ): ChangeSet {
   const record = inputRecord(input)
   const rawChanges = record.changes
@@ -224,8 +231,17 @@ function parseChangeSet(
   }
   const title = optionalString(record, "title")
   return {
-    id: requiredString(record, "id"),
+    id,
     ...(title === undefined ? {} : { title }),
     changes
   }
+}
+
+function changeSetId(scopeId: string, idempotencyKey: string): string {
+  return `wcs_tool_${createHash("sha256")
+    .update(scopeId)
+    .update("\0")
+    .update(idempotencyKey)
+    .digest("hex")
+    .slice(0, 32)}`
 }

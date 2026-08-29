@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import type { JsonValue } from "@wanex/protocol"
 
 export type WorkspaceProgramDecision =
@@ -62,7 +63,10 @@ export class ExactWorkspaceProgramPolicy implements WorkspaceProgramPolicy {
       programs: Object.fromEntries(
         [...this.programs.entries()].sort(([left], [right]) =>
           left < right ? -1 : left > right ? 1 : 0
-        )
+        ).map(([alias, executable]) => [
+          alias,
+          createHash("sha256").update(executable).digest("hex")
+        ])
       )
     }
   }

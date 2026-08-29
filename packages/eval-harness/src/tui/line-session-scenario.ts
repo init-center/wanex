@@ -1,11 +1,11 @@
 import {
   createShell,
   createSurfaceAdapter
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   createInProcessSurfaceClientTransport,
   createSurfaceClient
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import {
   createTuiSurface,
   runTuiLineSession
@@ -19,13 +19,13 @@ import { createEvalScenario } from "../runner.js"
 import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
 import {
   createConversationSettlementFixture
-} from "../product/conversation-helpers.js"
+} from "../assistant/conversation-helpers.js"
 import { lines } from "./helpers.js"
 
 export const tuiLineSessionScenario = createEvalScenario({
-  id: "product.app-tui-line-session-contract",
+  id: "assistant.app-tui-line-session-contract",
   title: "TUI line session runs through the surface client",
-  tags: ["product", "tui", "interactive", "upper-app", "product-path"],
+  tags: ["assistant", "tui", "interactive", "upper-app", "assistant-path"],
   async run(context) {
     const storage = await createConversationSettlementFixture({
       serviceBin: context.serviceBin,
@@ -51,23 +51,23 @@ export const tuiLineSessionScenario = createEvalScenario({
         now: () => 9801
       })
       const trackedSettlement = storage.settlements.waitForNext({
-        sessionId: "ses_eval_product_app_tui_execution"
+        sessionId: "ses_eval_assistant_app_tui_execution"
       })
       const tracked = await app.submitConversationOperation({
         text: "eval application tui tracked conversation",
-        sessionId: "ses_eval_product_app_tui_execution"
+        sessionId: "ses_eval_assistant_app_tui_execution"
       })
       assert(
-        tracked.kind === "product.conversation-operation.found",
+        tracked.kind === "assistant.conversation-operation.found",
         "tracked TUI conversation should be admitted before settlement"
       )
       await trackedSettlement
-      const execution = await app.dispatchProductCommand({
+      const execution = await app.dispatchAssistantCommand({
         command: "submitConversationOperation",
         input: {
           text: "eval application tui tracked execution",
-          sessionId: "ses_eval_product_app_tui_job",
-          jobId: "job_eval_product_app_tui_execution"
+          sessionId: "ses_eval_assistant_app_tui_job",
+          jobId: "job_eval_assistant_app_tui_execution"
         }
       })
       assert(
@@ -75,7 +75,7 @@ export const tuiLineSessionScenario = createEvalScenario({
         "tracked TUI execution should be admitted before settlement"
       )
       await storage.settlements.waitForJob(
-        "job_eval_product_app_tui_execution"
+        "job_eval_assistant_app_tui_execution"
       )
       await surface.refresh()
       const chunks: string[] = []
@@ -90,9 +90,9 @@ export const tuiLineSessionScenario = createEvalScenario({
           "events 8",
           "commands",
           "palette",
-          "preview product.agent.submit {\"text\":\"eval application tui preview\"}",
-          "execute product.status",
-          "execution job_eval_product_app_tui_execution",
+          "preview assistant.agent.submit {\"text\":\"eval application tui preview\"}",
+          "execute assistant.status",
+          "execution job_eval_assistant_app_tui_execution",
           "refresh",
           "quit"
         ]),
@@ -105,7 +105,7 @@ export const tuiLineSessionScenario = createEvalScenario({
         "audit-distribution-footprint.mjs",
         ["--json"]
       )
-      const productPackage = entryByName(footprint, "@wanex/product")
+      const assistantPackage = entryByName(footprint, "@wanex/assistant")
       const tui = entryByName(footprint, "@wanex/tui")
 
       assert(
@@ -149,21 +149,21 @@ export const tuiLineSessionScenario = createEvalScenario({
         )
       assert(
         output.includes("Commands") &&
-          output.includes("product.agent.submit - Submit Agent Turn") &&
-          output.includes("handler:wanex.product.backend.submitConversationOperation"),
+          output.includes("assistant.agent.submit - Submit Agent Turn") &&
+          output.includes("handler:wanex.assistant.backend.submitConversationOperation"),
         "TUI line session should render the typed command catalog"
       )
       assert(
         output.includes("Command preview") &&
           output.includes("status:runnable") &&
-          output.includes("command:product.agent.submit") &&
+          output.includes("command:assistant.agent.submit") &&
           output.includes("input:accepted"),
         "TUI line session should render command invocation previews without executing them"
       )
       assert(
         output.includes("Command execution") &&
           output.includes("status:completed") &&
-          output.includes("command:product.status") &&
+          output.includes("command:assistant.status") &&
           output.includes("valueKind:object"),
         "TUI line session should render bounded typed execution summaries"
       )
@@ -179,11 +179,11 @@ export const tuiLineSessionScenario = createEvalScenario({
         "TUI line session should reject the deleted static palette command"
       )
       assert(
-        !productPackage.contains.pluginRuntime &&
-          !productPackage.contains.connectorRuntime &&
-          productPackage.contains.concreteAdapters.length === 0 &&
-          productPackage.contains.forbiddenPackages.length === 0,
-        "product default closure should stay slim with line session present"
+        !assistantPackage.contains.pluginRuntime &&
+          !assistantPackage.contains.connectorRuntime &&
+          assistantPackage.contains.concreteAdapters.length === 0 &&
+          assistantPackage.contains.forbiddenPackages.length === 0,
+        "assistant default closure should stay slim with line session present"
       )
       assert(
         !tui.contains.pluginRuntime &&
@@ -224,7 +224,7 @@ export const tuiLineSessionScenario = createEvalScenario({
         ),
         eventsRendered: output.includes("Events"),
         staticPaletteRejected: output.includes("error: unknown command: palette"),
-        pluginRuntime: productPackage.contains.pluginRuntime,
+        pluginRuntime: assistantPackage.contains.pluginRuntime,
         tuiPluginRuntime: tui.contains.pluginRuntime,
         tuiConnectorRuntime: tui.contains.connectorRuntime
       }

@@ -4,11 +4,13 @@ use super::repository::{
     get_attempt_tx, get_run_tx, require_live_attempt_tx, require_run_tx, snapshot_tx,
 };
 use super::validation::{
-    checked_lease, validate_begin, validate_claim, validate_identity, validate_lease,
+    checked_lease, validate_begin, validate_claim, validate_continuation, validate_identity,
+    validate_lease,
 };
 use crate::{
-    BeginWorkspaceTaskRun, ClaimWorkspaceTaskRecovery, RenewWorkspaceTaskRun, Result,
-    SystemService, SystemServiceError, WorkspaceTaskAttemptRecord, WorkspaceTaskClaimResult,
+    BeginWorkspaceTaskRun, ClaimWorkspaceTaskContinuation, ClaimWorkspaceTaskRecovery,
+    RenewWorkspaceTaskRun, Result, SystemService, SystemServiceError, WorkspaceTaskAttemptRecord,
+    WorkspaceTaskClaimResult,
 };
 use rusqlite::params;
 
@@ -39,8 +41,9 @@ impl SystemService {
         tx.execute(
             "INSERT INTO workspace_task_run (
                 id, workspace_id, principal_id, access, repository_id, isolation_id,
-                state, resource_ids_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, 'preparing', '[]', ?, ?)",
+                execution_environment_json, job_id, agent_id, state,
+                resource_ids_json, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'preparing', '[]', ?, ?)",
             params![
                 request.id,
                 request.workspace_id,
@@ -48,6 +51,9 @@ impl SystemService {
                 request.access,
                 request.repository_id,
                 request.isolation_id,
+                serde_json::to_string(&request.execution_environment)?,
+                request.job_id,
+                request.agent_id,
                 now,
                 now
             ],
@@ -161,6 +167,112 @@ impl SystemService {
             "workspace.task_run.recovery_claimed",
             &request.run_id,
             &run.state,
+            now,
+        )?;
+        let snapshot = snapshot_tx(&tx, require_run_tx(&tx, &request.run_id)?)?;
+        tx.commit()?;
+        Ok(WorkspaceTaskClaimResult {
+            status: "claimed".to_string(),
+            snapshot,
+        })
+    }
+
+    pub fn claim_workspace_task_continuation(
+        &self,
+        request: &ClaimWorkspaceTaskContinuation,
+    ) -> Result<WorkspaceTaskClaimResult> {
+        validate_continuation(request)?;
+        let now = crate::util::now_ms();
+        let lease_expires_at = checked_lease(now, request.lease_ms)?;
+        let token_hash = claim_token_hash(&request.claim_token);
+        let mut conn = self.connect()?;
+        let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
+        let run = require_run_tx(&tx, &request.run_id)?;
+
+        if run.state == "released" {
+            let snapshot = snapshot_tx(&tx, run)?;
+            tx.commit()?;
+            return Ok(WorkspaceTaskClaimResult {
+                status: "already_terminal".to_string(),
+                snapshot,
+            });
+        }
+
+        if run.state != "attention" {
+            if let Some(active) = get_active_attempt_tx(&tx, &request.run_id)? {
+                if active.id == request.attempt_id
+                    && active.owner_id == request.owner_id
+                    && active.claim_token_sha256 == token_hash
+                    && active.kind == "continuation"
+                {
+                    let snapshot = snapshot_tx(&tx, run)?;
+                    tx.commit()?;
+                    return Ok(WorkspaceTaskClaimResult {
+                        status: "claimed".to_string(),
+                        snapshot,
+                    });
+                }
+                let snapshot = snapshot_tx(&tx, run)?;
+                tx.commit()?;
+                return Ok(WorkspaceTaskClaimResult {
+                    status: "busy".to_string(),
+                    snapshot,
+                });
+            }
+            return Err(SystemServiceError::Conflict(
+                "workspace task continuation requires an attention task".to_string(),
+            ));
+        }
+
+        if run.changeset_id.is_some() || run.proposal_id.is_some() {
+            return Err(SystemServiceError::Conflict(
+                "workspace task with proposed changes cannot be continued as execution".to_string(),
+            ));
+        }
+        if run.execution_environment != request.execution_environment {
+            return Err(SystemServiceError::Conflict(
+                "workspace task continuation execution environment changed".to_string(),
+            ));
+        }
+        if get_active_attempt_tx(&tx, &request.run_id)?.is_some() {
+            return Err(SystemServiceError::Invariant(
+                "workspace task attention unexpectedly has an active attempt".to_string(),
+            ));
+        }
+        if get_attempt_tx(&tx, &request.attempt_id)?.is_some() {
+            return Err(SystemServiceError::Conflict(format!(
+                "workspace task attempt id is already used: {}",
+                request.attempt_id
+            )));
+        }
+
+        tx.execute(
+            "INSERT INTO workspace_task_attempt (
+                id, run_id, owner_id, claim_token_sha256, kind, state,
+                lease_expires_at, started_at, updated_at
+             ) VALUES (?, ?, ?, ?, 'continuation', 'active', ?, ?, ?)",
+            params![
+                request.attempt_id,
+                request.run_id,
+                request.owner_id,
+                token_hash,
+                lease_expires_at,
+                now,
+                now
+            ],
+        )?;
+        tx.execute(
+            "UPDATE workspace_task_run
+             SET state = 'active', execution_outcome = NULL, outcome = NULL,
+                 summary = NULL, failure_json = NULL, updated_at = ?, finished_at = NULL
+             WHERE id = ? AND state = 'attention'",
+            params![now, request.run_id],
+        )?;
+        append_task_event(
+            &tx,
+            "workspace.task_run.continuation_claimed",
+            &request.run_id,
+            "active",
             now,
         )?;
         let snapshot = snapshot_tx(&tx, require_run_tx(&tx, &request.run_id)?)?;

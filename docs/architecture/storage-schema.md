@@ -8,7 +8,7 @@ kernel concept exposed to applications.
 
 ## Current Baseline
 
-The current unpublished schema identifier is version `9` with marker name
+The current unpublished schema identifier is version `19` with marker name
 `baseline`.
 
 `system-service doctor` reports the numeric identifier for diagnostics. Product

@@ -1,4 +1,3 @@
-import { mkdir } from "node:fs/promises"
 import { resolve } from "node:path"
 import { createLeaseId, optionalLeaseFields, withOptionalLeaseFields } from "./lease.js"
 import type {
@@ -12,16 +11,21 @@ import type {
 export class FixedWorkspaceIsolationAdapter implements WorkspaceIsolationAdapter {
   private readonly rootDir: string
   private readonly workspaceId: string | undefined
+  private readonly fileSystem: FixedWorkspaceIsolationAdapterOptions["fileSystem"]
 
   constructor(options: FixedWorkspaceIsolationAdapterOptions) {
     this.rootDir = resolve(options.rootDir)
     this.workspaceId = options.workspaceId
+    this.fileSystem = options.fileSystem
   }
 
   async prepare(
     request: WorkspaceIsolationRequest = {}
   ): Promise<WorkspaceIsolationLease> {
-    await mkdir(this.rootDir, { recursive: true })
+    const metadata = await this.fileSystem.metadata(this.rootDir)
+    if (metadata?.kind !== "directory") {
+      throw new Error("fixed workspace root is unavailable")
+    }
     const id = request.isolationId ?? createLeaseId()
     const optional = optionalLeaseFields({
       workspaceId: request.workspaceId ?? this.workspaceId,

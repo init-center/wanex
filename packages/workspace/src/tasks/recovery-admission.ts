@@ -29,6 +29,7 @@ export async function recoverExpiredWorkspaceTasks(
     readonly ownerId: string
     readonly leaseMs: number
     readonly defaultWorkspaceId: string
+    readonly executionEnvironment: WorkspaceTaskRuntimeOptions["executionEnvironment"]
   },
   request: WorkspaceTaskRecoveryAdmissionRequest = {}
 ): Promise<WorkspaceTaskRecoveryAdmissionResult> {
@@ -75,7 +76,8 @@ export async function recoverExpiredWorkspaceTasks(
           writableIsolation: options.writableIsolation,
           repositoryId: options.repositoryId,
           ownerId: options.ownerId,
-          leaseMs: options.leaseMs
+          leaseMs: options.leaseMs,
+          executionEnvironment: options.executionEnvironment
         },
         { runId: candidate.run.id }
       )

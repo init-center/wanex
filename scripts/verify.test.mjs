@@ -33,6 +33,12 @@ describe("verify", () => {
     expect(stepByName(steps, "Storage static boundary audit").args).toEqual([
       "audit:storage-boundary"
     ])
+    expect(stepByName(steps, "Execution boundary audit tests").args).toEqual([
+      "test:execution-boundary-audit"
+    ])
+    expect(stepByName(steps, "Execution boundary audit").args).toEqual([
+      "audit:execution-boundaries"
+    ])
     expect(stepByName(steps, "Storage RPC generation audit").args).toEqual([
       "audit:storage-rpc-generation"
     ])
@@ -42,8 +48,8 @@ describe("verify", () => {
     expect(
       stepByName(steps, "Storage RPC schema migration policy tests").args
     ).toEqual(["test:storage-rpc-schema-migration-policy"])
-    expect(stepByName(steps, "Local Host smoke script tests").args).toEqual([
-      "test:local-host-smoke-script"
+    expect(stepByName(steps, "Assistant Host smoke script tests").args).toEqual([
+      "test:assistant-host-smoke-script"
     ])
     expect(stepByName(steps, "Native artifact staging tests").args).toEqual([
       "test:native-artifact"
@@ -54,10 +60,10 @@ describe("verify", () => {
     expect(stepByName(steps, "Host distribution budget tests").args).toEqual([
       "test:host-distribution-budget"
     ])
-    expect(stepByName(steps, "Product Desktop typecheck").args).toEqual([
+    expect(stepByName(steps, "Desktop typecheck").args).toEqual([
       "check:desktop"
     ])
-    expect(stepByName(steps, "Product Desktop policy tests").args).toEqual([
+    expect(stepByName(steps, "Desktop policy tests").args).toEqual([
       "test:desktop"
     ])
     expect(

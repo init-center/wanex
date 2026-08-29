@@ -44,19 +44,19 @@ export function createVerifySteps() {
       args: ["test:host-distribution-budget"]
     },
     {
-      name: "Product Desktop typecheck",
+      name: "Desktop typecheck",
       command: "pnpm",
       args: ["check:desktop"]
     },
     {
-      name: "Product Desktop policy tests",
+      name: "Desktop policy tests",
       command: "pnpm",
       args: ["test:desktop"]
     },
     {
-      name: "Local Host smoke script tests",
+      name: "Assistant Host smoke script tests",
       command: "pnpm",
-      args: ["test:local-host-smoke-script"]
+      args: ["test:assistant-host-smoke-script"]
     },
     {
       name: "TUI demo script tests",
@@ -102,6 +102,11 @@ export function createVerifySteps() {
       name: "Facade footprint audit tests",
       command: "pnpm",
       args: ["test:facade-footprint-audit"]
+    },
+    {
+      name: "Execution boundary audit tests",
+      command: "pnpm",
+      args: ["test:execution-boundary-audit"]
     },
     {
       name: "SDK distribution tests",
@@ -157,6 +162,11 @@ export function createVerifySteps() {
       name: "Storage static boundary audit",
       command: "pnpm",
       args: ["audit:storage-boundary"]
+    },
+    {
+      name: "Execution boundary audit",
+      command: "pnpm",
+      args: ["audit:execution-boundaries"]
     },
     {
       name: "Storage RPC generation audit",

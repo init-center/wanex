@@ -4,7 +4,7 @@ import {
   unresolvedConversationModel,
   type ProviderPresetId,
   type ProviderSetupInput
-} from "@wanex/product"
+} from "@wanex/assistant"
 import { TuiTrustedTerminalReader } from "../host/terminal-reader.js"
 
 const MAX_MODEL_ID_BYTES = 256

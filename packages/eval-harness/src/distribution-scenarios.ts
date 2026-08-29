@@ -9,8 +9,8 @@ import { assert } from "./scenario-utils.js"
 
 export const distributionColdFootprintPolicyScenario = createEvalScenario({
   id: "distribution.cold-footprint-policy",
-  title: "Cold product entries stay free of plugin and connector closure",
-  tags: ["distribution", "packaging", "product-path"],
+  title: "Cold assistant entries stay free of plugin and connector closure",
+  tags: ["distribution", "packaging", "assistant-path"],
   async run() {
     const report = await runJsonAudit<FootprintReport>(
       "audit-distribution-footprint.mjs",
@@ -84,16 +84,16 @@ export const distributionPackagePacklistPolicyScenario = createEvalScenario({
 export const distributionHotPathCapabilityScenario = createEvalScenario({
   id: "distribution.hot-path-capability-contract",
   title:
-    "Product paths expose optional runtimes only by explicit capability selection",
-  tags: ["distribution", "packaging", "plugin", "product-path"],
+    "Assistant paths expose optional runtimes only by explicit capability selection",
+  tags: ["distribution", "packaging", "plugin", "assistant-path"],
   async run() {
     const report = await runJsonAudit<FootprintReport>(
       "audit-distribution-footprint.mjs",
       ["--json"]
     )
     const appFacade = entryByName(report, "@wanex/app")
-    const productPackage = entryByName(report, "@wanex/product")
-    const local = entryByName(report, "@wanex/local-host")
+    const assistantPackage = entryByName(report, "@wanex/assistant")
+    const local = entryByName(report, "@wanex/assistant-host")
     const cli = entryByName(report, "@wanex/cli")
 
     assert(appFacade.missing.length === 0, "app should exist")
@@ -105,28 +105,28 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
       appFacade.contains.concreteAdapters.length === 0,
       "app should not include concrete connector adapters"
     )
-    assert(productPackage.missing.length === 0, "application should exist")
+    assert(assistantPackage.missing.length === 0, "application should exist")
     assert(
-      !productPackage.contains.pluginRuntime &&
-        !productPackage.contains.connectorRuntime,
+      !assistantPackage.contains.pluginRuntime &&
+        !assistantPackage.contains.connectorRuntime,
       "application should stay on the application backend path"
     )
     assert(
-      productPackage.contains.concreteAdapters.length === 0,
+      assistantPackage.contains.concreteAdapters.length === 0,
       "application should not include concrete connector adapters"
     )
     assert(
       local.missing.length === 0,
-      "local-host should exist"
+      "assistant-host should exist"
     )
     assert(
       !local.contains.pluginRuntime &&
         !local.contains.connectorRuntime,
-      "local-host should stay on the slim local web application path"
+      "assistant-host should stay on the slim local web application path"
     )
     assert(
       local.contains.concreteAdapters.length === 0,
-      "local-host should not include concrete connector adapters"
+      "assistant-host should not include concrete connector adapters"
     )
     assert(
       !cli.contains.pluginRuntime && !cli.contains.connectorRuntime,
@@ -138,10 +138,10 @@ export const distributionHotPathCapabilityScenario = createEvalScenario({
         connectorRuntime: appFacade.contains.connectorRuntime,
         concreteAdapters: appFacade.contains.concreteAdapters
       },
-      productPackage: {
-        pluginRuntime: productPackage.contains.pluginRuntime,
-        connectorRuntime: productPackage.contains.connectorRuntime,
-        concreteAdapters: productPackage.contains.concreteAdapters
+      assistantPackage: {
+        pluginRuntime: assistantPackage.contains.pluginRuntime,
+        connectorRuntime: assistantPackage.contains.connectorRuntime,
+        concreteAdapters: assistantPackage.contains.concreteAdapters
       },
       local: {
         pluginRuntime: local.contains.pluginRuntime,

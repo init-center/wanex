@@ -1148,6 +1148,51 @@
         { "type": "null" }
       ]
     },
+    "SessionScopeWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "NullableSessionScopeWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/SessionScopeWire" },
+        { "type": "null" }
+      ]
+    },
+    "SessionPageCursorWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["updated_at", "session_id"],
+      "properties": {
+        "updated_at": { "type": "integer", "minimum": 0 },
+        "session_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "NullableSessionPageCursorWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/SessionPageCursorWire" },
+        { "type": "null" }
+      ]
+    },
+    "SessionTurnPageCursorWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created_at", "turn_id"],
+      "properties": {
+        "created_at": { "type": "integer", "minimum": 0 },
+        "turn_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "NullableSessionTurnPageCursorWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/SessionTurnPageCursorWire" },
+        { "type": "null" }
+      ]
+    },
     "RetryPolicyWire": {
       "type": "object",
       "additionalProperties": false,
@@ -1172,6 +1217,8 @@
         "status",
         "updated_before",
         "updated_after",
+        "scope",
+        "before",
         "limit"
       ],
       "properties": {
@@ -1179,6 +1226,8 @@
         "status": { "$ref": "#/$defs/NullableSessionStatusWire" },
         "updated_before": { "$ref": "#/$defs/NullableInteger" },
         "updated_after": { "$ref": "#/$defs/NullableInteger" },
+        "scope": { "$ref": "#/$defs/NullableSessionScopeWire" },
+        "before": { "$ref": "#/$defs/NullableSessionPageCursorWire" },
         "limit": { "$ref": "#/$defs/NullableUnsigned32" }
       }
     },
@@ -1526,12 +1575,13 @@
     "CreateSessionCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "id", "title", "kind"],
+      "required": ["command", "id", "title", "kind", "scope"],
       "properties": {
         "command": { "type": "string", "enum": ["create-session"] },
         "id": { "$ref": "#/$defs/NullableString" },
         "title": { "$ref": "#/$defs/NullableString" },
-        "kind": { "$ref": "#/$defs/NullableSessionKindWire" }
+        "kind": { "$ref": "#/$defs/NullableSessionKindWire" },
+        "scope": { "$ref": "#/$defs/NullableSessionScopeWire" }
       }
     },
     "GetSessionCommand": {
@@ -1774,11 +1824,25 @@
     "ListSessionTurnsCommand": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "session_id", "state", "turn_ids"],
+      "required": [
+        "command",
+        "session_id",
+        "state",
+        "turn_ids",
+        "before",
+        "limit"
+      ],
       "properties": {
         "command": { "type": "string", "enum": ["list-session-turns"] },
         "session_id": { "type": "string" },
         "state": { "$ref": "#/$defs/NullableSessionTurnStateWire" },
+        "before": { "$ref": "#/$defs/NullableSessionTurnPageCursorWire" },
+        "limit": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 1000 },
+            { "type": "null" }
+          ]
+        },
         "turn_ids": {
           "oneOf": [
             {
@@ -1791,6 +1855,15 @@
             { "type": "null" }
           ]
         }
+      }
+    },
+    "GetSessionTurnCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "turn_id"],
+      "properties": {
+        "command": { "type": "string", "enum": ["get-session-turn"] },
+        "turn_id": { "type": "string", "minLength": 1 }
       }
     },
     "ListSessionAttemptsCommand": {
@@ -1858,6 +1931,7 @@
         { "$ref": "#/$defs/ListSessionInputsCommand" },
         { "$ref": "#/$defs/ListSessionMessagesCommand" },
         { "$ref": "#/$defs/ListSessionTurnsCommand" },
+        { "$ref": "#/$defs/GetSessionTurnCommand" },
         { "$ref": "#/$defs/ListSessionAttemptsCommand" },
         { "$ref": "#/$defs/AppendSessionMessageCommand" }
       ]
@@ -3040,6 +3114,9 @@
         "access",
         "repository_id",
         "isolation_id",
+        "execution_environment",
+        "job_id",
+        "agent_id",
         "attempt_id",
         "owner_id",
         "claim_token",
@@ -3052,6 +3129,9 @@
         "access": { "$ref": "#/$defs/WorkspaceTaskAccessWire" },
         "repository_id": { "type": "string", "minLength": 1 },
         "isolation_id": { "type": "string", "minLength": 1 },
+        "execution_environment": { "$ref": "#/$defs/JsonValue" },
+        "job_id": { "$ref": "#/$defs/NullableString" },
+        "agent_id": { "$ref": "#/$defs/NullableString" },
         "attempt_id": { "type": "string", "minLength": 1 },
         "owner_id": { "type": "string", "minLength": 1 },
         "claim_token": { "type": "string", "minLength": 32, "maxLength": 512 },
@@ -3068,6 +3148,35 @@
         "owner_id": { "type": "string", "minLength": 1 },
         "claim_token": { "type": "string", "minLength": 32, "maxLength": 512 },
         "lease_ms": { "type": "integer", "minimum": 10, "maximum": 300000 }
+      }
+    },
+    "ClaimWorkspaceTaskContinuationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["claim-workspace-task-continuation"] },
+        "request": { "$ref": "#/$defs/ClaimWorkspaceTaskContinuationWire" }
+      }
+    },
+    "ClaimWorkspaceTaskContinuationWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "attempt_id",
+        "owner_id",
+        "claim_token",
+        "lease_ms",
+        "execution_environment"
+      ],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "attempt_id": { "type": "string", "minLength": 1 },
+        "owner_id": { "type": "string", "minLength": 1 },
+        "claim_token": { "type": "string", "minLength": 32, "maxLength": 512 },
+        "lease_ms": { "type": "integer", "minimum": 10, "maximum": 300000 },
+        "execution_environment": { "$ref": "#/$defs/JsonValue" }
       }
     },
     "RenewWorkspaceTaskRunWire": {
@@ -3169,6 +3278,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "run_ids",
         "workspace_id",
         "repository_id",
         "state",
@@ -3176,6 +3286,18 @@
         "limit"
       ],
       "properties": {
+        "run_ids": {
+          "oneOf": [
+            {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "minItems": 1,
+              "maxItems": 128,
+              "uniqueItems": true
+            },
+            { "type": "null" }
+          ]
+        },
         "workspace_id": { "$ref": "#/$defs/NullableString" },
         "repository_id": { "$ref": "#/$defs/NullableString" },
         "state": { "$ref": "#/$defs/NullableWorkspaceTaskRunStateWire" },
@@ -3668,6 +3790,7 @@
         { "$ref": "#/$defs/ListWorkspaceChangeTransactionAttemptsCommand" },
         { "$ref": "#/$defs/BeginWorkspaceTaskRunCommand" },
         { "$ref": "#/$defs/ClaimWorkspaceTaskRecoveryCommand" },
+        { "$ref": "#/$defs/ClaimWorkspaceTaskContinuationCommand" },
         { "$ref": "#/$defs/RenewWorkspaceTaskRunCommand" },
         { "$ref": "#/$defs/MarkWorkspaceTaskActiveCommand" },
         { "$ref": "#/$defs/BeginWorkspaceTaskCollectionCommand" },

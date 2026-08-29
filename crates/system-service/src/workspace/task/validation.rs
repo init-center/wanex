@@ -1,6 +1,6 @@
 use crate::{
-    BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun, FinalizeWorkspaceTaskCollection, Result,
-    SystemServiceError, WorkspaceTaskRunRecord,
+    BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun, ClaimWorkspaceTaskContinuation,
+    FinalizeWorkspaceTaskCollection, Result, SystemServiceError, WorkspaceTaskRunRecord,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -10,6 +10,39 @@ const MAX_LEASE_MS: i64 = 300_000;
 const MAX_SUMMARY_LENGTH: usize = 4_000;
 const MAX_FAILURE_BYTES: usize = 32 * 1024;
 const MAX_RESOURCE_IDS: usize = 1_024;
+const MAX_LIST_RUN_IDS: usize = 128;
+
+pub(super) fn validate_list_runs(request: &crate::ListWorkspaceTaskRuns) -> Result<()> {
+    if let Some(state) = request.state.as_deref() {
+        validate_run_state(state)?;
+    }
+    if let Some(run_ids) = request.run_ids.as_ref() {
+        if run_ids.is_empty()
+            || run_ids.len() > MAX_LIST_RUN_IDS
+            || run_ids.iter().any(String::is_empty)
+            || run_ids.iter().collect::<HashSet<_>>().len() != run_ids.len()
+        {
+            return Err(SystemServiceError::InvalidInput(
+                "workspace task run ids must contain 1 to 128 unique non-empty ids".to_string(),
+            ));
+        }
+        if request.lease_expires_before.is_some() {
+            return Err(SystemServiceError::InvalidInput(
+                "workspace task run ids cannot be combined with recovery lease filtering"
+                    .to_string(),
+            ));
+        }
+    }
+    if request
+        .limit
+        .is_some_and(|limit| !(1..=1_000).contains(&limit))
+    {
+        return Err(SystemServiceError::InvalidInput(
+            "workspace task run limit must be between 1 and 1000".to_string(),
+        ));
+    }
+    Ok(())
+}
 
 pub(super) fn validate_begin(request: &BeginWorkspaceTaskRun) -> Result<()> {
     require_non_empty(&request.id, "workspace task run id")?;
@@ -17,6 +50,17 @@ pub(super) fn validate_begin(request: &BeginWorkspaceTaskRun) -> Result<()> {
     require_non_empty(&request.principal_id, "workspace task principal id")?;
     require_opaque_id(&request.repository_id, "workspace repository id")?;
     require_opaque_id(&request.isolation_id, "workspace isolation id")?;
+    crate::execution_environment::validate_binding(
+        &request.execution_environment,
+        "workspace task execution environment",
+    )
+    .map_err(SystemServiceError::InvalidInput)?;
+    if let Some(job_id) = request.job_id.as_deref() {
+        require_opaque_id(job_id, "workspace task job id")?;
+    }
+    if let Some(agent_id) = request.agent_id.as_deref() {
+        require_opaque_id(agent_id, "workspace task agent id")?;
+    }
     if !matches!(request.access.as_str(), "read_only" | "writable") {
         return Err(SystemServiceError::InvalidInput(format!(
             "invalid workspace task access: {}",
@@ -44,6 +88,21 @@ pub(super) fn validate_claim(
     require_non_empty(owner_id, "workspace task owner id")?;
     validate_identity(run_id, attempt_id, claim_token)?;
     validate_lease(lease_ms)
+}
+
+pub(super) fn validate_continuation(request: &ClaimWorkspaceTaskContinuation) -> Result<()> {
+    validate_claim(
+        &request.run_id,
+        &request.attempt_id,
+        &request.owner_id,
+        &request.claim_token,
+        request.lease_ms,
+    )?;
+    crate::execution_environment::validate_binding(
+        &request.execution_environment,
+        "workspace task continuation execution environment",
+    )
+    .map_err(SystemServiceError::InvalidInput)
 }
 
 pub(super) fn validate_identity(run_id: &str, attempt_id: &str, claim_token: &str) -> Result<()> {

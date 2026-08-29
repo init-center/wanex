@@ -7,7 +7,7 @@ import {
   assertPluginInstallExecutable,
   pluginPackageTrustRecordFromJson
 } from "./codec.js"
-import type { PluginSandboxPolicy } from "./types.js"
+import type { PluginPermissionPolicy } from "./types.js"
 
 export async function requireExecutablePluginManifest(
   storage: PluginRuntimeStore,
@@ -27,9 +27,9 @@ export async function requireExecutablePluginManifest(
   return admission.manifest
 }
 
-export function defaultPluginSandboxPolicy(
+export function defaultPluginPermissionPolicy(
   manifest: PluginManifestRecord
-): PluginSandboxPolicy {
+): PluginPermissionPolicy {
   return {
     pluginId: manifest.pluginId,
     version: manifest.version,

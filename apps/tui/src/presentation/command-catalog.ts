@@ -1,7 +1,7 @@
 import type {
   CommandCatalogReadModel,
   SurfaceClientCommandEnvelope
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import type {
   TuiRenderedCommandCatalog
 } from "../model.js"

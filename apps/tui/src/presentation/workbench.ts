@@ -7,7 +7,7 @@ import { singleLine } from "../line-session/text.js"
 export function renderTuiWorkbench(
   value: TuiWorkbench
 ): TuiRenderedWorkbench {
-  if (value.kind === "product.workbench.no-session") {
+  if (value.kind === "assistant.workbench.no-session") {
     const lines = [
       "Workbench",
       "session:none",
@@ -26,7 +26,7 @@ export function renderTuiWorkbench(
       text: lines.join("\n")
     }
   }
-  if (value.kind === "product.workbench.failed") {
+  if (value.kind === "assistant.workbench.failed") {
     const lines = [
       "Workbench",
       `session:${value.sessionId ?? "none"}`,

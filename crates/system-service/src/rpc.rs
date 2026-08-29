@@ -21,8 +21,8 @@ use wanex_system_service::{
     BeginWorkspaceChangeTransaction, BeginWorkspaceChangeTransactionCommit,
     BeginWorkspaceTaskCollection, BeginWorkspaceTaskRun, CancelJob, ChangeObjectiveState, ClaimJob,
     ClaimWorkspaceChangeProposalApply, ClaimWorkspaceChangeTransactionRecovery,
-    ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets, CommitBudget,
-    CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
+    ClaimWorkspaceTaskContinuation, ClaimWorkspaceTaskRecovery, CleanupExpiredResourceTickets,
+    CommitBudget, CompleteChannelDelivery, CompleteJob, CompleteMediaGenerationOperation,
     ConfigMutationCondition, ContextEpochMutationIdentity, CreateObjective, CreatePlanProposal,
     DeferToolExecution, EnqueueJob, ExecuteApprovedPlan, FailChannelDelivery, FailJob,
     FailTeamDeliveryMaterialization, FinalizeWorkspaceChangeTransaction,
@@ -61,11 +61,11 @@ use wanex_system_service::{
     RequestObjectiveCancel, RequestSessionTurnCancel, RequireToolExecutionRecovery, ReserveBudget,
     ResolveToolExecutionApproval, ResolveToolExecutionRecovery, ResourceCapability,
     ReviewObjectiveAttempt, RevokeChannelBinding, RevokeConnectorCredential, RouteTeamMessage,
-    RuntimeEvent, SessionStateTransition, SetTeamConversationLead, SettleMediaGenerationOperation,
-    SettleSessionTurn, SettleWorkspaceChangeProposalApply, StartConnectorSession,
-    StartSessionTurnAttempt, SteerSessionTurn, SubmitChannelDelivery,
-    SubmitMediaGenerationOperation, SubmitPluginAction, SubmitSessionTurn,
-    SuspendMediaGenerationOperation, SystemService, SystemServiceError,
+    RuntimeEvent, SessionScope, SessionStateTransition, SessionTurnPageCursor,
+    SetTeamConversationLead, SettleMediaGenerationOperation, SettleSessionTurn,
+    SettleWorkspaceChangeProposalApply, StartConnectorSession, StartSessionTurnAttempt,
+    SteerSessionTurn, SubmitChannelDelivery, SubmitMediaGenerationOperation, SubmitPluginAction,
+    SubmitSessionTurn, SuspendMediaGenerationOperation, SystemService, SystemServiceError,
     UpdateChannelInboundEventState, UpdateConnectorRegistrationState,
     UpdateDelegationGraphNodeState, UpdateDelegationGraphState, UpdatePluginInstallState,
     UpdatePluginManifestState, UpdateTeamConversationState, UpdateTeamParticipantState,
@@ -706,10 +706,12 @@ fn handle_sessions_request(
     match request {
         SessionsStorageRpcCommand::CreateSessionCommand(command) => {
             let kind = command.kind.0.map(|value| value.to_string());
+            let scope: Option<SessionScope> = project_wire(command.scope)?;
             serde_json::to_value(service.create_session(
                 command.id.0.as_deref(),
                 command.title.0.as_deref(),
                 kind.as_deref(),
+                scope.as_ref(),
             )?)
             .map_err(Into::into)
         }
@@ -831,9 +833,13 @@ fn handle_sessions_request(
             .map_err(Into::into)
         }
         SessionsStorageRpcCommand::ListSessionTurnsCommand(command) => {
-            if command.state.0.is_some() && command.turn_ids.is_some() {
+            if command.turn_ids.is_some()
+                && (command.state.0.is_some()
+                    || command.before.0.is_some()
+                    || command.limit.is_some())
+            {
                 return Err(SystemServiceError::InvalidInput(
-                    "session turn state and turn_ids filters are mutually exclusive".to_string(),
+                    "session turn turn_ids and history filters are mutually exclusive".to_string(),
                 ));
             }
             match command.turn_ids {
@@ -845,13 +851,28 @@ fn handle_sessions_request(
                     .map_err(Into::into)
                 }
                 None => {
+                    let before: Option<SessionTurnPageCursor> = project_wire(command.before)?;
+                    let limit = command
+                        .limit
+                        .map(|value| i64::try_from(value.get()))
+                        .transpose()
+                        .map_err(|_| {
+                            SystemServiceError::InvalidInput(
+                                "session turn limit exceeds signed integer range".to_string(),
+                            )
+                        })?;
                     let request = ListSessionTurns {
                         session_id: command.session_id,
                         state: command.state.0.map(|state| state.to_string()),
+                        before,
+                        limit,
                     };
                     serde_json::to_value(service.list_session_turns(&request)?).map_err(Into::into)
                 }
             }
+        }
+        SessionsStorageRpcCommand::GetSessionTurnCommand(command) => {
+            serde_json::to_value(service.get_session_turn(&command.turn_id)?).map_err(Into::into)
         }
         SessionsStorageRpcCommand::ListSessionAttemptsCommand(command) => {
             let request = ListSessionAttempts {
@@ -1188,6 +1209,11 @@ fn handle_workspace_request(
         WorkspaceStorageRpcCommand::ClaimWorkspaceTaskRecoveryCommand(command) => {
             let request: ClaimWorkspaceTaskRecovery = project_wire(command.request)?;
             serde_json::to_value(service.claim_workspace_task_recovery(&request)?)
+                .map_err(Into::into)
+        }
+        WorkspaceStorageRpcCommand::ClaimWorkspaceTaskContinuationCommand(command) => {
+            let request: ClaimWorkspaceTaskContinuation = project_wire(command.request)?;
+            serde_json::to_value(service.claim_workspace_task_continuation(&request)?)
                 .map_err(Into::into)
         }
         WorkspaceStorageRpcCommand::RenewWorkspaceTaskRunCommand(command) => {

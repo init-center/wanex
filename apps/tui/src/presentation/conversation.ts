@@ -7,7 +7,7 @@ import { singleLine } from "../line-session/text.js"
 export function renderTuiConversationOperation(
   value: TuiConversationOperation
 ): TuiRenderedConversationOperation {
-  if (value.kind === "product.conversation-operation.cancel") {
+  if (value.kind === "assistant.conversation-operation.cancel") {
     const rendered = renderTuiConversationOperation(value.operation)
     const lines = [
       "Conversation",
@@ -21,22 +21,22 @@ export function renderTuiConversationOperation(
       text: lines.join("\n")
     }
   }
-  if (value.kind === "product.conversation-operation.found") {
+  if (value.kind === "assistant.conversation-operation.found") {
     return renderFoundOperation(value.operation, value.kind)
   }
   const sessionId = value.sessionId
   const rejectedOperation =
-    value.kind === "product.conversation-operation.rejected"
+    value.kind === "assistant.conversation-operation.rejected"
       ? value.operation
       : undefined
   const operationId =
-    value.kind === "product.conversation-operation.missing"
+    value.kind === "assistant.conversation-operation.missing"
       ? value.operationId
       : rejectedOperation?.operationId
   const state =
-    value.kind === "product.conversation-operation.rejected"
+    value.kind === "assistant.conversation-operation.rejected"
       ? "rejected"
-      : value.kind === "product.conversation-operation.missing"
+      : value.kind === "assistant.conversation-operation.missing"
         ? "missing"
         : "untracked"
   const message = value.message
@@ -73,7 +73,7 @@ function renderFoundOperation(
 function renderFoundOperationModel(
   operation: Extract<
     TuiConversationOperation,
-    { readonly kind: "product.conversation-operation.found" }
+    { readonly kind: "assistant.conversation-operation.found" }
   >["operation"],
   sourceKind: TuiConversationOperation["kind"]
 ): TuiRenderedConversationOperation {
@@ -168,7 +168,7 @@ function renderToolLines(
   part: Extract<
     Extract<
       TuiConversationOperation,
-      { readonly kind: "product.conversation-operation.found" }
+      { readonly kind: "assistant.conversation-operation.found" }
     >["operation"]["transcript"]["rows"][number]["parts"][number],
     { readonly type: "tool" }
   >
@@ -187,7 +187,7 @@ function renderToolLines(
 function conversationRowText(row: {
   readonly parts: Extract<
     TuiConversationOperation,
-    { readonly kind: "product.conversation-operation.found" }
+    { readonly kind: "assistant.conversation-operation.found" }
   >["operation"]["transcript"]["rows"][number]["parts"]
 }): string {
   return row.parts
@@ -198,7 +198,7 @@ function conversationRowText(row: {
 function capacityErrorLines(
   error: Extract<
     NonNullable<
-      import("@wanex/product").ConversationOperationReadModel["error"]
+      import("@wanex/assistant").ConversationOperationReadModel["error"]
     >,
     { readonly category: "capacity" }
   >,

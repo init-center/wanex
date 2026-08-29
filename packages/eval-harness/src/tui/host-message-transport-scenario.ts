@@ -2,7 +2,7 @@ import { rm } from "node:fs/promises"
 import {
   createShell,
   createSurfaceAdapter
-} from "@wanex/product"
+} from "@wanex/assistant"
 import {
   createTuiHostSurfaceClient,
   createTuiSurface
@@ -14,18 +14,18 @@ import {
 } from "../distribution-audit.js"
 import { createEvalScenario } from "../runner.js"
 import { assert, evalFakeModelEndpoint } from "../scenario-utils.js"
-import { mktemp } from "../product-bootstrap/helpers.js"
+import { mktemp } from "../assistant-bootstrap/helpers.js"
 
 export const tuiHostMessageTransportScenario = createEvalScenario({
-  id: "product.app-tui-host-message-transport-contract",
+  id: "assistant.app-tui-host-message-transport-contract",
   title: "TUI host creates its surface client through message transport",
   tags: [
-    "product",
+    "assistant",
     "tui",
     "surface-client",
     "message-transport",
     "upper-app",
-    "product-path"
+    "assistant-path"
   ],
   async run(context) {
     const storeDir = await mktemp("wanex-eval-tui-host-message-")
@@ -42,12 +42,12 @@ export const tuiHostMessageTransportScenario = createEvalScenario({
         "eval-tui-host-message-model"
       )
     })
-    const productSurface = createSurfaceAdapter(app, {
+    const assistantSurface = createSurfaceAdapter(app, {
       now: () => 9900
     })
     const operations: string[] = []
     const client = createTuiHostSurfaceClient({
-      surface: productSurface,
+      surface: assistantSurface,
       observeRequest(request) {
         operations.push(request.operation)
       }
@@ -59,7 +59,7 @@ export const tuiHostMessageTransportScenario = createEvalScenario({
         now: () => 9901
       })
       const status = await surface.client.status({
-        requestId: "eval_product_app_tui_host_status"
+        requestId: "eval_assistant_app_tui_host_status"
       })
       const events = await surface.client.readSurfaceEvents({ limit: 2 })
       const footprint = await runJsonAudit<FootprintReport>(
@@ -83,13 +83,13 @@ export const tuiHostMessageTransportScenario = createEvalScenario({
       )
       assert(
         status.ok &&
-          status.event.requestId === "eval_product_app_tui_host_status",
+          status.event.requestId === "eval_assistant_app_tui_host_status",
         "TUI host message client should dispatch commands"
       )
       assert(
         events.ok &&
           events.events.some(
-            (event) => event.type === "product.surface.command_completed"
+            (event) => event.type === "assistant.surface.command_completed"
           ),
         "TUI host message client should read surface events"
       )

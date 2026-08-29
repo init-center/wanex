@@ -20,7 +20,7 @@ export async function runWanexDesktopPluginInstallProof(
   expected: WanexDesktopPluginProofExpected,
 ): Promise<WanexDesktopPluginInstallProofResult> {
   const startedAt = performance.now();
-  const ready = await productReady("install_product_ready");
+  const ready = await assistantReady("install_assistant_ready");
   const rendererInteractive = performance.now() - startedAt;
   const settings = await openSettings(ready.surface, ready.settings);
   const initialEmptyStateVisible =
@@ -275,9 +275,9 @@ export async function runWanexDesktopPluginInstallProof(
     },
   };
 
-  async function productReady(stage: string) {
+  async function assistantReady(stage: string) {
     return await waitForDom(() => {
-      const surface = document.querySelector("[data-ui-product-shell]");
+      const surface = document.querySelector("[data-ui-assistant-shell]");
       const settings = surface?.querySelector('[data-ui-action="open-settings"]');
       return surface instanceof HTMLElement &&
           settings instanceof HTMLButtonElement &&
@@ -548,14 +548,14 @@ export async function runWanexDesktopPluginRestoreProof(
 ): Promise<WanexDesktopPluginRestoreProofResult> {
   const startedAt = performance.now();
   const surface = await waitForDom(() => {
-    const candidate = document.querySelector("[data-ui-product-shell]");
+    const candidate = document.querySelector("[data-ui-assistant-shell]");
     const settings = candidate?.querySelector('[data-ui-action="open-settings"]');
     return candidate instanceof HTMLElement &&
         settings instanceof HTMLButtonElement &&
         !settings.disabled
       ? { candidate, settings }
       : undefined;
-  }, 10_000, "restore_product_ready");
+  }, 10_000, "restore_assistant_ready");
   const rendererInteractive = performance.now() - startedAt;
   surface.settings.click();
   let settings = await waitForDom(() => {

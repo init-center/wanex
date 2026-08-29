@@ -136,6 +136,12 @@ export function combineWorkspaceTaskErrors(
   taskError: WorkspaceTaskError,
   releaseError: WorkspaceTaskError
 ): WorkspaceTaskError {
+  if (
+    taskError.message === releaseError.message &&
+    taskError.name === releaseError.name
+  ) {
+    return taskError
+  }
   return withOptionalTaskErrorName(
     {
       message: `${taskError.message}; release failed: ${releaseError.message}`

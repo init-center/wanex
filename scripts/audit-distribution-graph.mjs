@@ -15,7 +15,8 @@ const coldEntries = [
 ]
 const forbiddenPackages = [
   "@wanex/plugin",
-  "@wanex/connector"
+  "@wanex/connector",
+  "@wanex/workspace"
 ]
 
 const manifests = await readWorkspaceManifests(rootDir)

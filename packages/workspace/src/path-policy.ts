@@ -1,34 +1,69 @@
-import { lstat, realpath, stat } from "node:fs/promises"
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path"
+import type {
+  ExecutionFileMetadata,
+  ExecutionFileSystem
+} from "@wanex/runtime/execution"
 
 export class WorkspacePathResolver {
   readonly rootDir: string
 
   private canonicalRoot: Promise<string> | undefined
 
-  constructor(rootDir: string) {
+  constructor(
+    rootDir: string,
+    private readonly fileSystem: ExecutionFileSystem
+  ) {
     this.rootDir = resolve(rootDir)
   }
 
   async resolveRead(path: string): Promise<string> {
     const candidate = this.candidate(path)
-    await this.assertCanonicalContainment(candidate, path)
-    return candidate
+    try {
+      return await this.fileSystem.canonicalize(candidate)
+    } catch (error) {
+      throw mapPathError(error, path)
+    }
+  }
+
+  async resolveOptionalRead(path: string): Promise<string | null> {
+    const candidate = this.candidate(path)
+    try {
+      if ((await this.fileSystem.metadata(candidate)) === null) return null
+      return await this.fileSystem.canonicalize(candidate)
+    } catch (error) {
+      throw mapPathError(error, path)
+    }
+  }
+
+  async resolveReadEntry(path: string): Promise<{
+    readonly path: string
+    readonly metadata: ExecutionFileMetadata
+  }> {
+    const candidate = this.candidate(path)
+    try {
+      const metadata = await this.fileSystem.metadata(candidate)
+      if (metadata === null) {
+        throw new Error(`workspace path does not exist: ${path}`)
+      }
+      return {
+        path: await this.fileSystem.canonicalize(candidate),
+        metadata
+      }
+    } catch (error) {
+      throw mapPathError(error, path)
+    }
   }
 
   async resolveMutation(path: string): Promise<string> {
     const candidate = this.candidate(path)
-    await this.assertCanonicalContainment(candidate, path)
     try {
-      if ((await lstat(candidate)).isSymbolicLink()) {
-        throw workspacePathEscape(path)
-      }
+      const metadata = await this.fileSystem.metadata(candidate)
+      if (metadata?.kind === "symlink") throw workspacePathEscape(path)
+      return await this.fileSystem.canonicalize(candidate)
     } catch (error) {
-      if (!isMissingPathError(error)) {
-        throw error
-      }
+      if (isMissingPathError(error)) return candidate
+      throw mapPathError(error, path)
     }
-    return candidate
   }
 
   async resolveDirectory(path?: string): Promise<string> {
@@ -36,7 +71,8 @@ export class WorkspacePathResolver {
       return await this.getCanonicalRoot()
     }
     const candidate = await this.resolveRead(path)
-    if (!(await stat(candidate)).isDirectory()) {
+    const metadata = await this.fileSystem.metadata(candidate)
+    if (metadata?.kind !== "directory") {
       throw new Error(`workspace path is not a directory: ${path}`)
     }
     return candidate
@@ -47,40 +83,8 @@ export class WorkspacePathResolver {
     return resolve(this.rootDir, ...normalized.split("/"))
   }
 
-  private async assertCanonicalContainment(
-    candidate: string,
-    inputPath: string
-  ): Promise<void> {
-    const root = await this.getCanonicalRoot()
-    let current = candidate
-
-    while (true) {
-      try {
-        const canonical = await realpath(current)
-        const contained =
-          current === candidate
-            ? isStrictDescendant(root, canonical)
-            : isContainedOrRoot(root, canonical)
-        if (!contained) {
-          throw workspacePathEscape(inputPath)
-        }
-        return
-      } catch (error) {
-        if (!isMissingPathError(error)) {
-          throw error
-        }
-      }
-
-      const parent = dirname(current)
-      if (parent === current) {
-        throw workspacePathEscape(inputPath)
-      }
-      current = parent
-    }
-  }
-
   private getCanonicalRoot(): Promise<string> {
-    this.canonicalRoot ??= realpath(this.rootDir)
+    this.canonicalRoot ??= this.fileSystem.canonicalize(this.rootDir)
     return this.canonicalRoot
   }
 }
@@ -111,23 +115,19 @@ export function normalizeWorkspaceRelativePath(path: string): string {
   return segments.join("/")
 }
 
-function isStrictDescendant(root: string, target: string): boolean {
-  const rel = relative(root, target)
-  return (
-    rel.length > 0 &&
-    rel !== ".." &&
-    !rel.startsWith(`..${sep}`) &&
-    !isAbsolute(rel)
-  )
-}
-
-function isContainedOrRoot(root: string, target: string): boolean {
-  return target === root || isStrictDescendant(root, target)
-}
-
 function isMissingPathError(error: unknown): boolean {
   const code = (error as NodeJS.ErrnoException).code
   return code === "ENOENT" || code === "ENOTDIR"
+}
+
+function mapPathError(error: unknown, path: string): Error {
+  if (
+    error instanceof Error &&
+    error.message.startsWith("execution filesystem access is outside admitted roots")
+  ) {
+    return workspacePathEscape(path)
+  }
+  return error instanceof Error ? error : new Error(String(error))
 }
 
 function workspacePathEscape(path: string): Error {

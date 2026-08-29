@@ -1,12 +1,12 @@
-import type { ExecutionHost } from "@wanex/runtime/execution"
+import type { ExecutionFileSystem } from "@wanex/runtime/execution"
 
 export interface RepositoryLocatorEntry {
   readonly repositoryId: string
   readonly repositoryRoot: string
   readonly worktreeParent: string
   readonly serviceBin: string
+  readonly fileSystem: ExecutionFileSystem
   readonly gitBin?: string
-  readonly executionHost?: ExecutionHost
   readonly gitTimeoutMs?: number
 }
 
@@ -15,8 +15,8 @@ export interface LocatedRepository {
   readonly repositoryRoot: string
   readonly worktreeParent: string
   readonly serviceBin: string
+  readonly fileSystem: ExecutionFileSystem
   readonly gitBin?: string
-  readonly executionHost?: ExecutionHost
   readonly gitTimeoutMs: number
 }
 

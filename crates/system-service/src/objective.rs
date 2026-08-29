@@ -272,7 +272,14 @@ impl SystemService {
 
         if let Some(existing) = find_objective_attempt_by_key_tx(&tx, &request.idempotency_key)? {
             validate_existing_attempt_tx(&tx, &existing, request, &request_digest)?;
-            let submission = submit_session_turn_tx(&tx, &request.turn, now)?;
+            // The first admission may reserve a budget grant and inject it into
+            // the durable Turn. Reconstruct that admission-owned field before
+            // replaying the exact Session Turn request.
+            let mut turn = request.turn.clone();
+            if turn.budget_grant_id.is_none() {
+                turn.budget_grant_id = existing.budget_grant_id.clone();
+            }
+            let submission = submit_session_turn_tx(&tx, &turn, now)?;
             validate_attempt_submission(&existing, &submission)?;
             let objective = get_objective_tx(&tx, &request.objective_id)?;
             tx.commit()?;

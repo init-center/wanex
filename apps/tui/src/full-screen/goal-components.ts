@@ -5,7 +5,7 @@ import {
   type SelectList,
   type SelectListTheme
 } from "@earendil-works/pi-tui"
-import type { GoalReadModel } from "@wanex/product"
+import type { GoalReadModel } from "@wanex/assistant"
 import { createTerminalSafeSelectList } from "./components.js"
 import { boundedTuiLines } from "./projection.js"
 import { terminalSingleLineText } from "./terminal-text.js"

@@ -16,6 +16,11 @@ import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/te
 import { GitWorktreeIsolationAdapter } from "../../src/isolation/index.js"
 import { LocalRepositoryLocator } from "../../src/index.js"
 import { WorkspaceGitRuntime } from "../../src/git/index.js"
+import { ProcessWorkspaceSnapshotClient } from "../../src/snapshot/index.js"
+import {
+  createWorkspaceTestExecution,
+  disposeWorkspaceTestExecution
+} from "../execution.js"
 
 const execFileAsync = promisify(execFile)
 const serviceBin = join(
@@ -27,6 +32,7 @@ const tempDirs: string[] = []
 const clients: StorageTestStore[] = []
 
 afterEach(async () => {
+  await disposeWorkspaceTestExecution()
   while (clients.length > 0) {
     await clients.pop()?.dispose()
   }
@@ -40,10 +46,12 @@ afterEach(async () => {
 
 describe("@wanex/workspace/git", () => {
   it("collects an immutable changeset from text worktree changes", async () => {
-    const { repoDir, worktreeParentDir, locator } = await createEnvironment()
+    const { repoDir, worktreeParentDir, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -56,11 +64,12 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     const result = await runtime.collectWorktree({
       lease,
+      executionScope,
       changeSetId: "cs_git_runtime",
       title: "Git runtime changes"
     })
@@ -103,10 +112,12 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns binary attention before persisting a changeset", async () => {
-    const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
+    const { repoDir, worktreeParentDir, storage, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -117,12 +128,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
+        executionScope,
         changeSetId: "cs_git_binary"
       })
     ).resolves.toMatchObject({
@@ -135,10 +147,12 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns binary attention for invalid UTF-8 without a NUL byte", async () => {
-    const { locator } = await createEnvironment()
+    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -149,12 +163,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
+        executionScope,
         changeSetId: "cs_git_invalid_utf8"
       })
     ).resolves.toMatchObject({
@@ -170,10 +185,12 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns rename attention before persisting a changeset", async () => {
-    const { repoDir, worktreeParentDir, storage, locator } = await createEnvironment()
+    const { repoDir, worktreeParentDir, storage, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -184,12 +201,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
+        executionScope,
         changeSetId: "cs_git_rename"
       })
     ).resolves.toMatchObject({
@@ -208,10 +226,12 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns file size attention before reading an oversized untracked file", async () => {
-    const { locator } = await createEnvironment()
+    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -225,12 +245,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
+        executionScope,
         changeSetId: "cs_git_limit"
       })
     ).resolves.toMatchObject({
@@ -242,10 +263,12 @@ describe("@wanex/workspace/git", () => {
   it.skipIf(process.platform === "win32")(
     "returns mode attention for a mode-only edit",
     async () => {
-      const { locator } = await createEnvironment()
+      const { locator, executionScope, worktreeParentDir } = await createEnvironment()
       const isolation = new GitWorktreeIsolationAdapter({
         repositoryId: "repo_git_runtime",
-        locator
+        locator,
+        snapshot: new ProcessWorkspaceSnapshotClient(),
+        executionScope
       })
       const lease = await isolation.prepare({
         workspaceId: "workspace_git_runtime",
@@ -256,12 +279,13 @@ describe("@wanex/workspace/git", () => {
 
       const runtime = new WorkspaceGitRuntime({
         repositoryId: "repo_git_runtime",
-        locator
+        worktreeParent: worktreeParentDir
       })
 
       await expect(
         runtime.collectWorktree({
           lease,
+          executionScope,
           changeSetId: "cs_git_mode"
         })
       ).resolves.toMatchObject({
@@ -274,10 +298,12 @@ describe("@wanex/workspace/git", () => {
   it.skipIf(process.platform === "win32")(
     "returns symlink attention instead of reading through a link",
     async () => {
-      const { locator } = await createEnvironment()
+      const { locator, executionScope, worktreeParentDir } = await createEnvironment()
       const isolation = new GitWorktreeIsolationAdapter({
         repositoryId: "repo_git_runtime",
-        locator
+        locator,
+        snapshot: new ProcessWorkspaceSnapshotClient(),
+        executionScope
       })
       const lease = await isolation.prepare({
         workspaceId: "workspace_git_runtime",
@@ -288,12 +314,13 @@ describe("@wanex/workspace/git", () => {
 
       const runtime = new WorkspaceGitRuntime({
         repositoryId: "repo_git_runtime",
-        locator
+        worktreeParent: worktreeParentDir
       })
 
       await expect(
         runtime.collectWorktree({
           lease,
+          executionScope,
           changeSetId: "cs_git_link"
         })
       ).resolves.toMatchObject({
@@ -304,10 +331,12 @@ describe("@wanex/workspace/git", () => {
   )
 
   it("returns gitlink attention from the staged index mode", async () => {
-    const { locator } = await createEnvironment()
+    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
       repositoryId: "repo_git_runtime",
-      locator
+      locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(),
+      executionScope
     })
     const lease = await isolation.prepare({
       workspaceId: "workspace_git_runtime",
@@ -332,12 +361,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
+        executionScope,
         changeSetId: "cs_git_gitlink"
       })
     ).resolves.toMatchObject({
@@ -347,10 +377,10 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns identity attention for a forged worktree lease", async () => {
-    const { locator, worktreeParentDir } = await createEnvironment()
+    const { executionScope, worktreeParentDir } = await createEnvironment()
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      locator
+      worktreeParent: worktreeParentDir
     })
 
     await expect(
@@ -364,6 +394,7 @@ describe("@wanex/workspace/git", () => {
           branchName: "wanex/runtime/forged",
           createdAt: Date.now()
         },
+        executionScope,
         changeSetId: "cs_git_forged"
       })
     ).resolves.toMatchObject({
@@ -378,6 +409,7 @@ async function createEnvironment(): Promise<{
   readonly worktreeParentDir: string
   readonly storage: StorageTestStore
   readonly locator: LocalRepositoryLocator
+  readonly executionScope: import("@wanex/runtime/execution").ExecutionScope
 }> {
   const repoDir = await createRepo()
   const worktreeParentDir = await tempDir("wanex-git-runtime-worktrees-")
@@ -387,15 +419,28 @@ async function createEnvironment(): Promise<{
     serviceBin
   })
   clients.push(storage)
+  const execution = await createWorkspaceTestExecution({
+    rootDir: repoDir,
+    additionalRootDirs: [worktreeParentDir],
+    managedProcess: true
+  })
   const locator = new LocalRepositoryLocator({
     repositories: [{
       repositoryId: "repo_git_runtime",
       repositoryRoot: repoDir,
       worktreeParent: worktreeParentDir,
-      serviceBin
+      serviceBin,
+      fileSystem: execution.scope.fileSystem
     }]
   })
-  return { repoDir, worktreeParentDir, storage, locator }
+  const repository = await locator.locate("repo_git_runtime")
+  return {
+    repoDir,
+    worktreeParentDir: repository.worktreeParent,
+    storage,
+    locator,
+    executionScope: execution.scope
+  }
 }
 
 async function createRepo(): Promise<string> {

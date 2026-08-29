@@ -23,16 +23,16 @@ Discovery and execution are separate trust boundaries:
 2. `@wanex/extension/host` resolves a bounded immutable snapshot.
 3. The trusted composition owner publishes the complete snapshot as one
    immutable `{ revision, snapshot }` catalog generation.
-4. App/Product captures one generation per logical operation and explains
+4. App/Assistant captures one generation per logical operation and explains
    provenance.
 5. The product allow-list selects supported handler references.
 6. Built-in handlers execute in App, or Command Host submits an
    approved Plugin action through `@wanex/plugin`.
 
 `@wanex/plugin` owns manifest, trust, install-plan, sandbox, subprocess, and
-durable action lifecycle. It is not the extension registry. Product command
-projection is internal to `@wanex/plugin-command-host`, keeping Plugin out
-of default App and Product closures.
+durable action lifecycle. It is not the extension registry. Assistant command
+projection is internal to `@wanex/assistant-plugin-host`, keeping Plugin out
+of default App and Assistant closures.
 
 Plugin packages may provide bounded data-only `contributes.commands`
 declarations. They do not provide `handlerRef`, provenance, trust, source,
@@ -40,7 +40,7 @@ priority, conflict policy, or executable functions. The trusted Plugin Command
 Host reparses the durable package layout, resolves each declaration to an action
 in the same exact package version, validates optional input schemas through this
 package, and derives the privileged Extension contribution. One malformed
-declaration fails the complete generation; headless Plugins project no Product
+declaration fails the complete generation; headless Plugins project no Assistant
 commands.
 
 ## Versioned Catalog Publication
@@ -54,7 +54,7 @@ subscribe(listener) -> unsubscribe
 
 The read source is separate from publisher authority. A trusted composition
 owner receives the controller and publishes only complete replacement
-generations; App, Product, Web, and TUI receive only the source. Publication
+generations; App, Assistant, Assistant Web, and TUI receive only the source. Publication
 structured-clones and deeply freezes the snapshot, exposes resolver maps through
 read-only views, and makes the generation current before notifying listeners.
 One failing listener cannot roll back publication or suppress another listener.
@@ -64,46 +64,46 @@ contributions. The trusted host must derive it deterministically; a timestamp,
 random value, or process-local counter is not valid hot-composition identity.
 Publishing the same revision is a no-op and emits no invalidation.
 
-One agent context admission captures one generation. Likewise, each Product
+One agent context admission captures one generation. Likewise, each Assistant
 command read, explain, preview, or execute operation captures one generation.
 An execute operation resolves its exact-version handler from that captured
-generation, so a later publication affects only later operations. Product may
+generation, so a later publication affects only later operations. Assistant may
 cache built-ins plus external contributions by revision, but cannot treat that
 cache as Plugin installation truth.
 
 The catalog source does not scan packages, read Storage, compute Plugin trust,
 or own worker lifecycle. Those are trusted host responsibilities. Surface
 invalidation is also separate: subscribers signal that upper presentation
-should reread canonical Product state rather than pushing install paths, raw
+should reread canonical Assistant state rather than pushing install paths, raw
 trust records, jobs, or mutable contribution deltas into a renderer.
 
-Product owns that presentation projection. It treats `source.current().revision`
+Assistant owns that presentation projection. It treats `source.current().revision`
 as the subscription baseline, so a source that replays its current generation
 on subscribe cannot create a false startup invalidation. A changed generation
-produces exactly one `product.command-catalog.invalidated` event containing only
+produces exactly one `assistant.command-catalog.invalidated` event containing only
 `sequence`, `at`, and `revision`. Surface records the corresponding
-`product.surface.command-catalog.invalidated` event in its existing bounded
-replay log and points consumers to `readProductCommands()`.
+`assistant.surface.command-catalog.invalidated` event in its existing bounded
+replay log and points consumers to `readAssistantCommands()`.
 
 Web and TUI never apply command deltas. They invalidate any open or cached
-palette state and reread the canonical Product catalog after a catalog event,
+palette state and reread the canonical Assistant catalog after a catalog event,
 event gap, or event transport failure. Multiple events reconciled in one pass
 still require only one catalog read. Failed Plugin Host refresh retains the
-published revision and emits no Product/Surface invalidation; publishing an
+published revision and emits no Assistant/Surface invalidation; publishing an
 identical revision is likewise silent. The event payload never contains command
 rows, Plugin identity, versions, paths, trust records, grants, jobs, workers,
 action payloads, or secrets.
 
-`@wanex/plugin-command-host` is the Plugin-specific publication authority. It
+`@wanex/assistant-plugin-host` is the Plugin-specific publication authority. It
 reconstructs the complete active set from durable installs, verifies matching
 manifest/trust/layout identity, keeps one exact-version execution registry and
 one action-claim worker, and publishes one deterministic complete generation.
 Callers do not provide a Plugin catalog or Plugin target list. A failed rebuild
 retains the current generation; an identical rebuild emits no invalidation.
-Local products may satisfy the named `@wanex/local-host/application` port
+Local products may satisfy the named `@wanex/assistant-host/application` port
 using the structurally compatible `createPluginCommandComposition()` result.
-Plugin Host and Local Host do not depend on each other; the trusted product leaf
-connects them. Default Local Host and presentation packages do not depend on
+Plugin Host and Assistant Host do not depend on each other; the trusted product leaf
+connects them. Default Assistant Host and presentation packages do not depend on
 Plugin.
 
 ## Trusted Plugin Management
@@ -126,7 +126,7 @@ explicitly restore it.
 Management invalidation contains only `{ sequence, at, revision }`, where the
 revision hashes the safe installed projection. It carries no command delta,
 path, layout, trust JSON, actor, job, worker, grant, or payload. A failed catalog
-refresh retains the previous Product generation and returns an attention state;
+refresh retains the previous Assistant generation and returns an attention state;
 retry is explicit and event-driven, with no timer or polling loop. This local
 approval proves a user reviewed an unsigned package. It does not claim package
 signature verification, process isolation, or operating-system sandboxing.
@@ -140,9 +140,9 @@ UI concepts.
 
 ## TUI Contributions
 
-Product command contributions are normalized and validated by application.
+Assistant command contributions are normalized and validated by application.
 `@wanex/tui` reads the resulting dynamic command catalog through
-the renderer-safe Product Surface client. It does not own a second terminal
+the renderer-safe Assistant Surface client. It does not own a second terminal
 contribution resolver, static command palette, or generic shell contract.
 
 Every command contribution declares `paletteVisibility` explicitly. The full
@@ -152,21 +152,21 @@ invalid visibility is a resolver error and excludes the contribution. A UI
 must not infer visibility from command ids, categories, handlers, or source
 kind.
 
-The TUI invokes Product commands through the renderer-safe Product surface
+The TUI invokes Assistant commands through the renderer-safe Assistant surface
 client. It does not load plugins, open storage, resolve secrets, or execute tools
 directly. Its schema-guided line input may consume neutral Extension field
-descriptors already present in the Product command catalog. A future
+descriptors already present in the Assistant command catalog. A future
 independent TUI SDK requires its own package-gate evidence.
 
 `inputSchema === undefined` means that a command accepts no input. Commands
 that accept an optional object still declare a closed-object schema and use an
-empty object when no fields are selected. Product performs final schema and
+empty object when no fields are selected. Assistant performs final schema and
 handler validation; upper palettes may provide bounded local feedback but do
-not replace Product authority or fall back to an arbitrary command string.
+not replace Assistant authority or fall back to an arbitrary command string.
 
 ## Packaging And Security
 
-Default App/Product paths must not package Plugin, Connector, channel SDKs,
+Default App/Assistant paths must not package Plugin, Connector, channel SDKs,
 plugin dependencies, or terminal renderer dependencies. Optional hosts load
 heavy code lazily and own the processes they construct.
 

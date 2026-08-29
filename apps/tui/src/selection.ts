@@ -1,7 +1,7 @@
 import type {
   ConversationSelection,
   StateSnapshot
-} from "@wanex/product"
+} from "@wanex/assistant"
 
 export function sessionIdFromSelection(
   selection: ConversationSelection | undefined

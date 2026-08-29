@@ -41,6 +41,15 @@ export function toRpcListSessionsRequest(
     status: request.status ?? null,
     updated_before: request.updatedBefore ?? null,
     updated_after: request.updatedAfter ?? null,
+    scope: request.scope === undefined
+      ? null
+      : { kind: request.scope.kind, id: request.scope.id },
+    before: request.before === undefined
+      ? null
+      : {
+          updated_at: request.before.updatedAt,
+          session_id: request.before.sessionId
+        },
     limit: request.limit ?? null
   }
 }

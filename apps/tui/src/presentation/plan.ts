@@ -1,7 +1,7 @@
 import type {
   PlanGenerationReadModel,
   ReadPlanProposalResult
-} from "@wanex/product/surface"
+} from "@wanex/assistant/surface"
 import { singleLine } from "../line-session/text.js"
 
 export function renderTuiPlanGeneration(
@@ -23,10 +23,10 @@ export function renderTuiPlanGeneration(
 export function renderTuiPlanProposal(
   result: ReadPlanProposalResult
 ): string {
-  if (result.kind === "product.plan-proposal.no-selection") {
+  if (result.kind === "assistant.plan-proposal.no-selection") {
     return "PLAN\nstate:no-selection"
   }
-  if (result.kind === "product.plan-proposal.missing") {
+  if (result.kind === "assistant.plan-proposal.missing") {
     return `PLAN\nstate:missing | proposal:${result.proposalId}`
   }
   const proposal = result.proposal

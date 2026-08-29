@@ -15,7 +15,7 @@ export async function runWanexDesktopProviderImageGenerationProof(
   context: WanexDesktopProviderJourneyProofContext
 ): Promise<WanexDesktopProviderRelaunchProofResult> {
   const ready = await context.waitFor(() => {
-    const surface = document.querySelector('[data-ui-product-shell]')
+    const surface = document.querySelector('[data-ui-assistant-shell]')
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"]'
     )
@@ -106,7 +106,7 @@ export async function runWanexDesktopProviderImageGenerationProof(
       resource !== undefined &&
       resourceEvidenceValid &&
       preview instanceof HTMLImageElement &&
-      isProductResourceDeliveryUrl(preview.src)
+      isAssistantResourceDeliveryUrl(preview.src)
     )
       ? {
           userVisible: true as const,
@@ -200,12 +200,12 @@ export async function runWanexDesktopProviderImageGenerationProof(
     return row.getAttribute("data-ui-conversation-row") ?? ""
   }
 
-  function isProductResourceDeliveryUrl(value: string): boolean {
+  function isAssistantResourceDeliveryUrl(value: string): boolean {
     try {
       const url = new URL(value)
       const tokens = url.searchParams.getAll("token")
       return (
-        url.pathname === "/wanex/web/resource-delivery" &&
+        url.pathname === "/wanex/assistant/resource-delivery" &&
         [...url.searchParams.keys()].every((key) => key === "token") &&
         tokens.length === 1 &&
         /^wrd_[A-Za-z0-9_-]{43}$/.test(tokens[0] ?? "")

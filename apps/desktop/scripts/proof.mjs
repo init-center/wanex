@@ -1,30 +1,40 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
 import { createHash, randomUUID } from "node:crypto"
 import {
   chmod,
+  cp,
+  lstat,
+  mkdir,
   mkdtemp,
   readFile,
   readdir,
+  readlink,
   rm,
+  stat,
   writeFile
 } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { basename, isAbsolute, join, relative, resolve } from "node:path"
+import { promisify } from "node:util"
 import {
+  auditPackagedDesktop,
   distributionRoot,
-  packageProductDesktop,
+  credentialArtifactDir,
+  nativeArtifactDir,
+  packageDesktop,
   packagedExecutable,
-  productDesktopResourcesDir
+  desktopResourcesDir,
+  workspaceRoot
 } from "./build.mjs"
 import {
-  PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT,
-  summarizeProductDesktopSamples
+  DESKTOP_PROOF_SAMPLE_COUNT,
+  summarizeDesktopSamples
 } from "./metrics.mjs"
-import { listenProductDesktopProofProvider } from "./provider-fixture.mjs"
-import { createProductDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
+import { listenDesktopProofProvider } from "./provider-fixture.mjs"
+import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
 import {
-  writeProductDesktopFailureReport
+  writeDesktopFailureReport
 } from "./proof/failure-report.mjs"
 import {
   WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
@@ -66,10 +76,17 @@ import {
   WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
   WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE,
   WANEX_DESKTOP_PROOF_TEAM_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_FILE,
+  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
+  WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
   WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID
 } from "../src/proof-contract.ts"
 
-const PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS = [
+const execFileAsync = promisify(execFile)
+
+const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_RECEIPT",
   "WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT",
   "WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT",
@@ -78,55 +95,70 @@ const PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_STEP",
   "WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL",
   "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
-  "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS"
+  "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
+  "WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS"
 ]
 
 if (import.meta.main) {
   assertCanonicalProofArgs(process.argv.slice(2))
-  const receipt = await proveProductDesktop()
+  const receipt = await proveDesktop()
   process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
 }
 
 export function assertCanonicalProofArgs(args) {
   for (const arg of args) {
     if (arg !== "--") {
-      throw new Error(`unknown Product Desktop proof argument: ${arg}`)
+      throw new Error(`unknown Desktop proof argument: ${arg}`)
     }
   }
 }
 
-export async function proveProductDesktop() {
+export async function proveDesktop() {
   const proofRoot = await mkdtemp(join(tmpdir(), "Wanex 桌面 证明-"))
   const userDataDir = join(proofRoot, "用户 数据")
   const proofCredential = `wanex-desktop-proof-${randomUUID()}`
-  const provider = await listenProductDesktopProofProvider({
+  const provider = await listenDesktopProofProvider({
     credential: proofCredential
   })
   let activeProviderRequestOffset = 0
   try {
-    const buildReceipt = await packageProductDesktop()
-    const executable = packagedExecutable(buildReceipt.packaged.packageDir)
-    const immutableBefore = await hashImmutableResources(
+    const buildReceipt = await packageDesktop()
+    const installed = await materializeInstalledDesktop({
+      sourcePackageDir: buildReceipt.packaged.packageDir,
+      installationRoot: join(proofRoot, "已安装 Wanex Desktop")
+    })
+    await auditPackagedDesktop({
+      packageDir: installed.packageDir,
+      stagedNativeDir: nativeArtifactDir,
+      stagedCredentialDir: credentialArtifactDir
+    })
+    const sourceImmutable = await hashImmutableResources(
       buildReceipt.packaged.packageDir
     )
-    const pluginFixtures = await createProductDesktopPluginProofFixtures({
+    const immutableBefore = await hashImmutableResources(installed.packageDir)
+    if (JSON.stringify(immutableBefore) !== JSON.stringify(sourceImmutable)) {
+      throw new Error("installed Desktop immutable resources differ")
+    }
+    const executable = packagedExecutable(installed.packageDir)
+    const pluginFixtures = await createDesktopPluginProofFixtures({
       root: join(proofRoot, "plugin-fixtures")
     })
+    const codingProject = await createDesktopCodingProofRepository(proofRoot)
     const samples = []
     let retainedScreenshot
-    for (let index = 0; index < PRODUCT_DESKTOP_PROOF_SAMPLE_COUNT; index += 1) {
+    for (let index = 0; index < DESKTOP_PROOF_SAMPLE_COUNT; index += 1) {
       const receiptPath = join(proofRoot, `runtime-receipt-${index}.json`)
       const normalScreenshotPath = join(
         proofRoot,
-        `product-desktop-normal-${index}.png`
+        `desktop-normal-${index}.png`
       )
       const narrowScreenshotPath = join(
         proofRoot,
-        `product-desktop-narrow-${index}.png`
+        `desktop-narrow-${index}.png`
       )
       const requestOffset = provider.requests.length
       activeProviderRequestOffset = requestOffset
-      const measured = await measureProductDesktopSample(
+      const measured = await measureDesktopSample(
         () => run(executable, {
           WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
           WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT: normalScreenshotPath,
@@ -148,13 +180,13 @@ export async function proveProductDesktop() {
         normalScreenshot.byteLength !== runtime.screenshots.normal.bytes ||
         narrowScreenshot.byteLength !== runtime.screenshots.narrow.bytes
       ) {
-        throw new Error("Product Desktop screenshot receipt differs from files")
+        throw new Error("Desktop screenshot receipt differs from files")
       }
       retainedScreenshot = { normal: normalScreenshot, narrow: narrowScreenshot }
       const failureEvidence =
         `${measured.output.stderr}\n${JSON.stringify(runtime)}`
       if (/EPERM[\s\S]{0,160}rename|rename[\s\S]{0,160}EPERM/i.test(failureEvidence)) {
-        throw new Error("Product Desktop emitted an EPERM rename failure")
+        throw new Error("Desktop emitted an EPERM rename failure")
       }
       samples.push({
         index,
@@ -164,25 +196,26 @@ export async function proveProductDesktop() {
       })
     }
     activeProviderRequestOffset = provider.requests.length
-    const relaunch = await proveProductDesktopRelaunchJourneys({
+    const relaunch = await proveDesktopRelaunchJourneys({
       executable,
       proofRoot,
       userDataDir,
       provider,
       credential: proofCredential,
-      plugins: pluginFixtures
+      plugins: pluginFixtures,
+      codingProject
     })
     const immutableAfter = await hashImmutableResources(
-      buildReceipt.packaged.packageDir
+      installed.packageDir
     )
     if (JSON.stringify(immutableAfter) !== JSON.stringify(immutableBefore)) {
-      throw new Error("packaged Product Desktop immutable resources changed")
+      throw new Error("packaged Desktop immutable resources changed")
     }
     if (retainedScreenshot === undefined) {
-      throw new Error("Product Desktop proof did not capture a screenshot")
+      throw new Error("Desktop proof did not capture a screenshot")
     }
-    const normalScreenshotFile = "product-desktop-proof-normal.png"
-    const narrowScreenshotFile = "product-desktop-proof-narrow.png"
+    const normalScreenshotFile = "desktop-proof-normal.png"
+    const narrowScreenshotFile = "desktop-proof-narrow.png"
     await writeFile(
       join(distributionRoot, normalScreenshotFile),
       retainedScreenshot.normal
@@ -192,7 +225,7 @@ export async function proveProductDesktop() {
       retainedScreenshot.narrow
     )
     const receipt = {
-      kind: "wanex.product-desktop.proof-receipt",
+      kind: "wanex.desktop.proof-receipt",
       ok: true,
       host: { platform: process.platform, arch: process.arch },
       pathCase: { spaces: true, nonAscii: true },
@@ -201,6 +234,13 @@ export async function proveProductDesktop() {
       packaged: {
         ...buildReceipt.packaged,
         packageDir: undefined
+      },
+      installed: {
+        externalToWorkspace: installed.externalToWorkspace,
+        packageFileCount: installed.packageFileCount,
+        packageBytes: installed.packageBytes,
+        packageShapeVerified: installed.packageShapeVerified,
+        executedFromInstalledCopy: true
       },
       immutableResources: immutableAfter,
       screenshots: {
@@ -221,7 +261,7 @@ export async function proveProductDesktop() {
       },
       sampleCount: samples.length,
       samples,
-      summary: summarizeProductDesktopSamples(samples),
+      summary: summarizeDesktopSamples(samples),
       relaunch,
       schedule: relaunch.schedule,
       providerFixture: {
@@ -230,22 +270,22 @@ export async function proveProductDesktop() {
         models: [...new Set(provider.requests.map((request) => request.model))]
           .sort()
       },
-      realProductDocument: true,
+      realDesktopDocument: true,
       screenshotsNonBlank: true,
       noEpermRename: true,
       noOwnedProcessAfterRun: true
     }
     if (JSON.stringify(receipt).includes(proofCredential)) {
-      throw new Error("Product Desktop proof receipt leaked the Provider credential")
+      throw new Error("Desktop proof receipt leaked the Provider credential")
     }
     await writeFile(
-      join(distributionRoot, "product-desktop-report.json"),
+      join(distributionRoot, "desktop-report.json"),
       `${JSON.stringify(receipt, null, 2)}\n`,
       "utf8"
     )
     return receipt
   } catch (error) {
-    await writeProductDesktopFailureReport({
+    await writeDesktopFailureReport({
       error,
       proofRoot,
       providerRequests: provider.requests.slice(activeProviderRequestOffset)
@@ -254,16 +294,132 @@ export async function proveProductDesktop() {
   } finally {
     await Promise.all([
       provider.close(),
-      removeProductDesktopProofRoot(proofRoot)
+      removeDesktopProofRoot(proofRoot)
     ])
   }
 }
 
-export async function removeProductDesktopProofRoot(root) {
+export async function removeDesktopProofRoot(root) {
   if (process.platform !== "win32") {
     await makeProofTreeOwnerWritable(root)
   }
   await rm(root, { recursive: true, force: true })
+}
+
+export async function materializeInstalledDesktop(options) {
+  const sourcePackageDir = resolve(options.sourcePackageDir)
+  const installationRoot = resolve(options.installationRoot)
+  assertOutsideWorkspace(installationRoot)
+  if (isPathInsideOrEqual(installationRoot, sourcePackageDir)) {
+    throw new Error("Desktop installation root must not contain its source package")
+  }
+  await rm(installationRoot, { recursive: true, force: true })
+  await mkdir(installationRoot, { recursive: true })
+  const installedPackageDir = join(installationRoot, basename(sourcePackageDir))
+  await cp(sourcePackageDir, installedPackageDir, {
+    recursive: true,
+    verbatimSymlinks: true
+  })
+  const verification = await verifyInstalledDesktopCopy({
+    sourcePackageDir,
+    installedPackageDir
+  })
+  return {
+    packageDir: installedPackageDir,
+    externalToWorkspace: true,
+    packageFileCount: verification.packageFileCount,
+    packageBytes: verification.packageBytes,
+    packageShapeVerified: true
+  }
+}
+
+export async function verifyInstalledDesktopCopy(options) {
+  const sourcePackageDir = resolve(options.sourcePackageDir)
+  const installedPackageDir = resolve(options.installedPackageDir)
+  assertOutsideWorkspace(installedPackageDir)
+  const [sourceFiles, installedFiles] = await Promise.all([
+    listPackageFileMetadata(sourcePackageDir),
+    listPackageFileMetadata(installedPackageDir)
+  ])
+  if (JSON.stringify(sourceFiles) !== JSON.stringify(installedFiles)) {
+    throw new Error("installed Desktop package differs from its source package")
+  }
+  return {
+    packageFileCount: installedFiles.length,
+    packageBytes: installedFiles.reduce((total, file) => total + file.bytes, 0)
+  }
+}
+
+async function listPackageFileMetadata(root, current = root) {
+  const files = []
+  for (const entry of await readdir(current, { withFileTypes: true })) {
+    const path = join(current, entry.name)
+    if (entry.isDirectory()) {
+      files.push(...await listPackageFileMetadata(root, path))
+      continue
+    }
+    const file = await lstat(path)
+    if (file.isSymbolicLink()) {
+      const target = await readlink(path)
+      const targetStatus = await stat(path)
+      files.push({
+        path: relative(root, path).replaceAll("\\", "/"),
+        kind: "symlink",
+        target,
+        bytes: targetStatus.size
+      })
+      continue
+    }
+    if (!file.isFile()) {
+      throw new Error(`Desktop package contains a non-file entry: ${path}`)
+    }
+    files.push({
+      path: relative(root, path).replaceAll("\\", "/"),
+      kind: "file",
+      bytes: file.size
+    })
+  }
+  return files.sort((left, right) => left.path.localeCompare(right.path))
+}
+
+function assertOutsideWorkspace(path) {
+  if (isPathInsideOrEqual(path, workspaceRoot)) {
+    throw new Error("Desktop installation path must be outside the source workspace")
+  }
+}
+
+function isPathInsideOrEqual(path, root) {
+  const fromRoot = relative(resolve(root), resolve(path))
+  return fromRoot === "" || (
+    fromRoot !== ".." &&
+    !fromRoot.startsWith(`..${pathSeparator()}`) &&
+    !isAbsolute(fromRoot)
+  )
+}
+
+function pathSeparator() {
+  return process.platform === "win32" ? "\\" : "/"
+}
+
+async function createDesktopCodingProofRepository(proofRoot) {
+  const repositoryRoot = await mkdtemp(join(proofRoot, "coding-repository-"))
+  await writeFile(join(repositoryRoot, "README.md"), "base\n", "utf8")
+  await runProofGit(repositoryRoot, ["init"])
+  await runProofGit(repositoryRoot, ["config", "user.email", "wanex@example.local"])
+  await runProofGit(repositoryRoot, ["config", "user.name", "Wanex Desktop Proof"])
+  await runProofGit(repositoryRoot, ["config", "core.autocrlf", "false"])
+  await runProofGit(repositoryRoot, ["config", "commit.gpgsign", "false"])
+  await runProofGit(repositoryRoot, ["add", "README.md"])
+  await runProofGit(repositoryRoot, ["commit", "-m", "initial proof repository"])
+  return repositoryRoot
+}
+
+async function runProofGit(repositoryRoot, args) {
+  await execFileAsync(
+    "git",
+    ["-C", repositoryRoot, ...args],
+    { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 }
+  )
 }
 
 async function makeProofTreeOwnerWritable(path) {
@@ -284,7 +440,7 @@ async function makeProofTreeOwnerWritable(path) {
   }))
 }
 
-export async function proveProductDesktopRelaunchJourneys(options) {
+export async function proveDesktopRelaunchJourneys(options) {
   const profileId = "proof-relaunch"
   const steps = []
   let cleanupRequired = true
@@ -295,6 +451,11 @@ export async function proveProductDesktopRelaunchJourneys(options) {
       WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: options.credential
     })
     await runRelaunchStep("relaunch-chat")
+    await runRelaunchStep("relaunch-coding", {
+      WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS: JSON.stringify([
+        options.codingProject
+      ])
+    })
     await runRelaunchStep("relaunch-cancel-regenerate")
     await runRelaunchStep("relaunch-guided-follow-up")
     await runRelaunchStep("relaunch-side-query")
@@ -333,18 +494,19 @@ export async function proveProductDesktopRelaunchJourneys(options) {
   if (journeyFailure !== undefined && cleanupFailure !== undefined) {
     throw new AggregateError(
       [journeyFailure, cleanupFailure],
-      "Product Desktop relaunch journey and cleanup both failed"
+      "Desktop relaunch journey and cleanup both failed"
     )
   }
   if (journeyFailure !== undefined) throw journeyFailure
   if (cleanupFailure !== undefined) throw cleanupFailure
   return {
-    kind: "wanex.product-desktop.relaunch-journeys-receipt",
+    kind: "wanex.desktop.relaunch-journeys-receipt",
     ok: true,
     processCount: steps.length,
     credentialPassedProcessCount: 1,
     sameProfile: true,
     chatRelaunchReceivedCredential: false,
+    codingRelaunchReceivedCredential: false,
     cancelRegenerateRelaunchReceivedCredential: false,
     guidedFollowUpRelaunchReceivedCredential: false,
     sideQueryRelaunchReceivedCredential: false,
@@ -390,7 +552,7 @@ export async function proveProductDesktopRelaunchJourneys(options) {
       step !== "relaunch-configure" &&
       Object.hasOwn(environment, "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL")
     ) {
-      throw new Error(`Product Desktop ${step} must not receive a credential`)
+      throw new Error(`Desktop ${step} must not receive a credential`)
     }
     let measured
     let proofReleaseTriggered = false
@@ -416,13 +578,13 @@ export async function proveProductDesktopRelaunchJourneys(options) {
                 : options.provider.releaseSchedule()
           if (!released) {
             throw new Error(
-              `Product Desktop ${step} parent release was not accepted`
+              `Desktop ${step} parent release was not accepted`
             )
           }
         }
       : undefined
     try {
-      measured = await measureProductDesktopSample(
+      measured = await measureDesktopSample(
         () =>
           run(
             options.executable,
@@ -436,7 +598,7 @@ export async function proveProductDesktopRelaunchJourneys(options) {
     } catch (error) {
       const providerEvidence = options.provider.requests.slice(requestOffset)
       throw new Error(
-        `Product Desktop ${step} process failed with Provider evidence ${JSON.stringify(providerEvidence)}`,
+        `Desktop ${step} process failed with Provider evidence ${JSON.stringify(providerEvidence)}`,
         { cause: error }
       )
     }
@@ -456,14 +618,14 @@ export async function proveProductDesktopRelaunchJourneys(options) {
         Object.hasOwn(environment, "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL")
     }
     if (JSON.stringify(evidence).includes(options.credential)) {
-      throw new Error(`Product Desktop ${step} receipt leaked the credential`)
+      throw new Error(`Desktop ${step} receipt leaked the credential`)
     }
     if (behavior.record !== false) steps.push(evidence)
     return evidence
   }
 }
 
-export async function measureProductDesktopSample(
+export async function measureDesktopSample(
   runSample,
   auditOwnedProcesses,
   now = () => Date.now()
@@ -486,7 +648,7 @@ export async function measureProductDesktopSample(
   if (runFailure !== undefined && auditFailure !== undefined) {
     throw new AggregateError(
       [runFailure, auditFailure],
-      "Product Desktop execution and process audit both failed"
+      "Desktop execution and process audit both failed"
     )
   }
   if (runFailure !== undefined) throw runFailure
@@ -496,7 +658,7 @@ export async function measureProductDesktopSample(
 
 function assertRuntimeReceipt(runtime) {
   if (
-    runtime?.kind !== "wanex.product-desktop.runtime-receipt" ||
+    runtime?.kind !== "wanex.desktop.runtime-receipt" ||
     runtime.ok !== true ||
     runtime.proofStep !== "lifecycle" ||
     runtime.renderer?.ok !== true ||
@@ -517,10 +679,10 @@ function assertRuntimeReceipt(runtime) {
     runtime.renderer?.selectedModelEndpointId?.length === 0 ||
     runtime.renderer?.selectedModelId !== WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID ||
     runtime.renderer?.selectedModelResponseVisible !== true ||
-    runtime.renderer?.selectedSessionTitle !== "Desktop product proof" ||
-    runtime.renderer?.listedSessionTitle !== "Desktop product proof" ||
+    runtime.renderer?.selectedSessionTitle !== "Desktop assistant proof" ||
+    runtime.renderer?.listedSessionTitle !== "Desktop assistant proof" ||
     runtime.renderer?.conversationIdentityIntegrity !== true ||
-    runtime.renderer?.soleProductRenderer !== true ||
+    runtime.renderer?.soleAssistantRenderer !== true ||
     runtime.renderer?.unknownRouteRejected !== true ||
     runtime.renderer?.canonicalTranscriptIntegrity !== true ||
     runtime.renderer?.canonicalCommandPreviewed !== true ||
@@ -545,7 +707,7 @@ function assertRuntimeReceipt(runtime) {
     runtime.privacy?.exposesElectronApi !== false
   ) {
     throw new Error(
-      `Product Desktop runtime proof failed: ${JSON.stringify(runtime)}`
+      `Desktop runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
 }
@@ -585,12 +747,16 @@ function assertProviderFixtureRequests(requests) {
     requests.some((request, index) => request.model !== expectedModels[index])
   ) {
     throw new Error(
-      `Product Desktop proof provider requests are invalid: ${JSON.stringify(requests)}`
+      `Desktop proof provider requests are invalid: ${JSON.stringify(requests)}`
     )
   }
 }
 
 export function assertRelaunchJourneyFixtureRequests(requests, step) {
+  if (step === "relaunch-coding") {
+    assertCodingFixtureRequests(requests)
+    return
+  }
   if (step === "relaunch-schedule-create") {
     assertScheduleCreateFixtureRequests(requests)
     return
@@ -649,7 +815,44 @@ export function assertRelaunchJourneyFixtureRequests(requests, step) {
     )
   ) {
     throw new Error(
-      `Product Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`
+      `Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`
+    )
+  }
+}
+
+function assertCodingFixtureRequests(requests) {
+  const [toolCall, final, recoveryFirst, recoveryFinal] = requests
+  const retained = JSON.stringify(requests)
+  if (
+    requests.length !== 4 ||
+    toolCall?.authorized !== true ||
+    !toolCall.path.endsWith("/chat/completions") ||
+    toolCall.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    toolCall.codingPhase !== "tool_call" ||
+    toolCall.codingToolName !== "workspace_apply_changeset" ||
+    toolCall.codingToolCallId !== "call_desktop_proof_coding_changes" ||
+    final?.authorized !== true ||
+    !final.path.endsWith("/chat/completions") ||
+    final.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    final.codingPhase !== "final" ||
+    final.codingToolResultPresent !== true ||
+    recoveryFirst?.authorized !== true ||
+    recoveryFirst.codingPhase !== "recovery_tool_call" ||
+    recoveryFirst.codingToolName !== WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME ||
+    recoveryFirst.codingToolCallId !== "call_desktop_proof_coding_recovery" ||
+    recoveryFinal?.authorized !== true ||
+    recoveryFinal.codingPhase !== "recovery_final" ||
+    recoveryFinal.codingToolResultPresent !== true ||
+    retained.includes(WANEX_DESKTOP_PROOF_CODING_MESSAGE) ||
+    retained.includes(WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE) ||
+    retained.includes(WANEX_DESKTOP_PROOF_CODING_FILE) ||
+    retained.includes("created by the Wanex coding proof") ||
+    retained.includes("targetText") ||
+    retained.includes("The reviewed coding proof change is complete") ||
+    retained.includes(WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE)
+  ) {
+    throw new Error(
+      `Desktop Coding Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -675,7 +878,7 @@ function assertScheduleCreateFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop Schedule create Provider requests are invalid: ${retained}`
+      `Desktop Schedule create Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -697,7 +900,7 @@ function assertScheduleRestoreFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop Schedule restore Provider requests are invalid: ${retained}`
+      `Desktop Schedule restore Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -719,7 +922,7 @@ function assertTeamFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_TEAM_MESSAGE)
   ) {
     throw new Error(
-      `Product Desktop Team Provider requests are invalid: ${retained}`
+      `Desktop Team Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -753,7 +956,7 @@ function assertSideQueryFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop Side Query Provider requests are invalid: ${retained}`
+      `Desktop Side Query Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -785,7 +988,7 @@ function assertGuidedFollowUpFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_GUIDED_CHILD_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop guided follow-up Provider requests are invalid: ${retained}`
+      `Desktop guided follow-up Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -814,7 +1017,7 @@ function assertCancelRegenerateFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_REGENERATED_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop cancel/regenerate Provider requests are invalid: ${retained}`
+      `Desktop cancel/regenerate Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -851,7 +1054,7 @@ function assertImageGenerationFixtureRequests(requests) {
     retained.includes("data:image/")
   ) {
     throw new Error(
-      `Product Desktop image generation Provider requests are invalid: ${retained}`
+      `Desktop image generation Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -882,7 +1085,7 @@ function assertPlanFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_RESPONSE)
   ) {
     throw new Error(
-      `Product Desktop Plan Provider requests are invalid: ${retained}`
+      `Desktop Plan Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -918,7 +1121,7 @@ function assertGoalFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_GOAL_FINAL_VERIFICATION_REASON)
   ) {
     throw new Error(
-      `Product Desktop Goal Provider requests are invalid: ${retained}`
+      `Desktop Goal Provider requests are invalid: ${retained}`
     )
   }
 }
@@ -926,7 +1129,7 @@ function assertGoalFixtureRequests(requests) {
 export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {}) {
   const renderer = runtime?.renderer
   const commonInvalid =
-    runtime?.kind !== "wanex.product-desktop.runtime-receipt" ||
+    runtime?.kind !== "wanex.desktop.runtime-receipt" ||
     runtime.ok !== true ||
     runtime.proofStep !== step ||
     renderer?.ok !== true ||
@@ -939,7 +1142,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
     runtime.privacy?.exposesElectronApi !== false
   if (commonInvalid) {
     throw new Error(
-      `Product Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
+      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
   let stepInvalid = false
@@ -973,6 +1176,74 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.responseVisible !== true ||
       renderer.followUpSessionPreserved !== true ||
       renderer.followUpResponseVisible !== true
+  } else if (step === "relaunch-coding") {
+    const expectedKeys = [
+      "approvalResolved",
+      "approvalVisible",
+      "codingSurfaceSelected",
+      "emptyProjectStateVisible",
+      "initialAssistantVisible",
+      "noFabricatedToolResult",
+      "ok",
+      "projectId",
+      "projectPathEvidenceHidden",
+      "projectSelected",
+      "proposalApplied",
+      "proposalApplyRequested",
+      "proposalReviewed",
+      "proposalUndone",
+      "proposalVisible",
+      "providerEvidenceRedacted",
+      "providerReady",
+      "recoveryResponseVisible",
+      "recoveryRetried",
+      "recoveryRetryAvailable",
+      "recoverySessionPreserved",
+      "recoveryToolNameVisible",
+      "recoveryTurnSucceeded",
+      "recoveryVisible",
+      "responseVisible",
+      "sessionCreated",
+      "sessionId",
+      "step",
+      "timingsMs",
+      "toolNameVisible",
+      "turnSucceeded",
+      "userMessageVisible"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      renderer.providerReady !== true ||
+      renderer.providerEvidenceRedacted !== true ||
+      renderer.initialAssistantVisible !== true ||
+      renderer.codingSurfaceSelected !== true ||
+      renderer.emptyProjectStateVisible !== true ||
+      renderer.projectSelected !== true ||
+      typeof renderer.projectId !== "string" ||
+      renderer.projectId.length === 0 ||
+      renderer.projectPathEvidenceHidden !== true ||
+      renderer.sessionCreated !== true ||
+      typeof renderer.sessionId !== "string" ||
+      renderer.sessionId.length === 0 ||
+      renderer.userMessageVisible !== true ||
+      renderer.approvalVisible !== true ||
+      renderer.toolNameVisible !== true ||
+      renderer.approvalResolved !== true ||
+      renderer.turnSucceeded !== true ||
+      renderer.responseVisible !== true ||
+      renderer.proposalVisible !== true ||
+      renderer.proposalReviewed !== true ||
+      renderer.proposalApplyRequested !== true ||
+      renderer.proposalApplied !== true ||
+      renderer.proposalUndone !== true ||
+      renderer.noFabricatedToolResult !== true ||
+      renderer.recoveryVisible !== true ||
+      renderer.recoveryToolNameVisible !== true ||
+      renderer.recoveryRetryAvailable !== true ||
+      renderer.recoveryRetried !== true ||
+      renderer.recoveryTurnSucceeded !== true ||
+      renderer.recoveryResponseVisible !== true ||
+      renderer.recoverySessionPreserved !== true
   } else if (step === "relaunch-cancel-regenerate") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1408,7 +1679,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
   }
   if (stepInvalid) {
     throw new Error(
-      `Product Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
+      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
 }
@@ -1436,7 +1707,7 @@ function validPluginIdentity(renderer) {
 }
 
 async function hashImmutableResources(packageDir) {
-  const resourcesDir = productDesktopResourcesDir(packageDir)
+  const resourcesDir = desktopResourcesDir(packageDir)
   const nativeDir = join(resourcesDir, "native")
   const credentialDir = join(resourcesDir, "credentials")
   const nativeManifest = JSON.parse(await readFile(
@@ -1447,7 +1718,7 @@ async function hashImmutableResources(packageDir) {
     item.platform === process.platform && item.arch === process.arch
   )
   if (target === undefined) {
-    throw new Error("packaged Product Desktop native target is missing")
+    throw new Error("packaged Desktop native target is missing")
   }
   return {
     nativeManifestSha256: await sha256(
@@ -1475,7 +1746,7 @@ function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
     let stdout = ""
     let stderr = ""
     const child = spawn(command, [], {
-      env: createProductDesktopProofProcessEnvironment(
+      env: createDesktopProofProcessEnvironment(
         process.env,
         environment
       ),
@@ -1503,7 +1774,7 @@ function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
       settled = true
       void terminateProcessTree(child).finally(() => {
         reject(new Error(
-          `packaged Product Desktop exceeded ${timeoutMs}ms${formatChildOutput(stdout, stderr)}`
+          `packaged Desktop exceeded ${timeoutMs}ms${formatChildOutput(stdout, stderr)}`
         ))
       })
     }, timeoutMs)
@@ -1521,19 +1792,19 @@ function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
       else {
         const runtimeReceipt = await readOptionalReceipt(receiptPath)
         reject(new Error(
-          `packaged Product Desktop exited with ${signal ?? code}${formatChildOutput(stdout, stderr, runtimeReceipt)}`
+          `packaged Desktop exited with ${signal ?? code}${formatChildOutput(stdout, stderr, runtimeReceipt)}`
         ))
       }
     })
   })
 }
 
-export function createProductDesktopProofProcessEnvironment(
+export function createDesktopProofProcessEnvironment(
   inheritedEnvironment,
   proofEnvironment
 ) {
   const environment = { ...inheritedEnvironment }
-  for (const key of PRODUCT_DESKTOP_PROOF_ENVIRONMENT_KEYS) {
+  for (const key of DESKTOP_PROOF_ENVIRONMENT_KEYS) {
     delete environment[key]
   }
   return { ...environment, ...proofEnvironment }
@@ -1559,7 +1830,7 @@ async function assertNoOwnedProcess(userDataDir) {
       ])
     : await commandOutput("ps", ["-ax", "-o", "command="])
   if (commands.includes(userDataDir)) {
-    throw new Error("Product Desktop left an owned process after shutdown")
+    throw new Error("Desktop left an owned process after shutdown")
   }
 }
 

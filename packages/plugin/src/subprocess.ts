@@ -7,3 +7,4 @@ export {
 export {
   validateSubprocessPluginActionHostOptions
 } from "./subprocess-validation.js"
+export { compilePluginExecution } from "./execution-policy.js"

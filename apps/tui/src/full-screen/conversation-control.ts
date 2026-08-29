@@ -11,7 +11,7 @@ import type {
   ConversationRecoveryItem,
   ReadTrackedConversationOperationResult,
   ResolveTrackedConversationRecoveryRequest
-} from "@wanex/product"
+} from "@wanex/assistant"
 import type { JsonValue } from "@wanex/protocol"
 import {
   createTuiApprovalManager,
@@ -213,7 +213,7 @@ export function createTuiConversationControlManager(options: {
           return
         }
         const value = result.value
-        if (value.kind === "product.conversation-operation.rejected") {
+        if (value.kind === "assistant.conversation-operation.rejected") {
           options.adoptOperation(value.operation)
           rejectRecovery(token)
           return
@@ -273,7 +273,7 @@ export function createTuiConversationControlManager(options: {
           rejectRegeneration(current, token)
           return
         }
-        if (result.value.kind === "product.conversation-operation.rejected") {
+        if (result.value.kind === "assistant.conversation-operation.rejected") {
           options.adoptOperation(result.value.operation)
           rejectRegeneration(current, token)
           return
@@ -471,7 +471,7 @@ function operationIdentityKey(
 function foundOperation(
   value: ReadTrackedConversationOperationResult
 ): ConversationOperationReadModel | undefined {
-  return value.kind === "product.conversation-operation.found"
+  return value.kind === "assistant.conversation-operation.found"
     ? value.operation
     : undefined
 }

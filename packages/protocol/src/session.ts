@@ -1,4 +1,6 @@
 import type { JsonValue } from "./json.js"
+import type { ApplicationScopeBinding } from "./application-scope.js"
+import type { ExecutionEnvironmentBinding } from "./execution-environment.js"
 import type { MessagePart } from "./message.js"
 import type {
   ModelCapabilityRequirement,
@@ -73,6 +75,18 @@ export interface SessionTurnCompletionBinding {
   readonly maxOutputTokens: number
 }
 
+export interface SessionTurnContextSourceEvidence {
+  readonly state: "available" | "unavailable"
+  readonly sourceCount: number
+  readonly digest: string
+}
+
+export interface SessionTurnContextEvidence {
+  readonly revision: 1
+  readonly instructions?: SessionTurnContextSourceEvidence
+  readonly skills?: SessionTurnContextSourceEvidence
+}
+
 export interface SessionTurnExecutionBinding {
   readonly digest: string
   readonly createdAt: number
@@ -81,10 +95,11 @@ export interface SessionTurnExecutionBinding {
   readonly capabilityRoutes: readonly ModelCapabilityRouteExecutionBinding[]
   readonly resources: readonly ResourceInputEvidence[]
   readonly recovery: SessionTurnRecoveryBinding
-  readonly contextSnapshot?: JsonValue
+  readonly contextEvidence?: SessionTurnContextEvidence
   readonly toolSnapshot?: JsonValue
   readonly permissionSnapshot?: JsonValue
-  readonly environmentSnapshot?: JsonValue
+  readonly executionEnvironment?: ExecutionEnvironmentBinding
+  readonly applicationScope?: ApplicationScopeBinding
 }
 
 export interface SessionTurnRecoveryBinding {
@@ -142,10 +157,26 @@ export interface SessionAttemptRecord {
 export type SessionStatus = "active" | "archived"
 export type SessionKind = "chat" | "agent"
 
+export interface SessionScope {
+  readonly kind: string
+  readonly id: string
+}
+
+export interface SessionPageCursor {
+  readonly updatedAt: number
+  readonly sessionId: SessionId
+}
+
+export interface SessionTurnPageCursor {
+  readonly createdAt: number
+  readonly turnId: SessionTurnId
+}
+
 export interface SessionRecord {
   readonly id: SessionId
   readonly title?: string
   readonly kind: SessionKind
+  readonly scope?: SessionScope
   readonly status: SessionStatus
   readonly revision: number
   readonly createdAt: number
@@ -157,6 +188,7 @@ export interface CreateSessionRequest {
   readonly id?: SessionId
   readonly title?: string
   readonly kind?: SessionKind
+  readonly scope?: SessionScope
 }
 
 export interface ListSessionsRequest {
@@ -164,6 +196,8 @@ export interface ListSessionsRequest {
   readonly status?: SessionStatus
   readonly updatedBefore?: number
   readonly updatedAfter?: number
+  readonly scope?: SessionScope
+  readonly before?: SessionPageCursor
   readonly limit?: number
 }
 
@@ -437,6 +471,8 @@ export interface ListSessionTurnsRequest {
   readonly sessionId: SessionId
   readonly state?: SessionTurnState
   readonly turnIds?: readonly SessionTurnId[]
+  readonly before?: SessionTurnPageCursor
+  readonly limit?: number
 }
 
 export interface ListSessionAttemptsRequest {

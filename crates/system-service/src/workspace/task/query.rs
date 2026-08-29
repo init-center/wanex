@@ -1,12 +1,12 @@
 use super::repository::{
     collect, get_run_tx, row_to_attempt, row_to_run, snapshot_tx, ATTEMPT_SELECT, RUN_SELECT,
 };
-use super::validation::{require_non_empty, validate_run_state};
+use super::validation::{require_non_empty, validate_list_runs};
 use crate::{
     ListWorkspaceTaskAttempts, ListWorkspaceTaskRuns, Result, SystemService,
     WorkspaceTaskAttemptRecord, WorkspaceTaskRunSnapshot,
 };
-use rusqlite::params;
+use rusqlite::{params, params_from_iter, types::Value as SqlValue};
 
 impl SystemService {
     pub fn get_workspace_task_run(&self, run_id: &str) -> Result<Option<WorkspaceTaskRunSnapshot>> {
@@ -24,35 +24,56 @@ impl SystemService {
         &self,
         request: &ListWorkspaceTaskRuns,
     ) -> Result<Vec<WorkspaceTaskRunSnapshot>> {
-        if let Some(state) = request.state.as_deref() {
-            validate_run_state(state)?;
-        }
-        let limit = request.limit.unwrap_or(100).clamp(1, 1_000);
+        validate_list_runs(request)?;
+        let limit = request.limit.unwrap_or_else(|| {
+            request
+                .run_ids
+                .as_ref()
+                .map_or(100, |run_ids| run_ids.len() as i64)
+        });
         let mut conn = self.connect()?;
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         let runs = {
+            let mut clauses = Vec::new();
+            let mut values = Vec::new();
+            if let Some(run_ids) = request.run_ids.as_ref() {
+                clauses.push(format!("r.id IN ({})", vec!["?"; run_ids.len()].join(", ")));
+                values.extend(run_ids.iter().cloned().map(SqlValue::Text));
+            }
+            if let Some(workspace_id) = request.workspace_id.as_ref() {
+                clauses.push("r.workspace_id = ?".to_string());
+                values.push(SqlValue::Text(workspace_id.clone()));
+            }
+            if let Some(repository_id) = request.repository_id.as_ref() {
+                clauses.push("r.repository_id = ?".to_string());
+                values.push(SqlValue::Text(repository_id.clone()));
+            }
+            if let Some(state) = request.state.as_ref() {
+                clauses.push("r.state = ?".to_string());
+                values.push(SqlValue::Text(state.clone()));
+            }
+            if let Some(lease_expires_before) = request.lease_expires_before {
+                clauses.push(
+                    "EXISTS (
+                       SELECT 1 FROM workspace_task_attempt a
+                       WHERE a.run_id = r.id AND a.state = 'active'
+                         AND a.lease_expires_at <= ?
+                     )"
+                    .to_string(),
+                );
+                values.push(SqlValue::Integer(lease_expires_before));
+            }
+            values.push(SqlValue::Integer(limit));
+            let where_clause = if clauses.is_empty() {
+                String::new()
+            } else {
+                format!(" WHERE {}", clauses.join(" AND "))
+            };
             let mut stmt = tx.prepare(&format!(
-                "{RUN_SELECT} r
-                 WHERE (?1 IS NULL OR r.workspace_id = ?1)
-                   AND (?2 IS NULL OR r.repository_id = ?2)
-                   AND (?3 IS NULL OR r.state = ?3)
-                   AND (?4 IS NULL OR EXISTS (
-                     SELECT 1 FROM workspace_task_attempt a
-                     WHERE a.run_id = r.id AND a.state = 'active'
-                       AND a.lease_expires_at <= ?4
-                   ))
-                 ORDER BY r.updated_at ASC, r.id ASC LIMIT ?5"
+                "{RUN_SELECT} r{where_clause}
+                 ORDER BY r.updated_at ASC, r.id ASC LIMIT ?"
             ))?;
-            let rows = stmt.query_map(
-                params![
-                    request.workspace_id,
-                    request.repository_id,
-                    request.state,
-                    request.lease_expires_before,
-                    limit
-                ],
-                row_to_run,
-            )?;
+            let rows = stmt.query_map(params_from_iter(values), row_to_run)?;
             collect(rows)?
         };
         let mut snapshots = Vec::with_capacity(runs.len());

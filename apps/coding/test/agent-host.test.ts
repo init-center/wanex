@@ -24,6 +24,7 @@ import {
 } from "../src/host/agent-host/index.js";
 
 const windowsOnly = describe.skipIf(process.platform !== "win32");
+const unixOnly = describe.skipIf(process.platform === "win32");
 
 windowsOnly("Coding Agent Host over Windows named pipes", () => {
   it("keeps typed durable start admission across a pipe reconnect", async () => {
@@ -324,83 +325,85 @@ describe("Coding Agent Host binding", () => {
     ]);
   });
 
-  it("keeps typed durable start semantics across Unix IPC reconnect", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "wanex-coding-host-ipc-"));
-    const socketPath = join(directory, "host.sock");
-    const calls: Record<string, unknown>[] = [];
-    const application = fakeApplication(calls);
-    const server = await listenLocalAgentHostIpc({
-      socketPath,
-      createEndpoint: () =>
-        createCodingAgentHostEndpoint({
-          application,
-          host: {
-            hostId: "coding_ipc_host",
-            instanceId: "coding_ipc_instance",
-            connectionKind: "local_ipc",
-            executionLocation: "local",
-          },
-          accessToken: "coding_ipc_token",
-        }),
-    });
-    const firstTransport = createLocalAgentHostIpcClientTransport({ socketPath });
-    const firstClient = createCodingAgentHostClient(firstTransport, {
-      clientId: "coding_ipc_client_first",
-      accessToken: "coding_ipc_token",
-      createRequestId: requestIds("ipc-first"),
-    });
-
-    try {
-      const request = {
-        projectId: "project_1",
-        idempotencyKey: "ipc-start-once",
-        content: [{ type: "text" as const, text: "start over IPC" }],
-      };
-      await firstClient.connect();
-      const started = await firstClient.startTurn(request);
-      expect(started).toMatchObject({ turnId: "turn_1", state: "starting" });
-      await expect(
-        firstClient.replay({
-          streamId: "coding:missing_stream",
-          afterSequence: 0,
-          limit: 10,
-        }),
-      ).resolves.toMatchObject({
-        outcome: "gap",
-        gap: { reason: "stream_replaced", canonicalReadRequired: true },
-      });
-      await expect(firstClient.listProjects()).resolves.toEqual([
-        expect.objectContaining({ projectId: "project_1" }),
-      ]);
-      firstClient.close();
-      await firstTransport.close();
-
-      const secondTransport = createLocalAgentHostIpcClientTransport({ socketPath });
-      const secondClient = createCodingAgentHostClient(secondTransport, {
-        clientId: "coding_ipc_client_second",
-        accessToken: "coding_ipc_token",
-        createRequestId: requestIds("ipc-second"),
-      });
-      try {
-        await secondClient.connect();
-        await expect(secondClient.startTurn(request)).resolves.toMatchObject({
-          turnId: started.turnId,
-          sessionId: started.sessionId,
-        });
-        await expect(
-          secondClient.startTurn({
-            ...request,
-            content: [{ type: "text", text: "conflicting IPC retry" }],
+  unixOnly("Coding Agent Host over Unix sockets", () => {
+    it("keeps typed durable start semantics across Unix IPC reconnect", async () => {
+      const directory = await mkdtemp(join(tmpdir(), "wanex-coding-host-ipc-"));
+      const socketPath = join(directory, "host.sock");
+      const calls: Record<string, unknown>[] = [];
+      const application = fakeApplication(calls);
+      const server = await listenLocalAgentHostIpc({
+        socketPath,
+        createEndpoint: () =>
+          createCodingAgentHostEndpoint({
+            application,
+            host: {
+              hostId: "coding_ipc_host",
+              instanceId: "coding_ipc_instance",
+              connectionKind: "local_ipc",
+              executionLocation: "local",
+            },
+            accessToken: "coding_ipc_token",
           }),
-        ).rejects.toMatchObject({ code: "application_failure" });
-        expect(calls).toHaveLength(1);
+      });
+      const firstTransport = createLocalAgentHostIpcClientTransport({ socketPath });
+      const firstClient = createCodingAgentHostClient(firstTransport, {
+        clientId: "coding_ipc_client_first",
+        accessToken: "coding_ipc_token",
+        createRequestId: requestIds("ipc-first"),
+      });
+
+      try {
+        const request = {
+          projectId: "project_1",
+          idempotencyKey: "ipc-start-once",
+          content: [{ type: "text" as const, text: "start over IPC" }],
+        };
+        await firstClient.connect();
+        const started = await firstClient.startTurn(request);
+        expect(started).toMatchObject({ turnId: "turn_1", state: "starting" });
+        await expect(
+          firstClient.replay({
+            streamId: "coding:missing_stream",
+            afterSequence: 0,
+            limit: 10,
+          }),
+        ).resolves.toMatchObject({
+          outcome: "gap",
+          gap: { reason: "stream_replaced", canonicalReadRequired: true },
+        });
+        await expect(firstClient.listProjects()).resolves.toEqual([
+          expect.objectContaining({ projectId: "project_1" }),
+        ]);
+        firstClient.close();
+        await firstTransport.close();
+
+        const secondTransport = createLocalAgentHostIpcClientTransport({ socketPath });
+        const secondClient = createCodingAgentHostClient(secondTransport, {
+          clientId: "coding_ipc_client_second",
+          accessToken: "coding_ipc_token",
+          createRequestId: requestIds("ipc-second"),
+        });
+        try {
+          await secondClient.connect();
+          await expect(secondClient.startTurn(request)).resolves.toMatchObject({
+            turnId: started.turnId,
+            sessionId: started.sessionId,
+          });
+          await expect(
+            secondClient.startTurn({
+              ...request,
+              content: [{ type: "text", text: "conflicting IPC retry" }],
+            }),
+          ).rejects.toMatchObject({ code: "application_failure" });
+          expect(calls).toHaveLength(1);
+        } finally {
+          secondClient.close();
+          await secondTransport.close();
+        }
       } finally {
-        secondClient.close();
-        await secondTransport.close();
+        await server.close();
       }
-    } finally {
-      await server.close();
-    }
+    });
   });
 });
 

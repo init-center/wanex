@@ -63,6 +63,14 @@ export class CodingWorkbenchController {
   #readGeneration = 0;
   #refreshQueued = false;
   #unsubscribe: (() => void) | undefined;
+  #pendingStart:
+    | {
+        readonly projectId: string;
+        readonly sessionId?: string;
+        readonly text: string;
+        readonly idempotencyKey: string;
+      }
+    | undefined;
   #closed = false;
 
   constructor(client: CodingWorkbenchClient) {
@@ -94,6 +102,7 @@ export class CodingWorkbenchController {
         this.#setState(previousState);
         return;
       }
+      this.#pendingStart = undefined;
       this.#setState({
         status: "loading",
         project: selection.project,
@@ -110,6 +119,7 @@ export class CodingWorkbenchController {
     if (!this.#state.sessions.some((session) => session.sessionId === sessionId)) {
       return;
     }
+    if (sessionId !== this.#state.sessionId) this.#pendingStart = undefined;
     const { error: _error, ...current } = this.#state;
     this.#setState({ ...current, status: "loading", sessionId });
     await this.refresh();
@@ -172,19 +182,36 @@ export class CodingWorkbenchController {
   async startTurn(text: string): Promise<boolean> {
     const project = this.#state.project;
     if (project === undefined || text.trim().length === 0) return false;
+    const normalizedText = text.trim();
+    const sessionId = this.#state.sessionId;
+    const pendingStart = this.#pendingStart;
+    const idempotencyKey =
+      pendingStart?.projectId === project.projectId &&
+      pendingStart.sessionId === sessionId &&
+      pendingStart.text === normalizedText
+        ? pendingStart.idempotencyKey
+        : `desktop:${globalThis.crypto.randomUUID()}`;
+    this.#pendingStart = {
+      projectId: project.projectId,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      text: normalizedText,
+      idempotencyKey,
+    };
     const { error: _error, ...current } = this.#state;
     this.#setState({ ...current, status: "loading" });
     try {
       const turn = await this.#client.startTurn({
         projectId: project.projectId,
-        idempotencyKey: `desktop:${globalThis.crypto.randomUUID()}`,
-        content: [{ type: "text", text: text.trim() }],
-        ...(this.#state.sessionId === undefined ? {} : { sessionId: this.#state.sessionId }),
+        idempotencyKey,
+        content: [{ type: "text", text: normalizedText }],
+        ...(sessionId === undefined ? {} : { sessionId }),
       });
+      this.#pendingStart = undefined;
       this.#setState({ ...this.#state, status: "loading", sessionId: turn.sessionId, turn });
       await this.refresh();
       return true;
     } catch (error) {
+      await this.refresh().catch(() => {});
       this.#setError(error);
       return false;
     }

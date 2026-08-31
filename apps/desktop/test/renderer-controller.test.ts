@@ -139,6 +139,37 @@ describe("Desktop Coding Renderer controller", () => {
     expect(controller.state.status).toBe("loading");
   });
 
+  it("reuses a failed Turn admission key for the same draft", async () => {
+    const projectRead = project("admission-retry");
+    const session = sessionReadModel(projectRead.projectId);
+    const requests: Array<{ readonly idempotencyKey: string }> = [];
+    let attempts = 0;
+    const admittedTurn = turnReadModel(projectRead.projectId, session.sessionId, false);
+    const controller = new CodingWorkbenchController(
+      fakeClient({
+        readProject: async () => projectRead,
+        listSessions: async () => ({ sessions: [session], returnedCount: 1, hasMore: false }),
+        readSession: async () => session,
+        readTranscript: async () => transcript(projectRead.projectId, session.sessionId),
+        listTurns: async () => ({ turns: [], returnedCount: 0, hasMore: false }),
+        startTurn: async (request) => {
+          requests.push({ idempotencyKey: request.idempotencyKey });
+          attempts += 1;
+          if (attempts === 1) throw new Error("connection lost after admission");
+          return admittedTurn;
+        },
+      }),
+    );
+
+    await controller.openProject();
+    await expect(controller.startTurn("same logical task")).resolves.toBe(false);
+    await expect(controller.startTurn("same logical task")).resolves.toBe(true);
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.idempotencyKey).toBe(requests[1]?.idempotencyKey);
+    controller.dispose();
+  });
+
   it("sends a digested verified result and refreshes after recovery resolution", async () => {
     const projectRead = project("recovery");
     const session = sessionReadModel(projectRead.projectId);
@@ -238,6 +269,7 @@ function fakeClient(options: {
   readonly readSession?: CodingWorkbenchClient["readSession"];
   readonly readTranscript?: CodingWorkbenchClient["readTranscript"];
   readonly listTurns?: CodingWorkbenchClient["listTurns"];
+  readonly startTurn?: CodingWorkbenchClient["startTurn"];
   readonly resolveTurnRecovery?: CodingWorkbenchClient["resolveTurnRecovery"];
   readonly subscribe?: CodingWorkbenchClient["subscribe"];
 } = {}): CodingWorkbenchClient {
@@ -257,6 +289,7 @@ function fakeClient(options: {
     readTranscript: options.readTranscript ?? (async () => null),
     listTurns: options.listTurns ?? (async () => ({ turns: [], returnedCount: 0, hasMore: false })),
     readLiveTurn: async () => null,
+    startTurn: options.startTurn ?? (async () => { throw new Error("not used"); }),
     readProposal: async () => null,
     resolveTurnRecovery: options.resolveTurnRecovery ?? (async () => { throw new Error("not used"); }),
     subscribe: options.subscribe ?? (() => () => {}),

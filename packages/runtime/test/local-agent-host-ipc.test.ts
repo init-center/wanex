@@ -215,9 +215,16 @@ describe("local Agent Host IPC", () => {
       operation: "pending.read",
       payload: {}
     })
+    const pendingOutcome = pending.then(
+      () => undefined,
+      (error: unknown) => error
+    )
     await started
     await server.close()
-    await expect(pending).rejects.toThrow("Agent Host transport failed")
+    await expect(pendingOutcome).resolves.toMatchObject({
+      code: "transport_failure",
+      message: "Agent Host transport failed"
+    })
     releaseOperation()
     await transport.close()
   })

@@ -120,6 +120,19 @@ store/path/execution-environment selector, token in a URL, or automatic retry
 of a command without durable idempotency. Do not implement Route 5F until its
 security and authorization contracts are reviewed and tested.
 
+Route 5F-1A Remote Host Authorization Policy is complete. Runtime now owns
+only the transport-neutral server-subject/grant admission decision, per-
+request domain recheck, and bounded remote request-limit normalization. It
+does not parse bearer tokens, select Hosts/stores, authorize project IDs, or
+enforce HTTP bodies. Evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1500-route-5f-1a-remote-host-authorization-policy-completion.md`
+
+The next slice is Route 5F-2, the framework-neutral remote Host handler. Keep
+Storage Control Plane separate, reject client-selected store/path/environment
+input, and do not add a public listener before the handler/session contract is
+tested.
+
 Preserve the existing Agent Host frames and typed Coding binding. Do not force
 trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,
 control-plane authentication, a Gateway, compatibility aliases, and a new

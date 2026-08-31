@@ -210,6 +210,56 @@ export class BlockingProvider implements ProviderAdapter {
   }
 }
 
+export class ConcurrentBlockingProvider implements ProviderAdapter {
+  readonly protocol = { id: "fake" } as const
+  readonly providerId = "coding-concurrent-blocking"
+  readonly model = fakeModelDescriptor("coding-concurrent-blocking")
+  active = 0
+  maxActive = 0
+  #startedCount = 0
+  readonly #startedWaiters: Array<{
+    readonly count: number
+    readonly resolve: () => void
+  }> = []
+
+  get startedCount(): number {
+    return this.#startedCount
+  }
+
+  waitForStarted(count: number): Promise<void> {
+    if (!Number.isSafeInteger(count) || count <= 0) {
+      throw new Error("coding provider started count must be positive")
+    }
+    if (this.#startedCount >= count) return Promise.resolve()
+    return new Promise((resolve) => {
+      this.#startedWaiters.push({ count, resolve })
+    })
+  }
+
+  async *stream(request: ProviderRequest): AsyncIterable<ProviderEvent> {
+    this.#startedCount += 1
+    this.active += 1
+    this.maxActive = Math.max(this.maxActive, this.active)
+    for (const waiter of [...this.#startedWaiters]) {
+      if (this.#startedCount < waiter.count) continue
+      this.#startedWaiters.splice(this.#startedWaiters.indexOf(waiter), 1)
+      waiter.resolve()
+    }
+    try {
+      await waitForAbort(request)
+      throw new DOMException("aborted", "AbortError")
+    } finally {
+      this.active -= 1
+    }
+  }
+
+  buildReplayMessages(
+    messages: readonly PreparedProviderReplayMessage[]
+  ): JsonValue[] {
+    return messages as unknown as JsonValue[]
+  }
+}
+
 export class StreamingTextProvider implements ProviderAdapter {
   readonly protocol = { id: "fake" } as const
   readonly providerId = "coding-streaming-text"

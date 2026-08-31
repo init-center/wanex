@@ -27,6 +27,7 @@ import { createWorkspaceTaskExecutionPolicy } from "@wanex/workspace/tasks"
 import {
   ApprovalRequiredWorkspacePolicy,
   BlockingProvider,
+  ConcurrentBlockingProvider,
   CodingHostTestScope,
   EditThenBlockProvider,
   WorkspaceEditProvider,
@@ -1063,6 +1064,58 @@ describe("trusted coding host repository lifecycle", () => {
       await environment.dispose()
     }
   })
+
+  it("runs different Coding Sessions concurrently and serializes Turns within one Session", async () => {
+    const environment = await scope.createEnvironment()
+    const repositoryRoot = await scope.createRepository()
+    const provider = new ConcurrentBlockingProvider()
+    const host = await environment.start(executionOptions(provider, {
+      workerCount: 2,
+      toolPermissionPolicy: new AllowAllToolsPolicy()
+    }))
+    try {
+      const repository = await host.openRepository({ repositoryPath: repositoryRoot })
+      const first = repository.startTurn({
+        sessionId: "coding-shared-session",
+        idempotencyKey: "host-shared-first",
+        content: [{ type: "text", text: "shared first" }]
+      })
+      await provider.waitForStarted(1)
+      const independent = repository.startTurn({
+        sessionId: "coding-independent-session",
+        idempotencyKey: "host-independent",
+        content: [{ type: "text", text: "independent" }]
+      })
+
+      await provider.waitForStarted(2)
+      expect(provider.maxActive).toBe(2)
+
+      const queued = repository.startTurn({
+        sessionId: "coding-shared-session",
+        idempotencyKey: "host-shared-second",
+        content: [{ type: "text", text: "shared second" }]
+      })
+      expect(provider.startedCount).toBe(2)
+
+      await Promise.all([
+        first.cancel("release shared Session"),
+        independent.cancel("release independent Session")
+      ])
+      await Promise.all([first.result, independent.result])
+      await provider.waitForStarted(3)
+      expect(provider.maxActive).toBe(2)
+
+      await queued.cancel("finish serialized Session test")
+      await expect(queued.result).resolves.toMatchObject({
+        turnState: "cancelled",
+        task: { status: "failed" }
+      })
+      expect(provider.active).toBe(0)
+    } finally {
+      await host.close()
+      await environment.dispose()
+    }
+  }, 30_000)
 
   it("retains one scoped worktree across durable approval and wakes exact resumption", async () => {
     const environment = await scope.createEnvironment()

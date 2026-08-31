@@ -308,14 +308,90 @@ describe("Remote Agent Host TLS domain conformance", () => {
     }
   })
 
-  it("stops accepting new remote Assistant work during a bounded drain", async () => {
-    const requests = []
-    const composition = await createRemoteAssistantAgentHostComposition({
+  it("keeps remote session serialization while allowing distinct sessions", async () => {
+    const fetch = createHttpsFetch(environment.ca, [])
+    const first = await createRemoteCodingAgentHostComposition({
       messageUrl: environment.messageUrl,
-      getBearerToken: () => "assistant-bearer",
-      fetch: createHttpsFetch(environment.ca, requests),
-      clientId: "assistant-drain-client",
-      createRequestId: requestIds("drain")
+      getBearerToken: () => "coding-bearer",
+      fetch,
+      clientId: "coding-concurrency-first",
+      createRequestId: requestIds("coding-concurrency-first")
+    })
+    const second = await createRemoteCodingAgentHostComposition({
+      messageUrl: environment.messageUrl,
+      getBearerToken: () => "coding-bearer",
+      fetch,
+      clientId: "coding-concurrency-second",
+      createRequestId: requestIds("coding-concurrency-second")
+    })
+
+    try {
+      const [firstTurn, secondTurn] = await Promise.all([
+        first.client.startTurn({
+          projectId: "coding-project-1",
+          content: [{ type: "text", text: "first remote session" }],
+          idempotencyKey: "coding-concurrency-session-first"
+        }),
+        second.client.startTurn({
+          projectId: "coding-project-1",
+          content: [{ type: "text", text: "second remote session" }],
+          idempotencyKey: "coding-concurrency-session-second"
+        })
+      ])
+      expect(firstTurn.sessionId).not.toBe(secondTurn.sessionId)
+      expect(environment.coding.maxConcurrentSessions).toBeGreaterThanOrEqual(2)
+
+      await expect(
+        second.client.startTurn({
+          projectId: "coding-project-1",
+          sessionId: firstTurn.sessionId,
+          content: [{ type: "text", text: "first remote session" }],
+          idempotencyKey: "coding-concurrency-session-first"
+        })
+      ).resolves.toEqual(firstTurn)
+      expect(environment.coding.startCalls).toHaveLength(3)
+
+      const queued = await second.client.startTurn({
+        projectId: "coding-project-1",
+        sessionId: firstTurn.sessionId,
+        content: [{ type: "text", text: "same session follow-up" }],
+        idempotencyKey: "coding-concurrency-same-session"
+      })
+      expect(queued.sessionId).toBe(firstTurn.sessionId)
+      expect(queued.state).toBe("queued")
+      expect(environment.coding.maxConcurrentSessions).toBeGreaterThanOrEqual(2)
+      expect(environment.coding.activeSessionCount).toBe(2)
+
+      const cancelFirst = {
+        projectId: "coding-project-1",
+        turnId: firstTurn.turnId,
+        reason: "release shared Session",
+        idempotencyKey: "coding-concurrency-cancel-first"
+      }
+      const cancelCallsBefore = environment.coding.cancelCalls.length
+      await expect(second.client.cancelTurn(cancelFirst)).resolves.toMatchObject({
+        state: "cancelled",
+        result: "cancelled"
+      })
+      await expect(first.client.cancelTurn(cancelFirst)).resolves.toMatchObject({
+        state: "cancelled",
+        result: "cancelled"
+      })
+      expect(environment.coding.cancelCalls).toHaveLength(cancelCallsBefore + 1)
+    } finally {
+      await first.close()
+      await second.close()
+    }
+  })
+
+  it("drains a remote Coding observer without taking ownership of server execution", async () => {
+    const drainEnvironment = await createEnvironment()
+    const composition = await createRemoteCodingAgentHostComposition({
+      messageUrl: drainEnvironment.messageUrl,
+      getBearerToken: () => "coding-bearer",
+      fetch: createHttpsFetch(drainEnvironment.ca, []),
+      clientId: "coding-drain-client",
+      createRequestId: requestIds("coding-drain")
     })
 
     try {
@@ -324,14 +400,41 @@ describe("Remote Agent Host TLS domain conformance", () => {
         reconnectMaxDelayMs: 10
       })
       await stream.ready
-      await environment.handler.drain(1_000)
+      const started = await composition.client.startTurn({
+        projectId: "coding-project-1",
+        sessionId: "coding-drain-session",
+        content: [{ type: "text", text: "bounded remote coding work" }],
+        idempotencyKey: "coding-drain-turn"
+      })
+      expect(drainEnvironment.coding.activeEndpointCount).toBe(1)
+      await drainEnvironment.handler.drain(1_000)
       stream.close()
       await stream.closed
-      await expect(composition.client.readStatus()).rejects.toMatchObject({
-        code: "transport_failure"
+      expect(drainEnvironment.coding.activeEndpointCount).toBe(0)
+      expect(drainEnvironment.coding.activeSessionCount).toBe(1)
+      expect(drainEnvironment.handler.getStatus()).toMatchObject({
+        state: "closed",
+        activeSessions: 0,
+        activeEventStreams: 0,
+        inFlightRequests: 0
       })
+      await expect(
+        composition.client.readTurn({
+          projectId: "coding-project-1",
+          turnId: started.turnId
+        })
+      ).rejects.toMatchObject({ code: "transport_failure" })
+      await expect(
+        composition.client.startTurn({
+          projectId: "coding-project-1",
+          sessionId: started.sessionId,
+          content: [{ type: "text", text: "must be rejected after drain" }],
+          idempotencyKey: "coding-drain-after-close"
+        })
+      ).rejects.toMatchObject({ code: "transport_failure" })
     } finally {
       await composition.close()
+      await drainEnvironment.close()
     }
   })
 })
@@ -546,12 +649,117 @@ function createCodingFixture(projectId = "coding-project-1") {
   const startCalls = []
   const cancelCalls = []
   const turns = new Map()
-  let currentTurn
+  const turnsById = new Map()
+  const activeSessions = new Set()
+  const endpoints = new Set()
+  let turnSequence = 0
+  let maxConcurrentSessions = 0
   let gap = false
+  const application = {
+    state: "open",
+    listProjects: async () => [codingProject(projectId)],
+    readTurn: async (request) => {
+      if (request.projectId !== projectId) {
+        throw new CodingApplicationError(
+          "project_unavailable",
+          "coding project is unavailable"
+        )
+      }
+      const found = turnsById.get(request.turnId)
+      if (found === undefined) {
+        throw new CodingApplicationError(
+          "turn_unavailable",
+          "coding Turn is unavailable"
+        )
+      }
+      return found
+    },
+    startTurn: async (request) => {
+      if (request.projectId !== projectId) {
+        throw new CodingApplicationError(
+          "project_unavailable",
+          "coding project is unavailable"
+        )
+      }
+      const existing = turns.get(request.idempotencyKey)
+      if (existing !== undefined) return existing
+      const sessionId =
+        request.sessionId ?? `coding-session-${request.idempotencyKey}`
+      const isQueued = activeSessions.has(sessionId)
+      const result = codingTurn(projectId, {
+        sessionId,
+        turnId: `coding-turn-${++turnSequence}`,
+        state: isQueued ? "queued" : "starting"
+      })
+      turns.set(request.idempotencyKey, result)
+      turnsById.set(result.turnId, result)
+      if (!isQueued) {
+        activeSessions.add(sessionId)
+        maxConcurrentSessions = Math.max(
+          maxConcurrentSessions,
+          activeSessions.size
+        )
+      }
+      startCalls.push(request)
+      return result
+    },
+    cancelTurn: async (request) => {
+      if (request.projectId !== projectId) {
+        throw new CodingApplicationError(
+          "project_unavailable",
+          "coding project is unavailable"
+        )
+      }
+      const current = turnsById.get(request.turnId)
+      if (current === undefined) {
+        throw new CodingApplicationError(
+          "turn_unavailable",
+          "coding Turn is unavailable"
+        )
+      }
+      if (current.state === "cancelled") return current
+      const result = {
+        ...current,
+        state: "cancelled",
+        result: "cancelled",
+        canCancel: false
+      }
+      turnsById.set(result.turnId, result)
+      if (current.state !== "queued") activeSessions.delete(result.sessionId)
+      cancelCalls.push(request)
+      return result
+    },
+    readEvents: async (request = {}) => {
+      const events = retained.filter(
+        (event) => event.sequence > (request.afterSequence ?? 0)
+      )
+      return {
+        streamId: "coding_tls_stream",
+        events: gap ? [] : events,
+        firstRetainedSequence: retained[0]?.sequence ?? 1,
+        lastSequence: retained.at(-1)?.sequence ?? 0,
+        gap,
+        hasMore: false
+      }
+    },
+    subscribe: (listener) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    }
+  }
   return {
     domain: "coding",
     startCalls,
     cancelCalls,
+    get maxConcurrentSessions() {
+      return maxConcurrentSessions
+    },
+    get activeSessionCount() {
+      return activeSessions.size
+    },
+    get activeEndpointCount() {
+      return endpoints.size
+    },
     get gap() {
       return gap
     },
@@ -564,75 +772,7 @@ function createCodingFixture(projectId = "coding-project-1") {
       for (const listener of listeners) listener(value)
     },
     createEndpoint(accessToken) {
-      const application = {
-        state: "open",
-        listProjects: async () => [codingProject(projectId)],
-        readTurn: async (request) => {
-          if (
-            request.projectId !== projectId ||
-            currentTurn?.turnId !== request.turnId
-          ) {
-            throw new CodingApplicationError(
-              "turn_unavailable",
-              "coding Turn is unavailable"
-            )
-          }
-          return currentTurn
-        },
-        startTurn: async (request) => {
-          if (request.projectId !== projectId) {
-            throw new CodingApplicationError(
-              "project_unavailable",
-              "coding project is unavailable"
-            )
-          }
-          const existing = turns.get(request.idempotencyKey)
-          if (existing !== undefined) return existing
-          const result = codingTurn(projectId)
-          turns.set(request.idempotencyKey, result)
-          currentTurn = result
-          startCalls.push(request)
-          return result
-        },
-        cancelTurn: async (request) => {
-          if (
-            request.projectId !== projectId ||
-            currentTurn?.turnId !== request.turnId
-          ) {
-            throw new CodingApplicationError(
-              "turn_unavailable",
-              "coding Turn is unavailable"
-            )
-          }
-          if (currentTurn.state === "cancelled") return currentTurn
-          const result = codingTurn(projectId, {
-            state: "cancelled",
-            result: "cancelled",
-            canCancel: false
-          })
-          currentTurn = result
-          cancelCalls.push(request)
-          return result
-        },
-        readEvents: async (request = {}) => {
-          const events = retained.filter(
-            (event) => event.sequence > (request.afterSequence ?? 0)
-          )
-          return {
-            streamId: "coding_tls_stream",
-            events: gap ? [] : events,
-            firstRetainedSequence: retained[0]?.sequence ?? 1,
-            lastSequence: retained.at(-1)?.sequence ?? 0,
-            gap,
-            hasMore: false
-          }
-        },
-        subscribe: (listener) => {
-          listeners.add(listener)
-          return () => listeners.delete(listener)
-        }
-      }
-      return createCodingAgentHostEndpoint({
+      const endpoint = createCodingAgentHostEndpoint({
         application,
         host: {
           hostId: "coding-tls-host",
@@ -642,6 +782,18 @@ function createCodingFixture(projectId = "coding-project-1") {
         },
         accessToken
       })
+      endpoints.add(endpoint)
+      let closed = false
+      return {
+        send: endpoint.send,
+        subscribe: endpoint.subscribe,
+        close: () => {
+          if (closed) return
+          closed = true
+          endpoints.delete(endpoint)
+          endpoint.close()
+        }
+      }
     }
   }
 }
@@ -682,10 +834,7 @@ function codingProject(projectId = "coding-project-1") {
   }
 }
 
-function codingTurn(
-  projectId = "coding-project-1",
-  overrides = {}
-) {
+function codingTurn(projectId = "coding-project-1", overrides = {}) {
   return {
     projectId,
     sessionId: "coding-session-1",

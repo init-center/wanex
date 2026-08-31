@@ -120,18 +120,27 @@ store/path/execution-environment selector, token in a URL, or automatic retry
 of a command without durable idempotency. Do not implement Route 5F until its
 security and authorization contracts are reviewed and tested.
 
-Route 5F-1A Remote Host Authorization Policy is complete. Runtime now owns
-only the transport-neutral server-subject/grant admission decision, per-
-request domain recheck, and bounded remote request-limit normalization. It
-does not parse bearer tokens, select Hosts/stores, authorize project IDs, or
-enforce HTTP bodies. Evidence is recorded in:
+Route 5F-1A Remote Host Authorization Policy is complete. Runtime owns the
+transport-neutral server-subject/grant admission decision, per-request domain
+recheck, and bounded remote request-limit normalization. It does not parse
+bearer tokens, select Hosts/stores, authorize project IDs, or enforce HTTP
+bodies. Evidence is recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1500-route-5f-1a-remote-host-authorization-policy-completion.md`
 
-The next slice is Route 5F-2, the framework-neutral remote Host handler. Keep
-Storage Control Plane separate, reject client-selected store/path/environment
-input, and do not add a public listener before the handler/session contract is
-tested.
+Route 5F-2 Framework-Neutral Remote Host Session Handler is complete. Runtime
+now owns the request/response handler, server-owned Host resolution seam,
+opaque in-memory session binding, per-request bearer/grant/domain checks,
+bounded body/session/concurrency enforcement, lazy expiry cleanup, and exact
+endpoint lifecycle. It does not provide a public listener, SSE, durable
+command storage, project authorization, or resource delivery. Evidence is
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1502-route-5f-2-remote-host-session-handler-completion.md`
+
+The next slice is Route 5F-3 HTTPS client transport and authenticated SSE
+event stream. Keep Storage Control Plane separate, reject client-selected
+store/path/environment input, and do not add automatic command retries.
 
 Preserve the existing Agent Host frames and typed Coding binding. Do not force
 trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,

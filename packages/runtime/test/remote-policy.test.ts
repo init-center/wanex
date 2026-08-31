@@ -139,6 +139,7 @@ describe("remote Host request limits", () => {
     expect(normalizeRemoteHostRequestLimits()).toEqual({
       maxBodyBytes: 4 * 1024 * 1024,
       maxResponseBytes: 4 * 1024 * 1024,
+      maxSessions: 128,
       maxInFlightRequests: 32,
       maxEventSubscribers: 1,
       requestTimeoutMs: 30_000
@@ -150,6 +151,7 @@ describe("remote Host request limits", () => {
       normalizeRemoteHostRequestLimits({
         maxBodyBytes: 1024,
         maxResponseBytes: 2048,
+        maxSessions: 4,
         maxInFlightRequests: 8,
         maxEventSubscribers: 2,
         requestTimeoutMs: 5_000
@@ -157,6 +159,7 @@ describe("remote Host request limits", () => {
     ).toEqual({
       maxBodyBytes: 1024,
       maxResponseBytes: 2048,
+      maxSessions: 4,
       maxInFlightRequests: 8,
       maxEventSubscribers: 2,
       requestTimeoutMs: 5_000

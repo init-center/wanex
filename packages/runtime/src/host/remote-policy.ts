@@ -7,12 +7,14 @@ import { AGENT_HOST_MAX_ID_LENGTH } from "@wanex/protocol"
 export const DEFAULT_REMOTE_HOST_REQUEST_LIMITS = {
   maxBodyBytes: 4 * 1024 * 1024,
   maxResponseBytes: 4 * 1024 * 1024,
+  maxSessions: 128,
   maxInFlightRequests: 32,
   maxEventSubscribers: 1,
   requestTimeoutMs: 30_000
 } as const
 
 const MAX_REMOTE_HOST_BODY_BYTES = 16 * 1024 * 1024
+const MAX_REMOTE_HOST_SESSIONS = 1_024
 const MAX_REMOTE_HOST_IN_FLIGHT_REQUESTS = 256
 const MAX_REMOTE_HOST_EVENT_SUBSCRIBERS = 16
 const MAX_REMOTE_HOST_REQUEST_TIMEOUT_MS = 120_000
@@ -79,6 +81,7 @@ export function authorizeRemoteHostDomain(
 export interface RemoteHostRequestLimits {
   readonly maxBodyBytes: number
   readonly maxResponseBytes: number
+  readonly maxSessions: number
   readonly maxInFlightRequests: number
   readonly maxEventSubscribers: number
   readonly requestTimeoutMs: number
@@ -155,6 +158,12 @@ export function normalizeRemoteHostRequestLimits(
       DEFAULT_REMOTE_HOST_REQUEST_LIMITS.maxResponseBytes,
       1,
       MAX_REMOTE_HOST_BODY_BYTES
+    ),
+    maxSessions: boundedInteger(
+      limits.maxSessions,
+      DEFAULT_REMOTE_HOST_REQUEST_LIMITS.maxSessions,
+      1,
+      MAX_REMOTE_HOST_SESSIONS
     ),
     maxInFlightRequests: boundedInteger(
       limits.maxInFlightRequests,

@@ -275,6 +275,7 @@ function attachServerConnection(
         try {
           value = JSON.parse(frame.toString("utf8"))
         } catch {
+          socket.pause()
           void sendMessage({
             kind: "wanex.agent-host.error",
             error: {
@@ -282,8 +283,8 @@ function attachServerConnection(
               message: "Agent Host frame is not valid JSON",
               retryable: false
             }
-          })
-          continue
+          }).finally(() => socket.destroy())
+          return
         }
         void endpoint.send(value).then(sendMessage).catch(() => {
           void sendMessage({
@@ -297,6 +298,7 @@ function attachServerConnection(
         })
       }
     } catch {
+      socket.pause()
       void sendMessage({
         kind: "wanex.agent-host.error",
         error: {
@@ -363,18 +365,14 @@ async function writeFrame(socket: Socket, frame: Buffer): Promise<void> {
 }
 
 class FrameDecoder {
-  #buffer = Buffer.alloc(0)
+  #buffer: Buffer<ArrayBufferLike> = Buffer.alloc(0)
 
   constructor(private readonly maxFrameBytes: number) {}
 
   push(chunk: Buffer): Buffer[] {
-    if (chunk.byteLength > this.maxFrameBytes + 4) {
-      throw new Error("Agent Host IPC frame exceeds its limit")
-    }
-    this.#buffer = Buffer.concat([this.#buffer, chunk])
-    if (this.#buffer.byteLength > this.maxFrameBytes + 4) {
-      throw new Error("Agent Host IPC frame exceeds its limit")
-    }
+    this.#buffer = this.#buffer.byteLength === 0
+      ? chunk
+      : Buffer.concat([this.#buffer, chunk])
     const frames: Buffer[] = []
     while (this.#buffer.byteLength >= 4) {
       const size = this.#buffer.readUInt32BE(0)

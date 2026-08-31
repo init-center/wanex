@@ -88,11 +88,29 @@ in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1497-route-5e-4-cross-platform-local-host-transport-progress.md`
 
-Do not claim this route complete from a Mac-only run. Preserve the existing
-Agent Host frames and typed Coding binding. Do not force trusted Desktop/TUI
-consumers through Host merely for symmetry. Remote TLS, control-plane
-authentication, a Gateway, compatibility aliases, and a new package remain
-outside this route.
+Route 5E-4 Cross-Platform Local Host Transport is now complete. The existing
+Runtime Host transport uses Unix domain sockets on Unix-like systems and
+Windows named pipes on Windows with the same bounded framing, Host protocol,
+handshake, event/replay, explicit reconnect, and pending-request lifecycle.
+Runtime conformance is 4/4 and Coding conformance is 6/6 on both macOS and an
+actual `windows-2025` runner. The implementation also fixes per-frame
+decoding for coalesced reads and closes malformed/resource-limit connections
+fail-closed. Full evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1498-route-5e-4-cross-platform-local-host-transport-completion.md`
+
+The progress record at `1497` is historical and superseded. Do not claim
+Windows support from skipped tests. Do not add a remote listener, client-
+selected store/path, Gateway, compatibility alias, or trusted Desktop/TUI
+transport migration in this route. The next work requires a fresh Route 5F
+Remote Host Security And Transport Plan covering TLS/server identity,
+authentication, authorization, replay/canonical-read recovery, resource
+grants, quotas, and server-derived store resolution.
+
+Preserve the existing Agent Host frames and typed Coding binding. Do not force
+trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,
+control-plane authentication, a Gateway, compatibility aliases, and a new
+package remain outside the completed route.
 
 The route records below are historical evidence and do not override the
 authoritative current route above.

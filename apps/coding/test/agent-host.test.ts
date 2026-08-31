@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -22,58 +23,6 @@ import {
   createCodingAgentHostComposition,
   createCodingAgentHostEndpoint,
 } from "../src/host/agent-host/index.js";
-
-const windowsOnly = describe.skipIf(process.platform !== "win32");
-const unixOnly = describe.skipIf(process.platform === "win32");
-
-windowsOnly("Coding Agent Host over Windows named pipes", () => {
-  it("keeps typed durable start admission across a pipe reconnect", async () => {
-    const pipeName = `\\\\.\\pipe\\wanex-coding-host-${process.pid}-${Date.now()}`;
-    const calls: Record<string, unknown>[] = [];
-    const application = fakeApplication(calls);
-    const server = await listenLocalAgentHostIpc({
-      socketPath: pipeName,
-      createEndpoint: () =>
-        createCodingAgentHostEndpoint({
-          application,
-          host: {
-            hostId: "coding_windows_pipe_host",
-            instanceId: "coding_windows_pipe_instance",
-            connectionKind: "local_ipc",
-            executionLocation: "local",
-          },
-          accessToken: "coding_windows_pipe_token",
-        }),
-    });
-    const transport = createLocalAgentHostIpcClientTransport({
-      socketPath: pipeName,
-    });
-    const client = createCodingAgentHostClient(transport, {
-      clientId: "coding_windows_pipe_client",
-      accessToken: "coding_windows_pipe_token",
-      createRequestId: requestIds("windows-pipe"),
-    });
-
-    try {
-      await client.connect();
-      const request = {
-        projectId: "project_1",
-        idempotencyKey: "windows-pipe-start-once",
-        content: [{ type: "text" as const, text: "start over Windows pipe" }],
-      };
-      const started = await client.startTurn(request);
-      await expect(client.startTurn(request)).resolves.toMatchObject({
-        turnId: started.turnId,
-        sessionId: started.sessionId,
-      });
-      expect(calls).toHaveLength(1);
-    } finally {
-      client.close();
-      await transport.close();
-      await server.close();
-    }
-  });
-});
 
 describe("Coding Agent Host binding", () => {
   it("uses canonical coding reads and maps the envelope key to control requestId", async () => {
@@ -325,10 +274,9 @@ describe("Coding Agent Host binding", () => {
     ]);
   });
 
-  unixOnly("Coding Agent Host over Unix sockets", () => {
-    it("keeps typed durable start semantics across Unix IPC reconnect", async () => {
-      const directory = await mkdtemp(join(tmpdir(), "wanex-coding-host-ipc-"));
-      const socketPath = join(directory, "host.sock");
+  describe("Coding Agent Host over local IPC", () => {
+    it("keeps typed durable start semantics across a real reconnect", async () => {
+      const socketPath = await createLocalIpcAddress();
       const calls: Record<string, unknown>[] = [];
       const application = fakeApplication(calls);
       const server = await listenLocalAgentHostIpc({
@@ -337,26 +285,26 @@ describe("Coding Agent Host binding", () => {
           createCodingAgentHostEndpoint({
             application,
             host: {
-              hostId: "coding_ipc_host",
-              instanceId: "coding_ipc_instance",
+              hostId: "coding_local_ipc_host",
+              instanceId: "coding_local_ipc_instance",
               connectionKind: "local_ipc",
               executionLocation: "local",
             },
-            accessToken: "coding_ipc_token",
+            accessToken: "coding_local_ipc_token",
           }),
       });
       const firstTransport = createLocalAgentHostIpcClientTransport({ socketPath });
       const firstClient = createCodingAgentHostClient(firstTransport, {
         clientId: "coding_ipc_client_first",
-        accessToken: "coding_ipc_token",
-        createRequestId: requestIds("ipc-first"),
+        accessToken: "coding_local_ipc_token",
+        createRequestId: requestIds("local-ipc-first"),
       });
 
       try {
         const request = {
           projectId: "project_1",
-          idempotencyKey: "ipc-start-once",
-          content: [{ type: "text" as const, text: "start over IPC" }],
+          idempotencyKey: "local-ipc-start-once",
+          content: [{ type: "text" as const, text: "start over local IPC" }],
         };
         await firstClient.connect();
         const started = await firstClient.startTurn(request);
@@ -380,8 +328,8 @@ describe("Coding Agent Host binding", () => {
         const secondTransport = createLocalAgentHostIpcClientTransport({ socketPath });
         const secondClient = createCodingAgentHostClient(secondTransport, {
           clientId: "coding_ipc_client_second",
-          accessToken: "coding_ipc_token",
-          createRequestId: requestIds("ipc-second"),
+          accessToken: "coding_local_ipc_token",
+          createRequestId: requestIds("local-ipc-second"),
         });
         try {
           await secondClient.connect();
@@ -392,7 +340,7 @@ describe("Coding Agent Host binding", () => {
           await expect(
             secondClient.startTurn({
               ...request,
-              content: [{ type: "text", text: "conflicting IPC retry" }],
+              content: [{ type: "text", text: "conflicting local IPC retry" }],
             }),
           ).rejects.toMatchObject({ code: "application_failure" });
           expect(calls).toHaveLength(1);
@@ -421,6 +369,14 @@ function createClient(endpoint: { send: (value: unknown) => Promise<unknown>; su
 function requestIds(prefix: string): () => string {
   let sequence = 0;
   return () => `${prefix}_request_${++sequence}`;
+}
+
+async function createLocalIpcAddress(): Promise<string> {
+  if (process.platform === "win32") {
+    return `\\\\.\\pipe\\wanex-coding-${randomUUID()}`;
+  }
+  const directory = await mkdtemp(join(tmpdir(), "wanex-coding-host-ipc-"));
+  return join(directory, "host.sock");
 }
 
 function fakeApplication(calls: Record<string, unknown>[]): CodingApplication {

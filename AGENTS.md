@@ -107,6 +107,19 @@ Remote Host Security And Transport Plan covering TLS/server identity,
 authentication, authorization, replay/canonical-read recovery, resource
 grants, quotas, and server-derived store resolution.
 
+Route 5F Remote Host Security And Transport is now frozen for planning; it is
+not implemented. Its plan is recorded at:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1499-route-5f-remote-host-security-and-transport-plan.md`
+
+The first candidate transport is HTTPS request/response plus an authenticated
+SSE event stream. Reuse the existing Host messages and domain bindings, keep
+Storage Control Plane separate, and derive Host/domain/project/session/resource
+scope from the authenticated server-side subject. Never accept a client
+store/path/execution-environment selector, token in a URL, or automatic retry
+of a command without durable idempotency. Do not implement Route 5F until its
+security and authorization contracts are reviewed and tested.
+
 Preserve the existing Agent Host frames and typed Coding binding. Do not force
 trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,
 control-plane authentication, a Gateway, compatibility aliases, and a new

@@ -26,3 +26,14 @@ export type {
   CodingAgentHostComposition,
   CodingAgentHostCompositionOptions,
 } from "./composition.js";
+export {
+  createRemoteCodingAgentHostComposition,
+  createRemoteCodingAgentHostHandler,
+  type RemoteCodingAgentHostComposition,
+  type RemoteCodingAgentHostCompositionOptions,
+  type RemoteCodingAgentHostHandlerOptions,
+  type RemoteCodingEventStream,
+  type RemoteCodingEventStreamOptions,
+  type RemoteCodingEventStreamState,
+  type RemoteCodingHostResolution,
+} from "./remote.js";

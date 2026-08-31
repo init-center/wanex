@@ -51,7 +51,7 @@ Route 5G-2 Remote Assistant Journey And Recovery is complete in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1513-route-5g-2-remote-assistant-journey-and-recovery-completion.md`
 
-The next route is Route 5G-3 Remote Coding Product Journey, frozen in:
+Route 5G-3 Remote Coding Product Journey is frozen in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1514-post-route-5g-2-architecture-review-and-route-5g-3-remote-coding-plan.md`
 
@@ -63,6 +63,17 @@ Resource/Media in parallel or add a Gateway, new transport, generic
 composition package, client-selected paths/environments, compatibility
 aliases, or force trusted Desktop/TUI consumers through Remote Host without a
 concrete consumer and deployment threat model.
+
+Route 5G-3A Remote Coding Consumer Contract is complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1515-route-5g-3a-remote-coding-consumer-contract-completion.md`
+
+The next step is Route 5G-3B: a real TLS Remote Coding journey. It must prove
+remote project admission, duplicate Turn convergence, SSE reconnect and
+canonical reads, approval/cancellation/recovery, and project/path privacy.
+Route 5G-3C will then review multi-client concurrency and shutdown. Do not
+mark the full Remote Coding route complete after 5G-3A; the real TLS journey,
+cross-subject isolation, and concurrency proof are still pending.
 
 The route records below are historical evidence and do not override the
 authoritative current route above.

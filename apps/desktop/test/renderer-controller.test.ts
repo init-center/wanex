@@ -96,6 +96,31 @@ describe("Desktop Coding Renderer controller", () => {
     controller.dispose();
   });
 
+  it("keeps the current project when switching projects is cancelled", async () => {
+    let selectCount = 0;
+    const current = project("current");
+    const controller = new CodingWorkbenchController(
+      fakeClient({
+        selectProject: async () => {
+          selectCount += 1;
+          return selectCount === 1
+            ? { kind: "selected", project: current }
+            : { kind: "cancelled" };
+        },
+        readProject: async () => current,
+      }),
+    );
+
+    await controller.openProject();
+    const beforeCancel = controller.state;
+    await controller.openProject();
+
+    expect(controller.state).toBe(beforeCancel);
+    expect(controller.state.project?.projectId).toBe(current.projectId);
+    expect(controller.state.status).toBe("ready");
+    controller.dispose();
+  });
+
   it("sends a digested verified result and refreshes after recovery resolution", async () => {
     const projectRead = project("recovery");
     const session = sessionReadModel(projectRead.projectId);

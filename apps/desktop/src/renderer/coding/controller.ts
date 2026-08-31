@@ -85,11 +85,12 @@ export class CodingWorkbenchController {
 
   async openProject(): Promise<void> {
     this.#assertOpen();
+    const previousState = this.#state;
     this.#setState({ status: "loading", sessions: [] });
     try {
       const selection = await this.#client.selectProject();
       if (selection.kind === "cancelled") {
-        this.#setState(EMPTY_STATE);
+        this.#setState(previousState);
         return;
       }
       this.#setState({

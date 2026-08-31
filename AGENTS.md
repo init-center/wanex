@@ -138,9 +138,22 @@ recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1502-route-5f-2-remote-host-session-handler-completion.md`
 
-The next slice is Route 5F-3 HTTPS client transport and authenticated SSE
-event stream. Keep Storage Control Plane separate, reject client-selected
-store/path/environment input, and do not add automatic command retries.
+Route 5F-3 is split into a request/response client slice and an independently
+recoverable authenticated SSE event slice. Keep Storage Control Plane
+separate, reject client-selected store/path/environment input, and do not add
+automatic command retries.
+
+Route 5F-3A HTTPS Client Transport is complete. Runtime now owns the bounded
+request/response client over the existing Agent Host protocol, fresh bearer
+header acquisition, opaque session-header capture, deadline/abort lifecycle,
+and no-retry semantics. It does not provide live events, SSE, replay recovery,
+or a public listener. Evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1504-route-5f-3a-remote-host-http-client-completion.md`
+
+The next slice is Route 5F-3B authenticated SSE event transport. Freeze its
+cursor, reconnect, replay-before-live, gap, and canonical-read contract before
+implementation. Do not simulate live events with polling.
 
 Preserve the existing Agent Host frames and typed Coding binding. Do not force
 trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,

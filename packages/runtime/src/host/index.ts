@@ -4,6 +4,7 @@ export * from "./agent-host.js"
 export * from "./local-ipc.js"
 export * from "./remote-policy.js"
 export * from "./remote-http.js"
+export * from "./remote-client.js"
 export { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
 export type {
   AgentRunOnceResult,

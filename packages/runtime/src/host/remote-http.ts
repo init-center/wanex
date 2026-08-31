@@ -170,7 +170,7 @@ export function createRemoteAgentHostHttpHandler(
         requestId(message)
       )
     }
-    if (!isOpaqueToken(sessionId)) {
+    if (!isRemoteHostOpaqueToken(sessionId)) {
       return errorResponse(
         401,
         "unauthenticated",
@@ -330,7 +330,7 @@ export function createRemoteAgentHostHttpHandler(
       }
 
       const endpointSecret = createEndpointAccessToken()
-      if (!isOpaqueToken(endpointSecret)) {
+      if (!isRemoteHostOpaqueToken(endpointSecret)) {
         return errorResponse(
           500,
           "application_failure",
@@ -379,7 +379,7 @@ export function createRemoteAgentHostHttpHandler(
         )
       }
       const sessionId = createSessionId()
-      if (!isOpaqueToken(sessionId) || sessions.has(sessionId)) {
+      if (!isRemoteHostOpaqueToken(sessionId) || sessions.has(sessionId)) {
         closeEndpointInstance(endpoint)
         return errorResponse(
           500,
@@ -444,7 +444,7 @@ export function createRemoteAgentHostHttpHandler(
   }
 
   async function closeSessionForHeader(sessionId: string | undefined): Promise<void> {
-    if (sessionId === undefined || !isOpaqueToken(sessionId)) return
+    if (sessionId === undefined || !isRemoteHostOpaqueToken(sessionId)) return
     const session = sessions.get(sessionId)
     if (session !== undefined) await closeSession(session)
   }
@@ -561,7 +561,7 @@ function jsonSize(value: unknown): number {
   }
 }
 
-function isOpaqueToken(value: string): boolean {
+export function isRemoteHostOpaqueToken(value: string): boolean {
   return (
     value.length > 0 &&
     value.length <= 200 &&

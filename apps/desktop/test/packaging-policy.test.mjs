@@ -147,6 +147,7 @@ describe("Desktop packaging policy", () => {
       "@wanex/coding": "workspace:*",
       "@wanex/local-credential-store": "workspace:*",
       "@wanex/plugin": "workspace:*",
+      "@wanex/protocol": "workspace:*",
       "@wanex/runtime": "workspace:*",
       "@wanex/workspace": "workspace:*",
       "lucide-react": "1.28.0",

@@ -23,6 +23,7 @@
     "@wanex/local-credential-store": "workspace:*",
     "@wanex/assistant-host": "workspace:*",
     "@wanex/assistant-ui": "workspace:*",
+    "@wanex/protocol": "workspace:*",
     "@wanex/plugin": "workspace:*",
     "@wanex/assistant-plugin-host": "workspace:*",
     "@wanex/coding": "workspace:*",

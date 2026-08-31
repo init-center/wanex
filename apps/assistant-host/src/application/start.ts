@@ -7,6 +7,7 @@ import {
   type WebNodeHostServer,
 } from "../web-host/index.js"
 import type {
+  LocalConfigurationPort,
   LocalSettingsCommands,
   AssistantHostSnapshot,
   AssistantWebApp,
@@ -100,6 +101,7 @@ function createAssistantWebAppHandle(request: {
     capabilitySetup: request.capabilitySetup,
     settings: createLocalSettingsCommands(request.assistant.shell),
     secretResolver: request.assistant.secrets.secretResolver,
+    configuration: createLocalConfigurationPort(request.assistant.runtime.storage),
     attachments: request.assistant.attachments,
     resourceDeliveries: request.assistant.resourceDeliveries,
     controller: request.controller,
@@ -131,6 +133,19 @@ function createAssistantWebAppHandle(request: {
       })
       return await closePromise
     },
+  }
+}
+
+function createLocalConfigurationPort(
+  storage: StartedAssistantHost["runtime"]["storage"],
+): LocalConfigurationPort {
+  return {
+    getConfig: async (key) => await storage.getConfig(key),
+    getConfigEntry: async (key) => await storage.getConfigEntry(key),
+    listConfigEntries: async (request) =>
+      await storage.listConfigEntries(request),
+    compareAndApplyConfigMutations: async (request) =>
+      await storage.compareAndApplyConfigMutations(request),
   }
 }
 

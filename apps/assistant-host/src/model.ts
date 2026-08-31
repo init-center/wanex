@@ -19,6 +19,7 @@ import type {
   StateSnapshot,
   UpdatePreferencesRequest,
 } from "@wanex/assistant";
+import type { JsonValue } from "@wanex/protocol";
 import type {
   ModelEndpoint,
   ModelFeature,
@@ -95,6 +96,66 @@ export interface StartAssistantWebAppOptions {
   readonly web?: AssistantWebHostOptions;
 }
 
+/**
+ * Trusted host configuration access for product-owned metadata. It does not
+ * expose the underlying Storage client or any filesystem location.
+ */
+export interface LocalConfigurationPort {
+  getConfig(key: string): Promise<JsonValue | null>;
+  getConfigEntry(key: string): Promise<LocalConfigurationEntry | null>;
+  listConfigEntries(
+    request: LocalConfigurationListRequest,
+  ): Promise<LocalConfigurationEntry[]>;
+  compareAndApplyConfigMutations(request: {
+    readonly conditions: readonly LocalConfigurationCondition[];
+    readonly puts: readonly LocalConfigurationPut[];
+    readonly deletes: readonly string[];
+  }): Promise<LocalConfigurationMutationResult>;
+}
+
+export interface LocalConfigurationEntry {
+  readonly key: string;
+  readonly value: JsonValue;
+  readonly revision: number;
+  readonly updatedAt: number;
+}
+
+export interface LocalConfigurationListRequest {
+  readonly prefix: string;
+  readonly afterKey?: string;
+  readonly limit?: number;
+}
+
+export interface LocalConfigurationCondition {
+  readonly key: string;
+  readonly expectedRevision: number | null;
+}
+
+export interface LocalConfigurationPut {
+  readonly key: string;
+  readonly value: JsonValue;
+}
+
+export type LocalConfigurationMutationResult =
+  | LocalConfigurationAppliedResult
+  | LocalConfigurationConflictResult;
+
+export interface LocalConfigurationAppliedResult {
+  readonly kind: "applied";
+  readonly entries: readonly LocalConfigurationEntry[];
+}
+
+export interface LocalConfigurationConflictResult {
+  readonly kind: "conflict";
+  readonly conflicts: readonly LocalConfigurationConflict[];
+}
+
+export interface LocalConfigurationConflict {
+  readonly key: string;
+  readonly expectedRevision: number | null;
+  readonly current: LocalConfigurationEntry | null;
+}
+
 export interface StartAssistantHostOptions {
   readonly storage: LocalStorageConfig;
   readonly serviceBin?: string;
@@ -132,6 +193,7 @@ export interface AssistantWebApp {
   readonly settings: LocalSettingsCommands;
   /** Trusted-host resolver for other local application domains. */
   readonly secretResolver: SecretResolverPort;
+  readonly configuration: LocalConfigurationPort;
   readonly attachments: LocalAttachmentUploadPort;
   readonly resourceDeliveries: LocalResourceDeliveryPort;
   readonly controller: Controller;

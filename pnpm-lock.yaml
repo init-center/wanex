@@ -180,6 +180,9 @@ importers:
       '@wanex/plugin':
         specifier: workspace:*
         version: link:../../packages/plugin
+      '@wanex/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@wanex/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime

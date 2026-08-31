@@ -47,14 +47,22 @@ Route 5G-1 Remote Assistant Consumer Contract is complete in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1512-route-5g-1-remote-assistant-consumer-contract-completion.md`
 
-The next route is Route 5G-2 Remote Assistant Journey And Recovery. It must
-prove one real TLS-listener product journey over HTTP/SSE: canonical reads,
-idempotent conversation admission, event replay/reconnect, gap recovery,
-drain, and server-derived store isolation. Use existing application/host
-boundaries first. Do not add a Gateway, new transport, generic composition
-package, remote resource bytes, compatibility aliases, or force trusted
-Desktop/TUI consumers through Remote Host. Remote Coding and remote
-Resource/Media are separate reviews after the Assistant journey is accepted.
+Route 5G-2 Remote Assistant Journey And Recovery is complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1513-route-5g-2-remote-assistant-journey-and-recovery-completion.md`
+
+The next route is Route 5G-3 Remote Coding Product Journey, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1514-post-route-5g-2-architecture-review-and-route-5g-3-remote-coding-plan.md`
+
+It must prove server-owned project/filesystem authority, typed remote Coding
+operations, duplicate Turn admission, cancellation/approval/recovery,
+HTTP/SSE reconnect and canonical reads, multi-session concurrency, and drain.
+Use existing application/host boundaries first. Do not implement remote
+Resource/Media in parallel or add a Gateway, new transport, generic
+composition package, client-selected paths/environments, compatibility
+aliases, or force trusted Desktop/TUI consumers through Remote Host without a
+concrete consumer and deployment threat model.
 
 The route records below are historical evidence and do not override the
 authoritative current route above.

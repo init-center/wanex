@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import {
   createAssistantAgentHostClient,
   createAssistantAgentHostEndpoint,
-  ASSISTANT_AGENT_HOST_OPERATIONS
+  createRemoteAssistantAgentHostComposition
 } from "../apps/assistant-host/src/agent-host/index.js"
 import {
   createCodingAgentHostClient,
@@ -41,17 +41,15 @@ describe("Remote Agent Host TLS domain conformance", () => {
   it("drives the typed Assistant client through TLS, SSE cursor recovery, and canonical read", async () => {
     const requests = []
     const fetch = createHttpsFetch(environment.ca, requests)
-    const transport = createRemoteAgentHostHttpClientTransport({
+    const composition = await createRemoteAssistantAgentHostComposition({
       messageUrl: environment.messageUrl,
       getBearerToken: () => "assistant-bearer",
       fetch,
-      limits: { requestTimeoutMs: 2_000 }
-    })
-    const client = createAssistantAgentHostClient(transport, {
+      limits: { requestTimeoutMs: 2_000 },
       clientId: "assistant-tls-client",
-      accessToken: "assistant-handshake",
       createRequestId: requestIds("assistant")
     })
+    const client = composition.client
     const received = []
     const canonicalReads = []
     const canonicalRead = deferred()
@@ -75,14 +73,11 @@ describe("Remote Agent Host TLS domain conformance", () => {
         })
       ).resolves.toEqual({ operationId: "assistant-operation-1" })
 
-      const stream = transport.connectEvents({
+      const stream = composition.startEvents({
         reconnectInitialDelayMs: 25,
         reconnectMaxDelayMs: 25,
-        onReset: (reset) => {
-          expect(reset).toMatchObject({
-            reason: "gap",
-            canonicalReadRequired: true
-          })
+        onCanonicalReadRequired: (reason) => {
+          expect(reason).toBe("gap")
           void client.readStatus().then((status) => {
             canonicalReads.push(status)
             canonicalRead.resolve()
@@ -124,8 +119,7 @@ describe("Remote Agent Host TLS domain conformance", () => {
       expect(canonicalReads).toHaveLength(1)
       expect(canonicalReads[0]).toMatchObject({ kind: "assistant.status" })
     } finally {
-      client.close()
-      await transport.close()
+      await composition.close()
     }
   })
 
@@ -239,6 +233,33 @@ describe("Remote Agent Host TLS domain conformance", () => {
       environment.revoked.delete("assistant-bearer")
     }
   })
+
+  it("stops accepting new remote Assistant work during a bounded drain", async () => {
+    const requests = []
+    const composition = await createRemoteAssistantAgentHostComposition({
+      messageUrl: environment.messageUrl,
+      getBearerToken: () => "assistant-bearer",
+      fetch: createHttpsFetch(environment.ca, requests),
+      clientId: "assistant-drain-client",
+      createRequestId: requestIds("drain")
+    })
+
+    try {
+      const stream = composition.startEvents({
+        reconnectInitialDelayMs: 10,
+        reconnectMaxDelayMs: 10
+      })
+      await stream.ready
+      await environment.handler.drain(1_000)
+      stream.close()
+      await stream.closed
+      await expect(composition.client.readStatus()).rejects.toMatchObject({
+        code: "transport_failure"
+      })
+    } finally {
+      await composition.close()
+    }
+  })
 })
 
 async function createEnvironment() {
@@ -330,6 +351,7 @@ async function createEnvironment() {
   return {
     ca: await readFile(certificate.certPath),
     messageUrl: `https://localhost:${address.port}${REMOTE_AGENT_HOST_MESSAGE_PATH}`,
+    handler,
     assistant,
     coding,
     revoked,

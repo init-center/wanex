@@ -24,3 +24,14 @@ export type {
   AssistantAgentHostComposition,
   AssistantAgentHostCompositionOptions,
 } from "./composition.js";
+export {
+  createRemoteAssistantAgentHostComposition,
+  createRemoteAssistantAgentHostHandler,
+  type RemoteAssistantAgentHostComposition,
+  type RemoteAssistantAgentHostCompositionOptions,
+  type RemoteAssistantAgentHostHandlerOptions,
+  type RemoteAssistantEventStream,
+  type RemoteAssistantEventStreamOptions,
+  type RemoteAssistantEventStreamState,
+  type RemoteAssistantHostResolution,
+} from "./remote.js";

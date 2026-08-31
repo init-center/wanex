@@ -24,144 +24,37 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (2026-08-29)
+## Authoritative Current Route (2026-08-31)
 
-Route 5D Domain Binding And Local Consumer is complete locally. Assistant and
-Coding own their Agent Host operation catalogs, payload validation, command
-mapping, and event projection. Runtime remains transport-neutral, and Desktop
-owns native execution-environment composition through injection. The evidence
-is recorded in:
+Route 5E local Host consumers, durable Coding admission/observation, and
+cross-platform local transport are complete. The evidence is recorded in:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1488-route-5d-domain-binding-and-local-consumer-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1498-route-5e-4-cross-platform-local-host-transport-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1495-route-5e-3d-coding-start-host-exposure-completion.md`
 
-The next route must be freshly reviewed and frozen before implementation. The
-highest-value candidate is a client-facing Host composition route: first a
-typed local consumer factory for Desktop/TUI, then Unix IPC against the same
-domain bindings. Remote authenticated control follows only after local
-reconnect, replay-gap recovery, capability authorization, and resource-grant
-semantics have executable evidence.
+Route 5F Remote Host security, request/response transport, authenticated SSE,
+TLS/domain conformance, and operational lifecycle are complete. Remote Host
+remains a connection boundary, not a Gateway, account service, store selector,
+or resource server. Its final evidence is recorded in:
 
-Route 5E-1 Typed Host Consumers And Local Composition is now complete locally.
-The typed Assistant/Coding consumer façades, explicit in-process lifecycle,
-strict Coding cancellation correction, and verification evidence are recorded
-in:
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1510-route-5f-5-remote-host-operations-completion.md`
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1490-route-5e-1-typed-host-consumers-and-local-composition-completion.md`
+The next route is **Route 5G: Remote Assistant Product Journey**, frozen in:
 
-The remaining Route 5E plan is frozen for implementation in:
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1511-post-route-5f-5-architecture-review-and-route-5g-remote-product-journey-plan.md`
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1489-route-5e-host-consumer-composition-and-coding-start-admission-plan.md`
+Route 5G-1 Remote Assistant Consumer Contract is complete in:
 
-Route 5E-2 Durable Coding Start Admission is complete locally. The Coding
-start command now requires a bounded caller-owned idempotency key, derives
-stable Session/Input/Turn/Job/Workspace Task identities, persists the
-Coding-owned request digest, and converges exact retries to one durable
-operation across Host replacement. Its evidence is recorded in:
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1512-route-5g-1-remote-assistant-consumer-contract-completion.md`
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1491-route-5e-2-durable-coding-start-admission-completion.md`
-
-Route 5E-3 Durable Attach And Active Operation Observation is complete locally.
-Exact duplicates attach to the canonical active operation without a second
-Workspace claim or Provider invocation. Bounded observation, canonical
-rereads, cancellation, terminal replay, and task-first crash-window
-continuation are covered. Workspace continuation records a previously missing
-prepared identity exactly once under its live lease. Its evidence is recorded
-in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1493-route-5e-3-durable-attach-and-active-operation-observation-completion.md`
-
-Route 5E-3D Coding Start Host Exposure is complete locally. The typed Coding
-Host client now exposes durable `coding.turn.start`, maps the envelope key
-directly to Coding admission, rejects key smuggling, and passes equivalent
-in-process and Unix IPC tests. Its evidence is recorded in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1495-route-5e-3d-coding-start-host-exposure-completion.md`
-
-The post-phase review froze Route 5E-4 Cross-Platform Local Host Transport in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1496-post-route-5e-3d-architecture-review-and-route-5e-4-cross-platform-local-host-plan.md`
-
-Route 5E-4 Windows named-pipe implementation is in progress in the existing
-`@wanex/runtime/host` entry. Unix behavior and platform-gated source tests
-pass, but actual Windows runtime evidence is still required and is recorded
-in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1497-route-5e-4-cross-platform-local-host-transport-progress.md`
-
-Route 5E-4 Cross-Platform Local Host Transport is now complete. The existing
-Runtime Host transport uses Unix domain sockets on Unix-like systems and
-Windows named pipes on Windows with the same bounded framing, Host protocol,
-handshake, event/replay, explicit reconnect, and pending-request lifecycle.
-Runtime conformance is 4/4 and Coding conformance is 6/6 on both macOS and an
-actual `windows-2025` runner. The implementation also fixes per-frame
-decoding for coalesced reads and closes malformed/resource-limit connections
-fail-closed. Full evidence is recorded in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1498-route-5e-4-cross-platform-local-host-transport-completion.md`
-
-The progress record at `1497` is historical and superseded. Do not claim
-Windows support from skipped tests. Do not add a remote listener, client-
-selected store/path, Gateway, compatibility alias, or trusted Desktop/TUI
-transport migration in this route. The next work requires a fresh Route 5F
-Remote Host Security And Transport Plan covering TLS/server identity,
-authentication, authorization, replay/canonical-read recovery, resource
-grants, quotas, and server-derived store resolution.
-
-Route 5F Remote Host Security And Transport is now frozen for planning; it is
-not implemented. Its plan is recorded at:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1499-route-5f-remote-host-security-and-transport-plan.md`
-
-The first candidate transport is HTTPS request/response plus an authenticated
-SSE event stream. Reuse the existing Host messages and domain bindings, keep
-Storage Control Plane separate, and derive Host/domain/project/session/resource
-scope from the authenticated server-side subject. Never accept a client
-store/path/execution-environment selector, token in a URL, or automatic retry
-of a command without durable idempotency. Do not implement Route 5F until its
-security and authorization contracts are reviewed and tested.
-
-Route 5F-1A Remote Host Authorization Policy is complete. Runtime owns the
-transport-neutral server-subject/grant admission decision, per-request domain
-recheck, and bounded remote request-limit normalization. It does not parse
-bearer tokens, select Hosts/stores, authorize project IDs, or enforce HTTP
-bodies. Evidence is recorded in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1500-route-5f-1a-remote-host-authorization-policy-completion.md`
-
-Route 5F-2 Framework-Neutral Remote Host Session Handler is complete. Runtime
-now owns the request/response handler, server-owned Host resolution seam,
-opaque in-memory session binding, per-request bearer/grant/domain checks,
-bounded body/session/concurrency enforcement, lazy expiry cleanup, and exact
-endpoint lifecycle. It does not provide a public listener, SSE, durable
-command storage, project authorization, or resource delivery. Evidence is
-recorded in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1502-route-5f-2-remote-host-session-handler-completion.md`
-
-Route 5F-3 is split into a request/response client slice and an independently
-recoverable authenticated SSE event slice. Keep Storage Control Plane
-separate, reject client-selected store/path/environment input, and do not add
-automatic command retries.
-
-Route 5F-3A HTTPS Client Transport is complete. Runtime now owns the bounded
-request/response client over the existing Agent Host protocol, fresh bearer
-header acquisition, opaque session-header capture, deadline/abort lifecycle,
-and no-retry semantics. It does not provide live events, SSE, replay recovery,
-or a public listener. Evidence is recorded in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1504-route-5f-3a-remote-host-http-client-completion.md`
-
-Route 5F-3B authenticated SSE event transport is frozen for implementation in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1505-route-5f-3b-remote-host-sse-event-stream-plan.md`
-
-It must define cursor, reconnect, replay-before-live, gap, and canonical-read
-behavior before code changes. Do not simulate live events with polling.
-
-Preserve the existing Agent Host frames and typed Coding binding. Do not force
-trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,
-control-plane authentication, a Gateway, compatibility aliases, and a new
-package remain outside the completed route.
+The next route is Route 5G-2 Remote Assistant Journey And Recovery. It must
+prove one real TLS-listener product journey over HTTP/SSE: canonical reads,
+idempotent conversation admission, event replay/reconnect, gap recovery,
+drain, and server-derived store isolation. Use existing application/host
+boundaries first. Do not add a Gateway, new transport, generic composition
+package, remote resource bytes, compatibility aliases, or force trusted
+Desktop/TUI consumers through Remote Host. Remote Coding and remote
+Resource/Media are separate reviews after the Assistant journey is accepted.
 
 The route records below are historical evidence and do not override the
 authoritative current route above.

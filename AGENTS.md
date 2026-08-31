@@ -151,9 +151,12 @@ or a public listener. Evidence is recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1504-route-5f-3a-remote-host-http-client-completion.md`
 
-The next slice is Route 5F-3B authenticated SSE event transport. Freeze its
-cursor, reconnect, replay-before-live, gap, and canonical-read contract before
-implementation. Do not simulate live events with polling.
+Route 5F-3B authenticated SSE event transport is frozen for implementation in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1505-route-5f-3b-remote-host-sse-event-stream-plan.md`
+
+It must define cursor, reconnect, replay-before-live, gap, and canonical-read
+behavior before code changes. Do not simulate live events with polling.
 
 Preserve the existing Agent Host frames and typed Coding binding. Do not force
 trusted Desktop/TUI consumers through Host merely for symmetry. Remote TLS,

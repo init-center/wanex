@@ -16,6 +16,7 @@ import {
   type AssistantWebApp,
 } from "@wanex/assistant-host";
 import { createWanexLocalKeychainSecretStoreFromBinding } from "@wanex/local-credential-store/binding";
+import { wanexLocalCredentialPolicy } from "@wanex/local-credential-store";
 import { resolveLocalSystemService } from "@wanex/assistant-host/system-service";
 import {
   loadWanexDesktopCredentialBinding,
@@ -55,6 +56,14 @@ import {
   installDesktopCodingIpc,
 } from "./coding-ipc.js";
 import { desktopRendererAssets } from "./renderer-assets.js";
+import {
+  createRemoteConnectionProfileCatalog,
+} from "./remote/profiles.js";
+import {
+  createRemoteCodingConnectionManager,
+  type RemoteCodingConnectionManager,
+} from "./remote/connection.js";
+import { installDesktopRemoteIpc } from "./remote/ipc.js";
 
 const processStartedAt = performance.now();
 const proofReceiptPath = process.env.WANEX_DESKTOP_PROOF_RECEIPT;
@@ -81,6 +90,8 @@ app.commandLine.appendSwitch("proxy-bypass-list", "<-loopback>");
 
 let assistant: AssistantWebApp | undefined;
 let coding: DesktopCodingComposition | undefined;
+let remoteCodingConnections: RemoteCodingConnectionManager | undefined;
+let removeRemoteIpc: (() => void) | undefined;
 let removeCodingIpc: (() => void) | undefined;
 let window: BrowserWindow | undefined;
 let exitAllowed = false;
@@ -94,6 +105,11 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
   const ownedCoding = coding;
   coding = undefined;
   await ownedCoding?.close();
+  const ownedRemoteCodingConnections = remoteCodingConnections;
+  remoteCodingConnections = undefined;
+  removeRemoteIpc?.();
+  removeRemoteIpc = undefined;
+  await ownedRemoteCodingConnections?.close();
   const ownedAssistant = assistant;
   assistant = undefined;
   await ownedAssistant?.close();
@@ -189,6 +205,32 @@ async function start(): Promise<void> {
       browserAssets: desktopRendererAssets,
       windowChrome: windowChrome.documentChrome,
     },
+  });
+  const remoteCredentialPolicy = wanexLocalCredentialPolicy({
+    namespace: localSecretNamespace(storage),
+    scheme: credentialStore.scheme,
+  });
+  const remoteProfiles = createRemoteConnectionProfileCatalog({
+    configuration: assistant.configuration,
+    credentialStore,
+    credentialResolver: credentialStore,
+    ownsCredentialRef: remoteCredentialPolicy.ownsRef,
+    createCredentialRef: ({ profileId, revisionId }) =>
+      remoteCredentialPolicy.createRef({
+        connectionId: `remote-connection:${profileId}`,
+        revisionId,
+      }),
+  });
+  await remoteProfiles.reconcileCredentialRetirement();
+  remoteCodingConnections = createRemoteCodingConnectionManager({
+    profiles: remoteProfiles,
+    clientId: "wanex-desktop",
+  });
+  removeRemoteIpc = installDesktopRemoteIpc({
+    ipcMain,
+    profiles: remoteProfiles,
+    connections: remoteCodingConnections,
+    getWindow: () => window,
   });
   const hostReadyAt = performance.now();
   failurePhase = "coding_composition_setup";

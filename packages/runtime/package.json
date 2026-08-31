@@ -10,6 +10,7 @@
     "./context": "./src/context/index.ts",
     "./execution": "./src/execution/index.ts",
     "./host": "./src/host/index.ts",
+    "./host/paths": "./src/host/paths.ts",
     "./jobs": "./src/jobs/index.ts",
     "./memory": "./src/memory/index.ts",
     "./media-generation": "./src/media-generation/index.ts",

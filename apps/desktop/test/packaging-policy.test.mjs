@@ -122,6 +122,7 @@ describe("Desktop packaging policy", () => {
     expect(main).toContain("data-ui-product-renderer");
     expect(main).toContain("data-ui-coding-shell");
     expect(preload).toContain("wanexCoding");
+    expect(preload).toContain("wanexRemote");
     expect(preload).toContain("contextBridge");
     expect(preload).not.toContain(workspaceRoot);
     expect(main).not.toMatch(/(?:\bfrom\s*|\bimport\s*\()\s*["']@wanex\//);

@@ -1,4 +1,5 @@
 import type { JsonValue } from "@wanex/protocol";
+import { REMOTE_AGENT_HOST_MESSAGE_PATH } from "@wanex/runtime/host/paths";
 
 export const REMOTE_CONNECTION_PROFILE_KIND =
   "wanex.desktop.remote-connection" as const;
@@ -51,6 +52,50 @@ export function normalizeProfileId(value: string): string {
   return value;
 }
 
+export function isRemoteConnectionProfileId(value: unknown): value is string {
+  return typeof value === "string" && PROFILE_ID_PATTERN.test(value);
+}
+
+export function isRemoteConnectionProfile(
+  value: unknown,
+): value is RemoteConnectionProfile {
+  if (!isRecord(value)) return false;
+  if (
+    Object.keys(value).some(
+      (key) =>
+        ![
+          "profileId",
+          "name",
+          "endpoint",
+          "credentialConfigured",
+          "createdAt",
+          "updatedAt",
+        ].includes(key),
+    ) ||
+    typeof value.profileId !== "string" ||
+    typeof value.name !== "string" ||
+    typeof value.endpoint !== "string" ||
+    typeof value.credentialConfigured !== "boolean" ||
+    typeof value.createdAt !== "number" ||
+    !Number.isSafeInteger(value.createdAt) ||
+    value.createdAt < 0 ||
+    typeof value.updatedAt !== "number" ||
+    !Number.isSafeInteger(value.updatedAt) ||
+    value.updatedAt < value.createdAt
+  ) {
+    return false;
+  }
+  try {
+    return (
+      normalizeProfileId(value.profileId) === value.profileId &&
+      normalizeProfileName(value.name) === value.name &&
+      normalizeRemoteEndpoint(value.endpoint) === value.endpoint
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function normalizeProfileName(value: string): string {
   const name = value.trim();
   if (name.length === 0 || Buffer.byteLength(name, "utf8") > MAX_NAME_BYTES) {
@@ -75,12 +120,15 @@ export function normalizeRemoteEndpoint(value: string): string {
   }
   if (
     url.protocol !== "https:" ||
+    url.pathname !== REMOTE_AGENT_HOST_MESSAGE_PATH ||
     url.username.length > 0 ||
     url.password.length > 0 ||
     url.search.length > 0 ||
     url.hash.length > 0
   ) {
-    throw new Error("remote connection endpoint must be an HTTPS URL without credentials or query data");
+    throw new Error(
+      "remote connection endpoint must be an HTTPS URL without credentials or query data",
+    );
   }
   return url.toString();
 }
@@ -108,7 +156,11 @@ export function parseStoredRemoteConnectionProfile(
     "createdAt",
     "updatedAt",
   ] as const;
-  if (Object.keys(value).some((key) => !keys.includes(key as (typeof keys)[number]))) {
+  if (
+    Object.keys(value).some(
+      (key) => !keys.includes(key as (typeof keys)[number]),
+    )
+  ) {
     throw new Error("remote connection profile is invalid");
   }
   if (
@@ -128,7 +180,11 @@ export function parseStoredRemoteConnectionProfile(
   const profileId = normalizeProfileId(value.profileId);
   const name = normalizeProfileName(value.name);
   const endpoint = normalizeRemoteEndpoint(value.endpoint);
-  if (profileId !== value.profileId || name !== value.name || endpoint !== value.endpoint) {
+  if (
+    profileId !== value.profileId ||
+    name !== value.name ||
+    endpoint !== value.endpoint
+  ) {
     throw new Error("remote connection profile is not canonical");
   }
   if (
@@ -137,7 +193,9 @@ export function parseStoredRemoteConnectionProfile(
       value.credentialRef.length === 0 ||
       Buffer.byteLength(value.credentialRef, "utf8") > MAX_CREDENTIAL_REF_BYTES)
   ) {
-    throw new Error("remote connection profile credential reference is invalid");
+    throw new Error(
+      "remote connection profile credential reference is invalid",
+    );
   }
   return {
     kind: value.kind,

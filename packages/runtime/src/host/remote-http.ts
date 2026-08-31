@@ -37,6 +37,8 @@ import {
   type RemoteAgentHostTelemetryRecord,
   type RemoteAgentHostTelemetrySink
 } from "./remote-operations.js"
+import { REMOTE_AGENT_HOST_MESSAGE_PATH } from "./paths.js"
+export { REMOTE_AGENT_HOST_MESSAGE_PATH } from "./paths.js"
 export type {
   RemoteAgentHostLifecycleState,
   RemoteAgentHostStatusSnapshot,
@@ -44,8 +46,6 @@ export type {
   RemoteAgentHostTelemetrySink
 } from "./remote-operations.js"
 
-export const REMOTE_AGENT_HOST_MESSAGE_PATH =
-  "/v1/agent-host/message" as const
 export const REMOTE_AGENT_HOST_SESSION_HEADER =
   "x-wanex-host-session" as const
 

@@ -7,6 +7,7 @@ export * from "./remote-http.js"
 export * from "./remote-client.js"
 export * from "./remote-event-stream.js"
 export * from "./remote-http-node.js"
+export * from "./paths.js"
 export { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
 export type {
   AgentRunOnceResult,

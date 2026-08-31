@@ -21,6 +21,15 @@ export {
   type DesktopCodingRendererBridge,
 } from "./coding-bridge.js"
 export { installDesktopCodingIpc } from "./coding-ipc.js"
+export {
+  DESKTOP_REMOTE_IPC,
+  isDesktopRemoteConnectionEvent,
+  isDesktopRemoteConnectionProfileList,
+  isDesktopRemoteConnectionStatus,
+  type DesktopRemoteConnectionEvent,
+  type DesktopRemoteConnectionStatus,
+  type DesktopRemoteRendererBridge,
+} from "./remote/bridge.js"
 export type {
   DesktopCodingIpcEvent,
   DesktopCodingIpcMain,

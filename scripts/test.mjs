@@ -53,6 +53,14 @@ export function createWorkspaceTestSteps(options = {}) {
       }
     },
     {
+      name: "Remote Host TLS conformance",
+      command: "pnpm",
+      args: ["test:remote-host-conformance"],
+      env: {
+        WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
+      }
+    },
+    {
       name: "Parallel package tests",
       command: "pnpm",
       args: [

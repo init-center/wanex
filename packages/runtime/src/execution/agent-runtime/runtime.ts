@@ -220,7 +220,7 @@ export class WanexAgentRuntime {
     })
     const submissionRequest = {
       id: inputId,
-      turnId,
+      ...(request.turnId === undefined ? {} : { turnId }),
       sessionId: session.id,
       principalId: request.principalId ?? "agent-runtime-user",
       idempotencyKey:

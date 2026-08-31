@@ -41,6 +41,14 @@ describe("workspace test runner", () => {
         }
       },
       {
+        name: "Remote Host TLS conformance",
+        command: "pnpm",
+        args: ["test:remote-host-conformance"],
+        env: {
+          WANEX_SKIP_SYSTEM_SERVICE_BUILD: "1"
+        }
+      },
+      {
         name: "Parallel package tests",
         command: "pnpm",
         args: [
@@ -80,7 +88,7 @@ describe("workspace test runner", () => {
       "--maxWorkers=1",
       "--runInBand"
     ])
-    expect(steps[3].args).toEqual([
+    expect(steps[4].args).toEqual([
       "-r",
       "--filter",
       "!@wanex/runtime",
@@ -97,7 +105,7 @@ describe("workspace test runner", () => {
   it("supports an explicit package concurrency budget", () => {
     const steps = createWorkspaceTestSteps({ workspaceConcurrency: 4 })
 
-    expect(steps[3].args).toContain("--workspace-concurrency=4")
+    expect(steps[4].args).toContain("--workspace-concurrency=4")
   })
 
   it("parses and validates the environment concurrency override", () => {
@@ -131,7 +139,7 @@ describe("workspace test runner", () => {
       "--maxWorkers",
       "3"
     ])
-    expect(steps[3].args).toEqual([
+    expect(steps[4].args).toEqual([
       "-r",
       "--filter",
       "!@wanex/runtime",

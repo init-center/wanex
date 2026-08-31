@@ -43,6 +43,7 @@
     "test:toolchain-doctor": "vitest run ./scripts/doctor-toolchain.test.mjs",
     "test:assistant-web-demo": "pnpm --filter @wanex/assistant-host test:demo:web",
     "test:assistant-host-smoke-script": "vitest run ./scripts/run-assistant-host-smoke.test.mjs",
+    "test:remote-host-conformance": "vitest run ./scripts/remote-host-conformance.test.mjs --maxWorkers=1",
     "test:tui-script": "vitest run ./scripts/run-tui.test.mjs ./scripts/prove-tui-distribution.test.mjs",
     "test:verify-script": "vitest run ./scripts/verify.test.mjs ./scripts/run-eval-harness.test.mjs",
     "test:public-contract-audit": "vitest run ./scripts/audit-public-contracts.test.mjs",

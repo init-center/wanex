@@ -121,6 +121,24 @@ describe("Desktop Coding Renderer controller", () => {
     controller.dispose();
   });
 
+  it("ignores a project selection that finishes after disposal", async () => {
+    const selection = deferred<
+      Awaited<ReturnType<CodingWorkbenchClient["selectProject"]>>
+    >();
+    const controller = new CodingWorkbenchController(
+      fakeClient({ selectProject: async () => await selection.promise }),
+    );
+    const opening = controller.openProject();
+    await Promise.resolve();
+
+    controller.dispose();
+    selection.resolve({ kind: "selected", project: project("late") });
+    await opening;
+
+    expect(controller.state.project).toBeUndefined();
+    expect(controller.state.status).toBe("loading");
+  });
+
   it("sends a digested verified result and refreshes after recovery resolution", async () => {
     const projectRead = project("recovery");
     const session = sessionReadModel(projectRead.projectId);

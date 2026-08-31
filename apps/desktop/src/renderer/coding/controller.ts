@@ -89,6 +89,7 @@ export class CodingWorkbenchController {
     this.#setState({ status: "loading", sessions: [] });
     try {
       const selection = await this.#client.selectProject();
+      if (this.#closed) return;
       if (selection.kind === "cancelled") {
         this.#setState(previousState);
         return;
@@ -134,7 +135,7 @@ export class CodingWorkbenchController {
         ? selectedSessionId
         : sessions.sessions[0]?.sessionId;
       if (sessionId === undefined) {
-        if (generation !== this.#readGeneration) return;
+        if (this.#closed || generation !== this.#readGeneration) return;
         this.#setState({ status: "ready", project: projectRead, sessions: sessions.sessions });
         return;
       }
@@ -151,7 +152,7 @@ export class CodingWorkbenchController {
       const proposal = turn?.proposalId === undefined
         ? undefined
         : await this.#client.readProposal({ projectId: project.projectId, proposalId: turn.proposalId });
-      if (generation !== this.#readGeneration) return;
+      if (this.#closed || generation !== this.#readGeneration) return;
       this.#setState({
         status: "ready",
         project: projectRead,
@@ -313,7 +314,9 @@ export class CodingWorkbenchController {
   }
 
   dispose(): void {
+    if (this.#closed) return;
     this.#closed = true;
+    this.#readGeneration += 1;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#listeners.clear();
@@ -339,6 +342,7 @@ export class CodingWorkbenchController {
   }
 
   #setState(state: CodingWorkbenchState): void {
+    if (this.#closed) return;
     this.#state = Object.freeze(state);
     for (const listener of this.#listeners) listener();
   }

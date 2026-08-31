@@ -2,7 +2,7 @@ import { Code2, MessageCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { App as AssistantApp } from "@wanex/assistant-ui/client";
 import type { Client as AssistantClient } from "@wanex/assistant-ui/client";
-import type { DesktopRendererCodingClient } from "./coding/client.js";
+import type { CodingWorkbenchClient } from "./coding/client.js";
 import { CodingWorkbench } from "./coding/workbench.js";
 
 export function ProductRenderer({
@@ -10,7 +10,7 @@ export function ProductRenderer({
   codingClient,
 }: {
   readonly assistantClient: AssistantClient;
-  readonly codingClient: DesktopRendererCodingClient | undefined;
+  readonly codingClient: CodingWorkbenchClient | undefined;
 }): ReactNode {
   const [surface, setSurface] = useState<"assistant" | "coding">("assistant");
   return (

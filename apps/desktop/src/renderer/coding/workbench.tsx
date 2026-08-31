@@ -28,13 +28,13 @@ import type {
 import {
   CodingWorkbenchController,
   type CodingWorkbenchState,
-  type DesktopRendererCodingClient,
+  type CodingWorkbenchClient,
 } from "./controller.js";
 
 export function CodingWorkbench({
   client,
 }: {
-  readonly client: DesktopRendererCodingClient;
+  readonly client: CodingWorkbenchClient;
 }): ReactNode {
   const controller = useMemo(
     () => new CodingWorkbenchController(client),

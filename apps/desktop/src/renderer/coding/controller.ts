@@ -13,7 +13,27 @@ import type { DesktopCodingProjectSelection } from "../../coding-bridge.js";
 type ToolExecutionRecoveryDecision = ResolveCodingTurnRecoveryRequest["decision"];
 type ToolResultContentPart = NonNullable<ResolveCodingTurnRecoveryRequest["content"]>[number];
 
-export type DesktopRendererCodingClient = CodingClient & {
+type CodingWorkbenchOperations = Pick<
+  CodingClient,
+  | "readProject"
+  | "listSessions"
+  | "readSession"
+  | "readTranscript"
+  | "listTurns"
+  | "readLiveTurn"
+  | "startTurn"
+  | "cancelTurn"
+  | "resolveTurnApproval"
+  | "resolveTurnRecovery"
+  | "readProposal"
+  | "decideProposal"
+  | "requestProposalApply"
+  | "applyProposal"
+  | "undoProposal"
+  | "subscribe"
+>;
+
+export type CodingWorkbenchClient = CodingWorkbenchOperations & {
   selectProject(): Promise<DesktopCodingProjectSelection>;
 };
 
@@ -37,7 +57,7 @@ const EMPTY_STATE: CodingWorkbenchState = Object.freeze({
 });
 
 export class CodingWorkbenchController {
-  readonly #client: DesktopRendererCodingClient;
+  readonly #client: CodingWorkbenchClient;
   #state: CodingWorkbenchState = EMPTY_STATE;
   #listeners = new Set<() => void>();
   #readGeneration = 0;
@@ -45,7 +65,7 @@ export class CodingWorkbenchController {
   #unsubscribe: (() => void) | undefined;
   #closed = false;
 
-  constructor(client: DesktopRendererCodingClient) {
+  constructor(client: CodingWorkbenchClient) {
     this.#client = client;
   }
 

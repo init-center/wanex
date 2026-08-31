@@ -9,7 +9,7 @@ import type {
 } from "@wanex/coding";
 import {
   CodingWorkbenchController,
-  type DesktopRendererCodingClient,
+  type CodingWorkbenchClient,
 } from "../src/renderer/coding/controller.js";
 
 describe("Desktop Coding Renderer controller", () => {
@@ -189,15 +189,15 @@ function deferred<T>(): Deferred<T> {
 }
 
 function fakeClient(options: {
-  readonly selectProject?: DesktopRendererCodingClient["selectProject"];
-  readonly readProject?: DesktopRendererCodingClient["readProject"];
-  readonly listSessions?: DesktopRendererCodingClient["listSessions"];
-  readonly readSession?: DesktopRendererCodingClient["readSession"];
-  readonly readTranscript?: DesktopRendererCodingClient["readTranscript"];
-  readonly listTurns?: DesktopRendererCodingClient["listTurns"];
-  readonly resolveTurnRecovery?: DesktopRendererCodingClient["resolveTurnRecovery"];
-  readonly subscribe?: DesktopRendererCodingClient["subscribe"];
-} = {}): DesktopRendererCodingClient {
+  readonly selectProject?: CodingWorkbenchClient["selectProject"];
+  readonly readProject?: CodingWorkbenchClient["readProject"];
+  readonly listSessions?: CodingWorkbenchClient["listSessions"];
+  readonly readSession?: CodingWorkbenchClient["readSession"];
+  readonly readTranscript?: CodingWorkbenchClient["readTranscript"];
+  readonly listTurns?: CodingWorkbenchClient["listTurns"];
+  readonly resolveTurnRecovery?: CodingWorkbenchClient["resolveTurnRecovery"];
+  readonly subscribe?: CodingWorkbenchClient["subscribe"];
+} = {}): CodingWorkbenchClient {
   const sessions: CodingSessionPage = {
     sessions: [],
     returnedCount: 0,
@@ -217,7 +217,7 @@ function fakeClient(options: {
     readProposal: async () => null,
     resolveTurnRecovery: options.resolveTurnRecovery ?? (async () => { throw new Error("not used"); }),
     subscribe: options.subscribe ?? (() => () => {}),
-  } as unknown as DesktopRendererCodingClient;
+  } as unknown as CodingWorkbenchClient;
 }
 
 function project(name: string): CodingProjectReadModel {

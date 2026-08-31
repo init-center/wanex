@@ -4,13 +4,13 @@ import {
 import type {
   DesktopCodingRendererBridge,
 } from "../../coding-bridge.js";
-import type { DesktopRendererCodingClient } from "./controller.js";
+import type { CodingWorkbenchClient } from "./controller.js";
 
-export type { DesktopRendererCodingClient } from "./controller.js";
+export type { CodingWorkbenchClient } from "./controller.js";
 
 export function createDesktopRendererCodingClient(
   bridge: DesktopCodingRendererBridge,
-): DesktopRendererCodingClient {
+): CodingWorkbenchClient {
   const client = createCodingClient({
     send: async (request) => await bridge.sendCodingCommand(request),
     subscribe: (listener) => bridge.subscribeCodingEvents(listener),

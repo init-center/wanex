@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest"
 import {
   createAgentHostClient,
   type AgentHostClientMessage,
-  type AgentHostServerMessage
+  type AgentHostServerMessage,
+  type AgentHostEvent
 } from "@wanex/protocol"
 import {
   createRemoteAgentHostHttpClientTransport,
+  REMOTE_AGENT_HOST_SSE_EVENT_NAME,
+  REMOTE_AGENT_HOST_SSE_RESET_NAME,
   type RemoteAgentHostHttpClientOptions
 } from "../src/host/index.js"
 
@@ -325,6 +328,130 @@ describe("remote Agent Host HTTP client transport", () => {
       "response status is invalid"
     )
   })
+
+  it("opens one explicit SSE stream, validates split frames, and delivers events", async () => {
+    const requests: Array<{ readonly url: string; readonly init: RequestInit }> = []
+    const received: AgentHostEvent[] = []
+    let fetchCalls = 0
+    const transport = createTransport(async (input, init) => {
+      requests.push({ url: String(input), init: init ?? {} })
+      fetchCalls += 1
+      if (fetchCalls === 1) {
+        return jsonResponse(handshakeResponse(), 200, {
+          "x-wanex-host-session": "session_1"
+        })
+      }
+      return sseResponse([
+        `event: ${REMOTE_AGENT_HOST_SSE_EVENT_NAME}\nid: remote_stream:1\ndata: {"kind":"wanex.agent-host.event","streamId":"remote_stream","sequence":1,"eventId":"event_1","domain":"assistant","type":"assistant.test.updated","payload":{"ok":true},"occurredAt":1}\n\n`
+      ])
+    })
+    const client = createAgentHostClient(transport, requestIds())
+    await client.handshake(handshakeInput())
+    const stream = transport.connectEvents({
+      onError: (error) => {
+        throw error
+      }
+    })
+    const unsubscribe = client.subscribe((event) => received.push(event))
+    await stream.ready
+    await waitFor(() => received.length === 1)
+    expect(received[0]).toMatchObject({ sequence: 1, eventId: "event_1" })
+    expect(requests[1]?.url).toBe(
+      "https://host.example/v1/agent-host/events"
+    )
+    expect(requests[1]?.init).toMatchObject({
+      method: "GET",
+      headers: {
+        accept: "text/event-stream",
+        authorization: "Bearer bearer",
+        "x-wanex-host-session": "session_1"
+      }
+    })
+    expect(() => transport.connectEvents()).toThrow("already open")
+    unsubscribe()
+    stream.close()
+    await stream.closed
+    await transport.close()
+  })
+
+  it("reconnects after a network disconnect using the latest accepted cursor", async () => {
+    const eventRequests: RequestInit[] = []
+    const received: AgentHostEvent[] = []
+    let fetchCalls = 0
+    const transport = createTransport(async (_input, init) => {
+      fetchCalls += 1
+      if (fetchCalls === 1) return jsonResponse(handshakeResponse(), 200, {
+        "x-wanex-host-session": "session_1"
+      })
+      eventRequests.push(init ?? {})
+      if (fetchCalls === 2) return sseResponse([sseEvent(event(1))])
+      return sseResponse([sseEvent(event(2))])
+    })
+    const client = createAgentHostClient(transport, requestIds())
+    await client.handshake(handshakeInput())
+    const stream = transport.connectEvents({
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2
+    })
+    client.subscribe((value) => received.push(value))
+    await stream.ready
+    await waitFor(() => received.length === 2)
+    expect(received.map((value) => value.sequence)).toEqual([1, 2])
+    expect(eventRequests[1]?.headers).toMatchObject({
+      "last-event-id": "remote_stream:1"
+    })
+    stream.close()
+    await stream.closed
+    await transport.close()
+  })
+
+  it("stops reconnecting after an explicit server reset", async () => {
+    const resets: unknown[] = []
+    let fetchCalls = 0
+    const transport = createTransport(async () => {
+      fetchCalls += 1
+      if (fetchCalls === 1) return jsonResponse(handshakeResponse(), 200, {
+        "x-wanex-host-session": "session_1"
+      })
+      return sseResponse([
+        `event: ${REMOTE_AGENT_HOST_SSE_RESET_NAME}\ndata: {"reason":"gap","canonicalReadRequired":true,"streamId":"remote_stream","latestSequence":3}\n\n`
+      ])
+    })
+    const client = createAgentHostClient(transport, requestIds())
+    await client.handshake(handshakeInput())
+    const stream = transport.connectEvents({
+      reconnectInitialDelayMs: 1,
+      onReset: (reset) => resets.push(reset)
+    })
+    await stream.ready
+    await stream.closed
+    await new Promise<void>((resolve) => setTimeout(resolve, 10))
+    expect(fetchCalls).toBe(2)
+    expect(resets).toMatchObject([
+      { reason: "gap", canonicalReadRequired: true, latestSequence: 3 }
+    ])
+    await transport.close()
+  })
+
+  it("does not reconnect after authentication failure", async () => {
+    let fetchCalls = 0
+    const errors: Error[] = []
+    const transport = createTransport(async () => {
+      fetchCalls += 1
+      if (fetchCalls === 1) return jsonResponse(handshakeResponse(), 200, {
+        "x-wanex-host-session": "session_1"
+      })
+      return new Response("unauthorized", { status: 401 })
+    })
+    const client = createAgentHostClient(transport, requestIds())
+    await client.handshake(handshakeInput())
+    const stream = transport.connectEvents({ onError: (error) => errors.push(error) })
+    await expect(stream.ready).rejects.toThrow("authentication failed")
+    await stream.closed
+    expect(fetchCalls).toBe(2)
+    expect(errors).toHaveLength(1)
+    await transport.close()
+  })
 })
 
 function createTransport(
@@ -404,6 +531,49 @@ function operationResponse(requestId: string): AgentHostServerMessage {
     outcome: "completed",
     result: { ok: true }
   }
+}
+
+function event(sequence: number): AgentHostEvent {
+  return {
+    kind: "wanex.agent-host.event",
+    streamId: "remote_stream",
+    sequence,
+    eventId: `event_${sequence}`,
+    domain: "assistant",
+    type: "assistant.test.updated",
+    payload: { sequence },
+    occurredAt: sequence
+  }
+}
+
+function sseEvent(value: AgentHostEvent): string {
+  return [
+    `event: ${REMOTE_AGENT_HOST_SSE_EVENT_NAME}`,
+    `id: ${value.streamId}:${value.sequence}`,
+    `data: ${JSON.stringify(value)}`,
+    "",
+    ""
+  ].join("\n")
+}
+
+function sseResponse(chunks: readonly string[]): Response {
+  const encoder = new TextEncoder()
+  let index = 0
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      const chunk = chunks[index]
+      if (chunk === undefined) {
+        controller.close()
+        return
+      }
+      index += 1
+      controller.enqueue(encoder.encode(chunk))
+    }
+  })
+  return new Response(body, {
+    status: 200,
+    headers: { "content-type": "text/event-stream; charset=utf-8" }
+  })
 }
 
 function replayResponse(requestId: string): AgentHostServerMessage {

@@ -19,6 +19,12 @@ import {
   type RemoteHostGrant,
   type RemoteHostRequestLimits
 } from "./remote-policy.js"
+import {
+  createRemoteAgentHostEventStream,
+  parseRemoteAgentHostEventStreamCursor,
+  REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+  type RemoteAgentHostEventStream,
+} from "./remote-event-stream.js"
 
 export const REMOTE_AGENT_HOST_MESSAGE_PATH =
   "/v1/agent-host/message" as const
@@ -28,6 +34,11 @@ export const REMOTE_AGENT_HOST_SESSION_HEADER =
 const JSON_HEADERS = {
   "cache-control": "no-store",
   "content-type": "application/json",
+  vary: "authorization"
+} as const
+
+const EVENT_STREAM_HEADERS = {
+  "cache-control": "no-store",
   vary: "authorization"
 } as const
 
@@ -44,6 +55,20 @@ export interface RemoteAgentHostHttpResponse {
   readonly status: number
   readonly headers: Readonly<Record<string, string>>
   readonly body: AgentHostServerMessage
+}
+
+export interface RemoteAgentHostEventStreamRequest {
+  readonly method: string
+  readonly path: string
+  readonly headers: Readonly<Record<string, string | undefined>>
+  readonly nowMs?: number
+}
+
+export interface RemoteAgentHostEventStreamResponse {
+  readonly status: number
+  readonly headers: Readonly<Record<string, string>>
+  readonly stream?: RemoteAgentHostEventStream
+  readonly body?: AgentHostServerMessage
 }
 
 export interface RemoteAgentHostResolvedHost {
@@ -69,6 +94,9 @@ export interface RemoteAgentHostHandlerOptions {
 
 export interface RemoteAgentHostHttpHandler {
   handle(request: RemoteAgentHostHttpRequest): Promise<RemoteAgentHostHttpResponse>
+  openEventStream(
+    request: RemoteAgentHostEventStreamRequest
+  ): Promise<RemoteAgentHostEventStreamResponse>
   close(): Promise<void>
 }
 
@@ -81,6 +109,11 @@ interface RemoteHostSession {
   readonly clientId: string
   readonly requestedDomains: RemoteHostAuthorizationContext["grantedDomains"]
   readonly expiresAt: number
+  readonly eventStreams: Set<RemoteAgentHostEventStream>
+  readonly eventStreamExpiryTimers: Map<
+    RemoteAgentHostEventStream,
+    ReturnType<typeof setTimeout>
+  >
   inFlight: number
   closed: boolean
 }
@@ -96,7 +129,188 @@ export function createRemoteAgentHostHttpHandler(
   let pendingSessions = 0
   let closed = false
 
-  return Object.freeze({ handle, close })
+  return Object.freeze({ handle, openEventStream, close })
+
+  async function openEventStream(
+    request: RemoteAgentHostEventStreamRequest
+  ): Promise<RemoteAgentHostEventStreamResponse> {
+    if (closed) {
+      return eventStreamErrorResponse(
+        503,
+        "transport_failure",
+        "Remote Agent Host is closed"
+      )
+    }
+    if (request.method.toUpperCase() !== "GET") {
+      return eventStreamErrorResponse(
+        405,
+        "malformed_request",
+        "remote Agent Host event stream requires GET"
+      )
+    }
+    if (request.path !== REMOTE_AGENT_HOST_SSE_EVENT_PATH) {
+      return eventStreamErrorResponse(
+        404,
+        "not_found",
+        "remote Agent Host event stream path was not found"
+      )
+    }
+
+    const sessionId = getHeader(
+      request.headers,
+      REMOTE_AGENT_HOST_SESSION_HEADER
+    )
+    const token = parseBearerToken(request.headers)
+    if (token === undefined) {
+      await closeSessionForHeader(sessionId)
+      return eventStreamErrorResponse(
+        401,
+        "unauthenticated",
+        "missing bearer token"
+      )
+    }
+    let subject: RemoteHostAuthenticatedSubject | null
+    try {
+      subject = await options.authenticateBearerToken(token)
+    } catch {
+      await closeSessionForHeader(sessionId)
+      return eventStreamErrorResponse(
+        503,
+        "application_failure",
+        "remote authentication is unavailable"
+      )
+    }
+    if (subject === null) {
+      await closeSessionForHeader(sessionId)
+      return eventStreamErrorResponse(
+        401,
+        "unauthenticated",
+        "invalid bearer token"
+      )
+    }
+
+    const cursorValue = getHeader(request.headers, "last-event-id")
+    const cursor = parseRemoteAgentHostEventStreamCursor(cursorValue)
+    if (!cursor.ok) {
+      return eventStreamErrorResponse(400, "malformed_request", cursor.message)
+    }
+    if (sessionId === undefined || !isRemoteHostOpaqueToken(sessionId)) {
+      return eventStreamErrorResponse(
+        401,
+        "unauthenticated",
+        "Agent Host session is required"
+      )
+    }
+    const session = sessions.get(sessionId)
+    if (session === undefined || session.closed) {
+      return eventStreamErrorResponse(
+        401,
+        "unauthenticated",
+        "Agent Host session is invalid"
+      )
+    }
+
+    const currentNow = request.nowMs ?? now()
+    if (subject.subjectId !== session.subjectId) {
+      await closeSession(session)
+      return eventStreamErrorResponse(
+        401,
+        "unauthenticated",
+        "Agent Host session identity is invalid"
+      )
+    }
+    const access = authorizeRemoteHostRequest({
+      subject,
+      grant: session.grant,
+      host: session.host,
+      clientId: session.clientId,
+      requestedDomains: session.requestedDomains,
+      nowMs: currentNow
+    })
+    if (access.outcome === "denied") {
+      await closeSession(session)
+      return eventStreamErrorResponse(
+        statusForError(access.code),
+        access.code,
+        messageForError(access.code)
+      )
+    }
+    if (currentNow >= session.expiresAt) {
+      const code =
+        session.grant.expiresAt <= currentNow
+          ? "unauthorized"
+          : "unauthenticated"
+      await closeSession(session)
+      return eventStreamErrorResponse(
+        statusForError(code),
+        code,
+        messageForError(code)
+      )
+    }
+    if (session.eventStreams.size >= limits.maxEventSubscribers) {
+      return eventStreamErrorResponse(
+        429,
+        "resource_limit",
+        "remote Agent Host event stream capacity reached"
+      )
+    }
+
+    let stream: RemoteAgentHostEventStream | undefined
+    let closedBeforeRegistration = false
+    try {
+      stream = createRemoteAgentHostEventStream({
+        ...(cursor.cursor === undefined ? {} : { cursor: cursor.cursor }),
+        subscribe: session.endpoint.subscribe,
+        replay: async (replayRequest) => {
+          const response = await session.endpoint.send(replayRequest)
+          if (
+            !isAgentHostServerMessage(response) ||
+            response.kind !== "wanex.agent-host.events.replay.response"
+          ) {
+            throw new Error("Agent Host event replay response is invalid")
+          }
+          return response
+        },
+        onClose() {
+          if (stream === undefined) {
+            closedBeforeRegistration = true
+            return
+          }
+          session.eventStreams.delete(stream)
+          const timer = session.eventStreamExpiryTimers.get(stream)
+          if (timer !== undefined) clearTimeout(timer)
+          session.eventStreamExpiryTimers.delete(stream)
+        }
+      })
+    } catch {
+      return eventStreamErrorResponse(
+        502,
+        "transport_failure",
+        "Agent Host event stream failed to initialize"
+      )
+    }
+    if (closedBeforeRegistration || session.closed || closed) {
+      stream.close()
+      return eventStreamErrorResponse(
+        503,
+        "transport_failure",
+        "Remote Agent Host session is closed"
+      )
+    }
+    session.eventStreams.add(stream)
+    const expiryDelay = session.expiresAt - currentNow
+    const expiryTimer = setTimeout(() => {
+      session.eventStreamExpiryTimers.delete(stream!)
+      stream?.close()
+    }, expiryDelay)
+    expiryTimer.unref?.()
+    session.eventStreamExpiryTimers.set(stream, expiryTimer)
+    return {
+      status: 200,
+      headers: EVENT_STREAM_HEADERS,
+      stream
+    }
+  }
 
   async function handle(
     request: RemoteAgentHostHttpRequest
@@ -396,6 +610,8 @@ export function createRemoteAgentHostHttpHandler(
         clientId: request.clientId,
         requestedDomains: access.context.grantedDomains,
         expiresAt: access.context.expiresAt,
+        eventStreams: new Set(),
+        eventStreamExpiryTimers: new Map(),
         inFlight: 0,
         closed: false
       })
@@ -426,8 +642,7 @@ export function createRemoteAgentHostHttpHandler(
     sessions.clear()
     await Promise.all(
       current.map(async (session) => {
-        session.closed = true
-        await closeEndpoint(session)
+        await closeSession(session)
       })
     )
   }
@@ -436,6 +651,12 @@ export function createRemoteAgentHostHttpHandler(
     if (session.closed) return
     session.closed = true
     if (sessions.get(session.id) === session) sessions.delete(session.id)
+    for (const stream of session.eventStreams) stream.close()
+    session.eventStreams.clear()
+    for (const timer of session.eventStreamExpiryTimers.values()) {
+      clearTimeout(timer)
+    }
+    session.eventStreamExpiryTimers.clear()
     await closeEndpoint(session)
   }
 
@@ -504,6 +725,21 @@ function errorResponse(
     body: {
       kind: "wanex.agent-host.error",
       ...(requestId === undefined ? {} : { requestId }),
+      error: { code, message, retryable: false }
+    }
+  }
+}
+
+function eventStreamErrorResponse(
+  status: number,
+  code: AgentHostErrorCode,
+  message: string
+): RemoteAgentHostEventStreamResponse {
+  return {
+    status,
+    headers: JSON_HEADERS,
+    body: {
+      kind: "wanex.agent-host.error",
       error: { code, message, retryable: false }
     }
   }

@@ -12,8 +12,20 @@ import {
   REMOTE_AGENT_HOST_MESSAGE_PATH,
   REMOTE_AGENT_HOST_SESSION_HEADER
 } from "./remote-http.js"
+import {
+  createRemoteAgentHostHttpEventClient,
+  type RemoteAgentHostHttpClientEventStream,
+  type RemoteAgentHostHttpClientEventStreamOptions,
+  type RemoteAgentHostHttpClientEventStreamState
+} from "./remote-event-client.js"
 
 const MAX_BEARER_TOKEN_BYTES = 8 * 1024
+
+export type {
+  RemoteAgentHostHttpClientEventStream,
+  RemoteAgentHostHttpClientEventStreamOptions,
+  RemoteAgentHostHttpClientEventStreamState
+} from "./remote-event-client.js"
 
 export interface RemoteAgentHostHttpClientOptions {
   readonly messageUrl: string | URL
@@ -30,6 +42,9 @@ export interface RemoteAgentHostHttpClientOptions {
 
 export interface RemoteAgentHostHttpClientTransport
   extends AgentHostClientTransport {
+  connectEvents(
+    options?: RemoteAgentHostHttpClientEventStreamOptions
+  ): RemoteAgentHostHttpClientEventStream
   close(): Promise<void>
 }
 
@@ -49,6 +64,20 @@ export function createRemoteAgentHostHttpClientTransport(
   let sessionId: string | undefined
   let closed = false
   let handshakePending = false
+
+  const eventClient = createRemoteAgentHostHttpEventClient({
+    messageUrl,
+    fetch: fetchImpl,
+    getBearerToken: async () => await readBearerToken(),
+    getSessionId: () => sessionId,
+    isClosed: () => closed,
+    listeners,
+    requestTimeoutMs: limits.requestTimeoutMs,
+    maxFrameBytes: limits.maxResponseBytes,
+    onAuthenticationFailure: () => {
+      sessionId = undefined
+    }
+  })
 
   const transport: RemoteAgentHostHttpClientTransport = {
     async send(request) {
@@ -128,7 +157,7 @@ export function createRemoteAgentHostHttpClientTransport(
           value.kind === "wanex.agent-host.error" &&
           value.error.code === "unauthenticated"
         ) {
-          sessionId = undefined
+          await invalidateSession()
         }
         return value
       } catch (error) {
@@ -148,6 +177,7 @@ export function createRemoteAgentHostHttpClientTransport(
         }
       }
     },
+    connectEvents: eventClient.connectEvents,
     subscribe(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
@@ -161,10 +191,16 @@ export function createRemoteAgentHostHttpClientTransport(
       handshakePending = false
       sessionId = undefined
       listeners.clear()
+      await eventClient.close()
     }
   }
 
   return Object.freeze(transport)
+
+  async function invalidateSession(): Promise<void> {
+    sessionId = undefined
+    await eventClient.close()
+  }
 
   async function readBearerToken(): Promise<string> {
     let value: string | Promise<string>

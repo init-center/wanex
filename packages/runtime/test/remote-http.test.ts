@@ -4,9 +4,11 @@ import {
   createRemoteAgentHostHttpHandler,
   REMOTE_AGENT_HOST_MESSAGE_PATH,
   REMOTE_AGENT_HOST_SESSION_HEADER,
+  REMOTE_AGENT_HOST_SSE_EVENT_PATH,
   type RemoteAgentHostHttpHandler,
   type RemoteAgentHostHttpRequest
 } from "../src/host/index.js"
+import type { AgentHostEvent } from "@wanex/protocol"
 import { createInProcessAgentHostEndpoint } from "../src/host/index.js"
 
 describe("remote Agent Host HTTP handler", () => {
@@ -379,6 +381,116 @@ describe("remote Agent Host HTTP handler", () => {
     await fixture.handler.close()
     expect(fixture.closeCalls).toBe(1)
   })
+
+  it("opens an authenticated event stream on the existing session endpoint", async () => {
+    const fixture = createFixture()
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const opened = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+      }
+    })
+
+    expect(opened.status).toBe(200)
+    expect(opened.headers).toMatchObject({ "cache-control": "no-store" })
+    expect(opened.stream).toBeDefined()
+    expect(fixture.eventSubscriberCount).toBe(1)
+    fixture.publishEvent(event(1))
+    await expect(nextStreamFrame(opened)).resolves.toMatchObject({
+      event: "agent_host_event",
+      id: "remote_stream:1",
+      data: { sequence: 1 }
+    })
+
+    opened.stream?.close()
+    await opened.stream?.closed
+    expect(fixture.eventSubscriberCount).toBe(0)
+    await fixture.handler.close()
+  })
+
+  it("rejects invalid event stream requests before opening a subscription", async () => {
+    const fixture = createFixture()
+    const missingToken = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {}
+    })
+    expect(missingToken.status).toBe(401)
+
+    const wrongMethod = await fixture.handler.openEventStream({
+      method: "POST",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: { authorization: "Bearer bearer_token" }
+    })
+    expect(wrongMethod.status).toBe(405)
+
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const malformedCursor = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId,
+        "last-event-id": "invalid cursor"
+      }
+    })
+    expect(malformedCursor.status).toBe(400)
+    expect(fixture.eventSubscriberCount).toBe(0)
+  })
+
+  it("enforces event subscriber capacity independently from operations", async () => {
+    const fixture = createFixture({ maxEventSubscribers: 1 })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const input = {
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+      }
+    }
+    const first = await fixture.handler.openEventStream(input)
+    const second = await fixture.handler.openEventStream(input)
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(429)
+    expect(fixture.eventSubscriberCount).toBe(1)
+
+    first.stream?.close()
+    await first.stream?.closed
+    await fixture.handler.close()
+  })
+
+  it("closes event streams when the owning session or handler closes", async () => {
+    const fixture = createFixture()
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const opened = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+      }
+    })
+    await fixture.handler.close()
+    await opened.stream?.closed
+    expect(fixture.eventSubscriberCount).toBe(0)
+    expect(fixture.closeCalls).toBe(1)
+  })
 })
 
 interface FixtureOptions {
@@ -388,6 +500,7 @@ interface FixtureOptions {
   readonly maxResponseBytes?: number
   readonly maxSessions?: number
   readonly maxInFlightRequests?: number
+  readonly maxEventSubscribers?: number
   readonly operationResult?: string
   readonly subjectExpiresAt?: number
   readonly resolveHostGate?: Promise<void>
@@ -401,6 +514,7 @@ function createFixture(options: FixtureOptions = {}) {
   const authenticatedTokens: string[] = []
   const endpointSecrets: string[] = []
   const operationCalls: string[] = []
+  const eventListeners = new Set<(event: AgentHostEvent) => void>()
   let closeCalls = 0
   let revoked = false
   let authenticationFailure = false
@@ -455,7 +569,10 @@ function createFixture(options: FixtureOptions = {}) {
                 hasMore: false
               }
             }),
-            subscribeEvents: () => () => undefined
+            subscribeEvents: (listener) => {
+              eventListeners.add(listener)
+              return () => eventListeners.delete(listener)
+            }
           })
           return {
             send: endpoint.send,
@@ -478,7 +595,10 @@ function createFixture(options: FixtureOptions = {}) {
       ...(options.maxSessions === undefined ? {} : { maxSessions: options.maxSessions }),
       ...(options.maxInFlightRequests === undefined
         ? {}
-        : { maxInFlightRequests: options.maxInFlightRequests })
+        : { maxInFlightRequests: options.maxInFlightRequests }),
+      ...(options.maxEventSubscribers === undefined
+        ? {}
+        : { maxEventSubscribers: options.maxEventSubscribers })
     },
     now: () => nowMs
   })
@@ -487,6 +607,12 @@ function createFixture(options: FixtureOptions = {}) {
     authenticatedTokens,
     endpointSecrets,
     operationCalls,
+    get eventSubscriberCount() {
+      return eventListeners.size
+    },
+    publishEvent(value: AgentHostEvent) {
+      for (const listener of eventListeners) listener(value)
+    },
     get closeCalls() {
       return closeCalls
     },
@@ -590,4 +716,27 @@ function capabilities() {
     maxEventPageSize: 100,
     eventReplay: "bounded" as const
   }
+}
+
+function event(sequence: number): AgentHostEvent {
+  return {
+    kind: "wanex.agent-host.event",
+    streamId: "remote_stream",
+    sequence,
+    eventId: `event_${sequence}`,
+    domain: "assistant",
+    type: "assistant.test.updated",
+    payload: { sequence },
+    occurredAt: sequence
+  }
+}
+
+async function nextStreamFrame(
+  response: Awaited<ReturnType<RemoteAgentHostHttpHandler["openEventStream"]>>
+) {
+  const stream = response.stream
+  if (stream === undefined) throw new Error("event stream was not opened")
+  const result = await stream.frames[Symbol.asyncIterator]().next()
+  if (result.done) throw new Error("event stream closed before a frame arrived")
+  return result.value
 }

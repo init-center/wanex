@@ -68,12 +68,15 @@ Route 5G-3A Remote Coding Consumer Contract is complete in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1515-route-5g-3a-remote-coding-consumer-contract-completion.md`
 
-The next step is Route 5G-3B: a real TLS Remote Coding journey. It must prove
-remote project admission, duplicate Turn convergence, SSE reconnect and
-canonical reads, approval/cancellation/recovery, and project/path privacy.
-Route 5G-3C will then review multi-client concurrency and shutdown. Do not
-mark the full Remote Coding route complete after 5G-3A; the real TLS journey,
-cross-subject isolation, and concurrency proof are still pending.
+Route 5G-3B Remote Coding TLS Journey is complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1517-route-5g-3b-remote-coding-tls-journey-completion.md`
+
+The next step is Route 5G-3C: Remote Coding concurrency and shutdown review.
+It must prove multi-client/multi-session behavior, the single-active-Turn
+invariant per Session, and Workspace ownership during drain/interruption. Do
+not mark the full Remote Coding route complete after 5G-3B; the concurrency
+and shutdown proof is still pending.
 
 The route records below are historical evidence and do not override the
 authoritative current route above.

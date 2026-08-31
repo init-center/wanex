@@ -13,9 +13,11 @@ import {
   createRemoteAssistantAgentHostComposition
 } from "../apps/assistant-host/src/agent-host/index.js"
 import {
-  createCodingAgentHostClient,
+  CodingApplicationError,
+} from "../apps/coding/src/index.js"
+import {
   createCodingAgentHostEndpoint,
-  CODING_AGENT_HOST_OPERATIONS
+  createRemoteCodingAgentHostComposition,
 } from "../apps/coding/src/host/agent-host/index.js"
 import {
   createRemoteAgentHostHttpClientTransport,
@@ -126,19 +128,19 @@ describe("Remote Agent Host TLS domain conformance", () => {
   it("drives the typed Coding client through the same TLS Host contract", async () => {
     const requests = []
     const fetch = createHttpsFetch(environment.ca, requests)
-    const transport = createRemoteAgentHostHttpClientTransport({
+    const composition = await createRemoteCodingAgentHostComposition({
       messageUrl: environment.messageUrl,
       getBearerToken: () => "coding-bearer",
       fetch,
-      limits: { requestTimeoutMs: 2_000 }
-    })
-    const client = createCodingAgentHostClient(transport, {
       clientId: "coding-tls-client",
-      accessToken: "coding-handshake",
+      limits: { requestTimeoutMs: 2_000 },
       createRequestId: requestIds("coding")
     })
+    const client = composition.client
     const received = []
     client.subscribe((event) => received.push(event))
+    const canonicalReads = []
+    const canonicalRead = deferred()
 
     try {
       await expect(client.connect()).resolves.toMatchObject({
@@ -164,9 +166,19 @@ describe("Remote Agent Host TLS domain conformance", () => {
       expect(second).toEqual(first)
       expect(environment.coding.startCalls).toHaveLength(1)
 
-      const stream = transport.connectEvents({
+      const stream = composition.startEvents({
         reconnectInitialDelayMs: 25,
-        reconnectMaxDelayMs: 25
+        reconnectMaxDelayMs: 25,
+        onCanonicalReadRequired: (reason) => {
+          expect(reason).toBe("gap")
+          void client.readTurn({
+            projectId: "coding-project-1",
+            turnId: "coding-turn-1"
+          }).then((turn) => {
+            canonicalReads.push(turn)
+            canonicalRead.resolve()
+          })
+        }
       })
       await stream.ready
       environment.coding.publish(1)
@@ -179,11 +191,73 @@ describe("Remote Agent Host TLS domain conformance", () => {
           type: "project_invalidated:project_opened"
         })
       ])
+
+      environment.dropEventStreams()
+      await waitFor(() =>
+        requests.some(
+          (request) =>
+            request.path === REMOTE_AGENT_HOST_SSE_EVENT_PATH &&
+            request.headers["last-event-id"] ===
+              "coding:coding_tls_stream:1"
+        )
+      )
+      environment.coding.publish(2)
+      await waitFor(() => received.some((event) => event.sequence === 2))
+      expect(received.map((event) => event.sequence)).toEqual([1, 2])
+
+      environment.coding.gap = true
+      environment.dropEventStreams()
+      await canonicalRead.promise
+      await stream.closed
+      expect(canonicalReads).toHaveLength(1)
+      expect(canonicalReads[0]).toMatchObject({
+        projectId: "coding-project-1",
+        turnId: "coding-turn-1"
+      })
+
+      const cancelRequest = {
+        projectId: "coding-project-1",
+        turnId: "coding-turn-1",
+        reason: "remote user stopped the turn",
+        idempotencyKey: "coding-cancel-once"
+      }
+      await expect(client.cancelTurn(cancelRequest)).resolves.toMatchObject({
+        state: "cancelled",
+        result: "cancelled"
+      })
+      await expect(client.cancelTurn(cancelRequest)).resolves.toMatchObject({
+        state: "cancelled",
+        result: "cancelled"
+      })
+      expect(environment.coding.cancelCalls).toHaveLength(1)
+
+      const otherComposition = await createRemoteCodingAgentHostComposition({
+        messageUrl: environment.messageUrl,
+        getBearerToken: () => "other-coding-bearer",
+        fetch,
+        clientId: "other-coding-client",
+        createRequestId: requestIds("other-coding")
+      })
+      try {
+        await expect(otherComposition.client.listProjects()).resolves.toEqual([
+          expect.objectContaining({ projectId: "other-project-1" })
+        ])
+        await expect(
+          otherComposition.client.startTurn({
+            projectId: "coding-project-1",
+            content: [{ type: "text", text: "cross-project attempt" }],
+            idempotencyKey: "other-cross-project"
+          })
+        ).rejects.toMatchObject({ code: "not_found" })
+        expect(environment.otherCoding.startCalls).toHaveLength(0)
+      } finally {
+        await otherComposition.close()
+      }
+
       stream.close()
       await stream.closed
     } finally {
-      client.close()
-      await transport.close()
+      await composition.close()
     }
   })
 
@@ -266,6 +340,7 @@ async function createEnvironment() {
   const certificate = await createTestCertificate()
   const assistant = createAssistantFixture()
   const coding = createCodingFixture()
+  const otherCoding = createCodingFixture("other-project-1")
   const revoked = new Set()
   let sessionSequence = 0
   let closedEndpointCount = 0
@@ -277,6 +352,8 @@ async function createEnvironment() {
           ? "assistant-subject"
           : token === "coding-bearer"
             ? "coding-subject"
+            : token === "other-coding-bearer"
+              ? "other-coding-subject"
             : undefined
       return subjectId === undefined
         ? null
@@ -288,6 +365,8 @@ async function createEnvironment() {
           ? assistant
           : subject.subjectId === "coding-subject"
             ? coding
+            : subject.subjectId === "other-coding-subject"
+              ? otherCoding
             : undefined
       if (fixture === undefined) return null
       return {
@@ -354,6 +433,7 @@ async function createEnvironment() {
     handler,
     assistant,
     coding,
+    otherCoding,
     revoked,
     get closedEndpointCount() {
       return closedEndpointCount
@@ -460,15 +540,18 @@ function createAssistantFixture() {
   }
 }
 
-function createCodingFixture() {
+function createCodingFixture(projectId = "coding-project-1") {
   const listeners = new Set()
   const retained = []
   const startCalls = []
+  const cancelCalls = []
   const turns = new Map()
+  let currentTurn
   let gap = false
   return {
     domain: "coding",
     startCalls,
+    cancelCalls,
     get gap() {
       return gap
     },
@@ -483,13 +566,52 @@ function createCodingFixture() {
     createEndpoint(accessToken) {
       const application = {
         state: "open",
-        listProjects: async () => [codingProject()],
+        listProjects: async () => [codingProject(projectId)],
+        readTurn: async (request) => {
+          if (
+            request.projectId !== projectId ||
+            currentTurn?.turnId !== request.turnId
+          ) {
+            throw new CodingApplicationError(
+              "turn_unavailable",
+              "coding Turn is unavailable"
+            )
+          }
+          return currentTurn
+        },
         startTurn: async (request) => {
+          if (request.projectId !== projectId) {
+            throw new CodingApplicationError(
+              "project_unavailable",
+              "coding project is unavailable"
+            )
+          }
           const existing = turns.get(request.idempotencyKey)
           if (existing !== undefined) return existing
-          const result = codingTurn()
+          const result = codingTurn(projectId)
           turns.set(request.idempotencyKey, result)
+          currentTurn = result
           startCalls.push(request)
+          return result
+        },
+        cancelTurn: async (request) => {
+          if (
+            request.projectId !== projectId ||
+            currentTurn?.turnId !== request.turnId
+          ) {
+            throw new CodingApplicationError(
+              "turn_unavailable",
+              "coding Turn is unavailable"
+            )
+          }
+          if (currentTurn.state === "cancelled") return currentTurn
+          const result = codingTurn(projectId, {
+            state: "cancelled",
+            result: "cancelled",
+            canCancel: false
+          })
+          currentTurn = result
+          cancelCalls.push(request)
           return result
         },
         readEvents: async (request = {}) => {
@@ -534,20 +656,20 @@ function assistantEvent(sequence) {
   }
 }
 
-function codingEvent(sequence) {
+function codingEvent(sequence, projectId = "coding-project-1") {
   return {
     kind: "project_invalidated",
     streamId: "coding_tls_stream",
     sequence,
     occurredAt: sequence,
-    projectId: "coding-project-1",
+    projectId,
     reason: "project_opened"
   }
 }
 
-function codingProject() {
+function codingProject(projectId = "coding-project-1") {
   return {
-    projectId: "coding-project-1",
+    projectId,
     name: "Remote Coding Project",
     state: "ready",
     openedAt: 1,
@@ -560,9 +682,12 @@ function codingProject() {
   }
 }
 
-function codingTurn() {
+function codingTurn(
+  projectId = "coding-project-1",
+  overrides = {}
+) {
   return {
-    projectId: "coding-project-1",
+    projectId,
     sessionId: "coding-session-1",
     turnId: "coding-turn-1",
     state: "starting",
@@ -580,7 +705,8 @@ function codingTurn() {
       returnedCount: 0,
       omittedCount: 0,
       items: []
-    }
+    },
+    ...overrides
   }
 }
 

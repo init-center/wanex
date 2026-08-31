@@ -94,9 +94,42 @@ describe("remote Agent Host Node HTTP adapter", () => {
     await fixture.handler.close()
     await closeServer(server)
   })
+
+  it("forwards quota retry hints from the handler to SSE HTTP responses", async () => {
+    const fixture = createFixture({ rejectEventStream: true })
+    const server = createServer((request, response) => {
+      void fixture.adapter.handle(request, response).catch(() => response.destroy())
+    })
+    await listen(server)
+    const address = server.address()
+    if (address === null || typeof address === "string") {
+      throw new Error("test server did not bind to a TCP address")
+    }
+    const baseUrl = `http://127.0.0.1:${address.port}`
+    const handshake = await fetch(`${baseUrl}${REMOTE_AGENT_HOST_MESSAGE_PATH}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: "Bearer bearer_token" },
+      body: JSON.stringify(handshakeMessage())
+    })
+    const sessionId = handshake.headers.get(REMOTE_AGENT_HOST_SESSION_HEADER)
+    const stream = await fetch(`${baseUrl}${REMOTE_AGENT_HOST_SSE_EVENT_PATH}`, {
+      headers: {
+        accept: "text/event-stream",
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId!
+      }
+    })
+    expect(stream.status).toBe(429)
+    expect(stream.headers.get("retry-after")).toBe("2")
+    await expect(stream.json()).resolves.toMatchObject({
+      error: { code: "resource_limit" }
+    })
+    await fixture.handler.close()
+    await closeServer(server)
+  })
 })
 
-function createFixture() {
+function createFixture(options: { readonly rejectEventStream?: boolean } = {}) {
   const sourceListeners = new Set<(event: AgentHostEvent) => void>()
   let endpointSequence = 0
   const handler: RemoteAgentHostHttpHandler = createRemoteAgentHostHttpHandler({
@@ -161,7 +194,17 @@ function createFixture() {
       }
     }),
     createSessionId: () => `session_${++endpointSequence}`,
-    createEndpointAccessToken: () => `endpoint_secret_${endpointSequence}`
+    createEndpointAccessToken: () => `endpoint_secret_${endpointSequence}`,
+    ...(options.rejectEventStream
+      ? {
+          quotaPolicy: {
+            decide: (request: { readonly requestClass: string }) =>
+              request.requestClass === "event_stream"
+                ? { outcome: "denied" as const, retryAfterMs: 1_500 }
+                : { outcome: "allowed" as const }
+          }
+        }
+      : {})
   })
   return {
     handler,

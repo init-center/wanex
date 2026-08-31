@@ -6,7 +6,9 @@ import {
   REMOTE_AGENT_HOST_SESSION_HEADER,
   REMOTE_AGENT_HOST_SSE_EVENT_PATH,
   type RemoteAgentHostHttpHandler,
-  type RemoteAgentHostHttpRequest
+  type RemoteAgentHostHttpRequest,
+  type RemoteAgentHostTelemetryRecord,
+  type RemoteHostQuotaPolicy
 } from "../src/host/index.js"
 import type { AgentHostEvent } from "@wanex/protocol"
 import { createInProcessAgentHostEndpoint } from "../src/host/index.js"
@@ -491,6 +493,329 @@ describe("remote Agent Host HTTP handler", () => {
     expect(fixture.eventSubscriberCount).toBe(0)
     expect(fixture.closeCalls).toBe(1)
   })
+
+  it("applies quota after authentication for each request class", async () => {
+    const quotaRequests: Array<Record<string, unknown>> = []
+    const fixture = createFixture({
+      quotaPolicy: {
+        decide: (request) => {
+          quotaRequests.push({ ...request })
+          return request.requestClass === "operation"
+            ? { outcome: "denied" as const, retryAfterMs: 2_001 }
+            : { outcome: "allowed" as const }
+        }
+      }
+    })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    expect(handshake.status).toBe(200)
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const denied = await fixture.handler.handle(
+      request(
+        operationMessage("request_1", "assistant.read"),
+        "Bearer bearer_token",
+        sessionId
+      )
+    )
+    expect(denied.status).toBe(429)
+    expect(denied.headers["retry-after"]).toBe("3")
+    expect(fixture.operationCalls).toEqual([])
+
+    const stream = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+      }
+    })
+    expect(stream.status).toBe(200)
+    stream.stream?.close()
+    await stream.stream?.closed
+    expect(quotaRequests).toEqual([
+      {
+        subjectId: "subject_1",
+        requestClass: "handshake",
+        nowMs: 1_000
+      },
+      {
+        subjectId: "subject_1",
+        requestClass: "operation",
+        hostId: "host_1",
+        nowMs: 1_000
+      },
+      {
+        subjectId: "subject_1",
+        requestClass: "event_stream",
+        hostId: "host_1",
+        nowMs: 1_000
+      }
+    ])
+    await fixture.handler.close()
+  })
+
+  it("fails closed when quota policy throws and does not call it before auth", async () => {
+    let quotaCalls = 0
+    const fixture = createFixture({
+      quotaPolicy: {
+        decide: () => {
+          quotaCalls += 1
+          throw new Error("quota unavailable")
+        }
+      }
+    })
+    const unauthenticated = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer invalid")
+    )
+    expect(unauthenticated.status).toBe(401)
+    expect(quotaCalls).toBe(0)
+    const unavailable = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    expect(unavailable.status).toBe(500)
+    expect(unavailable.body).toMatchObject({
+      error: { code: "application_failure" }
+    })
+    expect(quotaCalls).toBe(1)
+  })
+
+  it("emits sanitized telemetry and isolates observer failures", async () => {
+    const records: RemoteAgentHostTelemetryRecord[] = []
+    const fixture = createFixture({
+      telemetry: (record) => {
+        records.push(record)
+        throw new Error("observer failure")
+      }
+    })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const operation = await fixture.handler.handle(
+      request(
+        operationMessage("request_1", "assistant.read"),
+        "Bearer bearer_token",
+        sessionId
+      )
+    )
+    expect(operation.status).toBe(200)
+    await fixture.handler.close()
+    expect(records.map(({ kind }) => kind)).toEqual([
+      "session_admitted",
+      "request_completed",
+      "request_completed",
+      "session_closed",
+      "handler_closed"
+    ])
+    for (const record of records) {
+      expect(record).not.toHaveProperty("token")
+      expect(record).not.toHaveProperty("sessionId")
+      expect(record).not.toHaveProperty("subjectId")
+      expect(record).not.toHaveProperty("operation")
+      expect(record).not.toHaveProperty("payload")
+      expect(record).not.toHaveProperty("path")
+    }
+  })
+
+  it("reports aggregate status without application identifiers", async () => {
+    const fixture = createFixture()
+    expect(fixture.handler.getStatus()).toMatchObject({
+      state: "open",
+      activeSessions: 0,
+      pendingHandshakes: 0,
+      inFlightRequests: 0,
+      activeEventStreams: 0
+    })
+    await fixture.handler.handle(request(handshakeMessage(), "Bearer bearer_token"))
+    const snapshot = fixture.handler.getStatus()
+    expect(snapshot).toMatchObject({
+      state: "open",
+      activeSessions: 1,
+      admittedSessions: 1
+    })
+    expect(snapshot).not.toHaveProperty("sessionId")
+    expect(snapshot).not.toHaveProperty("subjectId")
+    expect(snapshot).not.toHaveProperty("operation")
+    await fixture.handler.close()
+  })
+
+  it("drains event streams immediately and waits for an in-flight operation", async () => {
+    let releaseOperation: () => void = () => undefined
+    const operationGate = new Promise<void>((resolve) => {
+      releaseOperation = resolve
+    })
+    let operationStarted: () => void = () => undefined
+    const started = new Promise<void>((resolve) => {
+      operationStarted = resolve
+    })
+    const fixture = createFixture({
+      handleOperation: async (operation) => {
+        operationStarted()
+        await operationGate
+        return { outcome: "completed", result: { operation } }
+      }
+    })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const stream = await fixture.handler.openEventStream({
+      method: "GET",
+      path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+      headers: {
+        authorization: "Bearer bearer_token",
+        [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+      }
+    })
+    const operation = fixture.handler.handle(
+      request(
+        operationMessage("request_1", "assistant.slow"),
+        "Bearer bearer_token",
+        sessionId
+      )
+    )
+    await started
+    expect(fixture.handler.getStatus().inFlightRequests).toBe(1)
+    const draining = fixture.handler.drain(100)
+    expect(fixture.handler.getStatus()).toMatchObject({
+      state: "draining",
+      activeSessions: 1,
+      inFlightRequests: 1,
+      activeEventStreams: 0
+    })
+    await expect(
+      fixture.handler.handle(
+        request(
+          operationMessage("request_2", "assistant.after-drain"),
+          "Bearer bearer_token",
+          sessionId
+        )
+      )
+    ).resolves.toMatchObject({ status: 503 })
+    await expect(
+      fixture.handler.openEventStream({
+        method: "GET",
+        path: REMOTE_AGENT_HOST_SSE_EVENT_PATH,
+        headers: {
+          authorization: "Bearer bearer_token",
+          [REMOTE_AGENT_HOST_SESSION_HEADER]: sessionId
+        }
+      })
+    ).resolves.toMatchObject({ status: 503 })
+    await expect(stream.stream?.closed).resolves.toBeUndefined()
+    releaseOperation()
+    await expect(operation).resolves.toMatchObject({ status: 200 })
+    await draining
+    expect(fixture.closeCalls).toBe(1)
+    expect(fixture.handler.getStatus().state).toBe("closed")
+  })
+
+  it("uses the drain deadline and makes drain and close idempotent", async () => {
+    let releaseResolve: () => void = () => undefined
+    const resolveGate = new Promise<void>((resolve) => {
+      releaseResolve = resolve
+    })
+    let resolveStarted: () => void = () => undefined
+    const started = new Promise<void>((resolve) => {
+      resolveStarted = resolve
+    })
+    const fixture = createFixture({
+      resolveHostGate: resolveGate,
+      resolveHostStarted: resolveStarted
+    })
+    const pendingHandshake = fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    await started
+    expect(fixture.handler.getStatus().pendingHandshakes).toBe(1)
+    const firstDrain = fixture.handler.drain(1)
+    const secondDrain = fixture.handler.drain(2)
+    expect(firstDrain).toBe(secondDrain)
+    await firstDrain
+    expect(fixture.handler.getStatus().state).toBe("closed")
+    releaseResolve()
+    await expect(pendingHandshake).resolves.toMatchObject({ status: 503 })
+    await fixture.handler.close()
+    expect(fixture.closeCalls).toBe(1)
+  })
+
+  it("lets close supersede drain and releases each endpoint once", async () => {
+    let releaseOperation: () => void = () => undefined
+    const operationGate = new Promise<void>((resolve) => {
+      releaseOperation = resolve
+    })
+    let started: () => void = () => undefined
+    const operationStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const fixture = createFixture({
+      handleOperation: async (operation) => {
+        started()
+        await operationGate
+        return { outcome: "completed", result: { operation } }
+      }
+    })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+    const operation = fixture.handler.handle(
+      request(
+        operationMessage("request_1", "assistant.slow"),
+        "Bearer bearer_token",
+        sessionId
+      )
+    )
+    await operationStarted
+    const draining = fixture.handler.drain(1_000)
+    await fixture.handler.close()
+    await draining
+    expect(fixture.handler.getStatus().state).toBe("closed")
+    expect(fixture.closeCalls).toBe(1)
+    releaseOperation()
+    await operation
+    await fixture.handler.close()
+    expect(fixture.closeCalls).toBe(1)
+  })
+
+  it("forces endpoint cleanup after the drain deadline", async () => {
+    let releaseOperation: () => void = () => undefined
+    const operationGate = new Promise<void>((resolve) => {
+      releaseOperation = resolve
+    })
+    let started: () => void = () => undefined
+    const operationStarted = new Promise<void>((resolve) => {
+      started = resolve
+    })
+    const fixture = createFixture({
+      handleOperation: async (operation) => {
+        started()
+        await operationGate
+        return { outcome: "completed", result: { operation } }
+      }
+    })
+    const handshake = await fixture.handler.handle(
+      request(handshakeMessage(), "Bearer bearer_token")
+    )
+    const operation = fixture.handler.handle(
+      request(
+        operationMessage("request_1", "assistant.slow"),
+        "Bearer bearer_token",
+        handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
+      )
+    )
+    await operationStarted
+    await fixture.handler.drain(1)
+    expect(fixture.handler.getStatus()).toMatchObject({
+      state: "closed",
+      activeSessions: 0,
+      inFlightRequests: 1
+    })
+    expect(fixture.closeCalls).toBe(1)
+    releaseOperation()
+    await operation
+  })
 })
 
 interface FixtureOptions {
@@ -508,6 +833,8 @@ interface FixtureOptions {
   readonly handleOperation?: (
     operation: string
   ) => Promise<{ outcome: "completed"; result: { readonly operation: string } }>
+  readonly quotaPolicy?: RemoteHostQuotaPolicy
+  readonly telemetry?: (record: RemoteAgentHostTelemetryRecord) => void
 }
 
 function createFixture(options: FixtureOptions = {}) {
@@ -600,7 +927,9 @@ function createFixture(options: FixtureOptions = {}) {
         ? {}
         : { maxEventSubscribers: options.maxEventSubscribers })
     },
-    now: () => nowMs
+    now: () => nowMs,
+    ...(options.quotaPolicy === undefined ? {} : { quotaPolicy: options.quotaPolicy }),
+    ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry })
   })
   return {
     handler,

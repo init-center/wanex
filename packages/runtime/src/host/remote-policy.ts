@@ -87,6 +87,69 @@ export interface RemoteHostRequestLimits {
   readonly requestTimeoutMs: number
 }
 
+export type RemoteHostRequestClass =
+  | "handshake"
+  | "operation"
+  | "event_stream"
+
+export interface RemoteHostQuotaRequest {
+  readonly subjectId: string
+  readonly requestClass: RemoteHostRequestClass
+  readonly hostId?: string
+  readonly nowMs: number
+}
+
+export type RemoteHostQuotaDecision =
+  | { readonly outcome: "allowed" }
+  | {
+      readonly outcome: "denied"
+      readonly retryAfterMs?: number
+    }
+
+export interface RemoteHostQuotaPolicy {
+  decide(
+    request: RemoteHostQuotaRequest
+  ): RemoteHostQuotaDecision | Promise<RemoteHostQuotaDecision>
+}
+
+export const DEFAULT_REMOTE_HOST_DRAIN_TIMEOUT_MS = 10_000
+export const MAX_REMOTE_HOST_DRAIN_TIMEOUT_MS = 5 * 60_000
+export const MAX_REMOTE_HOST_QUOTA_RETRY_AFTER_MS = 60 * 60_000
+
+export function normalizeRemoteHostQuotaDecision(
+  decision: RemoteHostQuotaDecision
+): RemoteHostQuotaDecision {
+  if (decision.outcome === "allowed") return decision
+  if (decision.outcome !== "denied") {
+    throw new Error("remote Host quota decision is invalid")
+  }
+  if (decision.retryAfterMs === undefined) return decision
+  if (
+    !Number.isSafeInteger(decision.retryAfterMs) ||
+    decision.retryAfterMs < 0 ||
+    decision.retryAfterMs > MAX_REMOTE_HOST_QUOTA_RETRY_AFTER_MS
+  ) {
+    throw new Error("remote Host quota retryAfterMs is invalid")
+  }
+  return decision
+}
+
+export function normalizeRemoteHostDrainTimeoutMs(
+  timeoutMs: number | undefined
+): number {
+  const value = timeoutMs ?? DEFAULT_REMOTE_HOST_DRAIN_TIMEOUT_MS
+  if (
+    !Number.isSafeInteger(value) ||
+    value < 1 ||
+    value > MAX_REMOTE_HOST_DRAIN_TIMEOUT_MS
+  ) {
+    throw new Error(
+      `remote Host drain timeout must be between 1 and ${MAX_REMOTE_HOST_DRAIN_TIMEOUT_MS}`
+    )
+  }
+  return value
+}
+
 export function authorizeRemoteHostRequest(
   request: RemoteHostAuthorizationRequest
 ): RemoteHostAuthorizationDecision {

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   authorizeRemoteHostDomain,
   authorizeRemoteHostRequest,
+  normalizeRemoteHostDrainTimeoutMs,
+  normalizeRemoteHostQuotaDecision,
   normalizeRemoteHostRequestLimits
 } from "../src/host/index.js"
 
@@ -170,5 +172,32 @@ describe("remote Host request limits", () => {
     expect(() =>
       normalizeRemoteHostRequestLimits({ requestTimeoutMs: 120_001 })
     ).toThrow()
+  })
+})
+
+describe("remote Host operational policy", () => {
+  it("normalizes bounded quota denials and rejects invalid hints", () => {
+    expect(normalizeRemoteHostQuotaDecision({ outcome: "allowed" })).toEqual({
+      outcome: "allowed"
+    })
+    expect(
+      normalizeRemoteHostQuotaDecision({ outcome: "denied", retryAfterMs: 2_000 })
+    ).toEqual({ outcome: "denied", retryAfterMs: 2_000 })
+    expect(() =>
+      normalizeRemoteHostQuotaDecision({ outcome: "denied", retryAfterMs: -1 })
+    ).toThrow()
+    expect(() =>
+      normalizeRemoteHostQuotaDecision({
+        outcome: "denied",
+        retryAfterMs: 60 * 60_000 + 1
+      })
+    ).toThrow()
+  })
+
+  it("normalizes a bounded drain deadline", () => {
+    expect(normalizeRemoteHostDrainTimeoutMs(undefined)).toBe(10_000)
+    expect(normalizeRemoteHostDrainTimeoutMs(1_000)).toBe(1_000)
+    expect(() => normalizeRemoteHostDrainTimeoutMs(0)).toThrow()
+    expect(() => normalizeRemoteHostDrainTimeoutMs(5 * 60_000 + 1)).toThrow()
   })
 })

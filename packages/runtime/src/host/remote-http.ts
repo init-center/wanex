@@ -13,10 +13,15 @@ import type { InProcessAgentHostEndpoint } from "./agent-host.js"
 import {
   authorizeRemoteHostDomain,
   authorizeRemoteHostRequest,
+  normalizeRemoteHostDrainTimeoutMs,
+  normalizeRemoteHostQuotaDecision,
   normalizeRemoteHostRequestLimits,
   type RemoteHostAuthorizationContext,
   type RemoteHostAuthenticatedSubject,
   type RemoteHostGrant,
+  type RemoteHostQuotaDecision,
+  type RemoteHostQuotaPolicy,
+  type RemoteHostRequestClass,
   type RemoteHostRequestLimits
 } from "./remote-policy.js"
 import {
@@ -25,6 +30,19 @@ import {
   REMOTE_AGENT_HOST_SSE_EVENT_PATH,
   type RemoteAgentHostEventStream,
 } from "./remote-event-stream.js"
+import {
+  createRemoteAgentHostOperationalMetrics,
+  type RemoteAgentHostLifecycleState,
+  type RemoteAgentHostStatusSnapshot,
+  type RemoteAgentHostTelemetryRecord,
+  type RemoteAgentHostTelemetrySink
+} from "./remote-operations.js"
+export type {
+  RemoteAgentHostLifecycleState,
+  RemoteAgentHostStatusSnapshot,
+  RemoteAgentHostTelemetryRecord,
+  RemoteAgentHostTelemetrySink
+} from "./remote-operations.js"
 
 export const REMOTE_AGENT_HOST_MESSAGE_PATH =
   "/v1/agent-host/message" as const
@@ -90,6 +108,8 @@ export interface RemoteAgentHostHandlerOptions {
   readonly createEndpointAccessToken?: () => string
   readonly limits?: Partial<RemoteHostRequestLimits>
   readonly now?: () => number
+  readonly quotaPolicy?: RemoteHostQuotaPolicy
+  readonly telemetry?: RemoteAgentHostTelemetrySink
 }
 
 export interface RemoteAgentHostHttpHandler {
@@ -97,6 +117,8 @@ export interface RemoteAgentHostHttpHandler {
   openEventStream(
     request: RemoteAgentHostEventStreamRequest
   ): Promise<RemoteAgentHostEventStreamResponse>
+  getStatus(): RemoteAgentHostStatusSnapshot
+  drain(timeoutMs?: number): Promise<void>
   close(): Promise<void>
 }
 
@@ -126,15 +148,60 @@ export function createRemoteAgentHostHttpHandler(
   const createEndpointAccessToken = options.createEndpointAccessToken ?? randomUUID
   const now = options.now ?? Date.now
   const sessions = new Map<string, RemoteHostSession>()
-  let pendingSessions = 0
-  let closed = false
+  let state: RemoteAgentHostLifecycleState = "open"
+  let drainPromise: Promise<void> | undefined
+  let closePromise: Promise<void> | undefined
+  let drainProgressResolver: (() => void) | undefined
+  const metrics = createRemoteAgentHostOperationalMetrics({
+    now,
+    ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry })
+  })
 
-  return Object.freeze({ handle, openEventStream, close })
+  return Object.freeze({ handle, openEventStream, getStatus, drain, close })
+
+  async function handle(
+    request: RemoteAgentHostHttpRequest
+  ): Promise<RemoteAgentHostHttpResponse> {
+    const requestClass = requestClassForBody(request.body)
+    const requestBytes = finiteByteCount(resolveBodySize(request))
+    let response: RemoteAgentHostHttpResponse
+    try {
+      response = await handleRequest(request)
+    } catch {
+      response = errorResponse(
+        500,
+        "application_failure",
+        "remote Agent Host request failed",
+        requestIdForBody(request.body)
+      )
+    }
+    metrics.recordRequestResult(response, requestClass, requestBytes)
+    return response
+  }
 
   async function openEventStream(
     request: RemoteAgentHostEventStreamRequest
   ): Promise<RemoteAgentHostEventStreamResponse> {
-    if (closed) {
+    let response: RemoteAgentHostEventStreamResponse
+    try {
+      response = await openEventStreamRequest(request)
+    } catch {
+      response = eventStreamErrorResponse(
+        500,
+        "application_failure",
+        "remote Agent Host event stream failed"
+      )
+    }
+    if (response.stream === undefined || response.status >= 400) {
+      metrics.recordEventStreamRejected(response)
+    }
+    return response
+  }
+
+  async function openEventStreamRequest(
+    request: RemoteAgentHostEventStreamRequest
+  ): Promise<RemoteAgentHostEventStreamResponse> {
+    if (state !== "open") {
       return eventStreamErrorResponse(
         503,
         "transport_failure",
@@ -255,8 +322,24 @@ export function createRemoteAgentHostHttpHandler(
       )
     }
 
+    const quota = await decideQuota(
+      "event_stream",
+      subject,
+      session.host.hostId,
+      currentNow
+    )
+    if (quota !== undefined) return quota
+    if (state !== "open") {
+      return eventStreamErrorResponse(
+        503,
+        "transport_failure",
+        "Remote Agent Host is draining"
+      )
+    }
+
     let stream: RemoteAgentHostEventStream | undefined
     let closedBeforeRegistration = false
+    let registered = false
     try {
       stream = createRemoteAgentHostEventStream({
         ...(cursor.cursor === undefined ? {} : { cursor: cursor.cursor }),
@@ -276,10 +359,12 @@ export function createRemoteAgentHostHttpHandler(
             closedBeforeRegistration = true
             return
           }
+          if (!registered) return
           session.eventStreams.delete(stream)
           const timer = session.eventStreamExpiryTimers.get(stream)
           if (timer !== undefined) clearTimeout(timer)
           session.eventStreamExpiryTimers.delete(stream)
+          metrics.recordEventStreamClosed()
         }
       })
     } catch {
@@ -289,7 +374,7 @@ export function createRemoteAgentHostHttpHandler(
         "Agent Host event stream failed to initialize"
       )
     }
-    if (closedBeforeRegistration || session.closed || closed) {
+    if (closedBeforeRegistration || session.closed || state !== "open") {
       stream.close()
       return eventStreamErrorResponse(
         503,
@@ -298,6 +383,8 @@ export function createRemoteAgentHostHttpHandler(
       )
     }
     session.eventStreams.add(stream)
+    registered = true
+    metrics.recordEventStreamOpened()
     const expiryDelay = session.expiresAt - currentNow
     const expiryTimer = setTimeout(() => {
       session.eventStreamExpiryTimers.delete(stream!)
@@ -312,10 +399,10 @@ export function createRemoteAgentHostHttpHandler(
     }
   }
 
-  async function handle(
+  async function handleRequest(
     request: RemoteAgentHostHttpRequest
   ): Promise<RemoteAgentHostHttpResponse> {
-    if (closed) {
+    if (state !== "open") {
       return errorResponse(503, "transport_failure", "Remote Agent Host is closed")
     }
     if (request.method.toUpperCase() !== "POST") {
@@ -373,6 +460,13 @@ export function createRemoteAgentHostHttpHandler(
           "Agent Host handshake cannot use an existing session"
         )
       }
+      const quota = await decideQuota(
+        "handshake",
+        subject,
+        undefined,
+        request.nowMs ?? now()
+      )
+      if (quota !== undefined) return quota
       return await admitSession(message, subject, request.nowMs ?? now())
     }
 
@@ -442,6 +536,26 @@ export function createRemoteAgentHostHttpHandler(
         requestId(message)
       )
     }
+    const requestClass: RemoteHostRequestClass =
+      message.kind === "wanex.agent-host.events.replay.request"
+        ? "event_stream"
+        : "operation"
+    const quota = await decideQuota(
+      requestClass,
+      subject,
+      session.host.hostId,
+      currentNow,
+      requestId(message)
+    )
+    if (quota !== undefined) return quota
+    if (state !== "open") {
+      return errorResponse(
+        503,
+        "transport_failure",
+        "Remote Agent Host is draining",
+        requestId(message)
+      )
+    }
     if (message.kind === "wanex.agent-host.operation.request") {
       const domainAccess = authorizeRemoteHostDomain(
         access.context,
@@ -467,6 +581,7 @@ export function createRemoteAgentHostHttpHandler(
     }
 
     session.inFlight += 1
+    metrics.recordRequestStarted()
     try {
       const response = await session.endpoint.send(message)
       if (!isAgentHostServerMessage(response)) {
@@ -498,6 +613,8 @@ export function createRemoteAgentHostHttpHandler(
       )
     } finally {
       session.inFlight -= 1
+      metrics.recordRequestFinished()
+      signalDrainProgress()
     }
   }
 
@@ -507,14 +624,18 @@ export function createRemoteAgentHostHttpHandler(
     nowMs: number
   ): Promise<RemoteAgentHostHttpResponse> {
     await pruneExpiredSessions(nowMs)
-    if (sessions.size + pendingSessions >= limits.maxSessions) {
+    if (state !== "open") {
+      return errorResponse(503, "transport_failure", "Remote Agent Host is draining")
+    }
+    if (sessions.size + metrics.getPendingHandshakes() >= limits.maxSessions) {
       return errorResponse(
         429,
         "resource_limit",
         "remote Agent Host session capacity reached"
       )
     }
-    pendingSessions += 1
+    metrics.recordHandshakeStarted()
+    signalDrainProgress()
     let endpoint: InProcessAgentHostEndpoint | undefined
     try {
       let resolved: RemoteAgentHostResolvedHost | null
@@ -552,17 +673,17 @@ export function createRemoteAgentHostHttpHandler(
         )
       }
       endpoint = await resolved.createEndpoint(endpointSecret)
-      if (closed) {
+      if (state !== "open") {
         closeEndpointInstance(endpoint)
-        return errorResponse(503, "transport_failure", "Remote Agent Host is closed")
+        return errorResponse(503, "transport_failure", "Remote Agent Host is draining")
       }
       const response = await endpoint.send({
         ...request,
         accessToken: endpointSecret
       })
-      if (closed) {
+      if (state !== "open") {
         closeEndpointInstance(endpoint)
-        return errorResponse(503, "transport_failure", "Remote Agent Host is closed")
+        return errorResponse(503, "transport_failure", "Remote Agent Host is draining")
       }
       if (
         !isAgentHostServerMessage(response) ||
@@ -615,6 +736,7 @@ export function createRemoteAgentHostHttpHandler(
         inFlight: 0,
         closed: false
       })
+      metrics.recordSessionAdmitted()
       return {
         status: 200,
         headers: {
@@ -631,33 +753,57 @@ export function createRemoteAgentHostHttpHandler(
         "Agent Host endpoint failed to initialize"
       )
     } finally {
-      pendingSessions -= 1
+      metrics.recordHandshakeFinished()
+      signalDrainProgress()
     }
   }
 
+  function getStatus(): RemoteAgentHostStatusSnapshot {
+    return metrics.getStatus(state)
+  }
+
+  function drain(timeoutMs?: number): Promise<void> {
+    if (state === "closed") {
+      return closePromise ?? Promise.resolve()
+    }
+    if (drainPromise !== undefined) return drainPromise
+    const timeout = normalizeRemoteHostDrainTimeoutMs(timeoutMs)
+    state = "draining"
+    drainPromise = (async () => {
+      await waitForDrain(timeout)
+      await close()
+    })()
+    metrics.recordHandlerDraining()
+    closeAllEventStreams()
+    return drainPromise
+  }
+
   async function close(): Promise<void> {
-    if (closed) return
-    closed = true
-    const current = [...sessions.values()]
-    sessions.clear()
-    await Promise.all(
-      current.map(async (session) => {
-        await closeSession(session)
-      })
-    )
+    if (closePromise !== undefined) return closePromise
+    state = "closed"
+    signalDrainProgress()
+    closePromise = (async () => {
+      closeAllEventStreams()
+      const current = [...sessions.values()]
+      await Promise.all(current.map(async (session) => await closeSession(session)))
+      metrics.recordHandlerClosed()
+    })()
+    return closePromise
   }
 
   async function closeSession(session: RemoteHostSession): Promise<void> {
     if (session.closed) return
     session.closed = true
     if (sessions.get(session.id) === session) sessions.delete(session.id)
-    for (const stream of session.eventStreams) stream.close()
+    for (const stream of [...session.eventStreams]) stream.close()
     session.eventStreams.clear()
     for (const timer of session.eventStreamExpiryTimers.values()) {
       clearTimeout(timer)
     }
     session.eventStreamExpiryTimers.clear()
     await closeEndpoint(session)
+    metrics.recordSessionClosed()
+    signalDrainProgress()
   }
 
   async function closeEndpoint(session: RemoteHostSession): Promise<void> {
@@ -677,6 +823,79 @@ export function createRemoteAgentHostHttpHandler(
     )
     await Promise.all(expired.map(async (session) => await closeSession(session)))
   }
+
+  async function waitForDrain(timeoutMs: number): Promise<void> {
+    if (
+      metrics.getPendingHandshakes() === 0 &&
+      metrics.getStatus(state).inFlightRequests === 0
+    ) return
+    await new Promise<void>((resolve) => {
+      let settled = false
+      const finish = (): void => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        if (drainProgressResolver === finish) drainProgressResolver = undefined
+        resolve()
+      }
+      const timer = setTimeout(finish, timeoutMs)
+      drainProgressResolver = finish
+      if (
+        state === "closed" ||
+        metrics.getPendingHandshakes() === 0 &&
+          metrics.getStatus(state).inFlightRequests === 0
+      ) {
+        finish()
+      }
+    })
+  }
+
+  function signalDrainProgress(): void {
+    drainProgressResolver?.()
+  }
+
+  function closeAllEventStreams(): void {
+    for (const session of sessions.values()) {
+      for (const stream of [...session.eventStreams]) stream.close()
+    }
+  }
+
+  async function decideQuota(
+    requestClass: RemoteHostRequestClass,
+    subject: RemoteHostAuthenticatedSubject,
+    hostId: string | undefined,
+    nowMs: number,
+    requestId?: string
+  ): Promise<RemoteAgentHostHttpResponse | undefined> {
+    if (options.quotaPolicy === undefined) return undefined
+    let decision: RemoteHostQuotaDecision
+    try {
+      decision = normalizeRemoteHostQuotaDecision(
+        await options.quotaPolicy.decide({
+          subjectId: subject.subjectId,
+          requestClass,
+          ...(hostId === undefined ? {} : { hostId }),
+          nowMs
+        })
+      )
+    } catch {
+      return errorResponse(
+        500,
+        "application_failure",
+        "remote Agent Host quota policy failed",
+        requestId
+      )
+    }
+    if (decision.outcome === "allowed") return undefined
+    return errorResponse(
+      429,
+      "resource_limit",
+      "remote Agent Host quota exceeded",
+      requestId,
+      decision.retryAfterMs
+    )
+  }
+
 }
 
 function closeEndpointInstance(endpoint: InProcessAgentHostEndpoint): void {
@@ -717,17 +936,48 @@ function errorResponse(
   status: number,
   code: AgentHostErrorCode,
   message: string,
-  requestId?: string
+  requestId?: string,
+  retryAfterMs?: number
 ): RemoteAgentHostHttpResponse {
+  const retryAfterSeconds =
+    retryAfterMs === undefined ? undefined : Math.ceil(retryAfterMs / 1_000)
   return {
     status,
-    headers: JSON_HEADERS,
+    headers: {
+      ...JSON_HEADERS,
+      ...(retryAfterSeconds === undefined
+        ? {}
+        : { "retry-after": String(retryAfterSeconds) })
+    },
     body: {
       kind: "wanex.agent-host.error",
       ...(requestId === undefined ? {} : { requestId }),
-      error: { code, message, retryable: false }
+      error: { code, message, retryable: retryAfterMs !== undefined }
     }
   }
+}
+
+function requestClassForBody(value: unknown): RemoteHostRequestClass | undefined {
+  if (!isRecord(value) || typeof value.kind !== "string") return undefined
+  if (value.kind === "wanex.agent-host.handshake.request") return "handshake"
+  if (value.kind === "wanex.agent-host.events.replay.request") return "event_stream"
+  if (value.kind === "wanex.agent-host.operation.request") return "operation"
+  return undefined
+}
+
+function requestIdForBody(value: unknown): string | undefined {
+  if (!isRecord(value) || typeof value.requestId !== "string") return undefined
+  return value.requestId
+}
+
+function finiteByteCount(value: number | undefined): number | undefined {
+  return value !== undefined && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
 function eventStreamErrorResponse(

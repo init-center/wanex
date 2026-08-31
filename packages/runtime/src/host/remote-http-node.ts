@@ -84,7 +84,7 @@ export function createRemoteAgentHostNodeHttpAdapter(
         nowMs: Date.now()
       })
       if (opened.stream === undefined) {
-        writeOptionalJson(response, opened.status, opened.body)
+        writeOptionalJson(response, opened.status, opened.body, opened.headers)
         return
       }
       await writeEventStream(
@@ -253,7 +253,8 @@ function writeJsonResponse(
 function writeOptionalJson(
   response: ServerResponse,
   status: number,
-  body: RemoteAgentHostHttpResponse["body"] | undefined
+  body: RemoteAgentHostHttpResponse["body"] | undefined,
+  headers: Readonly<Record<string, string>> = {}
 ): void {
   if (body === undefined) {
     writeJson(response, 500, {
@@ -266,7 +267,7 @@ function writeOptionalJson(
     })
     return
   }
-  writeJson(response, status, body)
+  writeJson(response, status, body, headers)
 }
 
 function writeJson(

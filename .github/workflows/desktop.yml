@@ -35,6 +35,7 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
+      - run: cargo build -p wanex-system-service
       - run: node ./scripts/run-linux-keyring-session.mjs pnpm verify
         env:
           WANEX_TEST_CONCURRENCY: 2

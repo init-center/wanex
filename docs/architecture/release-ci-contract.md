@@ -95,7 +95,10 @@ node ./scripts/run-eval-harness.mjs
 ```
 
 The release workflow runs the broad source gate once in the Linux security
-lane. It does not repeat `pnpm verify` on every native target: that duplicates
+lane. Before `pnpm verify`, that lane builds the debug System Service because
+Runtime and application tests exercise the real local service binary. It does
+not rely on a package artifact or a previous build. The workflow does not
+repeat `pnpm verify` on every native target: that duplicates
 the TypeScript, Rust, SDK, and eval work without proving target packaging. The
 target matrix still runs focused native/TUI/Desktop and native consumer proofs
 on Linux, macOS, and Windows. Existing Node 26 source jobs prove packed core
@@ -226,6 +229,10 @@ source gate remains a separate concern.
 
 The job uploads the target-native npm tarball and portable report beside the
 existing native/Desktop receipts.
+
+The source gate's explicit debug build is a prerequisite for source-first
+Runtime tests. Target distribution jobs independently build or stage their
+selected release artifact before running target proofs.
 
 The eval CLI uses an isolated temporary store per executed scenario by default.
 Persistent shared eval stores are only for explicit debugging via `--store` or

@@ -286,16 +286,19 @@ fn run_terminal_child(start: &StartFrame) -> Result<()> {
     let rows = start
         .terminal_rows
         .ok_or_else(|| invalid_input("workspace child terminal rows are missing"))?;
-    let mut command = Command::new(&start.program);
-    command
-        .args(&start.args)
-        .current_dir(&start.cwd)
-        .env_clear()
-        .envs(&start.environment);
-    let master = prepare_terminal_command(&mut command, columns, rows)?;
-    let mut child = command.spawn().map_err(|_| {
-        SystemServiceError::Io(io::Error::other("workspace child terminal failed to spawn"))
-    })?;
+    let (mut child, master) = {
+        let mut command = Command::new(&start.program);
+        command
+            .args(&start.args)
+            .current_dir(&start.cwd)
+            .env_clear()
+            .envs(&start.environment);
+        let master = prepare_terminal_command(&mut command, columns, rows)?;
+        let child = command.spawn().map_err(|_| {
+            SystemServiceError::Io(io::Error::other("workspace child terminal failed to spawn"))
+        })?;
+        (child, master)
+    };
     let ownership = ChildOwnership::claim(&mut child)?;
     drop(child.stdin.take());
     drop(child.stdout.take());

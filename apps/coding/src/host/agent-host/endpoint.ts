@@ -55,6 +55,7 @@ const COMMANDS = new Map<string, CodingCommand>([
     CODING_AGENT_HOST_OPERATIONS.proposalApplyRequest,
     CODING_COMMANDS.requestProposalApply,
   ],
+  [CODING_AGENT_HOST_OPERATIONS.proposalApply, CODING_COMMANDS.applyProposal],
   [CODING_AGENT_HOST_OPERATIONS.proposalUndo, CODING_COMMANDS.undoProposal],
 ]);
 
@@ -181,7 +182,18 @@ function commandInput(
   }
   const record = input as Record<string, JsonValue>;
   if (Object.hasOwn(record, "requestId")) return undefined;
-  if (command === CODING_COMMANDS.cancelTurn) return input;
+  if (
+    command === CODING_COMMANDS.cancelTurn ||
+    command === CODING_COMMANDS.applyProposal
+  ) {
+    if (
+      command === CODING_COMMANDS.applyProposal &&
+      Object.hasOwn(record, "idempotencyKey")
+    ) {
+      return undefined;
+    }
+    return input;
+  }
   if (command === CODING_COMMANDS.startTurn) {
     if (Object.hasOwn(record, "idempotencyKey")) return undefined;
     return { ...record, idempotencyKey: requestId };

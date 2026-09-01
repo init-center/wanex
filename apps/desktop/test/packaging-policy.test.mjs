@@ -25,6 +25,7 @@ import {
 } from "../scripts/metrics.mjs";
 import {
   assertRelaunchJourneyFixtureRequests,
+  assertRemoteCodingFixtureEvidence,
   assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
   createDesktopProofProcessEnvironment,
@@ -37,6 +38,10 @@ import {
 import {
   requiredWanexDesktopPackagedProofStep,
 } from "../src/packaged-renderer-proof.ts";
+import {
+  createWanexDesktopProofFailureReceipt,
+  formatWanexDesktopError,
+} from "../src/proof-failure.ts";
 import {
   electronArtifactChecksum,
   electronArtifactFileName,
@@ -56,6 +61,28 @@ afterEach(async () => {
 });
 
 describe("Desktop packaging policy", () => {
+  it("retains bounded proof diagnostics without retaining secrets or endpoints", () => {
+    const error = new Error(
+      "Coding proof timed out: coding_proposal_apply " +
+        "token=private-value https://localhost:9443/private " +
+        "wanex-packaged-remote-coding-proof-token",
+    );
+    const receipt = createWanexDesktopProofFailureReceipt({
+      error,
+      failurePhase: "renderer_proof",
+      proofStep: "relaunch-coding",
+    });
+    const retained = `${JSON.stringify(receipt)} ${formatWanexDesktopError(error)}`;
+
+    expect(receipt).toMatchObject({
+      failureDiagnostic: "coding_proposal_apply_timeout",
+      failureDiagnosticMessage: expect.stringContaining("token=<redacted>"),
+    });
+    expect(retained).not.toContain("private-value");
+    expect(retained).not.toContain("https://localhost:9443/private");
+    expect(retained).not.toContain("wanex-packaged-remote-coding-proof-token");
+  });
+
   it("requires an external installation root and verifies the copied package", async () => {
     const sourceRoot = await temporaryDirectory("wanex-installed-source-");
     const sourcePackage = join(sourceRoot, "Wanex.app");
@@ -970,6 +997,104 @@ describe("Desktop packaging policy", () => {
     ).toThrow("Provider requests are invalid");
   });
 
+  it("accepts only complete packaged Remote Coding fixture evidence", () => {
+    const requests = [
+      { path: "/v1/agent-host/message", method: "POST", authorized: true },
+      { path: "/v1/agent-host/events", method: "GET", authorized: true },
+      { path: "/v1/agent-host/message", method: "POST", authorized: true },
+      { path: "/v1/agent-host/message", method: "POST", authorized: true },
+      { path: "/v1/agent-host/message", method: "POST", authorized: true },
+    ];
+    const evidence = {
+      requests,
+      observations: { listProjects: 2, readProject: 1, listSessions: 1 },
+      activeEventResponseCount: 0,
+    };
+    expect(() => assertRemoteCodingFixtureEvidence(evidence)).not.toThrow();
+    expect(() => assertRemoteCodingFixtureEvidence({
+      requests,
+      activeEventResponseCount: 0,
+    })).toThrow("Remote Coding fixture evidence is invalid");
+    expect(() => assertRemoteCodingFixtureEvidence({
+      ...evidence,
+      requests: requests.slice(0, -1),
+    })).toThrow("Remote Coding fixture evidence is invalid");
+    expect(() => assertRemoteCodingFixtureEvidence({
+      ...evidence,
+      requests: [
+        ...requests,
+        { path: "/v1/agent-host/events", method: "GET", authorized: true },
+      ],
+    })).toThrow("Remote Coding fixture evidence is invalid");
+    expect(() => assertRemoteCodingFixtureEvidence({
+      ...evidence,
+      requests: [
+        ...requests.slice(0, -1),
+        { path: "/v1/agent-host/message", method: "POST", authorized: false },
+      ],
+    })).toThrow("Remote Coding fixture evidence is invalid");
+    expect(() => assertRemoteCodingFixtureEvidence({
+      ...evidence,
+      observations: { ...evidence.observations, readProject: 0 },
+    })).toThrow("Remote Coding fixture evidence is invalid");
+    expect(() => assertRemoteCodingFixtureEvidence({
+      ...evidence,
+      activeEventResponseCount: 1,
+    })).toThrow("Remote Coding fixture evidence is invalid");
+  });
+
+  it("requires the idle Remote Coding workbench to hide its empty inspector", () => {
+    const runtime = {
+      kind: "wanex.desktop.runtime-receipt",
+      ok: true,
+      proofStep: "relaunch-remote-coding",
+      renderer: {
+        ok: true,
+        step: "relaunch-remote-coding",
+        providerEvidenceRedacted: true,
+        codingSurfaceSelected: true,
+        remoteProfileFormVisible: true,
+        profileInputSubmitted: true,
+        credentialAcceptedByForm: true,
+        profilePersistedAfterSave: true,
+        credentialAbsentAfterSave: true,
+        endpointAbsentAfterSave: true,
+        remoteProjectVisible: true,
+        opaqueProjectSelected: true,
+        sharedWorkbenchVisible: true,
+        idleInspectorHidden: true,
+        projectId: "packaged-remote-project",
+        profileRemoved: true,
+        removedProfileListEmpty: true,
+        reconnectRejectedAfterRemoval: true,
+        internalIdentityEvidenceHidden: true,
+        timingsMs: {
+          rendererInteractive: 1,
+          conversationSettlement: 2,
+          rendererPostSettlement: 3,
+        },
+      },
+      privacy: {
+        exposesStorePath: false,
+        exposesServiceBinaryPath: false,
+        exposesSecrets: false,
+        exposesRawStorageClient: false,
+        exposesElectronApi: false,
+      },
+    };
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      runtime,
+      "relaunch-remote-coding",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      {
+        ...runtime,
+        renderer: { ...runtime.renderer, idleInspectorHidden: false },
+      },
+      "relaunch-remote-coding",
+    )).toThrow("runtime proof failed");
+  });
+
   it("accepts only the two canonical Schedule packaged proof steps", () => {
     expect(requiredWanexDesktopPackagedProofStep("relaunch-schedule-create"))
       .toBe("relaunch-schedule-create");
@@ -1056,6 +1181,13 @@ describe("Desktop packaging policy", () => {
     expect(workflow).toContain("pull_request:\n");
     expect(workflow).toContain("push:\n    branches: [main]");
     expect(workflow).not.toContain("paths:");
+    expect(workflow.match(/pnpm verify/g)).toHaveLength(1);
+    const verifyBlock = workflow.slice(
+      workflow.indexOf("  verify:"),
+      workflow.indexOf("  packed-core-node24:"),
+    );
+    expect(verifyBlock).toContain("runs-on: ubuntu-24.04");
+    expect(verifyBlock).not.toContain("matrix.target");
     expect(workflow).toContain("needs: verify");
     expect(workflow).toContain(
       "os: ubuntu-24.04\n            target: linux-x64",
@@ -1067,6 +1199,9 @@ describe("Desktop packaging policy", () => {
       "os: windows-2025\n            target: win32-x64",
     );
     expect(workflow).toContain("run: pnpm proof:desktop");
+    expect(workflow).toContain(
+      "run: pnpm proof:desktop-distribution -- --target ${{ matrix.target }}",
+    );
     expect(workflow).toContain(
       "run: pnpm --filter @wanex/desktop prepare:electron",
     );
@@ -1085,6 +1220,12 @@ describe("Desktop packaging policy", () => {
     expect(workflow).toContain("target/distribution/tui");
     expect(workflow).toContain(
       "target/distribution/desktop/electron-artifact.json",
+    );
+    expect(workflow).toContain(
+      "target/distribution/desktop/desktop-distribution-receipt.json",
+    );
+    expect(workflow).toContain(
+      "--desktop-distribution-receipt target/distribution/desktop/desktop-distribution-receipt.json",
     );
     expect(workflow).toContain(
       "target/distribution/desktop/desktop-proof-normal.png",

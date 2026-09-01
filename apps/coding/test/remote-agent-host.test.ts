@@ -41,6 +41,16 @@ describe("remote Coding Agent Host composition", () => {
 
       expect(first).toEqual(second);
       expect(fixture.startCalls).toHaveLength(1);
+      await expect(
+        composition.client.applyProposal({
+          projectId: "project-1",
+          proposalId: "proposal-1",
+          idempotencyKey: "remote-apply-once",
+        }),
+      ).resolves.toMatchObject({
+        status: "applied",
+        proposal: { projectId: "project-1", proposalId: "proposal-1" },
+      });
       expect(requests[0]?.headers.get("authorization")).toBe(
         "Bearer coding-bearer",
       );
@@ -52,13 +62,17 @@ describe("remote Coding Agent Host composition", () => {
       expect(requests[0]?.body.accessToken).not.toBe("coding-bearer");
       expect(requests.at(-1)?.body).toMatchObject({
         kind: "wanex.agent-host.operation.request",
-        operation: "coding.turn.start",
-        idempotencyKey: "remote-turn-once",
+        operation: "coding.proposal.apply",
+        idempotencyKey: "remote-apply-once",
         payload: {
           projectId: "project-1",
-          content: [{ type: "text", text: "remote coding" }],
+          proposalId: "proposal-1",
         },
       });
+      expect(fixture.applyCalls).toEqual([{
+        projectId: "project-1",
+        proposalId: "proposal-1",
+      }]);
       expect(JSON.stringify(requests)).not.toContain("endpoint-secret");
     } finally {
       await composition.close();
@@ -241,8 +255,9 @@ describe("remote Coding Agent Host composition", () => {
 
 function createFixture() {
   const startCalls: Record<string, unknown>[] = [];
+  const applyCalls: Record<string, unknown>[] = [];
   const listeners = new Set<(event: CodingApplicationEvent) => void>();
-  const application = createApplication(startCalls, listeners);
+  const application = createApplication(startCalls, applyCalls, listeners);
   const handler = createRemoteCodingAgentHostHandler({
     authenticateBearerToken: async (token) => {
       if (token === "coding-bearer") {
@@ -277,6 +292,7 @@ function createFixture() {
   return {
     handler,
     startCalls,
+    applyCalls,
     emit(value: CodingApplicationEvent) {
       for (const listener of listeners) listener(value);
     },
@@ -285,6 +301,7 @@ function createFixture() {
 
 function createApplication(
   startCalls: Record<string, unknown>[],
+  applyCalls: Record<string, unknown>[],
   listeners: Set<(event: CodingApplicationEvent) => void>,
 ): CodingApplication {
   const projects: readonly CodingProjectReadModel[] = [
@@ -315,6 +332,15 @@ function createApplication(
       startCalls.push(request as unknown as Record<string, unknown>);
       return result;
     },
+    applyProposal: async (
+      request: Parameters<CodingApplication["applyProposal"]>[0],
+    ) => {
+      applyCalls.push(request as unknown as Record<string, unknown>);
+      return {
+        status: "applied",
+        proposal: proposal(request.projectId, request.proposalId),
+      };
+    },
     readEvents: async (): Promise<CodingApplicationEventPage> => ({
       streamId: "coding-stream",
       events: [],
@@ -343,6 +369,24 @@ function turn(projectId: string): CodingTurnReadModel {
     canCancel: true,
     approvals: { totalCount: 0, returnedCount: 0, omittedCount: 0, items: [] },
     recovery: { totalCount: 0, returnedCount: 0, omittedCount: 0, items: [] },
+  };
+}
+
+function proposal(projectId: string, proposalId: string) {
+  return {
+    projectId,
+    proposalId,
+    state: "applied" as const,
+    changeState: "applied" as const,
+    incomplete: false,
+    totalFileCount: 0,
+    returnedFileCount: 0,
+    omittedFileCount: 0,
+    files: [],
+    totalOperationCount: 0,
+    returnedOperationCount: 0,
+    omittedOperationCount: 0,
+    operations: [],
   };
 }
 

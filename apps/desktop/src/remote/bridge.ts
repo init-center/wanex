@@ -6,11 +6,14 @@ import type {
 import {
   isRemoteConnectionProfile,
   isRemoteConnectionProfileId,
+  type SaveRemoteConnectionProfileInput,
   type RemoteConnectionProfile,
 } from "./profile.js";
 
 export const DESKTOP_REMOTE_IPC = Object.freeze({
   listProfiles: "wanex.desktop.remote.list-profiles",
+  saveProfile: "wanex.desktop.remote.save-profile",
+  removeProfile: "wanex.desktop.remote.remove-profile",
   connect: "wanex.desktop.remote.connect",
   reconnectEvents: "wanex.desktop.remote.reconnect-events",
   disconnect: "wanex.desktop.remote.disconnect",
@@ -31,6 +34,10 @@ export interface DesktopRemoteConnectionEvent {
 
 export interface DesktopRemoteRendererBridge {
   listProfiles(): Promise<readonly RemoteConnectionProfile[]>;
+  saveProfile(
+    input: SaveRemoteConnectionProfileInput,
+  ): Promise<RemoteConnectionProfile>;
+  removeProfile(profileId: string): Promise<void>;
   connect(profileId: string): Promise<DesktopRemoteConnectionStatus>;
   reconnectEvents(profileId: string): Promise<DesktopRemoteConnectionStatus>;
   disconnect(profileId: string): Promise<void>;

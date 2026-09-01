@@ -336,6 +336,8 @@ describe("Desktop lifecycle and navigation", () => {
       .toBe("relaunch-plugin-install")
     expect(requiredWanexDesktopPackagedProofStep("relaunch-plugin-restore"))
       .toBe("relaunch-plugin-restore")
+    expect(requiredWanexDesktopPackagedProofStep("relaunch-remote-coding"))
+      .toBe("relaunch-remote-coding")
     expect(() => requiredWanexDesktopPackagedProofStep("team"))
       .toThrow("must be recognized")
   })

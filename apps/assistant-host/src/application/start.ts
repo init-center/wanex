@@ -22,6 +22,7 @@ import {
   startAssistantHostInternal,
   type StartedAssistantHost,
 } from "./assistant.js"
+import { preservePrimaryError } from "./errors.js"
 
 export async function startAssistantWebApp(
   options: StartAssistantWebAppOptions,
@@ -78,7 +79,11 @@ export async function startAssistantWebApp(
       capabilitySetup,
     })
   } catch (error) {
-    await closeStartedAssistantWebApp({ assistant, host })
+    try {
+      await closeStartedAssistantWebApp({ assistant, host })
+    } catch (cleanupError) {
+      throw preservePrimaryError(error, cleanupError)
+    }
     throw error
   }
 }

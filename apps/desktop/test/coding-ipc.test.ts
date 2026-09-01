@@ -12,22 +12,23 @@ import {
   type DesktopCodingIpcMain,
   type DesktopCodingWindow,
 } from "../src/coding-ipc.js";
-import type { DesktopCodingComposition } from "../src/coding.js";
+import type { DesktopCodingRouter } from "../src/coding/router.js";
+import type { DesktopCodingEvent } from "../src/coding-bridge.js";
 
 describe("Desktop Coding IPC", () => {
   it("keeps project paths inside main and rejects malformed commands", async () => {
     const ipc = new FakeIpcMain();
     let openedPath: string | undefined;
-    const composition = fakeComposition({
-      openProject: async (path) => {
+    const router = fakeRouter({
+      openLocalProject: async (path) => {
         openedPath = path;
-        return project();
+        return selectedProject();
       },
     });
     const window = fakeWindow();
     const remove = installDesktopCodingIpc({
       ipcMain: ipc,
-      composition,
+      router,
       getWindow: () => window,
       selectProject: async () => "/private/selected/project",
     });
@@ -45,6 +46,9 @@ describe("Desktop Coding IPC", () => {
     remove();
     expect(ipc.removed).toEqual([
       DESKTOP_CODING_IPC.selectProject,
+      DESKTOP_CODING_IPC.listRemoteProfiles,
+      DESKTOP_CODING_IPC.listRemoteProjects,
+      DESKTOP_CODING_IPC.selectRemoteProject,
       DESKTOP_CODING_IPC.sendCommand,
     ]);
   });
@@ -53,10 +57,10 @@ describe("Desktop Coding IPC", () => {
     const ipc = new FakeIpcMain();
     const active = fakeWindow();
     const foreign = fakeWindow();
-    const composition = fakeComposition();
+    const router = fakeRouter();
     const remove = installDesktopCodingIpc({
       ipcMain: ipc,
-      composition,
+      router,
       getWindow: () => active,
       selectProject: async () => undefined,
     });
@@ -65,7 +69,7 @@ describe("Desktop Coding IPC", () => {
       sender: foreign.webContents,
     })).rejects.toThrow("active Desktop window");
 
-    composition.publish({
+    router.publish({
       protocol: "wanex.coding/1",
       kind: "event",
       event: {
@@ -77,13 +81,21 @@ describe("Desktop Coding IPC", () => {
         occurredAt: 1,
       },
     });
-    composition.publish({
+    router.publish({
+      kind: "wanex.desktop.coding.canonical-read-required",
+      projectId: "project-1",
+    });
+    router.publish({
       protocol: "wanex.coding/1",
       kind: "event",
       event: { kind: "project_invalidated" },
     } as never);
     expect(active.webContents.sent).toEqual([
       [DESKTOP_CODING_IPC.event, expect.objectContaining({ kind: "event" })],
+      [DESKTOP_CODING_IPC.event, {
+        kind: "wanex.desktop.coding.canonical-read-required",
+        projectId: "project-1",
+      }],
     ]);
     remove();
   });
@@ -91,12 +103,12 @@ describe("Desktop Coding IPC", () => {
   it("rejects a response that does not satisfy the Coding transport contract", async () => {
     const ipc = new FakeIpcMain();
     const window = fakeWindow();
-    const composition = fakeComposition({
+    const router = fakeRouter({
       send: async () => ({ ok: true, value: "not-a-project-list" }),
     });
     const remove = installDesktopCodingIpc({
       ipcMain: ipc,
-      composition,
+      router,
       getWindow: () => window,
       selectProject: async () => undefined,
     });
@@ -166,16 +178,18 @@ function fakeWindow(): DesktopCodingWindow & { readonly webContents: DesktopCodi
   };
 }
 
-function fakeComposition(options: {
-  readonly openProject?: DesktopCodingComposition["openProject"];
-  readonly send?: DesktopCodingComposition["send"];
-} = {}): DesktopCodingComposition & {
-  publish(event: Parameters<DesktopCodingComposition["subscribe"]>[0] extends (value: infer Event) => void ? Event : never): void;
+function fakeRouter(options: {
+  readonly openLocalProject?: DesktopCodingRouter["openLocalProject"];
+  readonly send?: DesktopCodingRouter["send"];
+} = {}): DesktopCodingRouter & {
+  publish(event: Parameters<DesktopCodingRouter["subscribe"]>[0] extends (value: infer Event) => void ? Event : never): void;
 } {
-  const listeners = new Set<(event: unknown) => void>();
+  const listeners = new Set<(event: DesktopCodingEvent) => void>();
   return {
-    state: "idle",
-    openProject: options.openProject ?? (async () => project()),
+    openLocalProject: options.openLocalProject ?? (async () => selectedProject()),
+    listRemoteProfiles: async () => [],
+    listRemoteProjects: async (profileId) => ({ profileId, projects: [] }),
+    openRemoteProject: async () => selectedProject(),
     send: options.send ?? (async () => ({
       protocol: "wanex.coding/1",
       kind: "response",
@@ -192,6 +206,15 @@ function fakeComposition(options: {
     publish(event) {
       for (const listener of listeners) listener(event);
     },
+  };
+}
+
+function selectedProject() {
+  return {
+    kind: "selected" as const,
+    project: project(),
+    location: { kind: "local" as const },
+    capabilities: { proposalApply: true },
   };
 }
 

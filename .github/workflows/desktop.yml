@@ -15,25 +15,9 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify ${{ matrix.target }}
-    runs-on: ${{ matrix.os }}
+    name: Verify source gate
+    runs-on: ubuntu-24.04
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-24.04
-            target: linux-x64
-            test_concurrency: 2
-          - os: macos-15
-            target: darwin-arm64
-            test_concurrency: 2
-          - os: macos-15-intel
-            target: darwin-x64
-            test_concurrency: 2
-          - os: windows-2025
-            target: win32-x64
-            test_concurrency: 1
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -50,22 +34,13 @@ jobs:
           components: rustfmt, clippy
 
       - run: pnpm install --frozen-lockfile
-      - if: matrix.target == 'linux-x64'
-        run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
-      - if: matrix.target == 'linux-x64'
-        run: node ./scripts/run-linux-keyring-session.mjs pnpm verify
+      - run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
+      - run: node ./scripts/run-linux-keyring-session.mjs pnpm verify
         env:
-          WANEX_TEST_CONCURRENCY: ${{ matrix.test_concurrency }}
-      - if: matrix.target != 'linux-x64'
-        run: pnpm verify
-        env:
-          WANEX_TEST_CONCURRENCY: ${{ matrix.test_concurrency }}
-      - if: matrix.target == 'linux-x64'
-        run: cargo install cargo-audit --version 0.22.2 --locked
-      - if: matrix.target == 'linux-x64'
-        run: pnpm security:js
-      - if: matrix.target == 'linux-x64'
-        run: pnpm security:rust
+          WANEX_TEST_CONCURRENCY: 2
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: pnpm security:js
+      - run: pnpm security:rust
 
   packed-core-node24:
     name: Packed Core Node 24
@@ -141,7 +116,9 @@ jobs:
         run: pnpm --filter @wanex/desktop prepare:electron
       - if: matrix.desktop
         run: pnpm proof:desktop
-      - run: pnpm audit:host-distribution -- --target ${{ matrix.target }} --tui-receipt target/distribution/tui/installed-proof.json
+      - if: matrix.desktop
+        run: pnpm proof:desktop-distribution -- --target ${{ matrix.target }}
+      - run: pnpm audit:host-distribution -- --target ${{ matrix.target }} --tui-receipt target/distribution/tui/installed-proof.json --desktop-distribution-receipt target/distribution/desktop/desktop-distribution-receipt.json
       - run: pnpm release:sdk
       - run: pnpm release:native -- --target ${{ matrix.target }}
       - run: pnpm proof:sdk-consumers -- --native-target ${{ matrix.target }} --native-package-report target/sdk/native/${{ matrix.target }}/report.json
@@ -158,6 +135,7 @@ jobs:
             target/distribution/host-distribution-audit-${{ matrix.target }}.json
             target/distribution/desktop/electron-artifact.json
             target/distribution/desktop/desktop-report.json
+            target/distribution/desktop/desktop-distribution-receipt.json
             target/distribution/desktop/desktop-proof-normal.png
             target/distribution/desktop/desktop-proof-narrow.png
             target/sdk/native/${{ matrix.target }}

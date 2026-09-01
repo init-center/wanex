@@ -8,7 +8,15 @@ import type {
   RemoteCodingConnectionManager,
 } from "./connection.js";
 import type { RemoteConnectionProfileCatalog } from "./profiles.js";
-import { isRemoteConnectionProfileId } from "./profile.js";
+import {
+  isRemoteConnectionProfile,
+  isRemoteConnectionProfileId,
+  normalizeProfileId,
+  normalizeProfileName,
+  normalizeRemoteCredential,
+  normalizeRemoteEndpoint,
+  type SaveRemoteConnectionProfileInput,
+} from "./profile.js";
 
 export interface DesktopRemoteIpcMain {
   handle(
@@ -51,6 +59,30 @@ export function installDesktopRemoteIpc(
       throw new Error("Remote connection profiles are unavailable");
     }
   });
+  options.ipcMain.handle(DESKTOP_REMOTE_IPC.saveProfile, async (event, value) => {
+    assertActiveRenderer(options.getWindow(), event.sender);
+    const input = requireSaveProfileInput(value);
+    try {
+      const profile = await options.profiles.save(input);
+      if (!isRemoteConnectionProfile(profile)) {
+        throw new Error("Remote connection profile is invalid");
+      }
+      await closeConnection(input.profileId).catch(() => {});
+      return profile;
+    } catch {
+      throw new Error("Remote connection profile could not be saved");
+    }
+  });
+  options.ipcMain.handle(DESKTOP_REMOTE_IPC.removeProfile, async (event, value) => {
+    assertActiveRenderer(options.getWindow(), event.sender);
+    const profileId = requireProfileId(value);
+    try {
+      await options.profiles.remove(profileId);
+      await closeConnection(profileId).catch(() => {});
+    } catch {
+      throw new Error("Remote connection profile could not be removed");
+    }
+  });
   options.ipcMain.handle(DESKTOP_REMOTE_IPC.connect, async (event, value) => {
     assertActiveRenderer(options.getWindow(), event.sender);
     const profileId = requireProfileId(value);
@@ -84,9 +116,7 @@ export function installDesktopRemoteIpc(
     async (event, value) => {
       assertActiveRenderer(options.getWindow(), event.sender);
       const profileId = requireProfileId(value);
-      connectionSubscriptions.get(profileId)?.();
-      connectionSubscriptions.delete(profileId);
-      await options.connections.close(profileId);
+      await closeConnection(profileId);
     },
   );
 
@@ -94,10 +124,18 @@ export function installDesktopRemoteIpc(
     for (const unsubscribe of connectionSubscriptions.values()) unsubscribe();
     connectionSubscriptions.clear();
     options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.listProfiles);
+    options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.saveProfile);
+    options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.removeProfile);
     options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.connect);
     options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.reconnectEvents);
     options.ipcMain.removeHandler(DESKTOP_REMOTE_IPC.disconnect);
   };
+
+  async function closeConnection(profileId: string): Promise<void> {
+    connectionSubscriptions.get(profileId)?.();
+    connectionSubscriptions.delete(profileId);
+    await options.connections.close(profileId);
+  }
 
   function subscribeConnection(
     profileId: string,
@@ -115,6 +153,40 @@ export function installDesktopRemoteIpc(
     });
     connectionSubscriptions.set(profileId, unsubscribe);
   }
+}
+
+function requireSaveProfileInput(value: unknown): SaveRemoteConnectionProfileInput {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Remote connection profile input is invalid");
+  }
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (
+    keys.some((key) => !["profileId", "name", "endpoint", "credential"].includes(key)) ||
+    !["profileId", "name", "endpoint"].every((key) => keys.includes(key))
+  ) {
+    throw new Error("Remote connection profile input is invalid");
+  }
+  if (
+    typeof record.profileId !== "string" ||
+    typeof record.name !== "string" ||
+    typeof record.endpoint !== "string"
+  ) {
+    throw new Error("Remote connection profile input is invalid");
+  }
+  const input: SaveRemoteConnectionProfileInput = {
+    profileId: normalizeProfileId(record.profileId),
+    name: normalizeProfileName(record.name),
+    endpoint: normalizeRemoteEndpoint(record.endpoint),
+  };
+  if (Object.hasOwn(record, "credential")) {
+    if (record.credential !== null && typeof record.credential !== "string") {
+      throw new Error("Remote connection profile credential is invalid");
+    }
+    if (record.credential !== null) normalizeRemoteCredential(record.credential);
+    return { ...input, credential: record.credential };
+  }
+  return input;
 }
 
 function connectionStatus(

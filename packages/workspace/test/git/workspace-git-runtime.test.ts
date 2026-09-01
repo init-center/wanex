@@ -64,12 +64,12 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     const result = await runtime.collectWorktree({
       lease,
-      executionScope,
       changeSetId: "cs_git_runtime",
       title: "Git runtime changes"
     })
@@ -128,13 +128,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
-        executionScope,
         changeSetId: "cs_git_binary"
       })
     ).resolves.toMatchObject({
@@ -163,13 +163,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
-        executionScope,
         changeSetId: "cs_git_invalid_utf8"
       })
     ).resolves.toMatchObject({
@@ -201,13 +201,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
-        executionScope,
         changeSetId: "cs_git_rename"
       })
     ).resolves.toMatchObject({
@@ -245,13 +245,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
-        executionScope,
         changeSetId: "cs_git_limit"
       })
     ).resolves.toMatchObject({
@@ -279,13 +279,13 @@ describe("@wanex/workspace/git", () => {
 
       const runtime = new WorkspaceGitRuntime({
         repositoryId: "repo_git_runtime",
-        worktreeParent: worktreeParentDir
+        worktreeParent: worktreeParentDir,
+        executionScope
       })
 
       await expect(
         runtime.collectWorktree({
           lease,
-          executionScope,
           changeSetId: "cs_git_mode"
         })
       ).resolves.toMatchObject({
@@ -314,13 +314,13 @@ describe("@wanex/workspace/git", () => {
 
       const runtime = new WorkspaceGitRuntime({
         repositoryId: "repo_git_runtime",
-        worktreeParent: worktreeParentDir
+        worktreeParent: worktreeParentDir,
+        executionScope
       })
 
       await expect(
         runtime.collectWorktree({
           lease,
-          executionScope,
           changeSetId: "cs_git_link"
         })
       ).resolves.toMatchObject({
@@ -361,13 +361,13 @@ describe("@wanex/workspace/git", () => {
 
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
       runtime.collectWorktree({
         lease,
-        executionScope,
         changeSetId: "cs_git_gitlink"
       })
     ).resolves.toMatchObject({
@@ -380,7 +380,8 @@ describe("@wanex/workspace/git", () => {
     const { executionScope, worktreeParentDir } = await createEnvironment()
     const runtime = new WorkspaceGitRuntime({
       repositoryId: "repo_git_runtime",
-      worktreeParent: worktreeParentDir
+      worktreeParent: worktreeParentDir,
+      executionScope
     })
 
     await expect(
@@ -394,7 +395,6 @@ describe("@wanex/workspace/git", () => {
           branchName: "wanex/runtime/forged",
           createdAt: Date.now()
         },
-        executionScope,
         changeSetId: "cs_git_forged"
       })
     ).resolves.toMatchObject({

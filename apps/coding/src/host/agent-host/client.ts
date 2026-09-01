@@ -16,6 +16,7 @@ import type {
   CodingLiveTurnReadModel,
   CodingProjectReadModel,
   CodingProposalActionResult,
+  CodingProposalApplyResult,
   CodingProposalDecisionRequest,
   CodingProposalReadModel,
   CodingProposalUndoResult,
@@ -33,6 +34,7 @@ import type {
   ReadCodingTranscriptRequest,
   ReadCodingTurnRequest,
   RequestCodingProposalApplyRequest,
+  ApplyCodingProposalRequest,
   ResolveCodingTurnApprovalRequest,
   ResolveCodingTurnRecoveryRequest,
   StartCodingTurnCommand,
@@ -52,6 +54,7 @@ import { isCodingTurn, isCodingTurnPage, isCodingLiveTurn } from "../../transpor
 import {
   isCodingProposal,
   isCodingProposalAction,
+  isCodingProposalApply,
   isCodingProposalUndo,
 } from "../../transport/validation/output-proposal.js";
 import {
@@ -122,10 +125,7 @@ export type CodingProposalDecisionInput = Omit<
   readonly idempotencyKey: string;
 };
 
-export type CodingProposalApplyInput = Omit<
-  RequestCodingProposalApplyRequest,
-  "requestId"
-> & {
+export type CodingProposalApplyInput = ApplyCodingProposalRequest & {
   readonly idempotencyKey: string;
 };
 
@@ -154,6 +154,7 @@ export interface CodingAgentHostClient {
   resolveTurnRecovery(request: CodingResolveTurnRecoveryRequest): Promise<CodingTurnReadModel>;
   decideProposal(request: CodingProposalDecisionInput): Promise<CodingProposalActionResult>;
   requestProposalApply(request: CodingProposalApplyInput): Promise<CodingProposalActionResult>;
+  applyProposal(request: CodingProposalApplyInput): Promise<CodingProposalApplyResult>;
   undoProposal(request: CodingProposalUndoInput): Promise<CodingProposalUndoResult>;
   subscribe(listener: CodingAgentHostEventListener): () => void;
   replay(request: CodingAgentHostReplayRequest): Promise<CodingAgentHostReplayResult>;
@@ -268,6 +269,13 @@ export function createCodingAgentHostClient(
         request.idempotencyKey,
         withoutKey(request),
         isCodingProposalAction,
+      ),
+    applyProposal: async (request) =>
+      await command(
+        CODING_AGENT_HOST_OPERATIONS.proposalApply,
+        request.idempotencyKey,
+        withoutKey(request),
+        isCodingProposalApply,
       ),
     undoProposal: async (request) =>
       await command(

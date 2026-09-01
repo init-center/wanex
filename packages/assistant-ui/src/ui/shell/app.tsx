@@ -57,6 +57,7 @@ import { useSnapshotSync } from "./use-snapshot-sync.js";
 export function App({
   client,
   initialSnapshot,
+  onModalStateChange,
 }: AppProps): ReactNode {
   const {
     snapshot,
@@ -115,6 +116,14 @@ export function App({
     document.addEventListener("keydown", closeTopLayer);
     return () => document.removeEventListener("keydown", closeTopLayer);
   }, [showSessions, showSettings]);
+
+  useEffect(() => {
+    onModalStateChange?.(
+      showSettings
+        ? { active: true, kind: "settings" }
+        : { active: false },
+    );
+  }, [onModalStateChange, showSettings]);
 
   const sessionFocusBoundary = useFocusBoundary({
     active: showSessions,

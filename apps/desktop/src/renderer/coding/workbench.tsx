@@ -7,8 +7,14 @@ import {
   FileDiff,
   FolderOpen,
   LoaderCircle,
+  PanelLeft,
+  PanelRight,
+  Pencil,
+  Plus,
   Send,
+  Server,
   ShieldCheck,
+  Trash2,
   Undo2,
   X,
 } from "lucide-react";
@@ -22,19 +28,33 @@ import {
 } from "react";
 import type {
   CodingLiveTurnReadModel,
+  CodingProjectReadModel,
   CodingTranscriptMessageReadModel,
   CodingTranscriptPartReadModel,
 } from "@wanex/coding";
+import type { RemoteConnectionProfile } from "../../remote/profile.js";
+import type { DesktopRemoteRendererBridge } from "../../remote/bridge.js";
 import {
   CodingWorkbenchController,
   type CodingWorkbenchState,
   type CodingWorkbenchClient,
 } from "./controller.js";
+import {
+  RemoteProfileForm,
+  type RemoteProfileFormValue,
+} from "./remote-profile-form.js";
+
+export type RemoteProfileClient = Pick<
+  DesktopRemoteRendererBridge,
+  "listProfiles" | "saveProfile" | "removeProfile"
+>;
 
 export function CodingWorkbench({
   client,
+  remoteClient,
 }: {
   readonly client: CodingWorkbenchClient;
+  readonly remoteClient: RemoteProfileClient | undefined;
 }): ReactNode {
   const controller = useMemo(
     () => new CodingWorkbenchController(client),
@@ -47,11 +67,54 @@ export function CodingWorkbench({
   );
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<string | undefined>();
+  const [remoteProfiles, setRemoteProfiles] = useState<readonly RemoteConnectionProfile[] | undefined>();
+  const [remoteProjects, setRemoteProjects] = useState<readonly CodingProjectReadModel[]>([]);
+  const [remoteProfileId, setRemoteProfileId] = useState<string | undefined>();
+  const [remoteError, setRemoteError] = useState<string | undefined>();
+  const [showRemoteForm, setShowRemoteForm] = useState(false);
+  const [editingRemoteProfile, setEditingRemoteProfile] = useState<RemoteConnectionProfile | undefined>();
+  const [removeRemoteProfileId, setRemoveRemoteProfileId] = useState<string | undefined>();
+  const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+
+  const reviewAvailable = state.turn !== undefined || state.proposal !== undefined;
+  const reviewAttention =
+    state.project?.state === "attention" ||
+    (state.turn?.approvals.totalCount ?? 0) > 0 ||
+    (state.turn?.recovery.totalCount ?? 0) > 0 ||
+    state.proposal !== undefined;
 
   useEffect(() => {
     controller.start();
     return () => controller.dispose();
   }, [controller]);
+
+  useEffect(() => {
+    setSessionsOpen(false);
+    setInspectorOpen(false);
+  }, [state.project?.projectId]);
+
+  useEffect(() => {
+    if (reviewAttention) setInspectorOpen(true);
+  }, [reviewAttention]);
+
+  useEffect(() => {
+    if (!sessionsOpen && !inspectorOpen && remoteProfiles === undefined) return;
+    function closeTopLayer(event: KeyboardEvent): void {
+      if (event.key !== "Escape") return;
+      if (remoteProfiles !== undefined) {
+        closeRemoteProjects();
+        return;
+      }
+      if (inspectorOpen) {
+        setInspectorOpen(false);
+        return;
+      }
+      setSessionsOpen(false);
+    }
+    document.addEventListener("keydown", closeTopLayer);
+    return () => document.removeEventListener("keydown", closeTopLayer);
+  }, [inspectorOpen, remoteProfiles, sessionsOpen]);
 
   async function run(key: string, action: () => Promise<void>): Promise<void> {
     if (pending !== undefined) return;
@@ -72,27 +135,201 @@ export function CodingWorkbench({
     });
   }
 
+  async function loadRemoteProjects(profileId: string): Promise<void> {
+    setRemoteError(undefined);
+    setRemoteProfileId(profileId);
+    setRemoteProjects((await controller.listRemoteProjects(profileId)).projects);
+  }
+
+  async function loadRemoteProfiles(): Promise<void> {
+    setRemoteError(undefined);
+    const profiles = remoteClient === undefined
+      ? await controller.listRemoteProfiles()
+      : await remoteClient.listProfiles();
+    setRemoteProfiles(profiles);
+    const first = profiles[0];
+    if (first === undefined) {
+      setRemoteProfileId(undefined);
+      setRemoteProjects([]);
+      return;
+    }
+    await loadRemoteProjects(remoteProfileId !== undefined && profiles.some((profile) => profile.profileId === remoteProfileId)
+      ? remoteProfileId
+      : first.profileId);
+  }
+
+  function openRemoteForm(profile?: RemoteConnectionProfile): void {
+    setEditingRemoteProfile(profile);
+    setShowRemoteForm(true);
+    setRemoveRemoteProfileId(undefined);
+    setRemoteError(undefined);
+  }
+
+  function closeRemoteProjects(): void {
+    setRemoteProfiles(undefined);
+    setRemoteProjects([]);
+    setShowRemoteForm(false);
+    setEditingRemoteProfile(undefined);
+    setRemoveRemoteProfileId(undefined);
+    setRemoteError(undefined);
+  }
+
+  async function saveRemoteProfile(input: RemoteProfileFormValue): Promise<void> {
+    if (remoteClient === undefined) throw new Error("Remote profile management is unavailable");
+    const saved = await remoteClient.saveProfile(input);
+    setShowRemoteForm(false);
+    setEditingRemoteProfile(undefined);
+    const profiles = await remoteClient.listProfiles();
+    setRemoteProfiles(profiles);
+    setRemoteProfileId(saved.profileId);
+    setRemoteProjects([]);
+    await loadRemoteProjects(saved.profileId);
+  }
+
+  async function removeRemoteProfile(profileId: string): Promise<void> {
+    if (remoteClient === undefined) throw new Error("Remote profile management is unavailable");
+    await remoteClient.removeProfile(profileId);
+    setRemoteProfiles((profiles) => profiles?.filter((profile) => profile.profileId !== profileId));
+    setRemoteProfileId(undefined);
+    setRemoteProjects([]);
+    setEditingRemoteProfile(undefined);
+    setRemoveRemoteProfileId(undefined);
+  }
+
   if (state.project === undefined) {
     return (
-      <main className="coding-shell" data-ui-coding-shell data-ui-coding-state={state.status}>
-        <header className="coding-header">
-          <div>
-            <span className="eyebrow">Workspace</span>
-            <h1>Coding</h1>
-            <p>Work with an existing project and review every change before it lands.</p>
+      <main className="coding-shell coding-start" data-ui-coding-shell data-ui-coding-state={state.status}>
+        <section className="coding-welcome" aria-labelledby="coding-welcome-title">
+          <div className="coding-welcome-icon"><Code2 size={21} aria-hidden="true" /></div>
+          <h1 id="coding-welcome-title">Choose a project</h1>
+          <p>Open a project on this device or connect to a trusted server.</p>
+          <div className="coding-welcome-actions">
+            <button
+              type="button"
+              className="primary-button"
+              data-ui-coding-action="open-project"
+              onClick={() => void run("project.open", () => controller.openProject())}
+              disabled={pending !== undefined}
+            >
+              {pending === "project.open" ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />}
+              Open local project
+            </button>
+            <button
+              type="button"
+              className="quiet-button"
+              data-ui-coding-action="list-remote-projects"
+              onClick={() => void run("remote.projects", async () => {
+                try {
+                  await loadRemoteProfiles();
+                } catch (error) {
+                  setRemoteError(error instanceof Error ? error.message : "Remote projects are unavailable");
+                }
+              })}
+              disabled={pending !== undefined}
+            >
+              <Server size={16} /> Connect server
+            </button>
           </div>
-          <button
-            type="button"
-            className="primary-button"
-            data-ui-coding-action="open-project"
-            onClick={() => void run("project.open", () => controller.openProject())}
-            disabled={pending !== undefined}
-          >
-            {pending === "project.open" ? <LoaderCircle className="spin" size={16} /> : <FolderOpen size={16} />}
-            Open project
-          </button>
-        </header>
+        </section>
         {state.error === undefined ? null : <ErrorNotice message={state.error} />}
+        {remoteProfiles === undefined ? null : (
+          <div className="connection-overlay">
+            <button type="button" className="connection-backdrop" aria-label="Close server projects" onClick={closeRemoteProjects} />
+            <section className="coding-remote-picker" data-ui-coding-remote-picker role="dialog" aria-modal="true" aria-labelledby="server-projects-title">
+              <header className="connection-header">
+                <div>
+                  <h2 id="server-projects-title">Server projects</h2>
+                  <p>Choose a saved server and project.</p>
+                </div>
+                <button type="button" className="connection-close" aria-label="Close server projects" title="Close" onClick={closeRemoteProjects}><X size={16} /></button>
+              </header>
+            {remoteError === undefined ? null : <ErrorNotice message={remoteError} />}
+            {remoteClient !== undefined ? (
+              <div className="remote-profile-actions">
+                <button type="button" className="quiet-button" data-ui-remote-profile-action="add" onClick={() => openRemoteForm()} disabled={pending !== undefined}><Plus size={14} /> Add server</button>
+                {remoteProfileId === undefined ? null : (
+                  <>
+                    <button type="button" className="quiet-button" data-ui-remote-profile-action="edit" onClick={() => openRemoteForm(remoteProfiles.find((profile) => profile.profileId === remoteProfileId))} disabled={pending !== undefined}><Pencil size={14} /> Edit</button>
+                    {removeRemoteProfileId === remoteProfileId ? (
+                      <>
+                        <button type="button" className="quiet-button danger-button" data-ui-remote-profile-action="confirm-remove" onClick={() => void run("remote.profile.remove", async () => {
+                          try {
+                            await removeRemoteProfile(remoteProfileId);
+                          } catch (error) {
+                            setRemoteError(error instanceof Error ? error.message : "Remote server could not be removed");
+                          }
+                        })} disabled={pending !== undefined}><Trash2 size={14} /> Remove server</button>
+                        <button type="button" className="quiet-button" data-ui-remote-profile-action="cancel-remove" onClick={() => setRemoveRemoteProfileId(undefined)} disabled={pending !== undefined}>Cancel</button>
+                      </>
+                    ) : (
+                      <button type="button" className="quiet-button" data-ui-remote-profile-action="remove" onClick={() => setRemoveRemoteProfileId(remoteProfileId)} disabled={pending !== undefined}><Trash2 size={14} /> Remove</button>
+                    )}
+                  </>
+                )}
+              </div>
+            ) : null}
+            {showRemoteForm && remoteClient !== undefined ? (
+              <RemoteProfileForm
+                profile={editingRemoteProfile}
+                pending={pending !== undefined}
+                onCancel={() => {
+                  setShowRemoteForm(false);
+                  setEditingRemoteProfile(undefined);
+                }}
+                onSave={(input) => void run("remote.profile.save", async () => {
+                  try {
+                    await saveRemoteProfile(input);
+                  } catch (error) {
+                    setRemoteError(error instanceof Error ? error.message : "Remote server could not be saved");
+                  }
+                })}
+              />
+            ) : null}
+            {remoteProfiles.length === 0 ? <p className="muted-copy">No saved servers.</p> : (
+              <>
+                <label className="remote-profile-select">
+                  <span>Server</span>
+                  <select
+                    value={remoteProfileId ?? ""}
+                    onChange={(event) => {
+                      const nextProfileId = event.target.value;
+                      setRemoteProfileId(nextProfileId || undefined);
+                      setRemoteProjects([]);
+                      if (nextProfileId.length === 0) return;
+                      void run("remote.projects", async () => {
+                        try {
+                          await loadRemoteProjects(nextProfileId);
+                        } catch (error) {
+                          setRemoteError(error instanceof Error ? error.message : "Remote projects are unavailable");
+                        }
+                      });
+                    }}
+                    disabled={pending !== undefined}
+                  >
+                    {remoteProfiles.map((profile) => <option key={profile.profileId} value={profile.profileId}>{profile.name}</option>)}
+                  </select>
+                </label>
+                <ul className="remote-project-list">
+                  {remoteProjects.map((remoteProject) => (
+                    <li key={remoteProject.projectId}>
+                      <button
+                        type="button"
+                        className="session-item"
+                        data-ui-remote-project-id={remoteProject.projectId}
+                        onClick={() => remoteProfileId === undefined ? undefined : void run(`remote.project:${remoteProject.projectId}`, () => controller.openRemoteProject(remoteProfileId, remoteProject.projectId))}
+                        disabled={pending !== undefined || remoteProfileId === undefined}
+                      >
+                        <span>{remoteProject.name}</span>
+                        <small>{remoteProject.state}</small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            </section>
+          </div>
+        )}
       </main>
     );
   }
@@ -102,13 +339,13 @@ export function CodingWorkbench({
   const recoveryPending = (activeTurn?.recovery.totalCount ?? 0) > 0;
   const canSubmit = state.status !== "loading" && pending === undefined && !recoveryPending;
   return (
-    <main className="coding-shell" data-ui-coding-shell data-ui-coding-state={state.status} data-ui-coding-project data-ui-coding-project-id={project.projectId}>
+    <main className="coding-shell" data-ui-coding-shell data-ui-coding-state={state.status} data-ui-coding-project data-ui-coding-project-id={project.projectId} data-ui-coding-project-location={state.location?.kind}>
       <header className="coding-header coding-header-compact">
         <div className="coding-title">
-          <Code2 size={18} aria-hidden="true" />
+          <button type="button" className="coding-navigation-toggle" aria-label="Open project sessions" aria-expanded={sessionsOpen} onClick={() => setSessionsOpen((open) => !open)}><PanelLeft size={17} /></button>
           <div>
-            <span className="eyebrow">Project</span>
             <h1>{project.name}</h1>
+            <span>{state.location?.kind === "remote" ? "Remote project" : "Local project"}</span>
           </div>
           {project.state === "attention" ? <span className="attention-badge"><AlertTriangle size={13} /> Needs attention</span> : null}
         </div>
@@ -121,16 +358,22 @@ export function CodingWorkbench({
           <button type="button" className="quiet-button" data-ui-coding-action="switch-project" onClick={() => void run("project.open", () => controller.openProject())} disabled={pending !== undefined}>
             <FolderOpen size={15} /> Switch project
           </button>
+          {reviewAvailable ? (
+            <button type="button" className={inspectorOpen ? "quiet-button is-selected" : "quiet-button"} data-ui-coding-action="toggle-review" aria-expanded={inspectorOpen} onClick={() => setInspectorOpen((open) => !open)}>
+              <PanelRight size={15} /> Details
+            </button>
+          ) : null}
         </div>
       </header>
-      <div className="coding-layout">
-        <aside className="coding-sessions" aria-label="Project sessions">
+      <div className={`coding-layout${inspectorOpen && reviewAvailable ? " has-inspector" : ""}${sessionsOpen ? " is-sessions-open" : ""}`} data-ui-coding-workbench>
+        {sessionsOpen ? <button type="button" className="coding-sessions-backdrop" aria-label="Close project sessions" onClick={() => setSessionsOpen(false)} /> : null}
+        <aside className="coding-sessions" aria-label="Project sessions" data-ui-coding-sessions-open={sessionsOpen ? "true" : "false"}>
           <div className="section-label"><span>Sessions</span><span>{state.sessions.length}</span></div>
           {state.sessions.length === 0 ? <p className="muted-copy">No sessions yet.</p> : (
             <ul>
               {state.sessions.map((session) => (
                 <li key={session.sessionId}>
-                  <button type="button" className={session.sessionId === state.sessionId ? "session-item is-selected" : "session-item"} data-ui-coding-session-selected={session.sessionId === state.sessionId ? session.sessionId : undefined} onClick={() => void run(`session:${session.sessionId}`, () => controller.selectSession(session.sessionId))} disabled={pending !== undefined}>
+                  <button type="button" className={session.sessionId === state.sessionId ? "session-item is-selected" : "session-item"} data-ui-coding-session-selected={session.sessionId === state.sessionId ? session.sessionId : undefined} onClick={() => void run(`session:${session.sessionId}`, async () => { await controller.selectSession(session.sessionId); setSessionsOpen(false); })} disabled={pending !== undefined}>
                     <span>{session.title ?? "Untitled session"}</span>
                     <small>{formatDate(session.updatedAt)}</small>
                   </button>
@@ -154,10 +397,12 @@ export function CodingWorkbench({
             </button>
           </form>
         </section>
-        <aside className="coding-inspector" aria-label="Coding review">
-          {activeTurn === undefined ? <ReviewPlaceholder /> : <TurnReview turn={activeTurn} controller={controller} pending={pending} run={run} />}
-          {state.proposal === undefined ? null : <ProposalReview proposal={state.proposal} controller={controller} pending={pending} run={run} />}
-        </aside>
+        {inspectorOpen && reviewAvailable ? (
+          <aside className="coding-inspector" aria-label="Coding review">
+            {activeTurn === undefined ? null : <TurnReview turn={activeTurn} controller={controller} pending={pending} run={run} />}
+            {state.proposal === undefined ? null : <ProposalReview proposal={state.proposal} capabilities={state.capabilities} controller={controller} pending={pending} run={run} />}
+          </aside>
+        ) : null}
       </div>
     </main>
   );
@@ -316,18 +561,21 @@ function RecoveryReview({
 
 function ProposalReview({
   proposal,
+  capabilities,
   controller,
   pending,
   run,
 }: {
   readonly proposal: NonNullable<CodingWorkbenchState["proposal"]>;
+  readonly capabilities: CodingWorkbenchState["capabilities"];
   readonly controller: CodingWorkbenchController;
   readonly pending?: string | undefined;
   readonly run: (key: string, action: () => Promise<void>) => Promise<void>;
 }): ReactNode {
   const canApprove = proposal.state === "open";
   const canRequestApply = proposal.state === "approved";
-  const canApply = proposal.state === "apply_requested";
+  const canApply = proposal.state === "apply_requested" &&
+    capabilities?.proposalApply === true;
   const canUndo = proposal.changeState === "applied";
   return (
     <section className="review-section proposal-review" data-ui-coding-proposal data-ui-coding-proposal-state={proposal.state} data-ui-coding-proposal-change-state={proposal.changeState}>
@@ -345,10 +593,6 @@ function ProposalReview({
       {proposal.files.some((file) => file.before?.truncated || file.after?.truncated) ? <p className="muted-copy">Some file previews are truncated.</p> : null}
     </section>
   );
-}
-
-function ReviewPlaceholder(): ReactNode {
-  return <section className="review-section review-placeholder"><FileDiff size={18} /><p>Task details, approvals, and proposed changes appear here.</p></section>;
 }
 
 function LoadingState(): ReactNode {

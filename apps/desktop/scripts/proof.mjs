@@ -34,6 +34,9 @@ import {
 import { listenDesktopProofProvider } from "./provider-fixture.mjs"
 import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
 import {
+  createRemoteCodingFixture
+} from "./remote-coding-fixture.mjs"
+import {
   writeDesktopFailureReport
 } from "./proof/failure-report.mjs"
 import {
@@ -81,6 +84,9 @@ import {
   WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
   WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
   WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
+  WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+  WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+  WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID,
   WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID
 } from "../src/proof-contract.ts"
 
@@ -95,6 +101,11 @@ const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_STEP",
   "WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL",
   "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
+  "WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT",
+  "WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID",
   "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
   "WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS"
 ]
@@ -120,8 +131,10 @@ export async function proveDesktop() {
   const provider = await listenDesktopProofProvider({
     credential: proofCredential
   })
+  let remoteCoding
   let activeProviderRequestOffset = 0
   try {
+    remoteCoding = await createRemoteCodingFixture()
     const buildReceipt = await packageDesktop()
     const installed = await materializeInstalledDesktop({
       sourcePackageDir: buildReceipt.packaged.packageDir,
@@ -203,7 +216,8 @@ export async function proveDesktop() {
       provider,
       credential: proofCredential,
       plugins: pluginFixtures,
-      codingProject
+      codingProject,
+      remoteCoding
     })
     const immutableAfter = await hashImmutableResources(
       installed.packageDir
@@ -294,6 +308,7 @@ export async function proveDesktop() {
   } finally {
     await Promise.all([
       provider.close(),
+      remoteCoding?.close(),
       removeDesktopProofRoot(proofRoot)
     ])
   }
@@ -456,6 +471,13 @@ export async function proveDesktopRelaunchJourneys(options) {
         options.codingProject
       ])
     })
+    await runRelaunchStep("relaunch-remote-coding", {
+      WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT: options.remoteCoding.endpoint,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+      WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID: WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID,
+      NODE_EXTRA_CA_CERTS: options.remoteCoding.caPath
+    })
     await runRelaunchStep("relaunch-cancel-regenerate")
     await runRelaunchStep("relaunch-guided-follow-up")
     await runRelaunchStep("relaunch-side-query")
@@ -507,6 +529,7 @@ export async function proveDesktopRelaunchJourneys(options) {
     sameProfile: true,
     chatRelaunchReceivedCredential: false,
     codingRelaunchReceivedCredential: false,
+    remoteCodingRelaunchReceivedCredential: false,
     cancelRegenerateRelaunchReceivedCredential: false,
     guidedFollowUpRelaunchReceivedCredential: false,
     sideQueryRelaunchReceivedCredential: false,
@@ -541,6 +564,7 @@ export async function proveDesktopRelaunchJourneys(options) {
   async function runRelaunchStep(step, extraEnvironment = {}, behavior = {}) {
     const receiptPath = join(options.proofRoot, `${step}-receipt.json`)
     const requestOffset = options.provider.requests.length
+    const remoteRequestOffset = options.remoteCoding?.requests.length ?? 0
     const environment = {
       WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
       WANEX_DESKTOP_PROOF_USER_DATA: options.userDataDir,
@@ -610,6 +634,13 @@ export async function proveDesktopRelaunchJourneys(options) {
       options.provider.requests.slice(requestOffset),
       step
     )
+    if (step === "relaunch-remote-coding") {
+      assertRemoteCodingFixtureEvidence({
+        requests: options.remoteCoding.requests.slice(remoteRequestOffset),
+        observations: options.remoteCoding.observations,
+        activeEventResponseCount: options.remoteCoding.activeEventResponseCount,
+      })
+    }
     const evidence = {
       step,
       runtime,
@@ -816,6 +847,35 @@ export function assertRelaunchJourneyFixtureRequests(requests, step) {
   ) {
     throw new Error(
       `Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`
+    )
+  }
+}
+
+export function assertRemoteCodingFixtureEvidence(evidence) {
+  const { requests, observations, activeEventResponseCount } = evidence
+  const messageRequests = requests.filter((request) =>
+    request.path.endsWith("/v1/agent-host/message")
+  )
+  const eventRequests = requests.filter((request) =>
+    request.path.endsWith("/v1/agent-host/events")
+  )
+  if (
+    messageRequests.length < 4 ||
+    eventRequests.length !== 1 ||
+    requests.length !== messageRequests.length + eventRequests.length ||
+    requests.some((request) => request.authorized !== true) ||
+    requests.some((request) =>
+      (request.path.endsWith("/v1/agent-host/message") && request.method !== "POST") ||
+      (request.path.endsWith("/v1/agent-host/events") && request.method !== "GET")
+    ) ||
+    observations === undefined ||
+    observations.listProjects < 2 ||
+    observations.readProject < 1 ||
+    observations.listSessions < 1 ||
+    activeEventResponseCount !== 0
+  ) {
+    throw new Error(
+      `Desktop Remote Coding fixture evidence is invalid: ${JSON.stringify(evidence)}`
     )
   }
 }
@@ -1176,6 +1236,49 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.responseVisible !== true ||
       renderer.followUpSessionPreserved !== true ||
       renderer.followUpResponseVisible !== true
+  } else if (step === "relaunch-remote-coding") {
+    const expectedKeys = [
+      "codingSurfaceSelected",
+      "credentialAbsentAfterSave",
+      "credentialAcceptedByForm",
+      "endpointAbsentAfterSave",
+      "idleInspectorHidden",
+      "internalIdentityEvidenceHidden",
+      "opaqueProjectSelected",
+      "ok",
+      "profileInputSubmitted",
+      "profileRemoved",
+      "profilePersistedAfterSave",
+      "projectId",
+      "providerEvidenceRedacted",
+      "reconnectRejectedAfterRemoval",
+      "remoteProfileFormVisible",
+      "remoteProjectVisible",
+      "removedProfileListEmpty",
+      "sharedWorkbenchVisible",
+      "step",
+      "timingsMs"
+    ]
+    stepInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      renderer.providerEvidenceRedacted !== true ||
+      renderer.codingSurfaceSelected !== true ||
+      renderer.remoteProfileFormVisible !== true ||
+      renderer.profileInputSubmitted !== true ||
+      renderer.credentialAcceptedByForm !== true ||
+      renderer.profilePersistedAfterSave !== true ||
+      renderer.credentialAbsentAfterSave !== true ||
+      renderer.endpointAbsentAfterSave !== true ||
+      renderer.remoteProjectVisible !== true ||
+      renderer.opaqueProjectSelected !== true ||
+      typeof renderer.projectId !== "string" ||
+      renderer.projectId.length === 0 ||
+      renderer.sharedWorkbenchVisible !== true ||
+      renderer.idleInspectorHidden !== true ||
+      renderer.profileRemoved !== true ||
+      renderer.removedProfileListEmpty !== true ||
+      renderer.reconnectRejectedAfterRemoval !== true ||
+      renderer.internalIdentityEvidenceHidden !== true
   } else if (step === "relaunch-coding") {
     const expectedKeys = [
       "approvalResolved",
@@ -1691,7 +1794,7 @@ function exactRendererShape(renderer, expectedKeys) {
     "rendererPostSettlement"
   ]
   return JSON.stringify(Object.keys(renderer).sort()) ===
-      JSON.stringify(expectedKeys) &&
+      JSON.stringify([...expectedKeys].sort()) &&
     JSON.stringify(Object.keys(renderer.timingsMs ?? {}).sort()) ===
       JSON.stringify(timingKeys) &&
     Object.values(renderer.timingsMs ?? {}).every((value) =>

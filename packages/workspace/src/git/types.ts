@@ -6,11 +6,11 @@ import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
 export interface WorkspaceGitRuntimeOptions {
   readonly repositoryId: string
   readonly worktreeParent: string
+  readonly executionScope: BorrowedExecutionScope
 }
 
 export interface CollectWorktreeRequest {
   readonly lease: WorkspaceIsolationLease
-  readonly executionScope: BorrowedExecutionScope
   readonly changeSetId: string
   readonly title?: string
 }

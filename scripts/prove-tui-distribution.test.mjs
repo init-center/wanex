@@ -28,7 +28,7 @@ describe("installed TUI proof receipt", () => {
   it("waits for semantic Team interaction readiness and stable agent identity", () => {
     expect(installedTuiTeamAgentSetupReadySteps()).toEqual([
       "expect -exact \"Add an agent before sending\"",
-      "expect -re {Send \\|[^\\r\\n]*Enter send}",
+      "expect -re {Add an agent before sending \\|[^\\r\\n]*Enter send}",
       "send -- \"\\033OR\"",
       "expect -exact \"Group details\"",
       "send -- \"\\r\"",
@@ -41,7 +41,7 @@ describe("installed TUI proof receipt", () => {
 
   it("uses an unambiguous Escape and draft echo to prove Team composer readiness", () => {
     expect(installedTuiTeamComposerReadySteps()).toEqual([
-      "expect -re {Send \\|[^\\r\\n]*Enter send}",
+      "expect -re {(?:Send|One coordinated response|Active agents may respond) \\|[^\\r\\n]*Enter send}",
       "send -- \"\\033\\\[27u\"",
       "send -- \"$team_prompt\"",
       "expect -exact $team_prompt",

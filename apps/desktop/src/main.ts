@@ -44,7 +44,10 @@ import {
   createDesktopExtensionProofSelectionQueue,
   selectLocalExtensionDirectory,
 } from "./extensions.js";
-import { WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED } from "./proof-contract.js";
+import {
+  WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
+  WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL,
+} from "./proof-contract.js";
 import {
   createDesktopCodingComposition,
   createDesktopCodingProofSelectionQueue,
@@ -55,6 +58,7 @@ import { createDesktopCodingRecoveryProofContext } from "./coding-proof.js";
 import {
   installDesktopCodingIpc,
 } from "./coding-ipc.js";
+import { createDesktopCodingRouter } from "./coding/router.js";
 import { desktopRendererAssets } from "./renderer-assets.js";
 import {
   createRemoteConnectionProfileCatalog,
@@ -75,6 +79,10 @@ const proofUserDataPath = process.env.WANEX_DESKTOP_PROOF_USER_DATA;
 const proofProfileId = process.env.WANEX_DESKTOP_PROOF_PROFILE_ID;
 const proofProviderBaseUrl = process.env.WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL;
 const proofProviderCredential = process.env.WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL;
+const proofRemoteEndpoint = process.env.WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT;
+const proofRemoteProfileId = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID;
+const proofRemoteProfileName = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME;
+const proofRemoteProjectId = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID;
 const proofStep = process.env.WANEX_DESKTOP_PROOF_STEP;
 const proofExtensionSelections =
   process.env.WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS;
@@ -90,6 +98,7 @@ app.commandLine.appendSwitch("proxy-bypass-list", "<-loopback>");
 
 let assistant: AssistantWebApp | undefined;
 let coding: DesktopCodingComposition | undefined;
+let codingRouter: ReturnType<typeof createDesktopCodingRouter> | undefined;
 let remoteCodingConnections: RemoteCodingConnectionManager | undefined;
 let removeRemoteIpc: (() => void) | undefined;
 let removeCodingIpc: (() => void) | undefined;
@@ -102,6 +111,9 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
   window = undefined;
   removeCodingIpc?.();
   removeCodingIpc = undefined;
+  const ownedCodingRouter = codingRouter;
+  codingRouter = undefined;
+  await ownedCodingRouter?.close();
   const ownedCoding = coding;
   coding = undefined;
   await ownedCoding?.close();
@@ -166,6 +178,28 @@ async function start(): Promise<void> {
   if (proofStep === "relaunch-coding" && codingProofSelection === undefined) {
     throw new Error(
       "Desktop Coding proof requires a serialized project selection",
+    );
+  }
+  const remoteProofValues = [
+    proofRemoteEndpoint,
+    proofRemoteProfileId,
+    proofRemoteProfileName,
+    proofRemoteProjectId,
+  ];
+  if (
+    remoteProofValues.some((value) => value !== undefined) &&
+    proofStep !== "relaunch-remote-coding"
+  ) {
+    throw new Error(
+      "Desktop Remote Coding proof values are only valid for the Remote Coding proof step",
+    );
+  }
+  if (
+    proofStep === "relaunch-remote-coding" &&
+    remoteProofValues.some((value) => value === undefined)
+  ) {
+    throw new Error(
+      "Desktop Remote Coding proof requires endpoint, Profile, and project values",
     );
   }
   const pluginCompositionOptions = {
@@ -251,11 +285,16 @@ async function start(): Promise<void> {
     resolveModelEndpointId: async () =>
       (await assistant?.modelEndpoints.readActiveModelEndpoint())?.id,
   });
+  const router = createDesktopCodingRouter({
+    local: coding,
+    remoteConnections: remoteCodingConnections,
+  });
+  codingRouter = router;
   failurePhase = "renderer_load";
   window = createAssistantWindow(assistant.url, windowChrome);
   removeCodingIpc = installDesktopCodingIpc({
     ipcMain,
-    composition: coding,
+    router,
     getWindow: () => window,
     selectProject: codingProofSelection ?? selectCodingProjectDirectory,
   });
@@ -441,6 +480,21 @@ async function runPackagedProof(timings: {
     ...(proofProviderCredential === undefined
       ? {}
       : { providerCredential: proofProviderCredential }),
+    ...(proofRemoteEndpoint === undefined
+      ? {}
+      : { remoteEndpoint: proofRemoteEndpoint }),
+    ...(step === "relaunch-remote-coding"
+      ? { remoteCredential: WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL }
+      : {}),
+    ...(proofRemoteProfileId === undefined
+      ? {}
+      : { remoteProfileId: proofRemoteProfileId }),
+    ...(proofRemoteProfileName === undefined
+      ? {}
+      : { remoteProfileName: proofRemoteProfileName }),
+    ...(proofRemoteProjectId === undefined
+      ? {}
+      : { remoteProjectId: proofRemoteProjectId }),
   });
   if (!renderer.ok) throw new DesktopRendererProofError(renderer);
   let screenshots;

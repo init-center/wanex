@@ -10,6 +10,7 @@ export const CODING_AGENT_HOST_OPERATIONS = {
   turnRecoveryResolve: "coding.turn.recovery.resolve",
   proposalDecide: "coding.proposal.decide",
   proposalApplyRequest: "coding.proposal.apply.request",
+  proposalApply: "coding.proposal.apply",
   proposalUndo: "coding.proposal.undo",
 } as const;
 

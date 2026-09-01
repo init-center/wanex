@@ -49,6 +49,7 @@ import {
   createLocalScheduleController,
   type LocalScheduleController,
 } from "../schedule/controller.js"
+import { preservePrimaryError } from "./errors.js"
 
 export interface StartedAssistantHost {
   readonly runtime: BootstrappedWanexStorage
@@ -232,19 +233,23 @@ export async function startAssistantHostInternal(
         : { pluginExecutionEnvironment }),
     }
   } catch (error) {
-    await closeStartedAssistantHost({
-      runtime,
-      shell,
-      surface,
-      teamHost,
-      teamAdapter,
-      scheduleAdapter,
-      ...(scheduleController === undefined ? {} : { scheduleController }),
-      ...(pluginComposition === undefined ? {} : { pluginComposition }),
-      ...(pluginExecutionEnvironment === undefined
-        ? {}
-        : { pluginExecutionEnvironment }),
-    })
+    try {
+      await closeStartedAssistantHost({
+        runtime,
+        shell,
+        surface,
+        teamHost,
+        teamAdapter,
+        scheduleAdapter,
+        ...(scheduleController === undefined ? {} : { scheduleController }),
+        ...(pluginComposition === undefined ? {} : { pluginComposition }),
+        ...(pluginExecutionEnvironment === undefined
+          ? {}
+          : { pluginExecutionEnvironment }),
+      })
+    } catch (cleanupError) {
+      throw preservePrimaryError(error, cleanupError)
+    }
     throw error
   }
 }

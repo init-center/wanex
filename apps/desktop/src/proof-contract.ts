@@ -23,6 +23,11 @@ export const WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT =
   "created by the Wanex coding proof\n"
 export const WANEX_DESKTOP_PROOF_CODING_RESPONSE =
   "The reviewed coding proof change is complete"
+export const WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL =
+  "wanex-packaged-remote-coding-proof-token"
+export const WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID = "packaged-remote"
+export const WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME = "Packaged Remote Host"
+export const WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID = "packaged-remote-project"
 export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE =
   "WANEX_CODING_RECOVERY_PROOF_V1 Reconcile the recoverable coding operation"
 export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME =
@@ -243,6 +248,8 @@ export type WanexDesktopProviderRelaunchProofStep =
   | "relaunch-goal"
   | "relaunch-cleanup"
   | "relaunch-unconfigured"
+
+export type WanexDesktopRemoteCodingProofStep = "relaunch-remote-coding"
 
 export type WanexDesktopTeamProofStep = "relaunch-team"
 
@@ -544,6 +551,33 @@ export interface WanexDesktopCodingProofResult {
   readonly recoveryTurnSucceeded: boolean
   readonly recoveryResponseVisible: boolean
   readonly recoverySessionPreserved: boolean
+  readonly timingsMs: {
+    readonly rendererInteractive: number
+    readonly conversationSettlement: number
+    readonly rendererPostSettlement: number
+  }
+}
+
+export interface WanexDesktopRemoteCodingProofResult {
+  readonly ok: boolean
+  readonly step: WanexDesktopRemoteCodingProofStep
+  readonly providerEvidenceRedacted: boolean
+  readonly codingSurfaceSelected: boolean
+  readonly remoteProfileFormVisible: boolean
+  readonly profileInputSubmitted: boolean
+  readonly credentialAcceptedByForm: boolean
+  readonly profilePersistedAfterSave: boolean
+  readonly credentialAbsentAfterSave: boolean
+  readonly endpointAbsentAfterSave: boolean
+  readonly remoteProjectVisible: boolean
+  readonly opaqueProjectSelected: boolean
+  readonly sharedWorkbenchVisible: boolean
+  readonly idleInspectorHidden: boolean
+  readonly projectId: string
+  readonly profileRemoved: boolean
+  readonly removedProfileListEmpty: boolean
+  readonly reconnectRejectedAfterRemoval: boolean
+  readonly internalIdentityEvidenceHidden: boolean
   readonly timingsMs: {
     readonly rendererInteractive: number
     readonly conversationSettlement: number

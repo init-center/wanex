@@ -7,6 +7,7 @@ import {
   mountClient,
   type Client,
   type ClientEvent,
+  type AppModalState,
   type PreparedResourceDelivery,
 } from "../src/client/index.js";
 import type {
@@ -1134,12 +1135,20 @@ describe("Web client", () => {
   });
 
   it("opens Provider settings as a focused overlay instead of a layout column", async () => {
-    await mount(createClient(baseSnapshot()));
+    const modalStates: AppModalState[] = [];
+    await mount(
+      createClient(baseSnapshot()),
+      undefined,
+      (state) => modalStates.push(state),
+    );
+
+    expect(modalStates.at(-1)).toEqual({ active: false });
 
     const opener = requiredButton("Open settings");
     opener.focus();
     await act(async () => opener.click());
 
+    expect(modalStates.at(-1)).toEqual({ active: true, kind: "settings" });
     expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
     const dialog = requiredElement<HTMLElement>('[role="dialog"][aria-label="Settings"]');
     expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Settings");
@@ -1163,6 +1172,7 @@ describe("Web client", () => {
 
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-settings-dismiss]").click());
     expect(document.querySelector("[data-ui-settings-overlay]")).toBeNull();
+    expect(modalStates.at(-1)).toEqual({ active: false });
     expect(document.activeElement).toBe(opener);
 
     await act(async () => opener.click());
@@ -3958,6 +3968,7 @@ describe("Web client", () => {
 async function mount(
   client: Client,
   initialSnapshot?: Snapshot,
+  onModalStateChange?: (state: AppModalState) => void,
 ): Promise<void> {
   const root = document.createElement("div");
   document.body.append(root);
@@ -3966,6 +3977,7 @@ async function mount(
       root,
       client,
       ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
+      ...(onModalStateChange === undefined ? {} : { onModalStateChange }),
     }));
   });
 }

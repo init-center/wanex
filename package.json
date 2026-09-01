@@ -24,6 +24,7 @@
     "test:desktop": "pnpm --filter @wanex/desktop test",
     "proof:desktop": "pnpm --filter @wanex/desktop proof",
     "prepare:desktop-electron": "pnpm --filter @wanex/desktop prepare:electron",
+    "proof:desktop-distribution": "node ./scripts/desktop-distribution-receipt.mjs",
     "start:desktop": "pnpm --filter @wanex/desktop start",
     "generate:storage-rpc": "node ./scripts/generate-storage-rpc.mjs",
     "generate:model-catalog": "tsx ./scripts/generate-local-model-catalog.ts",
@@ -79,6 +80,7 @@
     "audit:runtime-consolidation": "node ./scripts/audit-runtime-consolidation.mjs",
     "audit:host-distribution": "node ./scripts/audit-host-distribution.mjs",
     "test:host-distribution-budget": "vitest run ./scripts/audit-host-distribution.test.mjs",
+    "test:desktop-distribution-receipt": "vitest run ./scripts/desktop-distribution-receipt.test.mjs",
     "test:runtime-consolidation-audit": "vitest run ./scripts/audit-runtime-consolidation.test.mjs",
     "test:runner": "vitest run ./scripts/test-runner.test.mjs ./scripts/process-step.test.mjs"
   },

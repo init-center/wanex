@@ -3,6 +3,7 @@ import {
   auditHostDistributionData,
   parseHostDistributionAuditArgs
 } from "./audit-host-distribution.mjs"
+import { createDesktopDistributionReceipt } from "./desktop-distribution-receipt.mjs"
 import {
   summarizeDesktopSamples
 } from "../apps/desktop/scripts/metrics.mjs"
@@ -16,11 +17,14 @@ describe("host distribution budget", () => {
       "linux-x64",
       "--budget",
       "budget.json",
+      "--desktop-distribution-receipt",
+      "desktop-distribution.json",
       "--tui-receipt",
       "tui.json"
     ])).toMatchObject({
       targetId: "linux-x64",
       budgetPath: expect.stringMatching(/budget\.json$/),
+      desktopDistributionReceiptPath: expect.stringMatching(/desktop-distribution\.json$/),
       tuiReceiptPath: expect.stringMatching(/tui\.json$/)
     })
     expect(() => parseHostDistributionAuditArgs(["--unknown"]))
@@ -77,12 +81,16 @@ describe("host distribution budget", () => {
 
   it("reports every native and Desktop ceiling violation", () => {
     const native = nativeReceipt()
+    const desktop = desktopReceipt()
+    const desktopDistribution = distributionReceipt(desktop, {
+      ...native,
+      target: darwinTarget()
+    })
     native.artifact.bytes = 101
     native.samples.forEach((sample) => {
       sample.timingsMs.total = 101
     })
     native.summary = summarizeNativeRuntimeSamples(native.samples)
-    const desktop = desktopReceipt()
     desktop.packaged.unpackedBytes = 101
     desktop.packaged.hasApplicationNodeModules = true
     desktop.samples[0].runtime.timingsMs.interactiveTotal = 101
@@ -90,8 +98,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...native, target: { id: "darwin-arm64" } },
-      desktop
+      native: { ...native, target: darwinTarget() },
+      desktop,
+      desktopDistribution
     })
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
@@ -103,6 +112,19 @@ describe("host distribution budget", () => {
     ]))
   })
 
+  it("requires the bounded Desktop distribution receipt", () => {
+    const result = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop: desktopReceipt()
+    })
+    expect(result).toMatchObject({
+      ok: false,
+      failures: ["Desktop distribution receipt is required"]
+    })
+  })
+
   it("requires exact packaged Schedule lifecycle evidence", () => {
     const desktop = desktopReceipt()
     desktop.schedule.createProviderRequestCount = 2
@@ -110,8 +132,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      desktop
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
@@ -129,8 +152,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      desktop
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
     expect(result.failures).toEqual([
       expect.stringContaining("Desktop warm interactive total median ms")
@@ -144,8 +168,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      desktop
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
@@ -161,8 +186,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      desktop
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
     expect(result.failures).toEqual([
       expect.stringContaining(
@@ -177,8 +203,9 @@ describe("host distribution budget", () => {
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
-      native: { ...nativeReceipt(), target: { id: "darwin-arm64" } },
-      desktop
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
     expect(result.failures).toEqual([
       "Desktop declared summary does not match raw samples"
@@ -324,8 +351,9 @@ function nativeReceipt() {
   return {
     kind: "wanex.native-runtime.proof-receipt",
     ok: true,
+    pathCase: { spaces: true, nonAscii: true },
     target: { id: "linux-x64" },
-    artifact: { bytes: 50, fileCount: 2 },
+    artifact: { bytes: 50, fileCount: 2, verificationMs: 50 },
     sampleCount: 5,
     samples,
     summary: summarizeNativeRuntimeSamples(samples),
@@ -357,6 +385,7 @@ function desktopReceipt() {
   return {
     kind: "wanex.desktop.proof-receipt",
     ok: true,
+    pathCase: { spaces: true, nonAscii: true },
     packaged: {
       platform: "darwin",
       arch: "arm64",
@@ -396,6 +425,40 @@ function desktopReceipt() {
       sameProfileRestored: true,
       removed: true
     }
+  }
+}
+
+function distributionReceipt(desktop, native) {
+  const targetId = `${desktop.packaged.platform}-${desktop.packaged.arch}`
+  return createDesktopDistributionReceipt({
+    targetId,
+    electron: {
+      kind: "wanex.desktop.electron-artifact-receipt",
+      electronVersion: "43.2.0",
+      target: targetId,
+      fileName: `electron-v43.2.0-${targetId}.zip`,
+      bytes: 50,
+      sha256: "a".repeat(64)
+    },
+    desktop,
+    native
+  })
+}
+
+function darwinTarget() {
+  return {
+    id: "darwin-arm64",
+    platform: "darwin",
+    arch: "arm64",
+    rustTarget: "aarch64-apple-darwin"
+  }
+}
+
+function darwinNativeReceipt() {
+  return {
+    ...nativeReceipt(),
+    target: darwinTarget(),
+    host: { platform: "darwin", arch: "arm64" }
   }
 }
 

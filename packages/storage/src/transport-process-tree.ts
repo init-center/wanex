@@ -10,9 +10,9 @@ export function createStorageProcessTreeTerminator(): StorageProcessTreeTerminat
         await terminateWindowsTree(pid)
         return
       }
-      signalUnixGroup(pid, "SIGTERM")
+      signalUnixGroup(request.child, pid, "SIGTERM")
       if (await request.waitForClose(request.graceMs)) return
-      signalUnixGroup(pid, "SIGKILL")
+      signalUnixGroup(request.child, pid, "SIGKILL")
     }
   }
 }
@@ -32,11 +32,27 @@ function terminateWindowsTree(pid: number): Promise<void> {
   })
 }
 
-function signalUnixGroup(pid: number, signal: NodeJS.Signals): void {
+function signalUnixGroup(
+  child: ChildProcessWithoutNullStreams,
+  pid: number,
+  signal: NodeJS.Signals
+): void {
   try {
     process.kill(-pid, signal)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === "ESRCH") return
+    try {
+      if (child.kill(signal)) return
+    } catch (fallbackError) {
+      throw new Error(
+        `POSIX process group ${signal} failed${code === undefined ? "" : ` (${code})`}`,
+        { cause: fallbackError }
+      )
+    }
+    throw new Error(
+      `POSIX process group ${signal} failed${code === undefined ? "" : ` (${code})`}`
+    )
   }
 }
 

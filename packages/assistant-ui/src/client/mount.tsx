@@ -21,6 +21,9 @@ export function mountClient(
       {...(options.initialSnapshot === undefined
         ? {}
         : { initialSnapshot: options.initialSnapshot })}
+      {...(options.onModalStateChange === undefined
+        ? {}
+        : { onModalStateChange: options.onModalStateChange })}
     />,
   );
   return { root, unmount: () => root.unmount() };

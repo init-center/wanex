@@ -57,6 +57,7 @@ export interface RemoteCodingConnectionOptions {
 }
 
 export interface RemoteCodingConnectionManager {
+  listProfiles(): Promise<readonly RemoteConnectionProfile[]>;
   connect(profileId: string): Promise<RemoteCodingConnection>;
   get(profileId: string): RemoteCodingConnection | undefined;
   close(profileId?: string): Promise<void>;
@@ -190,14 +191,28 @@ export function createRemoteCodingConnection(
     closed = true;
     setState("closed");
     closePromise = (async () => {
+      let closeFailed = false;
+      let closeError: unknown;
       await connectPromise?.catch(() => {});
-      eventStream?.close();
-      await eventStream?.closed.catch(() => {});
-      await composition?.close();
-      eventStream = undefined;
-      composition = undefined;
-      client = undefined;
-      listeners.clear();
+      try {
+        eventStream?.close();
+        await eventStream?.closed.catch(() => {});
+      } catch (error) {
+        closeFailed = true;
+        closeError = error;
+      }
+      try {
+        await composition?.close();
+      } catch (error) {
+        if (!closeFailed) closeError = error;
+        closeFailed = true;
+      } finally {
+        eventStream = undefined;
+        composition = undefined;
+        client = undefined;
+        listeners.clear();
+      }
+      if (closeFailed) throw closeError;
     })();
     return await closePromise;
   }
@@ -270,6 +285,7 @@ export function createRemoteCodingConnectionManager(
   let closed = false;
 
   const manager: RemoteCodingConnectionManager = {
+    listProfiles: async () => await options.profiles.list(),
     async connect(profileId: string) {
       if (closed || closePromise !== undefined) {
         throw new Error("remote Coding connection manager is closed");

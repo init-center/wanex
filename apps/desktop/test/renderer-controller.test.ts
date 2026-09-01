@@ -22,6 +22,8 @@ describe("Desktop Coding Renderer controller", () => {
         selectProject: async () => ({
           kind: "selected",
           project: project("selected"),
+          location: { kind: "local" },
+          capabilities: { proposalApply: true },
         }),
         readProject: async () => {
           const read = deferred<CodingProjectReadModel | null>();
@@ -45,6 +47,28 @@ describe("Desktop Coding Renderer controller", () => {
 
     expect(controller.state.status).toBe("ready");
     expect(controller.state.project?.name).toBe("fresh");
+    controller.dispose();
+  });
+
+  it("preserves project capabilities across canonical refreshes", async () => {
+    const controller = new CodingWorkbenchController(
+      fakeClient({
+        selectProject: async () => ({
+          kind: "selected",
+          project: project("capabilities"),
+          location: { kind: "remote", profileId: "office" },
+          capabilities: { proposalApply: true },
+        }),
+      }),
+    );
+
+    await controller.openProject();
+
+    expect(controller.state.location).toEqual({
+      kind: "remote",
+      profileId: "office",
+    });
+    expect(controller.state.capabilities).toEqual({ proposalApply: true });
     controller.dispose();
   });
 
@@ -104,7 +128,7 @@ describe("Desktop Coding Renderer controller", () => {
         selectProject: async () => {
           selectCount += 1;
           return selectCount === 1
-            ? { kind: "selected", project: current }
+            ? selected(current)
             : { kind: "cancelled" };
         },
         readProject: async () => current,
@@ -132,7 +156,7 @@ describe("Desktop Coding Renderer controller", () => {
     await Promise.resolve();
 
     controller.dispose();
-    selection.resolve({ kind: "selected", project: project("late") });
+    selection.resolve(selected(project("late")));
     await opening;
 
     expect(controller.state.project).toBeUndefined();
@@ -279,10 +303,10 @@ function fakeClient(options: {
     hasMore: false,
   };
   return {
-    selectProject: options.selectProject ?? (async () => ({
-      kind: "selected",
-      project: project("repository"),
-    })),
+    selectProject: options.selectProject ?? (async () => selected(project("repository"))),
+    listRemoteProfiles: async () => [],
+    listRemoteProjects: async () => ({ profileId: "test", projects: [] }),
+    selectRemoteProject: async () => selected(project("remote")),
     readProject: options.readProject ?? (async () => project("repository")),
     listSessions: options.listSessions ?? (async () => sessions),
     readSession: options.readSession ?? (async () => null),
@@ -293,7 +317,17 @@ function fakeClient(options: {
     readProposal: async () => null,
     resolveTurnRecovery: options.resolveTurnRecovery ?? (async () => { throw new Error("not used"); }),
     subscribe: options.subscribe ?? (() => () => {}),
+    subscribeCanonicalReads: () => () => {},
   } as unknown as CodingWorkbenchClient;
+}
+
+function selected(projectValue: CodingProjectReadModel) {
+  return {
+    kind: "selected" as const,
+    project: projectValue,
+    location: { kind: "local" as const },
+    capabilities: { proposalApply: true },
+  };
 }
 
 function project(name: string): CodingProjectReadModel {

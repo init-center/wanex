@@ -225,6 +225,14 @@ export class PersistentSystemServiceStorageWireTransport
       this.drainStdoutBuffer()
     })
     child.stderr.on("data", () => {})
+    child.stdin.on("error", (error) => {
+      if (this.child !== child) return
+      this.markChildFailed(child, storageTransportError(
+        "local_persistent_write_failed",
+        "system-service persistent input closed",
+        error
+      ))
+    })
     child.on("error", (error) => {
       if (this.child !== child) return
       this.recordChildFailure(storageTransportError(
@@ -247,12 +255,14 @@ export class PersistentSystemServiceStorageWireTransport
       if (newlineIndex < 0) return
       const line = this.stdoutBuffer.slice(0, newlineIndex)
       this.stdoutBuffer = this.stdoutBuffer.slice(newlineIndex + 1)
+      const startupFailure = startupFailureError(line)
+      if (startupFailure !== null) {
+        this.failCurrentChild(startupFailure)
+        continue
+      }
       const pending = this.pending.shift()
       if (pending === undefined) {
-        this.failCurrentChild(new StorageTransportError(
-          "system-service persistent returned an unmatched response",
-          { code: "local_persistent_unmatched_response" }
-        ))
+        this.failCurrentChild(unmatchedResponseError(line))
         continue
       }
       try {
@@ -317,11 +327,24 @@ export class PersistentSystemServiceStorageWireTransport
       graceMs: DEFAULT_TERMINATION_GRACE_MS,
       waitForClose: async (timeoutMs) => await waitForClose(child, timeoutMs)
     })
-    await withDeadline(
-      cleanup,
-      this.cleanupTimeoutMs,
-      () => cleanupTimeoutError(this.cleanupTimeoutMs)
-    )
+    const cleanupStartedAt = Date.now()
+    try {
+      await withDeadline(
+        cleanup,
+        this.cleanupTimeoutMs,
+        () => cleanupTimeoutError(this.cleanupTimeoutMs)
+      )
+    } catch (error) {
+      // A close event may win the race after the terminator reports a signal
+      // error. The owned process is gone, so cleanup has completed.
+      if (isClosed(child)) return
+      const remainingMs = Math.max(
+        0,
+        this.cleanupTimeoutMs - (Date.now() - cleanupStartedAt)
+      )
+      if (remainingMs > 0 && await waitForClose(child, remainingMs)) return
+      throw error
+    }
     if (!isClosed(child) && !await waitForClose(child, this.cleanupTimeoutMs)) {
       throw cleanupTimeoutError(this.cleanupTimeoutMs)
     }
@@ -448,6 +471,42 @@ function closedProcessError(): StorageTransportError {
   return new StorageTransportError("system-service persistent process closed", {
     code: "local_persistent_closed"
   })
+}
+
+function unmatchedResponseError(line: string): StorageTransportError {
+  return startupFailureError(line) ?? new StorageTransportError(
+    "system-service persistent returned an unmatched response",
+    { code: "local_persistent_unmatched_response" }
+  )
+}
+
+function startupFailureError(line: string): StorageTransportError | null {
+  try {
+    const value = JSON.parse(line) as unknown
+    if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+      const envelope = value as {
+        readonly ok?: unknown
+        readonly error?: unknown
+        readonly request_id?: unknown
+      }
+      if (
+        envelope.ok === false &&
+        (envelope.request_id === null || envelope.request_id === undefined) &&
+        typeof envelope.error === "object" &&
+        envelope.error !== null &&
+        !Array.isArray(envelope.error)
+      ) {
+        const message = (envelope.error as { readonly message?: unknown }).message
+        if (typeof message === "string" && message.length > 0) {
+          return new StorageTransportError(
+            `system-service persistent startup failed: ${message}`,
+            { code: "local_persistent_startup" }
+          )
+        }
+      }
+    }
+  } catch {}
+  return null
 }
 
 function cleanupTimeoutError(timeoutMs: number): StorageTransportError {

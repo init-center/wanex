@@ -16,7 +16,7 @@
     "test": "vitest run",
     "build": "node ./scripts/build.mjs",
     "package": "node ./scripts/build.mjs --package",
-    "proof": "node ./scripts/proof.mjs",
+    "proof": "tsx ./scripts/proof.mjs",
     "prepare:electron": "node ./scripts/electron-artifact.mjs"
   },
   "dependencies": {

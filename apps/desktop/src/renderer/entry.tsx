@@ -6,6 +6,7 @@ import {
   type Client as AssistantClient,
 } from "@wanex/assistant-ui/client";
 import type { DesktopCodingRendererBridge } from "../coding-bridge.js";
+import type { DesktopRemoteRendererBridge } from "../remote/bridge.js";
 import { createDesktopRendererCodingClient } from "./coding/client.js";
 import { ProductRenderer } from "./product.js";
 
@@ -43,11 +44,13 @@ const codingBridge = readCodingBridge();
 const codingClient = codingBridge === undefined
   ? undefined
   : createDesktopRendererCodingClient(codingBridge);
+const remoteClient = readRemoteBridge();
 
 createRoot(root).render(
   <ProductRenderer
     assistantClient={assistantClient}
     codingClient={codingClient}
+    remoteClient={remoteClient}
   />,
 );
 
@@ -55,6 +58,13 @@ function readCodingBridge(): DesktopCodingRendererBridge | undefined {
   const value = (globalThis as typeof globalThis & {
     wanexCoding?: DesktopCodingRendererBridge;
   }).wanexCoding;
+  return value;
+}
+
+function readRemoteBridge(): DesktopRemoteRendererBridge | undefined {
+  const value = (globalThis as typeof globalThis & {
+    wanexRemote?: DesktopRemoteRendererBridge;
+  }).wanexRemote;
   return value;
 }
 

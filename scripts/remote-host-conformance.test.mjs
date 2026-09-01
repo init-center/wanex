@@ -154,6 +154,51 @@ describe("Remote Agent Host TLS domain conformance", () => {
         expect.objectContaining({ projectId: "coding-project-1" })
       ])
 
+      const applyRequest = {
+        projectId: "coding-project-1",
+        proposalId: "coding-proposal-tls",
+        idempotencyKey: "coding-apply-once"
+      }
+      await expect(client.applyProposal(applyRequest)).resolves.toMatchObject({
+        status: "applied",
+        proposal: {
+          projectId: "coding-project-1",
+          proposalId: "coding-proposal-tls",
+          state: "applied",
+          changeState: "applied"
+        }
+      })
+      await expect(client.applyProposal(applyRequest)).resolves.toMatchObject({
+        status: "already_terminal",
+        proposal: {
+          projectId: "coding-project-1",
+          proposalId: "coding-proposal-tls",
+          state: "applied",
+          changeState: "applied"
+        }
+      })
+      const applyWireRequests = requests.filter(
+        (request) => request.body?.operation === "coding.proposal.apply"
+      )
+      expect(applyWireRequests).toHaveLength(2)
+      expect(applyWireRequests[0]?.body).toMatchObject({
+        kind: "wanex.agent-host.operation.request",
+        operationKind: "command",
+        domain: "coding",
+        operation: "coding.proposal.apply",
+        idempotencyKey: "coding-apply-once",
+        payload: {
+          projectId: "coding-project-1",
+          proposalId: "coding-proposal-tls"
+        }
+      })
+      expect(applyWireRequests[0]?.body.payload).not.toHaveProperty(
+        "idempotencyKey"
+      )
+      expect(applyWireRequests[0]?.body.payload).not.toHaveProperty("requestId")
+      expect(environment.coding.applyRequestCount).toBe(2)
+      expect(environment.coding.applyCalls).toHaveLength(1)
+
       const startRequest = {
         projectId: "coding-project-1",
         sessionId: "coding-session-1",
@@ -647,6 +692,9 @@ function createCodingFixture(projectId = "coding-project-1") {
   const listeners = new Set()
   const retained = []
   const startCalls = []
+  const applyCalls = []
+  let applyRequestCount = 0
+  const appliedProposals = new Set()
   const cancelCalls = []
   const turns = new Map()
   const turnsById = new Map()
@@ -658,6 +706,27 @@ function createCodingFixture(projectId = "coding-project-1") {
   const application = {
     state: "open",
     listProjects: async () => [codingProject(projectId)],
+    applyProposal: async (request) => {
+      if (request.projectId !== projectId) {
+        throw new CodingApplicationError(
+          "project_unavailable",
+          "coding project is unavailable"
+        )
+      }
+      applyRequestCount += 1
+      if (!appliedProposals.has(request.proposalId)) {
+        appliedProposals.add(request.proposalId)
+        applyCalls.push(request)
+        return {
+          status: "applied",
+          proposal: codingProposal(projectId, request.proposalId, "applied")
+        }
+      }
+      return {
+        status: "already_terminal",
+        proposal: codingProposal(projectId, request.proposalId, "applied")
+      }
+    },
     readTurn: async (request) => {
       if (request.projectId !== projectId) {
         throw new CodingApplicationError(
@@ -750,6 +819,10 @@ function createCodingFixture(projectId = "coding-project-1") {
   return {
     domain: "coding",
     startCalls,
+    applyCalls,
+    get applyRequestCount() {
+      return applyRequestCount
+    },
     cancelCalls,
     get maxConcurrentSessions() {
       return maxConcurrentSessions
@@ -834,6 +907,28 @@ function codingProject(projectId = "coding-project-1") {
   }
 }
 
+function codingProposal(
+  projectId = "coding-project-1",
+  proposalId = "coding-proposal-tls",
+  state = "applied"
+) {
+  return {
+    projectId,
+    proposalId,
+    state,
+    changeState: state,
+    incomplete: false,
+    totalFileCount: 0,
+    returnedFileCount: 0,
+    omittedFileCount: 0,
+    files: [],
+    totalOperationCount: 0,
+    returnedOperationCount: 0,
+    omittedOperationCount: 0,
+    operations: []
+  }
+}
+
 function codingTurn(projectId = "coding-project-1", overrides = {}) {
   return {
     projectId,
@@ -894,9 +989,12 @@ function createHttpsFetch(ca, requests) {
   return (input, init = {}) => {
     const url = new URL(String(input))
     const headers = Object.fromEntries(new Headers(init.headers).entries())
+    const body =
+      typeof init.body === "string" ? JSON.parse(init.body) : undefined
     requests.push({
       path: url.pathname,
-      headers: { ...headers }
+      headers: { ...headers },
+      ...(body === undefined ? {} : { body })
     })
     return new Promise((resolve, reject) => {
       const request = createServerRequest(url, {

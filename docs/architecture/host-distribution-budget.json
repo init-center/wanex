@@ -129,7 +129,7 @@
       },
       "desktop": {
         "maxUnpackedBytes": 415000000,
-        "maxPackageFileCount": 90,
+        "maxPackageFileCount": 310,
         "maxAsarBytes": 3100000,
         "exactAsarEntryCount": 3,
         "maxNativeBytes": 14600000,

@@ -152,6 +152,7 @@ export async function composeCodingRepository(options: {
     writableCollection: new WorkspaceGitRuntime({
       repositoryId: options.identity.repositoryId,
       worktreeParent: repository.worktreeParent,
+      executionScope: options.executionScope,
     }),
     repositoryId: options.identity.repositoryId,
     workspaceId: options.identity.workspaceId,

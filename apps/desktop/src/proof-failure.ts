@@ -6,6 +6,7 @@ export function createWanexDesktopProofFailureReceipt(input: {
   readonly failurePhase: string;
   readonly proofStep?: string;
 }): unknown {
+  const diagnostic = failureDiagnostic(input.error, input.failurePhase);
   return {
     kind: "wanex.desktop.runtime-receipt",
     ok: false,
@@ -13,7 +14,7 @@ export function createWanexDesktopProofFailureReceipt(input: {
     ...(input.proofStep === undefined
       ? {}
       : { failureProofStep: input.proofStep }),
-    ...failureDiagnostic(input.error, input.failurePhase),
+    ...diagnostic,
     error: boundedDesktopError(input.error),
     ...(input.error instanceof DesktopRendererProofError
       ? { renderer: input.error.renderer }
@@ -23,17 +24,41 @@ export function createWanexDesktopProofFailureReceipt(input: {
 
 export function formatWanexDesktopError(error: unknown): string {
   const value = boundedDesktopError(error);
-  return `[wanex-desktop] ${value.name}: ${value.code}`;
+  const diagnostic = safeDiagnosticMessage(error);
+  return diagnostic === undefined
+    ? `[wanex-desktop] ${value.name}: ${value.code}`
+    : `[wanex-desktop] ${value.name}: ${value.code}: ${diagnostic}`;
 }
 
 function failureDiagnostic(
   error: unknown,
   failurePhase: string,
-): { readonly failureDiagnostic?: string } {
+): {
+  readonly failureDiagnostic?: string;
+  readonly failureDiagnosticMessage?: string;
+} {
   if (failurePhase === "renderer_proof") {
-    return { failureDiagnostic: classifyRendererProofFailure(error) };
+    const message = safeDiagnosticMessage(error);
+    return {
+      failureDiagnostic: classifyRendererProofFailure(error),
+      ...(message === undefined ? {} : { failureDiagnosticMessage: message }),
+    };
   }
   return {};
+}
+
+function safeDiagnosticMessage(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const message = error.message.trim();
+  if (message.length === 0) return undefined;
+  return redactDiagnostic(message).slice(0, 512);
+}
+
+function redactDiagnostic(message: string): string {
+  return message
+    .replaceAll(/wanex-[a-z0-9-]+(?:-[a-z0-9-]+)*-proof-[a-z0-9-]+/gi, "<proof-secret>")
+    .replaceAll(/\b(Bearer|token|credential|password|secret)[=: ]+[^,;\s)]+/gi, "$1=<redacted>")
+    .replaceAll(/(?:https?|wss?):\/\/[^\s)]+/gi, "<endpoint>");
 }
 
 function boundedDesktopError(error: unknown): {
@@ -104,7 +129,8 @@ function classifyRendererProofFailure(error: unknown): string {
   }
   const codingTimeout = message.match(/Coding proof timed out: ([a-z_]+)/);
   if (codingTimeout !== null) {
-    return `coding_${codingTimeout[1] ?? "renderer"}_timeout`;
+    const stage = codingTimeout[1] ?? "renderer";
+    return `${stage.startsWith("coding_") ? stage : `coding_${stage}`}_timeout`;
   }
   const relaunchTimeout = message.match(
     /Provider relaunch proof timed out during [^:]+:([a-z_]+):([^`\n]*)/,

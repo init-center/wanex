@@ -154,4 +154,9 @@ export interface Client {
 export interface AppProps {
   readonly client: Client;
   readonly initialSnapshot?: Snapshot;
+  readonly onModalStateChange?: (state: AppModalState) => void;
 }
+
+export type AppModalState =
+  | { readonly active: false }
+  | { readonly active: true; readonly kind: "settings" };

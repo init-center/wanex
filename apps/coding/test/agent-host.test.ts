@@ -69,6 +69,35 @@ describe("Coding Agent Host binding", () => {
         },
       }),
     ).resolves.toMatchObject({ outcome: "completed", result: { action: "approve" } });
+    await expect(
+      client.command({
+        domain: "coding",
+        operation: CODING_AGENT_HOST_OPERATIONS.proposalApply,
+        idempotencyKey: "proposal_apply_once",
+        payload: {
+          projectId: "project_1",
+          proposalId: "proposal_1",
+        },
+      }),
+    ).resolves.toMatchObject({
+      outcome: "completed",
+      result: { status: "applied" },
+    });
+    await expect(
+      client.command({
+        domain: "coding",
+        operation: CODING_AGENT_HOST_OPERATIONS.proposalApply,
+        idempotencyKey: "proposal_apply_outer",
+        payload: {
+          projectId: "project_1",
+          proposalId: "proposal_1",
+          idempotencyKey: "proposal_apply_inner",
+        },
+      }),
+    ).resolves.toMatchObject({
+      outcome: "failed",
+      error: { code: "malformed_request" },
+    });
     expect(calls).toEqual([
       {
         projectId: "project_1",
@@ -76,6 +105,10 @@ describe("Coding Agent Host binding", () => {
         decision: "approve",
         reason: "reviewed",
         requestId: "proposal_decision_once",
+      },
+      {
+        projectId: "project_1",
+        proposalId: "proposal_1",
       },
     ]);
   });
@@ -426,6 +459,12 @@ function fakeApplication(calls: Record<string, unknown>[]): CodingApplication {
     ) => {
       calls.push(request as unknown as Record<string, unknown>);
       return { action: "approve" } as never;
+    },
+    applyProposal: async (
+      request: Parameters<CodingApplication["applyProposal"]>[0],
+    ) => {
+      calls.push(request as unknown as Record<string, unknown>);
+      return { status: "applied" } as never;
     },
     cancelTurn: async (
       request: Parameters<CodingApplication["cancelTurn"]>[0],

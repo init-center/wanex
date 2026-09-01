@@ -2,7 +2,6 @@ use crate::atomic_file::acquire_path_write_lock;
 use crate::{Result, SystemServiceError};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -74,7 +73,7 @@ pub fn run_workspace_snapshot_helper(
         return Ok(());
     }
 
-    let snapshot = create_snapshot(&repository_root, &identity, git_bin)?;
+    let snapshot = create_snapshot(&repository_root, &worktree_parent, &identity, git_bin)?;
     println!("{}", serde_json::to_string(&snapshot)?);
     Ok(())
 }
@@ -101,6 +100,7 @@ fn runtime_identity(worktree_parent: &Path, isolation_id: &str) -> RuntimeIdenti
 
 fn create_snapshot(
     repository_root: &Path,
+    worktree_parent: &Path,
     identity: &RuntimeIdentity,
     git_bin: &str,
 ) -> Result<CreatedFrame> {
@@ -125,7 +125,7 @@ fn create_snapshot(
     }
 
     let head = git_output(repository_root, git_bin, &["rev-parse", "HEAD"], &[])?;
-    let temp = TemporaryDirectory::new()?;
+    let temp = TemporaryDirectory::new(worktree_parent)?;
     let index = temp.path.join("index");
     let index_env = vec![("GIT_INDEX_FILE".to_string(), git_path_arg(&index))];
     git_output(repository_root, git_bin, &["read-tree", "HEAD"], &index_env)?;
@@ -498,8 +498,8 @@ struct TemporaryDirectory {
 }
 
 impl TemporaryDirectory {
-    fn new() -> Result<Self> {
-        let path = env::temp_dir().join(format!("wanex-index-{}", Uuid::now_v7()));
+    fn new(parent: &Path) -> Result<Self> {
+        let path = parent.join(format!(".wanex-index-{}", Uuid::now_v7()));
         fs::create_dir(&path)?;
         Ok(Self { path })
     }

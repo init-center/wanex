@@ -459,13 +459,15 @@ export class WorkspaceTaskRuntime {
       })
       if (request.access === "writable") {
         const ids = projectionIds(workspaceId, taskId)
-        const collection = await this.writableCollection.collectWorktree({
-          lease,
-          executionScope,
-          changeSetId: ids.changeSetId
-        })
+        // Projection is a host-owned read after the agent scope is closed.
+        // The Git runtime carries the broader repository scope it needs for
+        // linked-worktree metadata and never reuses the agent scope here.
         await closeExecutionScope()
         executionGuard.assertCleanupProven()
+        const collection = await this.writableCollection.collectWorktree({
+          lease,
+          changeSetId: ids.changeSetId
+        })
         if (collection.status === "attention") {
           const projectionError: WorkspaceTaskError = {
             message: "workspace Git projection requires attention",

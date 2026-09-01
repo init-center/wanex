@@ -17,6 +17,8 @@ import type {
   WanexDesktopScheduleProofResult,
   WanexDesktopTeamProofResult,
   WanexDesktopCodingProofResult,
+  WanexDesktopRemoteCodingProofResult,
+  WanexDesktopRemoteCodingProofStep,
 } from "./proof-contract.js";
 import {
   WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER,
@@ -53,6 +55,7 @@ import {
   wanexDesktopPluginRestoreProofScript,
 } from "./plugin-management-proof.js";
 import { wanexDesktopCodingProofScript } from "./coding-proof.js";
+import { wanexDesktopRemoteCodingProofScript } from "./remote-coding-proof.js";
 
 export type WanexDesktopPackagedProofStep =
   | "lifecycle"
@@ -61,6 +64,7 @@ export type WanexDesktopPackagedProofStep =
   | "relaunch-plugin-restore"
   | "relaunch-schedule-create"
   | "relaunch-schedule-restore"
+  | WanexDesktopRemoteCodingProofStep
   | WanexDesktopProviderRelaunchProofStep;
 
 export class DesktopRendererProofError extends Error {
@@ -73,7 +77,8 @@ export class DesktopRendererProofError extends Error {
       | WanexDesktopPluginProofResult
       | WanexDesktopScheduleProofResult
       | WanexDesktopTeamProofResult
-      | WanexDesktopCodingProofResult,
+      | WanexDesktopCodingProofResult
+      | WanexDesktopRemoteCodingProofResult,
   ) {
     super("desktop Assistant renderer proof failed");
     this.name = "DesktopRendererProofError";
@@ -88,6 +93,7 @@ export function requiredWanexDesktopPackagedProofStep(
     value === "relaunch-configure" ||
     value === "relaunch-chat" ||
     value === "relaunch-coding" ||
+    value === "relaunch-remote-coding" ||
     value === "relaunch-cancel-regenerate" ||
     value === "relaunch-guided-follow-up" ||
     value === "relaunch-side-query" ||
@@ -113,6 +119,11 @@ export async function runWanexDesktopPackagedRendererProof(input: {
   readonly step: WanexDesktopPackagedProofStep;
   readonly providerBaseUrl?: string;
   readonly providerCredential?: string;
+  readonly remoteEndpoint?: string;
+  readonly remoteCredential?: string;
+  readonly remoteProfileId?: string;
+  readonly remoteProfileName?: string;
+  readonly remoteProjectId?: string;
 }): Promise<
   | WanexDesktopRendererProofResult
   | WanexDesktopProviderRelaunchProofResult
@@ -120,6 +131,7 @@ export async function runWanexDesktopPackagedRendererProof(input: {
   | WanexDesktopScheduleProofResult
   | WanexDesktopTeamProofResult
   | WanexDesktopCodingProofResult
+  | WanexDesktopRemoteCodingProofResult
 > {
   if (input.step === "lifecycle") {
     return (await input.window.webContents.executeJavaScript(
@@ -179,6 +191,18 @@ export async function runWanexDesktopPackagedRendererProof(input: {
       }),
       true,
     )) as WanexDesktopCodingProofResult;
+  }
+  if (input.step === "relaunch-remote-coding") {
+    return (await input.window.webContents.executeJavaScript(
+      wanexDesktopRemoteCodingProofScript({
+        profileId: requiredProofValue(input.remoteProfileId, "remote Profile ID"),
+        profileName: requiredProofValue(input.remoteProfileName, "remote Profile name"),
+        endpoint: requiredProofValue(input.remoteEndpoint, "remote Host endpoint"),
+        credential: requiredProofValue(input.remoteCredential, "remote Host credential"),
+        projectId: requiredProofValue(input.remoteProjectId, "remote project ID"),
+      }),
+      true,
+    )) as WanexDesktopRemoteCodingProofResult;
   }
   if (input.step === "relaunch-schedule-create") {
     const admission = (await input.window.webContents.executeJavaScript(

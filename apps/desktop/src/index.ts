@@ -15,9 +15,16 @@ export {
 export { isWanexDesktopOwnedNavigation } from "./window-policy.js"
 export {
   DESKTOP_CODING_IPC,
+  isDesktopCodingEvent,
+  isDesktopCodingRemoteProjectList,
   isCodingCommandRequest,
   isDesktopCodingProjectSelection,
   type DesktopCodingProjectSelection,
+  type DesktopCodingCanonicalReadRequired,
+  type DesktopCodingEvent,
+  type DesktopCodingProjectCapabilities,
+  type DesktopCodingProjectLocation,
+  type DesktopCodingRemoteProjectList,
   type DesktopCodingRendererBridge,
 } from "./coding-bridge.js"
 export { installDesktopCodingIpc } from "./coding-ipc.js"

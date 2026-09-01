@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { isCodingEventEnvelope } from "@wanex/coding";
 import {
   DESKTOP_CODING_IPC,
+  isDesktopCodingEvent,
+  isDesktopCodingRemoteProjectList,
   isCodingCommandRequest,
   isDesktopCodingProjectSelection,
   type DesktopCodingRendererBridge,
 } from "./coding-bridge.js";
-import type { CodingEventEnvelope } from "@wanex/coding";
 import {
   DESKTOP_REMOTE_IPC,
   isDesktopRemoteConnectionEvent,
@@ -14,12 +14,40 @@ import {
   isDesktopRemoteConnectionStatus,
   type DesktopRemoteRendererBridge,
 } from "./remote/bridge.js";
+import { isRemoteConnectionProfile } from "./remote/profile.js";
 
 const bridge: DesktopCodingRendererBridge = {
   selectProject: async () => {
     const selection = await ipcRenderer.invoke(DESKTOP_CODING_IPC.selectProject);
     if (!isDesktopCodingProjectSelection(selection)) {
       throw new Error("Coding project selection is invalid");
+    }
+    return selection;
+  },
+  listRemoteProfiles: async () => {
+    const value = await ipcRenderer.invoke(DESKTOP_CODING_IPC.listRemoteProfiles);
+    if (!isDesktopRemoteConnectionProfileList(value)) {
+      throw new Error("Remote Coding profile list is invalid");
+    }
+    return value;
+  },
+  listRemoteProjects: async (profileId) => {
+    const value = await ipcRenderer.invoke(
+      DESKTOP_CODING_IPC.listRemoteProjects,
+      profileId,
+    );
+    if (!isDesktopCodingRemoteProjectList(value)) {
+      throw new Error("Remote Coding project list is invalid");
+    }
+    return value;
+  },
+  selectRemoteProject: async (profileId, projectId) => {
+    const selection = await ipcRenderer.invoke(
+      DESKTOP_CODING_IPC.selectRemoteProject,
+      { profileId, projectId },
+    );
+    if (!isDesktopCodingProjectSelection(selection)) {
+      throw new Error("Remote Coding project selection is invalid");
     }
     return selection;
   },
@@ -31,7 +59,7 @@ const bridge: DesktopCodingRendererBridge = {
   },
   subscribeCodingEvents(listener) {
     const receive = (_event: Electron.IpcRendererEvent, value: unknown) => {
-      if (!isCodingEventEnvelope(value)) return;
+      if (!isDesktopCodingEvent(value)) return;
       try {
         listener(value);
       } catch {
@@ -52,6 +80,19 @@ const remoteBridge: DesktopRemoteRendererBridge = {
       throw new Error("Remote connection profile list is invalid");
     }
     return value;
+  },
+  saveProfile: async (input) => {
+    const value = await ipcRenderer.invoke(
+      DESKTOP_REMOTE_IPC.saveProfile,
+      input,
+    );
+    if (!isRemoteConnectionProfile(value)) {
+      throw new Error("Remote connection profile is invalid");
+    }
+    return value;
+  },
+  removeProfile: async (profileId) => {
+    await ipcRenderer.invoke(DESKTOP_REMOTE_IPC.removeProfile, profileId);
   },
   connect: async (profileId) => {
     const value = await ipcRenderer.invoke(DESKTOP_REMOTE_IPC.connect, profileId);

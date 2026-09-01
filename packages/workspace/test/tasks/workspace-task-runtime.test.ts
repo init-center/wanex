@@ -1309,7 +1309,8 @@ async function createRuntime(
   );
   const projection = new WorkspaceGitRuntime({
     repositoryId: "repo_task_test",
-    worktreeParent: repository.worktreeParent
+    worktreeParent: repository.worktreeParent,
+    executionScope: execution.scope
   });
   const runtime = new WorkspaceTaskRuntime({
     storage,

@@ -103,6 +103,33 @@ export function wanexDesktopCodingProofScript(
 export async function runWanexDesktopCodingProof(
   expected: WanexDesktopCodingProofExpectations,
 ): Promise<WanexDesktopCodingProofResult> {
+  function codingUiSnapshot(): string {
+    const shell = document.querySelector('[data-ui-coding-shell]')
+    const composer = document.querySelector('[data-ui-coding-composer]')
+    const textarea = composer?.querySelector('textarea')
+    const submit = composer?.querySelector('button[type="submit"]')
+    const state = shell?.getAttribute('data-ui-coding-state') ?? 'missing'
+    const project = document.querySelector('[data-ui-coding-project]') !== null
+    const sessions = document.querySelectorAll('[data-ui-coding-session-selected]').length
+    const users = document.querySelectorAll('[data-ui-coding-message-role="user"]').length
+    const assistants = document.querySelectorAll('[data-ui-coding-message-role="assistant"]').length
+    const approvals = document.querySelectorAll('[data-ui-coding-approval]').length
+    const errors = document.querySelectorAll('.coding-error').length
+    const textLength = textarea instanceof HTMLTextAreaElement ? textarea.value.trim().length : -1
+    const submitDisabled = submit instanceof HTMLButtonElement ? submit.disabled : true
+    return [
+      `state=${state}`,
+      `project=${project}`,
+      `sessions=${sessions}`,
+      `users=${users}`,
+      `assistants=${assistants}`,
+      `approvals=${approvals}`,
+      `errors=${errors}`,
+      `textLength=${textLength}`,
+      `submitDisabled=${submitDisabled}`,
+    ].join(',')
+  }
+
   function setControlValue(control: HTMLTextAreaElement, value: string): void {
     const descriptor = Object.getOwnPropertyDescriptor(
       HTMLTextAreaElement.prototype,
@@ -123,7 +150,7 @@ export async function runWanexDesktopCodingProof(
       const value = read()
       if (value !== undefined) return value
       if (performance.now() >= deadline) {
-        throw new Error(`Coding proof timed out: ${label}`)
+        throw new Error(`Coding proof timed out: ${label} (${codingUiSnapshot()})`)
       }
       await new Promise<void>((resolve) =>
         requestAnimationFrame(() => resolve()),
@@ -173,15 +200,7 @@ export async function runWanexDesktopCodingProof(
   }
   await waitFor(() => !send.disabled ? true : undefined, 10_000, "coding_submit")
   const conversationStartedAt = performance.now()
-  const submitEvent = new KeyboardEvent("keydown", {
-    key: "Enter",
-    bubbles: true,
-    cancelable: true
-  })
-  composer.dispatchEvent(submitEvent)
-  if (!submitEvent.defaultPrevented) {
-    send.click()
-  }
+  send.click()
   const userMessageVisible = await waitFor(() =>
     [...document.querySelectorAll('[data-ui-coding-message-role="user"]')]
       .some((row) => row.textContent?.includes(expected.message) === true)
@@ -193,12 +212,14 @@ export async function runWanexDesktopCodingProof(
     return candidate instanceof HTMLElement ? candidate : undefined
   }, 20_000, "coding_approval")
   const toolNameVisible = approval.textContent?.includes(expected.toolName) === true
-  const approvalButton = approval.querySelector(
-    '[data-ui-coding-approval-action="approve_once"]'
-  )
-  if (!(approvalButton instanceof HTMLButtonElement)) {
-    throw new Error("Coding proof approval control is unavailable")
-  }
+  const approvalButton = await waitFor(() => {
+    const candidate = approval.querySelector(
+      '[data-ui-coding-approval-action="approve_once"]'
+    )
+    return candidate instanceof HTMLButtonElement && !candidate.disabled
+      ? candidate
+      : undefined
+  }, 10_000, "coding_approval_ready")
   const noFabricatedToolResult =
     document.querySelector('[data-ui-coding-message-role="tool"]') === null
   approvalButton.click()
@@ -233,34 +254,40 @@ export async function runWanexDesktopCodingProof(
     document.querySelector('[data-ui-coding-proposal-state="approved"]') ?? undefined
   , 10_000, "coding_proposal_review")
   const proposalReviewed = approvedProposal !== undefined
-  const requestApply = approvedProposal.querySelector(
-    '[data-ui-coding-proposal-action="request_apply"]'
-  )
-  if (!(requestApply instanceof HTMLButtonElement)) {
-    throw new Error("Coding proof Proposal apply request is unavailable")
-  }
+  const requestApply = await waitFor(() => {
+    const candidate = document.querySelector(
+      '[data-ui-coding-proposal-state="approved"] [data-ui-coding-proposal-action="request_apply"]'
+    )
+    return candidate instanceof HTMLButtonElement && !candidate.disabled
+      ? candidate
+      : undefined
+  }, 10_000, "coding_proposal_apply_request_ready")
   requestApply.click()
   const applyRequestedProposal = await waitFor(() =>
     document.querySelector('[data-ui-coding-proposal-state="apply_requested"]') ?? undefined
   , 10_000, "coding_proposal_apply_request")
   const proposalApplyRequested = applyRequestedProposal !== undefined
-  const apply = applyRequestedProposal.querySelector(
-    '[data-ui-coding-proposal-action="apply"]'
-  )
-  if (!(apply instanceof HTMLButtonElement)) {
-    throw new Error("Coding proof Proposal apply is unavailable")
-  }
+  const apply = await waitFor(() => {
+    const candidate = document.querySelector(
+      '[data-ui-coding-proposal-state="apply_requested"] [data-ui-coding-proposal-action="apply"]'
+    )
+    return candidate instanceof HTMLButtonElement && !candidate.disabled
+      ? candidate
+      : undefined
+  }, 10_000, "coding_proposal_apply_ready")
   apply.click()
   await waitFor(() =>
     document.querySelector('[data-ui-coding-proposal-change-state="applied"]') ?? undefined
   , 20_000, "coding_proposal_apply")
   const proposalApplied = true
-  const undo = document.querySelector(
-    '[data-ui-coding-proposal-action="undo"]'
-  )
-  if (!(undo instanceof HTMLButtonElement)) {
-    throw new Error("Coding proof Proposal undo is unavailable")
-  }
+  const undo = await waitFor(() => {
+    const candidate = document.querySelector(
+      '[data-ui-coding-proposal-action="undo"]'
+    )
+    return candidate instanceof HTMLButtonElement && !candidate.disabled
+      ? candidate
+      : undefined
+  }, 10_000, "coding_proposal_undo_ready")
   undo.click()
   await waitFor(() =>
     document.querySelector('[data-ui-coding-proposal-change-state="undone"]') ?? undefined
@@ -296,11 +323,15 @@ export async function runWanexDesktopCodingProof(
     return candidate instanceof HTMLElement ? candidate : undefined
   }, 20_000, "coding_recovery_review")
   const recoveryToolNameVisible = recovery.textContent?.includes(expected.recoveryToolName) === true
-  const recoveryRetry = recovery.querySelector('[data-ui-coding-recovery-action="retry"]')
-  const recoveryRetryAvailable = recoveryRetry instanceof HTMLButtonElement
-  if (!recoveryRetryAvailable) {
-    throw new Error("Coding proof recovery retry control is unavailable")
-  }
+  const recoveryRetry = await waitFor(() => {
+    const candidate = document.querySelector(
+      '[data-ui-coding-recovery-action="retry"]'
+    )
+    return candidate instanceof HTMLButtonElement && !candidate.disabled
+      ? candidate
+      : undefined
+  }, 10_000, "coding_recovery_retry_ready")
+  const recoveryRetryAvailable = true
   recoveryRetry.click()
   const recoveryTurnSucceeded = await waitFor(() =>
     document.querySelector('[data-ui-coding-turn-state="succeeded"]') !== null

@@ -92,6 +92,155 @@ describe("Desktop remote connection IPC", () => {
     ).rejects.toThrow("active Desktop window");
   });
 
+  it("saves and removes profiles through the main process lifecycle boundary", async () => {
+    const profile = testProfile();
+    const savedInputs: unknown[] = [];
+    const removedIds: string[] = [];
+    const ipcMain = new TestIpcMain();
+    const window = new TestWindow();
+    const connection = new TestConnection(profile);
+    const manager = new TestConnectionManager(connection);
+    const remove = installDesktopRemoteIpc({
+      ipcMain,
+      profiles: testProfiles(profile, { savedInputs, removedIds }),
+      connections: manager,
+      getWindow: () => window,
+    });
+
+    await ipcMain.invoke(
+      DESKTOP_REMOTE_IPC.connect,
+      window.webContents,
+      "office",
+    );
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.saveProfile, window.webContents, {
+        profileId: "office",
+        name: "Office updated",
+        endpoint: "https://office.example.test/v1/agent-host/message",
+        credential: "remote-secret",
+      }),
+    ).resolves.toEqual(profile);
+    expect(savedInputs).toEqual([{
+      profileId: "office",
+      name: "Office updated",
+      endpoint: "https://office.example.test/v1/agent-host/message",
+      credential: "remote-secret",
+    }]);
+    expect(JSON.stringify(profile)).not.toContain("remote-secret");
+    expect(connection.state).toBe("closed");
+
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.removeProfile, window.webContents, "office"),
+    ).resolves.toBeUndefined();
+    expect(removedIds).toEqual(["office"]);
+    remove();
+  });
+
+  it("rejects secret-bearing or invalid profile payloads before persistence", async () => {
+    const profile = testProfile();
+    const savedInputs: unknown[] = [];
+    const ipcMain = new TestIpcMain();
+    const window = new TestWindow();
+    const remove = installDesktopRemoteIpc({
+      ipcMain,
+      profiles: testProfiles(profile, { savedInputs }),
+      connections: new TestConnectionManager(new TestConnection(profile)),
+      getWindow: () => window,
+    });
+
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.saveProfile, window.webContents, {
+        profileId: "office",
+        name: "Office",
+        endpoint: "http://office.example.test/v1/agent-host/message",
+        credential: "remote-secret",
+      }),
+    ).rejects.toThrow("HTTPS");
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.saveProfile, window.webContents, {
+        profileId: "office",
+        name: "Office",
+        endpoint: "https://office.example.test/v1/agent-host/message",
+        credential: { secret: "remote-secret" },
+      }),
+    ).rejects.toThrow("credential");
+    expect(savedInputs).toHaveLength(0);
+    remove();
+  });
+
+  it("keeps an active connection when the durable profile save fails", async () => {
+    const profile = testProfile();
+    const ipcMain = new TestIpcMain();
+    const window = new TestWindow();
+    const connection = new TestConnection(profile);
+    const manager = new TestConnectionManager(connection);
+    const remove = installDesktopRemoteIpc({
+      ipcMain,
+      profiles: testProfiles(profile, { saveError: new Error("conflict") }),
+      connections: manager,
+      getWindow: () => window,
+    });
+    await ipcMain.invoke(DESKTOP_REMOTE_IPC.connect, window.webContents, "office");
+
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.saveProfile, window.webContents, {
+        profileId: "office",
+        name: "Conflicting update",
+        endpoint: "https://office.example.test/v1/agent-host/message",
+      }),
+    ).rejects.toThrow("could not be saved");
+    expect(manager.get("office")).toBe(connection);
+    expect(connection.state).toBe("connected");
+    remove();
+  });
+
+  it("keeps an active connection when profile removal fails before cleanup", async () => {
+    const profile = testProfile();
+    const ipcMain = new TestIpcMain();
+    const window = new TestWindow();
+    const connection = new TestConnection(profile);
+    const manager = new TestConnectionManager(connection);
+    const remove = installDesktopRemoteIpc({
+      ipcMain,
+      profiles: testProfiles(profile, { removeError: new Error("conflict") }),
+      connections: manager,
+      getWindow: () => window,
+    });
+    await ipcMain.invoke(DESKTOP_REMOTE_IPC.connect, window.webContents, "office");
+
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.removeProfile, window.webContents, "office"),
+    ).rejects.toThrow("could not be removed");
+    expect(manager.get("office")).toBe(connection);
+    expect(connection.state).toBe("connected");
+    remove();
+  });
+
+  it("does not report a saved profile as failed when stale connection cleanup throws", async () => {
+    const profile = testProfile();
+    const ipcMain = new TestIpcMain();
+    const window = new TestWindow();
+    const connection = new TestConnection(profile, { closeError: new Error("close failed") });
+    const manager = new TestConnectionManager(connection);
+    const remove = installDesktopRemoteIpc({
+      ipcMain,
+      profiles: testProfiles(profile),
+      connections: manager,
+      getWindow: () => window,
+    });
+    await ipcMain.invoke(DESKTOP_REMOTE_IPC.connect, window.webContents, "office");
+
+    await expect(
+      ipcMain.invoke(DESKTOP_REMOTE_IPC.saveProfile, window.webContents, {
+        profileId: "office",
+        name: "Office updated",
+        endpoint: "https://office.example.test/v1/agent-host/message",
+      }),
+    ).resolves.toEqual(profile);
+    expect(manager.get("office")).toBeUndefined();
+    remove();
+  });
+
   it("rejects profile projections that contain an internal credential reference", () => {
     expect(
       isDesktopRemoteConnectionProfileList([
@@ -117,6 +266,12 @@ function testProfile(): RemoteConnectionProfile {
 
 function testProfiles(
   profile: RemoteConnectionProfile,
+  hooks: {
+    readonly savedInputs?: unknown[];
+    readonly removedIds?: string[];
+    readonly saveError?: Error;
+    readonly removeError?: Error;
+  } = {},
 ): RemoteConnectionProfileCatalog {
   return {
     async list() {
@@ -131,10 +286,15 @@ function testProfiles(
     async reconcileCredentialRetirement() {
       return false;
     },
-    async save() {
+    async save(input) {
+      hooks.savedInputs?.push(input);
+      if (hooks.saveError !== undefined) throw hooks.saveError;
       return profile;
     },
-    async remove() {},
+    async remove(profileId) {
+      hooks.removedIds?.push(profileId);
+      if (hooks.removeError !== undefined) throw hooks.removeError;
+    },
   };
 }
 
@@ -143,7 +303,10 @@ class TestConnection implements RemoteCodingConnection {
   readonly client = undefined;
   readonly #listeners = new Set<(event: RemoteCodingConnectionEvent) => void>();
 
-  constructor(readonly profile: RemoteConnectionProfile) {}
+  constructor(
+    readonly profile: RemoteConnectionProfile,
+    private readonly options: { readonly closeError?: Error } = {},
+  ) {}
 
   async connect(): Promise<CodingAgentHostClient> {
     throw new Error("not used by the IPC fixture");
@@ -163,6 +326,7 @@ class TestConnection implements RemoteCodingConnection {
   async close(): Promise<void> {
     this.state = "closed";
     this.#listeners.clear();
+    if (this.options.closeError !== undefined) throw this.options.closeError;
   }
 
   publish(event: RemoteCodingConnectionEvent): void {
@@ -174,6 +338,10 @@ class TestConnectionManager implements RemoteCodingConnectionManager {
   #active: TestConnection | undefined;
 
   constructor(private readonly connection: TestConnection) {}
+
+  async listProfiles(): Promise<readonly RemoteConnectionProfile[]> {
+    return [this.connection.profile];
+  }
 
   async connect(profileId: string): Promise<RemoteCodingConnection> {
     if (profileId !== this.connection.profile.profileId) {

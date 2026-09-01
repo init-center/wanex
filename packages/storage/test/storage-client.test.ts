@@ -2094,6 +2094,36 @@ process.stdin.on("data", () => {
     await transport.close();
   });
 
+  it("preserves a structured startup failure without an unhandled stdin error", async () => {
+    const fakeService = await createFakeSystemServiceCommand(`
+process.stdout.write(JSON.stringify({
+  ok: false,
+  request_id: null,
+  storage_rpc_version: 1,
+  error: {
+    code: "invariant",
+    message: "unsupported pre-release store schema; recreate the store"
+  }
+}) + "\\n")
+`);
+    const storeDir = await mkdtemp(
+      join(tmpdir(), "wanex-storage-persistent-startup-error-"),
+    );
+    tempDirs.push(storeDir);
+    const transport = new PersistentSystemServiceStorageWireTransport({
+      storeDir,
+      ...fakeService,
+      restartBackoffMs: 0,
+    });
+
+    await expect(
+      transport.exchange(wireRequest({ command: "doctor" })),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining("unsupported pre-release store schema"),
+    });
+    await transport.close();
+  });
+
   it("classifies persistent local spawn failures", async () => {
     const transport = new PersistentSystemServiceStorageWireTransport({
       storeDir: "/unused",

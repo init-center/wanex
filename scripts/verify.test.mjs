@@ -60,6 +60,9 @@ describe("verify", () => {
     expect(stepByName(steps, "Host distribution budget tests").args).toEqual([
       "test:host-distribution-budget"
     ])
+    expect(stepByName(steps, "Desktop distribution receipt tests").args).toEqual([
+      "test:desktop-distribution-receipt"
+    ])
     expect(stepByName(steps, "Desktop typecheck").args).toEqual([
       "check:desktop"
     ])

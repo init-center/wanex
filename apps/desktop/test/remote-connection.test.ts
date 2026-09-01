@@ -135,6 +135,36 @@ describe("Desktop remote Coding connection", () => {
     expect(startCount).toBe(1);
   });
 
+  it("clears local resources when composition cleanup fails", async () => {
+    const profile = testProfile("close-failure");
+    const profiles = testProfiles(profile, "close-failure-secret");
+    const client = {} as CodingAgentHostClient;
+    let closeCalls = 0;
+    const connection = createRemoteCodingConnection({
+      profile,
+      profiles,
+      createComposition: async () => ({
+        client,
+        startEvents() {
+          const stream = new FakeStream();
+          stream.open();
+          return stream;
+        },
+        async close() {
+          closeCalls += 1;
+          throw new Error("composition close failed");
+        },
+      }),
+    });
+
+    await connection.connect();
+    expect(connection.client).toBe(client);
+    await expect(connection.close()).rejects.toThrow("composition close failed");
+    expect(connection.client).toBeUndefined();
+    await expect(connection.close()).rejects.toThrow("composition close failed");
+    expect(closeCalls).toBe(1);
+  });
+
   it("reuses one connection per profile and closes all managed connections", async () => {
     const profile = testProfile("managed");
     const profiles = testProfiles(profile, "managed-secret");

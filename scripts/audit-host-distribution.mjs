@@ -10,6 +10,7 @@ import {
   NATIVE_RELEASE_SAMPLE_COUNT,
   summarizeNativeRuntimeSamples
 } from "./native-runtime-metrics.mjs"
+import { assertDesktopDistributionReceipt } from "./desktop-distribution-receipt.mjs"
 
 const workspaceRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -28,6 +29,9 @@ if (import.meta.main) {
     const desktop = targetBudget?.desktop === undefined
       ? undefined
       : await readJson(options.desktopReceiptPath)
+    const desktopDistribution = targetBudget?.desktop === undefined
+      ? undefined
+      : await readJson(options.desktopDistributionReceiptPath)
     const tui = targetBudget?.tui === undefined
       ? undefined
       : await readJson(options.tuiReceiptPath)
@@ -36,6 +40,7 @@ if (import.meta.main) {
       budget,
       native,
       ...(desktop === undefined ? {} : { desktop }),
+      ...(desktopDistribution === undefined ? {} : { desktopDistribution }),
       ...(tui === undefined ? {} : { tui })
     })
   } catch (error) {
@@ -67,6 +72,10 @@ export function parseHostDistributionAuditArgs(args) {
     workspaceRoot,
     "target/distribution/desktop/desktop-report.json"
   )
+  let desktopDistributionReceiptPath = join(
+    workspaceRoot,
+    "target/distribution/desktop/desktop-distribution-receipt.json"
+  )
   let tuiReceiptPath = join(
     workspaceRoot,
     "target/distribution/tui/installed-proof.json"
@@ -79,6 +88,7 @@ export function parseHostDistributionAuditArgs(args) {
       "--budget",
       "--native-receipt",
       "--desktop-receipt",
+      "--desktop-distribution-receipt",
       "--tui-receipt"
     ].includes(name)) {
       throw new Error(`unknown host distribution audit argument: ${String(name)}`)
@@ -89,6 +99,9 @@ export function parseHostDistributionAuditArgs(args) {
     if (name === "--budget") budgetPath = resolve(value)
     if (name === "--native-receipt") nativeReceiptPath = resolve(value)
     if (name === "--desktop-receipt") desktopReceiptPath = resolve(value)
+    if (name === "--desktop-distribution-receipt") {
+      desktopDistributionReceiptPath = resolve(value)
+    }
     if (name === "--tui-receipt") tuiReceiptPath = resolve(value)
     index += 1
   }
@@ -97,6 +110,7 @@ export function parseHostDistributionAuditArgs(args) {
     budgetPath,
     nativeReceiptPath,
     desktopReceiptPath,
+    desktopDistributionReceiptPath,
     tuiReceiptPath
   }
 }
@@ -216,6 +230,22 @@ export function auditHostDistributionData(request) {
     const coldBudget = requireRecord(desktopBudget.cold, "Desktop cold budget")
     const warmBudget = requireRecord(desktopBudget.warm, "Desktop warm budget")
     const desktop = requireRecord(request.desktop, "Desktop proof receipt")
+    const desktopDistribution = request.desktopDistribution
+    if (desktopDistribution === undefined) {
+      failures.push("Desktop distribution receipt is required")
+    } else {
+      try {
+        assertDesktopDistributionReceipt(desktopDistribution, {
+          targetId: request.targetId,
+          desktop,
+          native
+        })
+      } catch (error) {
+        failures.push(
+          `Desktop distribution receipt: ${error instanceof Error ? error.message : String(error)}`
+        )
+      }
+    }
     const packaged = requireRecord(desktop.packaged, "Desktop packaged receipt")
     const installed = requireRecord(
       desktop.installed,

@@ -94,12 +94,14 @@ cargo clippy --all-targets -- -D warnings
 node ./scripts/run-eval-harness.mjs
 ```
 
-The release workflow additionally runs `pnpm security:js` and
-`pnpm security:rust` once in the Linux security lane, not once per native
-target. Existing Node 26 Verify jobs prove packed core consumers on Current;
-one additional Linux job repeats the SDK and packed consumer proof on Node 24
-LTS with source engine strictness disabled only for that compatibility
-harness. Generated package engines remain enforced.
+The release workflow runs the broad source gate once in the Linux security
+lane. It does not repeat `pnpm verify` on every native target: that duplicates
+the TypeScript, Rust, SDK, and eval work without proving target packaging. The
+target matrix still runs focused native/TUI/Desktop and native consumer proofs
+on Linux, macOS, and Windows. Existing Node 26 source jobs prove packed core
+consumers on Current; one additional Linux job repeats the SDK and packed
+consumer proof on Node 24 LTS with source engine strictness disabled only for
+that compatibility harness. Generated package engines remain enforced.
 
 The final eval-harness step runs the built-in product regression suite through
 the CLI. It proves that app-facing runtime composition, plugin execution,
@@ -190,7 +192,9 @@ Each distribution matrix job additionally runs:
 pnpm stage:native -- --target <target>
 pnpm proof:native-runtime
 pnpm proof:desktop # desktop targets only
-pnpm audit:host-distribution -- --target <target>
+pnpm proof:desktop-distribution -- --target <target> # desktop targets only
+pnpm audit:host-distribution -- --target <target> \
+  --desktop-distribution-receipt target/distribution/desktop/desktop-distribution-receipt.json
 pnpm release:sdk
 pnpm release:native -- --target <target>
 pnpm proof:sdk-consumers -- --native-target <target> \
@@ -210,6 +214,15 @@ layout, focus, drawer, styling, and exact requested viewport dimensions are not
 release gates. A future UI acceptance gate must be frozen against the rebuilt
 Assistant UI and must not revive selectors or geometry from the pre-rebuild
 surface by compatibility.
+
+`proof:desktop-distribution` projects the Electron artifact, native Runtime
+proof, and installed Desktop proof into a bounded target receipt. The receipt
+contains only target, version, byte/file counts, package shape, and boolean
+proof outcomes. It excludes absolute paths, endpoints, credentials, and raw
+requests. `audit:host-distribution` requires this receipt for Desktop targets
+and checks that its key counts match the detailed proofs. Windows and macOS
+target jobs therefore validate the package they built, while the broad Linux
+source gate remains a separate concern.
 
 The job uploads the target-native npm tarball and portable report beside the
 existing native/Desktop receipts.

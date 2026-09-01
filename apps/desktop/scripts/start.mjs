@@ -18,7 +18,13 @@ const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_STEP",
   "WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL",
   "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
-  "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS"
+  "WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT",
+  "WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME",
+  "WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID",
+  "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
+  "WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS"
 ]
 
 if (import.meta.main) {
@@ -86,14 +92,14 @@ export function createDesktopStartPlan(options = {}) {
 export async function startDesktop(options = {}) {
   const plan = createDesktopStartPlan(options)
   const runStep = options.runStep ?? runProcessStep
-  const buildDesktop = options.buildDesktop ?? buildDesktop
+  const build = options.buildDesktop ?? buildDesktop
   const stageCredentials =
     options.stageCredentials ?? stageDesktopCredentialArtifact
   const runDesktop = options.runDesktop ?? runDesktopChild
 
   await runStep(plan.serviceBuild, { cwd: plan.desktop.cwd })
   console.log("\n==> Desktop artifacts")
-  await Promise.all([buildDesktop(), stageCredentials()])
+  await Promise.all([build(), stageCredentials()])
   console.log("\n==> Wanex Desktop")
   await runDesktop(plan.desktop)
 }

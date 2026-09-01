@@ -44,6 +44,11 @@ export function createVerifySteps() {
       args: ["test:host-distribution-budget"]
     },
     {
+      name: "Desktop distribution receipt tests",
+      command: "pnpm",
+      args: ["test:desktop-distribution-receipt"]
+    },
+    {
       name: "Desktop typecheck",
       command: "pnpm",
       args: ["check:desktop"]

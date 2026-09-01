@@ -24,7 +24,65 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (2026-08-31)
+## Authoritative Current Route (2026-09-01)
+
+Route 8A Desktop Connection And First-Run Functional Completion is complete
+at the source and Remote Host contract boundary. Its evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1536-route-8a-desktop-connection-and-first-run-completion.md`
+
+Route 8B Packaged Remote Desktop Acceptance is complete. The real installed
+Electron package now proves visible Remote Profile creation, OS credential
+storage, localhost TLS Remote Coding, opaque server-owned project selection,
+the shared Coding workbench, Profile and connection retirement, immutable
+package resources, and deterministic process cleanup. Its plan and completion
+evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1537-route-8b-packaged-remote-desktop-acceptance-plan.md`
+
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1538-route-8b-packaged-remote-desktop-acceptance-completion.md`
+
+Route 9A: Desktop Product Experience is complete on macOS arm64. Its
+implementation and packaged proof evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1541-route-9a-desktop-experience-completion.md`
+
+The route plan and audit remain recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1539-post-route-8b-review-and-route-9a-desktop-product-experience-plan.md`
+
+Route 9A froze lower layers and improved the real Desktop information
+architecture, visual hierarchy, contextual workflows, accessibility, and
+normal/narrow behavior. It added no package, schema, Gateway, generic facade,
+compatibility selector, second renderer, or framework-derived product identity.
+Resource/Media expansion, mobile Device Capability Host, account sync, and
+broader upper applications remain separate product decisions.
+
+The next route is **Route 9B: Desktop Distribution Readiness**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1542-post-route-9a-architecture-review-and-route-9b-distribution-readiness-plan.md`
+
+Route 9B owns reproducible platform packaging and CI-hosted installed proofs.
+It must prove Windows native service/named-pipe behavior, preserve the macOS
+installed proof, bound package receipts and diagnostics, and keep GitHub Actions
+jobs target-specific. The broad `pnpm verify` source gate runs once on Linux;
+target jobs run focused native/TUI/Desktop proofs. The Desktop target receipt
+is `target/distribution/desktop/desktop-distribution-receipt.json`, and is
+required by the host distribution audit. It must not add a Gateway, second Renderer, Store,
+transport, protocol command, schema version, compatibility path, or examples
+to the production dependency closure.
+
+Route 9B.1 Platform Receipt And Focused Gate is complete for its implementation
+slice. Its evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1544-route-9b-1-platform-receipt-and-focused-gate-completion.md`
+
+The remaining Route 9B evidence is a hosted Windows installed proof. Do not
+claim Windows support complete from the macOS result or from YAML inspection.
+The frozen next-slice plan is:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1545-route-9b-2-windows-hosted-installed-proof-plan.md`
 
 Route 5E local Host consumers, durable Coding admission/observation, and
 cross-platform local transport are complete. The evidence is recorded in:

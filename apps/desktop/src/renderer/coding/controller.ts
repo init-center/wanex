@@ -9,7 +9,14 @@ import type {
   CodingTurnReadModel,
   ResolveCodingTurnRecoveryRequest,
 } from "@wanex/coding";
-import type { DesktopCodingProjectSelection } from "../../coding-bridge.js";
+import type {
+  DesktopCodingCanonicalReadRequired,
+  DesktopCodingProjectCapabilities,
+  DesktopCodingProjectLocation,
+  DesktopCodingProjectSelection,
+  DesktopCodingRemoteProjectList,
+} from "../../coding-bridge.js";
+import type { RemoteConnectionProfile } from "../../remote/profile.js";
 type ToolExecutionRecoveryDecision = ResolveCodingTurnRecoveryRequest["decision"];
 type ToolResultContentPart = NonNullable<ResolveCodingTurnRecoveryRequest["content"]>[number];
 
@@ -35,6 +42,10 @@ type CodingWorkbenchOperations = Pick<
 
 export type CodingWorkbenchClient = CodingWorkbenchOperations & {
   selectProject(): Promise<DesktopCodingProjectSelection>;
+  listRemoteProfiles(): Promise<readonly RemoteConnectionProfile[]>;
+  listRemoteProjects(profileId: string): Promise<DesktopCodingRemoteProjectList>;
+  selectRemoteProject(profileId: string, projectId: string): Promise<DesktopCodingProjectSelection>;
+  subscribeCanonicalReads(listener: (event: DesktopCodingCanonicalReadRequired) => void): () => void;
 };
 
 export type CodingWorkbenchStatus = "idle" | "loading" | "ready" | "error";
@@ -42,6 +53,8 @@ export type CodingWorkbenchStatus = "idle" | "loading" | "ready" | "error";
 export interface CodingWorkbenchState {
   readonly status: CodingWorkbenchStatus;
   readonly project?: CodingProjectReadModel;
+  readonly location?: DesktopCodingProjectLocation;
+  readonly capabilities?: DesktopCodingProjectCapabilities;
   readonly sessions: readonly CodingSessionReadModel[];
   readonly sessionId?: string;
   readonly transcript?: CodingTranscriptPage;
@@ -63,6 +76,7 @@ export class CodingWorkbenchController {
   #readGeneration = 0;
   #refreshQueued = false;
   #unsubscribe: (() => void) | undefined;
+  #unsubscribeCanonicalReads: (() => void) | undefined;
   #pendingStart:
     | {
         readonly projectId: string;
@@ -89,6 +103,9 @@ export class CodingWorkbenchController {
   start(): void {
     if (this.#closed || this.#unsubscribe !== undefined) return;
     this.#unsubscribe = this.#client.subscribe(this.#handleEvent);
+    this.#unsubscribeCanonicalReads = this.#client.subscribeCanonicalReads(
+      this.#handleCanonicalReadRequired,
+    );
   }
 
   async openProject(): Promise<void> {
@@ -102,13 +119,34 @@ export class CodingWorkbenchController {
         this.#setState(previousState);
         return;
       }
-      this.#pendingStart = undefined;
-      this.#setState({
-        status: "loading",
-        project: selection.project,
-        sessions: [],
-      });
-      await this.refresh();
+      await this.#acceptSelection(selection);
+    } catch (error) {
+      this.#setError(error);
+    }
+  }
+
+  async listRemoteProfiles(): Promise<readonly RemoteConnectionProfile[]> {
+    this.#assertOpen();
+    return await this.#client.listRemoteProfiles();
+  }
+
+  async listRemoteProjects(profileId: string): Promise<DesktopCodingRemoteProjectList> {
+    this.#assertOpen();
+    return await this.#client.listRemoteProjects(profileId);
+  }
+
+  async openRemoteProject(profileId: string, projectId: string): Promise<void> {
+    this.#assertOpen();
+    const previousState = this.#state;
+    this.#setState({ status: "loading", sessions: [] });
+    try {
+      const selection = await this.#client.selectRemoteProject(profileId, projectId);
+      if (this.#closed) return;
+      if (selection.kind === "cancelled") {
+        this.#setState(previousState);
+        return;
+      }
+      await this.#acceptSelection(selection);
     } catch (error) {
       this.#setError(error);
     }
@@ -130,6 +168,8 @@ export class CodingWorkbenchController {
     if (project === undefined || this.#closed) return;
     const generation = ++this.#readGeneration;
     const selectedSessionId = this.#state.sessionId;
+    const location = this.#state.location;
+    const capabilities = this.#state.capabilities;
     if (this.#state.status !== "loading") {
       const { error: _error, ...current } = this.#state;
       this.#setState({ ...current, status: "loading" });
@@ -146,7 +186,13 @@ export class CodingWorkbenchController {
         : sessions.sessions[0]?.sessionId;
       if (sessionId === undefined) {
         if (this.#closed || generation !== this.#readGeneration) return;
-        this.#setState({ status: "ready", project: projectRead, sessions: sessions.sessions });
+        this.#setState({
+          status: "ready",
+          project: projectRead,
+          sessions: sessions.sessions,
+          ...(location === undefined ? {} : { location }),
+          ...(capabilities === undefined ? {} : { capabilities }),
+        });
         return;
       }
       const [session, transcript, turns] = await Promise.all([
@@ -168,6 +214,8 @@ export class CodingWorkbenchController {
         project: projectRead,
         sessions: sessions.sessions,
         sessionId: session.sessionId,
+        ...(location === undefined ? {} : { location }),
+        ...(capabilities === undefined ? {} : { capabilities }),
         ...(transcript === null ? {} : { transcript }),
         ...(turn === undefined ? {} : { turn }),
         ...(liveTurn === null || liveTurn === undefined ? {} : { liveTurn }),
@@ -346,6 +394,8 @@ export class CodingWorkbenchController {
     this.#readGeneration += 1;
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
+    this.#unsubscribeCanonicalReads?.();
+    this.#unsubscribeCanonicalReads = undefined;
     this.#listeners.clear();
   }
 
@@ -360,12 +410,32 @@ export class CodingWorkbenchController {
     });
   };
 
+  #handleCanonicalReadRequired = (event: DesktopCodingCanonicalReadRequired): void => {
+    const projectId = this.#state.project?.projectId;
+    if (projectId === undefined || event.projectId !== projectId) return;
+    void this.refresh();
+  };
+
   #proposalTarget(): { readonly projectId: string; readonly proposalId: string } | undefined {
     const project = this.#state.project;
     const proposal = this.#state.proposal;
     return project === undefined || proposal === undefined
       ? undefined
       : { projectId: project.projectId, proposalId: proposal.proposalId };
+  }
+
+  async #acceptSelection(
+    selection: Extract<DesktopCodingProjectSelection, { kind: "selected" }>,
+  ): Promise<void> {
+    this.#pendingStart = undefined;
+    this.#setState({
+      status: "loading",
+      project: selection.project,
+      location: selection.location,
+      capabilities: selection.capabilities,
+      sessions: [],
+    });
+    await this.refresh();
   }
 
   #setState(state: CodingWorkbenchState): void {

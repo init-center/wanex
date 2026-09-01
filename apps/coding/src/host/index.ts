@@ -10,15 +10,22 @@ export type {
   CodingExecutionEnvironmentFactory,
   CodingExecutionEnvironmentFactoryRequest,
   CodingExecutionOptions,
-  CodingHostDiagnostics,
   CodingModelEndpointResolutionRequest,
   CodingModelEndpointResolver,
   CodingHostErrorCode,
   CodingRepositoryContextPolicy,
-  CodingRepositoryDiagnostics,
   CodingRepositoryRecoveryPolicy,
-  CodingRuntimeDiagnostics,
-  CodingTurnDiagnostics,
   CodingTurnExecutionStage,
 } from "./types.js";
+export type {
+  CodingDiagnosticFailure,
+  CodingDiagnosticFailureCategory,
+  CodingDiagnosticFailureSignal,
+  CodingHostDiagnostics,
+  CodingRepositoryDiagnostics,
+  CodingRuntimeDiagnostics,
+  CodingToolDiagnostics,
+  CodingToolExecutionDiagnostics,
+  CodingTurnDiagnostics,
+} from "./diagnostics/types.js";
 export * from "./agent-host/index.js";

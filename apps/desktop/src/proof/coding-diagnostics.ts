@@ -1,3 +1,10 @@
+const ALLOWED_FAILURE_SIGNALS = new Set([
+  "cancelled", "conflict", "eacces", "eexist", "enoent", "eperm", "git",
+  "invalid_argument", "lease", "path", "pipe", "process", "provider",
+  "rename", "rpc", "spawn", "sqlite", "storage", "timeout", "tool",
+  "transaction", "worktree",
+]);
+
 export function boundedCodingHostDiagnostics(value: unknown): unknown | undefined {
   if (!isRecord(value)) return undefined;
   return {
@@ -57,6 +64,22 @@ function boundedTurn(value: unknown): unknown {
     inputPresent: source.inputPresent === true,
     userMessagePresent: source.userMessagePresent === true,
     providerInvocationCount: boundedCount(source.providerInvocationCount),
+    ...(typeof source.latestProviderInvocationState === "string"
+      ? {
+          latestProviderInvocationState: boundedEnum(
+            source.latestProviderInvocationState,
+            [
+              "dispatched", "output_observed", "succeeded",
+              "failed_before_output", "ambiguous",
+            ],
+            "failed_before_output",
+          ),
+        }
+      : {}),
+    ...(isRecord(source.providerFailure)
+      ? { providerFailure: boundedFailure(source.providerFailure) }
+      : {}),
+    tools: boundedTools(source.tools),
     task: {
       present: task.present === true,
       ...(typeof task.state === "string"
@@ -76,6 +99,9 @@ function boundedTurn(value: unknown): unknown {
             "active", "completed", "failed", "expired",
           ], "failed") }
         : {}),
+      ...(isRecord(task.failure)
+        ? { failure: boundedFailure(task.failure) }
+        : {}),
     },
     job: {
       present: job.present === true,
@@ -89,6 +115,9 @@ function boundedTurn(value: unknown): unknown {
       ...(job.leasePresent === undefined
         ? {}
         : { leasePresent: job.leasePresent === true }),
+      ...(isRecord(job.failure)
+        ? { failure: boundedFailure(job.failure) }
+        : {}),
     },
     turn: {
       present: turn.present === true,
@@ -104,8 +133,76 @@ function boundedTurn(value: unknown): unknown {
             "interrupted", "recovery_required",
           ], "failed") }
         : {}),
+      ...(isRecord(turn.failure)
+        ? { failure: boundedFailure(turn.failure) }
+        : {}),
     },
     ...(runtime === undefined ? {} : { runtime: boundedRuntime(runtime) }),
+  };
+}
+
+function boundedTools(value: unknown): unknown {
+  const tools = isRecord(value) ? value : {};
+  return {
+    state: boundedEnum(tools.state, ["available", "failed"], "failed"),
+    returnedCount: boundedCount(tools.returnedCount),
+    truncated: tools.truncated === true,
+    items: Array.isArray(tools.items)
+      ? tools.items.slice(0, 16).map((item) => {
+          const source = isRecord(item) ? item : {};
+          return {
+            toolName: boundedIdentifier(source.toolName, "unknown"),
+            state: boundedEnum(source.state, [
+              "running", "waiting", "retry_ready", "approved", "denied",
+              "approval_required", "succeeded", "failed", "cancelled",
+              "recovery_required",
+            ], "failed"),
+            attemptCount: boundedCount(source.attemptCount),
+            ...(typeof source.currentAttemptState === "string"
+              ? {
+                  currentAttemptState: boundedEnum(source.currentAttemptState, [
+                    "running", "suspended", "succeeded", "failed", "cancelled",
+                    "interrupted", "recovery_required",
+                  ], "failed"),
+                }
+              : {}),
+            ...(isRecord(source.failure)
+              ? { failure: boundedFailure(source.failure) }
+              : {}),
+          };
+        })
+      : [],
+    ...(isRecord(tools.failure)
+      ? { failure: boundedFailure(tools.failure) }
+      : {}),
+  };
+}
+
+function boundedFailure(value: Record<string, unknown>): unknown {
+  const safeIdentifier = (candidate: unknown): string | undefined =>
+    typeof candidate === "string" && /^[A-Za-z0-9_.:-]{1,128}$/.test(candidate)
+      ? candidate
+      : undefined;
+  const type = safeIdentifier(value.type);
+  const name = safeIdentifier(value.name);
+  const code = safeIdentifier(value.code);
+  return {
+    category: boundedEnum(value.category, [
+      "cancelled", "timeout", "lease_lost", "permission_denied", "not_found",
+      "already_exists", "invalid_path", "conflict", "process_failure",
+      "storage_failure", "tool_failure", "provider_failure", "unknown",
+    ], "unknown"),
+    signals: Array.isArray(value.signals)
+      ? value.signals
+          .filter(
+            (signal): signal is string =>
+              typeof signal === "string" && ALLOWED_FAILURE_SIGNALS.has(signal),
+          )
+          .slice(0, 16)
+      : [],
+    ...(type === undefined ? {} : { type }),
+    ...(name === undefined ? {} : { name }),
+    ...(code === undefined ? {} : { code }),
   };
 }
 

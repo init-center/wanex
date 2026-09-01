@@ -8,7 +8,7 @@ import type {
 } from "../application/model.js"
 import { createCodingHost } from "./start.js"
 import type { CodingApplicationHostOptions } from "./types.js"
-import type { CodingHostDiagnostics } from "./types.js"
+import type { CodingHostDiagnostics } from "./diagnostics/types.js"
 
 export interface OpenCodingProjectRequest {
   readonly repositoryPath: string

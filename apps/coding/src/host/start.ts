@@ -26,12 +26,12 @@ import {
 } from "./repository/validate.js";
 import type {
   CodingHost,
-  CodingHostDiagnostics,
   CodingHostState,
   CodingRepository,
   OpenCodingRepositoryRequest,
   CodingApplicationHostOptions,
 } from "./types.js";
+import type { CodingHostDiagnostics } from "./diagnostics/types.js";
 
 const DEFAULT_PRINCIPAL_ID = "coding-agent";
 

@@ -27,6 +27,10 @@ import type { ExecutionEnvironment } from "@wanex/runtime/execution";
 import type { SecretResolverPort } from "@wanex/runtime/secrets";
 import type { ToolPermissionPolicy } from "@wanex/runtime/tools";
 import type { WorkspaceProgramPolicy } from "@wanex/workspace/tools";
+import type {
+  CodingHostDiagnostics,
+  CodingRepositoryDiagnostics,
+} from "./diagnostics/types.js";
 
 export type CodingHostState = "open" | "closing" | "closed";
 export type CodingRepositoryState = "open" | "closing" | "closed";
@@ -51,53 +55,6 @@ export type CodingModelEndpointResolutionState =
   | "resolved"
   | "missing"
   | "failed";
-
-export interface CodingRuntimeDiagnostics {
-  readonly started: boolean;
-  readonly workerCount: number;
-  readonly activeLoopCount: number;
-  readonly activeExecutionCount: number;
-  readonly agentLoopRunCount: number;
-  readonly agentLoopFailedCount: number;
-}
-
-export interface CodingTurnDiagnostics {
-  readonly reference: CodingTurnReference;
-  readonly stage: CodingTurnExecutionStage;
-  readonly modelEndpointResolution: CodingModelEndpointResolutionState;
-  readonly inputPresent: boolean;
-  readonly userMessagePresent: boolean;
-  readonly providerInvocationCount: number;
-  readonly task: {
-    readonly present: boolean;
-    readonly state?: WorkspaceTaskRunState;
-    readonly outcome?: WorkspaceTaskRunOutcome;
-    readonly attemptState?: import("@wanex/protocol").WorkspaceTaskAttemptState;
-  };
-  readonly job: {
-    readonly present: boolean;
-    readonly state?: import("@wanex/protocol").SchedulerJobState;
-    readonly attempt?: number;
-    readonly leasePresent?: boolean;
-  };
-  readonly turn: {
-    readonly present: boolean;
-    readonly state?: SessionTurnState;
-    readonly attemptState?: import("@wanex/protocol").SessionAttemptState;
-  };
-  readonly runtime?: CodingRuntimeDiagnostics;
-}
-
-export interface CodingRepositoryDiagnostics {
-  readonly repositoryId: string;
-  readonly state: CodingRepositoryState;
-  readonly activeTurns: readonly CodingTurnDiagnostics[];
-}
-
-export interface CodingHostDiagnostics {
-  readonly state: CodingHostState;
-  readonly repositories: readonly CodingRepositoryDiagnostics[];
-}
 
 export type CodingHostErrorCode =
   | "host_closed"

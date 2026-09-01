@@ -54,7 +54,6 @@ import type {
   CodingRepositoryRecovery,
   CodingRepositoryRecoveryPolicy,
   CodingRepositoryContextPolicy,
-  CodingRepositoryDiagnostics,
   CodingRepositoryState,
   CodingSessionPage,
   CodingSessionSnapshot,
@@ -69,6 +68,7 @@ import type {
   StartCodingTurnRequest,
   UndoCodingProposalRequest,
 } from "../types.js";
+import type { CodingRepositoryDiagnostics } from "../diagnostics/types.js";
 import type { CodingRepositoryIdentity } from "./identity.js";
 import {
   listCodingSessions,

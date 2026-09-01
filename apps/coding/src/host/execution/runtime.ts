@@ -19,13 +19,13 @@ import type {
   CodingExecutionOptions,
   CodingModelEndpointResolutionState,
   CodingModelEndpointResolutionRequest,
-  CodingRuntimeDiagnostics,
   CodingTurnExecutionStage,
   CodingTurnReference,
   ResolveCodingTurnApprovalReceipt,
   ResolveCodingTurnApprovalRequest,
   StartCodingTurnRequest
 } from "../types.js"
+import type { CodingRuntimeDiagnostics } from "../diagnostics/types.js"
 import { codingSessionScope } from "../session-scope.js"
 import {
   CodingTurnScopeRegistry,

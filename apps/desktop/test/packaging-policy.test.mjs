@@ -92,9 +92,59 @@ describe("Desktop packaging policy", () => {
             inputPresent: true,
             userMessagePresent: false,
             providerInvocationCount: 0,
-            task: { present: true, state: "preparing", attemptState: "active" },
-            job: { present: false },
-            turn: { present: false },
+            latestProviderInvocationState: "failed_before_output",
+            providerFailure: {
+              category: "provider_failure",
+              signals: ["provider"],
+              type: "provider.error",
+              message: "private provider failure",
+            },
+            tools: {
+              state: "available",
+              returnedCount: 1,
+              truncated: false,
+              items: [{
+                toolName: "workspace_apply_changeset",
+                state: "failed",
+                attemptCount: 1,
+                currentAttemptState: "failed",
+                failure: {
+                  category: "permission_denied",
+                  signals: ["eperm", "rename", "worktree"],
+                  type: "tool_exception",
+                  message: "D:\\private\\coding-secret",
+                },
+                input: "private tool input",
+              }],
+            },
+            task: {
+              present: true,
+              state: "preparing",
+              attemptState: "active",
+              failure: {
+                category: "unknown",
+                signals: [],
+                message: "private task failure",
+              },
+            },
+            job: {
+              present: false,
+              failure: {
+                category: "storage_failure",
+                signals: ["storage"],
+                code: "storage_failed",
+                message: "private job failure",
+              },
+            },
+            turn: {
+              present: false,
+              failure: {
+                category: "tool_failure",
+                signals: ["tool"],
+                name: "ToolFailure",
+                message: "private turn failure",
+              },
+            },
             runtime: {
               started: false,
               workerCount: 1,
@@ -121,8 +171,44 @@ describe("Desktop packaging policy", () => {
           activeTurns: [{
             stage: "workspace_task_setup",
             task: { present: true, state: "preparing" },
-            job: { present: false },
-            turn: { present: false },
+            job: {
+              present: false,
+              failure: {
+                category: "storage_failure",
+                signals: ["storage"],
+                code: "storage_failed",
+              },
+            },
+            turn: {
+              present: false,
+              failure: {
+                category: "tool_failure",
+                signals: ["tool"],
+                name: "ToolFailure",
+              },
+            },
+            latestProviderInvocationState: "failed_before_output",
+            providerFailure: {
+              category: "provider_failure",
+              signals: ["provider"],
+              type: "provider.error",
+            },
+            tools: {
+              state: "available",
+              returnedCount: 1,
+              truncated: false,
+              items: [{
+                toolName: "workspace_apply_changeset",
+                state: "failed",
+                attemptCount: 1,
+                currentAttemptState: "failed",
+                failure: {
+                  category: "permission_denied",
+                  signals: ["eperm", "rename", "worktree"],
+                  type: "tool_exception",
+                },
+              }],
+            },
           }],
         }],
       },
@@ -133,6 +219,12 @@ describe("Desktop packaging policy", () => {
     expect(retained).not.toContain("/private/secret-project");
     expect(retained).not.toContain("private coding prompt");
     expect(retained).not.toContain("private coding credential");
+    expect(retained).not.toContain("private provider failure");
+    expect(retained).not.toContain("private tool input");
+    expect(retained).not.toContain("private task failure");
+    expect(retained).not.toContain("private job failure");
+    expect(retained).not.toContain("private turn failure");
+    expect(retained).not.toContain("D:\\private\\coding-secret");
   });
 
   it("requires an external installation root and verifies the copied package", async () => {

@@ -114,7 +114,7 @@ function sourceEntryTargetFailures(request) {
     })
   }
 
-  if (!request.target.endsWith(".ts")) {
+  if (!request.target.endsWith(".ts") && !isSourceStylesheet(request.target)) {
     failures.push({
       code: "non-typescript-source-package-entry",
       package: request.manifest.name,
@@ -141,6 +141,10 @@ function sourceEntryTargetFailures(request) {
   }
 
   return failures
+}
+
+function isSourceStylesheet(target) {
+  return target.startsWith("./src/") && target.endsWith(".css")
 }
 
 function exportTargetEntries(exportsValue) {

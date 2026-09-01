@@ -66,6 +66,28 @@ describe("audit-package-packlist", () => {
       ])
     )
   })
+
+  it("allows a source-owned stylesheet export", async () => {
+    await mkdir(join(fixtureDir, "src"), { recursive: true })
+    await writeFile(join(fixtureDir, "src/styles.css"), ":root { color: red; }\n", "utf8")
+    await writeFile(
+      join(fixtureDir, "package.json"),
+      JSON.stringify({
+        name: "@wanex/audit-packlist-fixture",
+        exports: {
+          ".": "./src/index.ts",
+          "./styles.css": "./src/styles.css"
+        }
+      }, null, 2),
+      "utf8"
+    )
+    await writeFile(join(fixtureDir, "src/index.ts"), "export {}\n", "utf8")
+
+    const result = await runAudit()
+
+    expect(result.code).toBe(0)
+    expect(result.report.failures).toEqual([])
+  })
 })
 
 async function runAudit() {

@@ -161,10 +161,11 @@ by `@wanex/plugin` and projected into product commands only by
 The package packlist audit prevents package defaults from including tests,
 fixtures, runtime stores, runtime logs, JSONL debug streams, or generated
 support bundles. It also enforces the current source-first manifest policy:
-`@wanex/*` package `exports` and `bin` targets must point at existing
-`./src/*.ts` files, and packages must not define `main`, `types`, or `typings`
-until the separate compiled artifact pipeline runs. Source manifests remain
-source-first; they are not packed as the SDK.
+`@wanex/*` package code `exports` and `bin` targets must point at existing
+`./src/*.ts` files; explicitly exported source-owned CSS assets are allowed;
+and packages must not define `main`, `types`, or `typings` until the separate
+compiled artifact pipeline runs. Source manifests remain source-first; they
+are not packed as the SDK.
 
 The compiled SDK release proof builds the four-package first-RC closure and 29
 entries under `target/sdk`, rolls declarations, excludes

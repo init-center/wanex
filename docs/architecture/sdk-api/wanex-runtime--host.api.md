@@ -6,8 +6,10 @@
 
 import { CoreStore } from '@wanex/storage';
 import { CreateStorageConfig } from '@wanex/storage';
+import { IncomingMessage } from 'node:http';
 import { RuntimeStore } from '@wanex/storage';
 import { SchedulerStore } from '@wanex/storage';
+import { ServerResponse } from 'node:http';
 import { ToolExecutionStore } from '@wanex/storage';
 
 // @public (undocumented)
@@ -62,6 +64,261 @@ interface AdmitSessionInputRequest {
     // (undocumented)
     readonly sessionId: SessionId;
 }
+
+// @public (undocumented)
+const AGENT_HOST_CAPABILITY_SNAPSHOT_REVISION: 1;
+
+// @public (undocumented)
+interface AgentHostCapabilitySnapshot {
+    // (undocumented)
+    readonly domains: readonly AgentHostDomain[];
+    // (undocumented)
+    readonly eventReplay: "bounded";
+    // (undocumented)
+    readonly features: readonly AgentHostFeature[];
+    // (undocumented)
+    readonly maxEventPageSize: number;
+    // (undocumented)
+    readonly maxFrameBytes: number;
+    // (undocumented)
+    readonly revision: typeof AGENT_HOST_CAPABILITY_SNAPSHOT_REVISION;
+}
+
+// @public (undocumented)
+type AgentHostClientMessage = AgentHostHandshakeRequest | AgentHostOperationRequest | AgentHostEventReplayRequest;
+
+// @public (undocumented)
+interface AgentHostClientTransport {
+    // (undocumented)
+    send(request: AgentHostClientMessage): Promise<unknown>;
+    // (undocumented)
+    subscribe(listener: (event: unknown) => void): () => void;
+}
+
+// @public (undocumented)
+interface AgentHostCommandRequest {
+    // (undocumented)
+    readonly deadlineAt?: number;
+    // (undocumented)
+    readonly domain: AgentHostDomain;
+    // (undocumented)
+    readonly idempotencyKey: string;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.operation.request";
+    // (undocumented)
+    readonly operation: string;
+    // (undocumented)
+    readonly operationKind: "command";
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly requestId: string;
+}
+
+// @public (undocumented)
+type AgentHostConnectionKind = "in_process" | "local_ipc" | "remote_tls";
+
+// @public (undocumented)
+interface AgentHostDescriptor {
+    // (undocumented)
+    readonly connectionKind: AgentHostConnectionKind;
+    // (undocumented)
+    readonly executionLocation: "local" | "remote" | "managed";
+    // (undocumented)
+    readonly hostId: string;
+    // (undocumented)
+    readonly instanceId: string;
+}
+
+// @public (undocumented)
+type AgentHostDomain = "assistant" | "coding";
+
+// @public (undocumented)
+interface AgentHostError {
+    // (undocumented)
+    readonly code: AgentHostErrorCode;
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly retryable: boolean;
+}
+
+// @public (undocumented)
+type AgentHostErrorCode = "malformed_request" | "unsupported_protocol" | "unauthenticated" | "unauthorized" | "not_found" | "idempotency_conflict" | "deadline_exceeded" | "replay_gap" | "host_replaced" | "resource_limit" | "application_failure" | "transport_failure";
+
+// @public (undocumented)
+interface AgentHostErrorResponse {
+    // (undocumented)
+    readonly error: AgentHostError;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.error";
+    // (undocumented)
+    readonly requestId?: string;
+}
+
+// @public (undocumented)
+interface AgentHostEvent {
+    // (undocumented)
+    readonly domain: AgentHostDomain;
+    // (undocumented)
+    readonly eventId: string;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.event";
+    // (undocumented)
+    readonly occurredAt: number;
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly sequence: number;
+    // (undocumented)
+    readonly streamId: string;
+    // (undocumented)
+    readonly type: string;
+}
+
+// @public (undocumented)
+interface AgentHostEventPage {
+    // (undocumented)
+    readonly earliestSequence: number;
+    // (undocumented)
+    readonly events: readonly AgentHostEvent[];
+    // (undocumented)
+    readonly hasMore: boolean;
+    // (undocumented)
+    readonly latestSequence: number;
+    // (undocumented)
+    readonly streamId: string;
+}
+
+// @public (undocumented)
+interface AgentHostEventReplayRequest {
+    // (undocumented)
+    readonly afterSequence: number;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.events.replay.request";
+    // (undocumented)
+    readonly limit: number;
+    // (undocumented)
+    readonly requestId: string;
+    // (undocumented)
+    readonly streamId: string;
+}
+
+// @public (undocumented)
+interface AgentHostEventReplayResponse {
+    // (undocumented)
+    readonly gap?: {
+        readonly reason: "cursor_before_window" | "stream_replaced";
+        readonly canonicalReadRequired: true;
+    };
+    // (undocumented)
+    readonly kind: "wanex.agent-host.events.replay.response";
+    // (undocumented)
+    readonly outcome: "replayed" | "gap";
+    // (undocumented)
+    readonly page?: AgentHostEventPage;
+    // (undocumented)
+    readonly requestId: string;
+}
+
+// @public (undocumented)
+type AgentHostFeature = "canonical_reads" | "ordered_events" | "event_replay" | "idempotent_commands" | "cancellation" | "approval" | "recovery" | "resource_delivery";
+
+// @public (undocumented)
+interface AgentHostHandshakeRequest {
+    // (undocumented)
+    readonly accessToken: string;
+    // (undocumented)
+    readonly clientId: string;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.handshake.request";
+    // (undocumented)
+    readonly protocolVersion: AgentHostProtocolVersion;
+    // (undocumented)
+    readonly requestedDomains: readonly AgentHostDomain[];
+}
+
+// @public (undocumented)
+interface AgentHostHandshakeResponse {
+    // (undocumented)
+    readonly capabilities: AgentHostCapabilitySnapshot;
+    // (undocumented)
+    readonly connectionId: string;
+    // (undocumented)
+    readonly host: AgentHostDescriptor;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.handshake.response";
+    // (undocumented)
+    readonly protocolVersion: AgentHostProtocolVersion;
+}
+
+// @public (undocumented)
+type AgentHostOperationRequest = AgentHostCommandRequest | AgentHostReadRequest;
+
+// @public (undocumented)
+interface AgentHostOperationResponse {
+    // (undocumented)
+    readonly error?: AgentHostError;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.operation.response";
+    // (undocumented)
+    readonly operationId?: string;
+    // (undocumented)
+    readonly operationKind: AgentHostOperationRequest["operationKind"];
+    // (undocumented)
+    readonly outcome: "accepted" | "completed" | "failed" | "suspended";
+    // (undocumented)
+    readonly requestId: string;
+    // (undocumented)
+    readonly result?: JsonValue;
+}
+
+// @public (undocumented)
+type AgentHostOperationResult = {
+    readonly outcome: "accepted" | "suspended";
+    readonly operationId: string;
+} | {
+    readonly outcome: "completed";
+    readonly operationId?: string;
+    readonly result?: JsonValue;
+} | {
+    readonly outcome: "failed";
+    readonly error: AgentHostError;
+};
+
+// @public (undocumented)
+type AgentHostProtocolVersion = typeof WANEX_AGENT_HOST_PROTOCOL_VERSION;
+
+// @public (undocumented)
+interface AgentHostReadRequest {
+    // (undocumented)
+    readonly deadlineAt?: number;
+    // (undocumented)
+    readonly domain: AgentHostDomain;
+    // (undocumented)
+    readonly kind: "wanex.agent-host.operation.request";
+    // (undocumented)
+    readonly operation: string;
+    // (undocumented)
+    readonly operationKind: "read";
+    // (undocumented)
+    readonly payload: JsonValue;
+    // (undocumented)
+    readonly requestId: string;
+}
+
+// @public (undocumented)
+export interface AgentHostReplayResult {
+    // (undocumented)
+    readonly gap?: NonNullable<AgentHostEventReplayResponse["gap"]>;
+    // (undocumented)
+    readonly outcome: "replayed" | "gap";
+    // (undocumented)
+    readonly page?: AgentHostEventPage;
+}
+
+// @public (undocumented)
+type AgentHostServerMessage = AgentHostHandshakeResponse | AgentHostOperationResponse | AgentHostEvent | AgentHostEventReplayResponse | AgentHostErrorResponse;
 
 // @public (undocumented)
 export interface AgentRunOnceResult {
@@ -142,6 +399,12 @@ interface ArchiveSessionRequest {
     // (undocumented)
     readonly sessionId: SessionId;
 }
+
+// @public (undocumented)
+export function authorizeRemoteHostDomain(context: RemoteHostAuthorizationContext, domain: AgentHostDomain, nowMs?: number): RemoteHostAuthorizationDecision;
+
+// @public (undocumented)
+export function authorizeRemoteHostRequest(request: RemoteHostAuthorizationRequest): RemoteHostAuthorizationDecision;
 
 // @public (undocumented)
 interface BeginProviderInvocationRequest {
@@ -523,6 +786,24 @@ interface ContextTokenEstimator {
 }
 
 // @public (undocumented)
+export function createInProcessAgentHostEndpoint(options: InProcessAgentHostEndpointOptions): InProcessAgentHostEndpoint;
+
+// @public (undocumented)
+export function createLocalAgentHostIpcClientTransport(options: LocalAgentHostIpcClientOptions): LocalAgentHostIpcClientTransport;
+
+// @public (undocumented)
+export function createRemoteAgentHostEventStream(options: RemoteAgentHostEventStreamOptions): RemoteAgentHostEventStream;
+
+// @public (undocumented)
+export function createRemoteAgentHostHttpClientTransport(options: RemoteAgentHostHttpClientOptions): RemoteAgentHostHttpClientTransport;
+
+// @public (undocumented)
+export function createRemoteAgentHostHttpHandler(options: RemoteAgentHostHandlerOptions): RemoteAgentHostHttpHandler;
+
+// @public (undocumented)
+export function createRemoteAgentHostNodeHttpAdapter(options: RemoteAgentHostNodeHttpAdapterOptions): RemoteAgentHostNodeHttpAdapter;
+
+// @public (undocumented)
 interface CreateSessionRequest {
     // (undocumented)
     readonly id?: SessionId;
@@ -533,6 +814,19 @@ interface CreateSessionRequest {
     // (undocumented)
     readonly title?: string;
 }
+
+// @public (undocumented)
+export const DEFAULT_REMOTE_HOST_DRAIN_TIMEOUT_MS = 10000;
+
+// @public (undocumented)
+export const DEFAULT_REMOTE_HOST_REQUEST_LIMITS: {
+    readonly maxBodyBytes: number;
+    readonly maxResponseBytes: number;
+    readonly maxSessions: 128;
+    readonly maxInFlightRequests: 32;
+    readonly maxEventSubscribers: 1;
+    readonly requestTimeoutMs: 30000;
+};
 
 // @public (undocumented)
 interface DeferredMediaGenerationOperationReceipt {
@@ -1075,6 +1369,9 @@ interface FinishToolExecutionRequest {
 }
 
 // @public (undocumented)
+export function formatRemoteAgentHostEventStreamCursor(cursor: RemoteAgentHostEventStreamCursor): string;
+
+// @public (undocumented)
 interface GetResourceRequest {
     // (undocumented)
     readonly resourceId: ResourceId;
@@ -1133,6 +1430,32 @@ interface IngestResourceRequest {
     readonly source?: ResourceSource;
     // (undocumented)
     readonly width?: number;
+}
+
+// @public (undocumented)
+export interface InProcessAgentHostEndpoint {
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    send(request: unknown): Promise<AgentHostServerMessage>;
+    // (undocumented)
+    subscribe(listener: (event: AgentHostEvent) => void): () => void;
+}
+
+// @public (undocumented)
+export interface InProcessAgentHostEndpointOptions {
+    // (undocumented)
+    readonly accessToken: string;
+    // (undocumented)
+    readonly capabilities: AgentHostCapabilitySnapshot;
+    // (undocumented)
+    readonly handleOperation: (request: AgentHostOperationRequest) => Promise<AgentHostOperationResult>;
+    // (undocumented)
+    readonly host: AgentHostDescriptor;
+    // (undocumented)
+    readonly replayEvents: (request: AgentHostEventReplayRequest) => Promise<AgentHostReplayResult> | AgentHostReplayResult;
+    // (undocumented)
+    readonly subscribeEvents: (listener: (event: AgentHostEvent) => void) => () => void;
 }
 
 // @public (undocumented)
@@ -1230,6 +1553,9 @@ interface InterruptSessionTurnRequest {
 }
 
 // @public (undocumented)
+export function isRemoteHostOpaqueToken(value: string): boolean;
+
+// @public (undocumented)
 type JsonPrimitive = string | number | boolean | null;
 
 // @public (undocumented)
@@ -1239,6 +1565,9 @@ type JsonValue = JsonPrimitive | {
 
 // @public (undocumented)
 type KnownRuntimeEventType = SessionEventType | SchedulerEventType | BudgetEventType | ResourceEventType | ConfigEventType | ContextEventType | PlanEventType | ObjectiveEventType;
+
+// @public (undocumented)
+export function listenLocalAgentHostIpc(options: LocalAgentHostIpcServerOptions): Promise<LocalAgentHostIpcServer>;
 
 // @public (undocumented)
 interface ListJobsRequest {
@@ -1359,6 +1688,40 @@ interface ListToolExecutionsRequest {
 }
 
 // @public (undocumented)
+export interface LocalAgentHostIpcClientOptions {
+    // (undocumented)
+    readonly connectTimeoutMs?: number;
+    // (undocumented)
+    readonly maxFrameBytes?: number;
+    // (undocumented)
+    readonly socketPath: string;
+}
+
+// @public (undocumented)
+export interface LocalAgentHostIpcClientTransport extends AgentHostClientTransport {
+    // (undocumented)
+    close(): Promise<void>;
+}
+
+// @public (undocumented)
+export interface LocalAgentHostIpcServer {
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly socketPath: string;
+}
+
+// @public (undocumented)
+export interface LocalAgentHostIpcServerOptions {
+    // (undocumented)
+    readonly createEndpoint: () => InProcessAgentHostEndpoint;
+    // (undocumented)
+    readonly maxFrameBytes?: number;
+    // (undocumented)
+    readonly socketPath: string;
+}
+
+// @public (undocumented)
 interface MarkProviderInvocationOutputRequest {
     // (undocumented)
     readonly attemptId: SessionAttemptId;
@@ -1379,6 +1742,12 @@ interface MarkProviderInvocationOutputRequest {
     // (undocumented)
     readonly workerId: string;
 }
+
+// @public (undocumented)
+export const MAX_REMOTE_HOST_DRAIN_TIMEOUT_MS: number;
+
+// @public (undocumented)
+export const MAX_REMOTE_HOST_QUOTA_RETRY_AFTER_MS: number;
 
 // @public (undocumented)
 interface MediaGenerationAdapter {
@@ -1863,10 +2232,22 @@ type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.
 type ModelOutputModality = "text" | "image" | "audio" | "video";
 
 // @public (undocumented)
+export function normalizeRemoteHostDrainTimeoutMs(timeoutMs: number | undefined): number;
+
+// @public (undocumented)
+export function normalizeRemoteHostQuotaDecision(decision: RemoteHostQuotaDecision): RemoteHostQuotaDecision;
+
+// @public (undocumented)
+export function normalizeRemoteHostRequestLimits(limits?: Partial<RemoteHostRequestLimits>): RemoteHostRequestLimits;
+
+// @public (undocumented)
 type ObjectiveEventType = "objective.created" | "objective.state_changed" | "objective.attempt.admitted" | "objective.attempt.reviewed" | "objective.verification.recorded";
 
 // @public (undocumented)
 type ObjectiveId = string;
+
+// @public (undocumented)
+export function parseRemoteAgentHostEventStreamCursor(value: string | undefined): RemoteAgentHostEventStreamCursorResult;
 
 // @public (undocumented)
 type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded" | "plan.proposal.execution_bound";
@@ -2360,6 +2741,439 @@ interface RecordResourceProvenanceRequest {
     readonly inputResources: readonly ResourceInputEvidence[];
     // (undocumented)
     readonly resource: ResourceInputEvidence;
+}
+
+// @public
+export const REMOTE_AGENT_HOST_MESSAGE_PATH: "/v1/agent-host/message";
+
+// @public (undocumented)
+export const REMOTE_AGENT_HOST_SESSION_HEADER: "x-wanex-host-session";
+
+// @public (undocumented)
+export const REMOTE_AGENT_HOST_SSE_EVENT_NAME: "agent_host_event";
+
+// @public (undocumented)
+export const REMOTE_AGENT_HOST_SSE_EVENT_PATH: "/v1/agent-host/events";
+
+// @public (undocumented)
+export const REMOTE_AGENT_HOST_SSE_RESET_NAME: "agent_host_reset";
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStream {
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    readonly closed: Promise<void>;
+    // (undocumented)
+    readonly frames: AsyncIterable<RemoteAgentHostSseFrame>;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStreamCursor {
+    // (undocumented)
+    readonly afterSequence: number;
+    // (undocumented)
+    readonly streamId: string;
+}
+
+// @public (undocumented)
+export type RemoteAgentHostEventStreamCursorResult = {
+    readonly ok: true;
+    readonly cursor?: RemoteAgentHostEventStreamCursor;
+} | {
+    readonly ok: false;
+    readonly message: string;
+};
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStreamOptions {
+    // (undocumented)
+    readonly createRequestId?: () => string;
+    // (undocumented)
+    readonly cursor?: RemoteAgentHostEventStreamCursor;
+    // (undocumented)
+    readonly maxEventFrameBytes?: number;
+    // (undocumented)
+    readonly maxPendingEventBytes?: number;
+    // (undocumented)
+    readonly maxPendingEvents?: number;
+    // (undocumented)
+    readonly maxReplayPages?: number;
+    // (undocumented)
+    readonly onClose?: () => void;
+    // (undocumented)
+    readonly replay: (request: AgentHostEventReplayRequest) => Promise<AgentHostEventReplayResponse>;
+    // (undocumented)
+    readonly replayPageLimit?: number;
+    // (undocumented)
+    readonly subscribe: (listener: (event: AgentHostEvent) => void) => () => void;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStreamRequest {
+    // (undocumented)
+    readonly headers: Readonly<Record<string, string | undefined>>;
+    // (undocumented)
+    readonly method: string;
+    // (undocumented)
+    readonly nowMs?: number;
+    // (undocumented)
+    readonly path: string;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStreamReset {
+    // (undocumented)
+    readonly canonicalReadRequired: true;
+    // (undocumented)
+    readonly latestSequence: number;
+    // (undocumented)
+    readonly reason: RemoteAgentHostEventStreamResetReason;
+    // (undocumented)
+    readonly streamId?: string;
+}
+
+// @public (undocumented)
+export type RemoteAgentHostEventStreamResetReason = "gap" | "overflow" | "stream_replaced" | "unavailable";
+
+// @public (undocumented)
+export interface RemoteAgentHostEventStreamResponse {
+    // (undocumented)
+    readonly body?: AgentHostServerMessage;
+    // (undocumented)
+    readonly headers: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly status: number;
+    // (undocumented)
+    readonly stream?: RemoteAgentHostEventStream;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHandlerOptions {
+    // (undocumented)
+    readonly authenticateBearerToken: (token: string) => Promise<RemoteHostAuthenticatedSubject | null>;
+    // (undocumented)
+    readonly createEndpointAccessToken?: () => string;
+    // (undocumented)
+    readonly createSessionId?: () => string;
+    // (undocumented)
+    readonly limits?: Partial<RemoteHostRequestLimits>;
+    // (undocumented)
+    readonly now?: () => number;
+    // (undocumented)
+    readonly quotaPolicy?: RemoteHostQuotaPolicy;
+    // (undocumented)
+    readonly resolveHost: (subject: RemoteHostAuthenticatedSubject) => RemoteAgentHostResolvedHost | Promise<RemoteAgentHostResolvedHost | null> | null;
+    // (undocumented)
+    readonly telemetry?: RemoteAgentHostTelemetrySink;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpClientEventStream {
+    // (undocumented)
+    close(): void;
+    // (undocumented)
+    readonly closed: Promise<void>;
+    // (undocumented)
+    readonly ready: Promise<void>;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpClientEventStreamOptions {
+    // (undocumented)
+    readonly connectTimeoutMs?: number;
+    // (undocumented)
+    readonly maxFrameBytes?: number;
+    // (undocumented)
+    readonly onError?: (error: Error) => void;
+    // (undocumented)
+    readonly onReset?: (reset: RemoteAgentHostEventStreamReset) => void;
+    // (undocumented)
+    readonly onStateChange?: (state: RemoteAgentHostHttpClientEventStreamState) => void;
+    // (undocumented)
+    readonly reconnectInitialDelayMs?: number;
+    // (undocumented)
+    readonly reconnectMaxDelayMs?: number;
+}
+
+// @public (undocumented)
+export type RemoteAgentHostHttpClientEventStreamState = "connecting" | "open" | "reconnecting" | "closed";
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpClientOptions {
+    // (undocumented)
+    readonly fetch?: typeof globalThis.fetch;
+    // (undocumented)
+    readonly getBearerToken: () => string | Promise<string>;
+    // (undocumented)
+    readonly limits?: Partial<Pick<RemoteHostRequestLimits, "maxBodyBytes" | "maxResponseBytes" | "requestTimeoutMs">>;
+    // (undocumented)
+    readonly messageUrl: string | URL;
+    // (undocumented)
+    readonly now?: () => number;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpClientTransport extends AgentHostClientTransport {
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    connectEvents(options?: RemoteAgentHostHttpClientEventStreamOptions): RemoteAgentHostHttpClientEventStream;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpHandler {
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    drain(timeoutMs?: number): Promise<void>;
+    // (undocumented)
+    getStatus(): RemoteAgentHostStatusSnapshot;
+    // (undocumented)
+    handle(request: RemoteAgentHostHttpRequest): Promise<RemoteAgentHostHttpResponse>;
+    // (undocumented)
+    openEventStream(request: RemoteAgentHostEventStreamRequest): Promise<RemoteAgentHostEventStreamResponse>;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpRequest {
+    // (undocumented)
+    readonly body: unknown;
+    // (undocumented)
+    readonly bodyBytes?: number;
+    // (undocumented)
+    readonly headers: Readonly<Record<string, string | undefined>>;
+    // (undocumented)
+    readonly method: string;
+    // (undocumented)
+    readonly nowMs?: number;
+    // (undocumented)
+    readonly path: string;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHttpResponse {
+    // (undocumented)
+    readonly body: AgentHostServerMessage;
+    // (undocumented)
+    readonly headers: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly status: number;
+}
+
+// @public (undocumented)
+export type RemoteAgentHostLifecycleState = "open" | "draining" | "closed";
+
+// @public (undocumented)
+export interface RemoteAgentHostNodeHttpAdapter {
+    // (undocumented)
+    handle(request: IncomingMessage, response: ServerResponse): Promise<void>;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostNodeHttpAdapterOptions {
+    // (undocumented)
+    readonly handler: RemoteAgentHostHttpHandler;
+    // (undocumented)
+    readonly keepaliveIntervalMs?: number;
+    // (undocumented)
+    readonly maxBodyBytes?: number;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostResolvedHost {
+    // (undocumented)
+    readonly createEndpoint: (accessToken: string) => InProcessAgentHostEndpoint | Promise<InProcessAgentHostEndpoint>;
+    // (undocumented)
+    readonly grant: RemoteHostGrant;
+    // (undocumented)
+    readonly host: AgentHostDescriptor;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostSseFrame {
+    // (undocumented)
+    readonly data: JsonValue;
+    // (undocumented)
+    readonly event: typeof REMOTE_AGENT_HOST_SSE_EVENT_NAME | typeof REMOTE_AGENT_HOST_SSE_RESET_NAME;
+    // (undocumented)
+    readonly id?: string;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostStatusSnapshot {
+    // (undocumented)
+    readonly activeEventStreams: number;
+    // (undocumented)
+    readonly activeSessions: number;
+    // (undocumented)
+    readonly admittedSessions: number;
+    // (undocumented)
+    readonly closedEventStreams: number;
+    // (undocumented)
+    readonly completedRequests: number;
+    // (undocumented)
+    readonly generatedAt: number;
+    // (undocumented)
+    readonly inFlightRequests: number;
+    // (undocumented)
+    readonly openedEventStreams: number;
+    // (undocumented)
+    readonly pendingHandshakes: number;
+    // (undocumented)
+    readonly rejectedRequests: number;
+    // (undocumented)
+    readonly state: RemoteAgentHostLifecycleState;
+}
+
+// @public (undocumented)
+type RemoteAgentHostTelemetryKind = "session_admitted" | "session_closed" | "request_completed" | "request_rejected" | "event_stream_opened" | "event_stream_closed" | "handler_draining" | "handler_closed";
+
+// @public (undocumented)
+type RemoteAgentHostTelemetryOutcome = "completed" | "rejected" | "failed";
+
+// @public (undocumented)
+export interface RemoteAgentHostTelemetryRecord {
+    // (undocumented)
+    readonly activeEventStreams: number;
+    // (undocumented)
+    readonly activeSessions: number;
+    // (undocumented)
+    readonly admittedSessions: number;
+    // (undocumented)
+    readonly closedEventStreams: number;
+    // (undocumented)
+    readonly completedRequests: number;
+    // (undocumented)
+    readonly errorCode?: AgentHostErrorCode;
+    // (undocumented)
+    readonly inFlightRequests: number;
+    // (undocumented)
+    readonly kind: RemoteAgentHostTelemetryKind;
+    // (undocumented)
+    readonly occurredAt: number;
+    // (undocumented)
+    readonly openedEventStreams: number;
+    // (undocumented)
+    readonly outcome?: RemoteAgentHostTelemetryOutcome;
+    // (undocumented)
+    readonly pendingHandshakes: number;
+    // (undocumented)
+    readonly rejectedRequests: number;
+    // (undocumented)
+    readonly requestBytes?: number;
+    // (undocumented)
+    readonly requestClass?: RemoteHostRequestClass;
+    // (undocumented)
+    readonly responseBytes?: number;
+}
+
+// @public (undocumented)
+export type RemoteAgentHostTelemetrySink = (record: RemoteAgentHostTelemetryRecord) => void;
+
+// @public (undocumented)
+export interface RemoteHostAuthenticatedSubject {
+    // (undocumented)
+    readonly expiresAt: number;
+    // (undocumented)
+    readonly subjectId: string;
+}
+
+// @public (undocumented)
+export interface RemoteHostAuthorizationContext {
+    // (undocumented)
+    readonly clientId: string;
+    // (undocumented)
+    readonly expiresAt: number;
+    // (undocumented)
+    readonly grantedDomains: readonly AgentHostDomain[];
+    // (undocumented)
+    readonly hostId: string;
+    // (undocumented)
+    readonly subjectId: string;
+}
+
+// @public (undocumented)
+export type RemoteHostAuthorizationDecision = {
+    readonly outcome: "allowed";
+    readonly context: RemoteHostAuthorizationContext;
+} | {
+    readonly outcome: "denied";
+    readonly code: "unauthenticated" | "unauthorized" | "resource_limit";
+    readonly retryable: false;
+};
+
+// @public (undocumented)
+export interface RemoteHostAuthorizationRequest {
+    // (undocumented)
+    readonly clientId: string;
+    // (undocumented)
+    readonly grant: RemoteHostGrant;
+    // (undocumented)
+    readonly host: AgentHostDescriptor;
+    // (undocumented)
+    readonly nowMs?: number;
+    // (undocumented)
+    readonly requestedDomains: readonly AgentHostDomain[];
+    // (undocumented)
+    readonly subject: RemoteHostAuthenticatedSubject;
+}
+
+// @public (undocumented)
+export interface RemoteHostGrant {
+    // (undocumented)
+    readonly domains: readonly AgentHostDomain[];
+    // (undocumented)
+    readonly expiresAt: number;
+    // (undocumented)
+    readonly hostId: string;
+    // (undocumented)
+    readonly subjectId: string;
+}
+
+// @public (undocumented)
+export type RemoteHostQuotaDecision = {
+    readonly outcome: "allowed";
+} | {
+    readonly outcome: "denied";
+    readonly retryAfterMs?: number;
+};
+
+// @public (undocumented)
+export interface RemoteHostQuotaPolicy {
+    // (undocumented)
+    decide(request: RemoteHostQuotaRequest): RemoteHostQuotaDecision | Promise<RemoteHostQuotaDecision>;
+}
+
+// @public (undocumented)
+export interface RemoteHostQuotaRequest {
+    // (undocumented)
+    readonly hostId?: string;
+    // (undocumented)
+    readonly nowMs: number;
+    // (undocumented)
+    readonly requestClass: RemoteHostRequestClass;
+    // (undocumented)
+    readonly subjectId: string;
+}
+
+// @public (undocumented)
+export type RemoteHostRequestClass = "handshake" | "operation" | "event_stream";
+
+// @public (undocumented)
+export interface RemoteHostRequestLimits {
+    // (undocumented)
+    readonly maxBodyBytes: number;
+    // (undocumented)
+    readonly maxEventSubscribers: number;
+    // (undocumented)
+    readonly maxInFlightRequests: number;
+    // (undocumented)
+    readonly maxResponseBytes: number;
+    // (undocumented)
+    readonly maxSessions: number;
+    // (undocumented)
+    readonly requestTimeoutMs: number;
 }
 
 // @public (undocumented)
@@ -4444,6 +5258,9 @@ interface UserTextMessageInputPart {
     // (undocumented)
     readonly type: "text";
 }
+
+// @public (undocumented)
+const WANEX_AGENT_HOST_PROTOCOL_VERSION: 1;
 
 // @public (undocumented)
 const WANEX_PROTOCOL_VERSION: 1;

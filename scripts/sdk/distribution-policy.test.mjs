@@ -19,7 +19,7 @@ describe("SDK distribution policy", () => {
     expect(policy.packages.reduce(
       (total, packageInfo) => total + packageInfo.entries.length,
       0
-    )).toBe(30)
+    )).toBe(31)
     expect(
       policy.packages
         .find((item) => item.name === "@wanex/app")

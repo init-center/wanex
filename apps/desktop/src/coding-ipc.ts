@@ -39,6 +39,7 @@ export interface InstallDesktopCodingIpcOptions {
   readonly router: DesktopCodingRouter;
   readonly getWindow: () => DesktopCodingWindow | undefined;
   readonly selectProject: () => Promise<string | undefined>;
+  readonly diagnostic?: (operation: string, error?: unknown) => void;
 }
 
 export function installDesktopCodingIpc(
@@ -57,7 +58,7 @@ export function installDesktopCodingIpc(
       }
       return result;
     } catch (error) {
-      proofDiagnostic("open-local-project", error);
+      options.diagnostic?.("open-local-project", error);
       throw new Error("Selected directory is not a supported Coding project");
     }
   });
@@ -116,13 +117,13 @@ export function installDesktopCodingIpc(
     try {
       response = await options.router.send(value);
     } catch (error) {
-      proofDiagnostic("send-command", error);
+      options.diagnostic?.("send-command", error);
       throw new Error("Coding command failed");
     }
     if (!isCodingCommandResponse(response, value)) {
       throw new Error("Coding command response is invalid");
     }
-    proofDiagnostic(
+    options.diagnostic?.(
       `send-command:${value.command}:${response.ok ? "ok" : "rejected"}`,
     );
     return response;
@@ -141,16 +142,6 @@ export function installDesktopCodingIpc(
     options.ipcMain.removeHandler(DESKTOP_CODING_IPC.selectRemoteProject);
     options.ipcMain.removeHandler(DESKTOP_CODING_IPC.sendCommand);
   };
-}
-
-function proofDiagnostic(operation: string, error?: unknown): void {
-  if (process.env.WANEX_DESKTOP_PROOF_RECEIPT === undefined) return;
-  if (error === undefined) {
-    console.error(`[wanex-desktop-proof] ${operation}`);
-    return;
-  }
-  const detail = error instanceof Error ? error.message : String(error);
-  console.error(`[wanex-desktop-proof] ${operation}: ${detail}`);
 }
 
 function requireRemoteProfileId(value: unknown): string {

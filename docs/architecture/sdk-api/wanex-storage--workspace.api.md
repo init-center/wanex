@@ -720,6 +720,46 @@ interface ClaimWorkspaceChangeTransactionRecoveryWire {
 }
 
 // @public (undocumented)
+interface ClaimWorkspaceTaskContinuationCommand {
+    // (undocumented)
+    command: "claim-workspace-task-continuation";
+    // (undocumented)
+    request: ClaimWorkspaceTaskContinuationWire;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskContinuationRequest {
+    // (undocumented)
+    readonly attemptId: string;
+    // (undocumented)
+    readonly claimToken: string;
+    // (undocumented)
+    readonly executionEnvironment: ExecutionEnvironmentBinding;
+    // (undocumented)
+    readonly leaseMs: number;
+    // (undocumented)
+    readonly ownerId: PrincipalId;
+    // (undocumented)
+    readonly runId: string;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskContinuationWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    execution_environment: JsonValue$1;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    run_id: string;
+}
+
+// @public (undocumented)
 interface ClaimWorkspaceTaskRecoveryCommand {
     // (undocumented)
     command: "claim-workspace-task-recovery";
@@ -6385,7 +6425,7 @@ interface WorkspaceFileConflict {
 }
 
 // @public (undocumented)
-type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand | BeginWorkspaceTaskRunCommand | ClaimWorkspaceTaskRecoveryCommand | RenewWorkspaceTaskRunCommand | MarkWorkspaceTaskActiveCommand | BeginWorkspaceTaskCollectionCommand | FinalizeWorkspaceTaskCollectionCommand | BeginWorkspaceTaskReleaseCommand | FinalizeWorkspaceTaskReleaseCommand | MarkWorkspaceTaskAttentionCommand | GetWorkspaceTaskRunCommand | ListWorkspaceTaskRunsCommand | ListWorkspaceTaskAttemptsCommand;
+type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand | BeginWorkspaceTaskRunCommand | ClaimWorkspaceTaskRecoveryCommand | ClaimWorkspaceTaskContinuationCommand | RenewWorkspaceTaskRunCommand | MarkWorkspaceTaskActiveCommand | BeginWorkspaceTaskCollectionCommand | FinalizeWorkspaceTaskCollectionCommand | BeginWorkspaceTaskReleaseCommand | FinalizeWorkspaceTaskReleaseCommand | MarkWorkspaceTaskAttentionCommand | GetWorkspaceTaskRunCommand | ListWorkspaceTaskRunsCommand | ListWorkspaceTaskAttemptsCommand;
 
 // @public (undocumented)
 export interface WorkspaceStore {
@@ -6403,6 +6443,8 @@ export interface WorkspaceStore {
     claimWorkspaceChangeProposalApply(request: ClaimWorkspaceChangeProposalApplyRequest): Promise<WorkspaceChangeProposalApplyClaimResult>;
     // (undocumented)
     claimWorkspaceChangeTransactionRecovery(request: ClaimWorkspaceChangeTransactionRecoveryRequest): Promise<WorkspaceChangeTransactionClaimResult>;
+    // (undocumented)
+    claimWorkspaceTaskContinuation(request: ClaimWorkspaceTaskContinuationRequest): Promise<WorkspaceTaskClaimResult>;
     // (undocumented)
     claimWorkspaceTaskRecovery(request: ClaimWorkspaceTaskRecoveryRequest): Promise<WorkspaceTaskClaimResult>;
     // (undocumented)
@@ -6478,7 +6520,7 @@ type WorkspaceTaskAccess = "read_only" | "writable";
 type WorkspaceTaskAccessWire = "read_only" | "writable";
 
 // @public (undocumented)
-type WorkspaceTaskAttemptKind = "execution" | "recovery";
+type WorkspaceTaskAttemptKind = "execution" | "recovery" | "continuation";
 
 // @public (undocumented)
 interface WorkspaceTaskAttemptRecord {

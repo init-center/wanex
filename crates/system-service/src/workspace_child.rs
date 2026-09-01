@@ -274,7 +274,7 @@ fn run_pipe_child(start: &StartFrame, stdin_bytes: Vec<u8>) -> Result<()> {
         ownership,
         &events_rx,
         &mut output,
-        &start,
+        start,
     )
 }
 
@@ -408,7 +408,7 @@ fn resize_terminal(master: &std::fs::File, columns: u16, rows: u16) -> io::Resul
     let result = unsafe {
         libc::ioctl(
             master.as_raw_fd(),
-            libc::TIOCSWINSZ.into(),
+            libc::TIOCSWINSZ,
             std::ptr::from_ref(&window),
         )
     };
@@ -579,10 +579,11 @@ fn run_terminal_child_loop(
                 {
                     let columns = frame.columns.unwrap_or_default();
                     let rows = frame.rows.unwrap_or_default();
-                    if (1..=1_000).contains(&columns) && (1..=1_000).contains(&rows) {
-                        if resize_terminal(&master, columns, rows).is_ok() {
-                            continue;
-                        }
+                    if (1..=1_000).contains(&columns)
+                        && (1..=1_000).contains(&rows)
+                        && resize_terminal(&master, columns, rows).is_ok()
+                    {
+                        continue;
                     }
                     cleanup = "ambiguous";
                     cleanup_error = Some("terminal_resize_failed");

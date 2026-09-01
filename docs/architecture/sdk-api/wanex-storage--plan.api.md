@@ -637,6 +637,30 @@ interface ClaimWorkspaceChangeTransactionRecoveryWire {
 }
 
 // @public (undocumented)
+interface ClaimWorkspaceTaskContinuationCommand {
+    // (undocumented)
+    command: "claim-workspace-task-continuation";
+    // (undocumented)
+    request: ClaimWorkspaceTaskContinuationWire;
+}
+
+// @public (undocumented)
+interface ClaimWorkspaceTaskContinuationWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    claim_token: string;
+    // (undocumented)
+    execution_environment: JsonValue$1;
+    // (undocumented)
+    lease_ms: number;
+    // (undocumented)
+    owner_id: string;
+    // (undocumented)
+    run_id: string;
+}
+
+// @public (undocumented)
 interface ClaimWorkspaceTaskRecoveryCommand {
     // (undocumented)
     command: "claim-workspace-task-recovery";
@@ -6305,7 +6329,7 @@ type WorkspaceChangeTransactionSourceKindWire = "proposal" | "tool" | "host";
 type WorkspaceChangeTransactionStateWire = "planning" | "prepared" | "committing" | "applied" | "rolled_back" | "recovery_required";
 
 // @public (undocumented)
-type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand | BeginWorkspaceTaskRunCommand | ClaimWorkspaceTaskRecoveryCommand | RenewWorkspaceTaskRunCommand | MarkWorkspaceTaskActiveCommand | BeginWorkspaceTaskCollectionCommand | FinalizeWorkspaceTaskCollectionCommand | BeginWorkspaceTaskReleaseCommand | FinalizeWorkspaceTaskReleaseCommand | MarkWorkspaceTaskAttentionCommand | GetWorkspaceTaskRunCommand | ListWorkspaceTaskRunsCommand | ListWorkspaceTaskAttemptsCommand;
+type WorkspaceStorageRpcCommand = PutWorkspaceChangeSetCommand | GetWorkspaceChangeSetCommand | ListWorkspaceChangeSetsCommand | RecordWorkspaceChangeOperationCommand | ListWorkspaceChangeOperationsCommand | PutWorkspaceChangeProposalCommand | GetWorkspaceChangeProposalCommand | ListWorkspaceChangeProposalsCommand | RecordWorkspaceChangeProposalOperationCommand | ListWorkspaceChangeProposalOperationsCommand | ClaimWorkspaceChangeProposalApplyCommand | RenewWorkspaceChangeProposalApplyCommand | SettleWorkspaceChangeProposalApplyCommand | MarkWorkspaceChangeProposalRecoveryRequiredCommand | ListWorkspaceChangeProposalApplyAttemptsCommand | BeginWorkspaceChangeTransactionCommand | ClaimWorkspaceChangeTransactionRecoveryCommand | RenewWorkspaceChangeTransactionCommand | RecordWorkspaceChangeTransactionPlanCommand | MarkWorkspaceChangeTransactionPreparedCommand | BeginWorkspaceChangeTransactionCommitCommand | RecordWorkspaceChangeTransactionFileCommittedCommand | ReconcileWorkspaceChangeTransactionFilesCommand | FinalizeWorkspaceChangeTransactionCommand | GetWorkspaceChangeTransactionCommand | ListWorkspaceChangeTransactionsCommand | ListWorkspaceChangeTransactionAttemptsCommand | BeginWorkspaceTaskRunCommand | ClaimWorkspaceTaskRecoveryCommand | ClaimWorkspaceTaskContinuationCommand | RenewWorkspaceTaskRunCommand | MarkWorkspaceTaskActiveCommand | BeginWorkspaceTaskCollectionCommand | FinalizeWorkspaceTaskCollectionCommand | BeginWorkspaceTaskReleaseCommand | FinalizeWorkspaceTaskReleaseCommand | MarkWorkspaceTaskAttentionCommand | GetWorkspaceTaskRunCommand | ListWorkspaceTaskRunsCommand | ListWorkspaceTaskAttemptsCommand;
 
 // @public (undocumented)
 type WorkspaceTaskAccessWire = "read_only" | "writable";

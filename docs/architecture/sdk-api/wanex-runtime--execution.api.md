@@ -142,6 +142,9 @@ export function assertExecutionEnvironmentBindingEqual(actual: ExecutionEnvironm
 // @public (undocumented)
 export function assertExecutionEnvironmentBindingValid(binding: ExecutionEnvironmentBinding): void;
 
+// @public
+export function assertExecutionPolicySupported(policy: ExecutionPolicySnapshot, capabilities: ExecutionCapabilitySnapshot): void;
+
 // @public (undocumented)
 interface BeginProviderInvocationRequest {
     // (undocumented)
@@ -241,6 +244,8 @@ export interface BorrowedExecutionScope {
     readonly fileSystem: ExecutionFileSystem;
     // (undocumented)
     readonly process: ExecutionProcess;
+    // (undocumented)
+    readonly terminal?: ExecutionTerminal;
 }
 
 // @public (undocumented)
@@ -362,6 +367,50 @@ interface CancelJobRequest {
 type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
+export type ChildInteractiveTerminalEvent = {
+    readonly type: "data";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "terminal";
+    readonly evidence: ChildInteractiveTerminalEvidence;
+};
+
+// @public (undocumented)
+export interface ChildInteractiveTerminalEvidence {
+    // (undocumented)
+    readonly cleanup: "completed" | "ambiguous";
+    // (undocumented)
+    readonly cleanupError?: string;
+    // (undocumented)
+    readonly exitCode: number | null;
+    // (undocumented)
+    readonly output: ExecutionOutput;
+    // (undocumented)
+    readonly signal: string | null;
+    // (undocumented)
+    readonly termination: ExecutionTerminationReason | "pipe_eof";
+}
+
+// @public (undocumented)
+export interface ChildInteractiveTerminalProcess {
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly events: AsyncIterable<ChildInteractiveTerminalEvent>;
+    // (undocumented)
+    resize(size: {
+        readonly columns: number;
+        readonly rows: number;
+    }): Promise<void>;
+    // (undocumented)
+    terminate(reason: "timed_out" | "cancelled"): Promise<void>;
+    // (undocumented)
+    wait(): Promise<ChildInteractiveTerminalEvidence>;
+    // (undocumented)
+    write(input: Uint8Array): Promise<void>;
+}
+
+// @public (undocumented)
 export interface ChildManagedProcess extends ChildProcessRun {
     // (undocumented)
     closeInput(): Promise<void>;
@@ -397,6 +446,8 @@ export interface ChildSupervisor {
     start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
     // (undocumented)
     readonly startManaged?: (request: ChildSupervisorStartRequest) => Promise<ChildManagedProcess>;
+    // (undocumented)
+    readonly startTerminal?: (request: ChildSupervisorStartRequest) => Promise<ChildInteractiveTerminalProcess>;
 }
 
 // @public (undocumented)
@@ -431,6 +482,11 @@ export interface ChildSupervisorStartRequest {
     readonly stdin: Uint8Array;
     // (undocumented)
     readonly stdoutLimitBytes: number;
+    // (undocumented)
+    readonly terminal?: {
+        readonly columns: number;
+        readonly rows: number;
+    };
     // (undocumented)
     readonly terminationGraceMs: number;
 }
@@ -547,6 +603,13 @@ export function createApplicationScopeBinding(request: {
     readonly id: string;
     readonly metadata: JsonValue;
 }): ApplicationScopeBinding;
+
+// @public (undocumented)
+export function createExecutionEnvironmentBinding(request: {
+    readonly descriptor: ExecutionEnvironmentDescriptor;
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    readonly policy: ExecutionPolicySnapshot;
+}): ExecutionEnvironmentBinding;
 
 // @public (undocumented)
 interface CreateSessionRequest {
@@ -1092,6 +1155,103 @@ export class ExecutionSpawnError extends Error {
 }
 
 // @public (undocumented)
+export interface ExecutionTerminal {
+    // (undocumented)
+    start(request: ExecutionTerminalRequest): Promise<ExecutionTerminalProcess>;
+}
+
+// @public (undocumented)
+export type ExecutionTerminalEvent = {
+    readonly type: "data";
+    readonly bytes: Uint8Array;
+} | {
+    readonly type: "terminal";
+    readonly result: ExecutionTerminalResult;
+};
+
+// @public (undocumented)
+export interface ExecutionTerminalOutput {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly observedBytes: number;
+    // (undocumented)
+    readonly retainedBytes: number;
+    // (undocumented)
+    readonly text: string;
+    // (undocumented)
+    readonly truncated: boolean;
+}
+
+// @public (undocumented)
+export interface ExecutionTerminalProcess {
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly events: AsyncIterable<ExecutionTerminalEvent>;
+    // (undocumented)
+    resize(size: ExecutionTerminalSize): Promise<void>;
+    // (undocumented)
+    terminate(reason?: "cancelled" | "timed_out"): Promise<void>;
+    // (undocumented)
+    wait(): Promise<ExecutionTerminalResult>;
+    // (undocumented)
+    write(input: string | Uint8Array): Promise<void>;
+}
+
+// @public (undocumented)
+export interface ExecutionTerminalRequest {
+    // (undocumented)
+    readonly args?: readonly string[];
+    // (undocumented)
+    readonly cwd: string;
+    // (undocumented)
+    readonly environment?: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly outputBytes?: number;
+    // (undocumented)
+    readonly program: string;
+    // (undocumented)
+    readonly signal?: RuntimeAbortSignal;
+    // (undocumented)
+    readonly size: ExecutionTerminalSize;
+    // (undocumented)
+    readonly timeoutMs?: number;
+}
+
+// @public (undocumented)
+export interface ExecutionTerminalResult {
+    // (undocumented)
+    readonly args: readonly string[];
+    // (undocumented)
+    readonly cleanup: ExecutionCleanupStatus;
+    // (undocumented)
+    readonly cleanupError?: string;
+    // (undocumented)
+    readonly cwd: string;
+    // (undocumented)
+    readonly durationMs: number;
+    // (undocumented)
+    readonly exitCode: number | null;
+    // (undocumented)
+    readonly output: ExecutionTerminalOutput;
+    // (undocumented)
+    readonly program: string;
+    // (undocumented)
+    readonly signal: string | null;
+    // (undocumented)
+    readonly termination: ExecutionTerminationReason;
+}
+
+// @public (undocumented)
+export interface ExecutionTerminalSize {
+    // (undocumented)
+    readonly columns: number;
+    // (undocumented)
+    readonly rows: number;
+}
+
+// @public (undocumented)
 export type ExecutionTerminationReason = "exited" | "signaled" | "timed_out" | "cancelled" | "pipe_eof";
 
 // @public (undocumented)
@@ -1454,6 +1614,113 @@ interface ListToolExecutionsRequest {
     readonly state?: ToolExecutionState;
     // (undocumented)
     readonly turnId?: string;
+}
+
+// @public (undocumented)
+export const MACOS_SEATBELT_EXECUTABLE = "/usr/bin/sandbox-exec";
+
+// @public
+export class MacosSeatbeltChildSupervisor implements ChildSupervisor {
+    constructor(options: MacosSeatbeltChildSupervisorOptions);
+    // (undocumented)
+    start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
+    // (undocumented)
+    startManaged(request: ChildSupervisorStartRequest): Promise<ChildManagedProcess>;
+    // (undocumented)
+    startTerminal(request: ChildSupervisorStartRequest): Promise<ChildInteractiveTerminalProcess>;
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltChildSupervisorOptions {
+    // (undocumented)
+    readonly delegate: ChildSupervisor;
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly roots: readonly MacosSeatbeltProfileRoot[];
+}
+
+// @public (undocumented)
+export class MacosSeatbeltExecutionEnvironment implements ExecutionEnvironment {
+    constructor(options: MacosSeatbeltExecutionEnvironmentOptions);
+    // (undocumented)
+    bind(request: BindExecutionScopeRequest): Promise<ExecutionScope>;
+    // (undocumented)
+    readonly capabilities: ExecutionCapabilitySnapshot;
+    // (undocumented)
+    close(): Promise<void>;
+    // (undocumented)
+    readonly descriptor: ExecutionEnvironmentDescriptor;
+    // (undocumented)
+    resolveBinding(request: {
+        readonly policy: ExecutionPolicySnapshot;
+    }): ExecutionEnvironmentBinding;
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltExecutionEnvironmentOptions {
+    // (undocumented)
+    readonly childSupervisor: ChildSupervisor;
+    // (undocumented)
+    readonly cleanupTimeoutMs?: number;
+    // (undocumented)
+    readonly defaultOutputLimitBytes?: number;
+    // (undocumented)
+    readonly environmentId: string;
+    // (undocumented)
+    readonly launchEnvironmentOverrides?: Readonly<Record<string, string>>;
+    // (undocumented)
+    readonly maxOutputLimitBytes?: number;
+    // (undocumented)
+    readonly maxStdinBytes?: number;
+    // (undocumented)
+    readonly nativeEnvironmentFactory: (options: NativeExecutionEnvironmentOptions) => ExecutionEnvironment;
+    // (undocumented)
+    readonly providerRevision?: string;
+    // (undocumented)
+    readonly terminationGraceMs?: number;
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltPathDefinition {
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly path: string;
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltProfileProjection {
+    // (undocumented)
+    readonly command: readonly string[];
+    // (undocumented)
+    readonly definitions: readonly MacosSeatbeltPathDefinition[];
+    // (undocumented)
+    readonly profile: string;
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltProfileRequest {
+    // (undocumented)
+    readonly args: readonly string[];
+    // (undocumented)
+    readonly cwd: string;
+    // (undocumented)
+    readonly pathDirectories: readonly string[];
+    // (undocumented)
+    readonly policy: ExecutionPolicySnapshot;
+    // (undocumented)
+    readonly program: string;
+    // (undocumented)
+    readonly roots: readonly MacosSeatbeltProfileRoot[];
+}
+
+// @public (undocumented)
+export interface MacosSeatbeltProfileRoot {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly path: string;
 }
 
 // @public (undocumented)
@@ -1827,6 +2094,8 @@ export class NativeChildSupervisor implements ChildSupervisor {
     start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun>;
     // (undocumented)
     startManaged(request: ChildSupervisorStartRequest): Promise<ChildManagedProcess>;
+    // (undocumented)
+    startTerminal(request: ChildSupervisorStartRequest): Promise<ChildInteractiveTerminalProcess>;
 }
 
 // @public (undocumented)
@@ -1941,6 +2210,12 @@ export type NativeExecutionStrategy = {
 };
 
 // @public (undocumented)
+export function normalizeExecutionPolicy(input: ExecutionPolicySnapshot): ExecutionPolicySnapshot;
+
+// @public (undocumented)
+export function pathDirectoriesFromEnvironment(pathValue: string | undefined, cwd: string): readonly string[];
+
+// @public (undocumented)
 interface PreparedAgentContext {
     // (undocumented)
     readonly capabilityRoutes?: readonly ModelCapabilityRouteExecutionBinding[];
@@ -1990,6 +2265,9 @@ interface PreparedProviderToolResultResourcePart extends ToolResultResourceConte
 
 // @public (undocumented)
 type PrincipalId = string;
+
+// @public
+export function projectMacosSeatbeltProfile(request: MacosSeatbeltProfileRequest): MacosSeatbeltProfileProjection;
 
 // @public (undocumented)
 interface ProviderAdapter {

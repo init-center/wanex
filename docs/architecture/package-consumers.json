@@ -140,6 +140,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/eval-harness",
           "field": "dependencies"
         }
@@ -147,6 +151,10 @@
       "realConsumers": [
         {
           "package": "@wanex/assistant-host",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/desktop",
           "field": "dependencies"
         }
       ]
@@ -319,6 +327,10 @@
           "field": "dependencies"
         },
         {
+          "package": "@wanex/desktop",
+          "field": "dependencies"
+        },
+        {
           "package": "@wanex/eval-harness",
           "field": "dependencies"
         },
@@ -382,6 +394,10 @@
         },
         {
           "package": "@wanex/connector",
+          "field": "dependencies"
+        },
+        {
+          "package": "@wanex/desktop",
           "field": "dependencies"
         },
         {

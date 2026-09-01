@@ -31,6 +31,9 @@ export interface ArtifactBundle {
 // @public (undocumented)
 export function assertTurnResourcesMatchBinding(content: readonly MessagePart[], resources: readonly ResourceInputEvidence[]): void;
 
+// @public
+export function canonicalizeUserMessageInput(storage: Pick<CoreStore, "getResource">, input: readonly UserMessageInputPart[]): Promise<AdmittedUserMessage>;
+
 // @public (undocumented)
 export interface ContextResourceSummary {
     // (undocumented)

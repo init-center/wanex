@@ -127,6 +127,36 @@ describe("Desktop Coding IPC", () => {
     remove();
   });
 
+  it("reports command outcomes only through an injected diagnostic", async () => {
+    const ipc = new FakeIpcMain();
+    const window = fakeWindow();
+    const diagnostics: Array<{ operation: string; error?: unknown }> = [];
+    const remove = installDesktopCodingIpc({
+      ipcMain: ipc,
+      router: fakeRouter(),
+      getWindow: () => window,
+      selectProject: async () => undefined,
+      diagnostic: (operation, error) => diagnostics.push({
+        operation,
+        ...(error === undefined ? {} : { error }),
+      }),
+    });
+
+    await ipc.listener(DESKTOP_CODING_IPC.sendCommand, {
+      sender: window.webContents,
+    }, {
+      protocol: "wanex.coding/1",
+      kind: "command",
+      requestId: "request-1",
+      command: "project.list",
+    });
+
+    expect(diagnostics).toEqual([{
+      operation: "send-command:project.list:ok",
+    }]);
+    remove();
+  });
+
   it("uses the public transport validators for nested command and event data", () => {
     expect(isCodingCommandResponse({
       protocol: "wanex.coding/1",

@@ -297,6 +297,9 @@ async function start(): Promise<void> {
     router,
     getWindow: () => window,
     selectProject: codingProofSelection ?? selectCodingProjectDirectory,
+    ...(proofReceiptPath === undefined
+      ? {}
+      : { diagnostic: desktopProofDiagnostic }),
   });
   await window.loadURL(assistant.url);
   const rendererReadyAt = performance.now();
@@ -313,6 +316,15 @@ async function start(): Promise<void> {
     return;
   }
   window.show();
+}
+
+function desktopProofDiagnostic(operation: string, error?: unknown): void {
+  if (error === undefined) {
+    console.error(`[wanex-desktop-proof] ${operation}`);
+    return;
+  }
+  const detail = error instanceof Error ? error.message : String(error);
+  console.error(`[wanex-desktop-proof] ${operation}: ${detail}`);
 }
 
 function installAppLifecycle(): void {

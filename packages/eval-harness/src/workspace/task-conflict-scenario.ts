@@ -96,7 +96,8 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
         writableIsolation: isolation,
         writableCollection: new WorkspaceGitRuntime({
           repositoryId: "repo_eval_workspace_task",
-          worktreeParent: repository.worktreeParent
+          worktreeParent: repository.worktreeParent,
+          executionScope: repositoryScope
         }),
         repositoryId: "repo_eval_workspace_task",
         workspaceId: "eval_workspace_task",

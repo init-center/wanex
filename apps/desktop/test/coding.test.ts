@@ -47,7 +47,7 @@ describe("Desktop Coding proof selection boundary", () => {
   });
 });
 
-const serviceBin = join(
+const serviceBin = process.env.WANEX_SYSTEM_SERVICE_BIN ?? join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
 );

@@ -113,6 +113,8 @@ jobs:
         run: pnpm check:desktop
       - if: matrix.desktop
         run: pnpm test:desktop
+        env:
+          WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/${{ matrix.target }}/${{ matrix.target == 'win32-x64' && 'wanex-system-service.exe' || 'wanex-system-service' }}
       - if: matrix.desktop
         run: pnpm --filter @wanex/desktop prepare:electron
       - if: matrix.desktop

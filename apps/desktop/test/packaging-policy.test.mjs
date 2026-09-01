@@ -1205,6 +1205,10 @@ describe("Desktop packaging policy", () => {
     expect(workflow).toContain(
       "run: pnpm --filter @wanex/desktop prepare:electron",
     );
+    expect(workflow).toContain(
+      "run: pnpm test:desktop\n        env:\n" +
+      "          WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/${{ matrix.target }}/${{ matrix.target == 'win32-x64' && 'wanex-system-service.exe' || 'wanex-system-service' }}",
+    );
     expect(workflow.indexOf("run: pnpm --filter @wanex/desktop prepare:electron"))
       .toBeLessThan(workflow.indexOf("run: pnpm proof:desktop"));
     expect(workflow).toContain(

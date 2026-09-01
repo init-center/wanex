@@ -390,7 +390,11 @@ fn prepare_terminal_command(
             if libc::setsid() == -1 {
                 return Err(io::Error::last_os_error());
             }
-            if libc::ioctl(libc::STDIN_FILENO, libc::TIOCSCTTY.into(), 0) == -1 {
+            #[cfg(target_vendor = "apple")]
+            let request = libc::c_ulong::from(libc::TIOCSCTTY);
+            #[cfg(not(target_vendor = "apple"))]
+            let request = libc::TIOCSCTTY;
+            if libc::ioctl(libc::STDIN_FILENO, request, 0) == -1 {
                 return Err(io::Error::last_os_error());
             }
             Ok(())

@@ -54,6 +54,7 @@ import type {
   CodingRepositoryRecovery,
   CodingRepositoryRecoveryPolicy,
   CodingRepositoryContextPolicy,
+  CodingRepositoryDiagnostics,
   CodingRepositoryState,
   CodingSessionPage,
   CodingSessionSnapshot,
@@ -77,6 +78,10 @@ import {
 import { CodingRepositoryReview } from "./review.js";
 import { readCodingTurnSnapshot } from "./turn.js";
 import { codingStartDigest } from "./admission.js";
+import {
+  readActiveCodingTurnDiagnostics,
+  type CodingTurnProgress,
+} from "./diagnostics.js";
 
 type CodingStore = CoreStore & WorkspaceStore;
 
@@ -356,6 +361,10 @@ class CodingRepositoryHandle implements CodingRepository {
       return existing.operation;
     }
     const controller = new AbortController();
+    const progress: CodingTurnProgress = {
+      stage: "scheduled",
+      modelEndpointResolution: "not_started",
+    };
     let submitted = false;
     let cancelPromise: Promise<void> | undefined;
     const cancel = (reason: string): Promise<void> => {
@@ -372,6 +381,7 @@ class CodingRepositoryHandle implements CodingRepository {
           reference,
           controller,
           execution,
+          progress,
           async onSubmitted() {
             submitted = true;
             if (controller.signal.aborted) {
@@ -392,7 +402,7 @@ class CodingRepositoryHandle implements CodingRepository {
         return await execution.resolveApproval(reference, approval);
       },
     };
-    active = { reference, result, cancel, fingerprint, operation };
+    active = { reference, result, cancel, fingerprint, operation, progress };
     this.#active.set(reference.taskId, active);
     void result
       .finally(() => {
@@ -402,6 +412,27 @@ class CodingRepositoryHandle implements CodingRepository {
       })
       .catch(() => {});
     return operation;
+  }
+
+  async readDiagnostics(): Promise<CodingRepositoryDiagnostics> {
+    const activeTurns = await Promise.all(
+      [...this.#active.values()]
+        .sort((left, right) => left.reference.turnId.localeCompare(right.reference.turnId))
+        .map(async (active) =>
+          await readActiveCodingTurnDiagnostics({
+            storage: this.#options.storage,
+            reference: active.reference,
+            progress: active.progress,
+            ...(this.#options.execution === undefined
+              ? {}
+              : { runtime: this.#options.execution.diagnostics() }),
+          })),
+    );
+    return {
+      repositoryId: this.repositoryId,
+      state: this.#currentState,
+      activeTurns,
+    };
   }
 
   listSessions(request: ListCodingSessionsRequest): Promise<CodingSessionPage> {
@@ -649,15 +680,18 @@ class CodingRepositoryHandle implements CodingRepository {
     readonly reference: CodingTurnReference;
     readonly controller: AbortController;
     readonly execution: CodingTurnRuntime;
+    readonly progress: CodingTurnProgress;
     readonly onSubmitted: () => Promise<void>;
   }): Promise<CodingTurnReceipt> {
     if (options.request.sessionId !== undefined) {
+      options.progress.stage = "session_ownership";
       await assertSessionRepositoryOwnership(
         this.#options.storage,
         options.request.sessionId,
         this.repositoryId,
       );
     }
+    options.progress.stage = "durable_input_check";
     await assertDurableCodingStartMatches(
       this.#options.storage,
       this.repositoryId,
@@ -665,6 +699,7 @@ class CodingRepositoryHandle implements CodingRepository {
       options.reference,
       options.request,
     );
+    options.progress.stage = "input_admission";
     await admitCodingStartInput({
       storage: this.#options.storage,
       repositoryId: this.repositoryId,
@@ -673,6 +708,7 @@ class CodingRepositoryHandle implements CodingRepository {
       reference: options.reference,
       request: options.request,
     });
+    options.progress.stage = "admission_read";
     const admission = await readCodingStartAdmission({
       storage: this.#options.storage,
       repositoryId: this.repositoryId,
@@ -694,6 +730,7 @@ class CodingRepositoryHandle implements CodingRepository {
       );
     }
     if (admission.kind === "attached" || admission.kind === "pending") {
+      options.progress.stage = "existing_turn_wait";
       return await waitForCodingReceipt({
         storage: this.#options.storage,
         reference: options.reference,
@@ -709,22 +746,30 @@ class CodingRepositoryHandle implements CodingRepository {
         throw new Error(String(options.controller.signal.reason));
       }
       try {
+        options.progress.stage = "context_prepare";
+        const agentContext = await prepareCodingRepositoryContext({
+          rootDir: context.rootDir,
+          ...(this.#options.context === undefined
+            ? {}
+            : { policy: this.#options.context }),
+          ...(this.#options.baseAgentContext === undefined
+            ? {}
+            : { base: this.#options.baseAgentContext }),
+        });
         turnState = await options.execution.execute({
           task: context,
           repositoryId: this.repositoryId,
           reference: options.reference,
           turn: options.request,
           principalId: this.#options.principalId,
-          agentContext: await prepareCodingRepositoryContext({
-            rootDir: context.rootDir,
-            ...(this.#options.context === undefined
-              ? {}
-              : { policy: this.#options.context }),
-            ...(this.#options.baseAgentContext === undefined
-              ? {}
-              : { base: this.#options.baseAgentContext }),
-          }),
+          agentContext,
           onSubmitted: options.onSubmitted,
+          onStage: (stage, modelEndpointResolution) => {
+            options.progress.stage = stage;
+            if (modelEndpointResolution !== undefined) {
+              options.progress.modelEndpointResolution = modelEndpointResolution;
+            }
+          },
         });
       } catch (error) {
         if (error instanceof CodingTurnDidNotSucceedError) {
@@ -743,6 +788,7 @@ class CodingRepositoryHandle implements CodingRepository {
         summary: normalizeProposalTitle(options.request.proposalTitle),
       };
     };
+    options.progress.stage = "workspace_task_setup";
     const task = admission.kind === "admission_recovery"
       ? await this.#options.tasks.resumeTask({
           runId: options.reference.taskId,
@@ -767,6 +813,7 @@ class CodingRepositoryHandle implements CodingRepository {
           agentId: options.request.agentId ?? this.#options.principalId,
           handler,
         });
+    options.progress.stage = "workspace_task_settlement";
     if (
       task.status === "failed" &&
       (task.error?.message === "workspace task is already active" ||
@@ -862,6 +909,7 @@ interface ActiveCodingTurn {
   readonly cancel: (reason: string) => Promise<void>;
   readonly fingerprint: string;
   readonly operation: CodingTurnOperation;
+  readonly progress: CodingTurnProgress;
 }
 
 function createTurnReference(

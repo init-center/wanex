@@ -26,6 +26,7 @@ import {
 } from "./repository/validate.js";
 import type {
   CodingHost,
+  CodingHostDiagnostics,
   CodingHostState,
   CodingRepository,
   OpenCodingRepositoryRequest,
@@ -149,6 +150,15 @@ class CodingHostController implements CodingHost {
 
   get state(): CodingHostState {
     return this.#currentState;
+  }
+
+  async readDiagnostics(): Promise<CodingHostDiagnostics> {
+    const repositories = await Promise.all(
+      [...this.#repositories.values()]
+        .sort((left, right) => left.repositoryId.localeCompare(right.repositoryId))
+        .map(async (repository) => await repository.readDiagnostics()),
+    );
+    return { state: this.#currentState, repositories };
   }
 
   async openRepository(

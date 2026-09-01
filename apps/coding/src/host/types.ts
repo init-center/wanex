@@ -31,6 +31,74 @@ import type { WorkspaceProgramPolicy } from "@wanex/workspace/tools";
 export type CodingHostState = "open" | "closing" | "closed";
 export type CodingRepositoryState = "open" | "closing" | "closed";
 
+export type CodingTurnExecutionStage =
+  | "scheduled"
+  | "session_ownership"
+  | "durable_input_check"
+  | "input_admission"
+  | "admission_read"
+  | "existing_turn_wait"
+  | "workspace_task_setup"
+  | "context_prepare"
+  | "model_endpoint_resolve"
+  | "turn_submit"
+  | "worker_start"
+  | "settlement_wait"
+  | "workspace_task_settlement";
+
+export type CodingModelEndpointResolutionState =
+  | "not_started"
+  | "resolved"
+  | "missing"
+  | "failed";
+
+export interface CodingRuntimeDiagnostics {
+  readonly started: boolean;
+  readonly workerCount: number;
+  readonly activeLoopCount: number;
+  readonly activeExecutionCount: number;
+  readonly agentLoopRunCount: number;
+  readonly agentLoopFailedCount: number;
+}
+
+export interface CodingTurnDiagnostics {
+  readonly reference: CodingTurnReference;
+  readonly stage: CodingTurnExecutionStage;
+  readonly modelEndpointResolution: CodingModelEndpointResolutionState;
+  readonly inputPresent: boolean;
+  readonly userMessagePresent: boolean;
+  readonly providerInvocationCount: number;
+  readonly task: {
+    readonly present: boolean;
+    readonly state?: WorkspaceTaskRunState;
+    readonly outcome?: WorkspaceTaskRunOutcome;
+    readonly attemptState?: import("@wanex/protocol").WorkspaceTaskAttemptState;
+  };
+  readonly job: {
+    readonly present: boolean;
+    readonly state?: import("@wanex/protocol").SchedulerJobState;
+    readonly attempt?: number;
+    readonly leasePresent?: boolean;
+  };
+  readonly turn: {
+    readonly present: boolean;
+    readonly state?: SessionTurnState;
+    readonly attemptState?: import("@wanex/protocol").SessionAttemptState;
+  };
+  readonly runtime?: CodingRuntimeDiagnostics;
+}
+
+export interface CodingRepositoryDiagnostics {
+  readonly repositoryId: string;
+  readonly state: CodingRepositoryState;
+  readonly activeTurns: readonly CodingTurnDiagnostics[];
+}
+
+export interface CodingHostDiagnostics {
+  readonly state: CodingHostState;
+  readonly repositories: readonly CodingRepositoryDiagnostics[];
+}
+
 export type CodingHostErrorCode =
   | "host_closed"
   | "invalid_data_directory"
@@ -133,6 +201,7 @@ export interface CodingHost {
   openRepository(
     request: OpenCodingRepositoryRequest,
   ): Promise<CodingRepository>;
+  readDiagnostics(): Promise<CodingHostDiagnostics>;
   close(): Promise<void>;
 }
 
@@ -143,6 +212,7 @@ export interface CodingRepository {
   readonly sharedCheckoutReady: boolean;
   readonly recovery: CodingRepositoryRecovery;
   startTurn(request: StartCodingTurnRequest): CodingTurnOperation;
+  readDiagnostics(): Promise<CodingRepositoryDiagnostics>;
   listSessions(request: ListCodingSessionsRequest): Promise<CodingSessionPage>;
   getSession(sessionId: string): Promise<CodingSessionSnapshot | null>;
   readTranscript(

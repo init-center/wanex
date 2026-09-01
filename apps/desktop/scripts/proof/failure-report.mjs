@@ -1,6 +1,7 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { distributionRoot } from "../build.mjs"
+import { boundedCodingHostDiagnostics } from "../../src/proof/coding-diagnostics.ts"
 
 export async function writeDesktopFailureReport({
   error,
@@ -62,6 +63,7 @@ function boundedRuntimeFailure(value) {
     value.kind !== "wanex.desktop.runtime-receipt" ||
     value.ok !== false) return undefined
   const renderer = boundedRendererFailure(value.renderer)
+  const coding = boundedCodingHostDiagnostics(value.coding)
   return {
     kind: "wanex.desktop.runtime-receipt",
     ok: false,
@@ -90,7 +92,8 @@ function boundedRuntimeFailure(value) {
         ? boundedIdentifier(value.error.code, "assistant_desktop_failed")
         : "assistant_desktop_failed"
     },
-    ...(renderer === undefined ? {} : { renderer })
+    ...(renderer === undefined ? {} : { renderer }),
+    ...(coding === undefined ? {} : { coding })
   }
 }
 

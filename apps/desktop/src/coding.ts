@@ -3,6 +3,7 @@ import {
   createCodingTransportEndpoint,
   startCodingApplication,
   type CodingApplicationHost,
+  type CodingHostDiagnostics,
   type CodingExecutionEnvironmentFactory,
 } from "@wanex/coding/host";
 import type {
@@ -44,6 +45,7 @@ export interface DesktopCodingCompositionOptions {
 export interface DesktopCodingComposition {
   readonly state: DesktopCodingState;
   openProject(repositoryPath: string): Promise<CodingProjectReadModel>;
+  readDiagnostics(): Promise<CodingHostDiagnostics | undefined>;
   send(request: CodingCommandRequest): Promise<unknown>;
   subscribe(listener: (event: unknown) => void): CodingEventUnsubscribe;
   close(): Promise<void>;
@@ -75,6 +77,9 @@ export function createDesktopCodingComposition(
       await ensureStarted();
       assertStarted();
       return await host!.openProject({ repositoryPath });
+    },
+    async readDiagnostics() {
+      return await host?.readDiagnostics();
     },
     async send(request) {
       assertStarted();

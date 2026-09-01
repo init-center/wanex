@@ -91,6 +91,19 @@ provides those installed proofs. The frozen next-slice plan remains:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1545-route-9b-2-windows-hosted-installed-proof-plan.md`
 
+The next Windows run reached the installed local Coding journey but timed out
+before Provider dispatch. Its local observability correction is complete and
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1547-route-9b-2-windows-coding-failure-observability.md`
+
+The Coding Host now exposes trusted-owner diagnostics from existing canonical
+Task/Job/Turn state, and failed packaged Coding proofs retain only a bounded,
+path-free projection. This is not Windows completion evidence. Do not guess at
+the functional fix, increase proof timeouts, add retries, or expose diagnostics
+through the Renderer/protocol. The next action is one hosted matrix run, then
+a focused correction at the boundary named by the Windows receipt.
+
 Route 5E local Host consumers, durable Coding admission/observation, and
 cross-platform local transport are complete. The evidence is recorded in:
 

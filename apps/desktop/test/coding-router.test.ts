@@ -103,6 +103,7 @@ function fakeLocalComposition(calls: unknown[]): DesktopCodingComposition {
       calls.push(path);
       return project("local");
     },
+    readDiagnostics: async () => undefined,
     send: async (request) => {
       calls.push(request.command);
       return {

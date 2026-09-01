@@ -151,13 +151,36 @@ if (!instanceLock.acquired) {
   installAppLifecycle();
   void start().catch(async (error: unknown) => {
     console.error(formatWanexDesktopError(error));
+    const codingDiagnostics = await readProofCodingDiagnostics();
     await writeProofReceipt(createWanexDesktopProofFailureReceipt({
       error,
       failurePhase,
       ...(proofStep === undefined ? {} : { proofStep }),
+      ...(codingDiagnostics === undefined ? {} : { codingDiagnostics }),
     }));
     await shutdown(1);
   });
+}
+
+async function readProofCodingDiagnostics(): Promise<unknown | undefined> {
+  if (proofStep !== "relaunch-coding") return undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      coding?.readDiagnostics(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Coding diagnostics timed out")),
+          5_000,
+        );
+      }),
+    ]);
+  } catch (error) {
+    desktopProofDiagnostic("read-coding-diagnostics", error);
+    return { state: "diagnostic_failed", repositories: [] };
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
 }
 
 async function failProofBeforeStartup(error: Error): Promise<void> {

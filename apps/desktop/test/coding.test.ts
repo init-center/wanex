@@ -89,11 +89,13 @@ describe("Desktop Coding composition", () => {
 
     expect(composition.state).toBe("idle");
     expect(starts).toBe(0);
+    await expect(composition.readDiagnostics()).resolves.toBeUndefined();
     await expect(composition.openProject("/private/repository")).resolves.toEqual(
       project,
     );
     expect(starts).toBe(1);
     expect(composition.state).toBe("open");
+    await expect(composition.readDiagnostics()).resolves.toEqual(hostDiagnostics());
   });
 
   it("does not allow commands before project selection", async () => {
@@ -139,6 +141,7 @@ describe("Desktop Coding composition", () => {
       start: async () => ({
         application,
         openProject: async () => project,
+        readDiagnostics: async () => hostDiagnostics(),
         close: async () => {
           hostCloses += 1;
         },
@@ -331,8 +334,13 @@ function fakeHost(project: CodingProjectReadModel): CodingApplicationHost {
   return {
     application: fakeApplication(project),
     openProject: async () => project,
+    readDiagnostics: async () => hostDiagnostics(),
     close: async () => {},
   };
+}
+
+function hostDiagnostics() {
+  return { state: "open" as const, repositories: [] };
 }
 
 function fakeApplication(

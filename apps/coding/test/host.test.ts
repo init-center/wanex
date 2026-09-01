@@ -91,6 +91,26 @@ describe("trusted coding host repository lifecycle", () => {
       })
       await provider.started
 
+      await expect(host.readDiagnostics()).resolves.toMatchObject({
+        state: "open",
+        repositories: [{
+          repositoryId: repository.repositoryId,
+          state: "open",
+          activeTurns: [{
+            reference: first.reference,
+            stage: "settlement_wait",
+            modelEndpointResolution: "missing",
+            inputPresent: true,
+            userMessagePresent: true,
+            providerInvocationCount: 1,
+            task: { present: true, state: "active", attemptState: "active" },
+            job: { present: true, state: "running", attempt: 1, leasePresent: true },
+            turn: { present: true, state: "running", attemptState: "running" },
+            runtime: { started: true, workerCount: 1, activeLoopCount: 1 },
+          }],
+        }],
+      })
+
       const duplicate = repository.startTurn({
         idempotencyKey: "host-active-retry",
         content: [{ type: "text", text: "wait for one execution" }]
@@ -106,6 +126,65 @@ describe("trusted coding host repository lifecycle", () => {
         turnState: "cancelled"
       })
     } finally {
+      await host.close()
+      await environment.dispose()
+    }
+  }, 20_000)
+
+  it("diagnoses a Turn blocked before durable Runtime submission", async () => {
+    const environment = await scope.createEnvironment()
+    const repositoryRoot = await scope.createRepository()
+    const provider = new WorkspaceEditProvider()
+    let releaseEndpoint!: () => void
+    const endpointGate = new Promise<void>((resolve) => {
+      releaseEndpoint = resolve
+    })
+    let endpointResolutionStarted!: () => void
+    const endpointStarted = new Promise<void>((resolve) => {
+      endpointResolutionStarted = resolve
+    })
+    const execution = {
+      ...executionOptions(provider, {
+        toolPermissionPolicy: new AllowAllToolsPolicy()
+      }),
+      resolveModelEndpointId: async () => {
+        endpointResolutionStarted()
+        await endpointGate
+        return undefined
+      }
+    }
+    const host = await environment.start(execution)
+    try {
+      const repository = await host.openRepository({ repositoryPath: repositoryRoot })
+      const operation = repository.startTurn({
+        idempotencyKey: "host-endpoint-diagnostics",
+        content: [{ type: "text", text: "diagnose before submission" }]
+      })
+      await endpointStarted
+
+      await expect(host.readDiagnostics()).resolves.toMatchObject({
+        repositories: [{
+          activeTurns: [{
+            reference: operation.reference,
+            stage: "model_endpoint_resolve",
+            modelEndpointResolution: "not_started",
+            inputPresent: true,
+            userMessagePresent: false,
+            providerInvocationCount: 0,
+            task: { present: true, state: "active", attemptState: "active" },
+            job: { present: false },
+            turn: { present: false },
+            runtime: { started: false, activeLoopCount: 0 },
+          }],
+        }],
+      })
+
+      releaseEndpoint()
+      await expect(operation.result).resolves.toMatchObject({
+        turnState: "succeeded"
+      })
+    } finally {
+      releaseEndpoint()
       await host.close()
       await environment.dispose()
     }

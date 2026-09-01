@@ -72,16 +72,67 @@ describe("Desktop packaging policy", () => {
       error,
       failurePhase: "renderer_proof",
       proofStep: "relaunch-coding",
+      codingDiagnostics: {
+        state: "open",
+        repositories: [{
+          repositoryId: "repo-proof",
+          repositoryPath: "/private/secret-project",
+          state: "open",
+          activeTurns: [{
+            reference: {
+              repositoryId: "repo-proof",
+              taskId: "task-proof",
+              sessionId: "session-proof",
+              inputId: "input-proof",
+              turnId: "turn-proof",
+              jobId: "job-proof",
+            },
+            stage: "workspace_task_setup",
+            modelEndpointResolution: "not_started",
+            inputPresent: true,
+            userMessagePresent: false,
+            providerInvocationCount: 0,
+            task: { present: true, state: "preparing", attemptState: "active" },
+            job: { present: false },
+            turn: { present: false },
+            runtime: {
+              started: false,
+              workerCount: 1,
+              activeLoopCount: 0,
+              activeExecutionCount: 0,
+              agentLoopRunCount: 0,
+              agentLoopFailedCount: 0,
+            },
+            message: "private coding prompt",
+            credential: "private coding credential",
+          }],
+        }],
+      },
     });
     const retained = `${JSON.stringify(receipt)} ${formatWanexDesktopError(error)}`;
 
     expect(receipt).toMatchObject({
       failureDiagnostic: "coding_proposal_apply_timeout",
       failureDiagnosticMessage: expect.stringContaining("token=<redacted>"),
+      coding: {
+        state: "open",
+        repositories: [{
+          repositoryId: "repo-proof",
+          activeTurns: [{
+            stage: "workspace_task_setup",
+            task: { present: true, state: "preparing" },
+            job: { present: false },
+            turn: { present: false },
+          }],
+        }],
+      },
     });
     expect(retained).not.toContain("private-value");
     expect(retained).not.toContain("https://localhost:9443/private");
     expect(retained).not.toContain("wanex-packaged-remote-coding-proof-token");
+    expect(retained).not.toContain("/private/secret-project");
+    expect(retained).not.toContain("private coding prompt");
+    expect(retained).not.toContain("private coding credential");
   });
 
   it("requires an external installation root and verifies the copied package", async () => {
@@ -503,6 +554,41 @@ describe("Desktop packaging policy", () => {
           fallbackModelResponseVisible: false,
           selectedModelEndpointId: "renderer-endpoint-secret",
         },
+        coding: {
+          state: "open",
+          repositories: [{
+            repositoryId: "repo-proof",
+            repositoryPath: "/private/coding-secret",
+            state: "open",
+            activeTurns: [{
+              reference: {
+                repositoryId: "repo-proof",
+                taskId: "task-proof",
+                sessionId: "session-proof",
+                inputId: "input-proof",
+                turnId: "turn-proof",
+                jobId: "job-proof",
+              },
+              stage: "model_endpoint_resolve",
+              modelEndpointResolution: "not_started",
+              inputPresent: true,
+              userMessagePresent: false,
+              providerInvocationCount: 0,
+              task: { present: true, state: "active", attemptState: "active" },
+              job: { present: false },
+              turn: { present: false },
+              runtime: {
+                started: false,
+                workerCount: 1,
+                activeLoopCount: 0,
+                activeExecutionCount: 0,
+                agentLoopRunCount: 0,
+                agentLoopFailedCount: 0,
+              },
+              rawError: "coding-runtime-secret",
+            }],
+          }],
+        },
         secret: "receipt-secret",
       }),
       "utf8",
@@ -568,6 +654,23 @@ describe("Desktop packaging policy", () => {
           fallbackProviderReady: false,
           fallbackModelResponseVisible: false,
         },
+        coding: {
+          state: "open",
+          repositories: [{
+            repositoryId: "repo-proof",
+            state: "open",
+            activeTurns: [{
+              stage: "model_endpoint_resolve",
+              inputPresent: true,
+              userMessagePresent: false,
+              providerInvocationCount: 0,
+              task: { present: true, state: "active", attemptState: "active" },
+              job: { present: false },
+              turn: { present: false },
+              runtime: { started: false, workerCount: 1 },
+            }],
+          }],
+        },
       }],
       providerFixture: {
         requestCount: 2,
@@ -585,7 +688,7 @@ describe("Desktop packaging policy", () => {
     );
     expect(JSON.parse(persisted)).toEqual(report);
     expect(persisted).not.toMatch(
-      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret/,
+      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret|coding-secret/,
     );
     await removeDesktopProofRoot(proofRoot);
     tempDirs.splice(tempDirs.indexOf(proofRoot), 1);

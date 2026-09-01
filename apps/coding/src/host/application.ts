@@ -8,6 +8,7 @@ import type {
 } from "../application/model.js"
 import { createCodingHost } from "./start.js"
 import type { CodingApplicationHostOptions } from "./types.js"
+import type { CodingHostDiagnostics } from "./types.js"
 
 export interface OpenCodingProjectRequest {
   readonly repositoryPath: string
@@ -16,6 +17,7 @@ export interface OpenCodingProjectRequest {
 export interface CodingApplicationHost {
   readonly application: CodingApplication
   openProject(request: OpenCodingProjectRequest): Promise<CodingProjectReadModel>
+  readDiagnostics(): Promise<CodingHostDiagnostics>
   close(): Promise<void>
 }
 
@@ -36,6 +38,7 @@ export async function startCodingApplication(
       })
       return application!.registerProject(repository)
     },
+    readDiagnostics: async () => await host.readDiagnostics(),
     close: async () => await application!.close()
   }
 }

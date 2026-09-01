@@ -17,7 +17,10 @@ import {
 } from "../events.js"
 import type {
   CodingExecutionOptions,
+  CodingModelEndpointResolutionState,
   CodingModelEndpointResolutionRequest,
+  CodingRuntimeDiagnostics,
+  CodingTurnExecutionStage,
   CodingTurnReference,
   ResolveCodingTurnApprovalReceipt,
   ResolveCodingTurnApprovalRequest,
@@ -137,6 +140,10 @@ export class CodingTurnRuntime {
     readonly principalId: string
     readonly agentContext: PreparedAgentContext
     readonly onSubmitted: () => Promise<void> | void
+    readonly onStage: (
+      stage: CodingTurnExecutionStage,
+      modelEndpointResolution?: CodingModelEndpointResolutionState,
+    ) => void
   }): Promise<SessionTurnState> {
     if (
       request.task.executionScope.binding.policy.process.cleanup !==
@@ -160,7 +167,18 @@ export class CodingTurnRuntime {
     })
     const waiter = this.#settlements.wait(request.reference)
     try {
-      const modelEndpointId = await this.resolveModelEndpointId(request)
+      request.onStage("model_endpoint_resolve")
+      let modelEndpointId: string | undefined
+      try {
+        modelEndpointId = await this.resolveModelEndpointId(request)
+      } catch (error) {
+        request.onStage("model_endpoint_resolve", "failed")
+        throw error
+      }
+      request.onStage(
+        "turn_submit",
+        modelEndpointId === undefined ? "missing" : "resolved",
+      )
       const submitted = await this.#host.submitUserTurn({
         ...(modelEndpointId === undefined
           ? {}
@@ -193,14 +211,32 @@ export class CodingTurnRuntime {
       assertSubmittedReference(submitted, request.reference)
       await request.onSubmitted()
       this.notify("submitted", request.reference)
+      request.onStage("worker_start")
       this.start()
       await this.#settlements.refresh(request.reference)
+      request.onStage("settlement_wait")
       const state = await waiter.promise
       if (state !== "succeeded") throw new CodingTurnDidNotSucceedError(state)
       return state
     } finally {
       waiter.release()
       releaseScope()
+    }
+  }
+
+  diagnostics(): CodingRuntimeDiagnostics {
+    const health = this.#host.getHealthSnapshot()
+    const agentLoops = health.loops.filter((loop) => loop.kind === "agent")
+    return {
+      started: health.started,
+      workerCount: health.workerCount,
+      activeLoopCount: health.activeLoopCount,
+      activeExecutionCount: health.activeExecutionCount,
+      agentLoopRunCount: agentLoops.reduce((total, loop) => total + loop.runCount, 0),
+      agentLoopFailedCount: agentLoops.reduce(
+        (total, loop) => total + loop.failedCount,
+        0,
+      ),
     }
   }
 

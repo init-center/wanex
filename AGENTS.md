@@ -78,9 +78,16 @@ slice. Its evidence is recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1544-route-9b-1-platform-receipt-and-focused-gate-completion.md`
 
-The remaining Route 9B evidence is a hosted Windows installed proof. Do not
-claim Windows support complete from the macOS result or from YAML inspection.
-The frozen next-slice plan is:
+The first Route 9B.2 correction batch is complete locally and recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1546-route-9b-2-cross-platform-corrections.md`
+
+It fixes the Desktop `window-all-closed` shutdown race that could suppress a
+Windows proof receipt, and adds the reviewed `/usr/local` Homebrew execution
+roots needed by Intel macOS Seatbelt Git. The local Desktop/Runtime tests,
+installed proof, and macOS arm64 distribution audit pass. Do not claim
+Windows support or Intel macOS support complete until the fresh hosted matrix
+provides those installed proofs. The frozen next-slice plan remains:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1545-route-9b-2-windows-hosted-installed-proof-plan.md`
 

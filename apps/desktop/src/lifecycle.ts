@@ -3,6 +3,13 @@ export interface WanexDesktopOwnedLifecycle {
   close(): Promise<void>
 }
 
+export function shouldShutdownAfterWindowAllClosed(
+  platform: NodeJS.Platform,
+  state: WanexDesktopOwnedLifecycle["state"],
+): boolean {
+  return platform !== "darwin" && state === "open"
+}
+
 export function createWanexDesktopOwnedLifecycle(
   closeOwnedResources: () => Promise<void>
 ): WanexDesktopOwnedLifecycle {

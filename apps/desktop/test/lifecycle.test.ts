@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { createWanexDesktopOwnedLifecycle } from "../src/lifecycle.js"
+import {
+  createWanexDesktopOwnedLifecycle,
+  shouldShutdownAfterWindowAllClosed,
+} from "../src/lifecycle.js"
 import { wanexDesktopRendererProofScript } from "../src/proof.js"
 import {
   wanexDesktopProviderGuidedFollowUpAdmissionProofScript,
@@ -35,6 +38,14 @@ import {
 } from "../src/instance-lock.js"
 
 describe("Desktop lifecycle and navigation", () => {
+  it("only shuts down after the last window while ownership is still open", () => {
+    expect(shouldShutdownAfterWindowAllClosed("win32", "open")).toBe(true)
+    expect(shouldShutdownAfterWindowAllClosed("linux", "open")).toBe(true)
+    expect(shouldShutdownAfterWindowAllClosed("darwin", "open")).toBe(false)
+    expect(shouldShutdownAfterWindowAllClosed("win32", "closing")).toBe(false)
+    expect(shouldShutdownAfterWindowAllClosed("win32", "closed")).toBe(false)
+  })
+
   it("closes owned resources exactly once", async () => {
     let closes = 0
     const lifecycle = createWanexDesktopOwnedLifecycle(async () => {

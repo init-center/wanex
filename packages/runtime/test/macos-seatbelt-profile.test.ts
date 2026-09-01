@@ -69,6 +69,23 @@ describe("macOS Seatbelt profile projection", () => {
     expect(result.command.at(-1)).toBe("sh")
   })
 
+  it("allows both Homebrew installation prefixes used by macOS targets", () => {
+    const result = projectMacosSeatbeltProfile({
+      policy: policy(),
+      roots: [{ id: "workspace", path: "/workspace" }],
+      cwd: "/workspace",
+      program: "/usr/local/Cellar/git/2.55.0/bin/git",
+      args: ["rev-parse", "--show-toplevel"],
+      pathDirectories: ["/usr/local/bin"]
+    })
+
+    expect(result.profile).toContain('(subpath "/opt/homebrew/Cellar")')
+    expect(result.profile).toContain('(subpath "/opt/homebrew/opt")')
+    expect(result.profile).toContain('(subpath "/usr/local/Cellar")')
+    expect(result.profile).toContain('(subpath "/usr/local/opt")')
+    expect(result.profile).toContain('(subpath "/usr/local/lib")')
+  })
+
   it("resolves empty and relative PATH entries against the admitted cwd", () => {
     expect(pathDirectoriesFromEnvironment("/usr/bin::tools", "/workspace")).toEqual([
       "/usr/bin",

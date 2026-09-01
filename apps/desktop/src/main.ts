@@ -23,7 +23,10 @@ import {
   resolveWanexDesktopCredentialArtifact,
   WANEX_DESKTOP_CREDENTIAL_ARTIFACT_FILE,
 } from "./credential-artifact.js";
-import { createWanexDesktopOwnedLifecycle } from "./lifecycle.js";
+import {
+  createWanexDesktopOwnedLifecycle,
+  shouldShutdownAfterWindowAllClosed,
+} from "./lifecycle.js";
 import {
   requiredWanexDesktopPackagedProofStep,
   runWanexDesktopPackagedRendererProof,
@@ -375,7 +378,9 @@ function installAppLifecycle(): void {
     }
   });
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") void shutdown(0);
+    if (shouldShutdownAfterWindowAllClosed(process.platform, lifecycle.state)) {
+      void shutdown(0);
+    }
   });
   app.on("before-quit", (event: ElectronEvent) => {
     if (exitAllowed || lifecycle.state === "closed") return;

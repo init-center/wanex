@@ -11,6 +11,7 @@ import {
   projectMacosSeatbeltProfile,
   type MacosSeatbeltProfileRoot
 } from "./profile.js"
+import { resolveMacosSeatbeltProgram } from "./executable.js"
 import type { ExecutionPolicySnapshot } from "@wanex/protocol"
 
 export interface MacosSeatbeltChildSupervisorOptions {
@@ -41,13 +42,13 @@ export class MacosSeatbeltChildSupervisor implements ChildSupervisor {
   }
 
   async start(request: ChildSupervisorStartRequest): Promise<ChildProcessRun> {
-    return await this.#delegate.start(this.#wrap(request))
+    return await this.#delegate.start(await this.#wrap(request))
   }
 
   async startManaged(
     request: ChildSupervisorStartRequest,
   ): Promise<ChildManagedProcess> {
-    return await this.#startManaged(this.#wrap(request))
+    return await this.#startManaged(await this.#wrap(request))
   }
 
   async startTerminal(
@@ -57,15 +58,22 @@ export class MacosSeatbeltChildSupervisor implements ChildSupervisor {
     if (startTerminal === undefined) {
       throw new Error("macOS Seatbelt terminal supervisor is unavailable")
     }
-    return await startTerminal.call(this.#delegate, this.#wrap(request))
+    return await startTerminal.call(this.#delegate, await this.#wrap(request))
   }
 
-  #wrap(request: ChildSupervisorStartRequest): ChildSupervisorStartRequest {
+  async #wrap(
+    request: ChildSupervisorStartRequest,
+  ): Promise<ChildSupervisorStartRequest> {
+    const program = await resolveMacosSeatbeltProgram({
+      program: request.program,
+      cwd: request.cwd,
+      pathValue: request.environment.PATH,
+    })
     const projection = projectMacosSeatbeltProfile({
       policy: this.#policy,
       roots: this.#roots,
       cwd: request.cwd,
-      program: request.program,
+      program,
       args: request.args,
       pathDirectories: pathDirectoriesFromEnvironment(
         request.environment.PATH,

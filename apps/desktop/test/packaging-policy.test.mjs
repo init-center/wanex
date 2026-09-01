@@ -29,6 +29,7 @@ import {
   assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
   createDesktopProofProcessEnvironment,
+  desktopProofProcessExitError,
   measureDesktopSample,
   removeDesktopProofRoot,
 } from "../scripts/proof.mjs";
@@ -403,6 +404,21 @@ describe("Desktop packaging policy", () => {
         },
       ),
     ).rejects.toThrow("process inspection failed");
+  });
+
+  it("treats a successful process exit without a runtime receipt as failure", () => {
+    expect(desktopProofProcessExitError({
+      code: 0,
+      signal: null,
+      runtimeReceipt: "",
+    })).toMatchObject({
+      message: "packaged Desktop exited with 0 without required runtime receipt",
+    });
+    expect(desktopProofProcessExitError({
+      code: 0,
+      signal: null,
+      runtimeReceipt: '{"ok":true}',
+    })).toBeUndefined();
   });
 
   it("removes inherited proof secrets from Provider relaunch processes", () => {

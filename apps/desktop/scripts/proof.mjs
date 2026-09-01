@@ -1891,15 +1891,34 @@ function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
       if (settled) return
       settled = true
       clearTimeout(timeout)
-      if (code === 0) resolve({ stdout, stderr })
-      else {
-        const runtimeReceipt = await readOptionalReceipt(receiptPath)
-        reject(new Error(
-          `packaged Desktop exited with ${signal ?? code}${formatChildOutput(stdout, stderr, runtimeReceipt)}`
-        ))
-      }
+      const runtimeReceipt = await readOptionalReceipt(receiptPath)
+      const exitError = desktopProofProcessExitError({
+        code,
+        signal,
+        runtimeReceipt,
+        stdout,
+        stderr
+      })
+      if (exitError === undefined) resolve({ stdout, stderr })
+      else reject(exitError)
     })
   })
+}
+
+export function desktopProofProcessExitError({
+  code,
+  signal,
+  runtimeReceipt,
+  stdout = "",
+  stderr = ""
+}) {
+  if (code === 0 && runtimeReceipt.length > 0) return undefined
+  const missingReceipt = code === 0 && runtimeReceipt.length === 0
+    ? " without required runtime receipt"
+    : ""
+  return new Error(
+    `packaged Desktop exited with ${signal ?? code}${missingReceipt}${formatChildOutput(stdout, stderr, runtimeReceipt)}`
+  )
 }
 
 export function createDesktopProofProcessEnvironment(

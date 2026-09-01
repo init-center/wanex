@@ -68,6 +68,10 @@ import {
   type RemoteCodingConnectionManager,
 } from "./remote/connection.js";
 import { installDesktopRemoteIpc } from "./remote/ipc.js";
+import {
+  acquireDesktopSingleInstanceLock,
+  DesktopSingleInstanceLockUnavailableError,
+} from "./instance-lock.js";
 
 const processStartedAt = performance.now();
 const proofReceiptPath = process.env.WANEX_DESKTOP_PROOF_RECEIPT;
@@ -106,29 +110,40 @@ let window: BrowserWindow | undefined;
 let exitAllowed = false;
 let exitCode = 0;
 let failurePhase = "electron_startup";
+const instanceLock = acquireDesktopSingleInstanceLock(app);
 const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
-  window?.destroy();
-  window = undefined;
-  removeCodingIpc?.();
-  removeCodingIpc = undefined;
-  const ownedCodingRouter = codingRouter;
-  codingRouter = undefined;
-  await ownedCodingRouter?.close();
-  const ownedCoding = coding;
-  coding = undefined;
-  await ownedCoding?.close();
-  const ownedRemoteCodingConnections = remoteCodingConnections;
-  remoteCodingConnections = undefined;
-  removeRemoteIpc?.();
-  removeRemoteIpc = undefined;
-  await ownedRemoteCodingConnections?.close();
-  const ownedAssistant = assistant;
-  assistant = undefined;
-  await ownedAssistant?.close();
+  try {
+    window?.destroy();
+    window = undefined;
+    removeCodingIpc?.();
+    removeCodingIpc = undefined;
+    const ownedCodingRouter = codingRouter;
+    codingRouter = undefined;
+    await ownedCodingRouter?.close();
+    const ownedCoding = coding;
+    coding = undefined;
+    await ownedCoding?.close();
+    const ownedRemoteCodingConnections = remoteCodingConnections;
+    remoteCodingConnections = undefined;
+    removeRemoteIpc?.();
+    removeRemoteIpc = undefined;
+    await ownedRemoteCodingConnections?.close();
+    const ownedAssistant = assistant;
+    assistant = undefined;
+    await ownedAssistant?.close();
+  } finally {
+    instanceLock.release();
+  }
 });
 
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
+if (!instanceLock.acquired) {
+  if (proofReceiptPath === undefined) {
+    app.quit();
+  } else {
+    void failProofBeforeStartup(
+      new DesktopSingleInstanceLockUnavailableError(),
+    );
+  }
 } else {
   installAppLifecycle();
   void start().catch(async (error: unknown) => {
@@ -140,6 +155,19 @@ if (!app.requestSingleInstanceLock()) {
     }));
     await shutdown(1);
   });
+}
+
+async function failProofBeforeStartup(error: Error): Promise<void> {
+  console.error(formatWanexDesktopError(error));
+  try {
+    await writeProofReceipt(createWanexDesktopProofFailureReceipt({
+      error,
+      failurePhase: "single_instance_lock",
+      ...(proofStep === undefined ? {} : { proofStep }),
+    }));
+  } finally {
+    app.exit(1);
+  }
 }
 
 async function start(): Promise<void> {

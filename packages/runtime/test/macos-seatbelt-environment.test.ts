@@ -1,7 +1,9 @@
 import { createServer } from "node:net"
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { execFile } from "node:child_process"
+import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { promisify } from "node:util"
 import { describe, expect, it } from "vitest"
 import {
   MacosSeatbeltExecutionEnvironment,
@@ -14,6 +16,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
 )
+const execFileAsync = promisify(execFile)
 
 describe.runIf(process.platform === "darwin")("macOS Seatbelt environment", () => {
   it("enforces the admitted root in nested Node processes", async () => {
@@ -67,6 +70,41 @@ describe.runIf(process.platform === "darwin")("macOS Seatbelt environment", () =
       await environment.close()
       await rm(root, { recursive: true, force: true })
       await rm(outside, { recursive: true, force: true })
+    }
+  })
+
+  it("resolves PATH programs before entering the Seatbelt boundary", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wanex-seatbelt-git-"))
+    try {
+      await execFileAsync("git", ["-C", root, "init"], { encoding: "utf8" })
+      const canonicalRoot = await realpath(root)
+      const environment = createEnvironment("seatbelt_git")
+      try {
+        const scope = await environment.bind({
+          scopeId: "scope_seatbelt_git",
+          policy: policy({ isolation: "os" }),
+          fileSystemRoots: [{ id: "workspace", path: root }],
+          supervisorClaim: claim("scope_seatbelt_git")
+        })
+        try {
+          await expect(scope.process.execute({
+            program: "git",
+            args: ["rev-parse", "--show-toplevel"],
+            cwd: root
+          })).resolves.toMatchObject({
+            termination: "exited",
+            exitCode: 0,
+            cleanup: "completed",
+            stdout: { text: `${canonicalRoot}\n` }
+          })
+        } finally {
+          await scope.close()
+        }
+      } finally {
+        await environment.close()
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true })
     }
   })
 

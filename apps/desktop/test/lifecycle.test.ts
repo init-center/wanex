@@ -29,6 +29,10 @@ import {
   isWanexDesktopOwnedNavigation,
   resolveWanexDesktopWindowChrome,
 } from "../src/window-policy.js"
+import {
+  acquireDesktopSingleInstanceLock,
+  DesktopSingleInstanceLockUnavailableError,
+} from "../src/instance-lock.js"
 
 describe("Desktop lifecycle and navigation", () => {
   it("closes owned resources exactly once", async () => {
@@ -41,6 +45,38 @@ describe("Desktop lifecycle and navigation", () => {
     await Promise.all([lifecycle.close(), lifecycle.close(), lifecycle.close()])
     expect(lifecycle.state).toBe("closed")
     expect(closes).toBe(1)
+  })
+
+  it("owns and releases the Desktop single-instance lock exactly once", () => {
+    let releases = 0
+    const lock = acquireDesktopSingleInstanceLock({
+      requestSingleInstanceLock: () => true,
+      releaseSingleInstanceLock: () => {
+        releases += 1
+      },
+    })
+
+    expect(lock.acquired).toBe(true)
+    lock.release()
+    lock.release()
+    expect(releases).toBe(1)
+  })
+
+  it("does not release a single-instance lock it did not acquire", () => {
+    let releases = 0
+    const lock = acquireDesktopSingleInstanceLock({
+      requestSingleInstanceLock: () => false,
+      releaseSingleInstanceLock: () => {
+        releases += 1
+      },
+    })
+
+    expect(lock.acquired).toBe(false)
+    lock.release()
+    expect(releases).toBe(0)
+    expect(new DesktopSingleInstanceLockUnavailableError()).toMatchObject({
+      code: "desktop_single_instance_lock_unavailable",
+    })
   })
 
   it("allows only the exact app-owned Assistant origin", () => {

@@ -4,6 +4,10 @@ import type {
   RuntimeHostSessionTurnResultSignal
 } from "@wanex/runtime/host"
 import type { CoreStore } from "@wanex/storage"
+import type {
+  CodingRuntimeTurnReference,
+  CodingSettlementDiagnostics,
+} from "../diagnostics/types.js"
 import {
   notifyCodingHostTurnObserver,
   type CodingHostTurnObserver
@@ -27,6 +31,9 @@ export class CodingTurnSettlementRegistry {
   readonly #storage: CoreStore
   readonly #observeTurn: CodingHostTurnObserver | undefined
   readonly #pending = new Map<string, PendingSettlement>()
+  #lastEvent: CodingSettlementDiagnostics["lastEvent"] | undefined
+  #lastReference: CodingRuntimeTurnReference | undefined
+  #lastOutcome: CodingSettlementDiagnostics["lastOutcome"]
 
   constructor(storage: CoreStore, observeTurn?: CodingHostTurnObserver) {
     this.#storage = storage
@@ -45,17 +52,24 @@ export class CodingTurnSettlementRegistry {
       pending = { reference, resolve, reject }
     })
     this.#pending.set(reference.jobId, pending)
+    this.#lastEvent = "wait_registered"
+    this.#lastReference = { ...reference }
     return {
       promise,
       release: () => {
         if (this.#pending.get(reference.jobId) === pending) {
           this.#pending.delete(reference.jobId)
+          this.#lastEvent = "wait_released"
+          this.#lastReference = { ...reference }
         }
       }
     }
   }
 
   observe = (signal: RuntimeHostSessionTurnResultSignal): void => {
+    this.#lastEvent = "signal_observed"
+    this.#lastReference = { ...signal.reference }
+    this.#lastOutcome = signal.outcome
     notifyCodingHostTurnObserver(this.#observeTurn, {
       kind: signal.outcome === "suspended" ? "suspended" : "settled",
       reference: signal.reference
@@ -78,11 +92,29 @@ export class CodingTurnSettlementRegistry {
       )
       if (turn !== undefined && TERMINAL_STATES.has(turn.state)) {
         this.#pending.delete(reference.jobId)
+        this.#lastEvent = "canonical_terminal"
+        this.#lastReference = { ...reference }
         pending.resolve(turn.state)
       }
     } catch (error) {
       this.#pending.delete(reference.jobId)
+      this.#lastEvent = "refresh_failed"
+      this.#lastReference = { ...reference }
       pending.reject(error)
+    }
+  }
+
+  diagnostics(): CodingSettlementDiagnostics {
+    return {
+      pendingCount: this.#pending.size,
+      pendingReferences: [...this.#pending.values()]
+        .map(({ reference }) => ({ ...reference }))
+        .sort((left, right) => left.jobId.localeCompare(right.jobId)),
+      ...(this.#lastEvent === undefined ? {} : { lastEvent: this.#lastEvent }),
+      ...(this.#lastReference === undefined
+        ? {}
+        : { lastReference: { ...this.#lastReference } }),
+      ...(this.#lastOutcome === undefined ? {} : { lastOutcome: this.#lastOutcome }),
     }
   }
 }

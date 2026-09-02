@@ -4,6 +4,7 @@ import type {
   SessionAttemptState,
   SessionTurnState,
   ToolExecutionAttemptState,
+  ToolExecutionRecoveryDecision,
   ToolExecutionState,
   WorkspaceTaskAttemptState,
   WorkspaceTaskRunOutcome,
@@ -16,7 +17,9 @@ import type {
   CodingTurnExecutionStage,
   CodingTurnReference,
 } from "../types.js";
+import type { CodingHostTurnSignalKind } from "../events.js";
 import type { AgentRuntimeExecutionStage } from "@wanex/runtime/execution";
+import type { ProviderEvent } from "@wanex/runtime/provider";
 
 export interface CodingRuntimeDiagnostics {
   readonly started: boolean;
@@ -25,6 +28,80 @@ export interface CodingRuntimeDiagnostics {
   readonly activeExecutionCount: number;
   readonly agentLoopRunCount: number;
   readonly agentLoopFailedCount: number;
+  readonly settlement: CodingSettlementDiagnostics;
+  readonly recentRecoveries: readonly CodingRecoveryDiagnostics[];
+  readonly lastEvent?: CodingRuntimeEventDiagnostics;
+}
+
+export interface CodingRuntimeEventDiagnostics {
+  readonly kind: "provider_event" | "turn_signal";
+  readonly reference: CodingRuntimeTurnReference;
+  readonly signal?: Exclude<
+    CodingHostTurnSignalKind,
+    "provider_event"
+  >;
+  readonly providerEventType?: ProviderEvent["type"];
+}
+
+export interface CodingSettlementDiagnostics {
+  readonly pendingCount: number;
+  readonly pendingReferences: readonly CodingRuntimeTurnReference[];
+  readonly lastEvent?:
+    | "wait_registered"
+    | "wait_released"
+    | "signal_observed"
+    | "canonical_terminal"
+    | "refresh_failed";
+  readonly lastReference?: CodingRuntimeTurnReference;
+  readonly lastOutcome?: "completed" | "failed" | "suspended";
+}
+
+export interface CodingRuntimeTurnReference {
+  readonly sessionId: string;
+  readonly inputId: string;
+  readonly turnId: string;
+  readonly jobId: string;
+}
+
+export interface CodingRecoveryCanonicalDiagnostics {
+  readonly readState: "available" | "failed";
+  readonly tool?: {
+    readonly state: ToolExecutionState;
+    readonly attemptCount: number;
+    readonly currentAttemptState?: ToolExecutionAttemptState;
+  };
+  readonly provider: {
+    readonly invocationCount: number;
+    readonly latestState?: ProviderInvocationState;
+  };
+  readonly task?: {
+    readonly state: WorkspaceTaskRunState;
+    readonly attemptState?: WorkspaceTaskAttemptState;
+  };
+  readonly job?: {
+    readonly state: SchedulerJobState;
+    readonly attempt: number;
+  };
+  readonly turn?: {
+    readonly state: SessionTurnState;
+    readonly attemptState?: SessionAttemptState;
+  };
+  readonly readFailure?: CodingDiagnosticFailure;
+}
+
+export interface CodingRecoveryDiagnostics {
+  readonly reference: CodingTurnReference;
+  readonly executionId: string;
+  readonly expectedRecoveryRevision: number;
+  readonly decision: ToolExecutionRecoveryDecision;
+  readonly phase: "resolving" | "requeued" | "settled" | "failed";
+  readonly runtimeStage?: AgentRuntimeExecutionStage;
+  readonly action?:
+    | "waiting_for_other_recovery"
+    | "turn_requeued"
+    | "turn_abandoned";
+  readonly canonical?: CodingRecoveryCanonicalDiagnostics;
+  readonly failure?: CodingDiagnosticFailure;
 }
 
 export type CodingDiagnosticFailureCategory =
@@ -121,13 +198,13 @@ export interface CodingTurnDiagnostics {
     readonly attemptState?: SessionAttemptState;
     readonly failure?: CodingDiagnosticFailure;
   };
-  readonly runtime?: CodingRuntimeDiagnostics;
 }
 
 export interface CodingRepositoryDiagnostics {
   readonly repositoryId: string;
   readonly state: CodingRepositoryState;
   readonly activeTurns: readonly CodingTurnDiagnostics[];
+  readonly runtime?: CodingRuntimeDiagnostics;
 }
 
 export interface CodingHostDiagnostics {

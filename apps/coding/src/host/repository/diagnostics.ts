@@ -27,7 +27,6 @@ export async function readActiveCodingTurnDiagnostics(request: {
   readonly storage: CodingStore;
   readonly reference: CodingTurnReference;
   readonly progress: CodingTurnProgress;
-  readonly runtime?: CodingRuntimeDiagnostics;
 }): Promise<CodingTurnDiagnostics> {
   const { reference } = request;
   const [task, job, turn, inputs, messages, attempts, providerInvocations, tools] =
@@ -99,7 +98,6 @@ export async function readActiveCodingTurnDiagnostics(request: {
         : { attemptState: currentAttempt.state }),
       ...(turnFailure === undefined ? {} : { failure: turnFailure }),
     },
-    ...(request.runtime === undefined ? {} : { runtime: request.runtime }),
   };
 }
 

@@ -98,6 +98,15 @@ describe("trusted coding host repository lifecycle", () => {
         repositories: [{
           repositoryId: repository.repositoryId,
           state: "open",
+          runtime: {
+            started: true,
+            workerCount: 1,
+            activeLoopCount: 1,
+            settlement: {
+              pendingCount: 1,
+              pendingReferences: [first.reference],
+            },
+          },
           activeTurns: [{
             reference: first.reference,
             stage: "settlement_wait",
@@ -116,7 +125,6 @@ describe("trusted coding host repository lifecycle", () => {
             task: { present: true, state: "active", attemptState: "active" },
             job: { present: true, state: "running", attempt: 1, leasePresent: true },
             turn: { present: true, state: "running", attemptState: "running" },
-            runtime: { started: true, workerCount: 1, activeLoopCount: 1 },
           }],
         }],
       })
@@ -174,6 +182,10 @@ describe("trusted coding host repository lifecycle", () => {
 
       await expect(host.readDiagnostics()).resolves.toMatchObject({
         repositories: [{
+          runtime: {
+            started: false,
+            settlement: { pendingCount: 1, pendingReferences: [operation.reference] },
+          },
           activeTurns: [{
             reference: operation.reference,
             stage: "model_endpoint_resolve",
@@ -190,7 +202,6 @@ describe("trusted coding host repository lifecycle", () => {
             task: { present: true, state: "active", attemptState: "active" },
             job: { present: false },
             turn: { present: false },
-            runtime: { started: false, activeLoopCount: 0 },
           }],
         }],
       })

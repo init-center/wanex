@@ -133,6 +133,47 @@ describe("Coding Tool recovery", () => {
           reason: "turn_recovery_resolved"
         })
       )
+      await expect(host.readDiagnostics()).resolves.toMatchObject({
+        state: "open",
+        repositories: [{
+          repositoryId: project.projectId,
+          runtime: {
+            settlement: {
+              pendingCount: 0,
+              lastEvent: "canonical_terminal",
+              lastReference: {
+                sessionId: started.sessionId,
+                inputId: expect.any(String),
+                turnId: started.turnId,
+                jobId: expect.any(String),
+              },
+            },
+            recentRecoveries: [{
+              reference: {
+                repositoryId: project.projectId,
+                taskId: expect.any(String),
+                sessionId: started.sessionId,
+                inputId: expect.any(String),
+                turnId: started.turnId,
+                jobId: expect.any(String),
+              },
+              executionId: recovery.executionId,
+              expectedRecoveryRevision: recovery.recoveryRevision,
+              decision: "confirm_succeeded",
+              phase: "settled",
+              action: "turn_requeued",
+              canonical: {
+                readState: "available",
+                tool: { state: "succeeded", attemptCount: 1 },
+                provider: { invocationCount: 2, latestState: "succeeded" },
+                task: { state: "released" },
+                job: { state: "succeeded" },
+                turn: { state: "succeeded" },
+              },
+            }],
+          },
+        }],
+      })
       unsubscribe()
     } finally {
       await host.close()

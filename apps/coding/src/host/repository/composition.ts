@@ -423,15 +423,15 @@ class CodingRepositoryHandle implements CodingRepository {
             storage: this.#options.storage,
             reference: active.reference,
             progress: active.progress,
-            ...(this.#options.execution === undefined
-              ? {}
-              : { runtime: this.#options.execution.diagnostics() }),
           })),
     );
     return {
       repositoryId: this.repositoryId,
       state: this.#currentState,
       activeTurns,
+      ...(this.#options.execution === undefined
+        ? {}
+        : { runtime: this.#options.execution.diagnostics() }),
     };
   }
 
@@ -588,8 +588,16 @@ class CodingRepositoryHandle implements CodingRepository {
         receipt.error !== undefined &&
         receipt.error.name === "CodingTurnRecoveryFailed"
       ) {
+        await executionRuntime.refreshRecoveryDiagnostics(
+          snapshot.reference,
+          request.executionId,
+        );
         throw new Error(receipt.error.message);
       }
+      await executionRuntime.refreshRecoveryDiagnostics(
+        snapshot.reference,
+        request.executionId,
+      );
       const resolved = await readCodingTurnSnapshot({
         storage: this.#options.storage,
         repositoryId: this.repositoryId,

@@ -26,7 +26,13 @@ import type {
   ResolveCodingTurnApprovalRequest,
   StartCodingTurnRequest
 } from "../types.js"
-import type { CodingRuntimeDiagnostics } from "../diagnostics/types.js"
+import { diagnosticFailure } from "../diagnostics/failure.js"
+import type {
+  CodingRecoveryCanonicalDiagnostics,
+  CodingRecoveryDiagnostics,
+  CodingRuntimeDiagnostics,
+  CodingRuntimeEventDiagnostics,
+} from "../diagnostics/types.js"
 import { codingSessionScope } from "../session-scope.js"
 import {
   CodingTurnScopeRegistry,
@@ -57,6 +63,8 @@ export class CodingTurnRuntime {
     string,
     (event: AgentRuntimeExecutionStageEvent) => void
   >()
+  readonly #recentRecoveries = new Map<string, CodingRecoveryDiagnostics>()
+  #lastEvent: CodingRuntimeEventDiagnostics | undefined
   #started = false
 
   constructor(options: {
@@ -79,7 +87,10 @@ export class CodingTurnRuntime {
     this.#observeTurn = options.observeTurn
     this.#settlements = new CodingTurnSettlementRegistry(
       options.storage,
-      options.observeTurn
+      (signal) => {
+        this.observeTurnSignal(signal)
+        notifyCodingHostTurnObserver(options.observeTurn, signal)
+      },
     )
     this.#host = new WanexRuntimeHost({
       storage: options.storage,
@@ -117,25 +128,30 @@ export class CodingTurnRuntime {
       ...(options.execution.errorIntervalMs === undefined
         ? {}
         : { errorIntervalMs: options.execution.errorIntervalMs }),
-      ...(options.execution.observeProviderEvent === undefined &&
-          options.observeTurn === undefined
-        ? {}
-        : {
-            observeProviderEvent: (event) => {
-              try {
-                options.execution.observeProviderEvent?.(event)
-              } catch {
-                // User observers are advisory and isolated from application signals.
-              }
-              notifyCodingHostTurnObserver(options.observeTurn, {
-                kind: "provider_event",
-                reference: providerReference(event),
-                event
-              })
-            }
-          }),
+      observeProviderEvent: (event) => {
+        try {
+          options.execution.observeProviderEvent?.(event)
+        } catch {
+          // User observers are advisory and isolated from application signals.
+        }
+        this.#lastEvent = {
+          kind: "provider_event",
+          reference: providerReference(event),
+          providerEventType: event.event.type,
+        }
+        notifyCodingHostTurnObserver(options.observeTurn, {
+          kind: "provider_event",
+          reference: providerReference(event),
+          event
+        })
+      },
       observeExecutionStage: (event) => {
-        this.#stageObservers.get(event.turnId ?? "")?.(event)
+        const turnId = event.turnId ?? ""
+        const recovery = this.#recentRecoveries.get(turnId)
+        if (recovery !== undefined) {
+          this.recordRecovery({ ...recovery, runtimeStage: event.stage })
+        }
+        this.#stageObservers.get(turnId)?.(event)
       }
     })
   }
@@ -177,8 +193,13 @@ export class CodingTurnRuntime {
       toolPermissionPolicy: this.#options.toolPermissionPolicy
     })
     const waiter = this.#settlements.wait(request.reference)
-    if (request.onRuntimeStage !== undefined) {
-      this.#stageObservers.set(request.reference.turnId, request.onRuntimeStage)
+    const stageObserver = request.onRuntimeStage === undefined
+      ? undefined
+      : (event: AgentRuntimeExecutionStageEvent) => {
+          request.onRuntimeStage?.(event)
+        }
+    if (stageObserver !== undefined) {
+      this.#stageObservers.set(request.reference.turnId, stageObserver)
     }
     try {
       request.onStage("model_endpoint_resolve")
@@ -234,8 +255,8 @@ export class CodingTurnRuntime {
       return state
     } finally {
       if (
-        request.onRuntimeStage !== undefined &&
-        this.#stageObservers.get(request.reference.turnId) === request.onRuntimeStage
+        stageObserver !== undefined &&
+        this.#stageObservers.get(request.reference.turnId) === stageObserver
       ) {
         this.#stageObservers.delete(request.reference.turnId)
       }
@@ -257,6 +278,131 @@ export class CodingTurnRuntime {
         (total, loop) => total + loop.failedCount,
         0,
       ),
+      settlement: this.#settlements.diagnostics(),
+      recentRecoveries: [...this.#recentRecoveries.values()]
+        .sort((left, right) => left.reference.turnId.localeCompare(right.reference.turnId)),
+      ...(this.#lastEvent === undefined ? {} : { lastEvent: this.#lastEvent }),
+    }
+  }
+
+  private observeTurnSignal(signal: CodingHostTurnSignal): void {
+    if (signal.kind === "provider_event") {
+      this.#lastEvent = {
+        kind: "provider_event",
+        reference: { ...signal.reference },
+        providerEventType: signal.event.event.type,
+      }
+      return
+    }
+    this.#lastEvent = {
+      kind: "turn_signal",
+      reference: { ...signal.reference },
+      signal: signal.kind,
+    }
+  }
+
+  private recordRecovery(value: CodingRecoveryDiagnostics): void {
+    this.#recentRecoveries.delete(value.reference.turnId)
+    this.#recentRecoveries.set(value.reference.turnId, value)
+    while (this.#recentRecoveries.size > 8) {
+      const oldest = this.#recentRecoveries.keys().next().value
+      if (oldest === undefined) break
+      this.#recentRecoveries.delete(oldest)
+    }
+  }
+
+  async refreshRecoveryDiagnostics(
+    reference: CodingTurnReference,
+    executionId: string,
+  ): Promise<void> {
+    const current = this.#recentRecoveries.get(reference.turnId)
+    if (current === undefined || current.executionId !== executionId) return
+    this.recordRecovery({
+      ...current,
+      canonical: await this.readRecoveryCanonical(reference, executionId),
+    })
+  }
+
+  private async readRecoveryCanonical(
+    reference: CodingTurnReference,
+    executionId: string,
+  ): Promise<CodingRecoveryCanonicalDiagnostics> {
+    try {
+      const [execution, providerInvocations, task, job, turn] = await Promise.all([
+        this.#storage.getToolExecution(executionId),
+        this.#storage.listProviderInvocations({ turnId: reference.turnId }),
+        this.#storage.getWorkspaceTaskRun({ runId: reference.taskId }),
+        this.#storage.getJob({ jobId: reference.jobId }),
+        this.#storage.getSessionTurn(reference.turnId),
+      ])
+      const attempts = execution === null
+        ? []
+        : await this.#storage.listToolExecutionAttempts({ executionId })
+      const currentToolAttempt = execution?.currentInvocationAttemptId === undefined
+        ? undefined
+        : attempts.find((attempt) => attempt.id === execution.currentInvocationAttemptId)
+      const sessionAttempts = turn === null
+        ? []
+        : await this.#storage.listSessionAttempts({ turnId: reference.turnId })
+      const currentSessionAttempt = turn?.currentAttemptId === undefined
+        ? undefined
+        : sessionAttempts.find((attempt) => attempt.id === turn.currentAttemptId)
+      const latestProviderInvocation = [...providerInvocations].sort(
+        (left, right) =>
+          right.step - left.step || right.invocationNumber - left.invocationNumber,
+      )[0]
+      return {
+        readState: "available",
+        ...(execution === null
+          ? {}
+          : {
+              tool: {
+                state: execution.state,
+                attemptCount: execution.attemptCount,
+                ...(currentToolAttempt === undefined
+                  ? {}
+                  : { currentAttemptState: currentToolAttempt.state }),
+              },
+            }),
+        provider: {
+          invocationCount: providerInvocations.length,
+          ...(latestProviderInvocation === undefined
+            ? {}
+            : { latestState: latestProviderInvocation.state }),
+        },
+        ...(task === null
+          ? {}
+          : {
+              task: {
+                state: task.run.state,
+                ...(task.activeAttempt === undefined
+                  ? {}
+                  : { attemptState: task.activeAttempt.state }),
+              },
+            }),
+        ...(job === null
+          ? {}
+          : { job: { state: job.state, attempt: job.attempt } }),
+        ...(turn === null
+          ? {}
+          : {
+              turn: {
+                state: turn.state,
+                ...(currentSessionAttempt === undefined
+                  ? {}
+                  : { attemptState: currentSessionAttempt.state }),
+              },
+            }),
+      }
+    } catch (error) {
+      return {
+        readState: "failed",
+        provider: { invocationCount: 0 },
+        readFailure: diagnosticFailure(error) ?? {
+          category: "unknown",
+          signals: [],
+        },
+      }
     }
   }
 
@@ -299,8 +445,25 @@ export class CodingTurnRuntime {
       toolPermissionPolicy: this.#options.toolPermissionPolicy
     })
     const waiter = this.#settlements.wait(request.reference)
-    if (request.onRuntimeStage !== undefined) {
-      this.#stageObservers.set(request.reference.turnId, request.onRuntimeStage)
+    const recovery: CodingRecoveryDiagnostics = {
+      reference: { ...request.reference },
+      executionId: request.recovery.executionId,
+      expectedRecoveryRevision: request.recovery.expectedRecoveryRevision,
+      decision: request.recovery.decision,
+      phase: "resolving",
+    }
+    this.recordRecovery(recovery)
+    const stageObserver = request.onRuntimeStage === undefined
+      ? undefined
+      : (event: AgentRuntimeExecutionStageEvent) => {
+          const current = this.#recentRecoveries.get(request.reference.turnId)
+          if (current !== undefined) {
+            this.recordRecovery({ ...current, runtimeStage: event.stage })
+          }
+          request.onRuntimeStage?.(event)
+        }
+    if (stageObserver !== undefined) {
+      this.#stageObservers.set(request.reference.turnId, stageObserver)
     }
     try {
       let receipt: import("@wanex/protocol").ResolveToolExecutionRecoveryReceipt
@@ -326,6 +489,15 @@ export class CodingTurnRuntime {
         throw recoveryAttentionError(error)
       }
       const action = receipt.recoveryDecision.action
+      this.recordRecovery({
+        ...recovery,
+        phase: action === "turn_requeued" ? "requeued" : "failed",
+        action,
+        canonical: await this.readRecoveryCanonical(
+          request.reference,
+          request.recovery.executionId,
+        ),
+      })
       if (action !== "turn_requeued") {
         throw new WorkspaceTaskAttentionError({
           name:
@@ -342,6 +514,15 @@ export class CodingTurnRuntime {
       this.#host.wake()
       await this.#settlements.refresh(request.reference)
       const state = await waiter.promise
+      const current = this.#recentRecoveries.get(request.reference.turnId) ?? recovery
+      this.recordRecovery({
+        ...current,
+        phase: state === "succeeded" ? "settled" : "failed",
+        canonical: await this.readRecoveryCanonical(
+          request.reference,
+          request.recovery.executionId,
+        ),
+      })
       if (state === "recovery_required") {
         throw new WorkspaceTaskAttentionError({
           name: "CodingTurnRecoveryRequired",
@@ -352,10 +533,23 @@ export class CodingTurnRuntime {
         throw new CodingTurnDidNotSucceedError(state)
       }
       return state
+    } catch (error) {
+      const current = this.#recentRecoveries.get(request.reference.turnId) ?? recovery
+      const failure = diagnosticFailure(error)
+      this.recordRecovery({
+        ...current,
+        phase: "failed",
+        canonical: await this.readRecoveryCanonical(
+          request.reference,
+          request.recovery.executionId,
+        ),
+        ...(failure === undefined ? {} : { failure }),
+      })
+      throw error
     } finally {
       if (
-        request.onRuntimeStage !== undefined &&
-        this.#stageObservers.get(request.reference.turnId) === request.onRuntimeStage
+        stageObserver !== undefined &&
+        this.#stageObservers.get(request.reference.turnId) === stageObserver
       ) {
         this.#stageObservers.delete(request.reference.turnId)
       }
@@ -475,7 +669,9 @@ export class CodingTurnRuntime {
     kind: import("../events.js").CodingHostTurnSignalKind,
     reference: CodingTurnReference
   ): void {
-    notifyCodingHostTurnObserver(this.#observeTurn, { kind, reference })
+    const signal = { kind, reference } as const
+    this.observeTurnSignal(signal)
+    notifyCodingHostTurnObserver(this.#observeTurn, signal)
   }
 }
 

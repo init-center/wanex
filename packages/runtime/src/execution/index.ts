@@ -32,6 +32,7 @@ export {
   NativeChildSupervisorError
 } from "./native-supervisor.js"
 export { createTaskkillTreeTerminator } from "./process-tree.js"
+export * from "./stage.js"
 export type * from "./types.js"
 export type * from "./supervisor-types.js"
 export type * from "./worker/types.js"

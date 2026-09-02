@@ -16,6 +16,10 @@ import { assertTurnResourcesMatchBinding } from "../../resources/index.js"
 import { createInlineContextCapacityCompactor } from "../../context/capacity/index.js"
 import { SemanticContextCompiler } from "../../context/memory/index.js"
 import { TurnControlEventObserver } from "./turn-control-observer.js"
+import {
+  notifyAgentRuntimeExecutionStage,
+  type AgentRuntimeExecutionStage
+} from "../stage.js"
 
 export function createSessionTurnHandler(
   options: SessionTurnHandlerOptions
@@ -25,6 +29,21 @@ export function createSessionTurnHandler(
     new TurnControlEventObserver({ storage: options.storage })
   return async ({ job, signal, heartbeat, registerActiveAttempt }) => {
     const payload = parseSessionTurnPayload(job.payload)
+    const observeStage = (
+      stage: AgentRuntimeExecutionStage,
+      attemptId?: string
+    ): void => {
+      notifyAgentRuntimeExecutionStage(options.observeExecutionStage, {
+        kind: "wanex-runtime.execution-stage",
+        stage,
+        sessionId: payload.sessionId,
+        inputId: payload.inputId,
+        turnId: payload.turnId,
+        jobId: job.id,
+        ...(attemptId === undefined ? {} : { attemptId })
+      })
+    }
+    observeStage("worker_claimed")
     const workerId = requireField(job.leaseOwner, "claimed job lease owner")
     const leaseToken = requireField(job.leaseToken, "claimed job lease token")
     const started = await options.session.startTurnAttempt({
@@ -35,6 +54,7 @@ export function createSessionTurnHandler(
       workerId,
       leaseToken
     })
+    observeStage("turn_attempt_started", started.attempt.id)
     const activeRegistration = registerActiveAttempt(started.attempt.id)
     const controlObserver = turnControlObserver.observe({
       sessionId: payload.sessionId,
@@ -50,6 +70,7 @@ export function createSessionTurnHandler(
     if (input === undefined) {
       throw new Error(`started turn input not found: ${payload.inputId}`)
     }
+    observeStage("input_loaded", started.attempt.id)
     assertTurnResourcesMatchBinding(
       input.content,
       started.turn.executionBinding.resources
@@ -64,6 +85,7 @@ export function createSessionTurnHandler(
     })
     const agentContext = resolvedContext ?? options.agentContext
     assertAgentContextMatchesBinding(started.turn.executionBinding, agentContext)
+    observeStage("context_resolved", started.attempt.id)
     const provider = await providerForTurnBinding(
       started.turn.executionBinding,
       {
@@ -76,6 +98,7 @@ export function createSessionTurnHandler(
           : { secretResolver: options.secretResolver })
       }
     )
+    observeStage("provider_resolved", started.attempt.id)
     const runner = new WanexAgentRunner({
       session: options.session,
       provider,
@@ -98,7 +121,10 @@ export function createSessionTurnHandler(
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
-        : { observeProviderEvent: options.observeProviderEvent })
+        : { observeProviderEvent: options.observeProviderEvent }),
+      ...(options.observeExecutionStage === undefined
+        ? {}
+        : { observeExecutionStage: options.observeExecutionStage })
     })
     const result = await runner.executeTurn({
       execution: {

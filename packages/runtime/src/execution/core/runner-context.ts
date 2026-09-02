@@ -28,6 +28,11 @@ import {
   type ContextCapacityCompactor
 } from "../../context/capacity/index.js"
 import type { ActiveTurnAttempt, WanexAgentRunnerOptions } from "./types.js"
+import {
+  notifyAgentRuntimeExecutionStage,
+  type AgentRuntimeExecutionStage,
+  type AgentRuntimeExecutionStageObserver
+} from "../stage.js"
 
 export type RunnerReplayMessages = readonly PreparedProviderReplayMessage[]
 
@@ -46,6 +51,7 @@ export class AgentRunnerExecutionContext {
   readonly toolPermissionPolicy: ToolPermissionPolicy | undefined
   readonly toolMaxConcurrency: number
   private readonly observeProviderEvent: WanexAgentRunnerOptions["observeProviderEvent"]
+  private readonly observeExecutionStage: AgentRuntimeExecutionStageObserver | undefined
   private readonly contextCompiler: WanexAgentRunnerOptions["contextCompiler"]
   private readonly compactContext: ContextCapacityCompactor | undefined
 
@@ -59,6 +65,25 @@ export class AgentRunnerExecutionContext {
     this.toolPermissionPolicy = options.toolPermissionPolicy
     this.toolMaxConcurrency = options.toolMaxConcurrency ?? 4
     this.observeProviderEvent = options.observeProviderEvent
+    this.observeExecutionStage = options.observeExecutionStage
+  }
+
+  observeStage(
+    stage: AgentRuntimeExecutionStage,
+    execution: ActiveTurnAttempt,
+    details: { readonly step?: number; readonly toolCount?: number } = {}
+  ): void {
+    notifyAgentRuntimeExecutionStage(this.observeExecutionStage, {
+      kind: "wanex-runtime.execution-stage",
+      stage,
+      sessionId: execution.sessionId,
+      inputId: execution.inputId,
+      turnId: execution.turnId,
+      jobId: execution.jobId,
+      attemptId: execution.attemptId,
+      ...(details.step === undefined ? {} : { step: details.step }),
+      ...(details.toolCount === undefined ? {} : { toolCount: details.toolCount })
+    })
   }
 
   async buildReplayMessages(sessionId: string): Promise<RunnerReplayMessages> {
@@ -135,6 +160,7 @@ export class AgentRunnerExecutionContext {
           })
     } satisfies Parameters<typeof runProviderCompletion>[1]
     const requestDigest = providerRequestDigest(providerRequest)
+    this.observeStage("provider_request_prepared", execution, { step })
     const previous = await this.session.listProviderInvocations({
       turnId: execution.turnId
     })
@@ -159,6 +185,7 @@ export class AgentRunnerExecutionContext {
         invocationNumber,
         requestDigest
       })
+      this.observeStage("provider_invocation_started", execution, { step })
       let outputMarked = invocation.outputObserved
       try {
         const response = await runProviderCompletion(this.provider, {
@@ -175,6 +202,7 @@ export class AgentRunnerExecutionContext {
             outputMarked = true
           }
         })
+        this.observeStage("provider_invocation_succeeded", execution, { step })
         await this.recordProviderUsage(response, execution, invocation.id)
         return { invocationId: invocation.id, response }
       } catch (error) {
@@ -281,6 +309,7 @@ export class AgentRunnerExecutionContext {
     calls: Parameters<typeof runToolBatch>[1]["calls"],
     execution: ActiveTurnAttempt,
     sourceMessageId: string,
+    step: number,
     signal: RuntimeAbortSignal | undefined
   ): Promise<ToolResultMessagePart[]> {
     return await runToolBatch(tools, {
@@ -299,7 +328,11 @@ export class AgentRunnerExecutionContext {
       signal,
       timeoutMs: this.timeoutMs,
       maxConcurrency: this.toolMaxConcurrency,
-      budgetGrantId: execution.budgetGrantId
+      budgetGrantId: execution.budgetGrantId,
+      ...(this.observeExecutionStage === undefined
+        ? {}
+        : { observeExecutionStage: this.observeExecutionStage }),
+      step
     })
   }
 }

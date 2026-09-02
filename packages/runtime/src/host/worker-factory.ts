@@ -62,6 +62,9 @@ export function createRuntimeHostAgentWorkers(
       ...(request.observeProviderEvent === undefined
         ? {}
         : { observeProviderEvent: request.observeProviderEvent }),
+      ...(request.observeExecutionStage === undefined
+        ? {}
+        : { observeExecutionStage: request.observeExecutionStage }),
       ...(request.resolveAgentContext === undefined
         ? {}
         : { resolveAgentContext: request.resolveAgentContext })

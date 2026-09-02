@@ -764,6 +764,9 @@ class CodingRepositoryHandle implements CodingRepository {
           principalId: this.#options.principalId,
           agentContext,
           onSubmitted: options.onSubmitted,
+          onRuntimeStage: (event) => {
+            options.progress.runtimeStage = event.stage;
+          },
           onStage: (stage, modelEndpointResolution) => {
             options.progress.stage = stage;
             if (modelEndpointResolution !== undefined) {

@@ -129,7 +129,10 @@ export class WanexAgentRuntime {
         : { timeoutMs: options.timeoutMs }),
       ...(options.observeProviderEvent === undefined
         ? {}
-        : { observeProviderEvent: options.observeProviderEvent })
+        : { observeProviderEvent: options.observeProviderEvent }),
+      ...(options.observeExecutionStage === undefined
+        ? {}
+        : { observeExecutionStage: options.observeExecutionStage })
     })
   }
 

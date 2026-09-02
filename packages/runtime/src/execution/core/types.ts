@@ -15,6 +15,7 @@ import type {
   ToolPermissionPolicy,
   ToolRegistry
 } from "../../tools/index.js"
+import type { AgentRuntimeExecutionStageObserver } from "../stage.js"
 
 export interface WanexAgentRunnerOptions {
   readonly session: WanexSessionCore
@@ -26,6 +27,7 @@ export interface WanexAgentRunnerOptions {
   readonly compactContext?: ContextCapacityCompactor
   readonly timeoutMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
+  readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
 }
 
 export interface ActiveTurnAttempt {

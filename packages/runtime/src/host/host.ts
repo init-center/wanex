@@ -155,6 +155,9 @@ export class WanexRuntimeHost {
       ...(options.observeProviderEvent === undefined
         ? {}
         : { observeProviderEvent: options.observeProviderEvent }),
+      ...(options.observeExecutionStage === undefined
+        ? {}
+        : { observeExecutionStage: options.observeExecutionStage }),
       ...(options.resolveAgentContext === undefined
         ? {}
         : { resolveAgentContext: options.resolveAgentContext })

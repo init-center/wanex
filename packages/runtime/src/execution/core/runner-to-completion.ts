@@ -32,6 +32,12 @@ export async function executeAgentTurn(
   let step = 0
   try {
     const checkpoint = await recoveryCheckpoint(context, execution)
+    context.observeStage("recovery_checkpoint_read", execution, {
+      step: checkpoint.nextStep,
+      ...(checkpoint.pendingToolBatch === undefined
+        ? {}
+        : { toolCount: checkpoint.pendingToolBatch.calls.length })
+    })
     step = checkpoint.nextStep
     if (checkpoint.pendingToolBatch !== undefined) {
       const restoreSettledBatch = await isPendingToolBatchSettled(
@@ -159,6 +165,7 @@ export async function executeAgentTurn(
         toolCalls,
         execution,
         assistantMessage.id,
+        step,
         request.signal
       )
       await request.heartbeat()
@@ -171,6 +178,10 @@ export async function executeAgentTurn(
       if (toolMessage === null) {
         throw new Error("turn lost its lease before persisting tool results")
       }
+      context.observeStage("tool_result_persisted", execution, {
+        step,
+        toolCount: toolCalls.length
+      })
       const postToolControl = await context.drainTurnControls(execution, true)
       if (postToolControl.status !== "continue") {
         return await settleControlRequest(
@@ -386,6 +397,7 @@ async function settleOrContinueAfterFinalProvider(
   }
   try {
     const response = completion.response
+    context.observeStage("turn_settlement_started", execution, { step })
     const settlement = await context.session.settleTurn({
       ...executionIdentity(execution),
       outcome: "succeeded",
@@ -394,6 +406,7 @@ async function settleOrContinueAfterFinalProvider(
       providerState: response.providerState,
       result: { steps: step, finishReason: response.finish.reason }
     })
+    context.observeStage("turn_settled", execution, { step })
     return {
       status: "settled",
       result: { outcome: "succeeded", steps: step, settlement }
@@ -491,6 +504,7 @@ async function resumeToolBatch(
     calls,
     request.execution,
     assistantMessage.id,
+    step,
     restoreSettledBatch ? undefined : request.signal
   )
   const toolMessage = await context.session.appendMessage({
@@ -502,6 +516,10 @@ async function resumeToolBatch(
   if (toolMessage === null) {
     throw new Error("turn lost its lease before persisting recovered tool results")
   }
+  context.observeStage("tool_result_persisted", request.execution, {
+    step,
+    toolCount: calls.length
+  })
 }
 
 async function isPendingToolBatchSettled(
@@ -551,11 +569,13 @@ async function settleControlRequest(
   if (control.status === "interrupt_requested") {
     return await settleInterrupted(context, execution, steps, control.reason)
   }
+  context.observeStage("turn_settlement_started", execution, { step: steps })
   const settlement = await context.session.settleTurn({
     ...executionIdentity(execution),
     outcome: "cancelled",
     ...(control.reason === undefined ? {} : { reason: control.reason })
   })
+  context.observeStage("turn_settled", execution, { step: steps })
   return { outcome: "cancelled", steps, settlement }
 }
 
@@ -565,11 +585,13 @@ async function settleInterrupted(
   steps: number,
   reason: string | undefined
 ): Promise<ExecuteTurnResult> {
+  context.observeStage("turn_settlement_started", execution, { step: steps })
   const settlement = await context.session.settleTurn({
     ...executionIdentity(execution),
     outcome: "interrupted",
     ...(reason === undefined ? {} : { reason })
   })
+  context.observeStage("turn_settled", execution, { step: steps })
   return { outcome: "interrupted", steps, settlement }
 }
 

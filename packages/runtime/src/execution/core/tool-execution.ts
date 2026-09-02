@@ -14,6 +14,10 @@ import type {
   ToolRegistry
 } from "../../tools/index.js"
 import { jsonToolResultContent, toolResultPart } from "../../tools/parts.js"
+import {
+  notifyAgentRuntimeExecutionStage,
+  type AgentRuntimeExecutionStageObserver
+} from "../stage.js"
 
 export interface RunToolBatchRequest {
   readonly calls: readonly ToolCallMessagePart[]
@@ -32,6 +36,8 @@ export interface RunToolBatchRequest {
   readonly timeoutMs: number | undefined
   readonly maxConcurrency: number
   readonly budgetGrantId: string | undefined
+  readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
+  readonly step?: number
 }
 
 export class ToolBatchRecoveryRequiredError extends Error {
@@ -95,6 +101,8 @@ export async function runToolBatch(
   let recovery: RequireToolExecutionRecoveryReceipt | undefined
   let suspension: DeferToolExecutionReceipt | undefined
   let approval: ToolExecutionApprovalSuspensionReceipt | undefined
+
+  notifyToolStage(request, "tool_batch_preflight_started")
 
   const prepareCall = async (index: number): Promise<void> => {
     const call = request.calls[index]!
@@ -179,7 +187,17 @@ export async function runToolBatch(
     if (concurrency === "exclusive") {
       try {
         await prepareCall(cursor)
-        await executeCall(cursor)
+        notifyToolStage(request, "tool_batch_preflight_completed")
+        notifyToolStage(request, "tool_execution_begin_requested")
+        const begun = await tools.beginPreparedExecution(
+          toolExecutionRequest(request, call),
+          prepared[cursor]!
+        )
+        notifyToolStage(request, "tool_execution_begin_completed")
+        await executeCall(cursor, begun)
+        if (outcomes[cursor]?.state === "completed") {
+          notifyToolStage(request, "tool_execution_settled")
+        }
       } catch (error) {
         errors[cursor] = error
       }
@@ -195,6 +213,7 @@ export async function runToolBatch(
         cursor += 1
       }
       for (const index of indexes) await prepareCall(index)
+      notifyToolStage(request, "tool_batch_preflight_completed")
       if (indexes.some((index) => prepared[index]?.permission.status === "approval_required")) {
         throw new Error("parallel-safe Tool group cannot require human approval")
       }
@@ -202,12 +221,17 @@ export async function runToolBatch(
       // for recovery. This keeps a parallel provider batch fully recoverable.
       const begun = new Array<BegunToolExecution>(request.calls.length)
       await Promise.all(indexes.map(async (index) => {
+        notifyToolStage(request, "tool_execution_begin_requested")
         begun[index] = await tools.beginPreparedExecution(
           toolExecutionRequest(request, request.calls[index]!),
           prepared[index]!
         )
+        notifyToolStage(request, "tool_execution_begin_completed")
       }))
       await runParallelGroup(indexes, begun)
+      if (indexes.every((index) => outcomes[index]?.state === "completed")) {
+        notifyToolStage(request, "tool_execution_settled")
+      }
     }
 
     if (recovery !== undefined) {
@@ -228,6 +252,23 @@ export async function runToolBatch(
       throw new Error("non-completed tool batch outcome was not propagated")
     }
     return outcome.result
+  })
+}
+
+function notifyToolStage(
+  request: RunToolBatchRequest,
+  stage: Parameters<typeof notifyAgentRuntimeExecutionStage>[1]["stage"]
+): void {
+  notifyAgentRuntimeExecutionStage(request.observeExecutionStage, {
+    kind: "wanex-runtime.execution-stage",
+    stage,
+    sessionId: request.sessionId,
+    inputId: request.inputId,
+    turnId: request.turnId,
+    jobId: request.jobId,
+    attemptId: request.attemptId,
+    ...(request.step === undefined ? {} : { step: request.step }),
+    toolCount: request.calls.length
   })
 }
 

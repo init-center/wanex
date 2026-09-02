@@ -20,8 +20,12 @@ import {
   createToolRuntimeBinding,
   jsonToolResultContent,
   RiskBoundToolPolicy,
-  ToolRegistry
+  ToolRegistry,
+  type ToolPermissionDecision,
+  type ToolPermissionPolicy,
+  type ToolPermissionRequest
 } from "../src/tools/index.js"
+import type { AgentRuntimeExecutionStageEvent } from "../src/execution/stage.js"
 import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 const serviceBin = join(
@@ -121,6 +125,148 @@ describe("session.turn worker handler", () => {
       text: "Fake response from model_worker_turn"
     }])
   })
+
+  it("automatically resumes a durable approval through the real Worker loop", async () => {
+    const storage = requireTestStore()
+    const session = new WanexSessionCore({ storage })
+    const modelEndpoint = fakeModelEndpoint("worker_approval_loop")
+    const provider = new CountingFakeProvider({
+      model: modelEndpoint.model,
+      responseText: "approved",
+      toolName: "approval_tool"
+    })
+    const policy = new ApprovalToolPolicy()
+    const tools = approvalToolRegistry()
+    const stageEvents: AgentRuntimeExecutionStageEvent[] = []
+    await session.create({ id: "ses_worker_approval_loop", kind: "agent" })
+    const submitted = await session.submitTurn({
+      id: "inp_worker_approval_loop",
+      turnId: "turn_worker_approval_loop",
+      sessionId: "ses_worker_approval_loop",
+      principalId: "principal_worker_approval_loop",
+      idempotencyKey: "idem_worker_approval_loop",
+      content: [{
+        type: "text",
+        id: "part_worker_approval_loop",
+        text: "approve the operation"
+      }],
+      jobId: "job_worker_approval_loop",
+      executionBinding: createTurnExecutionBinding({
+        modelEndpoint,
+        agentContext: { tools, toolPermissionPolicy: policy },
+        createdAt: 1
+      })
+    })
+    const worker = new WanexWorker({
+      session,
+      workerId: "worker_approval_loop",
+      leaseMs: 60_000,
+      kinds: ["session.turn"]
+    })
+    registerSessionTurnHandler({
+      worker,
+      session,
+      storage,
+      directProvider: provider,
+      agentContext: { tools, toolPermissionPolicy: policy },
+      observeExecutionStage: (event) => stageEvents.push(event)
+    })
+    const loop = worker.start({ idleIntervalMs: 1, errorIntervalMs: 1 })
+    try {
+      const approval = await eventually(async () => {
+        const executions = await storage.listToolExecutions({
+          turnId: submitted.turn.id
+        })
+        const pending = executions.find((execution) =>
+          execution.state === "approval_required"
+        )
+        if (pending === undefined) {
+          throw new Error("approval has not been persisted")
+        }
+        return pending
+      })
+      expect(provider.calls).toBe(1)
+      expect(approval.attemptCount).toBe(0)
+      expect(stageEvents.map((event) => event.stage)).toEqual([
+        "worker_claimed",
+        "turn_attempt_started",
+        "input_loaded",
+        "context_resolved",
+        "provider_resolved",
+        "recovery_checkpoint_read",
+        "provider_request_prepared",
+        "provider_invocation_started",
+        "provider_invocation_succeeded",
+        "tool_batch_preflight_started",
+        "tool_batch_preflight_completed",
+        "tool_execution_begin_requested",
+        "tool_execution_begin_completed"
+      ])
+
+      await storage.resolveToolExecutionApproval({
+        executionId: approval.id,
+        expectedApprovalRevision: approval.approvalRevision,
+        decision: "approve_once",
+        principalId: "principal_worker_approval_loop",
+        reason: "approved by the test reviewer",
+        idempotencyKey: "approve-worker-loop"
+      })
+
+      await eventually(async () => {
+        const turns = await session.listTurns({
+          sessionId: submitted.turn.sessionId
+        })
+        expect(turns.find((turn) => turn.id === submitted.turn.id)?.state)
+          .toBe("succeeded")
+        expect(provider.calls).toBe(2)
+      })
+      const executions = await storage.listToolExecutions({
+        turnId: submitted.turn.id
+      })
+      expect(executions).toEqual([
+        expect.objectContaining({
+          id: approval.id,
+          state: "succeeded",
+          attemptCount: 1
+        })
+      ])
+      expect(stageEvents.map((event) => event.stage)).toEqual([
+        "worker_claimed",
+        "turn_attempt_started",
+        "input_loaded",
+        "context_resolved",
+        "provider_resolved",
+        "recovery_checkpoint_read",
+        "provider_request_prepared",
+        "provider_invocation_started",
+        "provider_invocation_succeeded",
+        "tool_batch_preflight_started",
+        "tool_batch_preflight_completed",
+        "tool_execution_begin_requested",
+        "tool_execution_begin_completed",
+        "worker_claimed",
+        "turn_attempt_started",
+        "input_loaded",
+        "context_resolved",
+        "provider_resolved",
+        "recovery_checkpoint_read",
+        "tool_batch_preflight_started",
+        "tool_batch_preflight_completed",
+        "tool_execution_begin_requested",
+        "tool_execution_begin_completed",
+        "tool_execution_settled",
+        "tool_result_persisted",
+        "provider_request_prepared",
+        "provider_invocation_started",
+        "provider_invocation_succeeded",
+        "turn_settlement_started",
+        "turn_settled"
+      ])
+    } finally {
+      loop.stop()
+      await loop.waitForIdle()
+    }
+  }, 20_000)
 
   it("compacts an over-capacity Session inline under its session.turn lease", async () => {
     const storage = requireTestStore()
@@ -721,6 +867,69 @@ function requireTestStore(): StorageTestStore {
     throw new Error("agent worker test store is not initialized")
   }
   return testStore
+}
+
+class ApprovalToolPolicy implements ToolPermissionPolicy {
+  snapshot() {
+    return createToolRuntimeBinding({
+      implementationId: "wanex.test.agent-worker.approval-policy",
+      implementationRevision: "1"
+    })
+  }
+
+  async authorize(
+    request: ToolPermissionRequest
+  ): Promise<ToolPermissionDecision> {
+    if (request.descriptor.name !== "approval_tool") {
+      return { status: "allow", reason: "test_tool_allowed" }
+    }
+    return {
+      status: "approval_required",
+      reason: "test_approval_required",
+      presentation: { summary: "Approve the test Tool" }
+    }
+  }
+}
+
+function approvalToolRegistry(): ToolRegistry {
+  const registry = new ToolRegistry()
+  registry.register({
+    name: "approval_tool",
+    description: "A mutating Tool used to verify durable approval recovery.",
+    inputSchema: { type: "object" },
+    risk: "mutating",
+    idempotent: true,
+    concurrency: "exclusive",
+    resultMode: "immediate",
+    runtimeBinding: createToolRuntimeBinding({
+      implementationId: "wanex.test.agent-worker.approval-tool",
+      implementationRevision: "1"
+    }),
+    async invoke(invocation) {
+      return {
+        outcome: "succeeded",
+        toolCallId: invocation.toolCallId,
+        content: jsonToolResultContent({ approved: true })
+      }
+    }
+  })
+  return registry
+}
+
+async function eventually<T>(read: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + 5_000
+  let lastError: unknown
+  for (;;) {
+    try {
+      return await read()
+    } catch (error) {
+      lastError = error
+    }
+    if (Date.now() >= deadline) {
+      throw lastError
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 5))
+  }
 }
 
 function registryWithTool(

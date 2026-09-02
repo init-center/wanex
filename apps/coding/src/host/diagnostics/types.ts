@@ -16,6 +16,7 @@ import type {
   CodingTurnExecutionStage,
   CodingTurnReference,
 } from "../types.js";
+import type { AgentRuntimeExecutionStage } from "@wanex/runtime/execution";
 
 export interface CodingRuntimeDiagnostics {
   readonly started: boolean;
@@ -93,6 +94,7 @@ export interface CodingTurnDiagnostics {
   readonly reference: CodingTurnReference;
   readonly stage: CodingTurnExecutionStage;
   readonly modelEndpointResolution: CodingModelEndpointResolutionState;
+  readonly runtimeStage?: AgentRuntimeExecutionStage;
   readonly inputPresent: boolean;
   readonly userMessagePresent: boolean;
   readonly providerInvocationCount: number;

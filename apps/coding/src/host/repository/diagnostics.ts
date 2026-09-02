@@ -11,6 +11,7 @@ import type {
 import type { CoreStore } from "@wanex/storage";
 import type { WorkspaceStore } from "@wanex/storage/workspace";
 import { diagnosticFailure } from "../diagnostics/failure.js";
+import type { AgentRuntimeExecutionStage } from "@wanex/runtime/execution";
 
 type CodingStore = CoreStore & WorkspaceStore;
 
@@ -19,6 +20,7 @@ const MAX_DIAGNOSTIC_TOOLS = 16;
 export interface CodingTurnProgress {
   stage: CodingTurnExecutionStage;
   modelEndpointResolution: CodingModelEndpointResolutionState;
+  runtimeStage?: AgentRuntimeExecutionStage;
 }
 
 export async function readActiveCodingTurnDiagnostics(request: {
@@ -63,6 +65,9 @@ export async function readActiveCodingTurnDiagnostics(request: {
     reference: { ...reference },
     stage: request.progress.stage,
     modelEndpointResolution: request.progress.modelEndpointResolution,
+    ...(request.progress.runtimeStage === undefined
+      ? {}
+      : { runtimeStage: request.progress.runtimeStage }),
     inputPresent: inputs.some((input) => input.id === reference.inputId),
     userMessagePresent: messages.some((message) => message.role === "user"),
     providerInvocationCount: providerInvocations.length,

@@ -9,6 +9,7 @@ import type {
   ProviderAdapter,
   ProviderEventObserver
 } from "../provider/index.js"
+import type { AgentRuntimeExecutionStageObserver } from "../execution/stage.js"
 import type { CreateStorageConfig, CoreStore } from "@wanex/storage"
 import type { ToolPermissionPolicy, ToolRegistry } from "../tools/index.js"
 import type {
@@ -65,6 +66,7 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly idleIntervalMs?: number
   readonly errorIntervalMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
+  readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
   readonly observeSessionTurnResult?: RuntimeHostSessionTurnResultObserver
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
   readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]

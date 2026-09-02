@@ -1,5 +1,6 @@
 import type { SessionTurnState } from "@wanex/protocol"
 import type { PreparedAgentContext } from "@wanex/runtime/context"
+import type { AgentRuntimeExecutionStageEvent } from "@wanex/runtime/execution"
 import { WanexRuntimeHost } from "@wanex/runtime/host"
 import { ToolRegistry } from "@wanex/runtime/tools"
 import type { CoreStore } from "@wanex/storage"
@@ -52,6 +53,10 @@ export class CodingTurnRuntime {
   readonly #observeTurn: CodingHostTurnObserver | undefined
   readonly #scopes = new CodingTurnScopeRegistry()
   readonly #settlements: CodingTurnSettlementRegistry
+  readonly #stageObservers = new Map<
+    string,
+    (event: AgentRuntimeExecutionStageEvent) => void
+  >()
   #started = false
 
   constructor(options: {
@@ -128,7 +133,10 @@ export class CodingTurnRuntime {
                 event
               })
             }
-          })
+          }),
+      observeExecutionStage: (event) => {
+        this.#stageObservers.get(event.turnId ?? "")?.(event)
+      }
     })
   }
 
@@ -140,6 +148,9 @@ export class CodingTurnRuntime {
     readonly principalId: string
     readonly agentContext: PreparedAgentContext
     readonly onSubmitted: () => Promise<void> | void
+    readonly onRuntimeStage?: (
+      event: AgentRuntimeExecutionStageEvent
+    ) => void
     readonly onStage: (
       stage: CodingTurnExecutionStage,
       modelEndpointResolution?: CodingModelEndpointResolutionState,
@@ -166,6 +177,9 @@ export class CodingTurnRuntime {
       toolPermissionPolicy: this.#options.toolPermissionPolicy
     })
     const waiter = this.#settlements.wait(request.reference)
+    if (request.onRuntimeStage !== undefined) {
+      this.#stageObservers.set(request.reference.turnId, request.onRuntimeStage)
+    }
     try {
       request.onStage("model_endpoint_resolve")
       let modelEndpointId: string | undefined
@@ -219,6 +233,12 @@ export class CodingTurnRuntime {
       if (state !== "succeeded") throw new CodingTurnDidNotSucceedError(state)
       return state
     } finally {
+      if (
+        request.onRuntimeStage !== undefined &&
+        this.#stageObservers.get(request.reference.turnId) === request.onRuntimeStage
+      ) {
+        this.#stageObservers.delete(request.reference.turnId)
+      }
       waiter.release()
       releaseScope()
     }
@@ -246,6 +266,9 @@ export class CodingTurnRuntime {
     readonly reference: CodingTurnReference
     readonly principalId: string
     readonly agentContext: PreparedAgentContext
+    readonly onRuntimeStage?: (
+      event: AgentRuntimeExecutionStageEvent
+    ) => void
     readonly recovery: import("../types.js").ResolveCodingTurnRecoveryRequest
   }): Promise<SessionTurnState> {
     if (
@@ -276,6 +299,9 @@ export class CodingTurnRuntime {
       toolPermissionPolicy: this.#options.toolPermissionPolicy
     })
     const waiter = this.#settlements.wait(request.reference)
+    if (request.onRuntimeStage !== undefined) {
+      this.#stageObservers.set(request.reference.turnId, request.onRuntimeStage)
+    }
     try {
       let receipt: import("@wanex/protocol").ResolveToolExecutionRecoveryReceipt
       try {
@@ -327,6 +353,12 @@ export class CodingTurnRuntime {
       }
       return state
     } finally {
+      if (
+        request.onRuntimeStage !== undefined &&
+        this.#stageObservers.get(request.reference.turnId) === request.onRuntimeStage
+      ) {
+        this.#stageObservers.delete(request.reference.turnId)
+      }
       waiter.release()
       releaseScope()
     }

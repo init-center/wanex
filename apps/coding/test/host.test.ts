@@ -12,9 +12,11 @@ import {
 import { AllowAllToolsPolicy } from "@wanex/runtime/tools"
 import {
   NativeChildSupervisor,
-  NativeExecutionEnvironment
+  NativeExecutionEnvironment,
+  type AgentRuntimeExecutionStage
 } from "@wanex/runtime/execution"
 import { createCodingHost } from "../src/host/start.js"
+import type { CodingHost } from "../src/host/types.js"
 import { resolveCodingExecutionEnvironmentId } from "../src/host/execution/environment.js"
 import {
   codingApplicationScope,
@@ -100,6 +102,7 @@ describe("trusted coding host repository lifecycle", () => {
             reference: first.reference,
             stage: "settlement_wait",
             modelEndpointResolution: "missing",
+            runtimeStage: "provider_invocation_started",
             inputPresent: true,
             userMessagePresent: true,
             providerInvocationCount: 1,
@@ -1225,6 +1228,11 @@ describe("trusted coding host repository lifecycle", () => {
       })
       await policy.requested
       const approval = await waitForApproval(environment.storage, operation.reference.turnId)
+      await waitForRuntimeStage(
+        host,
+        operation.reference.turnId,
+        "tool_execution_begin_completed"
+      )
       await expect(
         environment.storage.getWorkspaceTaskRun({
           runId: operation.reference.taskId
@@ -1315,3 +1323,24 @@ describe("trusted coding host repository lifecycle", () => {
   })
 
 })
+
+async function waitForRuntimeStage(
+  host: CodingHost,
+  turnId: string,
+  stage: AgentRuntimeExecutionStage
+): Promise<void> {
+  const deadline = Date.now() + 5_000
+  for (;;) {
+    const diagnostics = await host.readDiagnostics()
+    const current = diagnostics.repositories
+      .flatMap((repository) => repository.activeTurns)
+      .find((turn) => turn.reference.turnId === turnId)
+    if (current?.runtimeStage === stage) return
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Coding runtime stage did not reach ${stage} for Turn ${turnId}`
+      )
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 5))
+  }
+}

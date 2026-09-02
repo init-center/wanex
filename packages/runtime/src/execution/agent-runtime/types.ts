@@ -32,6 +32,7 @@ import type { ActiveExecutionAbortRegistry } from "../../jobs/active-abort.js"
 import type { SecretResolverPort } from "../../secrets/index.js"
 import type { SessionTurnAgentContextResolver } from "../worker/types.js"
 import type { TurnControlEventObserver } from "../worker/turn-control-observer.js"
+import type { AgentRuntimeExecutionStageObserver } from "../stage.js"
 
 export interface WanexAgentRuntimeOptions {
   readonly storage: CoreStore
@@ -50,6 +51,7 @@ export interface WanexAgentRuntimeOptions {
   readonly provider?: ProviderAdapter
   readonly fakeResponseText?: string
   readonly observeProviderEvent?: ProviderEventObserver
+  readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
   /** @internal */
   readonly activeAbortRegistry?: ActiveExecutionAbortRegistry

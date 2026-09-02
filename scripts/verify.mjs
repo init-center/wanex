@@ -29,59 +29,14 @@ export function createVerifySteps() {
       args: ["test:toolchain-doctor"]
     },
     {
-      name: "Native artifact staging tests",
+      name: "Test runner tests",
       command: "pnpm",
-      args: ["test:native-artifact"]
-    },
-    {
-      name: "Native Runtime proof tests",
-      command: "pnpm",
-      args: ["test:native-runtime-proof"]
-    },
-    {
-      name: "Host distribution budget tests",
-      command: "pnpm",
-      args: ["test:host-distribution-budget"]
-    },
-    {
-      name: "Desktop distribution receipt tests",
-      command: "pnpm",
-      args: ["test:desktop-distribution-receipt"]
-    },
-    {
-      name: "Desktop typecheck",
-      command: "pnpm",
-      args: ["check:desktop"]
-    },
-    {
-      name: "Desktop policy tests",
-      command: "pnpm",
-      args: ["test:desktop"]
-    },
-    {
-      name: "Assistant Host smoke script tests",
-      command: "pnpm",
-      args: ["test:assistant-host-smoke-script"]
-    },
-    {
-      name: "TUI demo script tests",
-      command: "pnpm",
-      args: ["test:tui-script"]
-    },
-    {
-      name: "TUI distribution tests",
-      command: "pnpm",
-      args: ["--filter", "@wanex/tui", "test", "--run", "test/distribution.test.mjs"]
+      args: ["test:runner"]
     },
     {
       name: "Verify script tests",
       command: "pnpm",
       args: ["test:verify-script"]
-    },
-    {
-      name: "Test runner tests",
-      command: "pnpm",
-      args: ["test:runner"]
     },
     {
       name: "Public contract audit tests",
@@ -137,16 +92,6 @@ export function createVerifySteps() {
       name: "Workspace hygiene audit",
       command: "pnpm",
       args: ["audit:workspace-hygiene"]
-    },
-    {
-      name: "TypeScript package checks",
-      command: "pnpm",
-      args: ["check"]
-    },
-    {
-      name: "TypeScript package tests",
-      command: "pnpm",
-      args: ["test"]
     },
     {
       name: "Public contract audit",
@@ -207,6 +152,46 @@ export function createVerifySteps() {
       name: "Package packlist audit",
       command: "pnpm",
       args: ["audit:package-packlist"]
+    },
+    {
+      name: "TypeScript package checks",
+      command: "pnpm",
+      args: ["check"]
+    },
+    {
+      name: "TypeScript package tests",
+      command: "pnpm",
+      args: ["test"]
+    },
+    {
+      name: "Native artifact staging tests",
+      command: "pnpm",
+      args: ["test:native-artifact"]
+    },
+    {
+      name: "Native Runtime proof tests",
+      command: "pnpm",
+      args: ["test:native-runtime-proof"]
+    },
+    {
+      name: "Host distribution budget tests",
+      command: "pnpm",
+      args: ["test:host-distribution-budget"]
+    },
+    {
+      name: "Desktop distribution receipt tests",
+      command: "pnpm",
+      args: ["test:desktop-distribution-receipt"]
+    },
+    {
+      name: "Assistant Host smoke script tests",
+      command: "pnpm",
+      args: ["test:assistant-host-smoke-script"]
+    },
+    {
+      name: "TUI demo script tests",
+      command: "pnpm",
+      args: ["test:tui-script"]
     },
     {
       name: "Compiled SDK release proof",

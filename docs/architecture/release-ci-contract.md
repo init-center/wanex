@@ -42,6 +42,26 @@ the same large amount of work and can remain thermally expensive on laptops.
 For normal local development, use focused checks first and run the full gate
 only at deliberate release, handoff, or CI boundaries.
 
+The order of the gate is intentional. Manifest, source-boundary, distribution,
+and facade-footprint checks run before native, desktop, and full package
+integration proofs. A cheap contract failure must not consume the time and
+thermal budget of unrelated integration tests. The exact order is owned by
+`scripts/verify.mjs` and protected by `scripts/verify.test.mjs`.
+
+The root `check` and `test` commands already traverse every workspace package,
+including Desktop and TUI. `verify` therefore does not add package-specific
+Desktop or TUI test aliases on top of them; those aliases are reserved for
+focused local work and target-specific distribution jobs. This keeps the
+release gate complete without executing the same package suite twice.
+
+The facade footprint check is a reviewed ratchet. It rejects even one byte or
+one static input of unreviewed growth, but it does not reject intentional
+growth forever. A reviewed public capability updates the exact ceiling after
+the resulting bundle, API report, package closure, and release proof have been
+inspected. This is stricter than a loose percentage budget because the default
+Runtime/App facades are architectural boundaries; it is not a substitute for
+the functional tests.
+
 Workspace package tests are orchestrated by `scripts/test.mjs`: the
 system-service binary is built once, then recursive package tests run with
 `WANEX_SKIP_SYSTEM_SERVICE_BUILD=1`. Packages that need the binary still use a
@@ -52,28 +72,19 @@ package-local runner so direct focused tests remain self-contained.
 ```bash
 pnpm doctor:toolchain
 pnpm test:toolchain-doctor
-pnpm test:native-artifact
-pnpm test:native-runtime-proof
-pnpm test:host-distribution-budget
-pnpm check:desktop
-pnpm test:desktop
-pnpm test:assistant-web-demo
-pnpm test:assistant-host-smoke-script
-pnpm test:tui-script
-pnpm test:verify-script
 pnpm test:runner
+pnpm test:verify-script
 pnpm test:public-contract-audit
 pnpm test:workspace-hygiene-audit
 pnpm test:package-packlist-audit
 pnpm test:package-governance-audit
 pnpm test:facade-footprint-audit
+pnpm test:execution-boundary-audit
 pnpm test:sdk-distribution
 pnpm test:storage-rpc-ownership-audit
 pnpm test:storage-rpc-schema
 pnpm test:storage-rpc-schema-migration-policy
 pnpm audit:workspace-hygiene
-pnpm check
-pnpm test
 pnpm audit:public-contracts
 pnpm audit:package-governance
 pnpm audit:storage-rpc-ownership
@@ -85,8 +96,17 @@ node ./scripts/audit-distribution-graph.mjs --enforce
 node ./scripts/audit-distribution-footprint.mjs --enforce
 pnpm audit:facade-footprint
 pnpm audit:package-packlist
+pnpm check
+pnpm test:native-artifact
+pnpm test:native-runtime-proof
+pnpm test:host-distribution-budget
+pnpm test:desktop-distribution-receipt
+pnpm test:assistant-host-smoke-script
+pnpm test:tui-script
+pnpm test
 pnpm release:sdk
 pnpm proof:sdk-consumers
+pnpm proof:tui
 pnpm audit:sdk-determinism
 cargo fmt -- --check
 cargo test
@@ -251,7 +271,6 @@ Use the individual commands when narrowing a failure:
 ```bash
 pnpm doctor:toolchain
 pnpm test:toolchain-doctor
-pnpm test:assistant-web-demo
 pnpm test:assistant-host-smoke-script
 pnpm test:verify-script
 pnpm test:runner

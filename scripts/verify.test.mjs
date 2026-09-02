@@ -63,24 +63,11 @@ describe("verify", () => {
     expect(stepByName(steps, "Desktop distribution receipt tests").args).toEqual([
       "test:desktop-distribution-receipt"
     ])
-    expect(stepByName(steps, "Desktop typecheck").args).toEqual([
-      "check:desktop"
-    ])
-    expect(stepByName(steps, "Desktop policy tests").args).toEqual([
-      "test:desktop"
-    ])
     expect(
       steps.some((step) => step.name === "Web application demo tests")
     ).toBe(false)
     expect(stepByName(steps, "TUI demo script tests").args).toEqual([
       "test:tui-script"
-    ])
-    expect(stepByName(steps, "TUI distribution tests").args).toEqual([
-      "--filter",
-      "@wanex/tui",
-      "test",
-      "--run",
-      "test/distribution.test.mjs"
     ])
     expect(stepByName(steps, "Packed SDK runtime consumer proofs").args).toEqual([
       "proof:sdk-consumers"
@@ -99,6 +86,39 @@ describe("verify", () => {
     expect(stepByName(steps, "Eval harness CLI smoke").args).toEqual([
       "./scripts/run-eval-harness.mjs"
     ])
+  })
+
+  it("runs cheap contract gates before expensive integration proofs", () => {
+    const steps = createVerifySteps()
+    const names = steps.map((step) => step.name)
+    const indexOf = (name) => names.indexOf(name)
+
+    expect(indexOf("Facade static footprint audit")).toBeLessThan(
+      indexOf("Native artifact staging tests")
+    )
+    expect(indexOf("TypeScript package checks")).toBeLessThan(
+      indexOf("Native artifact staging tests")
+    )
+    expect(indexOf("TypeScript package tests")).toBeLessThan(
+      indexOf("Native artifact staging tests")
+    )
+    expect(indexOf("Package governance audit")).toBeLessThan(
+      indexOf("TypeScript package tests")
+    )
+    expect(indexOf("Distribution graph audit")).toBeLessThan(
+      indexOf("TypeScript package tests")
+    )
+    expect(indexOf("Package packlist audit")).toBeLessThan(
+      indexOf("Compiled SDK release proof")
+    )
+  })
+
+  it("does not duplicate recursive workspace checks", () => {
+    const names = createVerifySteps().map((step) => step.name)
+
+    expect(names).not.toContain("Desktop typecheck")
+    expect(names).not.toContain("Desktop policy tests")
+    expect(names).not.toContain("TUI distribution tests")
   })
 })
 

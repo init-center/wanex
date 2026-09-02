@@ -61,6 +61,34 @@ interface AdmitSessionInputRequest {
     readonly sessionId: SessionId;
 }
 
+// @public
+export type AgentRuntimeExecutionStage = "worker_claimed" | "turn_attempt_started" | "input_loaded" | "context_resolved" | "provider_resolved" | "recovery_checkpoint_read" | "provider_request_prepared" | "provider_invocation_started" | "provider_invocation_succeeded" | "tool_batch_preflight_started" | "tool_batch_preflight_completed" | "tool_execution_begin_requested" | "tool_execution_begin_completed" | "tool_execution_settled" | "tool_result_persisted" | "turn_settlement_started" | "turn_settled";
+
+// @public (undocumented)
+export interface AgentRuntimeExecutionStageEvent {
+    // (undocumented)
+    readonly attemptId?: string;
+    // (undocumented)
+    readonly inputId?: string;
+    // (undocumented)
+    readonly jobId?: string;
+    // (undocumented)
+    readonly kind: "wanex-runtime.execution-stage";
+    // (undocumented)
+    readonly sessionId?: string;
+    // (undocumented)
+    readonly stage: AgentRuntimeExecutionStage;
+    // (undocumented)
+    readonly step?: number;
+    // (undocumented)
+    readonly toolCount?: number;
+    // (undocumented)
+    readonly turnId?: string;
+}
+
+// @public (undocumented)
+export type AgentRuntimeExecutionStageObserver = (event: AgentRuntimeExecutionStageEvent) => void;
+
 // @public (undocumented)
 interface AppendSessionMessageRequest {
     // (undocumented)
@@ -3320,6 +3348,8 @@ export interface SessionTurnHandlerOptions {
     readonly agentContext?: PreparedAgentContext;
     // (undocumented)
     readonly directProvider?: ProviderAdapter;
+    // (undocumented)
+    readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver;
     // (undocumented)
     readonly observeProviderEvent?: ProviderEventObserver;
     // (undocumented)

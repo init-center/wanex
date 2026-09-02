@@ -110,6 +110,19 @@ add Windows-only behavior. The next action is one hosted matrix run, followed
 by a focused correction at the exact post-approval boundary named by the
 receipt.
 
+The follow-up Coding integration boundary correction and the verification-order
+review are complete locally in:
+
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1550-route-9b-2-coding-integration-test-boundary-completion.md`
+- `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1551-route-9b-2-verification-order-and-growth-gate-review.md`
+
+The first records the explicit 30-second Coding integration-test budget and the
+reviewed Runtime execution-stage diagnostic facade growth. The second moves
+cheap contract and facade gates ahead of expensive integration proofs and
+records why the exact facade ratchet remains fail-closed. The current batch is
+ready for one local release proof and one hosted matrix submission; do not
+regenerate a baseline without review or submit one diagnostic change per CI run.
+
 Route 5E local Host consumers, durable Coding admission/observation, and
 cross-platform local transport are complete. The evidence is recorded in:
 

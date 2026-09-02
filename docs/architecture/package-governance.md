@@ -53,26 +53,27 @@ After an intentional and documented boundary change, regenerate with:
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-The current Route 2D completion baseline is:
+The current reviewed Route 9B.2 ceiling is:
 
 | Facade           |     Bytes | Static inputs | Workspace packages |
 | ---------------- | --------: | ------------: | -----------------: |
-| `@wanex/runtime` |   539,044 |           274 |                  3 |
-| `@wanex/app`     | 1,451,721 |           471 |                  4 |
+| `@wanex/runtime` |   546,829 |           278 |                  3 |
+| `@wanex/app`     | 1,462,293 |           486 |                  4 |
 
-These are reviewed ceilings, not performance targets. Phase 807 directly
-replaces placeholder compaction with model-derived semantic planning, bounded
-source serialization, durable Provider generation evidence, and active-epoch
-replay. Relative to the pre-Phase-807 ceiling, Runtime adds 15,142 bytes and App
-adds 14,879 bytes while the static input counts decrease by one. Runtime remains
-at three workspace packages and App remains at four. Assistant, Team, Plugin,
-Connector, Workspace, TUI, and presentation packages remain outside both
-default root facades.
+These are the current reviewed ceilings, not performance targets. The historical
+notes below explain the reviewed changes that led to this current ceiling.
+Phase 807 directly replaces placeholder compaction with model-derived semantic
+planning, bounded source serialization, durable Provider generation evidence,
+and active-epoch replay. Relative to the pre-Phase-807 ceiling, Runtime added
+15,142 bytes and App added 14,879 bytes while the static input counts decreased
+by one. Runtime remains at three workspace packages and App remains at four.
+Assistant, Team, Plugin, Connector, Workspace, TUI, and presentation packages
+remain outside both default root facades.
 
 The CODING-4A/4C admission work adds immutable context evidence and exact Turn
 binding without adding a static input or workspace package to either facade.
-The reviewed pre-release ceilings above include that implementation; Route 1
-changes application ownership names but does not widen either facade closure.
+The then-reviewed pre-release ceilings included that implementation; Route 1
+changed application ownership names but did not widen either facade closure.
 
 Phase 808 adds 1,143 bytes to the shared Runtime closure for independent model
 context/input/output/resource limits and truthful Tool capability enforcement.
@@ -82,7 +83,8 @@ Static input counts and workspace package sets do not change.
 Phases 809-810 add the inline capacity guard and Assistant recovery projection
 without changing either workspace package set. Phase 811 adds only the private
 Desktop leaf above Assistant Host. It changes neither facade closure;
-the reviewed exact ceilings above match the complete Phase 811 repository gate.
+the Phase 811 review established the then-current exact ceilings; later reviewed
+routes are reflected in the current values above.
 
 Phase 860 adds the App-owned Provider mutation transaction as one explicit SDK
 subpath and lets the App root invoke it only through a dynamic package-self
@@ -131,6 +133,14 @@ Route 2D adds exactly one private Runtime Resource input,
 The module is the bounded bridge from an admitted borrowed Execution Scope to
 the existing Resource Store; Plugin, Workspace, Host, Coding, and presentation
 sources remain outside both generic facades.
+
+The facade gate is a reviewed ratchet, not a claim that the product can never
+grow. Any output-byte or static-input growth fails until the change has been
+reviewed for dependency direction, public API necessity, and distribution
+impact, then the measured ceiling is deliberately regenerated in the same
+change. A failure therefore means that the baseline has not approved this
+growth; it does not mean that one additional source file is inherently
+invalid. Regenerating the baseline without that review is prohibited.
 
 CODING-3A corrects the unpublished package identity from a Host-only name to
 `@wanex/coding` without adding a package or dependency edge. The package root

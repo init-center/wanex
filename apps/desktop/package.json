@@ -36,9 +36,9 @@
   "devDependencies": {
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
-    "@electron/asar": "^4.2.1",
-    "@electron/get": "^5.0.0",
-    "@electron/packager": "^20.0.4",
+    "@electron/asar": "^4.3.0",
+    "@electron/get": "^5.1.0",
+    "@electron/packager": "^20.3.0",
     "electron": "43.2.0",
     "esbuild": "0.28.1"
   }

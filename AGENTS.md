@@ -59,19 +59,35 @@ compatibility selector, second renderer, or framework-derived product identity.
 Resource/Media expansion, mobile Device Capability Host, account sync, and
 broader upper applications remain separate product decisions.
 
-The next route is **Route 9B: Desktop Distribution Readiness**, frozen in:
+Route 9B: Desktop Distribution Readiness is complete. Its frozen plan is
+recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1542-post-route-9a-architecture-review-and-route-9b-distribution-readiness-plan.md`
 
-Route 9B owns reproducible platform packaging and CI-hosted installed proofs.
-It must prove Windows native service/named-pipe behavior, preserve the macOS
-installed proof, bound package receipts and diagnostics, and keep GitHub Actions
-jobs target-specific. The broad `pnpm verify` source gate runs once on Linux;
-target jobs run focused native/TUI/Desktop proofs. The Desktop target receipt
-is `target/distribution/desktop/desktop-distribution-receipt.json`, and is
-required by the host distribution audit. It must not add a Gateway, second Renderer, Store,
-transport, protocol command, schema version, compatibility path, or examples
-to the production dependency closure.
+Route 9B owned reproducible platform packaging and CI-hosted installed proofs.
+The broad `pnpm verify` source gate ran once on Linux; target jobs ran focused
+native/TUI/Desktop proofs. The Desktop target receipt was
+`target/distribution/desktop/desktop-distribution-receipt.json`. The route did
+not add a Gateway, second Renderer, Store, transport, protocol command, schema
+version, compatibility path, or examples to the production dependency
+closure.
+
+Route 9B is complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1557-route-9b-cross-platform-distribution-completion.md`
+
+The next route is **Route 10: Provider Product Readiness**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`
+
+Route 10 moves the project from packaging evidence to a provider-backed
+product vertical slice. It must exercise the existing OpenAI-compatible and
+Anthropic adapters through the production Host/Product path with deterministic
+local HTTP fixtures, durable tool continuation, recovery, per-turn model
+binding, capability admission, and secret isolation. Paid or network-dependent
+model calls remain opt-in local smoke only and never enter `pnpm verify` or
+ordinary CI. Do not continue mechanical package splitting, add a Gateway, add
+a schema version, or redesign the Desktop UI in this route.
 
 Route 9B.1 Platform Receipt And Focused Gate is complete for its implementation
 slice. Its evidence is recorded in:
@@ -82,12 +98,12 @@ The first Route 9B.2 correction batch is complete locally and recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1546-route-9b-2-cross-platform-corrections.md`
 
-It fixes the Desktop `window-all-closed` shutdown race that could suppress a
-Windows proof receipt, and adds the reviewed `/usr/local` Homebrew execution
-roots needed by Intel macOS Seatbelt Git. The local Desktop/Runtime tests,
-installed proof, and macOS arm64 distribution audit pass. Do not claim
-Windows support or Intel macOS support complete until the fresh hosted matrix
-provides those installed proofs. The frozen next-slice plan remains:
+It fixed the Desktop `window-all-closed` shutdown race that could suppress a
+Windows proof receipt, and added the reviewed `/usr/local` Homebrew execution
+roots needed by Intel macOS Seatbelt Git. At that point the local
+Desktop/Runtime tests, installed proof, and macOS arm64 distribution audit
+passed. The then-required hosted receipts are now complete in 1557. The
+historical next-slice plan was:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1545-route-9b-2-windows-hosted-installed-proof-plan.md`
 
@@ -102,13 +118,12 @@ failure evidence and local verification are recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1548-route-9b-2-windows-post-approval-failure-diagnostics.md`
 
-The Coding Host exposes this only to its trusted owner, and failed packaged
-Coding proofs retain only a bounded, path-free projection. This is not Windows
-completion evidence. Do not guess at the functional fix, increase proof
-timeouts, add retries, expose diagnostics through the Renderer/protocol, or
-add Windows-only behavior. The next action is one hosted matrix run, followed
-by a focused correction at the exact post-approval boundary named by the
-receipt.
+The Coding Host exposed this only to its trusted owner, and failed packaged
+Coding proofs retained only a bounded, path-free projection. This paragraph
+records the pre-1557 diagnostic policy: no guessed functional fix, proof
+timeout increase, retry, Renderer/protocol diagnostic, or Windows-only
+behavior was added. The hosted matrix subsequently identified and closed the
+queue-ownership boundary described below.
 
 The follow-up Coding integration boundary correction and the verification-order
 review are complete locally in:
@@ -121,9 +136,14 @@ reviewed Runtime execution-stage diagnostic facade growth. The second moves
 cheap contract and facade gates ahead of expensive integration proofs and
 records why the exact facade ratchet remains fail-closed.
 
-The Runtime queue-routing correction is now complete locally and recorded in:
+The Runtime queue-routing correction is complete locally and its Windows hosted
+installed proof is complete. The implementation is recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1555-route-9b-2-runtime-queue-routing-completion.md`
+
+The Windows hosted evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1556-route-9b-2-windows-hosted-installed-proof-completion.md`
 
 It fixes the shared-Store ownership race in which an Assistant Host could
 claim a Coding `session.turn` before the Coding Host invoked its Provider. The
@@ -131,15 +151,19 @@ Scheduler now persists a validated queue, Workers claim only their configured
 queue, Assistant uses `default`, and Coding uses the stable `coding` route.
 The channel repository reuses the canonical Scheduler Job projection, and the
 strict schema/API/fixture updates are complete. `pnpm verify`, all Rust tests,
-clippy, and the local package proofs pass. The exact facade baseline update is
-reviewed and records only the required Runtime queue-routing growth; dependency
-closures and input counts are unchanged.
+clippy, local package proofs, and the hosted Windows `win32-x64` installed
+distribution proof pass. The exact facade baseline update is reviewed and
+records only the required Runtime queue-routing growth; dependency closures and
+input counts are unchanged.
 
-This is still not Windows completion evidence. The next action is one
-consolidated hosted matrix run after this complete local batch. Do not add
-another timeout, retry, diagnostic, compatibility, or platform-specific
-change unless that hosted receipt identifies a new functional boundary. Do
-not regenerate a baseline without reviewing the measured closure.
+The first hosted attempt was globally marked failed only because the unrelated
+Intel macOS job could not download the Electron artifact from `github.com:443`
+within 10 seconds. A targeted rerun of that failed job on the same commit
+passed every Intel macOS step, including Electron preparation, installed
+Desktop proof, distribution audit, native release, and SDK consumers. The
+second attempt made the complete Route 9B workflow green. This was an
+infrastructure availability event, not a product defect; no timeout, retry,
+diagnostic, compatibility, or platform-specific workaround was added.
 
 Route 5E local Host consumers, durable Coding admission/observation, and
 cross-platform local transport are complete. The evidence is recorded in:

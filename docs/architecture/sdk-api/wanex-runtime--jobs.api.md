@@ -325,6 +325,8 @@ interface ClaimJobRequest {
     // (undocumented)
     readonly leaseMs: number;
     // (undocumented)
+    readonly queues?: readonly string[];
+    // (undocumented)
     readonly workerId: string;
 }
 
@@ -622,6 +624,8 @@ interface EnqueueJobRequest {
     readonly principalId: string;
     // (undocumented)
     readonly priority?: number;
+    // (undocumented)
+    readonly queue?: string;
     // (undocumented)
     readonly retryPolicy?: RetryPolicy;
     // (undocumented)
@@ -1954,6 +1958,8 @@ interface SchedulerJobRecord {
     // (undocumented)
     readonly priority: number;
     // (undocumented)
+    readonly queue: string;
+    // (undocumented)
     readonly result?: JsonValue;
     // (undocumented)
     readonly retryPolicy: RetryPolicy;
@@ -2450,6 +2456,8 @@ interface SubmitSessionTurnRequest {
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
+    readonly queue?: string;
+    // (undocumented)
     readonly regeneratesTurnId?: SessionTurnId;
     // (undocumented)
     readonly runControlPolicy?: RunControlPolicy;
@@ -2899,6 +2907,8 @@ export class WanexJobRuntime {
     // (undocumented)
     readonly events: WanexEventCore;
     // (undocumented)
+    get queue(): string;
+    // (undocumented)
     register(kind: SchedulerJobKind, handler: WorkerHandler): void;
     // (undocumented)
     runWorkerOnce(): Promise<WorkerRunOnceResult>;
@@ -2922,6 +2932,8 @@ export interface WanexJobRuntimeOptions {
     readonly kinds?: readonly SchedulerJobKind[];
     // (undocumented)
     readonly leaseMs?: number;
+    // (undocumented)
+    readonly queue?: string;
     // (undocumented)
     readonly registerMaintenanceHandlers?: boolean;
     // (undocumented)
@@ -3053,6 +3065,8 @@ interface WanexSessionCoreOptions {
 export class WanexWorker {
     constructor(options: WanexWorkerOptions);
     // (undocumented)
+    get queue(): string;
+    // (undocumented)
     register(kind: SchedulerJobKind, handler: WorkerHandler): void;
     // (undocumented)
     runOnce(): Promise<WorkerRunOnceResult>;
@@ -3068,6 +3082,8 @@ export interface WanexWorkerOptions {
     readonly kinds?: readonly SchedulerJobKind[];
     // (undocumented)
     readonly leaseMs: number;
+    // (undocumented)
+    readonly queue?: string;
     // (undocumented)
     readonly session: WanexSessionCore;
     // (undocumented)

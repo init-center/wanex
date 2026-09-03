@@ -4,7 +4,7 @@ use crate::rows::{
     row_to_channel_binding, row_to_channel_delivery, row_to_channel_inbound_event,
     row_to_channel_projection, row_to_scheduler_job,
 };
-use crate::scheduler::{complete_job_tx, enqueue_job_tx, fail_job_tx};
+use crate::scheduler::{complete_job_tx, enqueue_job_tx, fail_job_tx, JOB_SELECT};
 use crate::{
     ChannelBindingRecord, ChannelDeliveryAcknowledgement, ChannelDeliveryRecord,
     ChannelDeliverySubmission, ChannelInboundEventRecord, ChannelProjectionReceipt,
@@ -40,13 +40,6 @@ const CHANNEL_PROJECTION_SELECT: &str = "SELECT
     id, inbound_event_id, target_kind, target_id, target_job_id,
     state, target_json, metadata_json, idempotency_key, created_at, updated_at
  FROM channel_projection";
-
-const SCHEDULER_JOB_SELECT: &str = "SELECT
-    id, kind, state, principal_id, payload_json, scheduled_at, not_before,
-    priority, concurrency_key, attempt, max_attempts, retry_policy_json, idempotency_key,
-    budget_grant_id, lease_owner, lease_token, lease_expires_at,
-    result_json, last_error_json, created_at, updated_at, finished_at
- FROM scheduler_job";
 
 impl SystemService {
     pub fn put_channel_binding(&self, request: &PutChannelBinding) -> Result<ChannelBindingRecord> {
@@ -476,6 +469,7 @@ impl SystemService {
             &EnqueueJob {
                 id: request.job_id.clone(),
                 kind: SchedulerJobKind::ChannelDelivery,
+                queue: None,
                 principal_id: request.principal_id.clone(),
                 payload: serde_json::json!({
                     "deliveryId": id,
@@ -1151,7 +1145,7 @@ fn get_scheduler_job_by_id_tx(
     job_id: &str,
 ) -> Result<SchedulerJobRecord> {
     tx.query_row(
-        &format!("{SCHEDULER_JOB_SELECT} WHERE id = ?"),
+        &format!("{JOB_SELECT} WHERE id = ?"),
         params![job_id],
         row_to_scheduler_job,
     )
@@ -1227,6 +1221,7 @@ fn submit_session_turn_projection_tx(
                 .or_else(|| Some(format!("turn_{projection_id}"))),
             session_id: target.session_id.clone(),
             principal_id: target.principal_id.clone(),
+            queue: None,
             idempotency_key: format!("channel.projection:{inbound_event_id}:session.turn"),
             input_type: target.input_type.clone(),
             content: target.content.clone(),
@@ -1296,6 +1291,7 @@ fn enqueue_workspace_task_projection_tx(
                 .clone()
                 .or_else(|| Some(format!("job_{projection_id}"))),
             kind: SchedulerJobKind::WorkspaceTask,
+            queue: None,
             principal_id: target.principal_id.clone(),
             payload: workspace_task_payload(target),
             scheduled_at: target.scheduled_at,

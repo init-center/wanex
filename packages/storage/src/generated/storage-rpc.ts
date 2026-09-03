@@ -178,6 +178,8 @@ export type SchedulerJobKindWire =
 export type NullableRetryPolicyWire = RetryPolicyWire | null;
 export type NullableSchedulerJobKindsWire = SchedulerJobKindsWire | null;
 export type SchedulerJobKindsWire = SchedulerJobKindWire[];
+export type NullableStringArrayWire = StringArrayWire | null;
+export type StringArrayWire = string[];
 export type NullableSchedulerJobStateWire = SchedulerJobStateWire | null;
 export type SchedulerJobStateWire =
   "pending" | "ready" | "running" | "waiting" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
@@ -822,6 +824,7 @@ export interface SubmitSessionTurnWire {
   turn_id: NullableString;
   session_id: string;
   principal_id: string;
+  queue: NullableString;
   idempotency_key: string;
   input_type: ("user" | "system") | null;
   content: MessagePartsWire;
@@ -1203,6 +1206,7 @@ export interface EnqueueJobCommand {
 export interface EnqueueJobWire {
   id: NullableString;
   kind: SchedulerJobKindWire;
+  queue: NullableString;
   principal_id: string;
   payload: JsonValue;
   scheduled_at: NullableInteger;
@@ -1227,6 +1231,7 @@ export interface ClaimJobWire {
   worker_id: string;
   lease_ms: number;
   kinds: NullableSchedulerJobKindsWire;
+  queues: NullableStringArrayWire;
 }
 export interface HeartbeatJobCommand {
   command: "heartbeat-job";
@@ -3192,4 +3197,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "92e8aa36101180826326daef4c1dd47b772d655acff97d72cf8ec04db97e122d" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "3f9d0ee9921d2d51b8994eb92865a366eee69bf4949390d292a0ade53b059e2b" as const

@@ -94,6 +94,7 @@ export function toRpcSubmitSessionTurnRequest(
     turn_id: request.turnId ?? null,
     session_id: request.sessionId,
     principal_id: request.principalId,
+    queue: request.queue ?? null,
     idempotency_key: request.idempotencyKey,
     input_type: request.inputType ?? null,
     content: messagePartsToJson(request.content),

@@ -6,10 +6,12 @@ use crate::{
     ListJobs, Result, RetryPolicy, RetryStrategy, SchedulerJobRecord, SystemService,
     SystemServiceError,
 };
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, params_from_iter, types::Value as SqlValue, OptionalExtension};
 use uuid::Uuid;
 
-const JOB_SELECT: &str = "SELECT id, kind, state, principal_id, payload_json,
+pub(crate) const DEFAULT_SCHEDULER_QUEUE: &str = "default";
+
+pub(crate) const JOB_SELECT: &str = "SELECT id, kind, queue, state, principal_id, payload_json,
     scheduled_at, not_before, priority, concurrency_key, attempt, max_attempts,
     retry_policy_json, idempotency_key, budget_grant_id,
     lease_owner, lease_token, lease_expires_at, result_json, last_error_json,
@@ -43,6 +45,7 @@ impl SystemService {
                 "job lease_ms must be positive".to_string(),
             ));
         }
+        validate_claim_queues(request.queues.as_deref())?;
         let now = crate::util::now_ms();
         let lease_expires_at = now + request.lease_ms;
         let lease_token = format!("joblease_{}", Uuid::now_v7());
@@ -50,7 +53,12 @@ impl SystemService {
         let tx = crate::db::begin_write_transaction(&mut conn)?;
         reset_expired_leases_tx(&tx, now)?;
 
-        let candidates = ready_candidates_tx(&tx, now, request.kinds.as_deref())?;
+        let candidates = ready_candidates_tx(
+            &tx,
+            now,
+            request.kinds.as_deref(),
+            request.queues.as_deref(),
+        )?;
         let Some(job_id) = candidates.first().cloned() else {
             tx.commit()?;
             return Ok(None);
@@ -76,6 +84,7 @@ impl SystemService {
             tx.commit()?;
             return Ok(None);
         }
+        let claimed_job = get_job_tx(&tx, &job_id)?;
         append_scheduler_event_tx(
             &tx,
             "scheduler.job.claimed",
@@ -83,13 +92,13 @@ impl SystemService {
             &serde_json::json!({
                 "jobId": job_id,
                 "workerId": request.worker_id,
+                "queue": claimed_job.queue,
                 "leaseExpiresAt": lease_expires_at
             }),
             now,
         )?;
-        let job = get_job_tx(&tx, &job_id)?;
         tx.commit()?;
-        Ok(Some(job))
+        Ok(Some(claimed_job))
     }
 
     pub fn heartbeat_job(&self, request: &HeartbeatJob) -> Result<Option<SchedulerJobRecord>> {
@@ -295,6 +304,7 @@ pub(crate) fn enqueue_job_tx(
     let retry_policy = request.retry_policy.clone().unwrap_or_default();
     let priority = request.priority.unwrap_or(0);
     let max_attempts = request.max_attempts.unwrap_or(1);
+    let queue = request.queue.as_deref().unwrap_or(DEFAULT_SCHEDULER_QUEUE);
 
     if let Some(idempotency_key) = &request.idempotency_key {
         if let Some(existing) = find_job_by_idempotency_tx(tx, idempotency_key)? {
@@ -304,16 +314,17 @@ pub(crate) fn enqueue_job_tx(
 
     tx.execute(
         "INSERT INTO scheduler_job (
-            id, kind, state, principal_id, payload_json,
+            id, kind, queue, state, principal_id, payload_json,
             scheduled_at, not_before, priority, concurrency_key, attempt, max_attempts,
             retry_policy_json, idempotency_key, budget_grant_id,
             lease_owner, lease_token, lease_expires_at, result_json, last_error_json,
             created_at, updated_at, finished_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?,
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?,
                    NULL, NULL, NULL, NULL, NULL, ?, ?, NULL)",
         params![
             id,
             request.kind.as_str(),
+            queue,
             state,
             request.principal_id,
             serde_json::to_string(&request.payload)?,
@@ -336,6 +347,7 @@ pub(crate) fn enqueue_job_tx(
         &serde_json::json!({
             "jobId": id,
             "kind": request.kind.as_str(),
+            "queue": queue,
             "state": state,
             "concurrencyKey": request.concurrency_key
         }),
@@ -673,6 +685,34 @@ fn validate_enqueue(request: &EnqueueJob) -> Result<()> {
             "max_attempts must be positive".to_string(),
         ));
     }
+    validate_queue(request.queue.as_deref())?;
+    Ok(())
+}
+
+fn validate_claim_queues(queues: Option<&[String]>) -> Result<()> {
+    if let Some(queues) = queues {
+        for queue in queues {
+            validate_queue(Some(queue))?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_queue(queue: Option<&str>) -> Result<()> {
+    let Some(queue) = queue else {
+        return Ok(());
+    };
+    if queue.is_empty()
+        || queue.len() > 128
+        || !queue
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+    {
+        return Err(SystemServiceError::InvalidJobRequest(
+            "job queue must be a non-empty opaque identifier of at most 128 ASCII letters, digits, '.', '_' or '-'"
+                .to_string(),
+        ));
+    }
     Ok(())
 }
 
@@ -751,59 +791,73 @@ fn ready_candidates_tx(
     tx: &rusqlite::Transaction<'_>,
     now: i64,
     kinds: Option<&[crate::SchedulerJobKind]>,
+    queues: Option<&[String]>,
 ) -> Result<Vec<String>> {
-    let mut stmt = tx.prepare(
-        "SELECT candidate.id, candidate.kind
-         FROM scheduler_job candidate
-         WHERE candidate.state IN ('pending', 'ready', 'retry_scheduled')
-           AND COALESCE(candidate.not_before, candidate.scheduled_at) <= ?
-           AND (
-             candidate.concurrency_key IS NULL
-             OR NOT EXISTS (
-               SELECT 1 FROM scheduler_job active
-               WHERE active.concurrency_key = candidate.concurrency_key
-                 AND active.id != candidate.id
-                 AND active.state = 'running'
-             )
-           )
-           AND (
-             candidate.kind != 'session.turn'
-             OR NOT EXISTS (
-               SELECT 1 FROM scheduler_job earlier
-               WHERE earlier.concurrency_key = candidate.concurrency_key
-                 AND earlier.kind = 'session.turn'
-                 AND earlier.id != candidate.id
-                 AND earlier.state NOT IN ('succeeded', 'failed', 'cancelled')
-                 AND (
-                   earlier.created_at < candidate.created_at
-                   OR (earlier.created_at = candidate.created_at AND earlier.id < candidate.id)
-                 )
-             )
-           )
-         ORDER BY candidate.priority DESC, candidate.scheduled_at ASC, candidate.id ASC
-         LIMIT 128",
-    )?;
-    let rows = stmt.query_map(params![now], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
-    let allowed = kinds.map(|values| {
-        values
-            .iter()
-            .map(|kind| kind.as_str())
-            .collect::<std::collections::HashSet<_>>()
-    });
-    let mut candidates = Vec::new();
-    for row in rows {
-        let (id, kind) = row?;
-        if allowed
-            .as_ref()
-            .is_none_or(|allowed| allowed.contains(kind.as_str()))
-        {
-            candidates.push(id);
-            break;
-        }
+    if kinds.is_some_and(|values| values.is_empty())
+        || queues.is_some_and(|values| values.is_empty())
+    {
+        return Ok(Vec::new());
     }
-    Ok(candidates)
+    let mut clauses = vec![
+        "candidate.state IN ('pending', 'ready', 'retry_scheduled')".to_string(),
+        "COALESCE(candidate.not_before, candidate.scheduled_at) <= ?".to_string(),
+        "(candidate.concurrency_key IS NULL OR NOT EXISTS (
+             SELECT 1 FROM scheduler_job active
+             WHERE active.concurrency_key = candidate.concurrency_key
+               AND active.id != candidate.id
+               AND active.state = 'running'
+         ))"
+        .to_string(),
+        "(candidate.kind != 'session.turn' OR NOT EXISTS (
+             SELECT 1 FROM scheduler_job earlier
+             WHERE earlier.concurrency_key = candidate.concurrency_key
+               AND earlier.kind = 'session.turn'
+               AND earlier.id != candidate.id
+               AND earlier.state NOT IN ('succeeded', 'failed', 'cancelled')
+               AND (
+                 earlier.created_at < candidate.created_at
+                 OR (earlier.created_at = candidate.created_at AND earlier.id < candidate.id)
+               )
+         ))"
+        .to_string(),
+    ];
+    let mut values = vec![SqlValue::Integer(now)];
+    if let Some(kinds) = kinds {
+        clauses.push(format!(
+            "candidate.kind IN ({})",
+            std::iter::repeat_n("?", kinds.len())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        values.extend(
+            kinds
+                .iter()
+                .map(|kind| SqlValue::Text(kind.as_str().to_string())),
+        );
+    }
+    if let Some(queues) = queues {
+        clauses.push(format!(
+            "candidate.queue IN ({})",
+            std::iter::repeat_n("?", queues.len())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        values.extend(queues.iter().cloned().map(SqlValue::Text));
+    }
+    let sql = format!(
+        "SELECT candidate.id
+         FROM scheduler_job candidate
+         WHERE {}
+         ORDER BY candidate.priority DESC, candidate.scheduled_at ASC, candidate.id ASC
+         LIMIT 1",
+        clauses.join(" AND ")
+    );
+    let mut stmt = tx.prepare(&sql)?;
+    let rows = stmt.query_map(params_from_iter(values), |row| row.get::<_, String>(0))?;
+    let Some(row) = rows.into_iter().next() else {
+        return Ok(Vec::new());
+    };
+    Ok(vec![row?])
 }
 
 pub(crate) fn append_scheduler_event_tx(

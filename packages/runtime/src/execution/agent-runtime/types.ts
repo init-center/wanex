@@ -37,6 +37,7 @@ import type { AgentRuntimeExecutionStageObserver } from "../stage.js"
 export interface WanexAgentRuntimeOptions {
   readonly storage: CoreStore
   readonly workerId?: string
+  readonly queue?: string
   readonly leaseMs?: number
   readonly heartbeatIntervalMs?: number
   readonly timeoutMs?: number

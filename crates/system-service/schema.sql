@@ -1275,6 +1275,7 @@ CREATE INDEX IF NOT EXISTS idx_budget_usage_entry_grant
 CREATE TABLE IF NOT EXISTS scheduler_job (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
+  queue TEXT NOT NULL,
   state TEXT NOT NULL,
   principal_id TEXT NOT NULL,
   payload_json TEXT NOT NULL,
@@ -1302,6 +1303,9 @@ CREATE INDEX IF NOT EXISTS idx_scheduler_job_ready
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_job_kind_state
   ON scheduler_job(kind, state, updated_at);
+
+CREATE INDEX IF NOT EXISTS idx_scheduler_job_queue_state
+  ON scheduler_job(queue, state, scheduled_at, id);
 
 CREATE INDEX IF NOT EXISTS idx_scheduler_job_concurrency
   ON scheduler_job(concurrency_key, state, scheduled_at, id);
@@ -1350,4 +1354,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (20, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (21, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

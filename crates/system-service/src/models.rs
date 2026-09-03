@@ -2430,12 +2430,12 @@ pub struct DeferToolExecution {
 pub enum DeferredToolOperationReceipt {
     MediaGeneration {
         record: Box<MediaGenerationOperationRecord>,
-        job: SchedulerJobRecord,
+        job: Box<SchedulerJobRecord>,
     },
     TeamDelegation {
         record: Box<TeamDelegationOperationRecord>,
         tasks: Vec<TeamDelegationTaskRecord>,
-        graph: DelegationGraphRecord,
+        graph: Box<DelegationGraphRecord>,
         nodes: Vec<DelegationGraphNodeRecord>,
         dependencies: Vec<DelegationGraphDependencyRecord>,
         jobs: Vec<SchedulerJobRecord>,
@@ -2729,6 +2729,7 @@ pub struct SubmitSessionTurn {
     pub turn_id: Option<String>,
     pub session_id: String,
     pub principal_id: String,
+    pub queue: Option<String>,
     pub idempotency_key: String,
     pub input_type: Option<String>,
     pub content: Value,
@@ -3038,6 +3039,7 @@ impl Default for RetryPolicy {
 pub struct EnqueueJob {
     pub id: Option<String>,
     pub kind: SchedulerJobKind,
+    pub queue: Option<String>,
     pub principal_id: String,
     pub payload: Value,
     pub scheduled_at: Option<i64>,
@@ -3055,6 +3057,7 @@ pub struct ClaimJob {
     pub worker_id: String,
     pub lease_ms: i64,
     pub kinds: Option<Vec<SchedulerJobKind>>,
+    pub queues: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -3103,6 +3106,7 @@ pub struct ListJobs {
 pub struct SchedulerJobRecord {
     pub id: String,
     pub kind: String,
+    pub queue: String,
     pub state: String,
     pub principal_id: String,
     pub payload: Value,

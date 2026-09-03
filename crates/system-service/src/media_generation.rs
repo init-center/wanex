@@ -61,6 +61,7 @@ impl SystemService {
             &EnqueueJob {
                 id: Some(job_id.clone()),
                 kind: SchedulerJobKind::MediaGenerate,
+                queue: None,
                 principal_id: request.principal_id.clone(),
                 payload: json!({ "operationId": operation_id }),
                 scheduled_at: None,
@@ -141,6 +142,7 @@ impl SystemService {
             &EnqueueJob {
                 id: Some(media_job_id.clone()),
                 kind: SchedulerJobKind::MediaGenerate,
+                queue: None,
                 principal_id: owner.tool_execution.principal_id.clone(),
                 payload: json!({ "operationId": operation_id }),
                 scheduled_at: None,
@@ -1048,7 +1050,7 @@ fn deferred_receipt_tx(
         )?,
         operation: DeferredToolOperationReceipt::MediaGeneration {
             record: Box::new(operation),
-            job,
+            job: Box::new(job),
         },
     })
 }

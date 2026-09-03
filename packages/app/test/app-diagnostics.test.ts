@@ -48,6 +48,7 @@ describe("@wanex/app/diagnostics", () => {
         {
           id: "job_failed",
           kind: "plugin.action",
+          queue: "default",
           state: "failed",
           principalId: "principal",
           payload: {
@@ -66,6 +67,7 @@ describe("@wanex/app/diagnostics", () => {
         {
           id: "job_memory",
           kind: "memory.compaction",
+          queue: "default",
           state: "succeeded",
           principalId: "principal",
           payload: {
@@ -148,6 +150,7 @@ describe("@wanex/app/diagnostics", () => {
         {
           id: "job_raw",
           kind: "plugin.action",
+          queue: "default",
           state: "failed",
           principalId: "principal",
           payload: {
@@ -529,7 +532,7 @@ describe("@wanex/app/diagnostics", () => {
 
     expect(bundle.generatedAt).toBe(1_000)
     expect(bundle.doctor).toMatchObject({
-      schemaVersion: 20
+      schemaVersion: 21
     })
     expect(bundle.modelEndpoints).toEqual([
       expect.objectContaining({

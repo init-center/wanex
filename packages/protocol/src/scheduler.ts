@@ -15,6 +15,8 @@ export type SchedulerJobKind =
   | "config.sync"
   | "media.generate"
 
+export const DEFAULT_SCHEDULER_QUEUE = "default" as const
+
 export type SchedulerJobState =
   | "pending"
   | "ready"
@@ -34,6 +36,7 @@ export interface RetryPolicy {
 export interface EnqueueJobRequest {
   readonly id?: string
   readonly kind: SchedulerJobKind
+  readonly queue?: string
   readonly principalId: string
   readonly payload: JsonValue
   readonly scheduledAt?: number
@@ -50,6 +53,7 @@ export interface ClaimJobRequest {
   readonly workerId: string
   readonly leaseMs: number
   readonly kinds?: readonly SchedulerJobKind[]
+  readonly queues?: readonly string[]
 }
 
 export interface HeartbeatJobRequest {
@@ -91,6 +95,7 @@ export interface ListJobsRequest {
 export interface SchedulerJobRecord {
   readonly id: string
   readonly kind: SchedulerJobKind
+  readonly queue: string
   readonly state: SchedulerJobState
   readonly principalId: string
   readonly payload: JsonValue

@@ -46,7 +46,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 20
+const expectedSchemaVersion = 21
 
 const tempDirs: string[] = []
 let testStorageHandle: StorageHandle | undefined
@@ -75,6 +75,40 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/host", () => {
+  it("isolates Session Turn workers by agent queue on one shared Store", async () => {
+    const assistantProvider = new CountingProvider("assistant")
+    const codingProvider = new CountingProvider("coding")
+    const assistantHost = await createHost({ provider: assistantProvider })
+    const codingHost = await createHost({
+      agentQueue: "coding",
+      provider: codingProvider
+    })
+    try {
+      const submitted = await codingHost.submitUserTurn({
+        content: [{ type: "text", text: "run in the coding host" }],
+        sessionId: "ses_host_queue_routing"
+      })
+      expect(submitted.receipt.job.queue).toBe("coding")
+
+      const assistantRun = await assistantHost.runOnce()
+      expect(assistantRun.results.map((result) => result.worker.status)).toEqual([
+        "idle"
+      ])
+      expect(assistantProvider.calls).toBe(0)
+      expect(codingProvider.calls).toBe(0)
+
+      const codingRun = await codingHost.runOnce()
+      expect(codingRun.results.map((result) => result.worker.status)).toEqual([
+        "completed"
+      ])
+      expect(assistantProvider.calls).toBe(0)
+      expect(codingProvider.calls).toBe(1)
+    } finally {
+      await codingHost.dispose()
+      await assistantHost.dispose()
+    }
+  })
+
   it("propagates exact follow-up head admission through the host", async () => {
     const host = await createHost({ provider: new ConcurrentProbeProvider() })
     try {
@@ -1289,6 +1323,21 @@ class ConcurrentProbeProvider implements ProviderAdapter {
   }
 }
 
+class CountingProvider extends ConcurrentProbeProvider {
+  calls = 0
+
+  constructor(private readonly label: string) {
+    super()
+  }
+
+  override async *stream(
+    _request: ProviderRequest
+  ): AsyncIterable<ProviderEvent> {
+    this.calls += 1
+    yield* textEvents(`${this.label} response`)
+  }
+}
+
 class DispatchProbeProvider extends ConcurrentProbeProvider {
   readonly started = deferred<void>()
 
@@ -1658,6 +1707,7 @@ function schedulerJob(
   return {
     id: overrides.id,
     kind: overrides.kind ?? "session.turn",
+    queue: overrides.queue ?? "default",
     state: overrides.state ?? "ready",
     principalId: overrides.principalId ?? "principal",
     payload: overrides.payload ?? {},

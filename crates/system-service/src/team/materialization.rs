@@ -71,6 +71,7 @@ impl SystemService {
                 turn_id: Some(plan.turn_id.clone()),
                 session_id: plan.session_id.clone(),
                 principal_id: plan.principal_id.clone(),
+                queue: None,
                 idempotency_key: plan.input_idempotency_key.clone(),
                 input_type: Some(plan.input_type.clone()),
                 content: plan.content.clone(),

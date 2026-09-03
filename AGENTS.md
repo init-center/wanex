@@ -119,9 +119,27 @@ review are complete locally in:
 The first records the explicit 30-second Coding integration-test budget and the
 reviewed Runtime execution-stage diagnostic facade growth. The second moves
 cheap contract and facade gates ahead of expensive integration proofs and
-records why the exact facade ratchet remains fail-closed. The current batch is
-ready for one local release proof and one hosted matrix submission; do not
-regenerate a baseline without review or submit one diagnostic change per CI run.
+records why the exact facade ratchet remains fail-closed.
+
+The Runtime queue-routing correction is now complete locally and recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1555-route-9b-2-runtime-queue-routing-completion.md`
+
+It fixes the shared-Store ownership race in which an Assistant Host could
+claim a Coding `session.turn` before the Coding Host invoked its Provider. The
+Scheduler now persists a validated queue, Workers claim only their configured
+queue, Assistant uses `default`, and Coding uses the stable `coding` route.
+The channel repository reuses the canonical Scheduler Job projection, and the
+strict schema/API/fixture updates are complete. `pnpm verify`, all Rust tests,
+clippy, and the local package proofs pass. The exact facade baseline update is
+reviewed and records only the required Runtime queue-routing growth; dependency
+closures and input counts are unchanged.
+
+This is still not Windows completion evidence. The next action is one
+consolidated hosted matrix run after this complete local batch. Do not add
+another timeout, retry, diagnostic, compatibility, or platform-specific
+change unless that hosted receipt identifies a new functional boundary. Do
+not regenerate a baseline without reviewing the measured closure.
 
 Route 5E local Host consumers, durable Coding admission/observation, and
 cross-platform local transport are complete. The evidence is recorded in:

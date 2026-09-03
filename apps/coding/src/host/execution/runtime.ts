@@ -44,6 +44,8 @@ import { codingStartDigest } from "../repository/admission.js"
 
 type CodingStore = CoreStore & WorkspaceStore
 
+const CODING_RUNTIME_QUEUE = "coding"
+
 export class CodingTurnDidNotSucceedError extends Error {
   constructor(readonly turnState: SessionTurnState) {
     super(`coding Turn finished in state ${turnState}`)
@@ -95,6 +97,7 @@ export class CodingTurnRuntime {
     this.#host = new WanexRuntimeHost({
       storage: options.storage,
       workerCount: options.execution.workerCount ?? 1,
+      agentQueue: CODING_RUNTIME_QUEUE,
       resolveAgentContext: this.#scopes.resolve,
       observeSessionTurnResult: this.#settlements.observe,
       ...(options.execution.modelEndpointId === undefined ||

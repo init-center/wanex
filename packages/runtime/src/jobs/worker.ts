@@ -1,8 +1,9 @@
-import type {
-  JsonValue,
-  SchedulerJobKind,
-  SchedulerJobRecord
+import {
+  DEFAULT_SCHEDULER_QUEUE,
+  type SchedulerJobKind,
+  type SchedulerJobRecord
 } from "@wanex/protocol"
+import type { JsonValue } from "@wanex/protocol"
 import { isWorkerAcknowledgedResult } from "./acknowledged.js"
 import {
   ActiveExecutionAbortRegistry,
@@ -23,6 +24,7 @@ import { normalizeError, workerFailurePayload } from "./worker-error.js"
 export class WanexWorker {
   private readonly session: WanexWorkerOptions["session"]
   private readonly workerId: string
+  private readonly schedulerQueue: string
   private readonly leaseMs: number
   private readonly heartbeatIntervalMs: number
   private readonly timeoutMs: number | undefined
@@ -45,6 +47,7 @@ export class WanexWorker {
     }
     this.session = options.session
     this.workerId = options.workerId
+    this.schedulerQueue = options.queue ?? DEFAULT_SCHEDULER_QUEUE
     this.leaseMs = options.leaseMs
     this.heartbeatIntervalMs =
       options.heartbeatIntervalMs ?? Math.max(1_000, Math.floor(options.leaseMs / 3))
@@ -61,6 +64,10 @@ export class WanexWorker {
     this.handlers.set(kind, handler)
   }
 
+  get queue(): string {
+    return this.schedulerQueue
+  }
+
   start(options: WorkerLoopOptions = {}): WorkerLoop {
     return startWorkerLoop(this, options)
   }
@@ -69,6 +76,7 @@ export class WanexWorker {
     const job = await this.session.claimJob({
       workerId: this.workerId,
       leaseMs: this.leaseMs,
+      queues: [this.schedulerQueue],
       ...(this.kinds === undefined ? {} : { kinds: this.kinds })
     })
     if (job === null) {

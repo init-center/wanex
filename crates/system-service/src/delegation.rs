@@ -678,6 +678,7 @@ impl SystemService {
             &EnqueueJob {
                 id: request.job_id.clone(),
                 kind: request.job_kind,
+                queue: None,
                 principal_id: existing.principal_id.clone(),
                 payload: job_payload,
                 scheduled_at: request.scheduled_at,

@@ -12,6 +12,7 @@ import type {
 export interface WanexWorkerOptions {
   readonly session: WanexSessionCore
   readonly workerId: string
+  readonly queue?: string
   readonly leaseMs: number
   readonly heartbeatIntervalMs?: number
   readonly timeoutMs?: number

@@ -818,6 +818,7 @@ function sessionsRequests() {
         session_id: "ses_schema",
         principal_id: "user_schema",
         idempotency_key: "idem_submit_schema",
+        queue: null,
         input_type: null,
         content,
         origin: null,
@@ -1194,6 +1195,7 @@ function schedulerRequests() {
       request: {
         id: null,
         kind: "memory.compaction",
+        queue: null,
         principal_id: "user_schema",
         payload: { sessionId: "ses_schema" },
         scheduled_at: null,
@@ -1208,7 +1210,7 @@ function schedulerRequests() {
     },
     {
       command: "claim-job",
-      request: { worker_id: "worker_schema", lease_ms: 60000, kinds: null }
+      request: { worker_id: "worker_schema", lease_ms: 60000, kinds: null, queues: null }
     },
     { command: "heartbeat-job", request: { ...jobRef, lease_ms: 60000 } },
     { command: "complete-job", request: { ...jobRef, result: null } },

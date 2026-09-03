@@ -147,6 +147,7 @@ function jobRecord(state: SchedulerJobState): SchedulerJobRecord {
   return {
     id: "job_execution_reference",
     kind: "plugin.action",
+    queue: "default",
     state,
     principalId: "principal-secret",
     payload: { value: "secret-payload" },

@@ -1428,6 +1428,8 @@ interface SchedulerJobRecord {
     // (undocumented)
     readonly priority: number;
     // (undocumented)
+    readonly queue: string;
+    // (undocumented)
     readonly result?: JsonValue;
     // (undocumented)
     readonly retryPolicy: RetryPolicy;

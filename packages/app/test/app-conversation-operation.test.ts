@@ -1054,7 +1054,7 @@ describe("@wanex/app durable conversation operations", () => {
     try {
       await app.dispose()
       await expect(storage.core.doctor()).resolves.toMatchObject({
-        schemaVersion: 20
+        schemaVersion: 21
       })
     } finally {
       await app.dispose()

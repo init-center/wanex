@@ -38,6 +38,7 @@ export function toRpcEnqueueJobRequest(request: EnqueueJobRequest): EnqueueJobWi
   return {
     id: request.id ?? null,
     kind: request.kind,
+    queue: request.queue ?? null,
     principal_id: request.principalId,
     payload: toRpcJsonValue(request.payload),
     scheduled_at: request.scheduledAt ?? null,
@@ -62,7 +63,8 @@ export function toRpcClaimJobRequest(request: ClaimJobRequest): ClaimJobWire {
   return {
     worker_id: request.workerId,
     lease_ms: request.leaseMs,
-    kinds: request.kinds === undefined ? null : [...request.kinds]
+    kinds: request.kinds === undefined ? null : [...request.kinds],
+    queues: request.queues === undefined ? null : [...request.queues]
   }
 }
 
@@ -127,6 +129,7 @@ export function fromRpcSchedulerJobRecord(
   const record = {
     id: expectString(value.id, "job.id"),
     kind: expectSchedulerJobKind(value.kind),
+    queue: expectString(value.queue, "job.queue"),
     state: expectSchedulerJobState(value.state),
     principalId: expectString(value.principal_id, "job.principal_id"),
     payload: (value.payload ?? null) as JsonValue,

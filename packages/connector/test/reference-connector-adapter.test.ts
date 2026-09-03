@@ -137,6 +137,7 @@ function fakeDeliveryJob(): SchedulerJobRecord {
   return {
     id: "job_reference_wrong_kind",
     kind: "channel.delivery",
+    queue: "default",
     state: "running",
     principalId: "principal_reference",
     payload: null,

@@ -944,6 +944,8 @@ interface ClaimJobRequest {
     // (undocumented)
     readonly leaseMs: number;
     // (undocumented)
+    readonly queues?: readonly string[];
+    // (undocumented)
     readonly workerId: string;
 }
 
@@ -953,6 +955,8 @@ export interface ClaimJobWire {
     kinds: NullableSchedulerJobKindsWire;
     // (undocumented)
     lease_ms: number;
+    // (undocumented)
+    queues: NullableStringArrayWire;
     // (undocumented)
     worker_id: string;
 }
@@ -1972,6 +1976,8 @@ interface EnqueueJobRequest {
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
+    readonly queue?: string;
+    // (undocumented)
     readonly retryPolicy?: RetryPolicy;
     // (undocumented)
     readonly scheduledAt?: number;
@@ -1999,6 +2005,8 @@ export interface EnqueueJobWire {
     principal_id: string;
     // (undocumented)
     priority: NullableInteger;
+    // (undocumented)
+    queue: NullableString;
     // (undocumented)
     retry_policy: NullableRetryPolicyWire;
     // (undocumented)
@@ -5130,6 +5138,9 @@ export type NullableSessionTurnStateWire = SessionTurnStateWire | null;
 export type NullableString = string | null;
 
 // @public (undocumented)
+export type NullableStringArrayWire = StringArrayWire | null;
+
+// @public (undocumented)
 export type NullableTeamConversationModeWire = TeamConversationModeWire | null;
 
 // @public (undocumented)
@@ -7128,6 +7139,8 @@ interface SchedulerJobRecord {
     // (undocumented)
     readonly priority: number;
     // (undocumented)
+    readonly queue: string;
+    // (undocumented)
     readonly result?: JsonValue_2;
     // (undocumented)
     readonly retryPolicy: RetryPolicy;
@@ -7932,7 +7945,7 @@ export interface SteerSessionTurnWire {
 }
 
 // @public (undocumented)
-export const STORAGE_RPC_SCHEMA_SHA256: "92e8aa36101180826326daef4c1dd47b772d655acff97d72cf8ec04db97e122d";
+export const STORAGE_RPC_SCHEMA_SHA256: "3f9d0ee9921d2d51b8994eb92865a366eee69bf4949390d292a0ade53b059e2b";
 
 // @public (undocumented)
 export interface StorageHandle {
@@ -8082,6 +8095,9 @@ export interface StorageWireTransport {
     // (undocumented)
     exchange(request: StorageRpcRequestEnvelope): Promise<unknown>;
 }
+
+// @public (undocumented)
+export type StringArrayWire = string[];
 
 // @public (undocumented)
 export interface SubmitChannelDeliveryCommand {
@@ -8244,6 +8260,8 @@ interface SubmitSessionTurnRequest {
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
+    readonly queue?: string;
+    // (undocumented)
     readonly regeneratesTurnId?: SessionTurnId;
     // (undocumented)
     readonly runControlPolicy?: RunControlPolicy;
@@ -8287,6 +8305,8 @@ export interface SubmitSessionTurnWire {
     principal_id: string;
     // (undocumented)
     priority: NullableInteger;
+    // (undocumented)
+    queue: NullableString;
     // (undocumented)
     regenerates_turn_id: NullableString;
     // (undocumented)

@@ -5725,6 +5725,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ClaimJobCommandCommand {
 #[doc = "  \"required\": ["]
 #[doc = "    \"kinds\","]
 #[doc = "    \"lease_ms\","]
+#[doc = "    \"queues\","]
 #[doc = "    \"worker_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
@@ -5733,6 +5734,9 @@ impl ::std::convert::TryFrom<::std::string::String> for ClaimJobCommandCommand {
 #[doc = "    },"]
 #[doc = "    \"lease_ms\": {"]
 #[doc = "      \"type\": \"integer\""]
+#[doc = "    },"]
+#[doc = "    \"queues\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableStringArrayWire\""]
 #[doc = "    },"]
 #[doc = "    \"worker_id\": {"]
 #[doc = "      \"type\": \"string\""]
@@ -5747,6 +5751,7 @@ impl ::std::convert::TryFrom<::std::string::String> for ClaimJobCommandCommand {
 pub struct ClaimJobWire {
     pub kinds: NullableSchedulerJobKindsWire,
     pub lease_ms: i64,
+    pub queues: NullableStringArrayWire,
     pub worker_id: ::std::string::String,
 }
 #[doc = "`ClaimWorkspaceChangeProposalApplyCommand`"]
@@ -12905,6 +12910,7 @@ impl ::std::convert::TryFrom<::std::string::String> for EnqueueJobCommandCommand
 #[doc = "    \"payload\","]
 #[doc = "    \"principal_id\","]
 #[doc = "    \"priority\","]
+#[doc = "    \"queue\","]
 #[doc = "    \"retry_policy\","]
 #[doc = "    \"scheduled_at\""]
 #[doc = "  ],"]
@@ -12939,6 +12945,9 @@ impl ::std::convert::TryFrom<::std::string::String> for EnqueueJobCommandCommand
 #[doc = "    \"priority\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
 #[doc = "    },"]
+#[doc = "    \"queue\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
 #[doc = "    \"retry_policy\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableRetryPolicyWire\""]
 #[doc = "    },"]
@@ -12963,6 +12972,7 @@ pub struct EnqueueJobWire {
     pub payload: ::serde_json::Value,
     pub principal_id: ::std::string::String,
     pub priority: NullableInteger,
+    pub queue: NullableString,
     pub retry_policy: NullableRetryPolicyWire,
     pub scheduled_at: NullableInteger,
 }
@@ -31888,6 +31898,42 @@ impl ::std::convert::From<::std::option::Option<::std::string::String>> for Null
         Self(value)
     }
 }
+#[doc = "`NullableStringArrayWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/StringArrayWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableStringArrayWire(pub ::std::option::Option<StringArrayWire>);
+impl ::std::ops::Deref for NullableStringArrayWire {
+    type Target = ::std::option::Option<StringArrayWire>;
+    fn deref(&self) -> &::std::option::Option<StringArrayWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableStringArrayWire> for ::std::option::Option<StringArrayWire> {
+    fn from(value: NullableStringArrayWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<StringArrayWire>> for NullableStringArrayWire {
+    fn from(value: ::std::option::Option<StringArrayWire>) -> Self {
+        Self(value)
+    }
+}
 #[doc = "`NullableTeamConversationModeWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -48874,6 +48920,38 @@ impl ::std::convert::From<StorageRpcErrorEnvelope> for StorageRpcWireEnvelope {
         Self::ErrorEnvelope(value)
     }
 }
+#[doc = "`StringArrayWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"array\","]
+#[doc = "  \"items\": {"]
+#[doc = "    \"type\": \"string\""]
+#[doc = "  }"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct StringArrayWire(pub ::std::vec::Vec<::std::string::String>);
+impl ::std::ops::Deref for StringArrayWire {
+    type Target = ::std::vec::Vec<::std::string::String>;
+    fn deref(&self) -> &::std::vec::Vec<::std::string::String> {
+        &self.0
+    }
+}
+impl ::std::convert::From<StringArrayWire> for ::std::vec::Vec<::std::string::String> {
+    fn from(value: StringArrayWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::vec::Vec<::std::string::String>> for StringArrayWire {
+    fn from(value: ::std::vec::Vec<::std::string::String>) -> Self {
+        Self(value)
+    }
+}
 #[doc = "`SubmitChannelDeliveryCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -49486,6 +49564,7 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitSessionTurnCommand
 #[doc = "    \"origin\","]
 #[doc = "    \"principal_id\","]
 #[doc = "    \"priority\","]
+#[doc = "    \"queue\","]
 #[doc = "    \"regenerates_turn_id\","]
 #[doc = "    \"run_control_policy\","]
 #[doc = "    \"scheduled_at\","]
@@ -49549,6 +49628,9 @@ impl ::std::convert::TryFrom<::std::string::String> for SubmitSessionTurnCommand
 #[doc = "    \"priority\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
 #[doc = "    },"]
+#[doc = "    \"queue\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
 #[doc = "    \"regenerates_turn_id\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    },"]
@@ -49587,6 +49669,7 @@ pub struct SubmitSessionTurnWire {
     pub origin: NullableSessionInputOriginWire,
     pub principal_id: ::std::string::String,
     pub priority: NullableInteger,
+    pub queue: NullableString,
     pub regenerates_turn_id: NullableString,
     pub run_control_policy: NullableRunControlPolicyWire,
     pub scheduled_at: NullableInteger,
@@ -56948,4 +57031,4 @@ impl ::std::convert::TryFrom<::std::string::String> for WriteAtomicFileCommandCo
 }
 
 pub const STORAGE_RPC_SCHEMA_SHA256: &str =
-    "92e8aa36101180826326daef4c1dd47b772d655acff97d72cf8ec04db97e122d";
+    "3f9d0ee9921d2d51b8994eb92865a366eee69bf4949390d292a0ade53b059e2b";

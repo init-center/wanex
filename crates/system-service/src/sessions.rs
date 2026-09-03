@@ -477,6 +477,10 @@ pub(crate) fn submit_session_turn_tx(
         .job_idempotency_key
         .clone()
         .unwrap_or_else(|| format!("session.turn:{}:{}", request.session_id, input_id));
+    let queue = request
+        .queue
+        .as_deref()
+        .unwrap_or(crate::scheduler::DEFAULT_SCHEDULER_QUEUE);
     let payload = serde_json::json!({
         "sessionId": request.session_id,
         "turnId": turn_id,
@@ -487,6 +491,7 @@ pub(crate) fn submit_session_turn_tx(
         &EnqueueJob {
             id: Some(job_id.clone()),
             kind: SchedulerJobKind::SessionTurn,
+            queue: Some(queue.to_string()),
             principal_id: request.principal_id.clone(),
             payload,
             scheduled_at: request.scheduled_at,
@@ -750,6 +755,11 @@ fn ensure_matching_submit_turn(
     if job.kind != "session.turn"
         || job.id != turn.job_id
         || job.principal_id != request.principal_id
+        || job.queue
+            != request
+                .queue
+                .as_deref()
+                .unwrap_or(crate::scheduler::DEFAULT_SCHEDULER_QUEUE)
         || job.payload != expected_payload
         || job.idempotency_key.as_deref() != Some(expected_job_idempotency_key.as_str())
         || job.not_before != request.not_before

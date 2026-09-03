@@ -1317,41 +1317,42 @@ fn budget_amount_from_json(raw: &str, column: usize) -> rusqlite::Result<BudgetA
 pub(crate) fn row_to_scheduler_job(
     row: &rusqlite::Row<'_>,
 ) -> rusqlite::Result<SchedulerJobRecord> {
-    let payload_json: String = row.get(4)?;
-    let retry_policy_json: String = row.get(11)?;
-    let result_json: Option<String> = row.get(17)?;
-    let last_error_json: Option<String> = row.get(18)?;
-    let payload = json_from_column(&payload_json, 4)?;
-    let retry_policy = json_from_column(&retry_policy_json, 11)?;
+    let payload_json: String = row.get(5)?;
+    let retry_policy_json: String = row.get(12)?;
+    let result_json: Option<String> = row.get(18)?;
+    let last_error_json: Option<String> = row.get(19)?;
+    let payload = json_from_column(&payload_json, 5)?;
+    let retry_policy = json_from_column(&retry_policy_json, 12)?;
     let result = result_json
-        .map(|raw| json_from_column(&raw, 17))
+        .map(|raw| json_from_column(&raw, 18))
         .transpose()?;
     let last_error = last_error_json
-        .map(|raw| json_from_column(&raw, 18))
+        .map(|raw| json_from_column(&raw, 19))
         .transpose()?;
     Ok(SchedulerJobRecord {
         id: row.get(0)?,
         kind: row.get(1)?,
-        state: row.get(2)?,
-        principal_id: row.get(3)?,
+        queue: row.get(2)?,
+        state: row.get(3)?,
+        principal_id: row.get(4)?,
         payload,
-        scheduled_at: row.get(5)?,
-        not_before: row.get(6)?,
-        priority: row.get(7)?,
-        concurrency_key: row.get(8)?,
-        attempt: row.get(9)?,
-        max_attempts: row.get(10)?,
+        scheduled_at: row.get(6)?,
+        not_before: row.get(7)?,
+        priority: row.get(8)?,
+        concurrency_key: row.get(9)?,
+        attempt: row.get(10)?,
+        max_attempts: row.get(11)?,
         retry_policy,
-        idempotency_key: row.get(12)?,
-        budget_grant_id: row.get(13)?,
-        lease_owner: row.get(14)?,
-        lease_token: row.get(15)?,
-        lease_expires_at: row.get(16)?,
+        idempotency_key: row.get(13)?,
+        budget_grant_id: row.get(14)?,
+        lease_owner: row.get(15)?,
+        lease_token: row.get(16)?,
+        lease_expires_at: row.get(17)?,
         result,
         last_error,
-        created_at: row.get(19)?,
-        updated_at: row.get(20)?,
-        finished_at: row.get(21)?,
+        created_at: row.get(20)?,
+        updated_at: row.get(21)?,
+        finished_at: row.get(22)?,
     })
 }
 

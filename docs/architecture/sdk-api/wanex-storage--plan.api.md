@@ -587,6 +587,8 @@ interface ClaimJobWire {
     // (undocumented)
     lease_ms: number;
     // (undocumented)
+    queues: NullableStringArrayWire;
+    // (undocumented)
     worker_id: string;
 }
 
@@ -1114,6 +1116,8 @@ interface EnqueueJobWire {
     principal_id: string;
     // (undocumented)
     priority: NullableInteger;
+    // (undocumented)
+    queue: NullableString;
     // (undocumented)
     retry_policy: NullableRetryPolicyWire;
     // (undocumented)
@@ -3504,6 +3508,9 @@ type NullableSessionTurnStateWire = SessionTurnStateWire | null;
 type NullableString = string | null;
 
 // @public (undocumented)
+type NullableStringArrayWire = StringArrayWire | null;
+
+// @public (undocumented)
 type NullableTeamConversationModeWire = TeamConversationModeWire | null;
 
 // @public (undocumented)
@@ -5094,6 +5101,8 @@ interface SchedulerJobRecord {
     // (undocumented)
     readonly priority: number;
     // (undocumented)
+    readonly queue: string;
+    // (undocumented)
     readonly result?: JsonValue;
     // (undocumented)
     readonly retryPolicy: RetryPolicy;
@@ -5568,6 +5577,9 @@ interface StorageTransport {
 }
 
 // @public (undocumented)
+type StringArrayWire = string[];
+
+// @public (undocumented)
 interface SubmitChannelDeliveryCommand {
     // (undocumented)
     command: "submit-channel-delivery";
@@ -5712,6 +5724,8 @@ interface SubmitSessionTurnRequest {
     // (undocumented)
     readonly priority?: number;
     // (undocumented)
+    readonly queue?: string;
+    // (undocumented)
     readonly regeneratesTurnId?: SessionTurnId;
     // (undocumented)
     readonly runControlPolicy?: RunControlPolicy;
@@ -5755,6 +5769,8 @@ interface SubmitSessionTurnWire {
     principal_id: string;
     // (undocumented)
     priority: NullableInteger;
+    // (undocumented)
+    queue: NullableString;
     // (undocumented)
     regenerates_turn_id: NullableString;
     // (undocumented)

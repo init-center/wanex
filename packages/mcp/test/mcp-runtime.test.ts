@@ -848,6 +848,7 @@ function approvalSuspensionReceipt(
     job: {
       id: request.jobId,
       kind: "session.turn",
+      queue: "default",
       state: "waiting",
       principalId: request.principalId,
       payload: {},
@@ -933,6 +934,7 @@ function recoveryReceipt(
     job: {
       id: request.jobId,
       kind: "session.turn",
+      queue: "default",
       state: "failed",
       principalId: execution.principalId,
       payload: {},

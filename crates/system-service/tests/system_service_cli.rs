@@ -801,6 +801,7 @@ fn cli_runs_durable_turn_flow() {
                 "session_id": "ses_cli_phase2",
                 "principal_id": "user_cli",
                 "idempotency_key": "idem_cli_phase2",
+                "queue": null,
                 "input_type": "user",
                 "content": [{ "type": "text", "id": "part_cli", "text": "hello" }],
                 "origin": null,
@@ -834,7 +835,8 @@ fn cli_runs_durable_turn_flow() {
             "request": {
                 "worker_id": "worker_cli",
                 "lease_ms": 60000,
-                "kinds": ["session.turn"]
+                "kinds": ["session.turn"],
+                "queues": null
             }
         }),
     );
@@ -970,6 +972,7 @@ fn cli_serve_process_handles_multiple_requests() {
             "request": {
                 "id": "job_serve",
                 "kind": "memory.compaction",
+                "queue": null,
                 "principal_id": "user_cli",
                 "payload": { "sessionId": "ses_serve" },
                 "scheduled_at": null,
@@ -994,7 +997,8 @@ fn cli_serve_process_handles_multiple_requests() {
             "request": {
                 "worker_id": "worker_cli",
                 "lease_ms": 60000,
-                "kinds": ["memory.compaction"]
+                "kinds": ["memory.compaction"],
+                "queues": null
             }
         }),
     );

@@ -240,6 +240,7 @@ export interface SubmitSessionTurnRequest {
   readonly turnId?: SessionTurnId
   readonly sessionId: SessionId
   readonly principalId: PrincipalId
+  readonly queue?: string
   readonly idempotencyKey: string
   readonly content: readonly MessagePart[]
   readonly inputType?: "user" | "system"

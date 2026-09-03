@@ -73,6 +73,7 @@ export class WanexAgentRuntime {
     this.runtime = new WanexJobRuntime({
       storage: options.storage,
       workerId: options.workerId ?? `agent_runtime_worker_${randomUUID()}`,
+      ...(options.queue === undefined ? {} : { queue: options.queue }),
       leaseMs,
       ...(options.heartbeatIntervalMs === undefined
         ? {}
@@ -226,6 +227,7 @@ export class WanexAgentRuntime {
       ...(request.turnId === undefined ? {} : { turnId }),
       sessionId: session.id,
       principalId: request.principalId ?? "agent-runtime-user",
+      queue: this.runtime.queue,
       idempotencyKey:
         request.idempotencyKey ?? `agent-runtime:${session.id}:${inputId}`,
       content: admitted.content,

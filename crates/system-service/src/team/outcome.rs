@@ -204,6 +204,7 @@ pub(crate) fn enqueue_team_delivery_outcome_tx(
         &EnqueueJob {
             id: Some(format!("job_team_outcome_{}", delivery.id)),
             kind: SchedulerJobKind::TeamDeliveryOutcome,
+            queue: None,
             principal_id: participant.principal_id,
             payload: serde_json::json!({
                 "teamDeliveryId": delivery.id,

@@ -203,6 +203,7 @@ impl SystemService {
                 &EnqueueJob {
                     id: None,
                     kind: SchedulerJobKind::TeamDelivery,
+                    queue: None,
                     principal_id: participant.principal_id,
                     payload: serde_json::json!({
                         "teamDeliveryId": delivery_id,

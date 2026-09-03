@@ -121,6 +121,9 @@ export class WanexRuntimeHost {
       ...(options.workerCount === undefined
         ? {}
         : { workerCount: options.workerCount }),
+      ...(options.agentQueue === undefined
+        ? {}
+        : { agentQueue: options.agentQueue }),
       ...(options.modelEndpointId === undefined
         ? {}
         : { modelEndpointId: options.modelEndpointId }),

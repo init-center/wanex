@@ -263,6 +263,7 @@ pub(super) fn materialize_stored_task_tx(
             turn_id: Some(task.child_turn_id.clone()),
             session_id: task.target_session_id.clone(),
             principal_id: participant.principal_id,
+            queue: None,
             idempotency_key: task.input_idempotency_key.clone(),
             input_type: Some("user".to_string()),
             content: serde_json::Value::Array(content),

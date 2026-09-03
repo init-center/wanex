@@ -49,6 +49,7 @@ export type WanexRuntimeHostStorageOptions =
 
 export interface WanexRuntimeHostBehaviorOptions {
   readonly workerCount?: number
+  readonly agentQueue?: string
   readonly memoryCompaction?: RuntimeHostMemoryCompactionOptions
   readonly modelEndpointId?: string
   readonly secretResolver?: SecretResolverPort

@@ -248,6 +248,7 @@ fn test_turn_request(request: TestTurn<'_>) -> SubmitSessionTurn {
         turn_id: Some(request.turn_id.to_string()),
         session_id: request.session_id.to_string(),
         principal_id: request.principal_id.to_string(),
+        queue: None,
         idempotency_key: request.idempotency_key.to_string(),
         input_type: Some("user".to_string()),
         content: json!([{
@@ -287,6 +288,7 @@ fn claim_session_turn_job(
             worker_id: worker_id.to_string(),
             lease_ms,
             kinds: Some(vec![SchedulerJobKind::SessionTurn]),
+            queues: None,
         })
         .unwrap()
 }
@@ -1121,6 +1123,7 @@ fn claim_context_job(
         .enqueue_job(&EnqueueJob {
             id: Some(job_id.to_string()),
             kind: SchedulerJobKind::MemoryCompaction,
+            queue: None,
             principal_id: "context_worker".to_string(),
             payload: json!({ "evidence": { "sessionId": session_id } }),
             scheduled_at: None,
@@ -1138,6 +1141,7 @@ fn claim_context_job(
             worker_id: worker_id.to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::MemoryCompaction]),
+            queues: None,
         })
         .unwrap()
         .unwrap()
@@ -5008,6 +5012,7 @@ fn durable_turns_hide_queued_input_and_preserve_canonical_order() {
         turn_id: Some("turn_invalid_binding".to_string()),
         session_id: "ses_turn_order".to_string(),
         principal_id: "user_turn".to_string(),
+        queue: None,
         idempotency_key: "idem_invalid_binding".to_string(),
         input_type: Some("user".to_string()),
         content: json!([{"type": "text", "id": "part_invalid", "text": "invalid"}]),
@@ -7852,6 +7857,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
         .enqueue_job(&EnqueueJob {
             id: Some("job_low".to_string()),
             kind: SchedulerJobKind::MemoryCompaction,
+            queue: None,
             principal_id: "user_scheduler".to_string(),
             payload: json!({ "sessionId": "ses_low" }),
             scheduled_at: Some(10),
@@ -7872,6 +7878,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
         .enqueue_job(&EnqueueJob {
             id: Some("job_duplicate".to_string()),
             kind: SchedulerJobKind::MemoryCompaction,
+            queue: None,
             principal_id: "user_scheduler".to_string(),
             payload: json!({ "sessionId": "ses_duplicate" }),
             scheduled_at: Some(10),
@@ -7890,6 +7897,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
         .enqueue_job(&EnqueueJob {
             id: Some("job_high".to_string()),
             kind: SchedulerJobKind::ResourceCleanup,
+            queue: None,
             principal_id: "user_scheduler".to_string(),
             payload: json!({ "path": "files/tmp" }),
             scheduled_at: Some(10),
@@ -7908,6 +7916,7 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
             worker_id: "worker_1".to_string(),
             lease_ms: 60_000,
             kinds: None,
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -7961,10 +7970,90 @@ fn scheduler_enqueues_claims_heartbeats_and_completes_jobs() {
             worker_id: "worker_2".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::MemoryCompaction]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
     assert_eq!(ready.id, "job_low");
+}
+
+#[test]
+fn scheduler_claims_only_the_requested_queue() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+
+    for (id, queue) in [("job_assistant", "assistant"), ("job_coding", "coding")] {
+        let job = service
+            .enqueue_job(&EnqueueJob {
+                id: Some(id.to_string()),
+                kind: SchedulerJobKind::MemoryCompaction,
+                queue: Some(queue.to_string()),
+                principal_id: "queue_test".to_string(),
+                payload: json!({ "queue": queue }),
+                scheduled_at: Some(10),
+                not_before: Some(10),
+                priority: None,
+                concurrency_key: None,
+                max_attempts: Some(1),
+                retry_policy: None,
+                idempotency_key: None,
+                budget_grant_id: None,
+            })
+            .unwrap();
+        assert_eq!(job.queue, queue);
+    }
+
+    let coding = service
+        .claim_job(&ClaimJob {
+            worker_id: "coding_worker".to_string(),
+            lease_ms: 60_000,
+            kinds: Some(vec![SchedulerJobKind::MemoryCompaction]),
+            queues: Some(vec!["coding".to_string()]),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(coding.id, "job_coding");
+    assert_eq!(coding.queue, "coding");
+
+    let assistant = service
+        .claim_job(&ClaimJob {
+            worker_id: "assistant_worker".to_string(),
+            lease_ms: 60_000,
+            kinds: Some(vec![SchedulerJobKind::MemoryCompaction]),
+            queues: Some(vec!["assistant".to_string()]),
+        })
+        .unwrap()
+        .unwrap();
+    assert_eq!(assistant.id, "job_assistant");
+    assert_eq!(assistant.queue, "assistant");
+}
+
+#[test]
+fn repeated_session_turn_submission_must_keep_its_queue() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    service
+        .create_session(Some("ses_queue_idempotency"), None, Some("agent"), None)
+        .unwrap();
+
+    let request = test_turn_request(TestTurn {
+        session_id: "ses_queue_idempotency",
+        input_id: "inp_queue_idempotency",
+        turn_id: "turn_queue_idempotency",
+        job_id: "job_queue_idempotency",
+        principal_id: "queue_test",
+        idempotency_key: "queue-idempotency:turn",
+        text: "queue identity must be stable",
+    });
+    let submitted = service.submit_session_turn(&request).unwrap();
+    assert_eq!(submitted.job.queue, "default");
+
+    let mut conflicting = request.clone();
+    conflicting.queue = Some("coding".to_string());
+    let error = service.submit_session_turn(&conflicting).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("conflicting repeated session turn scheduler job"));
 }
 
 #[test]
@@ -7976,6 +8065,7 @@ fn scheduler_accepts_workspace_task_jobs() {
         .enqueue_job(&EnqueueJob {
             id: Some("job_workspace_task".to_string()),
             kind: SchedulerJobKind::WorkspaceTask,
+            queue: None,
             principal_id: "user_workspace_task".to_string(),
             payload: json!({
                 "handlerId": "handler.workspace",
@@ -7999,6 +8089,7 @@ fn scheduler_accepts_workspace_task_jobs() {
             worker_id: "worker_workspace_task".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::WorkspaceTask]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -8031,6 +8122,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
         .enqueue_job(&EnqueueJob {
             id: Some("job_retry".to_string()),
             kind: SchedulerJobKind::ProviderRetry,
+            queue: None,
             principal_id: "user_scheduler".to_string(),
             payload: json!({ "provider": "fake" }),
             scheduled_at: Some(10),
@@ -8052,6 +8144,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
             worker_id: "worker_retry".to_string(),
             lease_ms: 60_000,
             kinds: None,
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -8071,6 +8164,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
             worker_id: "worker_retry_2".to_string(),
             lease_ms: 1,
             kinds: None,
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -8084,6 +8178,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
             worker_id: "worker_retry_3".to_string(),
             lease_ms: 60_000,
             kinds: None,
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -8103,6 +8198,7 @@ fn scheduler_retries_reclaims_expired_leases_and_cancels_jobs() {
             worker_id: "worker_after_cancel".to_string(),
             lease_ms: 60_000,
             kinds: None,
+            queues: None,
         })
         .unwrap()
         .is_none());
@@ -11041,6 +11137,7 @@ fn closes_a_multi_participant_round_only_after_every_opportunity_is_terminal() {
             worker_id: "round_partial_materializer".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -11523,6 +11620,7 @@ fn materializes_team_delivery_with_exact_child_turn_and_replay_fencing() {
             worker_id: "team_materializer".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("team delivery dispatch job must be claimable");
@@ -11609,6 +11707,7 @@ fn rejects_team_delivery_materialization_after_participant_binding_changes() {
             worker_id: "team_stale_participant_worker".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("stale participant delivery must be claimable");
@@ -11662,6 +11761,7 @@ fn synchronizes_team_delivery_retry_failure_and_cancellation() {
             worker_id: "team_retry_one".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("retry dispatch job must be claimable");
@@ -11690,6 +11790,7 @@ fn synchronizes_team_delivery_retry_failure_and_cancellation() {
             worker_id: "team_retry_two".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("retried dispatch job must be claimable");
@@ -11750,6 +11851,7 @@ fn synchronizes_team_delivery_retry_failure_and_cancellation() {
             worker_id: "team_generic_failure".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("generic failure dispatch job must be claimable");
@@ -11780,6 +11882,7 @@ fn rolls_back_team_delivery_materialization_without_partial_child_records() {
             worker_id: "team_rollback".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("rollback dispatch job must be claimable");
@@ -11975,6 +12078,7 @@ fn projects_successful_team_child_turn_into_one_canonical_reply() {
             worker_id: "team_outcome_projector".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .expect("Team outcome job must be claimable");
@@ -12103,6 +12207,7 @@ fn projects_team_child_failure_and_cancellation_without_fake_messages() {
             worker_id: "team_outcome_failed".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12150,6 +12255,7 @@ fn projects_team_child_failure_and_cancellation_without_fake_messages() {
             worker_id: "team_outcome_cancelled".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12192,6 +12298,7 @@ fn projects_team_child_failure_and_cancellation_without_fake_messages() {
             worker_id: "team_outcome_before_attempt".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12254,6 +12361,7 @@ fn rolls_back_team_outcome_projection_without_partial_reply() {
             worker_id: "team_outcome_rollback".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12443,6 +12551,7 @@ fn synchronizes_terminal_team_outcome_worker_failure_and_cancellation() {
             worker_id: "team_outcome_worker_failed".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12525,6 +12634,7 @@ fn projects_exact_bound_team_pass_without_creating_a_reply() {
             worker_id: "team_pass_projector".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12596,6 +12706,7 @@ fn rejects_forged_or_duplicate_team_pass_evidence() {
                 worker_id: format!("team_{suffix}_projector"),
                 lease_ms: 60_000,
                 kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+                queues: None,
             })
             .unwrap()
             .unwrap();
@@ -12640,6 +12751,7 @@ fn rolls_back_team_pass_projection_without_partial_terminal_state() {
             worker_id: "team_pass_rollback_projector".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -12952,6 +13064,7 @@ fn materialize_team_delivery_fixture_with_binding(
             worker_id: worker_id.clone(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("Team delivery materialization job must be claimable");
@@ -13013,6 +13126,7 @@ fn settle_and_project_team_delivery_success(
             worker_id: outcome_worker.clone(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::TeamDeliveryOutcome]),
+            queues: None,
         })
         .unwrap()
         .unwrap();
@@ -14400,6 +14514,7 @@ fn acknowledges_channel_delivery_atomically_with_scheduler_jobs() {
             worker_id: "connector_worker_success".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::ChannelDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("channel delivery job should be claimable");
@@ -14467,6 +14582,7 @@ fn acknowledges_channel_delivery_atomically_with_scheduler_jobs() {
             worker_id: "connector_worker_retry".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::ChannelDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("retryable delivery should be claimable");
@@ -14490,6 +14606,7 @@ fn acknowledges_channel_delivery_atomically_with_scheduler_jobs() {
             worker_id: "connector_worker_terminal".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::ChannelDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("retry_scheduled delivery should be claimable again");
@@ -14534,6 +14651,7 @@ fn acknowledges_channel_delivery_atomically_with_scheduler_jobs() {
             worker_id: "connector_worker_stale".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::ChannelDelivery]),
+            queues: None,
         })
         .unwrap()
         .expect("stale test delivery should be claimable");
@@ -15127,6 +15245,7 @@ fn media_generation_suspension_releases_lease_and_resumes_only_when_due() {
             worker_id: "media-too-early-worker".to_string(),
             lease_ms: 60_000,
             kinds: Some(vec![SchedulerJobKind::MediaGenerate]),
+            queues: None,
         })
         .unwrap()
         .is_none());
@@ -15777,7 +15896,7 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
     let receipt = service.defer_tool_execution(&request).unwrap();
     let (media_operation, media_job) = match &receipt.operation {
         wanex_system_service::DeferredToolOperationReceipt::MediaGeneration { record, job } => {
-            (record.as_ref().clone(), job.clone())
+            (record.as_ref().clone(), job.as_ref().clone())
         }
         _ => panic!("expected deferred media operation"),
     };
@@ -15881,6 +16000,7 @@ fn claim_media_generation(
             worker_id: worker_id.to_string(),
             lease_ms,
             kinds: Some(vec![SchedulerJobKind::MediaGenerate]),
+            queues: None,
         })
         .unwrap()
         .expect("media generation job should be claimable")

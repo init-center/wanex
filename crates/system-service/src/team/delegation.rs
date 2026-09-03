@@ -342,7 +342,7 @@ impl SystemService {
             operation: DeferredToolOperationReceipt::TeamDelegation {
                 record: Box::new(record),
                 tasks,
-                graph,
+                graph: Box::new(graph),
                 nodes,
                 dependencies: dependency_records,
                 jobs,
@@ -830,7 +830,7 @@ fn deferred_team_receipt_tx(
         operation: DeferredToolOperationReceipt::TeamDelegation {
             record: Box::new(operation),
             tasks,
-            graph,
+            graph: Box::new(graph),
             nodes,
             dependencies,
             jobs,

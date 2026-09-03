@@ -28,6 +28,7 @@ export function createRuntimeHostAgentWorkers(
       activeAbortRegistry: request.activeAbortRegistry,
       turnControlObserver: request.turnControlObserver,
       workerId: `runtime_host_worker_${index}_${randomUUID()}`,
+      ...(request.agentQueue === undefined ? {} : { queue: request.agentQueue }),
       ...(request.modelEndpointId === undefined
         ? {}
         : { modelEndpointId: request.modelEndpointId }),

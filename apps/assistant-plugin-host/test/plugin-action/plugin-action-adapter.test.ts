@@ -243,6 +243,7 @@ function recordingPort(): SubmitPluginActionPort & {
         job: {
           id: request.jobId ?? "job_generated",
           kind: "plugin.action",
+          queue: "default",
           state: "ready",
           principalId: request.principalId,
           payload: {

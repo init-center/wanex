@@ -128,6 +128,13 @@
     "NullableString": {
       "oneOf": [{ "type": "string" }, { "type": "null" }]
     },
+    "StringArrayWire": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "NullableStringArrayWire": {
+      "oneOf": [{ "$ref": "#/$defs/StringArrayWire" }, { "type": "null" }]
+    },
     "NullableInteger": {
       "oneOf": [{ "type": "integer" }, { "type": "null" }]
     },
@@ -1258,6 +1265,7 @@
         "turn_id",
         "session_id",
         "principal_id",
+        "queue",
         "idempotency_key",
         "input_type",
         "content",
@@ -1280,6 +1288,7 @@
         "turn_id": { "$ref": "#/$defs/NullableString" },
         "session_id": { "type": "string" },
         "principal_id": { "type": "string" },
+        "queue": { "$ref": "#/$defs/NullableString" },
         "idempotency_key": { "type": "string" },
         "input_type": {
           "oneOf": [
@@ -2355,6 +2364,7 @@
       "required": [
         "id",
         "kind",
+        "queue",
         "principal_id",
         "payload",
         "scheduled_at",
@@ -2369,6 +2379,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
         "kind": { "$ref": "#/$defs/SchedulerJobKindWire" },
+        "queue": { "$ref": "#/$defs/NullableString" },
         "principal_id": { "type": "string" },
         "payload": { "$ref": "#/$defs/JsonValue" },
         "scheduled_at": { "$ref": "#/$defs/NullableInteger" },
@@ -2384,11 +2395,12 @@
     "ClaimJobWire": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["worker_id", "lease_ms", "kinds"],
+      "required": ["worker_id", "lease_ms", "kinds", "queues"],
       "properties": {
         "worker_id": { "type": "string" },
         "lease_ms": { "type": "integer" },
-        "kinds": { "$ref": "#/$defs/NullableSchedulerJobKindsWire" }
+        "kinds": { "$ref": "#/$defs/NullableSchedulerJobKindsWire" },
+        "queues": { "$ref": "#/$defs/NullableStringArrayWire" }
       }
     },
     "HeartbeatJobWire": {

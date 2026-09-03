@@ -361,6 +361,7 @@ impl SystemService {
             &EnqueueJob {
                 id: request.job_id.clone(),
                 kind: SchedulerJobKind::PluginAction,
+                queue: None,
                 principal_id: request.principal_id.clone(),
                 payload: serde_json::json!({
                     "pluginId": manifest.plugin_id,

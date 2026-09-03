@@ -20,6 +20,7 @@ export const WANEX_JOB_RUNTIME = "wanex-job-runtime" as const
 export interface WanexJobRuntimeOptions {
   readonly storage: CoreStore
   readonly workerId: string
+  readonly queue?: string
   readonly leaseMs?: number
   readonly heartbeatIntervalMs?: number
   readonly timeoutMs?: number
@@ -52,6 +53,7 @@ export class WanexJobRuntime {
     this.worker = new WanexWorker({
       session: this.session,
       workerId: options.workerId,
+      ...(options.queue === undefined ? {} : { queue: options.queue }),
       leaseMs: options.leaseMs ?? DEFAULT_LEASE_MS,
       ...(options.heartbeatIntervalMs === undefined
         ? {}
@@ -66,6 +68,10 @@ export class WanexJobRuntime {
     if (options.registerMaintenanceHandlers === true) {
       registerResourceCleanupHandler(this.worker, this.session)
     }
+  }
+
+  get queue(): string {
+    return this.worker.queue
   }
 
   register(kind: SchedulerJobKind, handler: WorkerHandler): void {

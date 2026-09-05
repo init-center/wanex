@@ -8,10 +8,13 @@ import type {
 } from "@wanex/protocol"
 import {
   createToolRuntimeBinding,
+  type DeferredToolOperationSettlement,
   type ToolDefinition,
   type ToolExecutionResult,
   type ToolInvocation
 } from "@wanex/runtime/tools"
+import type { PreparedSessionTurnExecutionBinding } from "@wanex/runtime/host"
+import type { SessionTurnAgentContextIdentity } from "@wanex/runtime/execution"
 
 export const TEAM_DELEGATE_TOOL_NAME = "team_delegate" as const
 export const TEAM_DELEGATE_TOOL_IMPLEMENTATION_ID =
@@ -30,6 +33,8 @@ export interface PrepareTeamDelegationExecutionBindingRequest {
   readonly turnId: string
   readonly content: readonly MessagePart[]
   readonly origin: SessionInputOrigin
+  readonly inheritedContextBinding: SessionTurnExecutionBinding
+  readonly inheritedContextIdentity?: SessionTurnAgentContextIdentity
 }
 
 export interface CreateTeamDelegateToolOptions {
@@ -39,9 +44,11 @@ export interface CreateTeamDelegateToolOptions {
   readonly participants: readonly TeamParticipantRecord[]
   readonly maxSteps?: number
   readonly priority?: number
+  readonly inheritedContextBinding?: SessionTurnExecutionBinding
+  readonly inheritedContextIdentity?: SessionTurnAgentContextIdentity
   prepareExecutionBinding(
     request: PrepareTeamDelegationExecutionBindingRequest
-  ): Promise<SessionTurnExecutionBinding>
+  ): Promise<PreparedSessionTurnExecutionBinding>
 }
 
 interface TeamDelegateTaskInput {
@@ -170,6 +177,10 @@ export function createTeamDelegateTool(
       return { summary: "Delegate Team work" }
     },
     async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
+      const inheritedContextBinding = options.inheritedContextBinding
+      if (inheritedContextBinding === undefined) {
+        throw new Error("Team delegation requires its admitted source context binding")
+      }
       const input = parseTeamDelegateInput(invocation.input, participantById)
       const operationDigest = stableDigest([
         conversationId,
@@ -203,7 +214,7 @@ export function createTeamDelegateTool(
       const taskIdByKey = new Map(
         planned.map((task) => [task.key, task.taskId] as const)
       )
-      const tasks = await Promise.all(
+      const preparations = await Promise.allSettled(
         planned.map(async (task) => {
           const content = delegatedContent(task.taskId, task.prompt)
           const origin = delegatedOrigin({
@@ -214,41 +225,64 @@ export function createTeamDelegateTool(
             targetParticipantId: task.targetParticipantId,
             leadParticipantId
           })
-          const executionBinding = await options.prepareExecutionBinding({
+          const dependsOnTaskIds = task.dependsOn.map((key) => {
+            const taskId = taskIdByKey.get(key)
+            if (taskId === undefined) {
+              throw new Error(`Team delegation dependency is missing: ${key}`)
+            }
+            return taskId
+          })
+          const prepared = await options.prepareExecutionBinding({
             participant: task.participant,
             sessionId: task.participant.agentSessionId!,
             inputId: task.childInputId,
             turnId: task.childTurnId,
             content,
-            origin
+            origin,
+            inheritedContextBinding,
+            ...(options.inheritedContextIdentity === undefined
+              ? {}
+              : { inheritedContextIdentity: options.inheritedContextIdentity }),
           })
           return {
-            id: task.taskId,
-            graphNodeId: task.graphNodeId,
-            targetParticipantId: task.targetParticipantId,
-            targetSessionId: task.participant.agentSessionId!,
-            prompt: task.prompt,
-            dependsOnTaskIds: task.dependsOn.map((key) => {
-              const taskId = taskIdByKey.get(key)
-              if (taskId === undefined) {
-                throw new Error(`Team delegation dependency is missing: ${key}`)
-              }
-              return taskId
-            }),
-            childInputId: task.childInputId,
-            childTurnId: task.childTurnId,
-            childJobId: task.childJobId,
-            inputIdempotencyKey: task.inputIdempotencyKey,
-            jobIdempotencyKey: task.jobIdempotencyKey,
-            executionBinding,
-            ...(maxSteps === undefined ? {} : { maxSteps }),
-            ...(priority === undefined ? {} : { priority })
+            task: {
+              id: task.taskId,
+              graphNodeId: task.graphNodeId,
+              targetParticipantId: task.targetParticipantId,
+              targetSessionId: task.participant.agentSessionId!,
+              prompt: task.prompt,
+              dependsOnTaskIds,
+              childInputId: task.childInputId,
+              childTurnId: task.childTurnId,
+              childJobId: task.childJobId,
+              inputIdempotencyKey: task.inputIdempotencyKey,
+              jobIdempotencyKey: task.jobIdempotencyKey,
+              executionBinding: prepared.binding,
+              ...(maxSteps === undefined ? {} : { maxSteps }),
+              ...(priority === undefined ? {} : { priority })
+            },
+            context: prepared.context
           }
         })
+      )
+      const failed = preparations.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      )
+      if (failed !== undefined) {
+        for (const result of preparations) {
+          if (result.status === "fulfilled") result.value.context.rollback()
+        }
+        throw failed.reason
+      }
+      const preparedTasks = preparations.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : []
       )
       return {
         outcome: "deferred",
         toolCallId: invocation.toolCallId,
+        settlement: aggregateSettlements(
+          preparedTasks.map((prepared) => prepared.context)
+        ),
         operation: {
           kind: "team_delegation",
           operationId,
@@ -256,9 +290,22 @@ export function createTeamDelegateTool(
           sourceDeliveryId: deliveryId,
           leadParticipantId,
           graphId,
-          tasks
+          tasks: preparedTasks.map((prepared) => prepared.task)
         }
       }
+    }
+  })
+}
+
+function aggregateSettlements(
+  contexts: readonly PreparedSessionTurnExecutionBinding["context"][]
+): DeferredToolOperationSettlement {
+  return Object.freeze({
+    commit() {
+      for (const context of contexts) context.commit()
+    },
+    rollback() {
+      for (const context of contexts) context.rollback()
     }
   })
 }

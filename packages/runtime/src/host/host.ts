@@ -44,7 +44,7 @@ import type {
   RuntimeHostHealthSnapshotRequest,
   RuntimeHostJobSummaryRequest,
   RuntimeHostRunOnceResult,
-  RuntimeHostSessionTurnResultObserver,
+  RuntimeHostSessionTurnLifecycleObserver,
   RuntimeHostStatus,
   RuntimeHostMediaGenerationRequest,
   RuntimeHostSubmitMediaGenerationResult,
@@ -56,7 +56,10 @@ import {
   createRuntimeHostAgentWorkers,
   createRuntimeHostMediaGenerationWorkers
 } from "./worker-factory.js"
-import { observeRuntimeHostSessionTurnResult } from "./session-turn-result.js"
+import {
+  notifyRuntimeHostSessionTurnLifecycle,
+  observeRuntimeHostSessionTurnLifecycle,
+} from "./session-turn-result.js"
 import { TurnControlEventObserver } from "../execution/worker/turn-control-observer.js"
 
 export type {
@@ -81,7 +84,7 @@ export class WanexRuntimeHost {
   private readonly loopLifecycle: RuntimeHostLoopLifecycle
   private readonly memoryCompaction: RuntimeHostMemoryCompactionConfig | undefined
   private readonly storageHandle: StorageHandle | undefined
-  private readonly observeSessionTurnResult: RuntimeHostSessionTurnResultObserver | undefined
+  private readonly observeSessionTurnLifecycle: RuntimeHostSessionTurnLifecycleObserver | undefined
   private started = false
   private disposed = false
   private stopPromise: Promise<void> | undefined
@@ -95,7 +98,7 @@ export class WanexRuntimeHost {
       this.storageHandle = createStorageHandle(options.storageConfig)
       this.storage = this.storageHandle.core
     }
-    this.observeSessionTurnResult = options.observeSessionTurnResult
+    this.observeSessionTurnLifecycle = options.observeSessionTurnLifecycle
     this.loopLifecycle = new RuntimeHostLoopLifecycle({
       ...(options.idleIntervalMs === undefined
         ? {}
@@ -104,9 +107,9 @@ export class WanexRuntimeHost {
         ? {}
         : { errorIntervalMs: options.errorIntervalMs }),
       onAgentResult: (result) =>
-        observeRuntimeHostSessionTurnResult(
+        observeRuntimeHostSessionTurnLifecycle(
           result,
-          this.observeSessionTurnResult
+          this.observeSessionTurnLifecycle
         )
     })
     this.memoryCompaction = normalizeMemoryCompactionOptions(
@@ -278,6 +281,27 @@ export class WanexRuntimeHost {
       }
       this.wake()
     }
+    const cancelledTurn = receipt.turn
+    const cancelledJob = receipt.job
+    if (
+      (receipt.status === "cancelled" || receipt.status === "already_terminal") &&
+      cancelledTurn !== undefined &&
+      cancelledJob !== undefined
+    ) {
+      notifyRuntimeHostSessionTurnLifecycle(
+        this.observeSessionTurnLifecycle,
+        {
+          kind: "wanex-runtime.session-turn-lifecycle",
+          phase: "terminal",
+          reference: {
+            sessionId: cancelledTurn.sessionId,
+            inputId: cancelledTurn.primaryInputId,
+            turnId: cancelledTurn.id,
+            jobId: cancelledJob.id,
+          },
+        }
+      )
+    }
     return receipt
   }
 
@@ -375,9 +399,9 @@ export class WanexRuntimeHost {
       this.workers.map(async (worker) => await worker.runOnce())
     )
     for (const result of results) {
-      observeRuntimeHostSessionTurnResult(
+      observeRuntimeHostSessionTurnLifecycle(
         result.worker,
-        this.observeSessionTurnResult
+        this.observeSessionTurnLifecycle
       )
     }
     const mediaGeneration = await Promise.all(

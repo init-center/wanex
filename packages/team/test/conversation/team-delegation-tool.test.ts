@@ -5,6 +5,7 @@ import type {
   TeamParticipantRecord
 } from "@wanex/protocol"
 import type { ToolInvocation } from "@wanex/runtime/tools"
+import type { SessionTurnAgentContextIdentity } from "@wanex/runtime/execution"
 import {
   createTeamDelegateTool,
   TEAM_DELEGATE_TOOL_NAME
@@ -12,8 +13,9 @@ import {
 
 describe("Team delegation Tool", () => {
   it("projects model-owned task intent into stable trusted deferred work", async () => {
-    const prepare = vi.fn(async ({ sessionId }) => binding(sessionId))
+    const prepare = vi.fn(async ({ sessionId }) => prepared(sessionId))
     const participants = [participant("research"), participant("review")]
+    const inheritedContextIdentity = {} as SessionTurnAgentContextIdentity
     const tool = createTeamDelegateTool({
       conversationId: "conversation_delegate",
       deliveryId: "delivery_delegate",
@@ -21,6 +23,8 @@ describe("Team delegation Tool", () => {
       participants,
       maxSteps: 12,
       priority: 3,
+      inheritedContextBinding: binding("lead"),
+      inheritedContextIdentity,
       prepareExecutionBinding: prepare
     })
 
@@ -52,11 +56,15 @@ describe("Team delegation Tool", () => {
     }
     const first = await tool.invoke(invocation(input))
     const replay = await tool.invoke(invocation(input))
-    expect(replay).toEqual(first)
     expect(first.outcome).toBe("deferred")
-    if (first.outcome !== "deferred" || first.operation.kind !== "team_delegation") {
+    if (
+      first.outcome !== "deferred" ||
+      replay.outcome !== "deferred" ||
+      first.operation.kind !== "team_delegation"
+    ) {
       throw new Error("expected Team delegation operation")
     }
+    expect(replay.operation).toEqual(first.operation)
     expect(first.operation).toMatchObject({
       conversationId: "conversation_delegate",
       sourceDeliveryId: "delivery_delegate",
@@ -94,6 +102,9 @@ describe("Team delegation Tool", () => {
         }
       }
     })
+    expect(prepare.mock.calls[0]![0].inheritedContextIdentity).toBe(
+      inheritedContextIdentity
+    )
   })
 
   it("rejects duplicate targets, unknown dependencies, cycles, and unavailable agents", async () => {
@@ -103,7 +114,8 @@ describe("Team delegation Tool", () => {
       deliveryId: "delivery_reject",
       leadParticipantId: "participant_lead",
       participants,
-      prepareExecutionBinding: async ({ sessionId }) => binding(sessionId)
+      inheritedContextBinding: binding("lead"),
+      prepareExecutionBinding: async ({ sessionId }) => prepared(sessionId)
     })
     await expect(tool.invoke(invocation({ tasks: [
       task("a", participants[0]!.id),
@@ -119,6 +131,52 @@ describe("Team delegation Tool", () => {
     await expect(tool.invoke(invocation({ tasks: [
       task("a", "participant_missing")
     ] }))).rejects.toThrow(/Unavailable/)
+  })
+
+  it("rolls back every completed child preparation when a parallel preparation fails", async () => {
+    const participants = [
+      participant("research"),
+      participant("review"),
+      participant("design")
+    ]
+    const settlements = new Map<string, {
+      readonly commit: ReturnType<typeof vi.fn>
+      readonly rollback: ReturnType<typeof vi.fn>
+    }>()
+    const prepare = vi.fn(async ({ sessionId }: { readonly sessionId: string }) => {
+      if (sessionId === "ses_review") {
+        throw new Error("review preparation failed")
+      }
+      const settlement = {
+        commit: vi.fn(),
+        rollback: vi.fn()
+      }
+      settlements.set(sessionId, settlement)
+      return {
+        binding: binding(sessionId),
+        context: settlement
+      }
+    })
+    const tool = createTeamDelegateTool({
+      conversationId: "conversation_prepare_failure",
+      deliveryId: "delivery_prepare_failure",
+      leadParticipantId: "participant_lead",
+      participants,
+      inheritedContextBinding: binding("lead"),
+      prepareExecutionBinding: prepare
+    })
+
+    await expect(tool.invoke(invocation({ tasks: [
+      task("research", participants[0]!.id),
+      task("review", participants[1]!.id),
+      task("design", participants[2]!.id)
+    ] }))).rejects.toThrow("review preparation failed")
+
+    expect(prepare).toHaveBeenCalledTimes(3)
+    expect(settlements.get("ses_research")?.commit).not.toHaveBeenCalled()
+    expect(settlements.get("ses_research")?.rollback).toHaveBeenCalledTimes(1)
+    expect(settlements.get("ses_design")?.commit).not.toHaveBeenCalled()
+    expect(settlements.get("ses_design")?.rollback).toHaveBeenCalledTimes(1)
   })
 })
 
@@ -145,6 +203,13 @@ function task(
 
 function binding(label: string): SessionTurnExecutionBinding {
   return { digest: `binding_${label}` } as unknown as SessionTurnExecutionBinding
+}
+
+function prepared(label: string) {
+  return {
+    binding: binding(label),
+    context: { commit() {}, rollback() {} }
+  }
 }
 
 function invocation(input: JsonValue): ToolInvocation {

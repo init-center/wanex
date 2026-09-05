@@ -20,6 +20,7 @@ import type {
 } from "../shared/action.js";
 import { ExtensionsSection } from "./extensions.js";
 import { SchedulesSection } from "./schedules.js";
+import { McpSection } from "./mcp.js";
 
 const providerLabels: Readonly<Record<ProviderPresetId, string>> = {
   openai: "OpenAI",
@@ -209,6 +210,7 @@ export function SettingsPanel({
           dispatch={dispatchResult}
         />
       )}
+      {onboarding ? null : <McpSection settings={client.mcpSettings} />}
       <section className={classes("settings-section")}>
         <div className={classes("settings-heading")}>
           <div><Settings2 size={15} /><strong>Models & providers</strong></div>

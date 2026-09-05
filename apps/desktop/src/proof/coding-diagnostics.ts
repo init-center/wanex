@@ -291,12 +291,12 @@ function boundedSettlement(value: Record<string, unknown>): unknown {
     ...(isRecord(value.lastReference)
       ? { lastReference: boundedRuntimeReference(value.lastReference) }
       : {}),
-    ...(typeof value.lastOutcome === "string"
+    ...(typeof value.lastPhase === "string"
       ? {
-          lastOutcome: boundedEnum(
-            value.lastOutcome,
-            ["completed", "failed", "suspended"],
-            "failed",
+          lastPhase: boundedEnum(
+            value.lastPhase,
+            ["suspended", "terminal"],
+            "terminal",
           ),
         }
       : {}),

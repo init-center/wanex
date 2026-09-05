@@ -29,6 +29,16 @@ describe("remote Agent Host HTTP handler", () => {
     expect(sessionId).toBe("session_1")
     expect(fixture.endpointSecrets).toEqual(["endpoint_secret_1"])
     expect(fixture.endpointSecrets).not.toContain("bearer_token")
+    expect(fixture.resolverContexts).toEqual([{
+      clientId: "client_1",
+      requestedDomains: ["assistant"]
+    }])
+    expect(Object.isFrozen(fixture.resolverContexts[0])).toBe(true)
+    expect(Object.isFrozen(fixture.resolverContexts[0]?.requestedDomains)).toBe(true)
+    expect(JSON.stringify(fixture.resolverContexts)).not.toContain(
+      "external_handshake_value"
+    )
+    expect(JSON.stringify(fixture.resolverContexts)).not.toContain("bearer_token")
 
     const operation = await fixture.handler.handle(
       request(
@@ -841,6 +851,10 @@ function createFixture(options: FixtureOptions = {}) {
   const authenticatedTokens: string[] = []
   const endpointSecrets: string[] = []
   const operationCalls: string[] = []
+  const resolverContexts: Array<{
+    readonly clientId: string
+    readonly requestedDomains: readonly ("assistant" | "coding")[]
+  }> = []
   const eventListeners = new Set<(event: AgentHostEvent) => void>()
   let closeCalls = 0
   let revoked = false
@@ -856,7 +870,8 @@ function createFixture(options: FixtureOptions = {}) {
       if (revoked || token !== "bearer_token") return null
       return { subjectId, expiresAt: subjectExpiresAt }
     },
-    resolveHost: async () => {
+    resolveHost: async (_subject, context) => {
+      resolverContexts.push(context)
       options.resolveHostStarted?.()
       if (options.resolveHostGate !== undefined) await options.resolveHostGate
       return {
@@ -936,6 +951,7 @@ function createFixture(options: FixtureOptions = {}) {
     authenticatedTokens,
     endpointSecrets,
     operationCalls,
+    resolverContexts,
     get eventSubscriberCount() {
       return eventListeners.size
     },

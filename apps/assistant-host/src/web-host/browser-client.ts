@@ -13,6 +13,7 @@ export interface DocumentOptions {
   readonly providerManagementPath?: string;
   readonly modelCatalogRefreshPath?: string;
   readonly capabilitySetupPath?: string;
+  readonly mcpSettingsPath?: string;
   readonly hostSessionToken: string;
   readonly windowChrome: WebWindowChrome;
 }
@@ -31,7 +32,7 @@ export function renderDocument(
     "</head>",
     "<body>",
     `<div data-app-root></div>`,
-    `<script src="${CLIENT_SCRIPT_PATH}" data-app-client data-request-path="${escapeAttribute(options.requestPath)}" data-event-stream-path="${escapeAttribute(options.eventStreamPath)}"${optionalDataAttribute("attachment-path", options.attachmentPath)}${optionalDataAttribute("resource-delivery-prepare-path", options.resourceDeliveryPreparePath)}${optionalDataAttribute("provider-management-path", options.providerManagementPath)}${optionalDataAttribute("model-catalog-refresh-path", options.modelCatalogRefreshPath)}${optionalDataAttribute("capability-setup-path", options.capabilitySetupPath)} data-host-session-token="${escapeAttribute(options.hostSessionToken)}"></script>`,
+    `<script src="${CLIENT_SCRIPT_PATH}" data-app-client data-request-path="${escapeAttribute(options.requestPath)}" data-event-stream-path="${escapeAttribute(options.eventStreamPath)}"${optionalDataAttribute("attachment-path", options.attachmentPath)}${optionalDataAttribute("resource-delivery-prepare-path", options.resourceDeliveryPreparePath)}${optionalDataAttribute("provider-management-path", options.providerManagementPath)}${optionalDataAttribute("model-catalog-refresh-path", options.modelCatalogRefreshPath)}${optionalDataAttribute("capability-setup-path", options.capabilitySetupPath)}${optionalDataAttribute("mcp-settings-path", options.mcpSettingsPath)} data-host-session-token="${escapeAttribute(options.hostSessionToken)}"></script>`,
     "</body>",
     "</html>",
   ].join("");

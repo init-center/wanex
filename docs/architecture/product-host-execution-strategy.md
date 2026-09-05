@@ -115,8 +115,14 @@ The current application identities are:
 @wanex/assistant  Assistant application domain
 @wanex/coding     Coding application domain
 @wanex/desktop    one unified Electron product
+@wanex/server     one headless remote Agent Host product
 @wanex/tui        one terminal product
 ```
+
+`@wanex/server` is the concrete installable owner for a remote machine. It
+composes the existing Assistant and Coding domains over one server-owned Store
+and explicit execution policy, then exposes their typed application endpoints.
+It is not a Gateway, product shell, account service, or replacement Runtime.
 
 The owner audit also proved that the old `@wanex/web`, `@wanex/local-host`, and
 `@wanex/plugin-command-host` closures are Assistant-specific. They now exist

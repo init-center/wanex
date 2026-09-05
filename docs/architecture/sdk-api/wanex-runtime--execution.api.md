@@ -751,6 +751,14 @@ type DeferredToolOperationReceipt = DeferredMediaGenerationOperationReceipt | De
 type DeferredToolOperationRequest = DeferredMediaGenerationOperationRequest | DeferredTeamDelegationOperationRequest;
 
 // @public (undocumented)
+interface DeferredToolOperationSettlement {
+    // (undocumented)
+    commit(): void;
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
 interface DeferToolExecutionReceipt {
     // (undocumented)
     readonly operation: DeferredToolOperationReceipt;
@@ -2755,9 +2763,28 @@ interface ResolvedSecret {
 }
 
 // @public (undocumented)
-export interface ResolveSessionTurnAgentContextRequest {
+export interface ResolvedSessionTurnAgentContext {
     // (undocumented)
-    readonly executionBinding?: SessionTurnExecutionBinding;
+    readonly context?: PreparedAgentContext;
+    // (undocumented)
+    readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly lease?: SessionTurnAgentContextLease;
+}
+
+// @public (undocumented)
+export type ResolveSessionTurnAgentContextRequest = (ResolveSessionTurnAgentContextRequestBase & {
+    readonly phase: "admission";
+    readonly executionBinding?: never;
+    readonly contextIdentity?: never;
+}) | (ResolveSessionTurnAgentContextRequestBase & {
+    readonly phase: "execution" | "inheritance";
+    readonly executionBinding: SessionTurnExecutionBinding;
+    readonly contextIdentity?: SessionTurnAgentContextIdentity;
+});
+
+// @public (undocumented)
+interface ResolveSessionTurnAgentContextRequestBase {
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -3246,8 +3273,26 @@ interface SessionScope {
 // @public (undocumented)
 type SessionStatus = "active" | "archived";
 
+// @public
+export type SessionTurnAgentContextIdentity = symbol & {
+    readonly [sessionTurnAgentContextIdentityBrand]: true;
+};
+
 // @public (undocumented)
-export type SessionTurnAgentContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<PreparedAgentContext | undefined> | PreparedAgentContext | undefined;
+const sessionTurnAgentContextIdentityBrand: unique symbol;
+
+// @public (undocumented)
+export interface SessionTurnAgentContextLease {
+    // (undocumented)
+    commit(binding: SessionTurnExecutionBinding): void;
+    // (undocumented)
+    readonly phase: "admission" | "inheritance";
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
+export type SessionTurnAgentContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<ResolvedSessionTurnAgentContext | undefined> | ResolvedSessionTurnAgentContext | undefined;
 
 // @public (undocumented)
 interface SessionTurnCompletionBinding {
@@ -4170,6 +4215,7 @@ type ToolExecutionResult = {
     readonly outcome: "deferred";
     readonly toolCallId: string;
     readonly operation: DeferredToolOperationRequest;
+    readonly settlement?: DeferredToolOperationSettlement;
 };
 
 // @public (undocumented)

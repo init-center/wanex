@@ -4,6 +4,7 @@ export const upperAppPackages = [
   "@wanex/desktop",
   "@wanex/assistant-host",
   "@wanex/assistant-ui",
+  "@wanex/server",
   "@wanex/tui"
 ]
 
@@ -22,5 +23,6 @@ export function isAppPackage(packageName) {
     packageName === "@wanex/desktop" ||
     packageName === "@wanex/assistant-host" ||
     packageName === "@wanex/assistant-ui" ||
+    packageName === "@wanex/server" ||
     packageName === "@wanex/tui"
 }

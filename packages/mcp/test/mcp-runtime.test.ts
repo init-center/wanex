@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { fileURLToPath } from "node:url"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
@@ -33,14 +33,48 @@ import {
   type ToolPermissionPolicy
 } from "@wanex/runtime/tools"
 import {
+  NativeChildSupervisor,
+  NativeExecutionEnvironment,
+  type ManagedExecutionProcess,
+  type ExecutionEnvironment
+} from "@wanex/runtime/execution"
+import {
   WanexMcpRuntimeClient,
   WanexMcpHttpServerHost
 } from "../src/index.js"
 
 type TestToolExecutionStore = ToolExecutionRequest["storage"]
 
+const serviceBin = fileURLToPath(new URL(
+  `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
+  import.meta.url
+))
+const fixtureRoot = fileURLToPath(new URL("./fixtures", import.meta.url))
+const executionEnvironments: ExecutionEnvironment[] = []
+let nextExecutionScope = 0
+
+afterEach(async () => {
+  while (executionEnvironments.length > 0) {
+    await executionEnvironments.pop()?.close()
+  }
+})
+
 describe("@wanex/mcp", () => {
-  it("adapts official stdio discovery, structured results, errors, cancellation, and restart", async () => {
+  it("adapts managed stdio discovery, structured results, errors, cancellation, and restart", async () => {
+    const execution = await createMcpExecution()
+    let processStarts = 0
+    let activeProcess: ManagedExecutionProcess | undefined
+    const countedExecution = {
+      binding: execution.binding,
+      process: {
+        execute: execution.process.execute.bind(execution.process),
+        async start(request: Parameters<typeof execution.process.start>[0]) {
+          processStarts += 1
+          activeProcess = await execution.process.start(request)
+          return activeProcess
+        }
+      }
+    }
     const client = new WanexMcpRuntimeClient({
       id: "stdio-fixture",
       capabilityRevision: "fixture-v1",
@@ -48,14 +82,16 @@ describe("@wanex/mcp", () => {
         kind: "stdio",
         command: process.execPath,
         args: [fileURLToPath(new URL("./fixtures/stdio-server.mjs", import.meta.url))],
-        stderr: "pipe"
+        cwd: fixtureRoot,
+        execution: countedExecution
       },
       namePrefix: "fixture",
+      connectTimeoutMs: 5_000,
       requestTimeoutMs: 5_000
     })
     await expect(client.discoverTools()).rejects.toThrow("not started")
-    await client.start()
-    await client.start()
+    await Promise.all([client.start(), client.start()])
+    expect(processStarts).toBe(1)
 
     const registry = await client.createRegistry()
     const admittedSnapshot = registry.snapshot()
@@ -65,6 +101,7 @@ describe("@wanex/mcp", () => {
       idempotent: tool.idempotent
     }))).toEqual([
       { name: "fixture__echo", risk: "read_only", idempotent: true },
+      { name: "fixture__external_read", risk: "external", idempotent: true },
       { name: "fixture__fail", risk: "read_only", idempotent: true },
       { name: "fixture__hang", risk: "read_only", idempotent: true },
       { name: "fixture__media", risk: "read_only", idempotent: true }
@@ -137,36 +174,63 @@ describe("@wanex/mcp", () => {
     await expect(storage.listToolExecutions({})).resolves.toEqual(
       expect.arrayContaining([expect.objectContaining({
         toolCallId: "call_stdio_cancel",
-        state: "recovery_required"
+        state: "recovery_required",
+        error: expect.objectContaining({
+          type: "ambiguous_tool_outcome",
+          message: "MCP tool response was not observed."
+        })
       })])
+    )
+    expect(JSON.stringify(await storage.listToolExecutions({}))).not.toContain(
+      "Request was cancelled"
     )
 
     await client.stop()
     await client.stop()
+    expect(client.status()).toEqual({ started: false, disposed: false })
     await client.start()
     const restartedRegistry = await client.createRegistry()
     expect(restartedRegistry.snapshot()).toEqual(admittedSnapshot)
+    const unexpectedlyExited = activeProcess
+    if (unexpectedlyExited === undefined) {
+      throw new Error("managed MCP fixture process was not captured")
+    }
+    await unexpectedlyExited.terminate("cancelled")
+    await expect(unexpectedlyExited.wait()).resolves.toMatchObject({
+      cleanup: "completed",
+      termination: "cancelled"
+    })
+    await waitFor(async () => !client.status().started)
+    expect(client.status()).toEqual({ started: false, disposed: false })
+    await client.start()
+    expect((await client.createRegistry()).snapshot()).toEqual(admittedSnapshot)
     await client.dispose()
     await client.dispose()
     await expect(client.start()).rejects.toThrow("disposed")
 
-    const changedRevision = new WanexMcpRuntimeClient({
+    const changedExecution = await createMcpExecution({ providerRevision: "2" })
+    const changedExecutionBinding = new WanexMcpRuntimeClient({
       id: "stdio-fixture",
-      capabilityRevision: "fixture-v2",
+      capabilityRevision: "fixture-v1",
       transport: {
         kind: "stdio",
         command: process.execPath,
         args: [fileURLToPath(new URL("./fixtures/stdio-server.mjs", import.meta.url))],
-        stderr: "pipe"
+        cwd: fixtureRoot,
+        execution: changedExecution
       },
       namePrefix: "fixture",
+      connectTimeoutMs: 5_000,
       requestTimeoutMs: 5_000
     })
-    await changedRevision.start()
-    expect((await changedRevision.createRegistry()).snapshot()).not.toEqual(
+    await changedExecutionBinding.start()
+    expect((await changedExecutionBinding.createRegistry()).snapshot()).not.toEqual(
       admittedSnapshot
     )
-    await changedRevision.dispose()
+    await Promise.all([
+      changedExecutionBinding.dispose(),
+      changedExecutionBinding.dispose()
+    ])
   })
 
   it("serves only a selected Runtime registry over stateless Streamable HTTP", async () => {
@@ -208,7 +272,12 @@ describe("@wanex/mcp", () => {
     const client = new WanexMcpRuntimeClient({
       id: "http-fixture",
       capabilityRevision: "fixture-v1",
-      transport: { kind: "streamable_http", url: host.url() },
+      transport: {
+        kind: "streamable_http",
+        url: host.url(),
+        headers: { authorization: "Bearer mcp-http-test-secret" }
+      },
+      connectTimeoutMs: 5_000,
       requestTimeoutMs: 5_000
     })
     await client.start()
@@ -219,6 +288,9 @@ describe("@wanex/mcp", () => {
       "fail",
       "hang"
     ])
+    expect(JSON.stringify(registry.snapshot())).not.toContain(
+      "mcp-http-test-secret"
+    )
 
     const rawClient = new Client(
       { name: "wanex-deferred-probe", version: "0.0.0" },
@@ -303,7 +375,123 @@ describe("@wanex/mcp", () => {
     await host.dispose()
     await expect(host.start()).rejects.toThrow("disposed")
   })
+
+  it("rejects unsafe stdio execution and bounds an unresponsive initialize", async () => {
+    const unsafeExecution = await createMcpExecution({ supervised: false })
+    expect(() => new WanexMcpRuntimeClient({
+      id: "unsafe-stdio",
+      capabilityRevision: "fixture-v1",
+      transport: {
+        kind: "stdio",
+        command: process.execPath,
+        args: ["-e", "setInterval(() => {}, 1000)"],
+        cwd: fixtureRoot,
+        execution: unsafeExecution
+      },
+      connectTimeoutMs: 50,
+      requestTimeoutMs: 50
+    })).toThrow("managed durable-supervisor execution")
+
+    const execution = await createMcpExecution()
+    let processStarts = 0
+    let silentProcess: ManagedExecutionProcess | undefined
+    const client = new WanexMcpRuntimeClient({
+      id: "silent-stdio",
+      capabilityRevision: "fixture-v1",
+      transport: {
+        kind: "stdio",
+        command: process.execPath,
+        args: ["-e", "process.stdin.resume();setInterval(() => {}, 1000)"],
+        cwd: fixtureRoot,
+        execution: {
+          binding: execution.binding,
+          process: {
+            execute: execution.process.execute.bind(execution.process),
+            async start(request) {
+              processStarts += 1
+              silentProcess = await execution.process.start(request)
+              return silentProcess
+            }
+          }
+        }
+      },
+      connectTimeoutMs: 50,
+      requestTimeoutMs: 50
+    })
+
+    await expect(client.start()).rejects.toThrow()
+    expect(processStarts).toBe(1)
+    if (silentProcess === undefined) {
+      throw new Error("silent MCP fixture process was not captured")
+    }
+    await expect(silentProcess.wait()).resolves.toMatchObject({
+      cleanup: "completed",
+      termination: "cancelled"
+    })
+    expect(client.status()).toEqual({ started: false, disposed: false })
+    await Promise.all([client.dispose(), client.dispose()])
+    expect(client.status()).toEqual({ started: false, disposed: true })
+  })
 })
+
+async function createMcpExecution(options: {
+  readonly supervised?: boolean
+  readonly providerRevision?: string
+} = {}): Promise<
+  Pick<import("@wanex/runtime/execution").BorrowedExecutionScope, "binding" | "process">
+> {
+  const sequence = nextExecutionScope
+  nextExecutionScope += 1
+  const environment = new NativeExecutionEnvironment({
+    environmentId: `mcp_test_${sequence}`,
+    ...(options.providerRevision === undefined
+      ? {}
+      : { providerRevision: options.providerRevision }),
+    strategy: options.supervised === false
+      ? { kind: "direct" }
+      : {
+          kind: "supervised",
+          childSupervisor: new NativeChildSupervisor({ serviceBin })
+        },
+    managedProcess: true
+  })
+  executionEnvironments.push(environment)
+  const scope = await environment.bind({
+    scopeId: `mcp_scope_${sequence}`,
+    policy: {
+      revision: 1,
+      filesystem: {
+        roots: [{ id: "mcp_fixture", effects: ["read"] }],
+        maxReadBytes: 1,
+        maxDirectoryEntries: 1
+      },
+      process: {
+        oneShot: false,
+        managed: true,
+        cleanup: options.supervised === false
+          ? "runtime_process_tree"
+          : "durable_supervisor",
+        environmentVariables: []
+      },
+      network: "unrestricted",
+      isolation: "none",
+      pty: false
+    },
+    fileSystemRoots: [{ id: "mcp_fixture", path: fixtureRoot }],
+    ...(options.supervised === false
+      ? {}
+      : {
+          supervisorClaim: {
+            runId: `mcp_run_${sequence}`,
+            attemptId: `mcp_attempt_${sequence}`,
+            claimToken: createHash("sha256")
+              .update(`mcp-claim-${sequence}`)
+              .digest("hex")
+          }
+        })
+  })
+  return { binding: scope.binding, process: scope.process }
+}
 
 async function waitFor(check: () => Promise<boolean>): Promise<void> {
   const deadline = Date.now() + 1_000

@@ -67,6 +67,7 @@ export async function startAssistantWebApp(
       providers,
       modelCatalog,
       capabilitySetup,
+      mcpSettings: assistant.mcpSettings,
       ...(options.web ?? {}),
     })
 
@@ -101,6 +102,7 @@ function createAssistantWebAppHandle(request: {
     shell: request.assistant.shell,
     teamConversations: request.assistant.shell.teamConversations,
     modelEndpoints: request.assistant.shell.modelEndpoints,
+    mcpSettings: request.assistant.mcpSettings,
     providers: request.providers,
     modelCatalog: request.modelCatalog,
     capabilitySetup: request.capabilitySetup,

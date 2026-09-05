@@ -1,7 +1,7 @@
 import type { SessionTurnState } from "@wanex/protocol"
 import type {
   RuntimeHostSessionTurnReference,
-  RuntimeHostSessionTurnResultSignal
+  RuntimeHostSessionTurnLifecycleSignal
 } from "@wanex/runtime/host"
 import type { CoreStore } from "@wanex/storage"
 import type {
@@ -33,7 +33,7 @@ export class CodingTurnSettlementRegistry {
   readonly #pending = new Map<string, PendingSettlement>()
   #lastEvent: CodingSettlementDiagnostics["lastEvent"] | undefined
   #lastReference: CodingRuntimeTurnReference | undefined
-  #lastOutcome: CodingSettlementDiagnostics["lastOutcome"]
+  #lastPhase: CodingSettlementDiagnostics["lastPhase"]
 
   constructor(storage: CoreStore, observeTurn?: CodingHostTurnObserver) {
     this.#storage = storage
@@ -66,15 +66,15 @@ export class CodingTurnSettlementRegistry {
     }
   }
 
-  observe = (signal: RuntimeHostSessionTurnResultSignal): void => {
+  observe = (signal: RuntimeHostSessionTurnLifecycleSignal): void => {
     this.#lastEvent = "signal_observed"
     this.#lastReference = { ...signal.reference }
-    this.#lastOutcome = signal.outcome
+    this.#lastPhase = signal.phase
     notifyCodingHostTurnObserver(this.#observeTurn, {
-      kind: signal.outcome === "suspended" ? "suspended" : "settled",
+      kind: signal.phase === "suspended" ? "suspended" : "settled",
       reference: signal.reference
     })
-    if (signal.outcome === "suspended") return
+    if (signal.phase === "suspended") return
     void this.refresh(signal.reference)
   }
 
@@ -114,7 +114,7 @@ export class CodingTurnSettlementRegistry {
       ...(this.#lastReference === undefined
         ? {}
         : { lastReference: { ...this.#lastReference } }),
-      ...(this.#lastOutcome === undefined ? {} : { lastOutcome: this.#lastOutcome }),
+      ...(this.#lastPhase === undefined ? {} : { lastPhase: this.#lastPhase }),
     }
   }
 }

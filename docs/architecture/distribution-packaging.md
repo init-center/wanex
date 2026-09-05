@@ -90,6 +90,13 @@ pipeline.
 - Windows/Desktop validation must measure unpacked size and startup with the
   actual packaged system-service artifact.
 
+The distribution footprint audit measures the same effective source packlist
+as the package packlist audit. A file excluded by a package `files` field is
+not part of footprint bytes or fixture metrics; a fixture under an effective
+`src/` entry remains a release failure. The selector lives in
+`scripts/audit/package-packlist/effective-packlist.mjs` so package policy and
+closure metrics cannot drift apart.
+
 The native staging directory contains exactly `runtime-artifacts.json` plus one
 target executable. `pnpm proof:native-runtime` resolves that manifest through
 the public Runtime bootstrap, executes a real turn, verifies immutable hashes,

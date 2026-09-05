@@ -53,7 +53,7 @@ export interface CodingSettlementDiagnostics {
     | "canonical_terminal"
     | "refresh_failed";
   readonly lastReference?: CodingRuntimeTurnReference;
-  readonly lastOutcome?: "completed" | "failed" | "suspended";
+  readonly lastPhase?: "suspended" | "terminal";
 }
 
 export interface CodingRuntimeTurnReference {

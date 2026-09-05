@@ -112,6 +112,11 @@ export interface ToolResourceOutputPort {
   reference(resourceId: string): Promise<Extract<ToolResultContentPart, { type: "resource" }>>
 }
 
+export interface DeferredToolOperationSettlement {
+  commit(): void
+  rollback(): void
+}
+
 export type ToolExecutionResult =
   | {
       readonly outcome: "succeeded" | "failed"
@@ -129,6 +134,7 @@ export type ToolExecutionResult =
       readonly outcome: "deferred"
       readonly toolCallId: string
       readonly operation: DeferredToolOperationRequest
+      readonly settlement?: DeferredToolOperationSettlement
     }
 
 export type ToolPermissionDecision =

@@ -96,6 +96,8 @@ function isManifestLeafRecipeDependencyAllowed(packageName, dependencyName) {
       packageName === "@wanex/desktop") ||
     (dependencyName === "@wanex/assistant-host" &&
       packageName === "@wanex/tui") ||
+    (dependencyName === "@wanex/assistant-host" &&
+      packageName === "@wanex/server") ||
     (dependencyName === "@wanex/assistant" &&
       packageName === "@wanex/assistant-host") ||
     (dependencyName === "@wanex/assistant-ui" &&

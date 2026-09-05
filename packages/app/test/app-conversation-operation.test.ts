@@ -143,7 +143,7 @@ describe("@wanex/app durable conversation operations", () => {
           turnId: receipt.turnId,
           jobId: receipt.jobId
         },
-        cause: "execution_completed"
+        cause: "execution_settled"
       })
       expect(JSON.stringify(observed)).not.toContain("openai-compatible")
       expect(JSON.stringify(observed)).not.toContain(secretRef)
@@ -982,7 +982,7 @@ describe("@wanex/app durable conversation operations", () => {
           operation: {
             state: "succeeded",
             result: {
-              assistantText: expect.stringContaining("approved assistant response")
+              assistantText: "approved assistant response"
             }
           }
         })
@@ -994,7 +994,7 @@ describe("@wanex/app durable conversation operations", () => {
         event.kind === "wanex-app.conversation.operation-invalidated"
       ).map((event) => event.cause)).toEqual([
         "execution_suspended",
-        "execution_completed"
+        "execution_settled"
       ])
     } finally {
       await app.dispose()

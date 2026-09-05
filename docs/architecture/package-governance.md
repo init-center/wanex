@@ -111,9 +111,25 @@ workspace dependency graph then had 74 edges.
 
 CODING-2B adds one private Coding leaf and four reviewed dependency edges from
 `@wanex/coding` to Protocol, Runtime, Storage, and Workspace. The active
-graph now has 21 packages and 80 edges. Its exact five-package transitive
+graph then had 21 packages and 80 edges. Its exact five-package transitive
 closure is enforced independently; Runtime, App, CLI, and Assistant still reject
 Workspace in their generic closures.
+
+Route 13A added one concrete private `@wanex/server` leaf and its three reviewed
+workspace dependency edges to Assistant Host, Runtime bootstrap, and Storage
+locator contracts. Route 13B adds no package or dependency edge: the same
+Server leaf now owns the authenticated HTTPS listener and typed Assistant
+endpoint. Route 13C.1 adds exactly the reviewed Coding and Workspace edges to
+that existing leaf so it can compose the established Coding application and
+strict program policy. The graph remains at 22 packages; Server has five
+workspace dependencies and no consumer. Server is a headless executable and
+lifecycle/security boundary, not a new Runtime or generic composition package.
+
+Route 13C.2 adds no package, workspace dependency edge, or static facade input.
+The secret-free Remote Host handshake context and its frozen copy add 492 bytes
+to the Runtime facade and 487 bytes to the App facade. Their exact reviewed
+ceilings are 552,612 and 1,483,848 bytes respectively, with the existing
+279/487 inputs and 3/4 workspace-package closures unchanged.
 
 Route 2C directly replaces the untyped Turn `environmentSnapshot` with neutral
 `executionEnvironment` evidence and an opaque `applicationScope` envelope.

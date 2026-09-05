@@ -22,6 +22,7 @@ const resourceDeliveryPreparePath = script.dataset.resourceDeliveryPreparePath;
 const providerManagementPath = script.dataset.providerManagementPath;
 const modelCatalogRefreshPath = script.dataset.modelCatalogRefreshPath;
 const capabilitySetupPath = script.dataset.capabilitySetupPath;
+const mcpSettingsPath = script.dataset.mcpSettingsPath;
 const client = createHttpClient({
   requestPath,
   hostSessionToken,
@@ -33,6 +34,7 @@ const client = createHttpClient({
   ...(providerManagementPath === undefined ? {} : { providerManagementPath }),
   ...(modelCatalogRefreshPath === undefined ? {} : { modelCatalogRefreshPath }),
   ...(capabilitySetupPath === undefined ? {} : { capabilitySetupPath }),
+  ...(mcpSettingsPath === undefined ? {} : { mcpSettingsPath }),
 });
 mountClient({ root, client });
 

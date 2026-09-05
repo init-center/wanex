@@ -29,6 +29,16 @@ const tools = [
     description: "Return embedded MCP media.",
     inputSchema: { type: "object", additionalProperties: false },
     annotations: { readOnlyHint: true, idempotentHint: true }
+  },
+  {
+    name: "external_read",
+    description: "Read data from an external system.",
+    inputSchema: { type: "object", additionalProperties: false },
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: true
+    }
   }
 ]
 

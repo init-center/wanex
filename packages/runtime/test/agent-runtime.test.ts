@@ -17,6 +17,7 @@ import type { ModelEndpoint, TextMessagePart } from "@wanex/protocol"
 import { writeModelEndpoint } from "@wanex/runtime/provider"
 import { createStorageTestStore, type StorageTestStore } from "@wanex/storage/testing"
 import { WanexAgentRuntime } from "../src/execution/agent-runtime/index.js"
+import type { SessionTurnAgentContextIdentity } from "../src/execution/worker/types.js"
 import type { WorkerRunOnceResult } from "../src/jobs/index.js"
 import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
@@ -102,6 +103,37 @@ describe("@wanex/runtime/host agent runtime", () => {
           text: "fake runtime response"
         }
       ])
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("derives stable operation identities for an idempotent submission retry", async () => {
+    const storage = await createTestStore()
+    const runtime = new WanexAgentRuntime({
+      storage,
+      workerId: "agent_runtime_idempotent_identity",
+      fakeResponseText: "unused"
+    })
+    const request = {
+      content: [{ type: "text" as const, text: "submit exactly once" }],
+      sessionId: "ses_agent_runtime_idempotent_identity",
+      idempotencyKey: "agent-runtime-idempotent-identity"
+    }
+
+    try {
+      const first = await runtime.submitUserTurn(request)
+      const duplicate = await runtime.submitUserTurn(request)
+
+      expect(duplicate.receipt).toEqual(first.receipt)
+      expect(first.inputId).toMatch(/^inp_runtime_[a-f0-9]{32}$/u)
+      expect(first.turnId).toMatch(/^turn_runtime_[a-f0-9]{32}$/u)
+      await expect(runtime.session.listInputs({
+        sessionId: request.sessionId
+      })).resolves.toHaveLength(1)
+      await expect(storage.listSessionTurns({
+        sessionId: request.sessionId
+      })).resolves.toHaveLength(1)
     } finally {
       await runtime.stop()
     }
@@ -416,6 +448,174 @@ describe("@wanex/runtime/host agent runtime", () => {
         kind: "session.turn",
         limit: 20
       })).resolves.toEqual([])
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("settles an admission context exactly once after durable submission", async () => {
+    let commits = 0
+    let rollbacks = 0
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_admission_settlement",
+      fakeResponseText: "unused",
+      resolveAgentContext: () => ({
+        context: {},
+        lease: {
+          phase: "admission",
+          commit() {
+            commits += 1
+          },
+          rollback() {
+            rollbacks += 1
+          },
+        },
+      }),
+    })
+
+    try {
+      const prepared = await runtime.prepareUserTurn({
+        content: [{ type: "text", text: "settle once" }],
+        sessionId: "ses_agent_runtime_admission_settlement",
+      })
+      prepared.context.commit()
+      prepared.context.commit()
+      prepared.context.rollback()
+      expect(commits).toBe(1)
+      expect(rollbacks).toBe(0)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("rolls an admission context back when binding creation fails", async () => {
+    let commits = 0
+    let rollbacks = 0
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_admission_rollback",
+      fakeResponseText: "unused",
+      resolveAgentContext: () => ({
+        context: {},
+        lease: {
+          phase: "admission",
+          commit() {
+            commits += 1
+          },
+          rollback() {
+            rollbacks += 1
+          },
+        },
+      }),
+    })
+
+    try {
+      await expect(runtime.prepareUserTurn({
+        content: [{ type: "text", text: "invalid completion" }],
+        sessionId: "ses_agent_runtime_admission_rollback",
+        maxOutputTokens: 0,
+      })).rejects.toThrow("maxOutputTokens must be a positive integer")
+      expect(commits).toBe(0)
+      expect(rollbacks).toBe(1)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("reconciles an ambiguous durable submission as a commit", async () => {
+    let commits = 0
+    let rollbacks = 0
+    let committedDigest: string | undefined
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_admission_reconcile",
+      fakeResponseText: "unused",
+      resolveAgentContext: () => ({
+        context: {},
+        lease: {
+          phase: "admission",
+          commit(binding) {
+            commits += 1
+            committedDigest = binding.digest
+          },
+          rollback() {
+            rollbacks += 1
+          },
+        },
+      }),
+    })
+
+    const submitTurn = runtime.session.submitTurn.bind(runtime.session)
+    runtime.session.submitTurn = async (request) => {
+      await submitTurn(request)
+      throw new Error("submission result was lost")
+    }
+    try {
+      await expect(runtime.submitUserTurn({
+        content: [{ type: "text", text: "reconcile me" }],
+        sessionId: "ses_agent_runtime_admission_reconcile",
+      })).rejects.toThrow("submission result was lost")
+      const turns = await runtime.session.listTurns({
+        sessionId: "ses_agent_runtime_admission_reconcile",
+      })
+      expect(turns).toHaveLength(1)
+      expect(committedDigest).toBe(turns[0]?.executionBinding.digest)
+      expect(commits).toBe(1)
+      expect(rollbacks).toBe(0)
+    } finally {
+      await runtime.stop()
+    }
+  })
+
+  it("uses an inheritance settlement without acquiring a new admission lease", async () => {
+    const inheritedContextIdentity = Symbol(
+      "inherited"
+    ) as SessionTurnAgentContextIdentity
+    let observedPhase: string | undefined
+    let commits = 0
+    const runtime = new WanexAgentRuntime({
+      storage: await createTestStore(),
+      workerId: "agent_runtime_inheritance_settlement",
+      fakeResponseText: "unused",
+      resolveAgentContext: (request) => {
+        observedPhase = request.phase
+        return {
+          context: {},
+          contextIdentity: inheritedContextIdentity,
+          ...(request.phase === "inheritance"
+            ? {
+                lease: {
+                  phase: "inheritance" as const,
+                  commit() {
+                    commits += 1
+                  },
+                  rollback() {},
+                },
+              }
+            : {}),
+        }
+      },
+    })
+
+    try {
+      const prepared = await runtime.prepareExecutionBinding({
+        sessionId: "ses_agent_runtime_inheritance",
+        inputId: "inp_agent_runtime_inheritance",
+        turnId: "turn_agent_runtime_inheritance",
+        content: [{
+          type: "text",
+          id: "part_agent_runtime_inheritance",
+          text: "inherit context"
+        }],
+        inheritedContextBinding: {
+          digest: "parent-binding",
+        } as never,
+        inheritedContextIdentity,
+      })
+      expect(observedPhase).toBe("inheritance")
+      prepared.context.commit()
+      expect(commits).toBe(1)
     } finally {
       await runtime.stop()
     }

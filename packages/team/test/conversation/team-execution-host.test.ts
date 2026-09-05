@@ -137,7 +137,7 @@ describe("Team conversation execution host", () => {
     const host = createTeamConversationExecutionHost({
       storage,
       teamStorage: storage,
-      prepareExecutionBinding: async () => createTestTurnExecutionBinding(),
+      prepareExecutionBinding: async () => preparedBinding(),
       wakeAgentHost() {
         throw new Error("advisory wake failure")
       },
@@ -167,6 +167,13 @@ describe("Team conversation execution host", () => {
     }])
   })
 })
+
+function preparedBinding() {
+  return {
+    binding: createTestTurnExecutionBinding(),
+    context: { commit() {}, rollback() {} }
+  }
+}
 
 async function createStore(): Promise<StorageTestStore> {
   const storeDir = await mkdtemp(join(tmpdir(), "wanex-team-host-"))

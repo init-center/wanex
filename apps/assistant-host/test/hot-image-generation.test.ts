@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  createServer,
+  type IncomingMessage,
+  type Server,
+  type ServerResponse,
+} from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,11 +29,13 @@ const serviceBin = join(
 );
 
 const apps: AssistantWebApp[] = [];
+const servers: Server[] = [];
 const tempDirs: string[] = [];
 
 afterEach(async () => {
   vi.unstubAllGlobals();
   while (apps.length > 0) await apps.pop()?.close();
+  while (servers.length > 0) await closeServer(servers.pop());
   while (tempDirs.length > 0) {
     const dir = tempDirs.pop();
     if (dir !== undefined) await rm(dir, { recursive: true, force: true });
@@ -260,41 +268,9 @@ describe("Assistant Host hot image generation", () => {
     const generatedBytes = new Uint8Array([
       137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3, 4,
     ]);
-    const conversationRequests: Record<string, unknown>[] = [];
-    const imageRequests: Record<string, unknown>[] = [];
-    vi.stubGlobal("fetch", async (input: unknown, init?: RequestInit) => {
-      const url = String(input);
-      if (url.endsWith("/chat/completions")) {
-        const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-        conversationRequests.push(body);
-        const messages = Array.isArray(body.messages) ? body.messages : [];
-        const hasToolResult = messages.some(
-          (message) =>
-            typeof message === "object" &&
-            message !== null &&
-            (message as { readonly role?: unknown }).role === "tool",
-        );
-        return hasToolResult
-          ? openAITextResponse("Your generated image is ready.")
-          : openAIImageToolResponse();
-      }
-      if (url.endsWith("/images/generations")) {
-        imageRequests.push(
-          JSON.parse(String(init?.body)) as Record<string, unknown>,
-        );
-        return new Response(
-          JSON.stringify({
-            data: [
-              { b64_json: Buffer.from(generatedBytes).toString("base64") },
-            ],
-          }),
-          {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          },
-        );
-      }
-      throw new Error(`unexpected provider URL: ${url}`);
+    const provider = await listenImageProvider({
+      generatedBytes,
+      finalText: "Your generated image is ready.",
     });
 
     const storeDir = await mkdtemp(join(tmpdir(), "wanex-hot-image-"));
@@ -321,8 +297,10 @@ describe("Assistant Host hot image generation", () => {
     });
 
     const configured = await app.providers.saveProvider({
-      presetId: "openai",
+      presetId: "openai-compatible",
+      baseUrl: provider.baseUrl,
       conversationModelId: "gpt-5.2",
+      conversationFeatures: ["tool_calling"],
       imageGenerationModelId: "image-model-test",
       credential: "one-connection-secret",
       makeConversationActive: true,
@@ -330,12 +308,13 @@ describe("Assistant Host hot image generation", () => {
     expect(configured).toMatchObject({
       kind: "assistant-host.provider.saved",
       provider: {
-        connectionId: "openai",
+        providerId: "openai-compatible",
+        baseUrl: provider.baseUrl,
         active: true,
         credentialConfigured: true,
         endpoints: [
-          { id: "openai", active: true },
-          { id: "openai.image-generate", protocol: { id: "openai-images" }, active: false },
+          { protocol: { id: "openai-chat-completions" }, active: true },
+          { protocol: { id: "openai-images" }, active: false },
         ],
       },
     });
@@ -365,9 +344,7 @@ describe("Assistant Host hot image generation", () => {
           state: "succeeded",
           capabilities: { terminal: true },
           result: {
-            assistantText: expect.stringContaining(
-              "Your generated image is ready.",
-            ),
+            assistantText: "Your generated image is ready.",
           },
           transcript: {
             rows: expect.arrayContaining([
@@ -398,7 +375,7 @@ describe("Assistant Host hot image generation", () => {
               "assistant.conversation.operation-invalidated",
           )
           .map((event) => event.cause),
-      ).toEqual(["execution_suspended", "execution_completed"]);
+      ).toEqual(["execution_suspended", "execution_settled"]);
     });
     unsubscribeConversationEvents();
     expect(
@@ -429,32 +406,195 @@ describe("Assistant Host hot image generation", () => {
     if (generatedResource === undefined) {
       throw new Error("generated image resource was not projected");
     }
-    await expect(readDeliveredImage(
-      app,
-      "hot-image-session",
-      generatedResource.resourceId,
-      generatedResource.sha256,
-    )).resolves.toEqual(generatedBytes);
+    await expect(
+      readDeliveredImageOverHttp(
+        app,
+        "hot-image-session",
+        generatedResource.resourceId,
+        generatedResource.sha256,
+      ),
+    ).resolves.toEqual(generatedBytes);
 
-    expect(conversationRequests).toHaveLength(2);
-    expect(conversationRequests[0]).toMatchObject({
-      model: "gpt-5.2",
-      tools: [{ type: "function", function: { name: "image_generate" } }],
+    expect(provider.conversationRequests).toHaveLength(2);
+    expect(provider.conversationRequests[0]).toMatchObject({
+      authorization: "Bearer one-connection-secret",
+      body: {
+        model: "gpt-5.2",
+        tools: [{ type: "function", function: { name: "image_generate" } }],
+      },
     });
-    expect(conversationRequests[1]).toMatchObject({
-      messages: expect.arrayContaining([
-        expect.objectContaining({
-          role: "tool",
-          tool_call_id: "call_image_generate",
-        }),
-      ]),
+    expect(provider.conversationRequests[1]).toMatchObject({
+      authorization: "Bearer one-connection-secret",
+      body: {
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "tool",
+            tool_call_id: "call_image_generate",
+          }),
+        ]),
+      },
     });
-    expect(imageRequests).toEqual([
+    expect(provider.imageRequests).toEqual([
       {
-        model: "image-model-test",
-        prompt: "a small red triangle",
+        authorization: "Bearer one-connection-secret",
+        body: {
+          model: "image-model-test",
+          prompt: "a small red triangle",
+        },
       },
     ]);
+  });
+
+  it("keeps provider-rejected image generation visible and durable", async () => {
+    const provider = await listenImageProvider({
+      rejectImage: true,
+      finalText: "The image could not be generated.",
+    });
+
+    const storeDir = await mkdtemp(join(tmpdir(), "wanex-failed-image-"));
+    tempDirs.push(storeDir);
+    const credentialStore = new MemorySecretStore();
+    const app = await startAssistantWebApp({
+      storage: { kind: "store-dir", storeDir },
+      serviceBin,
+      credentialStore,
+      web: { hostname: "127.0.0.1" },
+    });
+    apps.push(app);
+
+    await app.providers.saveProvider({
+      presetId: "openai-compatible",
+      baseUrl: provider.baseUrl,
+      conversationModelId: "failed-image-conversation-model",
+      conversationFeatures: ["tool_calling"],
+      imageGenerationModelId: "failed-image-model",
+      credential: "failed-image-secret",
+      makeConversationActive: true,
+    });
+    const submitted = await app.shell.submitConversationOperation({
+      sessionId: "failed-image-session",
+      text: "Generate an image that the provider will reject.",
+    });
+    expect(submitted).toMatchObject({
+      kind: "assistant.conversation-operation.found",
+      operation: { sessionId: "failed-image-session" },
+    });
+
+    const terminal = await eventually(async () => {
+      const current = await app.shell.readTrackedConversationOperation({
+        sessionId: "failed-image-session",
+      });
+      expect(current).toMatchObject({
+        kind: "assistant.conversation-operation.found",
+        operation: {
+          state: "succeeded",
+          capabilities: { terminal: true },
+          result: {
+            assistantText: "The image could not be generated.",
+          },
+        },
+      });
+      return current;
+    });
+    if (terminal.kind !== "assistant.conversation-operation.found") {
+      throw new Error("failed image conversation did not settle");
+    }
+    expect(
+      terminal.operation.transcript.rows
+        .filter((row) => row.role === "user")
+        .map((row) => conversationText(row.parts)),
+    ).toEqual(["Generate an image that the provider will reject."]);
+    expect(
+      terminal.operation.transcript.rows
+        .flatMap((row) => row.parts)
+        .filter(
+          (
+            part,
+          ): part is Extract<
+            ConversationPresentationPart,
+            { readonly type: "tool" }
+          > => part.type === "tool" && part.name === "image_generate",
+        ),
+    ).toEqual([
+      expect.objectContaining({
+        name: "image_generate",
+        state: "failed",
+      }),
+    ]);
+    expect(
+      terminal.operation.transcript.rows.flatMap((row) =>
+        conversationResources(row.parts),
+      ),
+    ).toEqual([]);
+    expect(JSON.stringify(terminal)).not.toContain(
+      "provider-private-policy-detail",
+    );
+    expect(JSON.stringify(terminal)).not.toContain("failed-image-secret");
+    expect((await fetch(`${app.url}/`)).status).toBe(200);
+
+    expect(provider.conversationRequests).toHaveLength(2);
+    expect(provider.conversationRequests[1]).toMatchObject({
+      authorization: "Bearer failed-image-secret",
+      body: {
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "tool",
+            tool_call_id: "call_image_generate",
+          }),
+        ]),
+      },
+    });
+    expect(JSON.stringify(provider.conversationRequests[1])).toContain(
+      "media_generation_failed",
+    );
+    expect(JSON.stringify(provider.conversationRequests[1])).not.toContain(
+      "provider-private-policy-detail",
+    );
+    expect(provider.imageRequests).toEqual([
+      {
+        authorization: "Bearer failed-image-secret",
+        body: {
+          model: "failed-image-model",
+          prompt: "a small red triangle",
+        },
+      },
+    ]);
+
+    await app.close();
+    apps.pop();
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin,
+    });
+    try {
+      const operations = await storage.listMediaGenerationOperations({});
+      expect(operations).toHaveLength(1);
+      expect(operations[0]).toMatchObject({
+        state: "failed",
+        binding: {
+          request: {
+            operation: "image.generate",
+            prompt: "a small red triangle",
+            outputModality: "image",
+          },
+        },
+        outputReferences: [],
+        outputResourceIds: [],
+        error: {
+          type: "provider_rejection",
+          statusCode: 400,
+        },
+      });
+      expect(JSON.stringify(operations[0]?.error)).toContain(
+        "provider-private-policy-detail",
+      );
+      const stateDb = await readFile(join(storeDir, "state.db"));
+      expect(stateDb.includes("failed-image-secret")).toBe(false);
+    } finally {
+      await storage.dispose();
+    }
   });
 
   it("rejects unsupported image setup before writing a credential", async () => {
@@ -511,6 +651,140 @@ class MemorySecretStore implements SecretStorePort {
   }
 }
 
+async function listenImageProvider(options: {
+  readonly generatedBytes?: Uint8Array;
+  readonly rejectImage?: boolean;
+  readonly finalText: string;
+}): Promise<{
+  readonly baseUrl: string;
+  readonly conversationRequests: Array<{
+    readonly authorization: string;
+    readonly body: Record<string, unknown>;
+  }>;
+  readonly imageRequests: Array<{
+    readonly authorization: string;
+    readonly body: Record<string, unknown>;
+  }>;
+}> {
+  const conversationRequests: Array<{
+    readonly authorization: string;
+    readonly body: Record<string, unknown>;
+  }> = [];
+  const imageRequests: Array<{
+    readonly authorization: string;
+    readonly body: Record<string, unknown>;
+  }> = [];
+  const server = createServer((request, response) => {
+    void (async () => {
+      const body = await readJsonRequest(request);
+      const authorization = request.headers.authorization ?? "";
+      const path = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
+      if (request.method === "POST" && path === "/v1/chat/completions") {
+        conversationRequests.push({ authorization, body });
+        const messages = Array.isArray(body.messages) ? body.messages : [];
+        const hasToolResult = messages.some(
+          (message) =>
+            typeof message === "object" &&
+            message !== null &&
+            (message as { readonly role?: unknown }).role === "tool",
+        );
+        writeEventStream(
+          response,
+          hasToolResult
+            ? openAITextEvent(options.finalText)
+            : openAIImageToolEvent(),
+        );
+        return;
+      }
+      if (request.method === "POST" && path === "/v1/images/generations") {
+        imageRequests.push({ authorization, body });
+        if (options.rejectImage) {
+          response.writeHead(400, {
+            "content-type": "application/json; charset=utf-8",
+          });
+          response.end(
+            JSON.stringify({
+              error: { message: "provider-private-policy-detail" },
+            }),
+          );
+          return;
+        }
+        if (options.generatedBytes === undefined) {
+          throw new Error("successful image fixture requires generated bytes");
+        }
+        response.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+        });
+        response.end(
+          JSON.stringify({
+            data: [
+              {
+                b64_json: Buffer.from(options.generatedBytes).toString(
+                  "base64",
+                ),
+              },
+            ],
+          }),
+        );
+        return;
+      }
+      response.writeHead(404, { "content-type": "text/plain" });
+      response.end("not found");
+    })().catch((error) => {
+      if (response.headersSent) {
+        response.destroy(error instanceof Error ? error : undefined);
+        return;
+      }
+      response.writeHead(500, { "content-type": "text/plain" });
+      response.end(error instanceof Error ? error.message : String(error));
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  servers.push(server);
+  const address = server.address();
+  if (address === null || typeof address === "string") {
+    throw new Error("image provider fixture did not expose a TCP address");
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    conversationRequests,
+    imageRequests,
+  };
+}
+
+async function readJsonRequest(
+  request: IncomingMessage,
+): Promise<Record<string, unknown>> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("image provider request body must be an object");
+  }
+  return value as Record<string, unknown>;
+}
+
+function writeEventStream(response: ServerResponse, value: unknown): void {
+  response.writeHead(200, {
+    "content-type": "text/event-stream; charset=utf-8",
+    "cache-control": "no-cache",
+  });
+  response.end(`data: ${JSON.stringify(value)}\n\ndata: [DONE]\n\n`);
+}
+
+async function closeServer(server: Server | undefined): Promise<void> {
+  if (server === undefined) return;
+  await new Promise<void>((resolve, reject) => {
+    server.close((error) => (error === undefined ? resolve() : reject(error)));
+    server.closeAllConnections();
+  });
+}
+
 async function eventually<T>(assertion: () => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 500; attempt += 1) {
@@ -525,7 +799,11 @@ async function eventually<T>(assertion: () => Promise<T>): Promise<T> {
 }
 
 function openAIImageToolResponse(): Response {
-  return eventStreamResponse({
+  return eventStreamResponse(openAIImageToolEvent());
+}
+
+function openAIImageToolEvent(): unknown {
+  return {
     choices: [
       {
         delta: {
@@ -543,7 +821,7 @@ function openAIImageToolResponse(): Response {
         finish_reason: "tool_calls",
       },
     ],
-  });
+  };
 }
 
 function openAIToolResponse(
@@ -570,9 +848,13 @@ function openAIToolResponse(
 }
 
 function openAITextResponse(text: string): Response {
-  return eventStreamResponse({
+  return eventStreamResponse(openAITextEvent(text));
+}
+
+function openAITextEvent(text: string): unknown {
+  return {
     choices: [{ delta: { content: text }, finish_reason: "stop" }],
-  });
+  };
 }
 
 function eventStreamResponse(value: unknown): Response {
@@ -633,4 +915,62 @@ async function readDeliveredImage(
     offset += chunk.byteLength;
   }
   return content;
+}
+
+async function readDeliveredImageOverHttp(
+  app: AssistantWebApp,
+  sessionId: string,
+  resourceId: string,
+  sha256: string,
+): Promise<Uint8Array> {
+  const root = await fetch(`${app.url}/`);
+  const html = await root.text();
+  const token = /data-host-session-token="([^"]+)"/.exec(html)?.[1];
+  const cookie = root.headers.get("set-cookie")?.split(";", 1)[0];
+  if (token === undefined || cookie === undefined) {
+    throw new Error("Assistant Web Host session evidence is missing");
+  }
+  const prepared = await fetch(
+    `${app.url}/wanex/assistant/resource-delivery/prepare`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-wanex-host-session": token,
+      },
+      body: JSON.stringify({
+        sessionId,
+        resourceId,
+        sha256,
+        purpose: "preview",
+      }),
+    },
+  );
+  expect(prepared.status).toBe(200);
+  const body = (await prepared.json()) as {
+    readonly delivery: {
+      readonly url: string;
+      readonly resourceId: string;
+      readonly sha256: string;
+      readonly resourceKind: string;
+      readonly mediaType: string;
+      readonly sizeBytes: number;
+    };
+  };
+  expect(body.delivery).toMatchObject({
+    resourceId,
+    sha256,
+    resourceKind: "image",
+    mediaType: "image/png",
+  });
+  const delivered = await fetch(`${app.url}${body.delivery.url}`, {
+    headers: { cookie },
+  });
+  expect(delivered.status).toBe(200);
+  expect(delivered.headers.get("content-type")).toBe("image/png");
+  expect(delivered.headers.get("content-length")).toBe(
+    String(body.delivery.sizeBytes),
+  );
+  expect(delivered.headers.get("x-wanex-resource-sha256")).toBe(sha256);
+  return new Uint8Array(await delivered.arrayBuffer());
 }

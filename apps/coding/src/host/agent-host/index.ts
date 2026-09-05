@@ -13,6 +13,7 @@ export {
   type CodingResolveTurnApprovalRequest,
   type CodingResolveTurnRecoveryRequest,
   type CodingProposalDecisionInput,
+  type CodingProposalApplyRequest,
   type CodingProposalApplyInput,
   type CodingProposalUndoInput,
 } from "./client.js";

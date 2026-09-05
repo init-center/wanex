@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type {
   BeginToolExecutionRequest,
   BeginToolExecutionReceipt,
@@ -538,6 +538,48 @@ describe("Runtime tool contract", () => {
     }
     expect(first.calls).toBe(0)
     expect(second.calls).toBe(0)
+  })
+
+  it("settles deferred Tool context only after durable defer succeeds", async () => {
+    const registry = new ToolRegistry()
+    const settlement = {
+      commit: vi.fn(),
+      rollback: vi.fn()
+    }
+    registry.register(new DeferredSettlementTool(settlement))
+    const storage = new MemoryToolExecutionStore()
+    const order: string[] = []
+    vi.spyOn(storage, "deferToolExecution").mockImplementation(async () => {
+      order.push("persist")
+      return {} as never
+    })
+    settlement.commit.mockImplementation(() => order.push("commit"))
+
+    await expect(registry.execute(
+      executionRequest(storage, "call_deferred_settlement", "deferred_settlement")
+    )).resolves.toMatchObject({ state: "suspended", invoked: true })
+    expect(order).toEqual(["persist", "commit"])
+    expect(settlement.commit).toHaveBeenCalledTimes(1)
+    expect(settlement.rollback).not.toHaveBeenCalled()
+  })
+
+  it("rolls back deferred Tool context when durable defer is not visible", async () => {
+    const registry = new ToolRegistry()
+    const settlement = {
+      commit: vi.fn(),
+      rollback: vi.fn()
+    }
+    registry.register(new DeferredSettlementTool(settlement))
+    const storage = new MemoryToolExecutionStore()
+    vi.spyOn(storage, "deferToolExecution").mockRejectedValue(
+      new Error("deferred persistence failed")
+    )
+
+    await expect(registry.execute(
+      executionRequest(storage, "call_deferred_rollback", "deferred_settlement")
+    )).resolves.toMatchObject({ state: "completed", invoked: true })
+    expect(settlement.commit).not.toHaveBeenCalled()
+    expect(settlement.rollback).toHaveBeenCalledTimes(1)
   })
 
   it("freezes registered definitions and uses locale-independent ordering", async () => {
@@ -1199,6 +1241,37 @@ class NeverInvokedDeferredTool implements ToolDefinition {
   async invoke(): Promise<never> {
     this.calls += 1
     throw new Error("deferred batch validation invoked a Tool")
+  }
+}
+
+class DeferredSettlementTool implements ToolDefinition {
+  readonly name = "deferred_settlement"
+  readonly description = "Returns a deferred operation with a process-local settlement."
+  readonly inputSchema = { type: "object" } as const
+  readonly risk = "external" as const
+  readonly idempotent = true
+  readonly concurrency = "exclusive" as const
+  readonly resultMode = "deferred" as const
+  readonly runtimeBinding = createToolRuntimeBinding({
+    implementationId: "wanex.test.tool.deferred-settlement",
+    implementationRevision: "1"
+  })
+
+  constructor(private readonly settlement: {
+    readonly commit: () => void
+    readonly rollback: () => void
+  }) {}
+
+  async invoke(invocation: ToolInvocation): Promise<ToolExecutionResult> {
+    return {
+      outcome: "deferred",
+      toolCallId: invocation.toolCallId,
+      operation: {
+        kind: "media_generation",
+        binding: {} as never
+      },
+      settlement: this.settlement
+    }
   }
 }
 

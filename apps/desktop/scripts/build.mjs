@@ -428,6 +428,7 @@ async function createWanexSourceResolver() {
     "packages/runtime",
     "packages/extension",
     "packages/plugin",
+    "packages/mcp",
     "packages/team",
     "packages/local-credential-store",
     "packages/app",

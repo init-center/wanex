@@ -8,8 +8,12 @@ import {
   type SessionTurnRecord
 } from "@wanex/protocol"
 import type {
-  RuntimeHostSessionTurnResultSignal,
-  WanexRuntimeHost
+  RuntimeHostSessionTurnLifecycleSignal,
+  WanexRuntimeHost,
+} from "@wanex/runtime/host"
+import {
+  reconcilePreparedSessionTurnContext,
+  settlePreparedSessionTurnContext,
 } from "@wanex/runtime/host"
 import {
   inconclusiveGoalVerification,
@@ -64,8 +68,8 @@ export class WanexAppGoalCoordinator {
     this.#observeGoalInvalidation = options.observeGoalInvalidation
   }
 
-  readonly observeSessionTurnResult = (
-    signal: RuntimeHostSessionTurnResultSignal
+  readonly observeSessionTurnLifecycle = (
+    signal: RuntimeHostSessionTurnLifecycleSignal
   ): void => {
     if (!this.#started || this.#disposing) {
       return
@@ -434,13 +438,30 @@ export class WanexAppGoalCoordinator {
         turn: prepared.request
       })
       if (receipt.status === "admitted") {
+        settlePreparedSessionTurnContext(
+          {
+            binding: prepared.request.executionBinding,
+            context: prepared.context,
+          },
+          receipt.submission.turn,
+          prepared.turnId
+        )
         this.notifyGoalChanged(receipt.objective, "attempt_admitted")
         this.#host.wake()
         return "parked"
       }
+      prepared.context.rollback()
       this.notifyGoalChanged(receipt.objective, "limit_reached")
       return "progressed"
     } catch (error) {
+      await reconcilePreparedSessionTurnContext(
+        this.#storage,
+        {
+          binding: prepared.request.executionBinding,
+          context: prepared.context,
+        },
+        prepared.turnId
+      )
       const latest = await this.#storage.getObjective({ objectiveId: objective.id })
       if (
         latest === null ||

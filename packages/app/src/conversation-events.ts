@@ -3,7 +3,7 @@ import type {
   ProviderRunEvent
 } from "@wanex/runtime/provider"
 import type {
-  RuntimeHostSessionTurnResultObserver
+  RuntimeHostSessionTurnLifecycleObserver
 } from "@wanex/runtime/host"
 import type {
   WanexAppConversationEvent,
@@ -32,7 +32,7 @@ export class WanexAppConversationEventHub implements WanexAppEvents {
     this.emit(projected)
   }
 
-  readonly observeSessionTurnResult: RuntimeHostSessionTurnResultObserver = (
+  readonly observeSessionTurnLifecycle: RuntimeHostSessionTurnLifecycleObserver = (
     signal
   ) => {
     if (this.disposed) {
@@ -44,12 +44,9 @@ export class WanexAppConversationEventHub implements WanexAppEvents {
       sequence: this.sequence,
       at: Date.now(),
       reference: signal.reference,
-      cause:
-        signal.outcome === "completed"
-          ? "execution_completed"
-          : signal.outcome === "suspended"
-            ? "execution_suspended"
-            : "execution_failed"
+      cause: signal.phase === "suspended"
+        ? "execution_suspended"
+        : "execution_settled"
     })
   }
 

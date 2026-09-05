@@ -66,12 +66,12 @@ export function createState(
       ...(base?.preferences ?? {}),
       ...(explicit?.preferences ?? {})
     },
-    trackedConversationOperations: {
-      ...(stored?.trackedConversationOperations ?? {})
-    },
-    pendingGuidedFollowUps: {
-      ...(stored?.pendingGuidedFollowUps ?? {})
-    },
+    trackedConversationOperations: cloneConversationReferences(
+      stored?.trackedConversationOperations ?? {}
+    ),
+    pendingGuidedFollowUps: cloneConversationReferences(
+      stored?.pendingGuidedFollowUps ?? {}
+    ),
     conversationAttachmentDrafts: cloneAttachmentDrafts(
       stored?.conversationAttachmentDrafts ?? {}
     )
@@ -136,12 +136,12 @@ export function trustedStateSnapshot(
 ): TrustedStateSnapshot {
   return {
     ui: stateSnapshot(state),
-    trackedConversationOperations: {
-      ...state.trackedConversationOperations
-    },
-    pendingGuidedFollowUps: {
-      ...state.pendingGuidedFollowUps
-    },
+    trackedConversationOperations: cloneConversationReferences(
+      state.trackedConversationOperations
+    ),
+    pendingGuidedFollowUps: cloneConversationReferences(
+      state.pendingGuidedFollowUps
+    ),
     conversationAttachmentDrafts: cloneAttachmentDrafts(
       state.conversationAttachmentDrafts
     )
@@ -158,11 +158,11 @@ export function withTrackedConversationOperation(
     preferences: { ...state.preferences },
     trackedConversationOperations: {
       ...state.trackedConversationOperations,
-      [reference.sessionId]: reference
+      [reference.sessionId]: cloneConversationReference(reference)
     },
-    pendingGuidedFollowUps: {
-      ...state.pendingGuidedFollowUps
-    },
+    pendingGuidedFollowUps: cloneConversationReferences(
+      state.pendingGuidedFollowUps
+    ),
     conversationAttachmentDrafts: cloneAttachmentDrafts(
       state.conversationAttachmentDrafts
     )
@@ -188,7 +188,7 @@ export function withPendingGuidedFollowUp(
     ...copyState(state),
     pendingGuidedFollowUps: {
       ...state.pendingGuidedFollowUps,
-      [reference.sessionId]: reference
+      [reference.sessionId]: cloneConversationReference(reference)
     }
   }
 }
@@ -225,12 +225,12 @@ export function copyState(
       ? {}
       : { selection: { ...state.selection } }),
     preferences: { ...state.preferences },
-    trackedConversationOperations: {
-      ...state.trackedConversationOperations
-    },
-    pendingGuidedFollowUps: {
-      ...state.pendingGuidedFollowUps
-    },
+    trackedConversationOperations: cloneConversationReferences(
+      state.trackedConversationOperations
+    ),
+    pendingGuidedFollowUps: cloneConversationReferences(
+      state.pendingGuidedFollowUps
+    ),
     conversationAttachmentDrafts: cloneAttachmentDrafts(
       state.conversationAttachmentDrafts
     )
@@ -254,12 +254,12 @@ function replaceState(
   current.layout = next.layout
   current.mode = next.mode
   current.preferences = { ...next.preferences }
-  current.trackedConversationOperations = {
-    ...next.trackedConversationOperations
-  }
-  current.pendingGuidedFollowUps = {
-    ...next.pendingGuidedFollowUps
-  }
+  current.trackedConversationOperations = cloneConversationReferences(
+    next.trackedConversationOperations
+  )
+  current.pendingGuidedFollowUps = cloneConversationReferences(
+    next.pendingGuidedFollowUps
+  )
   current.conversationAttachmentDrafts = cloneAttachmentDrafts(
     next.conversationAttachmentDrafts
   )
@@ -274,6 +274,31 @@ function cloneAttachmentDrafts(
       attachments.map((attachment) => ({ ...attachment }))
     ])
   )
+}
+
+function cloneConversationReferences(
+  references: Readonly<Record<string, TrustedConversationOperationReference>>
+): Record<string, TrustedConversationOperationReference> {
+  return Object.fromEntries(
+    Object.entries(references).map(([key, reference]) => [
+      key,
+      cloneConversationReference(reference)
+    ])
+  )
+}
+
+function cloneConversationReference(
+  reference: TrustedConversationOperationReference
+): TrustedConversationOperationReference {
+  return {
+    sessionId: reference.sessionId,
+    inputId: reference.inputId,
+    turnId: reference.turnId,
+    jobId: reference.jobId,
+    ...(reference.submission === undefined
+      ? {}
+      : { submission: { ...reference.submission } })
+  }
 }
 
 export function selectedSessionId(

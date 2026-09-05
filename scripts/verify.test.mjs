@@ -27,6 +27,9 @@ describe("verify", () => {
     expect(stepByName(steps, "Package governance audit").args).toEqual([
       "audit:package-governance"
     ])
+    expect(stepByName(steps, "Distribution footprint audit tests").args).toEqual([
+      "test:distribution-footprint-audit"
+    ])
     expect(stepByName(steps, "Facade static footprint audit").args).toEqual([
       "audit:facade-footprint"
     ])

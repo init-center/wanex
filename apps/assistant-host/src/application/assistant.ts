@@ -10,6 +10,7 @@ import {
   type SurfaceAdapter,
 } from "@wanex/assistant"
 import { OpenAIImagesAdapter } from "@wanex/runtime/media-generation/openai-images"
+import { wanexLocalCredentialPolicy } from "@wanex/local-credential-store"
 import {
   NativeChildSupervisor,
   NativeExecutionEnvironment,
@@ -23,8 +24,8 @@ import {
   type TeamConversationExecutionHost,
 } from "@wanex/team/conversation"
 import type {
+  AssistantHostStorageConfig,
   AssistantHost,
-  LocalStorageConfig,
   StartAssistantHostOptions,
 } from "../model.js"
 import { resolveLocalModelEndpoints, seedLocalModelEndpoints } from "../provider/endpoints.js"
@@ -50,6 +51,15 @@ import {
   type LocalScheduleController,
 } from "../schedule/controller.js"
 import { preservePrimaryError } from "./errors.js"
+import {
+  createLocalMcpGenerationController,
+  createLocalMcpManagement,
+  createLocalMcpSettings,
+  type LocalMcpGenerationController,
+  type LocalMcpManagementPort,
+  type LocalMcpSettingsPort,
+} from "../mcp/index.js"
+import { ToolRegistry } from "@wanex/runtime/tools"
 
 export interface StartedAssistantHost {
   readonly runtime: BootstrappedWanexStorage
@@ -64,6 +74,9 @@ export interface StartedAssistantHost {
   readonly resourceDeliveries: ReturnType<typeof createLocalResourceDeliveryPort>
   readonly pluginComposition?: LocalPluginCompositionBinding
   readonly pluginExecutionEnvironment?: ExecutionEnvironment
+  readonly mcpController: LocalMcpGenerationController
+  readonly mcpManagement: LocalMcpManagementPort
+  readonly mcpSettings: LocalMcpSettingsPort
 }
 
 export async function startAssistantHost(
@@ -99,6 +112,9 @@ export async function startAssistantHostInternal(
   let scheduleController: LocalScheduleController | undefined
   let pluginComposition: LocalPluginCompositionBinding | undefined
   let pluginExecutionEnvironment: ExecutionEnvironment | undefined
+  let mcpController: LocalMcpGenerationController | undefined
+  let mcpManagement: LocalMcpManagementPort | undefined
+  let mcpSettings: LocalMcpSettingsPort | undefined
   const teamConversations = new TeamConversationRuntime({
     storage: teamStorage,
     principalId: "assistant-host-team",
@@ -107,8 +123,60 @@ export async function startAssistantHostInternal(
   const teamAdapter = createLocalTeamConversationAdapter({
     runtime: teamConversations,
   })
+  const resolveTeamContext = createTeamDeliveryAgentContextResolver({
+    storage: teamStorage,
+    prepareDelegatedExecutionBinding: async ({
+      sessionId,
+      inputId,
+      turnId,
+      content,
+      origin,
+      inheritedContextBinding,
+      inheritedContextIdentity,
+    }) => {
+      if (shell === undefined) {
+        throw new Error("Assistant shell is not ready for Team delegation")
+      }
+      return await shell.trustedExecution.prepareExecutionBinding({
+        sessionId,
+        inputId,
+        turnId,
+        content,
+        origin,
+        inheritedContextBinding,
+        ...(inheritedContextIdentity === undefined
+          ? {}
+          : { inheritedContextIdentity }),
+      })
+    },
+  })
 
   try {
+    mcpController = await createLocalMcpGenerationController({
+      storage: runtime.storage,
+      secretResolver: secrets.secretResolver,
+      ...(runtime.artifacts.systemService?.path === undefined &&
+      options.serviceBin === undefined
+        ? {}
+        : {
+            serviceBin:
+              runtime.artifacts.systemService?.path ?? options.serviceBin!,
+          }),
+    })
+    mcpManagement = createLocalMcpManagement({
+      storage: runtime.storage,
+      controller: mcpController,
+    })
+    mcpSettings = createLocalMcpSettings({
+      storage: runtime.storage,
+      management: mcpManagement,
+      credentialStore: secrets.credentialStore,
+      credentialPolicy: wanexLocalCredentialPolicy({
+        namespace: secrets.namespace,
+        scheme: secrets.credentialStore.scheme,
+      }),
+    })
+    await mcpSettings.reconcileCredentials()
     if (options.pluginComposition !== undefined) {
       const serviceBin = runtime.artifacts.systemService?.path ?? options.serviceBin
       if (serviceBin === undefined) {
@@ -131,6 +199,7 @@ export async function startAssistantHostInternal(
       },
       executionEnvironment: pluginExecutionEnvironment!,
     })
+    const startedMcpController = mcpController
     shell = await createShell({
       storage: {
         kind: "injected",
@@ -146,28 +215,35 @@ export async function startAssistantHostInternal(
       runtimeContext: {
         toolPermissionPolicy: new LocalToolPermissionPolicy(),
       },
-      runtimeContextResolver: createTeamDeliveryAgentContextResolver({
-        storage: teamStorage,
-        prepareDelegatedExecutionBinding: async ({
-          sessionId,
-          inputId,
-          turnId,
-          content,
-          origin,
-        }) => {
-          if (shell === undefined) {
-            throw new Error("Assistant shell is not ready for Team delegation")
+      runtimeContextResolver: async (request) => {
+        const mcp = startedMcpController.resolve(request)
+        try {
+          const team = await resolveTeamContext(
+            request.phase === "admission" || mcp?.contextIdentity === undefined
+              ? request
+              : { ...request, contextIdentity: mcp.contextIdentity }
+          )
+          const tools = mergeToolRegistries(
+            mcp?.context?.tools,
+            team?.tools
+          )
+          if (tools === undefined && mcp?.lease === undefined) {
+            return undefined
           }
-          return await shell.trustedExecution.prepareExecutionBinding({
-            sessionId,
-            inputId,
-            turnId,
-            content,
-            origin,
-          })
-        },
-      }),
-      observeSessionTurnResult() {
+          return {
+            context: tools === undefined ? {} : { tools },
+            ...(mcp?.contextIdentity === undefined
+              ? {}
+              : { contextIdentity: mcp.contextIdentity }),
+            ...(mcp?.lease === undefined ? {} : { lease: mcp.lease })
+          }
+        } catch (error) {
+          mcp?.lease?.rollback()
+          throw error
+        }
+      },
+      observeSessionTurnLifecycle(signal) {
+        startedMcpController.observeTurnLifecycle(signal)
         teamHost?.wake()
       },
       stateStore: createStorageStateStore({ storage: runtime.storage }),
@@ -176,6 +252,9 @@ export async function startAssistantHostInternal(
       ...(options.modelEndpoint === undefined
         ? {}
         : { modelEndpoint: options.modelEndpoint }),
+      ...(options.agentContextProfile === undefined
+        ? {}
+        : { agentContextProfile: options.agentContextProfile }),
       ...(options.trustedProviderHost === undefined
         ? {}
         : { trustedProviderHost: options.trustedProviderHost }),
@@ -227,6 +306,9 @@ export async function startAssistantHostInternal(
       teamHost,
       attachments,
       resourceDeliveries,
+      mcpController,
+      mcpManagement,
+      mcpSettings,
       ...(pluginComposition === undefined ? {} : { pluginComposition }),
       ...(pluginExecutionEnvironment === undefined
         ? {}
@@ -246,6 +328,7 @@ export async function startAssistantHostInternal(
         ...(pluginExecutionEnvironment === undefined
           ? {}
           : { pluginExecutionEnvironment }),
+        ...(mcpController === undefined ? {} : { mcpController }),
       })
     } catch (cleanupError) {
       throw preservePrimaryError(error, cleanupError)
@@ -264,6 +347,8 @@ export function createAssistantHostHandle(
     teamConversations: started.shell.teamConversations,
     schedules: started.shell.schedules,
     modelEndpoints: started.shell.modelEndpoints,
+    secretResolver: started.secrets.secretResolver,
+    mcpSettings: started.mcpSettings,
     attachments: started.attachments,
     resourceDeliveries: started.resourceDeliveries,
     async close() {
@@ -283,6 +368,7 @@ export async function closeStartedAssistantHost(request: {
   readonly scheduleController?: LocalScheduleController
   readonly pluginComposition?: LocalPluginCompositionBinding
   readonly pluginExecutionEnvironment?: ExecutionEnvironment
+  readonly mcpController?: LocalMcpGenerationController
 }): Promise<void> {
   let firstError: unknown
   for (const close of [
@@ -295,6 +381,7 @@ export async function closeStartedAssistantHost(request: {
     async () => request.scheduleAdapter.dispose(),
     async () => await request.pluginComposition?.dispose(),
     async () => await request.pluginExecutionEnvironment?.close(),
+    async () => await request.mcpController?.dispose(),
     async () => await request.runtime.dispose(),
   ]) {
     try {
@@ -306,10 +393,35 @@ export async function closeStartedAssistantHost(request: {
   if (firstError !== undefined) throw firstError
 }
 
+function mergeToolRegistries(
+  first: ToolRegistry | undefined,
+  second: ToolRegistry | undefined,
+): ToolRegistry | undefined {
+  if (first === undefined) return second
+  if (second === undefined || first === second) return first
+  const merged = new ToolRegistry()
+  for (const registry of [first, second]) {
+    for (const descriptor of registry.list()) {
+      const definition = registry.get(descriptor.name)
+      if (definition === undefined) {
+        throw new Error(`tool registry changed during composition: ${descriptor.name}`)
+      }
+      merged.register(definition)
+    }
+  }
+  return merged
+}
+
 function toBootstrapStorage(
-  storage: LocalStorageConfig,
+  storage: AssistantHostStorageConfig,
   serviceBin: string | undefined,
 ): WanexBootstrapStorageConfig {
+  if (storage.kind === "injected") {
+    return {
+      kind: "injected",
+      handle: storage.handle,
+    }
+  }
   const artifact = serviceBin === undefined ? {} : { serviceBin }
   if (storage.kind === "profile") {
     return {

@@ -85,9 +85,14 @@ export function createJourneyHosts(
       const resolved = await resolver(request)
       return resolved === undefined
         ? undefined
-        : { ...resolved, toolPermissionPolicy: permissionPolicy }
+        : {
+            context: {
+              ...resolved,
+              toolPermissionPolicy: permissionPolicy
+            }
+          }
     },
-    observeSessionTurnResult() {
+    observeSessionTurnLifecycle() {
       teamHost?.wake()
     }
   })

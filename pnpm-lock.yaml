@@ -89,6 +89,9 @@ importers:
       '@wanex/local-credential-store':
         specifier: workspace:*
         version: link:../../packages/local-credential-store
+      '@wanex/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@wanex/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -220,6 +223,24 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
+
+  apps/server:
+    dependencies:
+      '@wanex/assistant-host':
+        specifier: workspace:*
+        version: link:../assistant-host
+      '@wanex/coding':
+        specifier: workspace:*
+        version: link:../coding
+      '@wanex/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@wanex/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
+      '@wanex/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
 
   apps/tui:
     dependencies:

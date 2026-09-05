@@ -381,8 +381,12 @@ describe("@wanex/team/conversation", () => {
     })
     registerTeamDeliveryWorkerHandler(jobs.worker, {
       storage,
+      turnStorage: storage,
       resolveExecutionBinding: ({ context }) => ({
-        executionBinding: testTurnBinding(context.delivery.id),
+        prepared: {
+          binding: testTurnBinding(context.delivery.id),
+          context: { commit() {}, rollback() {} }
+        },
         maxSteps: 8
       })
     })

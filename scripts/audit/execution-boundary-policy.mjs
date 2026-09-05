@@ -24,6 +24,7 @@ const childProcessOwners = new Set([
 
 const nativeEnvironmentCompositionOwners = new Set([
   "apps/assistant-host/src/application/assistant.ts",
+  "apps/assistant-host/src/mcp/composition.ts",
   "apps/coding/src/host/start.ts",
   "apps/desktop/src/execution.ts",
   "packages/eval-harness/src/assistant/declarative-input-scenario.ts",
@@ -38,6 +39,7 @@ const ambientEnvironmentOwners = new Set([
   "apps/assistant-host/src/dev/main.ts",
   "apps/cli/src/index.ts",
   "apps/desktop/src/main.ts",
+  "apps/server/src/cli/main.ts",
   "apps/tui/src/cli/main.ts",
   "packages/app/src/main.ts",
   "packages/eval-harness/src/cli.ts",

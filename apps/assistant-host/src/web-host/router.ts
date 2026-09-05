@@ -26,6 +26,7 @@ import type { WebNodeRequestHandlerOptions } from "./types.js"
 import { handleAttachmentUpload } from "./routes/attachment.js"
 import { handleCapabilitySetup } from "./routes/capability.js"
 import { handleProviderManagement } from "./routes/providers.js"
+import { handleMcpSettings } from "./routes/mcp.js"
 
 export interface WebRequestContext {
   readonly controller: Controller
@@ -35,6 +36,7 @@ export interface WebRequestContext {
   readonly providers?: WebNodeRequestHandlerOptions["providers"]
   readonly modelCatalog?: WebNodeRequestHandlerOptions["modelCatalog"]
   readonly capabilitySetup?: WebNodeRequestHandlerOptions["capabilitySetup"]
+  readonly mcpSettings?: WebNodeRequestHandlerOptions["mcpSettings"]
   readonly browserAssets: NonNullable<
     WebNodeRequestHandlerOptions["browserAssets"]
   >
@@ -48,6 +50,7 @@ export interface WebRequestContext {
   readonly providerManagementPath?: string
   readonly modelCatalogRefreshPath?: string
   readonly capabilitySetupPath?: string
+  readonly mcpSettingsPath?: string
   readonly maxAttachmentBytes: number
   readonly hostSessionToken: string
   readonly windowChrome: NonNullable<
@@ -85,6 +88,9 @@ export async function routeWebRequest(request: WebRequestContext): Promise<void>
           ...(request.capabilitySetupPath === undefined
             ? {}
             : { capabilitySetupPath: request.capabilitySetupPath }),
+          ...(request.mcpSettingsPath === undefined
+            ? {}
+            : { mcpSettingsPath: request.mcpSettingsPath }),
           hostSessionToken: request.hostSessionToken,
           windowChrome: request.windowChrome
         })
@@ -150,6 +156,31 @@ export async function routeWebRequest(request: WebRequestContext): Promise<void>
       }
       requireHostSession(request)
       await handleProviderManagement(request)
+      return
+    }
+    if (
+      request.mcpSettingsPath !== undefined &&
+      path === request.mcpSettingsPath
+    ) {
+      if (
+        request.request.method !== "GET" &&
+        request.request.method !== "POST"
+      ) {
+        methodNotAllowed(
+          request.response,
+          "MCP settings endpoint requires GET or POST"
+        )
+        return
+      }
+      requireHostSession(request)
+      await handleMcpSettings({
+        ...(request.mcpSettings === undefined
+          ? {}
+          : { settings: request.mcpSettings }),
+        maxBodyBytes: request.maxBodyBytes,
+        request: request.request,
+        response: request.response,
+      })
       return
     }
     if (

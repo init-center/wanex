@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import {
   runEphemeralSideQuery,
   type RunEphemeralSideQueryRequest
@@ -21,6 +21,8 @@ import type {
   ModelEndpoint,
   SessionRecord,
   SessionScope,
+  SessionTurnExecutionBinding,
+  SubmitSessionTurnReceipt,
   UserMessageInputPart
 } from "@wanex/protocol"
 import {
@@ -36,12 +38,20 @@ import type {
   AgentRunOnceResult,
   PrepareSessionTurnExecutionBindingRequest,
   PreparedSessionTurnExecutionBinding,
+  PreparedSessionTurnContext,
   PreparedUserTurn,
   SubmitAndRunUserTurnResult,
   SubmitUserTurnRequest,
   SubmitUserTurnResult,
   WanexAgentRuntimeOptions
 } from "./types.js"
+import type {
+  SessionTurnAgentContextLease,
+} from "../worker/types.js"
+import {
+  reconcilePreparedSessionTurnContext,
+  settlePreparedSessionTurnContext,
+} from "./prepared-context.js"
 
 const DEFAULT_LEASE_MS = 60_000
 const MAX_DERIVED_SESSION_TITLE_CHARACTERS = 200
@@ -161,7 +171,22 @@ export class WanexAgentRuntime {
     request: SubmitUserTurnRequest
   ): Promise<SubmitUserTurnResult> {
     const prepared = await this.prepareUserTurn(request)
-    const receipt = await this.session.submitTurn(prepared.request)
+    let receipt: SubmitSessionTurnReceipt
+    try {
+      receipt = await this.session.submitTurn(prepared.request)
+    } catch (error) {
+      await reconcilePreparedSessionTurnContext(
+        this.storage,
+        preparedContextBinding(prepared),
+        prepared.turnId
+      )
+      throw error
+    }
+    settlePreparedSessionTurnContext(
+      preparedContextBinding(prepared),
+      receipt.turn,
+      prepared.turnId
+    )
     return {
       session: prepared.session,
       inputId: prepared.inputId,
@@ -197,39 +222,57 @@ export class WanexAgentRuntime {
         : { scope: request.sessionScope })
     })
     assertRequestedSessionScope(session, request.sessionScope)
-    const inputId = request.inputId ?? `inp_${randomUUID()}`
-    const turnId = request.turnId ?? `turn_${randomUUID()}`
-    const agentContext =
-      (await this.resolveAgentContext?.({
+    const inputId =
+      request.inputId ??
+      (request.idempotencyKey === undefined
+        ? `inp_${randomUUID()}`
+        : stableSubmissionIdentity(
+            "inp",
+            session.id,
+            request.idempotencyKey,
+          ))
+    const idempotencyKey =
+      request.idempotencyKey ?? `agent-runtime:${session.id}:${inputId}`
+    const turnId =
+      request.turnId ??
+      stableSubmissionIdentity("turn", session.id, idempotencyKey)
+    const resolved = await this.resolveAgentContext?.({
         sessionId: session.id,
         turnId,
         inputId,
+        phase: "admission",
         ...(request.origin === undefined ? {} : { origin: request.origin }),
         signal: new AbortController().signal
-      })) ?? this.staticAgentContext
-    const executionBinding = createTurnExecutionBinding({
-      modelEndpoint,
-      ...(request.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: request.maxOutputTokens }),
-      resources: admitted.resources,
-      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
-      ...(request.executionEnvironment === undefined
-        ? {}
-        : { executionEnvironment: request.executionEnvironment }),
-      ...(request.applicationScope === undefined
-        ? {}
-        : { applicationScope: request.applicationScope }),
-      ...(agentContext === undefined ? {} : { agentContext })
-    })
+      })
+    let executionBinding: SessionTurnExecutionBinding
+    try {
+      const agentContext = resolved?.context ?? this.staticAgentContext
+      executionBinding = createTurnExecutionBinding({
+        modelEndpoint,
+        ...(request.maxOutputTokens === undefined
+          ? {}
+          : { maxOutputTokens: request.maxOutputTokens }),
+        resources: admitted.resources,
+        ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+        ...(request.executionEnvironment === undefined
+          ? {}
+          : { executionEnvironment: request.executionEnvironment }),
+        ...(request.applicationScope === undefined
+          ? {}
+          : { applicationScope: request.applicationScope }),
+        ...(agentContext === undefined ? {} : { agentContext })
+      })
+    } catch (error) {
+      resolved?.lease?.rollback()
+      throw error
+    }
     const submissionRequest = {
       id: inputId,
-      ...(request.turnId === undefined ? {} : { turnId }),
+      turnId,
       sessionId: session.id,
       principalId: request.principalId ?? "agent-runtime-user",
       queue: this.runtime.queue,
-      idempotencyKey:
-        request.idempotencyKey ?? `agent-runtime:${session.id}:${inputId}`,
+      idempotencyKey,
       content: admitted.content,
       executionBinding,
       ...(request.origin === undefined ? {} : { origin: request.origin }),
@@ -252,7 +295,17 @@ export class WanexAgentRuntime {
         ? {}
         : { regeneratesTurnId: request.regeneratesTurnId })
     }
-    return { session, inputId, turnId, request: submissionRequest }
+    return {
+      session,
+      inputId,
+      turnId,
+      request: submissionRequest,
+      context: bindPreparedContext(
+        resolved?.lease,
+        resolved?.contextIdentity,
+        executionBinding
+      ),
+    }
   }
 
   async prepareExecutionBinding(
@@ -266,29 +319,76 @@ export class WanexAgentRuntime {
       modelEndpoint,
       request.content
     )
-    const agentContext =
-      (await this.resolveAgentContext?.({
+    const resolved = await this.resolveAgentContext?.({
         sessionId: request.sessionId,
         turnId: request.turnId,
         inputId: request.inputId,
+        ...(request.inheritedContextBinding === undefined
+          ? { phase: "admission" as const }
+          : {
+              phase: "inheritance" as const,
+              executionBinding: request.inheritedContextBinding,
+              ...(request.inheritedContextIdentity === undefined
+                ? {}
+                : { contextIdentity: request.inheritedContextIdentity }),
+            }),
         ...(request.origin === undefined ? {} : { origin: request.origin }),
         signal: new AbortController().signal
-      })) ?? this.staticAgentContext
-    return createTurnExecutionBinding({
-      modelEndpoint,
-      resources,
-      ...(request.maxOutputTokens === undefined
-        ? {}
-        : { maxOutputTokens: request.maxOutputTokens }),
-      ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
-      ...(request.executionEnvironment === undefined
-        ? {}
-        : { executionEnvironment: request.executionEnvironment }),
-      ...(request.applicationScope === undefined
-        ? {}
-        : { applicationScope: request.applicationScope }),
-      ...(agentContext === undefined ? {} : { agentContext })
-    })
+      })
+    if (
+      request.inheritedContextBinding === undefined &&
+      request.inheritedContextIdentity !== undefined
+    ) {
+      resolved?.lease?.rollback()
+      throw new Error(
+        "inherited context identity requires an inherited execution binding"
+      )
+    }
+    if (
+      request.inheritedContextBinding !== undefined &&
+      resolved?.lease !== undefined &&
+      resolved.lease.phase !== "inheritance"
+    ) {
+      resolved.lease.rollback()
+      throw new Error("inherited context resolution returned a non-inheritance lease")
+    }
+    if (
+      request.inheritedContextIdentity !== undefined &&
+      resolved?.contextIdentity !== request.inheritedContextIdentity
+    ) {
+      resolved?.lease?.rollback()
+      throw new Error("inherited context resolution changed its context generation")
+    }
+    let binding: SessionTurnExecutionBinding
+    try {
+      const agentContext = resolved?.context ?? this.staticAgentContext
+      binding = createTurnExecutionBinding({
+        modelEndpoint,
+        resources,
+        ...(request.maxOutputTokens === undefined
+          ? {}
+          : { maxOutputTokens: request.maxOutputTokens }),
+        ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
+        ...(request.executionEnvironment === undefined
+          ? {}
+          : { executionEnvironment: request.executionEnvironment }),
+        ...(request.applicationScope === undefined
+          ? {}
+          : { applicationScope: request.applicationScope }),
+        ...(agentContext === undefined ? {} : { agentContext })
+      })
+    } catch (error) {
+      resolved?.lease?.rollback()
+      throw error
+    }
+    return {
+      binding,
+      context: bindPreparedContext(
+        resolved?.lease,
+        resolved?.contextIdentity,
+        binding
+      ),
+    }
   }
 
   async runOnce(): Promise<AgentRunOnceResult> {
@@ -408,8 +508,67 @@ function withDefaultContextCompilerResolver(
     if (resolved === undefined) return undefined
     return {
       ...resolved,
-      contextCompiler: resolved.contextCompiler ?? defaultContextCompiler
+      ...(resolved.context === undefined
+        ? {}
+        : {
+            context: {
+              ...resolved.context,
+              contextCompiler:
+                resolved.context.contextCompiler ?? defaultContextCompiler,
+            },
+          }),
     }
+  }
+}
+
+function stableSubmissionIdentity(
+  kind: "inp" | "turn",
+  sessionId: string,
+  idempotencyKey: string
+): string {
+  const digest = createHash("sha256")
+    .update(["wanex.runtime.submission", kind, sessionId, idempotencyKey].join("\u0000"), "utf8")
+    .digest("hex")
+    .slice(0, 32)
+  return `${kind}_runtime_${digest}`
+}
+
+function bindPreparedContext(
+  lease: SessionTurnAgentContextLease | undefined,
+  identity: PreparedSessionTurnContext["identity"],
+  binding: SessionTurnExecutionBinding
+): PreparedSessionTurnContext {
+  let state: "pending" | "committed" | "rolled_back" = "pending"
+  return Object.freeze({
+    ...(identity === undefined ? {} : { identity }),
+    commit() {
+      if (state !== "pending") return
+      state = "committed"
+      try {
+        lease?.commit(binding)
+      } catch {
+        // Durable admission already committed; lifecycle cleanup cannot undo it.
+      }
+    },
+    rollback() {
+      if (state !== "pending") return
+      state = "rolled_back"
+      try {
+        lease?.rollback()
+      } catch {
+        // Rollback is best-effort process-local cleanup and must not mask the
+        // original admission failure.
+      }
+    },
+  })
+}
+
+function preparedContextBinding(
+  prepared: PreparedUserTurn
+): PreparedSessionTurnExecutionBinding {
+  return {
+    binding: prepared.request.executionBinding,
+    context: prepared.context,
   }
 }
 

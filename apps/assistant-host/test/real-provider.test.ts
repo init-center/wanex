@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -10,6 +10,7 @@ import {
   type SecretResolveContext,
   type SecretStorePort
 } from "@wanex/runtime/secrets"
+import type { AgentContextProfile } from "@wanex/runtime/context"
 import {
   startAssistantWebApp,
   type AssistantWebApp
@@ -407,6 +408,157 @@ describe("@wanex/assistant-host real provider", () => {
     expect(stateDb.includes(secretValue)).toBe(false)
   })
 
+  it("completes a chat-first Web turn through the Anthropic Messages provider", async () => {
+    const provider = await listenAnthropicProvider()
+    const storeDir = await createTempDir("wanex-assistant-anthropic-provider-")
+    const workspaceRoot = await createTempDir("wanex-assistant-anthropic-context-")
+    await writeFile(
+      join(workspaceRoot, "AGENTS.md"),
+      "Use the configured Anthropic conversation provider."
+    )
+    const app = await startRealProviderApp({
+      storeDir,
+      baseUrl: provider.baseUrl,
+      env: {
+        WANEX_ASSISTANT_REAL_PROVIDER_KEY: secretValue
+      },
+      protocol: "anthropic-messages",
+      providerId: "anthropic",
+      modelId: "assistant-anthropic-real-provider-model",
+      agentContextProfile: {
+        instructions: {
+          cwd: workspaceRoot,
+          projectRoot: workspaceRoot,
+          trustProject: true
+        }
+      }
+    })
+
+    const response = await postJson(`${app.url}/wanex/assistant/request`, {
+      kind: "web.request",
+      operation: "dispatchAction",
+      requestId: "assistant_anthropic_real_provider_turn",
+      action: {
+        type: "submit-conversation",
+        input: {
+          text: userText
+        }
+      }
+    })
+    const snapshot = await waitForConversationTerminal(app)
+    const webSnapshot = app.controller.snapshot()
+
+    expect(provider.requests).toHaveLength(1)
+    expect(provider.requests[0]).toMatchObject({
+      apiKey: secretValue,
+      anthropicVersion: "2023-06-01",
+      body: {
+        model: "assistant-anthropic-real-provider-model",
+        system: expect.stringContaining(
+          "Use the configured Anthropic conversation provider."
+        ),
+        messages: [{ role: "user", content: userText }],
+        max_tokens: 4096,
+        stream: true
+      }
+    })
+    expect(response).toMatchObject({
+      kind: "web.response",
+      ok: true,
+      operation: "dispatchAction",
+      actionResult: { ok: true }
+    })
+    expect(snapshot.web.conversation).toMatchObject({
+      state: "succeeded",
+      operation: {
+        result: {
+          assistantText
+        },
+        capabilities: {
+          terminal: true,
+          regeneratable: true
+        }
+      }
+    })
+    expect(JSON.stringify(webSnapshot.conversation.historyRows)).toContain(assistantText)
+
+    const rendererValues = [response, snapshot, webSnapshot]
+    const rendererSerialized = JSON.stringify(rendererValues)
+    expect(rendererSerialized).not.toContain(secretRef)
+    expect(rendererSerialized).not.toContain(secretValue)
+    expect(containsSensitiveText(rendererValues, storeDir)).toBe(false)
+    expect(containsSensitiveText(rendererValues, serviceBin)).toBe(false)
+
+    const stateDb = await readFile(join(storeDir, "state.db"))
+    expect(stateDb.includes(secretRef)).toBe(true)
+    expect(stateDb.includes(secretValue)).toBe(false)
+  })
+
+  it("keeps the Anthropic conversation visible when the stream ends after output", async () => {
+    const provider = await listenAnthropicProvider({ interrupted: true })
+    const storeDir = await createTempDir("wanex-assistant-anthropic-interrupted-")
+    const app = await startRealProviderApp({
+      storeDir,
+      baseUrl: provider.baseUrl,
+      env: {
+        WANEX_ASSISTANT_REAL_PROVIDER_KEY: secretValue
+      },
+      protocol: "anthropic-messages",
+      providerId: "anthropic",
+      modelId: "assistant-anthropic-interrupted-model"
+    })
+
+    const response = await postJson(`${app.url}/wanex/assistant/request`, {
+      kind: "web.request",
+      operation: "dispatchAction",
+      requestId: "assistant_anthropic_interrupted_turn",
+      action: {
+        type: "submit-conversation",
+        input: {
+          text: "preserve this interrupted Anthropic question"
+        }
+      }
+    })
+    const snapshot = await waitForConversationTerminal(app, {
+      includeRecovery: true
+    })
+    const webSnapshot = app.controller.snapshot()
+
+    expect(snapshot.web.conversation).toMatchObject({
+      state: "recovery_required",
+      operation: {
+        error: {
+          code: "conversation_operation_recovery_required",
+          category: "runtime"
+        },
+        capabilities: {
+          terminal: false,
+          cancellable: false,
+          regeneratable: false,
+          steerable: false
+        }
+      }
+    })
+    expect(JSON.stringify([
+      response,
+      snapshot.web.conversation,
+      webSnapshot.conversation
+    ])).toContain("preserve this interrupted Anthropic question")
+    expect(provider.requests).toHaveLength(1)
+    expect(provider.requests[0]?.apiKey).toBe(secretValue)
+
+    const stillRunning = await fetch(`${app.url}/`)
+    expect(stillRunning.status).toBe(200)
+    expect(await stillRunning.text()).toContain("data-app-root")
+
+    const rendererValues = [response, snapshot, webSnapshot]
+    const rendererSerialized = JSON.stringify(rendererValues)
+    expect(rendererSerialized).not.toContain(secretRef)
+    expect(rendererSerialized).not.toContain(secretValue)
+    expect(containsSensitiveText(rendererValues, storeDir)).toBe(false)
+    expect(containsSensitiveText(rendererValues, serviceBin)).toBe(false)
+  })
+
   it("keeps the Assistant Local host alive when environment resolution fails", async () => {
     const storeDir = await createTempDir("wanex-assistant-local-missing-secret-")
     const app = await startRealProviderApp({
@@ -470,16 +622,25 @@ describe("@wanex/assistant-host real provider", () => {
 })
 
 async function waitForConversationTerminal(
-  app: AssistantWebApp
+  app: AssistantWebApp,
+  options: { readonly includeRecovery?: boolean } = {}
 ): Promise<Awaited<ReturnType<AssistantWebApp["readSnapshot"]>>> {
+  let latest: Awaited<ReturnType<AssistantWebApp["readSnapshot"]>> | undefined
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const snapshot = await app.readSnapshot()
-    if (snapshot.web.conversation.operation?.capabilities.terminal) {
+    latest = snapshot
+    const operation = snapshot.web.conversation.operation
+    if (
+      operation?.capabilities.terminal ||
+      (options.includeRecovery && operation?.state === "recovery_required")
+    ) {
       return snapshot
     }
     await new Promise((resolve) => setTimeout(resolve, 10))
   }
-  throw new Error("real-provider conversation did not finish")
+  throw new Error(
+    `real-provider conversation did not finish: ${JSON.stringify(latest?.web.conversation)}`
+  )
 }
 
 async function waitForTeamRound(
@@ -505,7 +666,12 @@ async function startRealProviderApp(options: {
   readonly storeDir: string
   readonly baseUrl: string
   readonly env: Readonly<Record<string, string | undefined>>
+  readonly protocol?: "openai-chat-completions" | "anthropic-messages"
+  readonly providerId?: string
+  readonly modelId?: string
+  readonly agentContextProfile?: AgentContextProfile
 }): Promise<AssistantWebApp> {
+  const protocol = options.protocol ?? "openai-chat-completions"
   const app = await startAssistantWebApp({
     storage: {
       kind: "store-dir",
@@ -513,19 +679,27 @@ async function startRealProviderApp(options: {
       storeDir: options.storeDir
     },
     serviceBin,
+    ...(options.agentContextProfile === undefined
+      ? {}
+      : { agentContextProfile: options.agentContextProfile }),
     modelEndpoints: {
       endpoints: [
         {
           id: "assistant-local-real-provider",
           connection: {
             id: "assistant-local-real-provider",
-            providerId: "openai-compatible",
+            providerId: options.providerId ?? "openai-compatible",
             baseUrl: options.baseUrl,
             secretRef
           },
-          protocol: { id: "openai-chat-completions" },
+          protocol: {
+            id: protocol,
+            ...(protocol === "anthropic-messages"
+              ? { version: "2023-06-01" }
+              : {})
+          },
           model: {
-            id: modelId,
+            id: options.modelId ?? modelId,
             operations: ["conversation"],
             inputModalities: ["text"],
             outputModalities: ["text"],
@@ -599,6 +773,70 @@ async function listenOpenAICompatibleProvider(): Promise<{
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     requests
   }
+}
+
+async function listenAnthropicProvider(options: {
+  readonly interrupted?: boolean
+} = {}): Promise<{
+  readonly baseUrl: string
+  readonly requests: Array<{
+    readonly apiKey: string
+    readonly anthropicVersion: string
+    readonly body: unknown
+  }>
+}> {
+  const requests: Array<{
+    readonly apiKey: string
+    readonly anthropicVersion: string
+    readonly body: unknown
+  }> = []
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = []
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    requests.push({
+      apiKey: headerValue(request.headers["x-api-key"]),
+      anthropicVersion: headerValue(request.headers["anthropic-version"]),
+      body: JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown
+    })
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache"
+    })
+    const events = options.interrupted
+      ? [
+          { type: "message_start", message: { usage: { input_tokens: 8 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "partial Anthropic output" } }
+        ]
+      : [
+          { type: "message_start", message: { usage: { input_tokens: 8 } } },
+          { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+          { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: assistantText } },
+          { type: "content_block_stop", index: 0 },
+          { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 6 } },
+          { type: "message_stop" }
+        ]
+    response.end(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""))
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject)
+    server.listen(0, "127.0.0.1", resolve)
+  })
+  servers.push(server)
+  const address = server.address()
+  if (address === null || typeof address === "string") {
+    throw new Error("Anthropic provider fixture did not expose a TCP address")
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requests
+  }
+}
+
+function headerValue(value: string | string[] | undefined): string {
+  return Array.isArray(value) ? value[0] ?? "" : value ?? ""
 }
 
 async function listenTeamPassProvider(): Promise<{

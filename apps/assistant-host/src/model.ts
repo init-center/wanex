@@ -29,6 +29,8 @@ import type {
   SecretResolverPort,
   SecretStorePort,
 } from "@wanex/runtime/secrets";
+import type { StorageHandle } from "@wanex/storage";
+import type { AgentContextProfile } from "@wanex/runtime/context";
 import type {
   Controller,
   Snapshot,
@@ -41,12 +43,23 @@ import type { WebWindowChrome } from "./web-host/window-chrome.js";
 import type { LocalAttachmentUploadPort } from "./resources/attachment.js";
 import type { LocalResourceDeliveryPort } from "./resources/delivery.js";
 import type { LocalPluginCompositionPort } from "./application/plugin.js";
+import type { LocalMcpSettingsPort } from "./mcp/settings/model.js";
 
 export type LocalStorageMode = "oneshot" | "persistent";
 
 export type LocalStorageConfig =
   | LocalStoreDirStorageConfig
   | LocalProfileStorageConfig;
+
+export type AssistantHostStorageConfig =
+  | LocalStorageConfig
+  | InjectedAssistantHostStorageConfig;
+
+export interface InjectedAssistantHostStorageConfig {
+  readonly kind: "injected";
+  readonly handle: Pick<StorageHandle, "core" | "transport">;
+  readonly credentialNamespace: string;
+}
 
 export interface LocalStoreDirStorageConfig {
   readonly kind: "store-dir";
@@ -85,6 +98,7 @@ export interface StartAssistantWebAppOptions {
   readonly storage: LocalStorageConfig;
   readonly serviceBin: string;
   readonly modelEndpoints?: LocalModelEndpointsOptions;
+  readonly agentContextProfile?: AgentContextProfile;
   readonly secretResolver?: SecretResolverPort;
   /**
    * Trusted-host credential persistence. It is never exposed through Assistant
@@ -157,10 +171,11 @@ export interface LocalConfigurationConflict {
 }
 
 export interface StartAssistantHostOptions {
-  readonly storage: LocalStorageConfig;
+  readonly storage: AssistantHostStorageConfig;
   readonly serviceBin?: string;
   readonly modelEndpoint?: LocalModelEndpointOptions;
   readonly modelEndpoints?: LocalModelEndpointsOptions;
+  readonly agentContextProfile?: AgentContextProfile;
   readonly secretResolver?: SecretResolverPort;
   /**
    * Trusted-host credential persistence. It is never exposed through Assistant
@@ -178,6 +193,9 @@ export interface AssistantHost {
   readonly teamConversations: Shell["teamConversations"];
   readonly schedules: Shell["schedules"];
   readonly modelEndpoints: ModelEndpointCommands;
+  /** Trusted composition capability; never project into a Renderer or remote contract. */
+  readonly secretResolver: SecretResolverPort;
+  readonly mcpSettings: LocalMcpSettingsPort;
   readonly attachments: LocalAttachmentUploadPort;
   readonly resourceDeliveries: LocalResourceDeliveryPort;
   close(): Promise<void>;
@@ -187,6 +205,7 @@ export interface AssistantWebApp {
   readonly shell: Shell;
   readonly teamConversations: Shell["teamConversations"];
   readonly modelEndpoints: ModelEndpointCommands;
+  readonly mcpSettings: LocalMcpSettingsPort;
   readonly providers: LocalProviderCommands;
   readonly modelCatalog: LocalModelCatalogCommands;
   readonly capabilitySetup: LocalCapabilitySetupCommands;

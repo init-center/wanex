@@ -495,7 +495,8 @@ function projectOperationResult(
 ) {
   const source = rows
     .filter((row) => row.kind === "message" && row.role === "assistant")
-    .map((row) => row.text)
+    .flatMap((row) => row.parts)
+    .flatMap((part) => (part.type === "text" ? [part.text] : []))
     .join("\n");
   const assistantText = truncateText(source, MAX_RESULT_TEXT_CHARS);
   return {

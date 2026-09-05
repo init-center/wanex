@@ -18,18 +18,57 @@ export interface SessionTurnJobPayload {
   readonly inputId: string
 }
 
-export interface ResolveSessionTurnAgentContextRequest {
+interface ResolveSessionTurnAgentContextRequestBase {
   readonly sessionId: string
   readonly turnId: string
   readonly inputId: string
   readonly origin?: SessionInputOrigin
-  readonly executionBinding?: SessionTurnExecutionBinding
   readonly signal: AbortSignal
+}
+
+export type ResolveSessionTurnAgentContextRequest =
+  | (ResolveSessionTurnAgentContextRequestBase & {
+      readonly phase: "admission"
+      readonly executionBinding?: never
+      readonly contextIdentity?: never
+    })
+  | (ResolveSessionTurnAgentContextRequestBase & {
+      readonly phase: "execution" | "inheritance"
+      readonly executionBinding: SessionTurnExecutionBinding
+      /** Process-local identity of the context used by the current Turn. */
+      readonly contextIdentity?: SessionTurnAgentContextIdentity
+    })
+
+declare const sessionTurnAgentContextIdentityBrand: unique symbol
+
+/**
+ * Opaque process-local identity for a dynamic agent context generation.
+ *
+ * This value must never be put in protocol, storage, diagnostics, or renderer
+ * data. It exists only while a host process is coordinating live contexts.
+ */
+export type SessionTurnAgentContextIdentity = symbol & {
+  readonly [sessionTurnAgentContextIdentityBrand]: true
+}
+
+export interface SessionTurnAgentContextLease {
+  readonly phase: "admission" | "inheritance"
+  commit(binding: SessionTurnExecutionBinding): void
+  rollback(): void
+}
+
+export interface ResolvedSessionTurnAgentContext {
+  readonly context?: PreparedAgentContext
+  readonly contextIdentity?: SessionTurnAgentContextIdentity
+  readonly lease?: SessionTurnAgentContextLease
 }
 
 export type SessionTurnAgentContextResolver = (
   request: ResolveSessionTurnAgentContextRequest
-) => Promise<PreparedAgentContext | undefined> | PreparedAgentContext | undefined
+) =>
+  | Promise<ResolvedSessionTurnAgentContext | undefined>
+  | ResolvedSessionTurnAgentContext
+  | undefined
 
 export interface SessionTurnHandlerOptions {
   readonly session: WanexSessionCore

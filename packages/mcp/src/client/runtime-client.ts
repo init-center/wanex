@@ -1,9 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js"
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js"
 import type { JsonValue, ToolResultContentPart } from "@wanex/protocol"
+import {
+  assertExecutionEnvironmentBindingValid,
+  assertExecutionPolicySupported
+} from "@wanex/runtime/execution"
 import {
   createToolRuntimeBinding,
   ToolRegistry,
@@ -18,6 +21,7 @@ import type {
   WanexMcpClientTransportConfig,
   WanexMcpRuntimeClientOptions
 } from "./types.js"
+import { WanexManagedStdioClientTransport } from "./managed-stdio-transport.js"
 
 export const WANEX_MCP_CLIENT = "wanex-mcp-client" as const
 
@@ -26,18 +30,16 @@ export class WanexMcpRuntimeClient {
   private client: Client | undefined
   private started = false
   private disposed = false
+  private lifecycle: Promise<void> = Promise.resolve()
 
   constructor(options: WanexMcpRuntimeClientOptions) {
     if (options.id.trim().length === 0) throw new Error("MCP client id must not be empty")
     if (options.capabilityRevision.trim().length === 0) {
       throw new Error("MCP capabilityRevision must not be empty")
     }
-    if (
-      options.requestTimeoutMs !== undefined &&
-      (!Number.isInteger(options.requestTimeoutMs) || options.requestTimeoutMs <= 0)
-    ) {
-      throw new Error("MCP requestTimeoutMs must be a positive integer")
-    }
+    positiveInteger(options.connectTimeoutMs, "MCP connectTimeoutMs")
+    positiveInteger(options.requestTimeoutMs, "MCP requestTimeoutMs")
+    if (options.transport.kind === "stdio") validateStdioTransport(options.transport)
     this.options = options
   }
 
@@ -46,17 +48,35 @@ export class WanexMcpRuntimeClient {
   }
 
   async start(): Promise<void> {
-    if (this.disposed) throw new Error("MCP client is disposed")
-    if (this.started) return
+    return await this.enqueueLifecycle(async () => {
+      if (this.disposed) throw new Error("MCP client is disposed")
+      if (this.started) return
+      await this.startNow()
+    })
+  }
+
+  private async startNow(): Promise<void> {
     const client = new Client(
       { name: `wanex-${this.options.id}`, version: "0.0.0" },
       { capabilities: {} }
     )
+    client.onclose = () => {
+      if (this.client !== client) return
+      this.client = undefined
+      this.started = false
+    }
+    this.client = client
     try {
-      await client.connect(createClientTransport(this.options.transport))
-      this.client = client
+      await client.connect(createClientTransport(this.options.transport), {
+        timeout: this.options.connectTimeoutMs
+      })
+      if (this.client !== client) {
+        throw new Error("MCP client closed during initialization")
+      }
       this.started = true
     } catch (error) {
+      if (this.client === client) this.client = undefined
+      this.started = false
       await client.close().catch(() => undefined)
       throw error
     }
@@ -84,6 +104,10 @@ export class WanexMcpRuntimeClient {
   }
 
   async stop(): Promise<void> {
+    return await this.enqueueLifecycle(async () => await this.stopNow())
+  }
+
+  private async stopNow(): Promise<void> {
     if (!this.started) return
     const client = this.client
     this.client = undefined
@@ -92,9 +116,11 @@ export class WanexMcpRuntimeClient {
   }
 
   async dispose(): Promise<void> {
-    if (this.disposed) return
-    await this.stop()
-    this.disposed = true
+    return await this.enqueueLifecycle(async () => {
+      if (this.disposed) return
+      this.disposed = true
+      await this.stopNow()
+    })
   }
 
   private adaptTool(remote: RemoteTool): ToolDefinition {
@@ -151,11 +177,11 @@ export class WanexMcpRuntimeClient {
           undefined,
           this.requestOptions(signal.signal)
         )
-      } catch (error) {
+      } catch {
         return {
           outcome: "ambiguous",
           toolCallId: invocation.toolCallId,
-          message: `MCP tool response was not observed: ${errorMessage(error)}`,
+          message: "MCP tool response was not observed.",
           metadata: {
             protocol: "mcp",
             clientId: this.options.id,
@@ -178,10 +204,14 @@ export class WanexMcpRuntimeClient {
   private requestOptions(signal: AbortSignal | undefined) {
     return {
       ...(signal === undefined ? {} : { signal }),
-      ...(this.options.requestTimeoutMs === undefined
-        ? {}
-        : { timeout: this.options.requestTimeoutMs })
+      timeout: this.options.requestTimeoutMs
     }
+  }
+
+  private enqueueLifecycle(operation: () => Promise<void>): Promise<void> {
+    const current = this.lifecycle.then(operation, operation)
+    this.lifecycle = current.catch(() => undefined)
+    return current
   }
 
   private requireClient(): Client {
@@ -283,8 +313,15 @@ function mcpToolConfiguration(
         kind: options.transport.kind,
         command: options.transport.command,
         args: options.transport.args ?? [],
-        cwd: options.transport.cwd ?? null,
-        environmentKeys: Object.keys(options.transport.env ?? {}).sort()
+        cwd: options.transport.cwd,
+        environmentKeys: Object.keys(options.transport.env ?? {}).sort(),
+        execution: {
+          providerId: options.transport.execution.binding.providerId,
+          providerRevision: options.transport.execution.binding.providerRevision,
+          capabilityDigest: options.transport.execution.binding.capabilityDigest,
+          policyDigest: options.transport.execution.binding.policyDigest
+        },
+        maxBufferSize: options.transport.maxBufferSize ?? null
       }
     : {
         kind: options.transport.kind,
@@ -296,7 +333,8 @@ function mcpToolConfiguration(
   return {
     transport,
     namePrefix: options.namePrefix ?? null,
-    requestTimeoutMs: options.requestTimeoutMs ?? null
+    connectTimeoutMs: options.connectTimeoutMs,
+    requestTimeoutMs: options.requestTimeoutMs
   }
 }
 
@@ -304,13 +342,7 @@ type RemoteTool = Awaited<ReturnType<Client["listTools"]>>["tools"][number]
 
 function createClientTransport(config: WanexMcpClientTransportConfig): Transport {
   if (config.kind === "stdio") {
-    return new StdioClientTransport({
-      command: config.command,
-      ...(config.args === undefined ? {} : { args: [...config.args] }),
-      ...(config.cwd === undefined ? {} : { cwd: config.cwd }),
-      ...(config.env === undefined ? {} : { env: { ...config.env } }),
-      ...(config.stderr === undefined ? {} : { stderr: config.stderr })
-    })
+    return new WanexManagedStdioClientTransport(config)
   }
   return new StreamableHTTPClientTransport(new URL(config.url), {
     ...(config.headers === undefined
@@ -319,9 +351,44 @@ function createClientTransport(config: WanexMcpClientTransportConfig): Transport
   }) as unknown as Transport
 }
 
+function validateStdioTransport(
+  config: Extract<WanexMcpClientTransportConfig, { readonly kind: "stdio" }>
+): void {
+  if (
+    config.command.trim().length === 0 ||
+    config.command.includes("\0") ||
+    config.cwd.trim().length === 0 ||
+    config.cwd.includes("\0") ||
+    (config.args ?? []).some((argument) => argument.includes("\0"))
+  ) {
+    throw new Error("MCP stdio transport contains invalid process input")
+  }
+  if (config.maxBufferSize !== undefined) {
+    positiveInteger(config.maxBufferSize, "MCP stdio maxBufferSize")
+  }
+  assertExecutionEnvironmentBindingValid(config.execution.binding)
+  assertExecutionPolicySupported(
+    config.execution.binding.policy,
+    config.execution.binding.capabilities
+  )
+  const process = config.execution.binding.policy.process
+  if (!process.managed || process.cleanup !== "durable_supervisor") {
+    throw new Error(
+      "MCP stdio transport requires managed durable-supervisor execution"
+    )
+  }
+}
+
+function positiveInteger(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${label} must be a positive integer`)
+  }
+}
+
 function toolRisk(annotations: RemoteTool["annotations"]): ToolRisk {
-  if (annotations?.readOnlyHint === true) return "read_only"
   if (annotations?.openWorldHint === true) return "external"
+  if (annotations?.destructiveHint === true) return "mutating"
+  if (annotations?.readOnlyHint === true) return "read_only"
   return "mutating"
 }
 
@@ -338,10 +405,6 @@ function jsonClone<T>(value: T): T {
 
 function jsonValue(value: unknown): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 function bridgeAbortSignal(signal: ToolInvocation["signal"]): {

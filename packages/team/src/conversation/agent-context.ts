@@ -1,12 +1,12 @@
 import type {
   JsonValue,
-  SessionTurnExecutionBinding,
   TeamDeliveryMaterializationContext
 } from "@wanex/protocol"
 import type {
   ResolveSessionTurnAgentContextRequest
 } from "@wanex/runtime/execution"
 import type { PreparedAgentContext } from "@wanex/runtime/context"
+import type { PreparedSessionTurnExecutionBinding } from "@wanex/runtime/host"
 import {
   ToolRegistry,
   type ToolDefinition
@@ -22,7 +22,7 @@ export interface TeamDeliveryAgentContextResolverOptions {
   readonly storage: TeamConversationStorage
   prepareDelegatedExecutionBinding(
     request: PrepareTeamDelegationExecutionBindingRequest
-  ): Promise<SessionTurnExecutionBinding>
+  ): Promise<PreparedSessionTurnExecutionBinding>
 }
 
 export type TeamDeliveryAgentContextResolver = (
@@ -86,6 +86,12 @@ export function createTeamDeliveryAgentContextResolver(
           deliveryId,
           leadParticipantId: context.participant.id,
           participants,
+          ...(request.executionBinding === undefined
+            ? {}
+            : { inheritedContextBinding: request.executionBinding }),
+          ...(request.contextIdentity === undefined
+            ? {}
+            : { inheritedContextIdentity: request.contextIdentity }),
           prepareExecutionBinding: options.prepareDelegatedExecutionBinding
         })
         if (

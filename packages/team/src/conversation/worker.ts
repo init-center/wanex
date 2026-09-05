@@ -1,5 +1,4 @@
 import type {
-  SessionTurnExecutionBinding,
   TeamDeliveryMaterializationContext
 } from "@wanex/protocol"
 import {
@@ -7,10 +6,18 @@ import {
   type WanexWorker,
   type WorkerHandler
 } from "@wanex/runtime/jobs"
+import type { CoreStore } from "@wanex/storage"
+import {
+  reconcilePreparedSessionTurnContext,
+  settlePreparedSessionTurnContext,
+} from "@wanex/runtime/host"
+import type {
+  PreparedSessionTurnExecutionBinding,
+} from "@wanex/runtime/host"
 import type { TeamConversationStorage } from "./storage.js"
 
 export interface TeamDeliveryExecutionBindingResolution {
-  readonly executionBinding: SessionTurnExecutionBinding
+  readonly prepared: PreparedSessionTurnExecutionBinding
   readonly maxSteps?: number
   readonly childPriority?: number
 }
@@ -24,6 +31,7 @@ export type TeamDeliveryExecutionBindingResolver = (input: {
 
 export interface TeamDeliveryWorkerHandlerOptions {
   readonly storage: TeamConversationStorage
+  readonly turnStorage: Pick<CoreStore, "getSessionTurn">
   readonly resolveExecutionBinding: TeamDeliveryExecutionBindingResolver
 }
 
@@ -41,27 +49,49 @@ export function createTeamDeliveryWorkerHandler(
     const workerId = requireString(job.leaseOwner, "team delivery lease owner")
     const leaseToken = requireString(job.leaseToken, "team delivery lease token")
     const deliveryId = deliveryIdFromPayload(job.payload)
+    let prepared: PreparedSessionTurnExecutionBinding | undefined
+    let materializationContext: TeamDeliveryMaterializationContext | undefined
+    let materializationStarted = false
     try {
       if (signal.aborted) throw new Error("team delivery materialization was aborted")
       const context = await options.storage.getTeamDeliveryMaterializationContext(deliveryId)
       if (context === null) {
         throw new Error(`team delivery does not exist: ${deliveryId}`)
       }
+      materializationContext = context
       const resolved = await options.resolveExecutionBinding({ context, signal })
+      prepared = resolved.prepared
       if (signal.aborted) throw new Error("team delivery materialization was aborted")
+      materializationStarted = true
       const receipt = await options.storage.materializeTeamDelivery({
         deliveryId,
         dispatchJobId: job.id,
         workerId,
         leaseToken,
-        executionBinding: resolved.executionBinding,
+        executionBinding: prepared.binding,
         ...(resolved.maxSteps === undefined ? {} : { maxSteps: resolved.maxSteps }),
         ...(resolved.childPriority === undefined
           ? {}
           : { childPriority: resolved.childPriority })
       })
+      settlePreparedSessionTurnContext(
+        prepared,
+        receipt.submission.turn,
+        materializationContext.childPlan.turnId
+      )
       return workerAcknowledged(receipt.dispatchJob)
     } catch (error) {
+      if (prepared !== undefined) {
+        if (materializationStarted && materializationContext !== undefined) {
+          await reconcilePreparedSessionTurnContext(
+            options.turnStorage,
+            prepared,
+            materializationContext.childPlan.turnId
+          )
+        } else {
+          prepared.context.rollback()
+        }
+      }
       const normalized = normalizeError(error)
       const receipt = await options.storage.failTeamDeliveryMaterialization({
         deliveryId,

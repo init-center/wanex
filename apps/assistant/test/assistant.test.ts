@@ -1105,6 +1105,65 @@ describe("@wanex/assistant", () => {
     }
   })
 
+  it("replays a submitted conversation after restart and rejects a reused key with different input", async () => {
+    const storeDir = await createStoreDir()
+    const stateStore = createMemoryStateStore()
+    const request = {
+      text: "persist this exact conversation submission",
+      sessionId: "ses_assistant_submit_retry",
+      idempotencyKey: "assistant-submit-retry"
+    }
+    const firstApp = await createTestApp(storeDir, { stateStore })
+    let firstOperationId = ""
+    try {
+      const first = await firstApp.submitConversationOperation(request)
+      expect(first.kind).toBe("assistant.conversation-operation.found")
+      if (first.kind !== "assistant.conversation-operation.found") return
+      firstOperationId = first.operation.operationId
+
+      const duplicate = await firstApp.submitConversationOperation(request)
+      expect(duplicate).toMatchObject({
+        kind: "assistant.conversation-operation.found",
+        operation: { operationId: firstOperationId }
+      })
+      expect(stateStore.snapshot()?.trackedConversationOperations[request.sessionId])
+        .toMatchObject({
+          submission: {
+            idempotencyKeyDigest: expect.stringMatching(/^[a-f0-9]{64}$/u),
+            requestFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/u)
+          }
+        })
+      expect(JSON.stringify([first, duplicate, firstApp.status()])).not.toContain(
+        request.idempotencyKey
+      )
+
+      await expect(
+        firstApp.submitConversationOperation({
+          ...request,
+          text: "a different payload must not reuse the submission key"
+        })
+      ).resolves.toMatchObject({
+        kind: "assistant.conversation-operation.rejected",
+        reason: "idempotency_conflict",
+        sessionId: request.sessionId
+      })
+      await waitForAssistantConversation(firstApp, request.sessionId)
+    } finally {
+      await firstApp.dispose()
+    }
+
+    const restartedApp = await createTestApp(storeDir, { stateStore })
+    try {
+      const replayed = await restartedApp.submitConversationOperation(request)
+      expect(replayed).toMatchObject({
+        kind: "assistant.conversation-operation.found",
+        operation: { operationId: firstOperationId }
+      })
+    } finally {
+      await restartedApp.dispose()
+    }
+  })
+
   it("persists one opaque guided follow-up and promotes it after parent settlement", async () => {
     const storeDir = await createStoreDir()
     const sessionId = "ses_assistant_guided_follow_up"

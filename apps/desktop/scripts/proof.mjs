@@ -33,9 +33,7 @@ import {
 } from "./metrics.mjs"
 import { listenDesktopProofProvider } from "./provider-fixture.mjs"
 import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
-import {
-  createRemoteCodingFixture
-} from "./remote-coding-fixture.mjs"
+import { createRemoteCodingServer } from "./remote-coding-server.mjs"
 import {
   writeDesktopFailureReport
 } from "./proof/failure-report.mjs"
@@ -86,7 +84,6 @@ import {
   WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
   WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
   WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
-  WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID,
   WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID
 } from "../src/proof-contract.ts"
 
@@ -134,7 +131,6 @@ export async function proveDesktop() {
   let remoteCoding
   let activeProviderRequestOffset = 0
   try {
-    remoteCoding = await createRemoteCodingFixture()
     const buildReceipt = await packageDesktop()
     const installed = await materializeInstalledDesktop({
       sourcePackageDir: buildReceipt.packaged.packageDir,
@@ -157,6 +153,9 @@ export async function proveDesktop() {
       root: join(proofRoot, "plugin-fixtures")
     })
     const codingProject = await createDesktopCodingProofRepository(proofRoot)
+    remoteCoding = await createRemoteCodingServer({
+      repositoryPath: codingProject
+    })
     const samples = []
     let retainedScreenshot
     for (let index = 0; index < DESKTOP_PROOF_SAMPLE_COUNT; index += 1) {
@@ -475,7 +474,7 @@ export async function proveDesktopRelaunchJourneys(options) {
       WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT: options.remoteCoding.endpoint,
       WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
       WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
-      WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID: WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID: options.remoteCoding.projectId,
       NODE_EXTRA_CA_CERTS: options.remoteCoding.caPath
     })
     await runRelaunchStep("relaunch-cancel-regenerate")
@@ -564,7 +563,6 @@ export async function proveDesktopRelaunchJourneys(options) {
   async function runRelaunchStep(step, extraEnvironment = {}, behavior = {}) {
     const receiptPath = join(options.proofRoot, `${step}-receipt.json`)
     const requestOffset = options.provider.requests.length
-    const remoteRequestOffset = options.remoteCoding?.requests.length ?? 0
     const environment = {
       WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
       WANEX_DESKTOP_PROOF_USER_DATA: options.userDataDir,
@@ -635,11 +633,7 @@ export async function proveDesktopRelaunchJourneys(options) {
       step
     )
     if (step === "relaunch-remote-coding") {
-      assertRemoteCodingFixtureEvidence({
-        requests: options.remoteCoding.requests.slice(remoteRequestOffset),
-        observations: options.remoteCoding.observations,
-        activeEventResponseCount: options.remoteCoding.activeEventResponseCount,
-      })
+      assertRemoteCodingServerEvidence(options.remoteCoding)
     }
     const evidence = {
       step,
@@ -851,31 +845,23 @@ export function assertRelaunchJourneyFixtureRequests(requests, step) {
   }
 }
 
-export function assertRemoteCodingFixtureEvidence(evidence) {
-  const { requests, observations, activeEventResponseCount } = evidence
-  const messageRequests = requests.filter((request) =>
-    request.path.endsWith("/v1/agent-host/message")
-  )
-  const eventRequests = requests.filter((request) =>
-    request.path.endsWith("/v1/agent-host/events")
-  )
+export function assertRemoteCodingServerEvidence(server) {
   if (
-    messageRequests.length < 4 ||
-    eventRequests.length !== 1 ||
-    requests.length !== messageRequests.length + eventRequests.length ||
-    requests.some((request) => request.authorized !== true) ||
-    requests.some((request) =>
-      (request.path.endsWith("/v1/agent-host/message") && request.method !== "POST") ||
-      (request.path.endsWith("/v1/agent-host/events") && request.method !== "GET")
-    ) ||
-    observations === undefined ||
-    observations.listProjects < 2 ||
-    observations.readProject < 1 ||
-    observations.listSessions < 1 ||
-    activeEventResponseCount !== 0
+    typeof server?.endpoint !== "string" ||
+    !server.endpoint.endsWith("/v1/agent-host/message") ||
+    typeof server.caPath !== "string" ||
+    server.status?.state !== "open" ||
+    server.status?.coding !== "ready" ||
+    server.status?.listener !== "ready" ||
+    server.stderr !== ""
   ) {
     throw new Error(
-      `Desktop Remote Coding fixture evidence is invalid: ${JSON.stringify(evidence)}`
+      `Desktop Remote Coding Server evidence is invalid: ${JSON.stringify({
+        endpoint: server?.endpoint,
+        caPath: server?.caPath,
+        status: server?.status,
+        stderr: server?.stderr
+      })}`
     )
   }
 }

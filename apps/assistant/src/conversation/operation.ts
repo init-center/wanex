@@ -38,6 +38,7 @@ import {
   sourceConversationContent,
   untracked,
 } from "./tracking.js";
+import { conversationSubmissionIdentity } from "./submission-identity.js";
 
 export { queueGuidedFollowUp } from "./guided-follow-up.js";
 export {
@@ -57,6 +58,46 @@ export async function submitConversationOperation(request: {
   return await request.state.mutate<SubmitConversationOperationResult>(
     async (state) => {
       const sessionId = resolveSessionId(state, request.input.sessionId);
+      const idempotencyKey =
+        request.input.idempotencyKey === undefined
+          ? undefined
+          : normalizeRequiredString(
+              request.input.idempotencyKey,
+              "conversation idempotency key",
+            );
+      const submission = conversationSubmissionIdentity({
+        ...request.input,
+        ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+      });
+
+      // The storage layer is atomically idempotent, but an active-operation
+      // guard below normally prevents a retry from reaching it.
+      if (sessionId !== undefined && submission !== undefined) {
+        const tracked = state.trackedConversationOperations[sessionId];
+        if (
+          tracked?.submission?.idempotencyKeyDigest ===
+          submission.idempotencyKeyDigest
+        ) {
+          if (
+            tracked.submission.requestFingerprint !==
+            submission.requestFingerprint
+          ) {
+            return {
+              value: rejected(
+                "idempotency_conflict",
+                "the idempotency key was already used for a different conversation submission",
+                sessionId,
+              ),
+            };
+          }
+          const existing =
+            await request.backend.commands.readConversationOperation(tracked);
+          if (existing.kind === "found") {
+            return { value: projectConversationOperation(existing) };
+          }
+        }
+      }
+
       const attachments = attachmentDraftsForConversation(state, sessionId);
       const content = conversationContent(request.input.text, attachments);
       const readiness = await readProviderReadiness(request.backend);
@@ -121,14 +162,17 @@ export async function submitConversationOperation(request: {
           ...(request.input.principalId === undefined
             ? {}
             : { principalId: request.input.principalId }),
-          ...(request.input.idempotencyKey === undefined
+          ...(idempotencyKey === undefined
             ? {}
-            : { idempotencyKey: request.input.idempotencyKey }),
+            : { idempotencyKey }),
           origin: { kind: "interactive", sourceRef: "assistant" },
           intent: "normal",
         });
       const next = clearAttachmentDraftsForConversation(
-        withTrackedConversationOperation(state, receipt),
+        withTrackedConversationOperation(
+          state,
+          submission === undefined ? receipt : { ...receipt, submission },
+        ),
         sessionId,
       );
       return {

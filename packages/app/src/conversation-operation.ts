@@ -96,9 +96,10 @@ export class WanexAppConversationOperationController {
   ): Promise<WanexAppConversationOperationReceipt> {
     this.#assertActive()
     validateConversationContent(options.request.content)
-    const inputId = options.request.inputId ?? `inp_${randomUUID()}`
     const submitted = await this.#host.submitUserTurn({
-      inputId,
+      ...(options.request.inputId === undefined
+        ? {}
+        : { inputId: options.request.inputId }),
       content: options.request.content,
       ...(options.request.sessionId === undefined
         ? {}
@@ -107,9 +108,9 @@ export class WanexAppConversationOperationController {
       ...(options.request.turnId === undefined
         ? {}
         : { turnId: options.request.turnId }),
-      idempotencyKey:
-        options.request.idempotencyKey ??
-        `wanex-app:${options.request.sessionId ?? "new"}:${inputId}`,
+      ...(options.request.idempotencyKey === undefined
+        ? {}
+        : { idempotencyKey: options.request.idempotencyKey }),
       modelEndpointId: options.modelEndpointId,
       ...(options.request.origin === undefined
         ? {}

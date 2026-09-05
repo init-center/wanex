@@ -109,6 +109,9 @@ package, export alias, route alias, or deprecated protocol remains.
 - `@wanex/assistant-host`: presentation-neutral local Assistant lifecycle plus
   explicit Web and desktop host wrappers;
 - `@wanex/assistant-ui`: shared browser Assistant UI capability and client;
+- `@wanex/server`: private headless remote Agent Host product. It owns one
+  server profile, application Host composition, authentication/listener/drain
+  lifecycle, and headless distribution; it is not a Gateway or Runtime facade;
 - `@wanex/tui`: terminal product and executable host; its trusted Assistant host
   consumes `@wanex/assistant-host/application`, while renderer modules consume only
   Assistant Surface contracts;
@@ -135,11 +138,13 @@ and rolled declarations.
 Generated Runtime metadata also owns exact optional dependencies on four
 target-restricted System Service artifacts. These native identities are
 generated npm artifacts rather than source packages, so they do not add to the
-21 source workspace packages. Runtime/App local bootstrap resolves the matching
+22 source workspace packages. Runtime/App local bootstrap resolves the matching
 installed package automatically; remote and injected storage require none.
 
 `@wanex/storage/testing` is a source-only test helper. It is not a generated
-export, API report, or tarball file.
+export, API report, or tarball file. The private Server leaf is not in the SDK
+publication set; its executable distribution will be reviewed separately in
+Route 13D.
 
 Internal `@wanex/protocol` implementation and types are bundled into each
 artifact that needs them and never appear as a packed dependency or module

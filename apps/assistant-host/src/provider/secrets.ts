@@ -1,13 +1,19 @@
 import { resolve } from "node:path"
 import { resolveLocalStore } from "@wanex/storage"
-import { wanexLocalCredentialNamespace } from "@wanex/local-credential-store"
+import {
+  normalizeWanexLocalCredentialNamespace,
+  wanexLocalCredentialNamespace
+} from "@wanex/local-credential-store"
 import {
   schemeFromRef,
   type SecretResolveContext,
   type SecretResolverPort,
   type SecretStorePort
 } from "@wanex/runtime/secrets"
-import type { LocalStorageConfig } from "../model.js"
+import type {
+  AssistantHostStorageConfig,
+  LocalStorageConfig
+} from "../model.js"
 
 export interface LocalSecretStoreComposition {
   readonly namespace: string
@@ -16,11 +22,15 @@ export interface LocalSecretStoreComposition {
 }
 
 export async function composeLocalSecretStore(options: {
-  readonly storage: LocalStorageConfig
+  readonly storage: AssistantHostStorageConfig
   readonly credentialStore?: SecretStorePort
   readonly fallbackSecretResolver?: SecretResolverPort
 }): Promise<LocalSecretStoreComposition> {
-  const namespace = localSecretNamespace(options.storage)
+  const namespace = options.storage.kind === "injected"
+    ? normalizeWanexLocalCredentialNamespace(
+        options.storage.credentialNamespace
+      )
+    : localSecretNamespace(options.storage)
   const credentialStore =
     options.credentialStore ?? await createDefaultCredentialStore(namespace)
   return {

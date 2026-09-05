@@ -147,9 +147,14 @@ function createHosts(
       const resolved = await resolver(request)
       return resolved === undefined
         ? undefined
-        : { ...resolved, toolPermissionPolicy: policy }
+        : {
+            context: {
+              ...resolved,
+              toolPermissionPolicy: policy
+            }
+          }
     },
-    observeSessionTurnResult() {
+    observeSessionTurnLifecycle() {
       teamHost?.wake()
     }
   })

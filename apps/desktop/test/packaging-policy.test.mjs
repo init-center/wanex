@@ -25,7 +25,7 @@ import {
 } from "../scripts/metrics.mjs";
 import {
   assertRelaunchJourneyFixtureRequests,
-  assertRemoteCodingFixtureEvidence,
+  assertRemoteCodingServerEvidence,
   assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
   createDesktopProofProcessEnvironment,
@@ -669,7 +669,7 @@ describe("Desktop packaging policy", () => {
                   turnId: "turn-proof",
                   jobId: "job-proof",
                 },
-                lastOutcome: "completed",
+                lastPhase: "terminal",
               },
               recentRecoveries: [{
                 reference: {
@@ -825,7 +825,7 @@ describe("Desktop packaging policy", () => {
                   turnId: "turn-proof",
                   jobId: "job-proof",
                 },
-                lastOutcome: "completed",
+                lastPhase: "terminal",
               },
               recentRecoveries: [{
                 reference: {
@@ -1311,50 +1311,26 @@ describe("Desktop packaging policy", () => {
     ).toThrow("Provider requests are invalid");
   });
 
-  it("accepts only complete packaged Remote Coding fixture evidence", () => {
-    const requests = [
-      { path: "/v1/agent-host/message", method: "POST", authorized: true },
-      { path: "/v1/agent-host/events", method: "GET", authorized: true },
-      { path: "/v1/agent-host/message", method: "POST", authorized: true },
-      { path: "/v1/agent-host/message", method: "POST", authorized: true },
-      { path: "/v1/agent-host/message", method: "POST", authorized: true },
-    ];
+  it("accepts only a ready packaged Remote Coding Server", () => {
     const evidence = {
-      requests,
-      observations: { listProjects: 2, readProject: 1, listSessions: 1 },
-      activeEventResponseCount: 0,
+      endpoint: "https://localhost:8443/v1/agent-host/message",
+      caPath: "/tmp/localhost.crt",
+      status: { state: "open", coding: "ready", listener: "ready" },
+      stderr: "",
     };
-    expect(() => assertRemoteCodingFixtureEvidence(evidence)).not.toThrow();
-    expect(() => assertRemoteCodingFixtureEvidence({
-      requests,
-      activeEventResponseCount: 0,
-    })).toThrow("Remote Coding fixture evidence is invalid");
-    expect(() => assertRemoteCodingFixtureEvidence({
+    expect(() => assertRemoteCodingServerEvidence(evidence)).not.toThrow();
+    expect(() => assertRemoteCodingServerEvidence({
       ...evidence,
-      requests: requests.slice(0, -1),
-    })).toThrow("Remote Coding fixture evidence is invalid");
-    expect(() => assertRemoteCodingFixtureEvidence({
+      status: { ...evidence.status, coding: "disabled" },
+    })).toThrow("Remote Coding Server evidence is invalid");
+    expect(() => assertRemoteCodingServerEvidence({
       ...evidence,
-      requests: [
-        ...requests,
-        { path: "/v1/agent-host/events", method: "GET", authorized: true },
-      ],
-    })).toThrow("Remote Coding fixture evidence is invalid");
-    expect(() => assertRemoteCodingFixtureEvidence({
+      endpoint: "https://localhost:8443/invalid",
+    })).toThrow("Remote Coding Server evidence is invalid");
+    expect(() => assertRemoteCodingServerEvidence({
       ...evidence,
-      requests: [
-        ...requests.slice(0, -1),
-        { path: "/v1/agent-host/message", method: "POST", authorized: false },
-      ],
-    })).toThrow("Remote Coding fixture evidence is invalid");
-    expect(() => assertRemoteCodingFixtureEvidence({
-      ...evidence,
-      observations: { ...evidence.observations, readProject: 0 },
-    })).toThrow("Remote Coding fixture evidence is invalid");
-    expect(() => assertRemoteCodingFixtureEvidence({
-      ...evidence,
-      activeEventResponseCount: 1,
-    })).toThrow("Remote Coding fixture evidence is invalid");
+      stderr: "unexpected error",
+    })).toThrow("Remote Coding Server evidence is invalid");
   });
 
   it("requires the idle Remote Coding workbench to hide its empty inspector", () => {
@@ -1529,6 +1505,9 @@ describe("Desktop packaging policy", () => {
       "run: pnpm proof:tui -- --native-artifact-dir target/distribution/native",
     );
     expect(workflow).toContain(
+      "run: pnpm test:server-distribution-proof",
+    );
+    expect(workflow).toContain(
       "run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native",
     );
     expect(workflow).not.toMatch(/run: pnpm proof:tui\s*$/m);
@@ -1536,6 +1515,9 @@ describe("Desktop packaging policy", () => {
       "--tui-receipt target/distribution/tui/installed-proof.json",
     );
     expect(workflow).toContain("target/distribution/tui");
+    expect(workflow).toContain(
+      "target/distribution/server/server-distribution-proof.json",
+    );
     expect(workflow).toContain(
       "target/distribution/desktop/electron-artifact.json",
     );

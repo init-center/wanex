@@ -46,7 +46,11 @@ describe("Assistant Host storage-backed state store", () => {
           sessionId: "ses_storage_assistant_app",
           inputId: "input_storage_assistant_app",
           turnId: "turn_storage_assistant_app",
-          jobId: "job_storage_assistant_app"
+          jobId: "job_storage_assistant_app",
+          submission: {
+            idempotencyKeyDigest: "a".repeat(64),
+            requestFingerprint: "b".repeat(64)
+          }
         }
       },
       pendingGuidedFollowUps: {
@@ -82,7 +86,11 @@ describe("Assistant Host storage-backed state store", () => {
             sessionId: "ses_storage_assistant_app",
             inputId: "input_storage_assistant_app",
             turnId: "turn_storage_assistant_app",
-            jobId: "job_storage_assistant_app"
+            jobId: "job_storage_assistant_app",
+            submission: {
+              idempotencyKeyDigest: "a".repeat(64),
+              requestFingerprint: "b".repeat(64)
+            }
           }
         },
         pendingGuidedFollowUps: {

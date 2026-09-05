@@ -19,6 +19,7 @@ import type {
   LocalModelCatalogCommands,
   LocalSetupImageGenerationAndContinueResult
 } from "../src/model.js"
+import type { LocalMcpSettingsPort } from "../src/mcp/index.js"
 import type {
   SurfaceClient,
   SurfaceEvent
@@ -352,6 +353,178 @@ describe("@wanex/assistant-host Web host", () => {
       })
       expect(refreshes).toBe(1)
     }, { modelCatalog })
+  })
+
+  it("exposes a strict authenticated MCP settings route without secret echo", async () => {
+    const commands: string[] = []
+    const mcpSettings = fakeMcpSettings(commands)
+    await withNodeHost(async ({ host }) => {
+      const html = await fetchText(`${host.url}/`)
+      expect(html).toContain(
+        'data-mcp-settings-path="/wanex/assistant/mcp-settings"'
+      )
+      const path = `${host.url}/wanex/assistant/mcp-settings`
+
+      const unauthenticated = await fetch(path)
+      expect(unauthenticated.status).toBe(403)
+      expect(commands).toEqual([])
+
+      const token = await readHostSessionToken(host.url)
+      const listed = await fetch(path, {
+        headers: { "x-wanex-host-session": token }
+      })
+      expect(listed.status).toBe(200)
+      await expect(listed.json()).resolves.toEqual({
+        ok: true,
+        kind: "web.mcp-server-list-response",
+        servers: { kind: "assistant-host.mcp-servers", servers: [] }
+      })
+
+      const secret = "Bearer must-never-be-echoed"
+      const unknownField = await fetch(path, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-wanex-host-session": token
+        },
+        body: JSON.stringify({
+          operation: "stage-credential",
+          request: {
+            serverId: "product-tools",
+            transport: "streamable_http",
+            name: "Authorization",
+            value: secret,
+            secretRef: "attacker://chosen-ref"
+          }
+        })
+      })
+      expect(unknownField.status).toBe(400)
+      const invalidBody = JSON.stringify(await unknownField.json())
+      expect(invalidBody).toContain("invalid_mcp_settings_request")
+      expect(invalidBody).toContain('"field":"request"')
+      expect(invalidBody).not.toContain(secret)
+      expect(invalidBody).not.toContain("attacker://")
+      expect(commands).toEqual(["read"])
+
+      const literalCredential = await fetch(path, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-wanex-host-session": token
+        },
+        body: JSON.stringify({
+          operation: "save-server",
+          request: {
+            serverId: "product-tools",
+            expectedRevision: null,
+            label: "Product tools",
+            enabled: true,
+            connectTimeoutMs: 1_000,
+            requestTimeoutMs: 2_000,
+            transport: {
+              kind: "streamable_http",
+              url: "https://example.test/mcp",
+              headers: [{
+                name: "Authorization",
+                source: { kind: "literal", value: secret }
+              }]
+            }
+          }
+        })
+      })
+      expect(literalCredential.status).toBe(400)
+      const literalBody = JSON.stringify(await literalCredential.json())
+      expect(literalBody).toContain(
+        '"field":"transport.headers.0.source.kind"'
+      )
+      expect(literalBody).not.toContain(secret)
+      expect(commands).toEqual(["read"])
+
+      const staged = await fetch(path, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-wanex-host-session": token
+        },
+        body: JSON.stringify({
+          operation: "stage-credential",
+          request: {
+            serverId: "product-tools",
+            transport: "streamable_http",
+            name: "Authorization",
+            value: secret
+          }
+        })
+      })
+      expect(staged.status).toBe(200)
+      const stagedBody = JSON.stringify(await staged.json())
+      expect(stagedBody).toContain("setup_id_12345678")
+      expect(stagedBody).not.toContain(secret)
+      expect(stagedBody).not.toContain("secretRef")
+      expect(commands).toEqual(["read", "stage:authorization"])
+
+      const saved = await fetch(path, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-wanex-host-session": token
+        },
+        body: JSON.stringify({
+          operation: "save-server",
+          request: {
+            serverId: "product-tools",
+            expectedRevision: null,
+            label: "Product tools",
+            enabled: true,
+            connectTimeoutMs: 1_000,
+            requestTimeoutMs: 2_000,
+            transport: {
+              kind: "streamable_http",
+              url: "https://example.test/mcp",
+              headers: [{
+                name: "Authorization",
+                source: {
+                  kind: "credential",
+                  setupId: "setup_id_12345678"
+                }
+              }]
+            }
+          }
+        })
+      })
+      expect(saved.status).toBe(200)
+      await expect(saved.json()).resolves.toMatchObject({
+        ok: true,
+        kind: "web.mcp-settings-response",
+        operation: "save-server",
+        result: { kind: "applied", credentialCleanupPending: false }
+      })
+      expect(commands).toContain(
+        "save:https://example.test/mcp:authorization"
+      )
+
+      const failed = await fetch(path, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-wanex-host-session": token
+        },
+        body: JSON.stringify({
+          operation: "reload-servers",
+          request: { force: true }
+        })
+      })
+      expect(failed.status).toBe(500)
+      const failureBody = JSON.stringify(await failed.json())
+      expect(failureBody).toContain("mcp_settings_operation_failed")
+      expect(failureBody).not.toContain("private child-process detail")
+
+      const wrongMethod = await fetch(path, {
+        method: "DELETE",
+        headers: { "x-wanex-host-session": token }
+      })
+      expect(wrongMethod.status).toBe(405)
+    }, { mcpSettings })
   })
 
   it("authenticates the event stream and rejects malformed cursors", async () => {
@@ -1125,6 +1298,7 @@ async function withNodeHost(
     readonly resourceDeliveries?: LocalResourceDeliveryPort
     readonly capabilitySetup?: LocalCapabilitySetupCommands
     readonly modelCatalog?: LocalModelCatalogCommands
+    readonly mcpSettings?: LocalMcpSettingsPort
     readonly browserAssets?: {
       readonly clientScript: string
       readonly stylesheet: string
@@ -1146,6 +1320,77 @@ async function withNodeHost(
   })
   hosts.push(host)
   await run({ controller, host })
+}
+
+function fakeMcpSettings(commands: string[]): LocalMcpSettingsPort {
+  const servers = {
+    kind: "assistant-host.mcp-servers" as const,
+    servers: []
+  }
+  return {
+    async readServers() {
+      commands.push("read")
+      return servers
+    },
+    async stageCredential(request) {
+      commands.push(`stage:${request.name}`)
+      return {
+        kind: "assistant-host.mcp-credential-setup",
+        setupId: "setup_id_12345678",
+        expiresAt: 1_000
+      }
+    },
+    async saveServer(request) {
+      const values = request.transport.kind === "stdio"
+        ? request.transport.environment
+        : request.transport.headers
+      commands.push(
+        `save:${request.transport.kind === "stdio"
+          ? request.transport.command
+          : request.transport.url}:${values[0]?.name}`
+      )
+      return {
+        kind: "applied",
+        serverId: request.serverId,
+        reloadOutcome: "published",
+        servers,
+        credentialCleanupPending: false
+      }
+    },
+    async updateServer(request) {
+      return {
+        kind: "applied",
+        serverId: request.serverId,
+        reloadOutcome: "published",
+        servers,
+        credentialCleanupPending: false
+      }
+    },
+    async setServerEnabled(request) {
+      return {
+        kind: "applied",
+        serverId: request.serverId,
+        enabled: request.enabled,
+        reloadOutcome: "published",
+        servers
+      }
+    },
+    async removeServer(request) {
+      return {
+        kind: "applied",
+        serverId: request.serverId,
+        reloadOutcome: "published",
+        servers,
+        credentialCleanupPending: false
+      }
+    },
+    async reloadServers() {
+      throw new Error("private child-process detail")
+    },
+    async reconcileCredentials() {
+      return { credentialCleanupPending: false }
+    }
+  }
 }
 
 function successfulCapabilitySetup(request: {
@@ -1340,7 +1585,7 @@ function surfaceEvent(sequence: number): SurfaceEvent {
       at: sequence,
       operationId: "operation_host_test",
       sessionId: "session_host_test",
-      cause: "execution_completed"
+      cause: "execution_settled"
     }
   }
 }

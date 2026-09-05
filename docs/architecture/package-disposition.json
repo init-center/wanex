@@ -154,6 +154,15 @@
       "rationale": "This is the product-neutral public agent execution facade.",
       "evidence": "Phase 755 installs only @wanex/runtime in an isolated external project and proves a durable minimal-agent turn from the compiled SDK."
     },
+    "@wanex/server": {
+      "path": "apps/server",
+      "role": "app",
+      "disposition": "retain",
+      "targetOwner": "@wanex/server",
+      "targetPhase": "Route 13C.2",
+      "rationale": "A deployable remote Agent Host has an independent executable, listener, authentication, Store, execution, shutdown, and headless distribution boundary distinct from Desktop, TUI, and library facades.",
+      "evidence": "Routes 13A through 13C.2 prove one Server-owned persistent Store bootstrap, Assistant and Coding Hosts over borrowed handles, strict profile and trusted repository configuration, exact one-domain Assistant/Coding admission through one authenticated HTTPS listener, bounded SSE replay recovery, durable idempotency, subject isolation, canonical path-free Coding project admission, reverse-order idempotent shutdown, and partial-start cleanup."
+    },
     "@wanex/storage": {
       "path": "packages/storage",
       "role": "public-capability",

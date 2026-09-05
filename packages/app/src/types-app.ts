@@ -3,12 +3,14 @@ import type {
   PreparedAgentContext
 } from "@wanex/runtime/context"
 import type {
-  ResolveSessionTurnAgentContextRequest
+  SessionTurnAgentContextIdentity,
+  ResolveSessionTurnAgentContextRequest,
+  SessionTurnAgentContextLease
 } from "@wanex/runtime/execution"
 import type {
   RuntimeHostPrepareExecutionBindingRequest,
   RuntimeHostPreparedExecutionBinding,
-  RuntimeHostSessionTurnResultSignal
+  RuntimeHostSessionTurnLifecycleSignal
 } from "@wanex/runtime/host"
 import type { BootstrapWanexStorageOptions } from "@wanex/runtime/bootstrap"
 import type {
@@ -88,8 +90,8 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
     "tools" | "toolPermissionPolicy"
   >
   readonly runtimeContextResolver?: WanexAppRuntimeContextResolver
-  readonly observeSessionTurnResult?: (
-    signal: RuntimeHostSessionTurnResultSignal
+  readonly observeSessionTurnLifecycle?: (
+    signal: RuntimeHostSessionTurnLifecycleSignal
   ) => void
   readonly extensions?: WanexAppExtensionOptions
   readonly workerCount?: number
@@ -118,9 +120,18 @@ export type WanexAppRuntimeContext = Pick<
   "tools" | "toolPermissionPolicy"
 >
 
+export interface WanexAppRuntimeContextResolution {
+  readonly context?: WanexAppRuntimeContext
+  readonly contextIdentity?: SessionTurnAgentContextIdentity
+  readonly lease?: SessionTurnAgentContextLease
+}
+
 export type WanexAppRuntimeContextResolver = (
   request: ResolveSessionTurnAgentContextRequest
-) => Promise<WanexAppRuntimeContext | undefined> | WanexAppRuntimeContext | undefined
+) =>
+  | Promise<WanexAppRuntimeContextResolution | undefined>
+  | WanexAppRuntimeContextResolution
+  | undefined
 
 export interface WanexAppTrustedExecutionHost {
   prepareExecutionBinding(

@@ -79,11 +79,16 @@ export function createSessionTurnHandler(
       sessionId: payload.sessionId,
       turnId: payload.turnId,
       inputId: payload.inputId,
+      phase: "execution",
       ...(input.origin === undefined ? {} : { origin: input.origin }),
       executionBinding: started.turn.executionBinding,
       signal
     })
-    const agentContext = resolvedContext ?? options.agentContext
+    if (resolvedContext?.lease !== undefined) {
+      resolvedContext.lease.rollback()
+      throw new Error("execution context resolution cannot acquire an admission lease")
+    }
+    const agentContext = resolvedContext?.context ?? options.agentContext
     assertAgentContextMatchesBinding(started.turn.executionBinding, agentContext)
     observeStage("context_resolved", started.attempt.id)
     const provider = await providerForTurnBinding(

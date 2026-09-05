@@ -1,3 +1,5 @@
+import type { BorrowedExecutionScope } from "@wanex/runtime/execution"
+
 export type WanexMcpClientTransportConfig =
   | WanexMcpStdioClientTransportConfig
   | WanexMcpHttpClientTransportConfig
@@ -6,9 +8,10 @@ export interface WanexMcpStdioClientTransportConfig {
   readonly kind: "stdio"
   readonly command: string
   readonly args?: readonly string[]
-  readonly cwd?: string
+  readonly cwd: string
   readonly env?: Readonly<Record<string, string>>
-  readonly stderr?: "inherit" | "pipe" | "ignore"
+  readonly execution: Pick<BorrowedExecutionScope, "binding" | "process">
+  readonly maxBufferSize?: number
 }
 
 export interface WanexMcpHttpClientTransportConfig {
@@ -22,7 +25,8 @@ export interface WanexMcpRuntimeClientOptions {
   readonly capabilityRevision: string
   readonly transport: WanexMcpClientTransportConfig
   readonly namePrefix?: string
-  readonly requestTimeoutMs?: number
+  readonly connectTimeoutMs: number
+  readonly requestTimeoutMs: number
 }
 
 export interface WanexMcpClientStatus {

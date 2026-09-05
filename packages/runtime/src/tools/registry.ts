@@ -253,6 +253,10 @@ export class ToolRegistry {
       throw new Error("running tool execution is missing its physical attempt")
     }
     let invocationStarted = false
+    let deferredSettlement:
+      | import("./types.js").DeferredToolOperationSettlement
+      | undefined
+    let deferPersistenceStarted = false
     try {
       if (request.budget !== undefined) {
         await request.budget.storage.recordBudgetUsage({
@@ -266,6 +270,9 @@ export class ToolRegistry {
       invocationStarted = true
       const invocation = await invokeWithControl(tool, request, executionId)
       const result = invocation.result
+      deferredSettlement = result.outcome === "deferred"
+        ? result.settlement
+        : undefined
       if (result.toolCallId !== request.call.toolCallId) {
         throw new Error(
           `tool returned mismatched toolCallId: ${result.toolCallId}`
@@ -277,6 +284,7 @@ export class ToolRegistry {
             `immediate tool returned a deferred result: ${descriptor.name}`
           )
         }
+        deferPersistenceStarted = true
         const deferred = await request.storage.deferToolExecution({
           sessionId: request.sessionId,
           turnId: request.turnId,
@@ -291,6 +299,8 @@ export class ToolRegistry {
           toolCallId: request.call.toolCallId,
           operation: result.operation
         })
+        deferredSettlement?.commit()
+        deferredSettlement = undefined
         return {
           state: "suspended",
           descriptor,
@@ -369,6 +379,14 @@ export class ToolRegistry {
       })
       return outcome
     } catch (error) {
+      if (deferredSettlement !== undefined) {
+        if (deferPersistenceStarted) {
+          await reconcileDeferredSettlement(request, deferredSettlement)
+        } else {
+          deferredSettlement.rollback()
+        }
+        deferredSettlement = undefined
+      }
       if (error instanceof ToolExecutionLeaseLostError) throw error
       if (request.signal?.aborted === true || isControlError(error)) {
         const reason = request.signal?.aborted === true ? "aborted" : "timed_out"
@@ -448,6 +466,24 @@ export class ToolRegistry {
       this.validators.set(name, validator)
     }
     return validator
+  }
+}
+
+async function reconcileDeferredSettlement(
+  request: ToolExecutionRequest,
+  settlement: import("./types.js").DeferredToolOperationSettlement
+): Promise<void> {
+  try {
+    const execution = await request.storage.getToolExecutionByCall({
+      turnId: request.turnId,
+      sourceMessageId: request.sourceMessageId,
+      toolCallId: request.call.toolCallId,
+    })
+    if (execution?.state === "waiting") settlement.commit()
+    else settlement.rollback()
+  } catch {
+    // Ambiguous persistence must retain the prepared live context until Host
+    // shutdown rather than releasing a generation that may be durable.
   }
 }
 

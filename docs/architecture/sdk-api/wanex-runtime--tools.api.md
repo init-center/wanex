@@ -142,6 +142,14 @@ type DeferredToolOperationReceipt = DeferredMediaGenerationOperationReceipt | De
 type DeferredToolOperationRequest = DeferredMediaGenerationOperationRequest | DeferredTeamDelegationOperationRequest;
 
 // @public (undocumented)
+export interface DeferredToolOperationSettlement {
+    // (undocumented)
+    commit(): void;
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
 interface DeferToolExecutionReceipt {
     // (undocumented)
     readonly operation: DeferredToolOperationReceipt;
@@ -1371,6 +1379,7 @@ export type ToolExecutionResult = {
     readonly outcome: "deferred";
     readonly toolCallId: string;
     readonly operation: DeferredToolOperationRequest;
+    readonly settlement?: DeferredToolOperationSettlement;
 };
 
 // @public (undocumented)

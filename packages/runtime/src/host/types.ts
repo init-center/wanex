@@ -68,7 +68,7 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly errorIntervalMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
   readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
-  readonly observeSessionTurnResult?: RuntimeHostSessionTurnResultObserver
+  readonly observeSessionTurnLifecycle?: RuntimeHostSessionTurnLifecycleObserver
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
   readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
   readonly mediaGenerationWorkerCount?: number
@@ -78,13 +78,13 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly mediaGenerationMaxConsecutivePollFailures?: number
 }
 
-export type RuntimeHostSessionTurnResultObserver = (
-  signal: RuntimeHostSessionTurnResultSignal
+export type RuntimeHostSessionTurnLifecycleObserver = (
+  signal: RuntimeHostSessionTurnLifecycleSignal
 ) => void
 
-export interface RuntimeHostSessionTurnResultSignal {
-  readonly kind: "wanex-runtime.session-turn-result"
-  readonly outcome: "completed" | "failed" | "suspended"
+export interface RuntimeHostSessionTurnLifecycleSignal {
+  readonly kind: "wanex-runtime.session-turn-lifecycle"
+  readonly phase: "suspended" | "terminal"
   readonly reference: RuntimeHostSessionTurnReference
 }
 

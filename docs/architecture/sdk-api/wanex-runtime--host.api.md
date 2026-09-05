@@ -953,6 +953,14 @@ type DeferredToolOperationReceipt = DeferredMediaGenerationOperationReceipt | De
 type DeferredToolOperationRequest = DeferredMediaGenerationOperationRequest | DeferredTeamDelegationOperationRequest;
 
 // @public (undocumented)
+interface DeferredToolOperationSettlement {
+    // (undocumented)
+    commit(): void;
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
 interface DeferToolExecutionReceipt {
     // (undocumented)
     readonly operation: DeferredToolOperationReceipt;
@@ -2371,10 +2379,35 @@ interface PreparedProviderToolResultResourcePart extends ToolResultResourceConte
 }
 
 // @public (undocumented)
-export type PreparedSessionTurnExecutionBinding = SessionTurnExecutionBinding;
+export interface PreparedSessionTurnContext {
+    // (undocumented)
+    commit(): void;
+    // (undocumented)
+    readonly identity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
+export interface PreparedSessionTurnContextBinding {
+    // (undocumented)
+    readonly binding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly context: PreparedSessionTurnContext;
+}
+
+// @public (undocumented)
+export interface PreparedSessionTurnExecutionBinding {
+    // (undocumented)
+    readonly binding: SessionTurnExecutionBinding;
+    // (undocumented)
+    readonly context: PreparedSessionTurnContext;
+}
 
 // @public (undocumented)
 export interface PreparedUserTurn {
+    // (undocumented)
+    readonly context: PreparedSessionTurnContext;
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -2393,6 +2426,8 @@ export interface PrepareSessionTurnExecutionBindingRequest {
     readonly content: readonly MessagePart[];
     // (undocumented)
     readonly executionEnvironment?: ExecutionEnvironmentBinding;
+    readonly inheritedContextBinding?: SessionTurnExecutionBinding;
+    readonly inheritedContextIdentity?: SessionTurnAgentContextIdentity;
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -2744,6 +2779,9 @@ interface ReconcileEventsResult {
 }
 
 // @public (undocumented)
+export function reconcilePreparedSessionTurnContext(storage: Pick<CoreStore, "getSessionTurn">, prepared: PreparedSessionTurnContextBinding, turnId: string): Promise<void>;
+
+// @public (undocumented)
 interface RecordBudgetUsageReceipt {
     // (undocumented)
     readonly created: boolean;
@@ -2895,9 +2933,17 @@ export interface RemoteAgentHostHandlerOptions {
     // (undocumented)
     readonly quotaPolicy?: RemoteHostQuotaPolicy;
     // (undocumented)
-    readonly resolveHost: (subject: RemoteHostAuthenticatedSubject) => RemoteAgentHostResolvedHost | Promise<RemoteAgentHostResolvedHost | null> | null;
+    readonly resolveHost: (subject: RemoteHostAuthenticatedSubject, context: RemoteAgentHostHandshakeContext) => RemoteAgentHostResolvedHost | Promise<RemoteAgentHostResolvedHost | null> | null;
     // (undocumented)
     readonly telemetry?: RemoteAgentHostTelemetrySink;
+}
+
+// @public (undocumented)
+export interface RemoteAgentHostHandshakeContext {
+    // (undocumented)
+    readonly clientId: string;
+    // (undocumented)
+    readonly requestedDomains: readonly AgentHostDomain[];
 }
 
 // @public (undocumented)
@@ -3323,12 +3369,31 @@ interface ResolvedSecret {
 }
 
 // @public (undocumented)
+interface ResolvedSessionTurnAgentContext {
+    // (undocumented)
+    readonly context?: PreparedAgentContext;
+    // (undocumented)
+    readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly lease?: SessionTurnAgentContextLease;
+}
+
+// @public (undocumented)
 export function resolveRuntimeHostDiagnostics(runtimeHost: RuntimeHostDiagnosticsInput, request?: RuntimeHostJobSummaryRequest): Promise<RuntimeHostDiagnosticsSnapshot>;
 
 // @public (undocumented)
-interface ResolveSessionTurnAgentContextRequest {
-    // (undocumented)
-    readonly executionBinding?: SessionTurnExecutionBinding;
+type ResolveSessionTurnAgentContextRequest = (ResolveSessionTurnAgentContextRequestBase & {
+    readonly phase: "admission";
+    readonly executionBinding?: never;
+    readonly contextIdentity?: never;
+}) | (ResolveSessionTurnAgentContextRequestBase & {
+    readonly phase: "execution" | "inheritance";
+    readonly executionBinding: SessionTurnExecutionBinding;
+    readonly contextIdentity?: SessionTurnAgentContextIdentity;
+});
+
+// @public (undocumented)
+interface ResolveSessionTurnAgentContextRequestBase {
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -3835,6 +3900,19 @@ export interface RuntimeHostRunOnceResult {
 }
 
 // @public (undocumented)
+export type RuntimeHostSessionTurnLifecycleObserver = (signal: RuntimeHostSessionTurnLifecycleSignal) => void;
+
+// @public (undocumented)
+export interface RuntimeHostSessionTurnLifecycleSignal {
+    // (undocumented)
+    readonly kind: "wanex-runtime.session-turn-lifecycle";
+    // (undocumented)
+    readonly phase: "suspended" | "terminal";
+    // (undocumented)
+    readonly reference: RuntimeHostSessionTurnReference;
+}
+
+// @public (undocumented)
 export interface RuntimeHostSessionTurnReference {
     // (undocumented)
     readonly inputId: string;
@@ -3844,19 +3922,6 @@ export interface RuntimeHostSessionTurnReference {
     readonly sessionId: string;
     // (undocumented)
     readonly turnId: string;
-}
-
-// @public (undocumented)
-export type RuntimeHostSessionTurnResultObserver = (signal: RuntimeHostSessionTurnResultSignal) => void;
-
-// @public (undocumented)
-export interface RuntimeHostSessionTurnResultSignal {
-    // (undocumented)
-    readonly kind: "wanex-runtime.session-turn-result";
-    // (undocumented)
-    readonly outcome: "completed" | "failed" | "suspended";
-    // (undocumented)
-    readonly reference: RuntimeHostSessionTurnReference;
 }
 
 // @public (undocumented)
@@ -4126,8 +4191,26 @@ interface SessionScope {
 // @public (undocumented)
 type SessionStatus = "active" | "archived";
 
+// @public
+type SessionTurnAgentContextIdentity = symbol & {
+    readonly [sessionTurnAgentContextIdentityBrand]: true;
+};
+
 // @public (undocumented)
-type SessionTurnAgentContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<PreparedAgentContext | undefined> | PreparedAgentContext | undefined;
+const sessionTurnAgentContextIdentityBrand: unique symbol;
+
+// @public (undocumented)
+interface SessionTurnAgentContextLease {
+    // (undocumented)
+    commit(binding: SessionTurnExecutionBinding): void;
+    // (undocumented)
+    readonly phase: "admission" | "inheritance";
+    // (undocumented)
+    rollback(): void;
+}
+
+// @public (undocumented)
+type SessionTurnAgentContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<ResolvedSessionTurnAgentContext | undefined> | ResolvedSessionTurnAgentContext | undefined;
 
 // @public (undocumented)
 interface SessionTurnCompletionBinding {
@@ -4288,6 +4371,9 @@ type SessionTurnSettlementOutcome = "succeeded" | "failed" | "cancelled" | "inte
 
 // @public (undocumented)
 type SessionTurnState = "queued" | "running" | "waiting" | "cancel_requested" | "succeeded" | "failed" | "cancelled" | "interrupted" | "recovery_required";
+
+// @public (undocumented)
+export function settlePreparedSessionTurnContext(prepared: PreparedSessionTurnContextBinding, turn: Pick<SessionTurnRecord, "id" | "executionBinding">, expectedTurnId: string): void;
 
 // @public (undocumented)
 interface SettleSessionTurnReceipt {
@@ -5092,6 +5178,7 @@ type ToolExecutionResult = {
     readonly outcome: "deferred";
     readonly toolCallId: string;
     readonly operation: DeferredToolOperationRequest;
+    readonly settlement?: DeferredToolOperationSettlement;
 };
 
 // @public (undocumented)
@@ -5552,7 +5639,7 @@ export interface WanexRuntimeHostBehaviorOptions {
     // (undocumented)
     readonly observeProviderEvent?: ProviderEventObserver;
     // (undocumented)
-    readonly observeSessionTurnResult?: RuntimeHostSessionTurnResultObserver;
+    readonly observeSessionTurnLifecycle?: RuntimeHostSessionTurnLifecycleObserver;
     // (undocumented)
     readonly provider?: ProviderAdapter;
     // (undocumented)

@@ -24,6 +24,7 @@ describe("Team delivery agent context", () => {
       sessionId: "ses_ordinary",
       inputId: "inp_ordinary",
       turnId: "turn_ordinary",
+      phase: "admission",
       origin: { kind: "client", sourceRef: "composer" },
       signal: new AbortController().signal
     })).resolves.toBeUndefined()
@@ -41,6 +42,7 @@ describe("Team delivery agent context", () => {
       sessionId: context.childPlan.sessionId,
       inputId: context.childPlan.inputId,
       turnId: context.childPlan.turnId,
+      phase: "admission",
       origin: context.childPlan.origin,
       signal: new AbortController().signal
     })
@@ -92,6 +94,7 @@ describe("Team delivery agent context", () => {
       sessionId: context.childPlan.sessionId,
       inputId: context.childPlan.inputId,
       turnId: context.childPlan.turnId,
+      phase: "admission",
       origin: context.childPlan.origin,
       signal: new AbortController().signal
     })
@@ -118,6 +121,7 @@ describe("Team delivery agent context", () => {
       sessionId: stale.childPlan.sessionId,
       inputId: stale.childPlan.inputId,
       turnId: stale.childPlan.turnId,
+      phase: "admission",
       origin: stale.childPlan.origin,
       signal: new AbortController().signal
     })
@@ -127,6 +131,7 @@ describe("Team delivery agent context", () => {
 
     const resumed = await staleResolver({
       ...exactContextRequest(stale),
+      phase: "execution",
       executionBinding: {
         toolSnapshot: resolved?.tools?.snapshot()
       } as unknown as SessionTurnExecutionBinding
@@ -144,10 +149,11 @@ describe("Team delivery agent context", () => {
       prepareDelegatedExecutionBinding: unavailableDelegatedBinding
     })
     const exact = {
-      sessionId: context.childPlan.sessionId,
-      inputId: context.childPlan.inputId,
-      turnId: context.childPlan.turnId,
-      origin: context.childPlan.origin,
+    sessionId: context.childPlan.sessionId,
+    inputId: context.childPlan.inputId,
+    turnId: context.childPlan.turnId,
+    phase: "admission" as const,
+    origin: context.childPlan.origin,
       signal: new AbortController().signal
     }
 
@@ -189,6 +195,7 @@ function exactContextRequest(context: TeamDeliveryMaterializationContext) {
     sessionId: context.childPlan.sessionId,
     inputId: context.childPlan.inputId,
     turnId: context.childPlan.turnId,
+    phase: "admission" as const,
     origin: context.childPlan.origin,
     signal: new AbortController().signal
   }

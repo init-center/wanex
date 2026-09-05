@@ -25,6 +25,7 @@ const DEFAULT_RESOURCE_DELIVERY_PATH = "/wanex/assistant/resource-delivery"
 const DEFAULT_PROVIDER_MANAGEMENT_PATH = "/wanex/assistant/providers"
 const DEFAULT_MODEL_CATALOG_REFRESH_PATH = "/wanex/assistant/model-catalog-refresh"
 const DEFAULT_CAPABILITY_SETUP_PATH = "/wanex/assistant/capability-setup"
+const DEFAULT_MCP_SETTINGS_PATH = "/wanex/assistant/mcp-settings"
 const DEFAULT_EVENT_STREAM_PATH = "/wanex/assistant/events"
 const DEFAULT_MAX_BODY_BYTES = 64 * 1024
 
@@ -49,6 +50,8 @@ export function createWebNodeRequestHandler(
     options.capabilitySetup === undefined
       ? undefined
       : DEFAULT_CAPABILITY_SETUP_PATH
+  const mcpSettingsPath =
+    options.mcpSettings === undefined ? undefined : DEFAULT_MCP_SETTINGS_PATH
   const maxAttachmentBytes = normalizeMaxAttachmentBytes(
     options.maxAttachmentBytes
   )
@@ -74,6 +77,9 @@ export function createWebNodeRequestHandler(
       ...(options.capabilitySetup === undefined
         ? {}
         : { capabilitySetup: options.capabilitySetup }),
+      ...(options.mcpSettings === undefined
+        ? {}
+        : { mcpSettings: options.mcpSettings }),
       browserAssets,
       requestPath,
       maxBodyBytes,
@@ -89,6 +95,7 @@ export function createWebNodeRequestHandler(
         ? {}
         : { modelCatalogRefreshPath }),
       ...(capabilitySetupPath === undefined ? {} : { capabilitySetupPath }),
+      ...(mcpSettingsPath === undefined ? {} : { mcpSettingsPath }),
       maxAttachmentBytes,
       hostSessionToken,
       windowChrome: options.windowChrome ?? "standard",

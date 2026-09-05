@@ -88,6 +88,123 @@ describe("Web client", () => {
     expect(document.querySelector("[data-ui-schedule-form]")).toBeNull();
   });
 
+  it("configures an MCP tool server through write-only credential setup", async () => {
+    const snapshot = baseSnapshot();
+    const initialServers = {
+      kind: "assistant-host.mcp-servers" as const,
+      servers: [] as const,
+    };
+    const configuredServers = {
+      kind: "assistant-host.mcp-servers" as const,
+      servers: [{
+        serverId: "product-tools",
+        label: "Product tools",
+        enabled: true,
+        transport: "streamable_http" as const,
+        configurationState: "valid" as const,
+        runtimeState: "ready" as const,
+        toolCount: 2,
+        revision: 1,
+        credentialState: "configured" as const,
+      }],
+    };
+    const staged: unknown[] = [];
+    const saved: unknown[] = [];
+    const client: Client = {
+      ...createClient(snapshot),
+      mcpSettings: {
+        async listServers() {
+          return initialServers;
+        },
+        async stageCredential(request) {
+          staged.push(request);
+          return {
+            kind: "assistant-host.mcp-credential-setup",
+            setupId: "setup_id_12345678",
+            expiresAt: Date.now() + 60_000,
+          };
+        },
+        async saveServer(request) {
+          saved.push(request);
+          return {
+            kind: "applied",
+            serverId: request.serverId,
+            reloadOutcome: "published",
+            servers: configuredServers,
+            credentialCleanupPending: false,
+          };
+        },
+        async updateServer(request) {
+          return {
+            kind: "applied",
+            serverId: request.serverId,
+            reloadOutcome: "unchanged",
+            servers: configuredServers,
+            credentialCleanupPending: false,
+          };
+        },
+        async setServerEnabled(request) {
+          return {
+            kind: "applied",
+            serverId: request.serverId,
+            enabled: request.enabled,
+            reloadOutcome: "published",
+            servers: configuredServers,
+          };
+        },
+        async removeServer(request) {
+          return {
+            kind: "applied",
+            serverId: request.serverId,
+            reloadOutcome: "published",
+            servers: initialServers,
+            credentialCleanupPending: false,
+          };
+        },
+        async reloadServers() {
+          return { reloadOutcome: "unchanged", servers: configuredServers };
+        },
+      },
+    };
+    await mount(client, snapshot);
+
+    await act(async () => requiredButton("Open settings").click());
+    await waitFor(() => document.querySelector("[data-ui-mcp-settings]") !== null);
+    expect(document.body.textContent).toContain("Tool servers");
+    expect(document.body.textContent).toContain("Connect a tool server");
+    await act(async () => requiredButton("Add server").click());
+    const form = requiredElement<HTMLFormElement>('[data-ui-mcp-form="create"]');
+    await setInput(requiredElement<HTMLInputElement>('input[name="serverId"]'), "product-tools");
+    await setInput(requiredElement<HTMLInputElement>('input[name="label"]'), "Product tools");
+    await setInput(requiredElement<HTMLInputElement>('input[name="url"]'), "https://example.test/mcp");
+    await setInput(requiredElement<HTMLInputElement>('input[name="credential"]'), "Bearer private-token");
+    await act(async () => form.requestSubmit());
+    await waitFor(() => document.querySelector("[data-ui-mcp-form]") === null);
+
+    expect(staged).toEqual([{
+      serverId: "product-tools",
+      transport: "streamable_http",
+      name: "Authorization",
+      value: "Bearer private-token",
+    }]);
+    expect(saved).toEqual([expect.objectContaining({
+      serverId: "product-tools",
+      expectedRevision: null,
+      transport: {
+        kind: "streamable_http",
+        url: "https://example.test/mcp",
+        headers: [{
+          name: "Authorization",
+          source: { kind: "credential", setupId: "setup_id_12345678" },
+        }],
+      },
+    })]);
+    expect(document.body.textContent).toContain("Product tools");
+    expect(document.body.textContent).toContain("Connected");
+    expect(document.body.textContent).not.toContain("private-token");
+    expect(document.body.innerHTML).not.toContain("secretRef");
+  });
+
   it("loads the exact schedule revision and keeps editing after a conflict", async () => {
     const snapshot = scheduleSnapshot();
     const definition = scheduleDefinition();

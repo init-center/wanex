@@ -676,7 +676,7 @@ describe("session.turn worker handler", () => {
       session,
       storage,
       resolveAgentContext: () => ({
-        tools: registryWithTool("tool_b")
+        context: { tools: registryWithTool("tool_b") }
       })
     })
 
@@ -738,9 +738,11 @@ describe("session.turn worker handler", () => {
       storage,
       directProvider: provider,
       resolveAgentContext: () => ({
-        tools: registryWithTool("optional_tool", "2", "default", () => {
-          toolCalls += 1
-        })
+        context: {
+          tools: registryWithTool("optional_tool", "2", "default", () => {
+            toolCalls += 1
+          })
+        }
       })
     })
 
@@ -794,8 +796,10 @@ describe("session.turn worker handler", () => {
       storage,
       directProvider: provider,
       resolveAgentContext: () => ({
-        tools: registryWithTool("optional_tool", "1", "configuration-b"),
-        toolPermissionPolicy: new AllowAllToolsPolicy()
+        context: {
+          tools: registryWithTool("optional_tool", "1", "configuration-b"),
+          toolPermissionPolicy: new AllowAllToolsPolicy()
+        }
       })
     })
 
@@ -849,8 +853,10 @@ describe("session.turn worker handler", () => {
       storage,
       directProvider: provider,
       resolveAgentContext: () => ({
-        tools,
-        toolPermissionPolicy: new RiskBoundToolPolicy(["read_only"])
+        context: {
+          tools,
+          toolPermissionPolicy: new RiskBoundToolPolicy(["read_only"])
+        }
       })
     })
 

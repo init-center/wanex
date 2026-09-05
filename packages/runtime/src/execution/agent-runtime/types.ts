@@ -30,7 +30,10 @@ import type {
 import type { WorkerRunOnceResult } from "../../jobs/index.js"
 import type { ActiveExecutionAbortRegistry } from "../../jobs/active-abort.js"
 import type { SecretResolverPort } from "../../secrets/index.js"
-import type { SessionTurnAgentContextResolver } from "../worker/types.js"
+import type {
+  SessionTurnAgentContextIdentity,
+  SessionTurnAgentContextResolver
+} from "../worker/types.js"
 import type { TurnControlEventObserver } from "../worker/turn-control-observer.js"
 import type { AgentRuntimeExecutionStageObserver } from "../stage.js"
 
@@ -96,6 +99,13 @@ export interface PreparedUserTurn {
   readonly inputId: string
   readonly turnId: string
   readonly request: SubmitSessionTurnRequest
+  readonly context: PreparedSessionTurnContext
+}
+
+export interface PreparedSessionTurnContext {
+  readonly identity?: SessionTurnAgentContextIdentity
+  commit(): void
+  rollback(): void
 }
 
 export interface PrepareSessionTurnExecutionBindingRequest {
@@ -104,13 +114,20 @@ export interface PrepareSessionTurnExecutionBindingRequest {
   readonly turnId: string
   readonly content: readonly MessagePart[]
   readonly origin?: SessionInputOrigin
+  /** Reuses a parent Turn's exact dynamic context without acquiring ownership. */
+  readonly inheritedContextBinding?: SessionTurnExecutionBinding
+  /** Reuses the parent's process-local dynamic context generation exactly. */
+  readonly inheritedContextIdentity?: SessionTurnAgentContextIdentity
   readonly modelEndpointId?: string
   readonly maxOutputTokens?: number
   readonly executionEnvironment?: ExecutionEnvironmentBinding
   readonly applicationScope?: ApplicationScopeBinding
 }
 
-export type PreparedSessionTurnExecutionBinding = SessionTurnExecutionBinding
+export interface PreparedSessionTurnExecutionBinding {
+  readonly binding: SessionTurnExecutionBinding
+  readonly context: PreparedSessionTurnContext
+}
 
 export interface AgentRunOnceResult {
   readonly worker: WorkerRunOnceResult

@@ -120,6 +120,28 @@ describe("remote Coding Agent Host composition", () => {
     await fixture.handler.close();
   });
 
+  it("rejects mixed domains before resolving the Coding application", async () => {
+    const fixture = createFixture();
+    const rejected = await fixture.handler.handle({
+      method: "POST",
+      path: "/v1/agent-host/message",
+      headers: { authorization: "Bearer coding-bearer" },
+      body: {
+        kind: "wanex.agent-host.handshake.request",
+        protocolVersion: 1,
+        clientId: "mixed-domain-client",
+        accessToken: "client-only-value",
+        requestedDomains: ["assistant", "coding"],
+      },
+      bodyBytes: 180,
+    });
+
+    expect(rejected.status).toBe(403);
+    expect(rejected.body).toMatchObject({ error: { code: "unauthorized" } });
+    expect(fixture.resolveCalls).toBe(0);
+    await fixture.handler.close();
+  });
+
   it("rejects request-id and idempotency-key smuggling at the remote boundary", async () => {
     const fixture = createFixture();
     const handshake = await fixture.handler.handle({
@@ -256,6 +278,7 @@ describe("remote Coding Agent Host composition", () => {
 function createFixture() {
   const startCalls: Record<string, unknown>[] = [];
   const applyCalls: Record<string, unknown>[] = [];
+  let resolveCalls = 0;
   const listeners = new Set<(event: CodingApplicationEvent) => void>();
   const application = createApplication(startCalls, applyCalls, listeners);
   const handler = createRemoteCodingAgentHostHandler({
@@ -268,8 +291,9 @@ function createFixture() {
       }
       return null;
     },
-    resolveCodingHost: async (subject) =>
-      subject.subjectId === "coding-subject"
+    resolveCodingHost: async (subject) => {
+      resolveCalls += 1;
+      return subject.subjectId === "coding-subject"
         ? {
             application,
             host: {
@@ -285,7 +309,8 @@ function createFixture() {
               expiresAt: Date.now() + 60_000,
             },
           }
-        : null,
+        : null;
+    },
     createSessionId: () => "coding-session-secret",
     createEndpointAccessToken: () => "endpoint-secret",
   });
@@ -293,6 +318,9 @@ function createFixture() {
     handler,
     startCalls,
     applyCalls,
+    get resolveCalls() {
+      return resolveCalls;
+    },
     emit(value: CodingApplicationEvent) {
       for (const listener of listeners) listener(value);
     },

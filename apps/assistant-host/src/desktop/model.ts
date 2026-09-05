@@ -24,6 +24,7 @@ export interface DesktopMainHost {
   readonly url: string
   readonly settings: AssistantWebApp["settings"]
   readonly modelEndpoints: AssistantWebApp["modelEndpoints"]
+  readonly mcpSettings: AssistantWebApp["mcpSettings"]
   readonly providers: AssistantWebApp["providers"]
   readonly modelCatalog: AssistantWebApp["modelCatalog"]
   readonly attachments: AssistantWebApp["attachments"]

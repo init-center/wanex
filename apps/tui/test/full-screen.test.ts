@@ -4051,7 +4051,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
         at: sequence,
         operationId: "operation_assistant_tui",
         sessionId: "session_assistant_tui",
-        cause: "execution_completed",
+        cause: "execution_settled",
       },
     });
   }

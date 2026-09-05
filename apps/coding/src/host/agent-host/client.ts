@@ -125,6 +125,13 @@ export type CodingProposalDecisionInput = Omit<
   readonly idempotencyKey: string;
 };
 
+export type CodingProposalApplyRequest = Omit<
+  RequestCodingProposalApplyRequest,
+  "requestId"
+> & {
+  readonly idempotencyKey: string;
+};
+
 export type CodingProposalApplyInput = ApplyCodingProposalRequest & {
   readonly idempotencyKey: string;
 };
@@ -153,7 +160,7 @@ export interface CodingAgentHostClient {
   resolveTurnApproval(request: CodingResolveTurnApprovalRequest): Promise<CodingTurnReadModel>;
   resolveTurnRecovery(request: CodingResolveTurnRecoveryRequest): Promise<CodingTurnReadModel>;
   decideProposal(request: CodingProposalDecisionInput): Promise<CodingProposalActionResult>;
-  requestProposalApply(request: CodingProposalApplyInput): Promise<CodingProposalActionResult>;
+  requestProposalApply(request: CodingProposalApplyRequest): Promise<CodingProposalActionResult>;
   applyProposal(request: CodingProposalApplyInput): Promise<CodingProposalApplyResult>;
   undoProposal(request: CodingProposalUndoInput): Promise<CodingProposalUndoResult>;
   subscribe(listener: CodingAgentHostEventListener): () => void;

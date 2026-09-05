@@ -23,6 +23,7 @@
   "dependencies": {
     "@wanex/app": "workspace:*",
     "@wanex/local-credential-store": "workspace:*",
+    "@wanex/mcp": "workspace:*",
     "@wanex/assistant": "workspace:*",
     "@wanex/protocol": "workspace:*",
     "@wanex/runtime": "workspace:*",

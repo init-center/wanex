@@ -9,6 +9,12 @@ import type {
   Client,
   ClientEvent,
   ModelCatalogRefreshResult,
+  McpCredentialSetupResult,
+  McpSaveServerRequest,
+  McpServerList,
+  McpServerMutationResult,
+  McpSettingsClient,
+  McpSettingsResultBase,
   PreparedResourceDelivery,
   ProviderList,
   ProviderMutationResult,
@@ -23,6 +29,7 @@ export interface HttpClientOptions {
   readonly providerManagementPath?: string;
   readonly modelCatalogRefreshPath?: string;
   readonly capabilitySetupPath?: string;
+  readonly mcpSettingsPath?: string;
   readonly hostSessionToken: string;
   readonly fetch?: typeof globalThis.fetch;
 }
@@ -40,6 +47,10 @@ export function createHttpClient(
   let streamAbort: AbortController | undefined;
   let streamId: string | undefined;
   let lastSequence: number | undefined;
+
+  const mcpSettings = options.mcpSettingsPath === undefined
+    ? undefined
+    : createMcpSettingsClient(options.mcpSettingsPath);
 
   const client: Client = {
     async readSnapshot() {
@@ -208,6 +219,7 @@ export function createHttpClient(
         snapshot: payload.snapshot,
       };
     },
+    ...(mcpSettings === undefined ? {} : { mcpSettings }),
     subscribe(listener) {
       listeners.add(listener);
       if (!streamStarted && options.eventStreamPath !== undefined) {
@@ -249,6 +261,87 @@ export function createHttpClient(
       providers: payload.providers,
       snapshot: payload.snapshot,
     };
+  }
+
+  function createMcpSettingsClient(path: string): McpSettingsClient {
+    return {
+      async listServers() {
+        const response = await sendHostJson(path, "GET");
+        const payload = await readHostJson<McpServerListPayload>(response);
+        if (!response.ok || payload.ok !== true ||
+          !validMcpServerList(payload.servers)) {
+          throw hostResponseError(payload, response, "MCP server list failed");
+        }
+        return payload.servers;
+      },
+      async stageCredential(request) {
+        return await sendMcpCommand<McpCredentialSetupResult>(
+          path,
+          "stage-credential",
+          request,
+          (value): value is McpCredentialSetupResult =>
+            isRecord(value) &&
+            value.kind === "assistant-host.mcp-credential-setup" &&
+            typeof value.setupId === "string" &&
+            Number.isSafeInteger(value.expiresAt),
+        );
+      },
+      async saveServer(request: McpSaveServerRequest) {
+        return await sendMcpCommand<McpServerMutationResult>(
+          path,
+          "save-server",
+          request,
+          validMcpMutationResult,
+        );
+      },
+      async updateServer(request) {
+        return await sendMcpCommand<McpServerMutationResult>(
+          path,
+          "update-server",
+          request,
+          validMcpMutationResult,
+        );
+      },
+      async setServerEnabled(request) {
+        return await sendMcpCommand<McpServerMutationResult>(
+          path,
+          "set-server-enabled",
+          request,
+          validMcpMutationResult,
+        );
+      },
+      async removeServer(request) {
+        return await sendMcpCommand<McpServerMutationResult>(
+          path,
+          "remove-server",
+          request,
+          validMcpMutationResult,
+        );
+      },
+      async reloadServers(request = {}) {
+        return await sendMcpCommand<McpSettingsResultBase>(
+          path,
+          "reload-servers",
+          request,
+          validMcpSettingsResult,
+        );
+      },
+    };
+  }
+
+  async function sendMcpCommand<T>(
+    path: string,
+    operation: string,
+    request: unknown,
+    validate: (value: unknown) => value is T,
+  ): Promise<T> {
+    const response = await sendHostJson(path, "POST", { operation, request });
+    const payload = await readHostJson<McpCommandPayload>(response);
+    if (!response.ok || payload.ok !== true ||
+      payload.operation !== operation || !validate(payload.result)) {
+      throw hostResponseError(payload, response, "MCP settings operation failed");
+    }
+    return payload.result;
   }
 
   async function sendHostJson(
@@ -540,6 +633,15 @@ interface CapabilitySetupPayload extends HostPayload {
   readonly snapshot?: CapabilitySetupResult["snapshot"];
 }
 
+interface McpServerListPayload extends HostPayload {
+  readonly servers?: unknown;
+}
+
+interface McpCommandPayload extends HostPayload {
+  readonly operation?: string;
+  readonly result?: unknown;
+}
+
 interface ResourceDeliveryPreparePayload extends HostPayload {
   readonly delivery?: PreparedResourceDelivery;
 }
@@ -609,4 +711,40 @@ function splitFrames(input: string): {
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function validMcpServerList(value: unknown): value is McpServerList {
+  if (!isRecord(value) || value.kind !== "assistant-host.mcp-servers" ||
+    !Array.isArray(value.servers)) return false;
+  return value.servers.every((server) =>
+    isRecord(server) &&
+    typeof server.configurationState === "string" &&
+    typeof server.runtimeState === "string" &&
+    Number.isSafeInteger(server.toolCount) &&
+    !Object.hasOwn(server, "command") &&
+    !Object.hasOwn(server, "cwd") &&
+    !Object.hasOwn(server, "headers") &&
+    !Object.hasOwn(server, "environment") &&
+    !Object.hasOwn(server, "secretRef")
+  );
+}
+
+function validMcpSettingsResult(value: unknown): value is McpSettingsResultBase {
+  return isRecord(value) &&
+    (value.reloadOutcome === "unchanged" ||
+      value.reloadOutcome === "published" ||
+      value.reloadOutcome === "rejected" ||
+      value.reloadOutcome === "failed") &&
+    validMcpServerList(value.servers);
+}
+
+function validMcpMutationResult(value: unknown): value is McpServerMutationResult {
+  if (!validMcpSettingsResult(value)) return false;
+  const record = value as unknown as Readonly<Record<string, unknown>>;
+  if ((record.kind !== "applied" && record.kind !== "conflict") ||
+    typeof record.serverId !== "string") return false;
+  return record.kind === "applied" ||
+    (Number.isSafeInteger(record.expectedRevision) ||
+      record.expectedRevision === null) &&
+    (Number.isSafeInteger(record.currentRevision) || record.currentRevision === null);
 }

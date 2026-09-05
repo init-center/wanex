@@ -96,12 +96,18 @@ function persistedStateToJson(
     },
     trackedConversationOperations: Object.fromEntries(
       Object.entries(state.trackedConversationOperations).map(
-        ([sessionId, reference]) => [sessionId, { ...reference }]
+        ([sessionId, reference]) => [
+          sessionId,
+          persistedConversationReferenceToJson(reference)
+        ]
       )
     ),
     pendingGuidedFollowUps: Object.fromEntries(
       Object.entries(state.pendingGuidedFollowUps).map(
-        ([sessionId, reference]) => [sessionId, { ...reference }]
+        ([sessionId, reference]) => [
+          sessionId,
+          persistedConversationReferenceToJson(reference)
+        ]
       )
     ),
     conversationAttachmentDrafts: Object.fromEntries(
@@ -270,6 +276,11 @@ function persistedConversationReferences(
           `application persisted conversation reference ${sessionId} must be an object`
         )
       }
+      assertOnlyKeys(
+        candidate,
+        ["sessionId", "inputId", "turnId", "jobId", "submission"],
+        `${field}.${sessionId}`
+      )
       const reference = {
         sessionId: requiredNonEmptyString(
           candidate.sessionId,
@@ -284,9 +295,62 @@ function persistedConversationReferences(
           `application persisted conversation reference key does not match sessionId: ${sessionId}`
         )
       }
-      return [sessionId, reference]
+      const submission = persistedConversationSubmissionFromJson(
+        candidate.submission,
+        `${field}.${sessionId}.submission`
+      )
+      return [
+        sessionId,
+        {
+          ...reference,
+          ...(submission === undefined ? {} : { submission })
+        }
+      ]
     })
   )
+}
+
+function persistedConversationReferenceToJson(
+  reference: TrustedConversationOperationReference
+): JsonValue {
+  return {
+    sessionId: reference.sessionId,
+    inputId: reference.inputId,
+    turnId: reference.turnId,
+    jobId: reference.jobId,
+    ...(reference.submission === undefined
+      ? {}
+      : { submission: { ...reference.submission } })
+  }
+}
+
+function persistedConversationSubmissionFromJson(
+  value: JsonValue | undefined,
+  field: string
+): TrustedConversationOperationReference["submission"] {
+  if (value === undefined) return undefined
+  if (!isRecord(value)) {
+    throw new Error(`application persisted ${field} must be an object`)
+  }
+  assertOnlyKeys(value, ["idempotencyKeyDigest", "requestFingerprint"], field)
+  return {
+    idempotencyKeyDigest: persistedSha256Digest(
+      value.idempotencyKeyDigest,
+      `${field}.idempotencyKeyDigest`
+    ),
+    requestFingerprint: persistedSha256Digest(
+      value.requestFingerprint,
+      `${field}.requestFingerprint`
+    )
+  }
+}
+
+function persistedSha256Digest(value: JsonValue | undefined, field: string): string {
+  const parsed = requiredNonEmptyString(value, field)
+  if (!/^[a-f0-9]{64}$/.test(parsed)) {
+    throw new Error(`application persisted ${field} must be a SHA-256 digest`)
+  }
+  return parsed
 }
 
 function persistedSelectionFromJson(

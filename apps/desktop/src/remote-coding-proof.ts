@@ -151,12 +151,22 @@ export async function runWanexDesktopRemoteCodingProof(
       profile.name === expected.profileName &&
       profile.credentialConfigured === true;
   });
-  const remoteProject = await waitFor(() => {
-    const value = document.querySelector(
-      `[data-ui-remote-project-id="${CSS.escape(expected.projectId)}"]`,
+  let remoteProject: HTMLButtonElement;
+  try {
+    remoteProject = await waitFor(() => {
+      const value = document.querySelector(
+        `[data-ui-remote-project-id="${CSS.escape(expected.projectId)}"]`,
+      );
+      return value instanceof HTMLButtonElement ? value : undefined;
+    }, 20_000, "remote project");
+  } catch (error) {
+    const picker = document.querySelector("[data-ui-coding-remote-picker]");
+    const details = picker?.textContent?.replace(/\s+/gu, " ").trim() ?? "";
+    throw new Error(
+      `Remote Coding project list did not contain the expected project: ${details}`,
+      { cause: error },
     );
-    return value instanceof HTMLButtonElement ? value : undefined;
-  }, 20_000, "remote project");
+  }
   remoteProject.click();
   const project = await waitFor(() => {
     const value = document.querySelector("[data-ui-coding-project]");

@@ -54,6 +54,11 @@ export function createVerifySteps() {
       args: ["test:package-packlist-audit"]
     },
     {
+      name: "Distribution footprint audit tests",
+      command: "pnpm",
+      args: ["test:distribution-footprint-audit"]
+    },
+    {
       name: "Package governance audit tests",
       command: "pnpm",
       args: ["test:package-governance-audit"]

@@ -138,10 +138,55 @@ describe("remote Assistant Agent Host composition", () => {
     });
     await fixture.handler.close();
   });
+
+  it("rejects mixed domains before resolving the Assistant application", async () => {
+    const fixture = createFixture();
+    const rejected = await fixture.handler.handle({
+      method: "POST",
+      path: "/v1/agent-host/message",
+      headers: { authorization: "Bearer subject-bearer" },
+      body: {
+        kind: "wanex.agent-host.handshake.request",
+        protocolVersion: 1,
+        clientId: "mixed-domain-client",
+        accessToken: "client-only-value",
+        requestedDomains: ["assistant", "coding"],
+      },
+      bodyBytes: 180,
+    });
+
+    expect(rejected.status).toBe(403);
+    expect(rejected.body).toMatchObject({ error: { code: "unauthorized" } });
+    expect(fixture.resolveCalls).toBe(0);
+    await fixture.handler.close();
+  });
+
+  it("preserves an Assistant idempotency conflict at the remote client boundary", async () => {
+    const fixture = createFixture(true);
+    const composition = await createRemoteAssistantAgentHostComposition({
+      messageUrl: "https://assistant.example.test/v1/agent-host/message",
+      getBearerToken: () => "subject-bearer",
+      clientId: "remote-conflict-client",
+      fetch: fakeFetch(fixture.handler, []),
+    });
+
+    try {
+      await expect(
+        composition.client.submitConversation({
+          text: "conflicting remote submission",
+          idempotencyKey: "remote_conflict",
+        }),
+      ).rejects.toMatchObject({ code: "idempotency_conflict" });
+    } finally {
+      await composition.close();
+      await fixture.handler.close();
+    }
+  });
 });
 
-function createFixture() {
+function createFixture(rejectSubmit = false) {
   const commandCalls: unknown[] = [];
+  let resolveCalls = 0;
   const surfaceFixture = createSurface();
   const surface = surfaceFixture.surface;
   const handler = createRemoteAssistantAgentHostHandler({
@@ -149,11 +194,12 @@ function createFixture() {
       token === "subject-bearer"
         ? { subjectId: "subject-1", expiresAt: Date.now() + 60_000 }
         : null,
-    resolveAssistantHost: async (subject) =>
-      subject.subjectId === "subject-1"
+    resolveAssistantHost: async (subject) => {
+      resolveCalls += 1;
+      return subject.subjectId === "subject-1"
         ? {
             surface,
-            commands: createCommands(commandCalls),
+            commands: createCommands(commandCalls, rejectSubmit),
             host: {
               hostId: "assistant-remote-host",
               instanceId: "assistant-remote-instance",
@@ -167,7 +213,8 @@ function createFixture() {
               expiresAt: Date.now() + 60_000,
             },
           }
-        : null,
+        : null;
+    },
     createSessionId: () => "remote-session-1",
     createEndpointAccessToken: () => "endpoint-secret-1",
   });
@@ -176,6 +223,9 @@ function createFixture() {
     surface,
     emit: surfaceFixture.emit,
     commandCalls,
+    get resolveCalls() {
+      return resolveCalls;
+    },
   };
 }
 
@@ -216,7 +266,7 @@ function createSurface(): {
   };
 }
 
-function createCommands(calls: unknown[]): Pick<
+function createCommands(calls: unknown[], rejectSubmit = false): Pick<
   Shell,
   | "submitConversationOperation"
   | "cancelTrackedConversationOperation"
@@ -231,6 +281,13 @@ function createCommands(calls: unknown[]): Pick<
   return {
     submitConversationOperation: async (input) => {
       calls.push(input);
+      if (rejectSubmit) {
+        return {
+          kind: "assistant.conversation-operation.rejected",
+          reason: "idempotency_conflict",
+          message: "the idempotency key was already used for another request"
+        } as never;
+      }
       return found();
     },
     cancelTrackedConversationOperation: async () => found(),

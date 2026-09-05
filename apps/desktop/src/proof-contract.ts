@@ -27,7 +27,6 @@ export const WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL =
   "wanex-packaged-remote-coding-proof-token"
 export const WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID = "packaged-remote"
 export const WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME = "Packaged Remote Host"
-export const WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID = "packaged-remote-project"
 export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE =
   "WANEX_CODING_RECOVERY_PROOF_V1 Reconcile the recoverable coding operation"
 export const WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME =

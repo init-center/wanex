@@ -59,10 +59,10 @@ export async function createWanexApp(
   const host = runtime.app.createRuntimeHost({
     workerCount: options.workerCount ?? 1,
     observeProviderEvent: events.observeProviderEvent,
-      observeSessionTurnResult(signal) {
-        events.observeSessionTurnResult(signal)
-        goalCoordinator?.observeSessionTurnResult(signal)
-        options.observeSessionTurnResult?.(signal)
+      observeSessionTurnLifecycle(signal) {
+        events.observeSessionTurnLifecycle(signal)
+        goalCoordinator?.observeSessionTurnLifecycle(signal)
+        options.observeSessionTurnLifecycle?.(signal)
       },
     ...(mediaGenerationAdapters.length === 0
       ? {}
@@ -97,22 +97,36 @@ export async function createWanexApp(
           : { runtime: options.runtimeContext })
       })
       const contextualRuntime = await options.runtimeContextResolver?.(request)
-      const base = await extensions.prepareAgentContext(
-        composeWanexAppAgentContext({
-          ...(configured === undefined ? {} : { discovered: configured }),
-          ...(contextualRuntime === undefined
+      try {
+        const base = await extensions.prepareAgentContext(
+          composeWanexAppAgentContext({
+            ...(configured === undefined ? {} : { discovered: configured }),
+            ...(contextualRuntime?.context === undefined
+              ? {}
+              : { runtime: contextualRuntime.context })
+          })
+        )
+        const context = await prepareWanexAppModelCapabilityContext({
+          storage: runtime.storage,
+          isModelEndpointExecutable,
+          ...(base === undefined ? {} : { base }),
+          ...(request.executionBinding === undefined
             ? {}
-            : { runtime: contextualRuntime })
+            : { executionBinding: request.executionBinding })
         })
-      )
-      return await prepareWanexAppModelCapabilityContext({
-        storage: runtime.storage,
-        isModelEndpointExecutable,
-        ...(base === undefined ? {} : { base }),
-        ...(request.executionBinding === undefined
-          ? {}
-          : { executionBinding: request.executionBinding })
-      })
+        return {
+          ...(context === undefined ? {} : { context }),
+          ...(contextualRuntime?.contextIdentity === undefined
+            ? {}
+            : { contextIdentity: contextualRuntime.contextIdentity }),
+          ...(contextualRuntime?.lease === undefined
+            ? {}
+            : { lease: contextualRuntime.lease })
+        }
+      } catch (error) {
+        contextualRuntime?.lease?.rollback()
+        throw error
+      }
     }
   })
   const conversationOperations = new WanexAppConversationOperationController({

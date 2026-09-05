@@ -7,6 +7,7 @@ import {
   type RemoteAgentHostHttpClientEventStreamState,
   type RemoteAgentHostHttpClientOptions,
   type RemoteAgentHostHttpHandler,
+  type RemoteAgentHostHandshakeContext,
   type RemoteAgentHostHandlerOptions,
   type RemoteHostAuthenticatedSubject,
   type RemoteHostGrant,
@@ -31,6 +32,7 @@ export interface RemoteCodingAgentHostHandlerOptions
   extends Omit<RemoteAgentHostHandlerOptions, "resolveHost"> {
   readonly resolveCodingHost: (
     subject: RemoteHostAuthenticatedSubject,
+    context: RemoteAgentHostHandshakeContext,
   ) =>
     | RemoteCodingHostResolution
     | null
@@ -43,8 +45,9 @@ export function createRemoteCodingAgentHostHandler(
   const { resolveCodingHost, ...handlerOptions } = options;
   return createRemoteAgentHostHttpHandler({
     ...handlerOptions,
-    resolveHost: async (subject) => {
-      const resolved = await resolveCodingHost(subject);
+    resolveHost: async (subject, context) => {
+      if (!isExactCodingDomain(context)) return null;
+      const resolved = await resolveCodingHost(subject, context);
       if (resolved === null) return null;
       const endpointOptions: Omit<CodingAgentHostEndpointOptions, "accessToken"> = {
         application: resolved.application,
@@ -61,6 +64,13 @@ export function createRemoteCodingAgentHostHandler(
       };
     },
   });
+}
+
+function isExactCodingDomain(
+  context: RemoteAgentHostHandshakeContext,
+): boolean {
+  return context.requestedDomains.length === 1 &&
+    context.requestedDomains[0] === "coding";
 }
 
 export interface RemoteCodingAgentHostCompositionOptions

@@ -24,6 +24,10 @@ import type {
   PlanWorkflowOptions,
   RevisePlanProposalRequest
 } from "./types.js"
+import {
+  reconcilePreparedSessionTurnContext,
+  settlePreparedSessionTurnContext,
+} from "@wanex/runtime/host"
 
 const DEFAULT_PRINCIPAL_ID = "app-plan-workflow"
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096
@@ -194,14 +198,36 @@ export class PlanWorkflow {
       ]
     })
     if (prepared.session.id !== proposal.source.sessionId) {
+      prepared.context.rollback()
       throw new Error("prepared Plan execution changed the source Session")
     }
-    const receipt = await this.storage.executeApprovedPlan({
-      proposalId: proposal.id,
-      expectedRevision: request.expectedRevision,
-      idempotencyKey: request.idempotencyKey,
-      turn: prepared.request
-    })
+    let receipt: ExecuteApprovedPlanReceipt
+    try {
+      receipt = await this.storage.executeApprovedPlan({
+        proposalId: proposal.id,
+        expectedRevision: request.expectedRevision,
+        idempotencyKey: request.idempotencyKey,
+        turn: prepared.request
+      })
+    } catch (error) {
+      await reconcilePreparedSessionTurnContext(
+        this.storage,
+        {
+          binding: prepared.request.executionBinding,
+          context: prepared.context,
+        },
+        prepared.turnId
+      )
+      throw error
+    }
+    settlePreparedSessionTurnContext(
+      {
+        binding: prepared.request.executionBinding,
+        context: prepared.context,
+      },
+      receipt.submission.turn,
+      prepared.turnId
+    )
     this.runtime.wake()
     return receipt
   }

@@ -165,8 +165,7 @@ function optionalConversationEvent(value: unknown): boolean {
       typeof value.at === "number" &&
       typeof value.operationId === "string" &&
       typeof value.sessionId === "string" &&
-      (value.cause === "execution_completed" ||
-        value.cause === "execution_failed" ||
+      (value.cause === "execution_settled" ||
         value.cause === "execution_suspended")
     );
   }

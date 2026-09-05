@@ -19,9 +19,11 @@ import { ResolveSessionTurnAgentContextRequest } from '@wanex/runtime/execution'
 import { RuntimeHostDiagnosticsInput } from '@wanex/runtime/host';
 import { RuntimeHostPreparedExecutionBinding } from '@wanex/runtime/host';
 import { RuntimeHostPrepareExecutionBindingRequest } from '@wanex/runtime/host';
-import { RuntimeHostSessionTurnResultSignal } from '@wanex/runtime/host';
+import { RuntimeHostSessionTurnLifecycleSignal } from '@wanex/runtime/host';
 import { SecretResolverPort } from '@wanex/runtime/secrets';
 import { SecretStorePort } from '@wanex/runtime/secrets';
+import { SessionTurnAgentContextIdentity } from '@wanex/runtime/execution';
+import { SessionTurnAgentContextLease } from '@wanex/runtime/execution';
 import { SubmitMediaGenerationRequest } from '@wanex/runtime/media-generation';
 
 // @public (undocumented)
@@ -2191,7 +2193,7 @@ export interface WanexAppConversationOperationInvalidatedEvent {
     // (undocumented)
     readonly at: number;
     // (undocumented)
-    readonly cause: "execution_completed" | "execution_failed" | "execution_suspended";
+    readonly cause: "execution_settled" | "execution_suspended";
     // (undocumented)
     readonly kind: "wanex-app.conversation.operation-invalidated";
     // (undocumented)
@@ -2943,7 +2945,7 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
     // (undocumented)
     readonly modelEndpoint?: WanexAppModelEndpointOptions;
     // (undocumented)
-    readonly observeSessionTurnResult?: (signal: RuntimeHostSessionTurnResultSignal) => void;
+    readonly observeSessionTurnLifecycle?: (signal: RuntimeHostSessionTurnLifecycleSignal) => void;
     // (undocumented)
     readonly runtimeContext?: Pick<PreparedAgentContext, "tools" | "toolPermissionPolicy">;
     // (undocumented)
@@ -3472,7 +3474,17 @@ export interface WanexAppRunAgentTurnResult {
 export type WanexAppRuntimeContext = Pick<PreparedAgentContext, "tools" | "toolPermissionPolicy">;
 
 // @public (undocumented)
-export type WanexAppRuntimeContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<WanexAppRuntimeContext | undefined> | WanexAppRuntimeContext | undefined;
+interface WanexAppRuntimeContextResolution {
+    // (undocumented)
+    readonly context?: WanexAppRuntimeContext;
+    // (undocumented)
+    readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly lease?: SessionTurnAgentContextLease;
+}
+
+// @public (undocumented)
+export type WanexAppRuntimeContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<WanexAppRuntimeContextResolution | undefined> | WanexAppRuntimeContextResolution | undefined;
 
 // @public (undocumented)
 export interface WanexAppSafeCommandRequest<T> {

@@ -8,6 +8,7 @@ import {
   type RemoteAgentHostHttpClientOptions,
   type RemoteAgentHostHttpClientEventStreamState,
   type RemoteAgentHostHttpHandler,
+  type RemoteAgentHostHandshakeContext,
   type RemoteAgentHostHandlerOptions,
   type RemoteHostAuthenticatedSubject,
   type RemoteHostGrant,
@@ -32,6 +33,7 @@ export interface RemoteAssistantAgentHostHandlerOptions
   extends Omit<RemoteAgentHostHandlerOptions, "resolveHost"> {
   readonly resolveAssistantHost: (
     subject: RemoteHostAuthenticatedSubject,
+    context: RemoteAgentHostHandshakeContext,
   ) =>
     | RemoteAssistantHostResolution
     | null
@@ -44,8 +46,9 @@ export function createRemoteAssistantAgentHostHandler(
   const { resolveAssistantHost, ...handlerOptions } = options;
   return createRemoteAgentHostHttpHandler({
     ...handlerOptions,
-    resolveHost: async (subject) => {
-      const resolved = await resolveAssistantHost(subject);
+    resolveHost: async (subject, context) => {
+      if (!isExactAssistantDomain(context)) return null;
+      const resolved = await resolveAssistantHost(subject, context);
       if (resolved === null) return null;
       return {
         host: resolved.host,
@@ -60,6 +63,13 @@ export function createRemoteAssistantAgentHostHandler(
       };
     },
   });
+}
+
+function isExactAssistantDomain(
+  context: RemoteAgentHostHandshakeContext,
+): boolean {
+  return context.requestedDomains.length === 1 &&
+    context.requestedDomains[0] === "assistant";
 }
 
 export interface RemoteAssistantAgentHostCompositionOptions

@@ -24,7 +24,7 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (2026-09-01)
+## Authoritative Current Route (2026-09-05)
 
 Route 8A Desktop Connection And First-Run Functional Completion is complete
 at the source and Remote Host contract boundary. Its evidence is recorded in:
@@ -76,18 +76,179 @@ Route 9B is complete in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1557-route-9b-cross-platform-distribution-completion.md`
 
-The next route is **Route 10: Provider Product Readiness**, frozen in:
+Route 10: Provider Product Readiness is complete. Its implementation and
+verification evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1560-route-10-provider-product-readiness-completion.md`
+
+The route proved the existing OpenAI-compatible and Anthropic Messages
+adapters through the real Assistant Host/Web product path using deterministic
+local HTTP fixtures. It covered trusted secret resolution, Anthropic system
+context projection, successful streaming, durable operation settlement,
+secret isolation, and output-after-disconnect recovery. It added no Provider
+package, Gateway, schema version, compatibility alias, paid/live CI call, or
+mechanical package split.
+
+Route 11: Media Product Readiness is complete. Its frozen plan and completion
+evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1561-post-route-10-architecture-review-and-route-11-media-product-readiness-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1562-route-11-media-product-readiness-completion.md`
+
+The route proves the existing image-generation adapter, durable Resource
+identity, bounded Host HTTP delivery, capability admission, and Provider
+rejection through one deterministic Assistant Host/Product journey. It also
+corrects `assistantText` to contain assistant text parts rather than flattened
+Tool/resource transcript markers. It added no Gateway, second resource model,
+schema version, compatibility alias, live Provider call, or package split.
+
+The next route is **Route 12: MCP Tool Product Readiness**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1563-post-route-11-architecture-review-and-route-12-mcp-product-readiness-plan.md`
+
+Route 12 must connect the existing official MCP SDK adapter to the real
+Assistant Host/Product path while keeping MCP optional and Host-owned. Runtime
+and App continue to see only ordinary Tool registries and binding evidence.
+Configuration must be revisioned, credentials must stay outside SQLite,
+reloads must preserve an admitted Turn's Tool generation, and Host shutdown
+must leave no client, listener, or child process. Do not add a Gateway, MCP
+Session concept, package, schema version, compatibility alias, generic
+composition facade, default Runtime/App dependency, or unbounded reconnect
+loop.
+
+Route 12A MCP Contract And Lifecycle is complete. Its audit and completion
+evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1564-route-12a-mcp-contract-and-lifecycle-audit.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1565-route-12a-mcp-contract-and-lifecycle-completion.md`
+
+The next stage is **Route 12B: Trusted Assistant Host Composition**, refined
+and frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1566-post-route-12a-review-and-route-12b-trusted-host-composition-plan.md`
+
+Route 12B must add the existing optional `@wanex/mcp` dependency only to the
+concrete Assistant Host, load strict revisioned definitions, isolate server
+failure, namespace Tools, and preserve exact admitted-Turn generations. Audit
+the admission resolver lifecycle before implementing retirement. Do not use a
+timing grace period, permanent append-only clients, a generic composition
+framework, Renderer polling, or an MCP concept in Runtime/App persistence.
+
+Route 12B.1 Strict Host Startup Composition is complete. Its implementation,
+verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1567-route-12b-1-strict-host-startup-composition-completion.md`
+
+The next stage is **Route 12B.2: Exact Turn Generation Lifecycle**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1568-route-12b-2-exact-turn-generation-lifecycle-plan.md`
+
+Route 12C MCP Product Management is complete. Its completion evidence is
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1571-route-12c-mcp-management-completion.md`
+
+The Host now owns revisioned MCP configuration mutations, safe status
+projection, explicit reload, and generation-aware lifecycle while Runtime and
+App remain MCP-neutral. Invalid stored definitions retain a safe revision for
+repair/removal. The raw trusted management port is not a Renderer protocol.
+
+Route 12D: MCP Settings And Product Acceptance is complete. Its frozen plan
+and completion evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1572-post-route-12c-architecture-review-and-route-12d-mcp-settings-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1573-route-12d-mcp-settings-and-product-acceptance-completion.md`
+
+The constrained product settings path now owns write-only credential setup,
+exact-CAS management, authenticated strict Web transport, compact Settings UI,
+and deterministic stdio/Streamable HTTP product acceptance. Raw MCP
+definitions and management remain Host-internal; Runtime, App, Protocol,
+Storage, and the generic Shell remain MCP-neutral. Do not add a generic JSON
+editor, literal credential values, polling/reconnect loops, compatibility
+paths, or mechanically expand into MCP prompts/resources/elicitation.
+
+The post-Route-12D architecture and product-gap review is complete. It selected
+**Route 13: Deployable Agent Host Server**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1574-post-route-12d-architecture-review-and-route-13-deployable-agent-host-server-plan.md`
+
+Route 13A: Server Boundary And Shared Ownership Foundation is complete. Its
+implementation, distribution-audit correction, verification, and architecture
+review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1576-route-13a-server-shared-ownership-foundation-completion.md`
+
+Route 13B: Authenticated Assistant Endpoint And Operations is complete. Its
+implementation, real HTTPS listener acceptance, replay/idempotency correction,
+subject isolation, and cleanup evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1578-route-13b-authenticated-assistant-server-completion.md`
+
+Route 13C.1: Trusted Catalog And Borrowed Coding Composition is complete. Its
+frozen plan and completion evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1579-post-route-13b-architecture-review-and-route-13c-server-coding-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1580-route-13c-1-trusted-catalog-and-coding-composition-completion.md`
+
+The Server now owns a strict trusted repository catalog and one Coding Host
+borrowing the Server-owned Store and credential resolver. It opens every
+configured repository before readiness, exposes only canonical opaque project
+identity, and closes Coding before Assistant and the Store. Route 13C.1 adds no
+Coding network endpoint.
+
+Route 13C.2: Single-Listener Multi-Domain Admission is complete. Its frozen
+plan and completion evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1581-route-13c-2-single-listener-domain-admission-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1582-route-13c-2-single-listener-domain-admission-completion.md`
+
+Route 13C.3: Remote Coding Execution Acceptance is complete. Its frozen plan
+and completion evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1583-route-13c-3-remote-coding-execution-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1584-route-13c-3-remote-coding-execution-completion.md`
+
+It proves the complete typed remote Coding journey against the real Server,
+Store, System Service, Git repository, and deterministic Provider, including
+durable review/apply/undo and restart recovery.
+
+Route 13D.1: Headless Server Process Entry and Route 13D.2: Headless Server
+Distribution Artifact are complete. Their completion evidence is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1586-route-13d-1-headless-server-process-completion.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1588-route-13d-2-headless-server-distribution-artifact-completion.md`
+
+The Server now has one strict `wanex-server` executable entrypoint with
+external JSON configuration, TLS files, process-only bearer authentication,
+environment-backed secret resolution, real native-service startup, and signal
+driven graceful close. A clean assembled artifact now bundles internal
+runtime code, declares only the necessary dynamic third-party runtime files,
+resolves the adjacent native manifest, and passes a real clean-directory
+startup/close proof. The next stage is **Route 13D.3: Packaged Desktop Server
+Composition**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1589-route-13d-3-packaged-desktop-server-composition-plan.md`
+
+Route 13D.3 must prove that installed Electron Desktop starts and controls the
+real Server artifact through the existing typed Assistant/Coding Host clients,
+with one lifecycle owner, deterministic cleanup, restart recovery, and no
+duplicate runtime/native payload. Do not add a Gateway, a second listener,
+client-selected paths, or a compatibility layer.
+
+The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`
 
-Route 10 moves the project from packaging evidence to a provider-backed
-product vertical slice. It must exercise the existing OpenAI-compatible and
-Anthropic adapters through the production Host/Product path with deterministic
-local HTTP fixtures, durable tool continuation, recovery, per-turn model
-binding, capability admission, and secret isolation. Paid or network-dependent
-model calls remain opt-in local smoke only and never enter `pnpm verify` or
-ordinary CI. Do not continue mechanical package splitting, add a Gateway, add
-a schema version, or redesign the Desktop UI in this route.
+Route 10 moved the project from packaging evidence to a provider-backed
+product vertical slice. Its frozen scope and acceptance criteria are in the
+plan above; Route 10 is complete and Route 11 is now authoritative.
 
 Route 9B.1 Platform Receipt And Focused Gate is complete for its implementation
 slice. Its evidence is recorded in:

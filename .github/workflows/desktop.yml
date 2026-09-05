@@ -109,6 +109,8 @@ jobs:
         run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native
       - if: matrix.target != 'linux-x64'
         run: pnpm proof:tui -- --native-artifact-dir target/distribution/native
+      - run: pnpm test:server-distribution-proof
+      - run: pnpm proof:server-distribution -- --target ${{ matrix.target }}
       - if: matrix.desktop
         run: pnpm check:desktop
       - if: matrix.desktop
@@ -134,6 +136,7 @@ jobs:
           path: |
             target/distribution/native
             target/distribution/native-runtime-proof.json
+            target/distribution/server/server-distribution-proof.json
             target/distribution/tui
             target/distribution/host-distribution-audit-${{ matrix.target }}.json
             target/distribution/desktop/electron-artifact.json

@@ -35,6 +35,30 @@
 .success { color: var(--color-success); font-size: 11px; }
 .settings-loading { margin: 12px 0; color: var(--color-text-muted); font-size: 11px; }
 .settings-error { margin: 12px 0 0; padding: 9px 10px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-danger-line); border-radius: 7px; font-size: 11px; line-height: 17px; }
+.mcp-section { display: flex; flex-direction: column; gap: 10px; }
+.mcp-heading-actions, .mcp-controls { display: flex; align-items: center; gap: 5px; }
+.mcp-add { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: 7px; font-size: 11px; font-weight: 620; }
+.mcp-add:hover:not(:disabled) { background: var(--color-surface-soft); border-color: var(--color-accent); }
+.mcp-empty { margin: 0; }
+.mcp-list { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.mcp-list > li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 11px 12px; background: var(--color-control-muted); border: 1px solid var(--color-line); border-radius: 8px; }
+.mcp-summary { min-width: 0; }
+.mcp-summary > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 8px; }
+.mcp-summary strong { min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.mcp-summary span, .mcp-summary small { color: var(--color-text-muted); font-size: 9px; }
+.mcp-summary small { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mcp-states { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px; }
+.mcp-states span { padding: 2px 6px; color: var(--color-text-secondary); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 5px; font-size: 9px; }
+.mcp-states span[data-state="ready"], .mcp-states span[data-state="valid"] { color: var(--color-success); background: var(--color-success-soft); border-color: transparent; }
+.mcp-states span[data-state="rejected"], .mcp-states span[data-state="invalid"], .mcp-states span[data-state="failed"] { color: var(--color-danger); background: var(--color-danger-soft); border-color: var(--color-danger-line); }
+.mcp-states span[data-state="degraded"] { color: var(--color-warning-strong); background: var(--color-warning-soft); border-color: transparent; }
+.mcp-states small { color: var(--color-text-muted); font-size: 9px; }
+.mcp-controls .icon-button { width: 28px; height: 28px; }
+.mcp-form { margin-top: 2px; }
+.mcp-form-heading { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 2px; }
+.mcp-form-heading strong { font-size: 12px; }
+.mcp-form-wide { grid-column: 1 / -1; }
+.mcp-form textarea { width: 100%; min-height: 72px; resize: vertical; padding: 7px 9px; color: var(--color-text); background: var(--color-control); border: 1px solid var(--color-line-strong); border-radius: 7px; font: inherit; line-height: 17px; }
 .extensions-section { display: flex; flex-direction: column; gap: 10px; }
 .extension-add { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: 7px; font-size: 11px; font-weight: 620; }
 .extension-empty { margin: 2px 0 0; }
@@ -115,6 +139,9 @@
 .schedule-form .inline-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 .schedule-form .inline-actions button { display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 560px) {
+  .mcp-list > li { grid-template-columns: minmax(0, 1fr); }
+  .mcp-states, .mcp-controls { justify-content: flex-end; }
+  .mcp-form-wide { grid-column: auto; }
   .schedule-row { grid-template-columns: minmax(0, 1fr); }
   .schedule-controls { justify-content: flex-end; }
   .schedule-form { grid-template-columns: minmax(0, 1fr); }

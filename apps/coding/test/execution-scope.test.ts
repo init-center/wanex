@@ -50,17 +50,20 @@ describe("Coding Turn execution scope", () => {
       signal: new AbortController().signal
     }
 
-    expect(registry.resolve(base)).toBeDefined()
+    expect(registry.resolve({ ...base, phase: "admission" })).toBeDefined()
     expect(registry.resolve({
       ...base,
+      phase: "execution",
       executionBinding: binding(executionEnvironment, applicationScope)
     })).toBeDefined()
     expect(() => registry.resolve({
       ...base,
+      phase: "execution",
       executionBinding: binding(undefined, applicationScope)
     })).toThrow("coding Turn execution environment binding is missing")
     expect(() => registry.resolve({
       ...base,
+      phase: "execution",
       executionBinding: binding(
         { ...executionEnvironment, providerRevision: "changed" },
         applicationScope
@@ -68,6 +71,7 @@ describe("Coding Turn execution scope", () => {
     })).toThrow("coding Turn execution environment changed after admission")
     expect(() => registry.resolve({
       ...base,
+      phase: "execution",
       executionBinding: binding(
         executionEnvironment,
         codingApplicationScope({
@@ -79,6 +83,7 @@ describe("Coding Turn execution scope", () => {
     })).toThrow("coding Turn application scope binding changed after admission")
     expect(() => registry.resolve({
       ...base,
+      phase: "execution",
       executionBinding: binding(
         executionEnvironment,
         createApplicationScopeBinding({

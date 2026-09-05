@@ -9,10 +9,18 @@ export * from "./remote-event-stream.js"
 export * from "./remote-http-node.js"
 export * from "./paths.js"
 export { WanexAgentRuntime } from "../execution/agent-runtime/index.js"
+export {
+  reconcilePreparedSessionTurnContext,
+  settlePreparedSessionTurnContext,
+} from "../execution/agent-runtime/index.js"
+export type {
+  PreparedSessionTurnContextBinding,
+} from "../execution/agent-runtime/index.js"
 export type {
   AgentRunOnceResult,
   PrepareSessionTurnExecutionBindingRequest,
   PreparedSessionTurnExecutionBinding,
+  PreparedSessionTurnContext,
   PreparedUserTurn,
   SubmitAndRunUserTurnResult,
   SubmitUserTurnRequest,

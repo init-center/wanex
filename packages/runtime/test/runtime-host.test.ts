@@ -880,7 +880,7 @@ describe("@wanex/runtime/host", () => {
     const observed: unknown[] = []
     const host = await createHost({
       fakeResponseText: "host invalidation response",
-      observeSessionTurnResult(signal) {
+      observeSessionTurnLifecycle(signal) {
         observed.push(signal)
         throw new Error("advisory observer failed")
       }
@@ -894,8 +894,8 @@ describe("@wanex/runtime/host", () => {
 
     expect(result.results[0]?.worker.status).toBe("completed")
     expect(observed).toEqual([{
-      kind: "wanex-runtime.session-turn-result",
-      outcome: "completed",
+      kind: "wanex-runtime.session-turn-lifecycle",
+      phase: "terminal",
       reference: {
         sessionId: submitted.session.id,
         inputId: submitted.inputId,

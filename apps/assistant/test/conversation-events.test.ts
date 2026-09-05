@@ -132,7 +132,7 @@ describe("assistant conversation event filtering", () => {
       sequence: 4,
       at: 13,
       reference,
-      cause: "execution_completed"
+      cause: "execution_settled"
     })
     await settleEventQueue()
     expect(observed[2]).toEqual({
@@ -141,7 +141,7 @@ describe("assistant conversation event filtering", () => {
       at: 13,
       operationId: expect.stringMatching(/^assistant_conversation_operation_/),
       sessionId: reference.sessionId,
-      cause: "execution_completed"
+      cause: "execution_settled"
     })
 
     const pendingReference = {

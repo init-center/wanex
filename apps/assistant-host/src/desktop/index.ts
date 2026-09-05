@@ -36,6 +36,7 @@ function createDesktopMainHost(
     url: local.url,
     settings: local.settings,
     modelEndpoints: local.modelEndpoints,
+    mcpSettings: local.mcpSettings,
     providers: local.providers,
     modelCatalog: local.modelCatalog,
     attachments: local.attachments,

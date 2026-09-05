@@ -100,7 +100,13 @@ async function handleOperation(
     request.operation === ASSISTANT_AGENT_HOST_OPERATIONS.conversationSubmit &&
     isRejectedConversationResult(result)
   ) {
-    return failed("application_failure", result.message, false);
+    return failed(
+      result.reason === "idempotency_conflict"
+        ? "idempotency_conflict"
+        : "application_failure",
+      result.message,
+      false,
+    );
   }
   if (
     request.operation === ASSISTANT_AGENT_HOST_OPERATIONS.conversationSubmit &&
@@ -287,14 +293,15 @@ function isConversationOperationFound(value: unknown): value is {
 
 function isRejectedConversationResult(
   value: unknown,
-): value is { readonly message: string } {
+): value is { readonly message: string; readonly reason: string } {
   return (
     typeof value === "object" &&
     value !== null &&
     !Array.isArray(value) &&
     (value as Record<string, unknown>).kind ===
       "assistant.conversation-operation.rejected" &&
-    typeof (value as Record<string, unknown>).message === "string"
+    typeof (value as Record<string, unknown>).message === "string" &&
+    typeof (value as Record<string, unknown>).reason === "string"
   );
 }
 

@@ -3,6 +3,7 @@ import type { Controller } from "@wanex/assistant-ui";
 import type { SurfaceClient } from "@wanex/assistant/surface";
 import type { LocalAttachmentUploadPort } from "../resources/attachment.js";
 import type { LocalResourceDeliveryPort } from "../resources/delivery.js";
+import type { LocalMcpSettingsPort } from "../mcp/settings/model.js";
 import type {
   LocalCapabilitySetupCommands,
   LocalModelCatalogCommands,
@@ -31,6 +32,8 @@ export interface WebNodeRequestHandlerOptions {
   readonly modelCatalog?: LocalModelCatalogCommands;
   /** Present only for trusted local capability setup and linked continuation. */
   readonly capabilitySetup?: LocalCapabilitySetupCommands;
+  /** Constrained MCP settings commands owned by the trusted local Host. */
+  readonly mcpSettings?: LocalMcpSettingsPort;
   /** Fixed generated browser assets supplied by a trusted composition owner. */
   readonly browserAssets?: WebBrowserAssets;
   readonly windowChrome?: WebWindowChrome;

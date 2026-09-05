@@ -99,7 +99,7 @@ export class CodingTurnRuntime {
       workerCount: options.execution.workerCount ?? 1,
       agentQueue: CODING_RUNTIME_QUEUE,
       resolveAgentContext: this.#scopes.resolve,
-      observeSessionTurnResult: this.#settlements.observe,
+      observeSessionTurnLifecycle: this.#settlements.observe,
       ...(options.execution.modelEndpointId === undefined ||
       options.execution.resolveModelEndpointId !== undefined
         ? {}

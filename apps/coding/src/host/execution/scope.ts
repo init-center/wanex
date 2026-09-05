@@ -71,14 +71,14 @@ export class CodingTurnScopeRegistry {
 
   resolve = (
     request: ResolveSessionTurnAgentContextRequest
-  ): PreparedAgentContext | undefined => {
+  ): { readonly context: PreparedAgentContext } => {
     const scope = this.#scopes.get(scopeKey(request))
     if (scope === undefined) {
       throw new Error("session Turn has no active Coding workspace scope")
     }
     assertOrigin(request.origin, scope.applicationScope)
     // Admission resolves context before Runtime creates the immutable Turn binding.
-    if (request.executionBinding === undefined) return scope.context
+    if (request.phase === "admission") return { context: scope.context }
     const executionEnvironment = request.executionBinding.executionEnvironment
     if (executionEnvironment === undefined) {
       throw new Error("coding Turn execution environment binding is missing")
@@ -92,7 +92,7 @@ export class CodingTurnScopeRegistry {
       request.executionBinding.applicationScope,
       scope.applicationScope
     )
-    return scope.context
+    return { context: scope.context }
   }
 
   get size(): number {

@@ -16,6 +16,7 @@
   "@wanex/assistant-ui": "app",
   "@wanex/protocol": "internal",
   "@wanex/runtime": "public-facade",
+  "@wanex/server": "app",
   "@wanex/storage": "public-capability",
   "@wanex/storage-control-plane": "public-capability",
   "@wanex/team": "public-capability",

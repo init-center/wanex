@@ -3,6 +3,7 @@ import { readdir, readFile, stat } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
 import { repositoryRelativePath } from "./audit/repository-path.mjs"
+import { buildDistributionPackageMetrics } from "./audit/distribution-footprint/package-metrics.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const json = process.argv.includes("--json")
@@ -150,32 +151,25 @@ async function readPackageMetrics(manifests) {
   const metrics = new Map()
   for (const manifest of manifests.values()) {
     const files = await findPackageFiles(manifest.dir)
-    const fileStats = await Promise.all(
+    const allFiles = await Promise.all(
       files.map(async (filePath) => {
         const fileStat = await stat(filePath)
         const packageRelativePath = repositoryRelativePath(manifest.dir, filePath)
         return {
-          path: repositoryRelativePath(rootDir, filePath),
-          packageRelativePath,
-          bytes: fileStat.size,
-          isSource: packageRelativePath.startsWith("src/") && packageRelativePath.endsWith(".ts"),
-          isFixture: packageRelativePath.includes("/fixtures/") || packageRelativePath.startsWith("fixtures/"),
-          isTest: packageRelativePath.startsWith("test/")
+          absolutePath: filePath,
+          path: packageRelativePath,
+          reportPath: repositoryRelativePath(rootDir, filePath),
+          bytes: fileStat.size
         }
       })
     )
-    metrics.set(manifest.name, {
-      fileCount: fileStats.length,
-      packageBytes: sum(fileStats.map((file) => file.bytes)),
-      sourceFileCount: fileStats.filter((file) => file.isSource).length,
-      sourceBytes: sum(fileStats.filter((file) => file.isSource).map((file) => file.bytes)),
-      testFileCount: fileStats.filter((file) => file.isTest).length,
-      fixtureFileCount: fileStats.filter((file) => file.isFixture).length,
-      fixtureBytes: sum(fileStats.filter((file) => file.isFixture).map((file) => file.bytes)),
-      largestFiles: [...fileStats]
-        .sort((left, right) => right.bytes - left.bytes || left.path.localeCompare(right.path))
-        .slice(0, 5)
-    })
+    metrics.set(
+      manifest.name,
+      buildDistributionPackageMetrics({
+        manifest: manifest.manifest,
+        allFiles
+      })
+    )
   }
   return metrics
 }

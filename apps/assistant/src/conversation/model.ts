@@ -11,7 +11,16 @@ import type {
   ToolResultContentPart,
 } from "@wanex/protocol";
 
-export interface TrustedConversationOperationReference extends BackendConversationOperationReference {}
+export interface TrustedConversationSubmissionIdentity {
+  readonly idempotencyKeyDigest: string
+  readonly requestFingerprint: string
+}
+
+export interface TrustedConversationOperationReference
+  extends BackendConversationOperationReference {
+  /** Trusted-only transport-retry evidence; never project it to a renderer. */
+  readonly submission?: TrustedConversationSubmissionIdentity
+}
 
 export interface SubmitConversationOperationRequest {
   readonly text: string;
@@ -268,6 +277,7 @@ export interface ConversationOperationRejectedResult {
   readonly kind: "assistant.conversation-operation.rejected";
   readonly reason:
     | "provider_not_ready"
+    | "idempotency_conflict"
     | "operation_active"
     | "operation_identity_mismatch"
     | "operation_not_terminal"
@@ -499,8 +509,7 @@ export interface ConversationOperationInvalidatedEvent {
   readonly operationId: string;
   readonly sessionId: string;
   readonly cause:
-    | "execution_completed"
-    | "execution_failed"
+    | "execution_settled"
     | "execution_suspended";
 }
 

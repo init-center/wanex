@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto"
 import type {
-  SessionTurnExecutionBinding,
   TeamDeliveryMaterializationContext
 } from "@wanex/protocol"
 import {
   WanexJobRuntime,
   type RuntimeWorkerLoop
 } from "@wanex/runtime/jobs"
+import type { PreparedSessionTurnExecutionBinding } from "@wanex/runtime/host"
 import type { CoreStore } from "@wanex/storage"
 import {
   createTeamDeliveryOutcomeWorkerHandler,
@@ -25,7 +25,7 @@ export interface TeamConversationExecutionHostOptions {
     readonly plan: TeamDeliveryMaterializationContext["childPlan"]
     readonly content: TeamDeliveryMaterializationContext["message"]["content"]
     readonly origin: TeamDeliveryMaterializationContext["childPlan"]["origin"]
-  }): Promise<SessionTurnExecutionBinding>
+  }): Promise<PreparedSessionTurnExecutionBinding>
   readonly wakeAgentHost?: () => void
   /** Best-effort notification after a durable Team delivery state commits. */
   readonly notifyTeamChanged?: (event: {
@@ -73,8 +73,9 @@ export class TeamConversationExecutionHost {
       })
       const deliveryHandler = createTeamDeliveryWorkerHandler({
         storage: options.teamStorage,
+        turnStorage: options.storage,
         resolveExecutionBinding: async ({ context }) => ({
-          executionBinding: await options.prepareExecutionBinding({
+          prepared: await options.prepareExecutionBinding({
             plan: context.childPlan,
             content: context.message.content,
             origin: context.childPlan.origin

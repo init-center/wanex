@@ -56,8 +56,7 @@ export interface WanexAppConversationOperationInvalidatedEvent {
   readonly at: number
   readonly reference: WanexAppConversationOperationReference
   readonly cause:
-    | "execution_completed"
-    | "execution_failed"
+    | "execution_settled"
     | "execution_suspended"
 }
 

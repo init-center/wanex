@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import type {
   AgentHostClientMessage,
   AgentHostDescriptor,
+  AgentHostDomain,
   AgentHostErrorCode,
   AgentHostServerMessage
 } from "@wanex/protocol"
@@ -97,12 +98,18 @@ export interface RemoteAgentHostResolvedHost {
   ) => InProcessAgentHostEndpoint | Promise<InProcessAgentHostEndpoint>
 }
 
+export interface RemoteAgentHostHandshakeContext {
+  readonly clientId: string
+  readonly requestedDomains: readonly AgentHostDomain[]
+}
+
 export interface RemoteAgentHostHandlerOptions {
   readonly authenticateBearerToken: (
     token: string
   ) => Promise<RemoteHostAuthenticatedSubject | null>
   readonly resolveHost: (
-    subject: RemoteHostAuthenticatedSubject
+    subject: RemoteHostAuthenticatedSubject,
+    context: RemoteAgentHostHandshakeContext
   ) => RemoteAgentHostResolvedHost | Promise<RemoteAgentHostResolvedHost | null> | null
   readonly createSessionId?: () => string
   readonly createEndpointAccessToken?: () => string
@@ -640,7 +647,13 @@ export function createRemoteAgentHostHttpHandler(
     try {
       let resolved: RemoteAgentHostResolvedHost | null
       try {
-        resolved = await options.resolveHost(subject)
+        resolved = await options.resolveHost(
+          subject,
+          Object.freeze({
+            clientId: request.clientId,
+            requestedDomains: Object.freeze([...request.requestedDomains])
+          })
+        )
       } catch {
         resolved = null
       }

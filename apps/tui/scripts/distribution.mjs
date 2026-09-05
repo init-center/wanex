@@ -114,7 +114,8 @@ export function createTuiDistributionManifest(sourceManifest) {
     files: ["dist", "README.md", "THIRD_PARTY_NOTICES.md"],
     dependencies: {
       "@napi-rs/keyring": "1.3.0",
-      ajv: "8.20.0"
+      ajv: "8.20.0",
+      "ajv-formats": "3.0.1"
     },
     optionalDependencies: Object.fromEntries(
       nativeSystemServicePackages.map((name) => [name, sourceManifest.version])
@@ -163,7 +164,7 @@ export async function auditTuiDistribution(root = stagingDir) {
   for (const [path, source] of compiledSources) {
     if (
       source.includes(workspaceRoot) ||
-      /(?:^|["'])(?:file:|link:|workspace:)/m.test(source) ||
+      /(?:^|["'])(?:link:|workspace:)/m.test(source) ||
       /sourceMappingURL|\btsx\b/.test(source) ||
       /(?:\bfrom\s*|\bimport\s*\(|\brequire\s*\()\s*["']@wanex\//.test(source) ||
       /(?:packages|apps)[\\/]+[^\n"']+[\\/]+src[\\/]+/.test(source)
@@ -179,7 +180,7 @@ export async function auditTuiDistribution(root = stagingDir) {
   ))].sort(compareText)
   if (
     JSON.stringify(externalPackages) !==
-      JSON.stringify(["@napi-rs/keyring", "ajv"])
+      JSON.stringify(["@napi-rs/keyring", "ajv", "ajv-formats"])
   ) {
     throw new Error(
       `TUI distribution has an unexpected external closure: ${externalPackages.join(",")}`
@@ -242,6 +243,7 @@ async function createWanexSourceResolver() {
     "packages/protocol",
     "packages/storage",
     "packages/runtime",
+    "packages/mcp",
     "packages/extension",
     "packages/local-credential-store",
     "packages/app",

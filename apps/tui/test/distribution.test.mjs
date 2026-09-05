@@ -29,7 +29,7 @@ describe("TUI distribution", () => {
       staging: {
         fileCount: expect.any(Number),
         chunkCount: expect.any(Number),
-        externalPackages: ["@napi-rs/keyring", "ajv"],
+        externalPackages: ["@napi-rs/keyring", "ajv", "ajv-formats"],
         hasSource: false,
         hasTests: false,
         hasWorkspaceLinks: false,
@@ -54,7 +54,8 @@ describe("TUI distribution", () => {
       files: ["dist", "README.md", "THIRD_PARTY_NOTICES.md"],
       dependencies: {
         "@napi-rs/keyring": "1.3.0",
-        ajv: "8.20.0"
+        ajv: "8.20.0",
+        "ajv-formats": "3.0.1"
       },
       optionalDependencies: {
         "@wanex/system-service-darwin-arm64": "0.0.0",

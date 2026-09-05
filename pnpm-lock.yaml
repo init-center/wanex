@@ -268,6 +268,9 @@ importers:
       '@wanex/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
+      ajv-formats:
+        specifier: 3.0.1
+        version: 3.0.1(ajv@8.20.0)
       strip-ansi:
         specifier: 7.2.0
         version: 7.2.0

@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-tui": "0.83.0",
+    "ajv-formats": "3.0.1",
     "@wanex/app": "workspace:*",
     "@wanex/extension": "workspace:*",
     "@wanex/assistant-host": "workspace:*",

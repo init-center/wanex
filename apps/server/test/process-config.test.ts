@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process"
+import { execFile, fork } from "node:child_process"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { promisify } from "node:util"
@@ -62,7 +62,7 @@ describe("Wanex Server process config", () => {
     expect(() => parseWanexServerProcessConfig(value)).toThrow(message)
   })
 
-  it("starts as a real process and closes cleanly on SIGTERM", async () => {
+  it("starts as a real process and closes cleanly through its control channel", async () => {
     await mkdir(join(dirname(import.meta.dirname), "target"), { recursive: true })
     const root = await mkdtemp(join(dirname(import.meta.dirname), "target/server-process-"))
     processRoots.push(root)
@@ -83,8 +83,7 @@ describe("Wanex Server process config", () => {
       listener: { hostname: "127.0.0.1", port: 0 },
       tls: { keyFile, certFile }
     })}\n`)
-    const child = spawn(process.execPath, [
-      tsxCli,
+    const child = fork(tsxCli, [
       join(import.meta.dirname, "../src/cli/main.ts"),
       "--config",
       configFile
@@ -95,11 +94,13 @@ describe("Wanex Server process config", () => {
         WANEX_SERVER_BEARER_TOKEN: "process-test-token",
         WANEX_SYSTEM_SERVICE_BIN: serviceBin
       },
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true
+      silent: true
     })
     let stdout = ""
     let stderr = ""
+    if (child.stdout === null || child.stderr === null) {
+      throw new Error("Server process test requires silent fork streams")
+    }
     child.stdout.setEncoding("utf8")
     child.stderr.setEncoding("utf8")
     child.stdout.on("data", (value: string) => { stdout += value })
@@ -113,7 +114,12 @@ describe("Wanex Server process config", () => {
         status: { state: "open", listener: "ready" }
       })
       expect(stdout).not.toContain("process-test-token")
-      child.kill("SIGTERM")
+      await new Promise<void>((resolve, reject) => {
+        child.send({ kind: "wanex.server.shutdown" }, (error) => {
+          if (error !== null && error !== undefined) reject(error)
+          else resolve()
+        })
+      })
       await waitForExit(child)
       expect(child.exitCode).toBe(0)
       expect(stderr).toBe("")
@@ -124,7 +130,7 @@ describe("Wanex Server process config", () => {
 })
 
 async function waitForOutput(
-  child: ReturnType<typeof spawn>,
+  child: ReturnType<typeof fork>,
   predicate: () => boolean,
   readStderr: () => string
 ): Promise<void> {
@@ -138,7 +144,7 @@ async function waitForOutput(
   }
 }
 
-async function waitForExit(child: ReturnType<typeof spawn>): Promise<void> {
+async function waitForExit(child: ReturnType<typeof fork>): Promise<void> {
   if (child.exitCode !== null || child.signalCode !== null) return
   await new Promise<void>((resolve) => child.once("exit", () => resolve()))
 }

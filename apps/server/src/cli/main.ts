@@ -93,10 +93,28 @@ async function waitForShutdown(server: { close(): Promise<void> }): Promise<void
     const close = (): void => {
       if (closed) return
       closed = true
-      void server.close().then(resolve, reject)
+      process.off("SIGINT", close)
+      process.off("SIGTERM", close)
+      if (typeof process.send === "function") process.off("message", onMessage)
+      void server.close().then(() => {
+        if (typeof process.disconnect === "function" && process.connected) {
+          process.disconnect()
+        }
+        resolve()
+      }, reject)
+    }
+    const onMessage = (message: unknown): void => {
+      if (
+        typeof message === "object" &&
+        message !== null &&
+        (message as { kind?: unknown }).kind === "wanex.server.shutdown"
+      ) {
+        close()
+      }
     }
     process.once("SIGINT", close)
     process.once("SIGTERM", close)
+    if (typeof process.send === "function") process.on("message", onMessage)
   })
 }
 

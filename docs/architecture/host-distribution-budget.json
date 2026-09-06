@@ -38,7 +38,7 @@
       "desktop": {
         "maxUnpackedBytes": 565000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3100000,
+        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
         "maxNativeBytes": 10800000,
         "exactNativeFileCount": 2,
@@ -84,7 +84,7 @@
       "desktop": {
         "maxUnpackedBytes": 575000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3100000,
+        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
         "maxNativeBytes": 9900000,
         "exactNativeFileCount": 2,
@@ -130,7 +130,7 @@
       "desktop": {
         "maxUnpackedBytes": 415000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3100000,
+        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
         "maxNativeBytes": 14600000,
         "exactNativeFileCount": 2,

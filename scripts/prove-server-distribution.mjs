@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { execFile, spawn } from "node:child_process"
+import { execFile, fork } from "node:child_process"
 import { createHash } from "node:crypto"
 import { request as httpsRequest } from "node:https"
 import {
@@ -59,14 +59,13 @@ export async function proveServerDistribution(options = {}) {
       },
       tls: { keyFile: certificate.keyPath, certFile: certificate.certPath }
     })}\n`, "utf8")
-    child = spawn(process.execPath, [
-      join(artifactRoot, "server.mjs"),
+    child = fork(join(artifactRoot, "server.mjs"), [
       "--config",
       configPath
     ], {
       cwd: proofRoot,
       env: { ...process.env, WANEX_SERVER_BEARER_TOKEN: token },
-      stdio: ["ignore", "pipe", "pipe"],
+      silent: true,
       windowsHide: true
     })
     let stdout = ""
@@ -124,7 +123,7 @@ export async function proveServerDistribution(options = {}) {
     ) {
       throw new Error("Server Coding project.list proof failed")
     }
-    child.kill("SIGTERM")
+    await requestShutdown(child)
     await waitForExit(child)
     if (child.exitCode !== 0 || stderr !== "") {
       throw new Error(`Server distribution shutdown proof failed: ${stderr}`)
@@ -306,4 +305,13 @@ function createServerRequest(options, resolveResponse, rejectResponse) {
 function waitForExit(child) {
   if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve()
   return new Promise((resolve) => child.once("exit", resolve))
+}
+
+function requestShutdown(child) {
+  return new Promise((resolve, reject) => {
+    child.send({ kind: "wanex.server.shutdown" }, (error) => {
+      if (error !== null && error !== undefined) reject(error)
+      else resolve()
+    })
+  })
 }

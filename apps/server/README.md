@@ -51,4 +51,7 @@ file paths:
 never written to the Store or returned by the ready line. Provider credentials
 use `env://VARIABLE_NAME` references and are resolved only inside the trusted
 Server process. The process emits one `wanex.server.ready` JSON line, then
-waits for `SIGINT` or `SIGTERM` and performs the normal bounded Server close.
+waits for `SIGINT` or `SIGTERM` and performs the normal bounded Server close. A
+parent process that starts it with a Node IPC channel may instead send
+`{ "kind": "wanex.server.shutdown" }`; this uses the same close path and is
+the portable control mechanism for managed child processes.

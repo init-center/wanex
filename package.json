@@ -29,6 +29,8 @@
     "build:server": "node ./scripts/build-server-distribution.mjs",
     "proof:server-distribution": "node ./scripts/prove-server-distribution.mjs",
     "test:server-distribution-proof": "vitest run ./scripts/prove-server-distribution.test.mjs",
+    "preflight:distribution": "node ./scripts/preflight-distribution.mjs",
+    "test:preflight-distribution": "vitest run ./scripts/preflight-distribution.test.mjs",
     "start:desktop": "pnpm --filter @wanex/desktop start",
     "generate:storage-rpc": "node ./scripts/generate-storage-rpc.mjs",
     "generate:model-catalog": "tsx ./scripts/generate-local-model-catalog.ts",

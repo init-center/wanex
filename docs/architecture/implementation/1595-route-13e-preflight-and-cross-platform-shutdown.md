@@ -128,6 +128,36 @@ receipts record:
 The earlier cold outlier was retained as evidence and did not cause a budget
 increase, retry policy, fixed sleep, skipped assertion, or timeout change.
 
+## CI Synchronization Correction
+
+The first hosted run for the implementation commit was `34309080317`. Its
+Linux source gate failed only in the Desktop startup observer test
+`observes loading completion instead of treating a form skeleton as ready`.
+The test removed the loading marker and immediately advanced fake timers, but
+had not yielded to the `MutationObserver` microtask that delivers that DOM
+change. In the hosted happy-dom environment the observer therefore never
+scheduled the readiness frames, and the test reached its normal 30-second
+test timeout.
+
+The correction adds one explicit `await Promise.resolve()` after removing the
+loading marker. This models the real browser delivery boundary and lets the
+test drive the already-scheduled animation frames. It does not increase the
+timeout, add a sleep, retry the proof, skip the assertion, or alter product
+readiness behavior.
+
+After the correction, the Desktop package passed 19 test files and 129 tests,
+and the exact source-gate command used by CI passed in full:
+
+```bash
+WANEX_TEST_CONCURRENCY=2 pnpm verify
+```
+
+That gate also passed all package tests, Rust tests and Clippy, SDK consumer
+proofs, installed TUI proof, and all 64 Eval scenarios. The first hosted run
+did not reach the target distribution jobs because the shared source gate
+failed, so a fresh four-target hosted matrix is still required after the
+single corrective commit.
+
 ## Architecture Review
 
 This correction remains aligned with the architecture:

@@ -46,6 +46,7 @@ describe("Desktop first interactive boundary", () => {
     await vi.advanceTimersByTimeAsync(100)
     expect(settled).not.toHaveBeenCalled()
     loading.remove()
+    await Promise.resolve()
     await vi.advanceTimersByTimeAsync(100)
     await result
     expect(settled).toHaveBeenCalledOnce()

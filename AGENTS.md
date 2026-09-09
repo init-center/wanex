@@ -254,8 +254,14 @@ prove the current Desktop/TUI/native artifacts in receipt order, and prevents
 Server distribution proof from borrowing stale workspace native files. The
 hosted workflow follows the same order. The local macOS arm64 audit is green;
 Linux, darwin-x64, and win32-x64 still require fresh target-hosted evidence.
-Do not push another Action run until the final commit containing this route is
-ready.
+The first hosted run (`34309080317`) exposed a test-only
+MutationObserver/fake-timer synchronization gap in the Desktop startup test;
+the explicit microtask yield correction is locally covered by the exact
+`WANEX_TEST_CONCURRENCY=2 pnpm verify` gate, which passes all package tests, 64
+Eval scenarios, Rust tests/Clippy, SDK consumer proofs, and the installed TUI
+proof. No timeout, retry, skipped assertion, or product readiness change was
+used. Do not push another Action run until the final corrective commit and
+evidence are ready.
 
 The completed Route 10 plan remains recorded in:
 

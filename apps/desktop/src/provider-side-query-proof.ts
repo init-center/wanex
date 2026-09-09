@@ -21,7 +21,7 @@ export interface WanexDesktopProviderSideQueryAdmission {
   readonly initialUserRowIds: readonly string[]
   readonly initialAssistantRowIds: readonly string[]
   readonly submittedAt: number
-  readonly rendererInteractive: number
+  readonly journeyPreparation: number
   readonly parentPartialVisible: boolean
   readonly disclosureVisible: boolean
   readonly querySubmitted: boolean
@@ -191,7 +191,7 @@ export async function runWanexDesktopProviderSideQueryAdmissionProof(
     initialUserRowIds: [...initialUserRowIds],
     initialAssistantRowIds: [...initialAssistantRowIds],
     submittedAt,
-    rendererInteractive: submittedAt - startedAt,
+    journeyPreparation: submittedAt - startedAt,
     parentPartialVisible: true,
     disclosureVisible: true,
     querySubmitted: true,
@@ -405,7 +405,7 @@ export async function runWanexDesktopProviderSideQuerySettlementProof(
     sideQueryParentResponseVisible: settled.parentResponseVisible,
     sideQuerySessionPreserved: selectedSessionId() === admission.sessionId,
     sideQueryParentCompletedWithoutCancellation: settled.parentResponseVisible,
-    rendererInteractive: admission.rendererInteractive,
+    journeyPreparation: admission.journeyPreparation,
     conversationSettlement: settledAt - admission.submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

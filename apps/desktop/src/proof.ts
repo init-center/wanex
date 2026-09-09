@@ -459,7 +459,7 @@ async function runWanexDesktopRendererProof(
       internalExecutionIdentitiesHidden,
       developerControlsAbsent,
       timingsMs: {
-        rendererInteractive: Math.max(0, submittedAt - startedAt),
+        journeyPreparation: Math.max(0, submittedAt - startedAt),
         conversationSettlement: Math.max(0, settledAt - submittedAt),
         rendererPostSettlement: Math.max(0, performance.now() - settledAt)
       }
@@ -619,7 +619,7 @@ async function runWanexDesktopRendererProof(
       internalExecutionIdentitiesHidden: false,
       developerControlsAbsent: false,
       timingsMs: {
-        rendererInteractive: 0,
+        journeyPreparation: 0,
         conversationSettlement: 0,
         rendererPostSettlement: 0
       }

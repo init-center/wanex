@@ -39,6 +39,11 @@ export function createVerifySteps() {
       args: ["test:verify-script"]
     },
     {
+      name: "Distribution preflight tests",
+      command: "pnpm",
+      args: ["test:preflight-distribution"]
+    },
+    {
       name: "Public contract audit tests",
       command: "pnpm",
       args: ["test:public-contract-audit"]

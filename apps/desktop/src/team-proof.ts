@@ -42,7 +42,7 @@ export async function runWanexDesktopTeamProof(
     ) return undefined
     return { surface, newGroup }
   }, 10_000, "assistant_ready")
-  const rendererInteractive = performance.now() - startedAt
+  const journeyPreparation = performance.now() - startedAt
 
   ready.newGroup.click()
   const groupForm = await waitForDom(() => {
@@ -343,7 +343,7 @@ export async function runWanexDesktopTeamProof(
     hostPathEvidenceHidden,
     originalSessionRestored,
     timingsMs: {
-      rendererInteractive,
+      journeyPreparation,
       conversationSettlement: settledAt - submittedAt,
       rendererPostSettlement: performance.now() - settledAt,
     },

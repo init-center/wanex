@@ -228,7 +228,7 @@ export interface WanexDesktopRendererProofResult {
   readonly internalExecutionIdentitiesHidden: boolean
   readonly developerControlsAbsent: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -264,7 +264,7 @@ interface WanexDesktopScheduleProofResultBase {
   readonly internalIdentityEvidenceHidden: boolean
   readonly intervalSeconds: number
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -325,7 +325,7 @@ interface WanexDesktopPluginProofResultBase
   readonly pathEvidenceHidden: boolean
   readonly internalIdentityEvidenceHidden: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -411,7 +411,7 @@ export interface WanexDesktopTeamProofResult {
   readonly hostPathEvidenceHidden: boolean
   readonly originalSessionRestored: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -512,7 +512,7 @@ export interface WanexDesktopProviderRelaunchProofResult {
   readonly credentialCleanupPending: boolean
   readonly chatBlocked: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -551,7 +551,7 @@ export interface WanexDesktopCodingProofResult {
   readonly recoveryResponseVisible: boolean
   readonly recoverySessionPreserved: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }
@@ -578,7 +578,7 @@ export interface WanexDesktopRemoteCodingProofResult {
   readonly reconnectRejectedAfterRemoval: boolean
   readonly internalIdentityEvidenceHidden: boolean
   readonly timingsMs: {
-    readonly rendererInteractive: number
+    readonly journeyPreparation: number
     readonly conversationSettlement: number
     readonly rendererPostSettlement: number
   }

@@ -10,6 +10,26 @@ import {
 import { summarizeNativeRuntimeSamples } from "./native-runtime-metrics.mjs"
 
 describe("host distribution budget", () => {
+  it("keeps onboarding work out of startup without removing total proof limits", () => {
+    const desktop = desktopReceipt()
+    desktop.samples[0].runtime.timingsMs.journeyPreparation = 500
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
+    const request = () => ({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop,
+      desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
+    })
+    expect(auditHostDistributionData(request()).ok).toBe(true)
+    expect(desktop.summary.cold.timingsMs.journeyPreparation).toBe(500)
+    desktop.samples[0].wallTimeMs = 500
+    desktop.summary = summarizeDesktopSamples(desktop.samples)
+    expect(auditHostDistributionData(request()).failures).toContainEqual(
+      expect.stringContaining("Desktop cold proof wall time ms")
+    )
+  })
+
   it("parses only explicit audit paths and target", () => {
     expect(parseHostDistributionAuditArgs([
       "--",
@@ -374,6 +394,7 @@ function desktopReceipt() {
         "hostStartup",
         "rendererLoad",
         "rendererInteractive",
+        "journeyPreparation",
         "conversationSettlement",
         "rendererPostSettlement",
         "shutdown",

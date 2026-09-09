@@ -63,6 +63,7 @@ import {
 } from "./coding-ipc.js";
 import { createDesktopCodingRouter } from "./coding/router.js";
 import { desktopRendererAssets } from "./renderer-assets.js";
+import { waitForDesktopInteractive } from "./proof/startup.js";
 import {
   createRemoteConnectionProfileCatalog,
 } from "./remote/profiles.js";
@@ -538,6 +539,11 @@ async function runPackagedProof(timings: {
   if (activeWindow === undefined)
     throw new Error("desktop proof window is missing");
   activeWindow.show();
+  await activeWindow.webContents.executeJavaScript(
+    `(${waitForDesktopInteractive.toString()})()`,
+    true,
+  );
+  const interactiveAt = performance.now();
   const step = requiredWanexDesktopPackagedProofStep(proofStep);
   const renderer = await runWanexDesktopPackagedRendererProof({
     window: activeWindow,
@@ -617,14 +623,12 @@ async function runPackagedProof(timings: {
       ),
       hostStartup: elapsed(timings.artifactVerifiedAt, timings.hostReadyAt),
       rendererLoad: elapsed(timings.hostReadyAt, timings.rendererReadyAt),
-      rendererInteractive: renderer.timingsMs.rendererInteractive,
+      rendererInteractive: elapsed(timings.rendererReadyAt, interactiveAt),
+      journeyPreparation: renderer.timingsMs.journeyPreparation,
       conversationSettlement: renderer.timingsMs.conversationSettlement,
       rendererPostSettlement: renderer.timingsMs.rendererPostSettlement,
       shutdown: elapsed(shutdownStartedAt, stoppedAt),
-      interactiveTotal: round(
-        elapsed(processStartedAt, timings.rendererReadyAt) +
-          renderer.timingsMs.rendererInteractive,
-      ),
+      interactiveTotal: elapsed(processStartedAt, interactiveAt),
       proofTotal: elapsed(processStartedAt, stoppedAt),
     },
   });

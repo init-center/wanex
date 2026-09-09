@@ -1536,7 +1536,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
     ]
     const timingKeys = [
       "conversationSettlement",
-      "rendererInteractive",
+      "journeyPreparation",
       "rendererPostSettlement"
     ]
     stepInvalid =
@@ -1776,7 +1776,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
 function exactRendererShape(renderer, expectedKeys) {
   const timingKeys = [
     "conversationSettlement",
-    "rendererInteractive",
+    "journeyPreparation",
     "rendererPostSettlement"
   ]
   return JSON.stringify(Object.keys(renderer).sort()) ===

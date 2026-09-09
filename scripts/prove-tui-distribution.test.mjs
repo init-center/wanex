@@ -27,7 +27,6 @@ afterEach(async () => {
 describe("installed TUI proof receipt", () => {
   it("waits for semantic Team interaction readiness and stable agent identity", () => {
     expect(installedTuiTeamAgentSetupReadySteps()).toEqual([
-      "expect -exact \"Add an agent before sending\"",
       "expect -re {Add an agent before sending \\|[^\\r\\n]*Enter send}",
       "send -- \"\\033OR\"",
       "expect -exact \"Group details\"",

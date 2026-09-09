@@ -2,14 +2,7 @@
 import { execFile, fork } from "node:child_process"
 import { createHash } from "node:crypto"
 import { request as httpsRequest } from "node:https"
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile
-} from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { promisify } from "node:util"
@@ -40,11 +33,9 @@ export async function proveServerDistribution(options = {}) {
     await createRepository(repositoryRoot)
     await mkdir(tlsRoot, { recursive: true })
     const certificate = await createCertificate(tlsRoot)
-    const sourceBin = await existingNativeSource(targetId)
     const artifact = await buildServerDistribution({
       targetId,
-      outputRoot: artifactRoot,
-      ...(sourceBin === undefined ? {} : { sourceBin })
+      outputRoot: artifactRoot
     })
     await auditServerDistribution(artifactRoot, targetId)
     const configPath = join(proofRoot, "server.json")
@@ -209,19 +200,6 @@ export function createServerDistributionProofReceipt({
     timingsMs: { total: totalMs },
     noCredentialsRetained: true,
     noOwnedProcessAfterRun: true
-  }
-}
-
-async function existingNativeSource(targetId) {
-  const name = targetId === "win32-x64"
-    ? "wanex-system-service.exe"
-    : "wanex-system-service"
-  const path = join(workspaceRoot, "target/distribution/native", targetId, name)
-  try {
-    await access(path)
-    return path
-  } catch {
-    return undefined
   }
 }
 

@@ -20,7 +20,7 @@ export interface WanexDesktopProviderJourneyProofContext {
   ) => void
   readonly result: (
     value: Partial<WanexDesktopProviderRelaunchProofResult> & {
-      readonly rendererInteractive?: number
+      readonly journeyPreparation?: number
       readonly conversationSettlement?: number
       readonly rendererPostSettlement?: number
     }
@@ -182,7 +182,7 @@ export async function runWanexDesktopProviderMultimodalProof(
     multimodalConversationSubmitted: true,
     multimodalResourceVisible: true,
     multimodalCanonicalPreviewVisible: true,
-    rendererInteractive: submitted.submittedAt - context.startedAt,
+    journeyPreparation: submitted.submittedAt - context.startedAt,
     conversationSettlement: settledAt - submitted.submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

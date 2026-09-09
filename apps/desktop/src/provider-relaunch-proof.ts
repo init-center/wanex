@@ -137,7 +137,7 @@ export async function runWanexDesktopProviderRelaunchProof(
       userVisible: conversation.userVisible,
       assistantVisible: conversation.assistantVisible,
       responseVisible: conversation.responseVisible,
-      rendererInteractive: conversation.submittedAt - startedAt,
+      journeyPreparation: conversation.submittedAt - startedAt,
       conversationSettlement: settledAt - conversation.submittedAt,
       rendererPostSettlement: performance.now() - settledAt
     })
@@ -242,7 +242,7 @@ export async function runWanexDesktopProviderRelaunchProof(
       responseVisible: visible.responseVisible,
       followUpSessionPreserved: visible.sessionId === resumed.sessionId,
       followUpResponseVisible: visible.responseVisible,
-      rendererInteractive: visible.submittedAt - startedAt,
+      journeyPreparation: visible.submittedAt - startedAt,
       conversationSettlement: settledAt - visible.submittedAt,
       rendererPostSettlement: performance.now() - settledAt
     })
@@ -300,7 +300,7 @@ export async function runWanexDesktopProviderRelaunchProof(
       cleanupCompleted,
       credentialCleanupPending,
       chatBlocked: true,
-      rendererInteractive: settledAt - startedAt
+      journeyPreparation: settledAt - startedAt
     })
   }
 
@@ -316,7 +316,7 @@ export async function runWanexDesktopProviderRelaunchProof(
       configuredProviderCount: 0,
       providerEvidenceRedacted,
       chatBlocked: true,
-      rendererInteractive: settledAt - startedAt
+      journeyPreparation: settledAt - startedAt
     })
   }
 

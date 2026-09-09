@@ -230,7 +230,7 @@ export async function runWanexDesktopRemoteCodingProof(
     reconnectRejectedAfterRemoval,
     internalIdentityEvidenceHidden,
     timingsMs: {
-      rendererInteractive: 0,
+      journeyPreparation: 0,
       conversationSettlement: finishedAt - startedAt,
       rendererPostSettlement: performance.now() - finishedAt,
     },

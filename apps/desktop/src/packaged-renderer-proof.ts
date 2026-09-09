@@ -280,7 +280,7 @@ function assertSideQueryAdmission(
     !validRowIds(admission.initialUserRowIds) ||
     !validRowIds(admission.initialAssistantRowIds) ||
     !validDuration(admission.submittedAt) ||
-    !validDuration(admission.rendererInteractive) ||
+    !validDuration(admission.journeyPreparation) ||
     admission.parentPartialVisible !== true ||
     admission.disclosureVisible !== true ||
     admission.querySubmitted !== true ||
@@ -305,7 +305,7 @@ function assertGuidedFollowUpAdmission(
     !validRowIds(admission.initialUserRowIds) ||
     !validRowIds(admission.initialAssistantRowIds) ||
     !validDuration(admission.submittedAt) ||
-    !validDuration(admission.rendererInteractive) ||
+    !validDuration(admission.journeyPreparation) ||
     admission.parentPartialVisible !== true ||
     admission.composerModeVisible !== true ||
     admission.followUpSubmitted !== true ||

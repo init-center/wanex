@@ -143,7 +143,7 @@ export async function runWanexDesktopProviderGoalProof(
     goalFinalResponseVisible: terminal.finalResponseVisible,
     goalAttemptCount: terminal.attemptCount,
     goalVerificationResults: terminal.verificationResults,
-    rendererInteractive: submittedAt - context.startedAt,
+    journeyPreparation: submittedAt - context.startedAt,
     conversationSettlement: settledAt - submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

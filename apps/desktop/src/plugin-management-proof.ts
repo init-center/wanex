@@ -21,7 +21,7 @@ export async function runWanexDesktopPluginInstallProof(
 ): Promise<WanexDesktopPluginInstallProofResult> {
   const startedAt = performance.now();
   const ready = await assistantReady("install_assistant_ready");
-  const rendererInteractive = performance.now() - startedAt;
+  const journeyPreparation = performance.now() - startedAt;
   const settings = await openSettings(ready.surface, ready.settings);
   const initialEmptyStateVisible =
     settings.querySelector("[data-ui-extension-empty]") !== null &&
@@ -269,7 +269,7 @@ export async function runWanexDesktopPluginInstallProof(
     v2CommandExecuted,
     ...privacy,
     timingsMs: {
-      rendererInteractive,
+      journeyPreparation,
       conversationSettlement: settledAt - firstExecutionStartedAt,
       rendererPostSettlement: performance.now() - settledAt,
     },
@@ -556,7 +556,7 @@ export async function runWanexDesktopPluginRestoreProof(
       ? { candidate, settings }
       : undefined;
   }, 10_000, "restore_assistant_ready");
-  const rendererInteractive = performance.now() - startedAt;
+  const journeyPreparation = performance.now() - startedAt;
   surface.settings.click();
   let settings = await waitForDom(() => {
     const panel = surface.candidate.querySelector("[data-ui-settings-panel]");
@@ -627,7 +627,7 @@ export async function runWanexDesktopPluginRestoreProof(
     commandAbsentAfterRemoval,
     ...privacy,
     timingsMs: {
-      rendererInteractive,
+      journeyPreparation,
       conversationSettlement: settledAt - commandStartedAt,
       rendererPostSettlement: performance.now() - settledAt,
     },

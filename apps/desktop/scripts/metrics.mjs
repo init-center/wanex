@@ -9,6 +9,7 @@ const metricNames = [
   "hostStartup",
   "rendererLoad",
   "rendererInteractive",
+  "journeyPreparation",
   "conversationSettlement",
   "rendererPostSettlement",
   "shutdown",

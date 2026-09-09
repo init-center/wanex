@@ -169,7 +169,7 @@ export async function runWanexDesktopProviderPlanProof(
     planSessionPreserved: selectedSessionId() === ready.sessionId,
     planResponseVisible: true,
     planProposalRevision: approved.revision,
-    rendererInteractive: submittedAt - context.startedAt,
+    journeyPreparation: submittedAt - context.startedAt,
     conversationSettlement: settledAt - submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

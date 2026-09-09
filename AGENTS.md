@@ -24,7 +24,7 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (2026-09-05)
+## Authoritative Current Route (2026-09-09)
 
 Route 8A Desktop Connection And First-Run Functional Completion is complete
 at the source and Remote Host contract boundary. Its evidence is recorded in:
@@ -231,8 +231,8 @@ environment-backed secret resolution, real native-service startup, and signal
 driven graceful close. A clean assembled artifact now bundles internal
 runtime code, declares only the necessary dynamic third-party runtime files,
 resolves the adjacent native manifest, and passes a real clean-directory
-startup/close proof. The next stage is **Route 13D.3: Packaged Desktop Server
-Composition**, frozen in:
+startup/close proof. Route 13D.3: Packaged Desktop Server Composition is
+complete. Its frozen plan and completion evidence are recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1589-route-13d-3-packaged-desktop-server-composition-plan.md`
 
@@ -241,6 +241,21 @@ real Server artifact through the existing typed Assistant/Coding Host clients,
 with one lifecycle owner, deterministic cleanup, restart recovery, and no
 duplicate runtime/native payload. Do not add a Gateway, a second listener,
 client-selected paths, or a compatibility layer.
+
+Route 13E: Cross-Platform Server Distribution Matrix is locally corrected and
+its complete distribution preflight is green; it awaits one final hosted
+matrix on the current commit. The local correction is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1597-route-13e-startup-metric-and-preflight-correction-completion.md`
+
+It gives `rendererInteractive` a real first-usable-UI meaning, separates
+proof-only `journeyPreparation`, makes `pnpm preflight:distribution` build and
+prove the current Desktop/TUI/native artifacts in receipt order, and prevents
+Server distribution proof from borrowing stale workspace native files. The
+hosted workflow follows the same order. The local macOS arm64 audit is green;
+Linux, darwin-x64, and win32-x64 still require fresh target-hosted evidence.
+Do not push another Action run until the final commit containing this route is
+ready.
 
 The completed Route 10 plan remains recorded in:
 

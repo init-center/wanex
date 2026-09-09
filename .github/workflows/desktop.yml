@@ -102,15 +102,8 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm stage:native -- --target ${{ matrix.target }}
-      - run: pnpm proof:native-runtime
       - if: matrix.target == 'linux-x64'
         run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
-      - if: matrix.target == 'linux-x64'
-        run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native
-      - if: matrix.target != 'linux-x64'
-        run: pnpm proof:tui -- --native-artifact-dir target/distribution/native
-      - run: pnpm test:server-distribution-proof
-      - run: pnpm proof:server-distribution -- --target ${{ matrix.target }}
       - if: matrix.desktop
         run: pnpm check:desktop
       - if: matrix.desktop
@@ -121,6 +114,13 @@ jobs:
         run: pnpm --filter @wanex/desktop prepare:electron
       - if: matrix.desktop
         run: pnpm proof:desktop
+      - run: pnpm proof:native-runtime -- --artifact-dir target/distribution/native
+      - if: matrix.target == 'linux-x64'
+        run: node ./scripts/run-linux-keyring-session.mjs pnpm proof:tui -- --native-artifact-dir target/distribution/native
+      - if: matrix.target != 'linux-x64'
+        run: pnpm proof:tui -- --native-artifact-dir target/distribution/native
+      - run: pnpm test:server-distribution-proof
+      - run: pnpm proof:server-distribution -- --target ${{ matrix.target }}
       - if: matrix.desktop
         run: pnpm proof:desktop-distribution -- --target ${{ matrix.target }}
       - run: pnpm audit:host-distribution -- --target ${{ matrix.target }} --tui-receipt target/distribution/tui/installed-proof.json --desktop-distribution-receipt target/distribution/desktop/desktop-distribution-receipt.json

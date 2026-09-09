@@ -5,7 +5,7 @@ import type {
 
 export type WanexDesktopProviderRelaunchProofValue =
   Partial<WanexDesktopProviderRelaunchProofResult> & {
-    readonly rendererInteractive?: number
+    readonly journeyPreparation?: number
     readonly conversationSettlement?: number
     readonly rendererPostSettlement?: number
   }
@@ -128,7 +128,7 @@ export function createWanexDesktopProviderRelaunchProofResult(
     credentialCleanupPending: value.credentialCleanupPending ?? false,
     chatBlocked: value.chatBlocked ?? false,
     timingsMs: {
-      rendererInteractive: Math.max(0, value.rendererInteractive ?? 0),
+      journeyPreparation: Math.max(0, value.journeyPreparation ?? 0),
       conversationSettlement: Math.max(0, value.conversationSettlement ?? 0),
       rendererPostSettlement: Math.max(0, value.rendererPostSettlement ?? 0)
     }

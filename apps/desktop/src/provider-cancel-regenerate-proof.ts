@@ -181,7 +181,7 @@ export async function runWanexDesktopProviderCancelRegenerateProof(
     regenerationSucceeded: true,
     regenerationSessionPreserved: selectedSessionId() === ready.sessionId,
     regenerationResponseVisible: regenerated.responseVisible,
-    rendererInteractive: submittedAt - context.startedAt,
+    journeyPreparation: submittedAt - context.startedAt,
     conversationSettlement: settledAt - submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

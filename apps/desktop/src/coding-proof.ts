@@ -402,7 +402,7 @@ export async function runWanexDesktopCodingProof(
     recoveryResponseVisible,
     recoverySessionPreserved,
     timingsMs: {
-      rendererInteractive: conversationStartedAt - startedAt,
+      journeyPreparation: conversationStartedAt - startedAt,
       conversationSettlement: finishedAt - conversationStartedAt,
       rendererPostSettlement: performance.now() - finishedAt
     }

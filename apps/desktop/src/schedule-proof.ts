@@ -17,7 +17,7 @@ export interface WanexDesktopScheduleCreateAdmission {
   readonly ok: true
   readonly scheduleId: string
   readonly sessionId: string
-  readonly rendererInteractive: number
+  readonly journeyPreparation: number
   readonly visibleFormCreated: true
   readonly isolatedSessionSelected: true
   readonly activeModelSelected: true
@@ -137,7 +137,7 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
     ok: true,
     scheduleId,
     sessionId,
-    rendererInteractive: performance.now() - startedAt,
+    journeyPreparation: performance.now() - startedAt,
     visibleFormCreated: true,
     isolatedSessionSelected: true,
     activeModelSelected: true,
@@ -329,7 +329,7 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
     disabledBeforeRelease: preRelease.disabledBeforeRelease,
     disabledQuietWindowObserved,
     timingsMs: {
-      rendererInteractive: admission.rendererInteractive,
+      journeyPreparation: admission.journeyPreparation,
       conversationSettlement: settledAt - settlementStartedAt,
       rendererPostSettlement: performance.now() - disabledAt,
     },
@@ -581,7 +581,7 @@ export async function runWanexDesktopScheduleRestoreProof(
     removed: true,
     canonicalRemovedStateVisible: true,
     timingsMs: {
-      rendererInteractive: interactiveAt - startedAt,
+      journeyPreparation: interactiveAt - startedAt,
       conversationSettlement: settledAt - submittedAt,
       rendererPostSettlement: performance.now() - disabledAt,
     },

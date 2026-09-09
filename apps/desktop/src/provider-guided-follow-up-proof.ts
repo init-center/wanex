@@ -22,7 +22,7 @@ export interface WanexDesktopProviderGuidedFollowUpAdmission {
   readonly initialUserRowIds: readonly string[]
   readonly initialAssistantRowIds: readonly string[]
   readonly submittedAt: number
-  readonly rendererInteractive: number
+  readonly journeyPreparation: number
   readonly parentPartialVisible: boolean
   readonly composerModeVisible: boolean
   readonly followUpSubmitted: boolean
@@ -163,7 +163,7 @@ export async function runWanexDesktopProviderGuidedFollowUpAdmissionProof(
     initialUserRowIds: [...initialUserRowIds],
     initialAssistantRowIds: [...initialAssistantRowIds],
     submittedAt,
-    rendererInteractive: submittedAt - startedAt,
+    journeyPreparation: submittedAt - startedAt,
     parentPartialVisible: true,
     composerModeVisible: true,
     followUpSubmitted: true,
@@ -374,7 +374,7 @@ export async function runWanexDesktopProviderGuidedFollowUpSettlementProof(
     guidedFollowUpSessionPreserved:
       selectedSessionId() === admission.sessionId,
     guidedParentCompletedWithoutCancellation: settled.parentResponseVisible,
-    rendererInteractive: admission.rendererInteractive,
+    journeyPreparation: admission.journeyPreparation,
     conversationSettlement: settledAt - admission.submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

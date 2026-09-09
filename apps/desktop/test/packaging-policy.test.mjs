@@ -1359,7 +1359,7 @@ describe("Desktop packaging policy", () => {
         reconnectRejectedAfterRemoval: true,
         internalIdentityEvidenceHidden: true,
         timingsMs: {
-          rendererInteractive: 1,
+          journeyPreparation: 1,
           conversationSettlement: 2,
           rendererPostSettlement: 3,
         },
@@ -1564,6 +1564,7 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
           "hostStartup",
           "rendererLoad",
           "rendererInteractive",
+          "journeyPreparation",
           "conversationSettlement",
           "rendererPostSettlement",
           "shutdown",
@@ -1615,7 +1616,7 @@ function teamRuntimeReceipt() {
       hostPathEvidenceHidden: true,
       originalSessionRestored: true,
       timingsMs: {
-        rendererInteractive: 1,
+        journeyPreparation: 1,
         conversationSettlement: 2,
         rendererPostSettlement: 3,
       },
@@ -1642,7 +1643,7 @@ function pluginRuntimeReceipt(step) {
     pathEvidenceHidden: true,
     internalIdentityEvidenceHidden: true,
     timingsMs: {
-      rendererInteractive: 1,
+      journeyPreparation: 1,
       conversationSettlement: 2,
       rendererPostSettlement: 3,
     },
@@ -1709,7 +1710,7 @@ function scheduleRuntimeReceipt(step) {
     internalIdentityEvidenceHidden: true,
     intervalSeconds: 5,
     timingsMs: {
-      rendererInteractive: 1,
+      journeyPreparation: 1,
       conversationSettlement: 2,
       rendererPostSettlement: 3,
     },

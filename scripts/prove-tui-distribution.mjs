@@ -165,7 +165,6 @@ export const installedTuiProofPath = join(
 
 export function installedTuiTeamAgentSetupReadySteps() {
   return [
-    "expect -exact \"Add an agent before sending\"",
     "expect -re {Add an agent before sending \\|[^\\r\\n]*Enter send}",
     "send -- \"\\033OR\"",
     "expect -exact \"Group details\"",

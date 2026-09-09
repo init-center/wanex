@@ -135,7 +135,7 @@ export async function runWanexDesktopProviderImageGenerationProof(
     imageGenerationToolSucceeded: true,
     generatedResourceEvidenceValid: settled.resourceEvidenceValid,
     generatedResourcePreviewVisible: true,
-    rendererInteractive: submittedAt - context.startedAt,
+    journeyPreparation: submittedAt - context.startedAt,
     conversationSettlement: settledAt - submittedAt,
     rendererPostSettlement: performance.now() - settledAt
   })

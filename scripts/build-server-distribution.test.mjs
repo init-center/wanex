@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process"
+import { execFile, fork } from "node:child_process"
 import {
   mkdir,
   mkdtemp,
@@ -77,8 +77,7 @@ describe("headless Server distribution", () => {
       listener: { hostname: "127.0.0.1", port: 0 },
       tls: { keyFile, certFile }
     })}\n`)
-    const child = spawn(process.execPath, [
-      join(artifactRoot, "server.mjs"),
+    const child = fork(join(artifactRoot, "server.mjs"), [
       "--config",
       configFile
     ], {
@@ -87,7 +86,7 @@ describe("headless Server distribution", () => {
         ...process.env,
         WANEX_SERVER_BEARER_TOKEN: "distribution-test-token"
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      silent: true,
       windowsHide: true
     })
     let stdout = ""
@@ -106,7 +105,9 @@ describe("headless Server distribution", () => {
       })
       expect(stdout).not.toContain("distribution-test-token")
       expect(stderr).toBe("")
-      child.kill("SIGTERM")
+      await new Promise((resolve, reject) => {
+        child.send({ kind: "wanex.server.shutdown" }, (error) => error ? reject(error) : resolve())
+      })
       await waitForExit(child)
       expect(child.exitCode).toBe(0)
     } finally {

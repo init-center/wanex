@@ -1,7 +1,9 @@
 # Route 13E: Distribution Preflight and Cross-Platform Shutdown
 
 Date: 2026-09-09
-Status: local implementation and preflight complete; hosted matrix confirmation pending
+Status: source correction complete and low-cost local verification green; the
+current macOS 27 host blocks the packaged Electron proof; hosted matrix
+confirmation pending
 
 ## Problem
 
@@ -114,8 +116,8 @@ error. Two independent subsequent Desktop proofs produced:
 - unpacked Desktop package: `512,080,443` bytes;
 - native resource: `8,897,024` bytes.
 
-The final complete local preflight passed with `failures: []`. Its current
-receipts record:
+The complete local preflight before the cache-first UI correction passed with
+`failures: []`. Its receipts recorded:
 
 - cold `interactiveTotal`: `1957.92ms`;
 - warm artifact verification maximum: `31.79ms`;
@@ -210,3 +212,62 @@ matrix produces fresh receipts for `linux-x64`, `darwin-arm64`,
 `darwin-x64`, and `win32-x64` on the current commit. The local macOS arm64
 audit proves the corrected local slice only. Do not trigger another Action
 run before the next corrective commit is ready.
+
+## Cache-First Initial Snapshot Correction
+
+The next hosted matrix was `34313924173`. Linux, darwin-x64, and win32-x64
+completed their distribution jobs. darwin-arm64 reached the corrected startup
+measurement but failed the unchanged cold `interactiveTotal` ceiling:
+
+```text
+processToAppReady       279.02ms
+artifactVerification     84.71ms
+hostStartup             169.00ms
+rendererLoad           1301.88ms
+rendererInteractive    1536.41ms
+interactiveTotal       3371.02ms > 3000ms
+```
+
+The breakdown showed that the metric was now measuring its intended first
+usable UI boundary. The remaining avoidable work was in the browser client:
+the initial mount requested `refresh` even though the Host controller already
+held the canonical snapshot used to serve the page. This correction adds the
+optional `Client.readInitialSnapshot()` capability. The HTTP client maps it to
+the existing typed `operation: "snapshot"` request, while the synchronization
+hook uses it only for the first mount. Invalidations, event gaps, and retry
+after a failed first read continue to use the full `readSnapshot()` refresh.
+Clients without the optional capability use the existing refresh behavior.
+
+An earlier experiment embedded the full snapshot as JSON in the HTML. It was
+removed rather than obfuscated: internal runtime identities such as `jobId`,
+`attemptId`, `workerId`, and `principalId` would have become available in the
+DOM source even when not visually rendered. The final design avoids duplicate
+surface work without exposing internal state or freezing a stale document
+payload.
+
+Focused UI and Host tests passed `108/108`; `pnpm check:desktop` and the full
+`WANEX_TEST_CONCURRENCY=2 pnpm verify` gate also passed. A post-correction local
+distribution preflight reached Electron but the current macOS `27.0`
+(`26A5416b`) host emitted `sandbox_extension_issue_file_to_process ...
+Operation not permitted` for the temporary installed app and timed out before
+the application proof could start. This is recorded as host-environment
+evidence, not as a product pass or a reason to disable the macOS sandbox,
+increase the proof timeout, or relax the startup budget. The next hosted
+matrix remains required.
+
+## Updated Architecture Review
+
+The cache-first change preserves the existing ownership boundaries:
+
+- the Host owns the canonical snapshot and remains the only place that can
+  serve it;
+- the protocol's existing `snapshot` operation is reused, so no new schema,
+  Gateway, listener, or persistence concept is introduced;
+- the UI client owns transport-specific first-read optimization, while
+  recovery continues to request a canonical refresh;
+- runtime identities remain out of HTML and rendered UI;
+- no timeout, retry, sleep, skipped assertion, compatibility alias, or budget
+  relaxation was added.
+
+Route 13E remains open until one intentionally batched hosted matrix produces
+fresh receipts for all four targets on the commit containing this correction.

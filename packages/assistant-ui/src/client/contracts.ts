@@ -232,6 +232,7 @@ export type ClientEvent =
   | { readonly kind: "stream-unavailable" };
 
 export interface Client {
+  readInitialSnapshot?(): Promise<Snapshot>;
   readSnapshot(): Promise<Snapshot>;
   dispatchAction(
     action: Action,

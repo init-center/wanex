@@ -385,13 +385,17 @@ describe("Web client", () => {
 
   it("shows a retryable unavailable state when the initial snapshot read fails", async () => {
     const snapshot = baseSnapshot();
-    let readCount = 0;
+    let initialReadCount = 0;
+    let refreshCount = 0;
     let subscribeCount = 0;
     let resolveRetry: (() => void) | undefined;
     const client: Client = {
+      async readInitialSnapshot() {
+        initialReadCount += 1;
+        throw new Error("Host is temporarily unavailable");
+      },
       async readSnapshot() {
-        readCount += 1;
-        if (readCount === 1) throw new Error("Host is temporarily unavailable");
+        refreshCount += 1;
         return await new Promise<Snapshot>((resolve) => {
           resolveRetry = () => resolve(snapshot);
         });
@@ -412,18 +416,21 @@ describe("Web client", () => {
     expect(document.body.textContent).toContain("Conversation unavailable");
     expect(document.body.textContent).toContain("Host is temporarily unavailable");
     expect(requiredButton("Try again").disabled).toBe(false);
+    expect(initialReadCount).toBe(1);
+    expect(refreshCount).toBe(0);
 
     await act(async () => requiredButton("Try again").click());
     await waitFor(() => resolveRetry !== undefined);
     expect(requiredButton("Trying again").disabled).toBe(true);
     await act(async () => requiredButton("Trying again").click());
-    expect(readCount).toBe(2);
+    expect(refreshCount).toBe(1);
     await act(async () => resolveRetry?.());
     await waitFor(() => document.querySelector(
       '[data-ui-conversation-row="row_assistant"]',
     ) !== null);
 
-    expect(readCount).toBe(2);
+    expect(initialReadCount).toBe(1);
+    expect(refreshCount).toBe(1);
     expect(subscribeCount).toBe(1);
     expect(document.querySelector(
       '[data-ui-availability-state="unavailable"]',
@@ -3332,6 +3339,38 @@ describe("Web client", () => {
     expect(unsubscribeCount).toBe(2);
   });
 
+  it("uses the snapshot read for the first mount and refresh for later invalidation", async () => {
+    const snapshot = baseSnapshot();
+    let initialReadCount = 0;
+    let refreshCount = 0;
+    let listener: ((event: ClientEvent) => void) | undefined;
+    const client: Client = {
+      async readInitialSnapshot() {
+        initialReadCount += 1;
+        return snapshot;
+      },
+      async readSnapshot() {
+        refreshCount += 1;
+        return snapshot;
+      },
+      async dispatchAction(action) {
+        return { ok: true, action: action.type, snapshot };
+      },
+      subscribe(nextListener) {
+        listener = nextListener;
+        return () => {};
+      },
+    };
+
+    await mount(client);
+    await waitFor(() => listener !== undefined);
+    expect(initialReadCount).toBe(1);
+    expect(refreshCount).toBe(0);
+
+    await act(async () => listener?.({ kind: "snapshot-invalidated" }));
+    await waitFor(() => refreshCount === 1);
+  });
+
   it("preserves the current timeline and draft across a refresh failure and retry", async () => {
     const snapshot = baseSnapshot();
     let listener: ((event: ClientEvent) => void) | undefined;
@@ -3509,6 +3548,28 @@ describe("Web client", () => {
       { kind: "stream-unavailable" },
     ]);
     unsubscribe?.();
+  });
+
+  it("maps the initial snapshot read to the read-only snapshot operation", async () => {
+    const snapshot = baseSnapshot();
+    const operations: string[] = [];
+    const client = createHttpClient({
+      requestPath: "/request",
+      hostSessionToken: "host-session",
+      fetch: (async (_input: string | URL | Request, init?: RequestInit) => {
+        const request = JSON.parse(String(init?.body)) as { readonly operation: string };
+        operations.push(request.operation);
+        return jsonResponse(200, {
+          kind: "web.response",
+          ok: true,
+          operation: "snapshot",
+          snapshot,
+        });
+      }) as typeof globalThis.fetch,
+    });
+
+    expect(await client.readInitialSnapshot?.()).toEqual(snapshot);
+    expect(operations).toEqual(["snapshot"]);
   });
 
   it("adopts a successful action cursor before admitting later SSE events", async () => {

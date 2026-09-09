@@ -53,17 +53,11 @@ export function createHttpClient(
     : createMcpSettingsClient(options.mcpSettingsPath);
 
   const client: Client = {
+    async readInitialSnapshot() {
+      return await readCanonicalSnapshot("snapshot");
+    },
     async readSnapshot() {
-      const response = await sendRequest({
-        kind: "web.request",
-        operation: "refresh",
-      });
-      if (!response.ok) throw new Error(response.error.message);
-      if (response.operation === "dispatchAction") {
-        throw new Error("The host returned an action response for a snapshot read");
-      }
-      adoptSnapshotCursor(response.snapshot);
-      return response.snapshot;
+      return await readCanonicalSnapshot("refresh");
     },
     async dispatchAction(action, dispatchOptions) {
       const response = await sendRequest({
@@ -237,6 +231,19 @@ export function createHttpClient(
       };
     },
   };
+
+  async function readCanonicalSnapshot(operation: "snapshot" | "refresh") {
+    const response = await sendRequest({
+      kind: "web.request",
+      operation,
+    });
+    if (!response.ok) throw new Error(response.error.message);
+    if (response.operation === "dispatchAction") {
+      throw new Error("The host returned an action response for a snapshot read");
+    }
+    adoptSnapshotCursor(response.snapshot);
+    return response.snapshot;
+  }
 
   async function mutateProvider(
     method: "POST" | "DELETE",

@@ -84,7 +84,9 @@ export function useSnapshotSync(
       if (initialSnapshot === undefined || snapshotReadAttempt > 0) {
         const generation = beginRequest();
         try {
-          const next = await client.readSnapshot();
+          const next = snapshotReadAttempt === 0
+            ? await (client.readInitialSnapshot?.() ?? client.readSnapshot())
+            : await client.readSnapshot();
           if (!mounted) return;
           adoptSnapshot(next, generation);
         } catch (reason) {

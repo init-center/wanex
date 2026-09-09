@@ -242,18 +242,22 @@ with one lifecycle owner, deterministic cleanup, restart recovery, and no
 duplicate runtime/native payload. Do not add a Gateway, a second listener,
 client-selected paths, or a compatibility layer.
 
-Route 13E: Cross-Platform Server Distribution Matrix is locally corrected and
-its complete distribution preflight is green; it awaits one final hosted
-matrix on the current commit. The local correction is recorded in:
+Route 13E: Cross-Platform Server Distribution Matrix has its source correction
+and low-cost local verification complete; the current macOS 27 host blocks a
+fresh packaged Electron proof, and one final hosted matrix is pending. The
+latest correction is recorded in:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1597-route-13e-startup-metric-and-preflight-correction-completion.md`
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1598-route-13e-cache-first-initial-snapshot-completion.md`
 
 It gives `rendererInteractive` a real first-usable-UI meaning, separates
 proof-only `journeyPreparation`, makes `pnpm preflight:distribution` build and
 prove the current Desktop/TUI/native artifacts in receipt order, and prevents
 Server distribution proof from borrowing stale workspace native files. The
-hosted workflow follows the same order. The local macOS arm64 audit is green;
-Linux, darwin-x64, and win32-x64 still require fresh target-hosted evidence.
+hosted workflow follows the same order. The prior local macOS arm64 audit was
+green before the latest browser bundle correction; Linux, darwin-x64, and
+win32-x64 still require fresh target-hosted evidence. Hosted run
+`34313924173` passed Linux, darwin-x64, and win32-x64 but failed the unchanged
+darwin-arm64 cold `interactiveTotal` budget at `3371.02ms` versus `3000ms`.
 The first hosted run (`34309080317`) exposed a test-only
 MutationObserver/fake-timer synchronization gap in the Desktop startup test;
 the explicit microtask yield correction is locally covered by the exact
@@ -275,7 +279,16 @@ distribution preflight reached the real Desktop proof but was rejected by a
 strict non-repeating performance sample (`171.89ms` warm artifact verification;
 an independent run had `3087.59ms` cold interactive total). These remain
 failures in the evidence; do not raise budgets, add retries/sleeps, or claim a
-local pass from the follow-up. Hosted target receipts are authoritative.
+local pass from the follow-up. The latest cache-first correction reuses the
+existing typed `snapshot` operation for the first UI read and retains full
+`refresh` for invalidation and recovery. It passed the focused UI/Host tests
+and complete `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate. A fresh local
+distribution preflight reached Electron but macOS `27.0` blocked the
+temporary installed app with `sandbox_extension_issue_file_to_process ...
+Operation not permitted`; this host-environment failure is not a product
+pass. Do not disable the sandbox, increase the timeout, or relax the budget.
+Hosted target receipts remain authoritative, and do not push another Action
+run until the corrective commit is ready.
 
 The completed Route 10 plan remains recorded in:
 

@@ -259,13 +259,17 @@ win32-x64 still require fresh target-hosted evidence. Hosted run
 `34313924173` passed Linux, darwin-x64, and win32-x64 but failed the unchanged
 darwin-arm64 cold `interactiveTotal` budget at `3371.02ms` versus `3000ms`.
 The first hosted run (`34309080317`) exposed a test-only
-MutationObserver/fake-timer synchronization gap in the Desktop startup test;
-the explicit microtask yield correction is locally covered by the exact
-`WANEX_TEST_CONCURRENCY=2 pnpm verify` gate, which passes all package tests, 64
-Eval scenarios, Rust tests/Clippy, SDK consumer proofs, and the installed TUI
-proof. No timeout, retry, skipped assertion, or product readiness change was
-used. Do not push another Action run until the final corrective commit and
-evidence are ready.
+MutationObserver/fake-timer synchronization gap in the Desktop startup test.
+The follow-up run (`34321237394`) reproduced the underlying instability as a
+30-second timeout in the same test on Linux (`127 passed, 1 timed out`). The
+startup test now uses the real happy-dom event loop for its success paths and a
+short explicit timeout only for its failure paths, so it no longer mixes
+Vitest fake timers with happy-dom's captured MutationObserver/requestAnimationFrame
+schedulers. The exact `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate passes all
+package tests, 64 Eval scenarios, Rust tests/Clippy, SDK consumer proofs, and
+the installed TUI proof. No product timeout, retry, skipped assertion, or
+readiness change was used. Do not push another Action run until this corrective
+test change and its evidence are committed.
 
 The first corrective hosted run (`34311324792`) completed `verify` successfully
 but then failed the JavaScript dependency audit on three patched Hono

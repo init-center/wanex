@@ -271,3 +271,27 @@ The cache-first change preserves the existing ownership boundaries:
 
 Route 13E remains open until one intentionally batched hosted matrix produces
 fresh receipts for all four targets on the commit containing this correction.
+
+## CI Clock-Scheduler Test Correction
+
+The first hosted source gate after the cache-first change was run as
+`34321237394`. It failed before the distribution matrix started: the Desktop
+suite had `127` passing tests and one 30-second timeout in
+`apps/desktop/test/startup.test.ts`, specifically the loading-completion case.
+
+The failure was a test scheduling defect, not a reason to change the product
+timeout or the startup budget. The happy-dom environment captures its browser
+`queueMicrotask`, `setImmediate`, and animation-frame scheduler when the
+environment is initialized. The test then installed Vitest fake timers around
+the production observer, which made MutationObserver delivery and the two
+paint callbacks depend on two different clock implementations. That timing
+could pass locally and stall on a hosted Linux runner.
+
+The test now uses the real event loop for successful observer and paint
+assertions. The five negative cases pass an explicit `50ms` proof timeout so
+their bounded failure behavior remains fast and deterministic. Production
+`waitForDesktopInteractive`, its 10-second application guard, and all startup
+budgets are unchanged. The corrected test passed independently twenty times,
+and the subsequent full `WANEX_TEST_CONCURRENCY=2 pnpm verify` passed all
+package tests, Rust tests/Clippy, SDK and installed TUI proofs, and 64 Eval
+scenarios. A fresh four-target hosted matrix is still required for Route 13E.

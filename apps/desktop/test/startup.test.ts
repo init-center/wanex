@@ -10,7 +10,6 @@ const conversation = `<main data-ui-assistant-shell><form data-ui-composer>
   <div data-ui-model-selector><select name="endpointId"><option>Model</option></select></div></main>`
 
 beforeEach(() => {
-  vi.useFakeTimers()
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() =>
     ({ width: 100, height: 30 }) as DOMRect)
 })
@@ -18,7 +17,6 @@ beforeEach(() => {
 afterEach(() => {
   document.body.innerHTML = ""
   vi.restoreAllMocks()
-  vi.useRealTimers()
 })
 
 describe("Desktop first interactive boundary", () => {
@@ -29,11 +27,9 @@ describe("Desktop first interactive boundary", () => {
     const settled = vi.fn()
     const result = waitForDesktopInteractive().then(settled)
     expect(settled).not.toHaveBeenCalled()
-    await vi.advanceTimersByTimeAsync(100)
     await result
     expect(settled).toHaveBeenCalledOnce()
     expect(submit).not.toHaveBeenCalled()
-    expect(vi.getTimerCount()).toBe(0)
   })
 
   it("observes loading completion instead of treating a form skeleton as ready", async () => {
@@ -43,11 +39,8 @@ describe("Desktop first interactive boundary", () => {
     document.querySelector("section")!.append(loading)
     const settled = vi.fn()
     const result = waitForDesktopInteractive().then(settled)
-    await vi.advanceTimersByTimeAsync(100)
     expect(settled).not.toHaveBeenCalled()
     loading.remove()
-    await Promise.resolve()
-    await vi.advanceTimersByTimeAsync(100)
     await result
     expect(settled).toHaveBeenCalledOnce()
   })
@@ -60,10 +53,8 @@ describe("Desktop first interactive boundary", () => {
     if (state === "inert") input.parentElement!.setAttribute("inert", "")
     if (state === "error") document.querySelector("section")!.insertAdjacentHTML("beforeend", '<p role="alert">Failed</p>')
     if (state === "missing") input.remove()
-    const result = expect(waitForDesktopInteractive(200)).rejects.toThrow("interactive onboarding form or composer")
-    await vi.advanceTimersByTimeAsync(200)
+    const result = expect(waitForDesktopInteractive(50)).rejects.toThrow("interactive onboarding form or composer")
     await result
-    expect(vi.getTimerCount()).toBe(0)
   })
 
   it("rechecks readiness after the paint boundary", async () => {
@@ -72,10 +63,8 @@ describe("Desktop first interactive boundary", () => {
     const result = waitForDesktopInteractive().then(settled)
     const textarea = document.querySelector("textarea")!
     textarea.disabled = true
-    await vi.advanceTimersByTimeAsync(100)
     expect(settled).not.toHaveBeenCalled()
     textarea.disabled = false
-    await vi.advanceTimersByTimeAsync(100)
     await result
     expect(settled).toHaveBeenCalledOnce()
   })

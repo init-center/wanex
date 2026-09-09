@@ -158,6 +158,37 @@ did not reach the target distribution jobs because the shared source gate
 failed, so a fresh four-target hosted matrix is still required after the
 single corrective commit.
 
+## Dependency Audit Correction
+
+The first corrective hosted run was `34311324792`. Its complete `verify`
+step passed, but the following `security:js` step correctly found three
+moderate Hono advisories in the MCP SDK dependency graph. The graph resolved
+Hono `4.13.3`; the patched line is `>=4.13.5`, so the existing workspace
+override was advanced to Hono `4.13.7`.
+
+After that production audit was clean, the complete audit exposed two
+additional development-tool advisories that the first run did not reach:
+`js-yaml 4.3.1` required `4.3.2`, and Vitest `4.1.10` required `4.1.11`.
+Those versions are now pinned through the existing workspace policy and lock
+file. No audit ignore, severity reduction, or dependency removal was used.
+
+The corrected local checks report no known vulnerabilities for both production
+and complete JavaScript dependency audits. The full source gate was rerun with
+the upgraded dependencies and passed, including all package tests, 64 Eval
+scenarios, Rust tests/Clippy, SDK consumer proofs, and the installed TUI proof.
+The next hosted run must therefore validate both the corrected test boundary
+and the corrected dependency graph before Route 13E can be closed.
+
+The post-upgrade local distribution preflight reached the real Desktop proof
+and failed only at the strict host-performance audit: one warm artifact
+verification sample was `171.89ms` against `120ms`. A standalone follow-up
+produced warm samples up to `35.61ms`, but its cold `interactiveTotal` was
+`3087.59ms` against `3000ms`. These non-repeating measurements occurred while
+the development host was under unrelated process load, but they are retained
+as failures rather than converted into a pass. No budget, retry policy, or
+assertion was changed. The next hosted target matrix remains the authoritative
+cross-platform performance check.
+
 ## Architecture Review
 
 This correction remains aligned with the architecture:
@@ -178,4 +209,4 @@ Route 13E is not globally complete until one intentionally batched hosted
 matrix produces fresh receipts for `linux-x64`, `darwin-arm64`,
 `darwin-x64`, and `win32-x64` on the current commit. The local macOS arm64
 audit proves the corrected local slice only. Do not trigger another Action
-run before the final single commit is ready.
+run before the next corrective commit is ready.

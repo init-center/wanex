@@ -263,6 +263,20 @@ proof. No timeout, retry, skipped assertion, or product readiness change was
 used. Do not push another Action run until the final corrective commit and
 evidence are ready.
 
+The first corrective hosted run (`34311324792`) completed `verify` successfully
+but then failed the JavaScript dependency audit on three patched Hono
+advisories. The existing workspace dependency policy now resolves Hono `4.13.7`,
+js-yaml `4.3.2`, and Vitest `4.1.11`; local production and complete JS audits,
+`cargo audit`, and the full `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate pass.
+No audit ignore, severity reduction, or dependency bypass was used. The next
+single hosted run must validate this security correction and the four-target
+distribution matrix before Route 13E is closed. A post-upgrade local
+distribution preflight reached the real Desktop proof but was rejected by a
+strict non-repeating performance sample (`171.89ms` warm artifact verification;
+an independent run had `3087.59ms` cold interactive total). These remain
+failures in the evidence; do not raise budgets, add retries/sleeps, or claim a
+local pass from the follow-up. Hosted target receipts are authoritative.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

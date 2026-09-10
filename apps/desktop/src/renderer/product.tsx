@@ -1,5 +1,5 @@
 import { Code2, MessageCircle } from "lucide-react";
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useState, type ReactNode } from "react";
 import { App as AssistantApp } from "@wanex/assistant-ui/client";
 import type {
   AppModalState,
@@ -8,6 +8,7 @@ import type {
 import type { CodingWorkbenchClient } from "./coding/client.js";
 import { CodingWorkbench } from "./coding/workbench.js";
 import type { RemoteProfileClient } from "./coding/workbench.js";
+import { markDesktopRendererRootCommit } from "../proof/startup.js";
 
 export function ProductRenderer({
   assistantClient,
@@ -18,6 +19,7 @@ export function ProductRenderer({
   readonly codingClient: CodingWorkbenchClient | undefined;
   readonly remoteClient: RemoteProfileClient | undefined;
 }): ReactNode {
+  useLayoutEffect(markDesktopRendererRootCommit, []);
   const [surface, setSurface] = useState<"assistant" | "coding">("assistant");
   const [assistantModalActive, setAssistantModalActive] = useState(false);
   const observeAssistantModal = useCallback((state: AppModalState): void => {

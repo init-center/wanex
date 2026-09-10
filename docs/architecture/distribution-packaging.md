@@ -121,7 +121,9 @@ bytes, exact ASAR/native/credential file counts, native cold lifecycle maxima,
 and separate Desktop cold/warm ceilings. Desktop interactivity ends
 after the real Assistant document is loaded and the visible composer admits a
 conversation without waiting for the asynchronous agent turn. Conversation
-settlement and complete proof wall time are reported and bounded separately.
+settlement, journey preparation, and Renderer post-settlement work are bounded
+separately. Complete proof and process wall times remain diagnostic liveness
+evidence rather than being mislabeled as one product-operation budget.
 Static Runtime/App bundle bytes and input closure remain solely in the facade
 footprint audit.
 
@@ -139,9 +141,12 @@ The Desktop proof has a different fixed contract: exactly one cold launch
 followed by four warm launches. It reports the cold timing directly and the
 warm median, maximum, and raw timings. The cold sample uses hard ceilings.
 Warm host startup and interactive total use both median and hard ceilings;
-bounded artifact verification, shutdown, settlement, and proof wall continue
-to use maxima. Neither short sample set can establish a meaningful p95, and no
-sample is trimmed or excluded from correctness.
+bounded artifact verification, shutdown, settlement, journey preparation, and
+Renderer post-settlement work continue to use maxima. Neither short sample set
+can establish a meaningful p95, and no sample is trimmed or excluded from
+correctness. Full proof and process wall times remain in receipts so liveness
+and hosted-run cost are visible, but they are not treated as one user-facing
+operation.
 
 The release-blocking Desktop proof owns functional distribution behavior, not
 the temporary Assistant UI composition. It requires the packaged Renderer to
@@ -153,22 +158,24 @@ diagnostic until the replacement UI freezes a new visual/accessibility
 acceptance contract. The receipt validates actual positive content/pixel
 dimensions and scale because a host window manager may cap a requested size.
 
-Desktop proof wall timing stops when the packaged process exits. Receipt
+Desktop proof wall timing stops when the packaged process exits and remains
+diagnostic. Receipt
 parsing and the mandatory process-table audit occur afterward and remain fatal
 correctness checks, but their cost is excluded from both interactivity and
-proof wall performance. Assistant streaming remains event-driven; the proof's
+the phase-specific product budgets. Assistant streaming remains event-driven;
+the proof's
 in-page observer checks the rendered DOM at a bounded 50ms interval until the
 new user and assistant rows are both visible.
 Each target owns its own cold and warm values; do not average heterogeneous
 runner classes or refresh a failed ceiling without reviewing the artifact
 closure, raw samples, and receipt history.
 
-| Target | Native executable | Native total median/hard; wall median/hard | Desktop unpacked/files | Desktop cold interactive/settlement/proof wall | Desktop warm interactive median/hard; settlement/proof wall max |
+| Target | Native executable | Native total median/hard; wall median/hard | Desktop unpacked/files | Desktop cold interactive/settlement/preparation/post | Desktop warm interactive median/hard; settlement/preparation/post max |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `linux-x64` | 10,800,000 B | 1,250/4,000; 2,000/5,000 ms | n/a | n/a | n/a |
-| `darwin-arm64` | 10,800,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 20,000 ms | 1,500/5,000; 15,500/20,000 ms |
-| `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 25,000 ms | 3,500/8,000; 15,500/22,000 ms |
-| `win32-x64` | 9,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 90 | 3,000 / 15,500 / 20,000 ms | 2,500/5,000; 15,500/20,000 ms |
+| `darwin-arm64` | 10,800,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 12,000 / 5,000 ms | 1,800/5,000; 15,500 / 5,000 / 5,000 ms |
+| `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 12,000 / 5,000 ms | 3,500/8,000; 15,500 / 5,000 / 5,000 ms |
+| `win32-x64` | 14,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 310 | 3,000 / 15,500 / 12,000 / 5,000 ms | 2,500/5,000; 15,500 / 5,000 / 5,000 ms |
 
 Manifest hashes prove the staged resources remain immutable during a proof and
 match the packaged native files. They do not claim cross-build reproducibility:

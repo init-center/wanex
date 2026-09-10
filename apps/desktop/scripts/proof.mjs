@@ -729,12 +729,38 @@ function assertRuntimeReceipt(runtime) {
     runtime.privacy?.exposesServiceBinaryPath !== false ||
     runtime.privacy?.exposesSecrets !== false ||
     runtime.privacy?.exposesRawStorageClient !== false ||
-    runtime.privacy?.exposesElectronApi !== false
+    runtime.privacy?.exposesElectronApi !== false ||
+    !validRendererStartupTimings(runtime.rendererStartupMs)
   ) {
     throw new Error(
       `Desktop runtime proof failed: ${JSON.stringify(runtime)}`
     )
   }
+}
+
+function validRendererStartupTimings(value) {
+  const keys = [
+    "assistantSurfaceToInteractivePaint",
+    "bootstrapToRootCommit",
+    "initialSnapshot",
+    "navigationToBootstrap",
+    "rootCommitToSnapshotRequest",
+    "snapshotResponseToAssistantSurface",
+    "total"
+  ]
+  return value !== null && typeof value === "object" &&
+    JSON.stringify(Object.keys(value).sort()) === JSON.stringify(keys) &&
+    Object.values(value).every((timing) =>
+      typeof timing === "number" && Number.isFinite(timing) && timing >= 0
+    ) &&
+    Math.abs(value.total - (
+      value.navigationToBootstrap +
+      value.bootstrapToRootCommit +
+      value.rootCommitToSnapshotRequest +
+      value.initialSnapshot +
+      value.snapshotResponseToAssistantSurface +
+      value.assistantSurfaceToInteractivePaint
+    )) < 0.1
 }
 
 function positiveScreenshotDimensions(screenshot) {

@@ -30,7 +30,7 @@ import {
   wanexDesktopPluginRestoreProofScript,
 } from "../src/plugin-management-proof.js"
 import {
-  isWanexDesktopOwnedNavigation,
+  createWanexDesktopNavigationPolicy,
   resolveWanexDesktopWindowChrome,
 } from "../src/window-policy.js"
 import {
@@ -155,18 +155,29 @@ describe("Desktop lifecycle and navigation", () => {
     })
   })
 
-  it("allows only the exact app-owned Assistant origin", () => {
-    const origin = "http://127.0.0.1:41235/"
-    expect(isWanexDesktopOwnedNavigation(
-      "http://127.0.0.1:41235/wanex/assistant/request",
-      origin
+  it("denies navigation until the exact app-owned Assistant origin is bound", () => {
+    const navigation = createWanexDesktopNavigationPolicy()
+    expect(navigation.allows("http://127.0.0.1:41235/")).toBe(false)
+
+    navigation.bindOwnedOrigin("http://127.0.0.1:41235/")
+    expect(navigation.allows(
+      "http://127.0.0.1:41235/wanex/assistant/request"
     )).toBe(true)
-    expect(isWanexDesktopOwnedNavigation(
-      "http://127.0.0.1:41236/",
-      origin
-    )).toBe(false)
-    expect(isWanexDesktopOwnedNavigation("https://example.com/", origin)).toBe(false)
-    expect(isWanexDesktopOwnedNavigation("file:///tmp/escape", origin)).toBe(false)
+    expect(navigation.allows("http://127.0.0.1:41236/")).toBe(false)
+    expect(navigation.allows("https://example.com/")).toBe(false)
+    expect(navigation.allows("file:///tmp/escape")).toBe(false)
+    expect(navigation.allows("http://user@127.0.0.1:41235/")).toBe(false)
+    expect(() => navigation.bindOwnedOrigin("http://127.0.0.1:41235/"))
+      .toThrow("already bound")
+  })
+
+  it.each([
+    "file:///tmp/escape",
+    "http://user@127.0.0.1:41235/",
+    "not a url",
+  ])("rejects an invalid owned navigation origin: %s", (origin) => {
+    expect(() => createWanexDesktopNavigationPolicy().bindOwnedOrigin(origin))
+      .toThrow("credential-free HTTP origin")
   })
 
   it("integrates the macOS traffic lights into the Assistant topbar", () => {

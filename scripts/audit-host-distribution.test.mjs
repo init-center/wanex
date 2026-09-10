@@ -10,24 +10,25 @@ import {
 import { summarizeNativeRuntimeSamples } from "./native-runtime-metrics.mjs"
 
 describe("host distribution budget", () => {
-  it("keeps onboarding work out of startup without removing total proof limits", () => {
+  it.each([
+    [0, "journeyPreparation", "Desktop cold journey preparation ms"],
+    [0, "rendererPostSettlement", "Desktop cold Renderer post-settlement ms"],
+    [1, "journeyPreparation", "Desktop warm journey preparation maximum ms"],
+    [1, "rendererPostSettlement", "Desktop warm Renderer post-settlement maximum ms"]
+  ])("bounds sample %i %s independently", (sampleIndex, metric, failureLabel) => {
     const desktop = desktopReceipt()
-    desktop.samples[0].runtime.timingsMs.journeyPreparation = 500
+    desktop.samples[sampleIndex].runtime.timingsMs[metric] = 101
     desktop.summary = summarizeDesktopSamples(desktop.samples)
-    const request = () => ({
+    const result = auditHostDistributionData({
       targetId: "darwin-arm64",
       budget: budget(true),
       native: darwinNativeReceipt(),
       desktop,
       desktopDistribution: distributionReceipt(desktop, darwinNativeReceipt())
     })
-    expect(auditHostDistributionData(request()).ok).toBe(true)
-    expect(desktop.summary.cold.timingsMs.journeyPreparation).toBe(500)
-    desktop.samples[0].wallTimeMs = 500
-    desktop.summary = summarizeDesktopSamples(desktop.samples)
-    expect(auditHostDistributionData(request()).failures).toContainEqual(
-      expect.stringContaining("Desktop cold proof wall time ms")
-    )
+    expect(result.failures).toEqual([
+      expect.stringContaining(failureLabel)
+    ])
   })
 
   it("parses only explicit audit paths and target", () => {
@@ -335,7 +336,8 @@ function desktopBudget() {
     cold: {
       maxInteractiveTotalMs: 100,
       maxConversationSettlementMs: 100,
-      maxProofWallTimeMs: 100
+      maxJourneyPreparationMs: 100,
+      maxRendererPostSettlementMs: 100
     },
     warm: {
       maxArtifactVerificationMs: 100,
@@ -345,7 +347,8 @@ function desktopBudget() {
       maxInteractiveTotalMedianMs: 100,
       maxInteractiveTotalHardMs: 200,
       maxConversationSettlementMs: 100,
-      maxProofWallTimeMs: 100
+      maxJourneyPreparationMs: 100,
+      maxRendererPostSettlementMs: 100
     }
   }
 }
@@ -391,8 +394,11 @@ function desktopReceipt() {
       timingsMs: Object.fromEntries([
         "processToAppReady",
         "artifactVerification",
+        "credentialResolution",
+        "startupPrerequisites",
         "hostStartup",
-        "rendererLoad",
+        "codingComposition",
+        "rendererNavigation",
         "rendererInteractive",
         "journeyPreparation",
         "conversationSettlement",
@@ -400,7 +406,16 @@ function desktopReceipt() {
         "shutdown",
         "interactiveTotal",
         "proofTotal"
-      ].map((metric) => [metric, 50]))
+      ].map((metric) => [metric, 50])),
+      rendererStartupMs: {
+        navigationToBootstrap: 50,
+        bootstrapToRootCommit: 0,
+        rootCommitToSnapshotRequest: 0,
+        initialSnapshot: 0,
+        snapshotResponseToAssistantSurface: 0,
+        assistantSurfaceToInteractivePaint: 0,
+        total: 50
+      }
     }
   }))
   return {

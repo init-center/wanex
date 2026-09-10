@@ -242,73 +242,40 @@ with one lifecycle owner, deterministic cleanup, restart recovery, and no
 duplicate runtime/native payload. Do not add a Gateway, a second listener,
 client-selected paths, or a compatibility layer.
 
-Route 13E: Cross-Platform Server Distribution Matrix has its source correction
-and low-cost local verification complete; the current macOS 27 host blocks a
-fresh packaged Electron proof, and one final hosted matrix is pending. The
-latest correction is recorded in:
+Route 13E: Cross-Platform Server Distribution Matrix is source-complete and
+locally verified; one consolidated target-hosted matrix remains before the
+route may be closed. The latest plan and completion evidence are recorded in:
 
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1598-route-13e-cache-first-initial-snapshot-completion.md`
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1600-route-13e-windows-cold-start-correction-plan.md`
 
-It gives `rendererInteractive` a real first-usable-UI meaning, separates
-proof-only `journeyPreparation`, makes `pnpm preflight:distribution` build and
-prove the current Desktop/TUI/native artifacts in receipt order, and prevents
-Server distribution proof from borrowing stale workspace native files. The
-hosted workflow follows the same order. The prior local macOS arm64 audit was
-green before the latest browser bundle correction; Linux, darwin-x64, and
-win32-x64 still require fresh target-hosted evidence. Hosted run
-`34313924173` passed Linux, darwin-x64, and win32-x64 but failed the unchanged
-darwin-arm64 cold `interactiveTotal` budget at `3371.02ms` versus `3000ms`.
-The first hosted run (`34309080317`) exposed a test-only
-MutationObserver/fake-timer synchronization gap in the Desktop startup test.
-The follow-up run (`34321237394`) reproduced the underlying instability as a
-30-second timeout in the same test on Linux (`127 passed, 1 timed out`). The
-startup test now uses the real happy-dom event loop for its success paths and a
-short explicit timeout only for its failure paths, so it no longer mixes
-Vitest fake timers with happy-dom's captured MutationObserver/requestAnimationFrame
-schedulers. The exact `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate passes all
-package tests, 64 Eval scenarios, Rust tests/Clippy, SDK consumer proofs, and
-the installed TUI proof. No product timeout, retry, skipped assertion, or
-readiness change was used. Do not push another Action run until this corrective
-test change and its evidence are committed.
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1601-route-13e-windows-cold-start-correction-completion.md`
 
-The first corrective hosted run (`34311324792`) completed `verify` successfully
-but then failed the JavaScript dependency audit on three patched Hono
-advisories. The existing workspace dependency policy now resolves Hono `4.13.7`,
-js-yaml `4.3.2`, and Vitest `4.1.11`; local production and complete JS audits,
-`cargo audit`, and the full `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate pass.
-No audit ignore, severity reduction, or dependency bypass was used. The next
-single hosted run must validate this security correction and the four-target
-distribution matrix before Route 13E is closed. A post-upgrade local
-distribution preflight reached the real Desktop proof but was rejected by a
-strict non-repeating performance sample (`171.89ms` warm artifact verification;
-an independent run had `3087.59ms` cold interactive total). These remain
-failures in the evidence; do not raise budgets, add retries/sleeps, or claim a
-local pass from the follow-up. The latest cache-first correction reuses the
-existing typed `snapshot` operation for the first UI read and retains full
-`refresh` for invalidation and recovery. It passed the focused UI/Host tests
-and complete `WANEX_TEST_CONCURRENCY=2 pnpm verify` gate. A fresh local
-distribution preflight reached Electron but macOS `27.0` blocked the
-temporary installed app with `sandbox_extension_issue_file_to_process ...
-Operation not permitted`; this host-environment failure is not a product
-pass. Do not disable the sandbox, increase the timeout, or relax the budget.
-Hosted target receipts remain authoritative, and do not push another Action
-run until the corrective commit is ready.
+Hosted run `34427367136` proved the parallel shutdown correction on Windows:
+warm shutdown fell from `93.31ms` to `41.66ms` against the unchanged `50ms`
+ceiling. It then exposed a cold Windows first-usable-UI miss (`3500.27ms`
+against `3000ms`) and an incorrectly modeled aggregate proof-wall budget. The
+Desktop now creates its hidden sandboxed window as soon as Electron is ready,
+denies all navigation until the trusted Assistant origin is bound, and resolves
+the independent System Service and credential artifacts concurrently. Exact
+Renderer marks identify bootstrap, root commit, initial snapshot transport,
+Assistant surface commit, and verified paint. The ambiguous `rendererLoad`
+field and aggregate `maxProofWallTimeMs` contract were removed directly, with
+no aliases: startup, conversation settlement, journey preparation, Renderer
+post-settlement work, shutdown, and package shape are bounded independently.
+Full proof/process wall time remains diagnostic, while the outer process guard
+continues to enforce liveness.
 
-The latest hosted matrix was `34323808315`: all functional distribution proofs
-passed, while the Windows host audit exposed one serial-shutdown outlier and
-the Apple Silicon host audit exposed a cold renderer-startup budget miss. The
-Windows lifecycle correction is implemented and locally verified in:
-
-`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1599-route-13e-parallel-desktop-shutdown-completion.md`
-
-Desktop now closes independent Remote and Assistant resources concurrently,
-keeps Coding's internal close order, waits for every closer with
-`Promise.allSettled`, and only then releases the single-instance lock. Do not
-raise either host budget or add retries before the next matrix. The Apple
-Silicon cold-start miss remains a separate renderer evidence/optimization
-route; a discarded Settings lazy-loading experiment must not be restored
-without a complete browser asset and test contract. The next Action should be
-the single batched matrix after this correction is committed and source-gated.
+The exact local gate
+`WANEX_TEST_CONCURRENCY=2 pnpm verify` passes with Node `26.8.2`, npm `11.19.1`,
+and pnpm `11.17.0`, including all package tests, 64 Eval scenarios, Rust tests
+and Clippy, SDK consumer proofs, and installed TUI proof. No timeout or budget
+was increased, and no retry, sleep, skipped assertion, sandbox disablement,
+package, schema, protocol, Store, Gateway, or compatibility path was added.
+Do not claim Route 13E complete until one batched hosted matrix proves the
+unchanged Windows `interactiveTotal <= 3000ms`, the new Renderer startup
+evidence and phase budgets, unchanged conversation/shutdown ceilings, and green
+Linux and both macOS targets. Do not push another partial diagnostic commit;
+the next push should carry this reviewed source-gated batch.
 
 The completed Route 10 plan remains recorded in:
 

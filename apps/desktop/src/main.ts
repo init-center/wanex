@@ -38,8 +38,9 @@ import {
   formatWanexDesktopError,
 } from "./proof-failure.js";
 import {
-  isWanexDesktopOwnedNavigation,
+  createWanexDesktopNavigationPolicy,
   resolveWanexDesktopWindowChrome,
+  type WanexDesktopNavigationPolicy,
   type WanexDesktopWindowChromePolicy,
 } from "./window-policy.js";
 import {
@@ -112,6 +113,7 @@ let remoteCodingConnections: RemoteCodingConnectionManager | undefined;
 let removeRemoteIpc: (() => void) | undefined;
 let removeCodingIpc: (() => void) | undefined;
 let window: BrowserWindow | undefined;
+let windowNavigation: WanexDesktopNavigationPolicy | undefined;
 let exitAllowed = false;
 let exitCode = 0;
 let failurePhase = "electron_startup";
@@ -120,6 +122,7 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
   try {
     window?.destroy();
     window = undefined;
+    windowNavigation = undefined;
     removeCodingIpc?.();
     removeCodingIpc = undefined;
     const ownedCodingRouter = codingRouter;
@@ -214,8 +217,10 @@ async function failProofBeforeStartup(error: Error): Promise<void> {
 async function start(): Promise<void> {
   await app.whenReady();
   const windowChrome = resolveWanexDesktopWindowChrome(process.platform);
-  failurePhase = "system_service_resolution";
   const appReadyAt = performance.now();
+  const createdWindow = createAssistantWindow(windowChrome);
+  window = createdWindow.window;
+  windowNavigation = createdWindow.navigation;
   const storage: LocalStorageConfig = {
     kind: "profile",
     rootDir: app.getPath("userData"),
@@ -224,10 +229,20 @@ async function start(): Promise<void> {
       : requiredProofValue(proofProfileId, "profile ID"),
     mode: "persistent",
   };
-  const service = await resolveDesktopSystemService();
-  failurePhase = "credential_store_resolution";
-  const artifactVerifiedAt = performance.now();
-  const credentialStore = await createDesktopCredentialStore(storage);
+  failurePhase = "startup_prerequisites";
+  let artifactVerifiedAt = appReadyAt;
+  let credentialResolvedAt = appReadyAt;
+  const [service, credentialStore] = await Promise.all([
+    resolveDesktopSystemService().then((resolved) => {
+      artifactVerifiedAt = performance.now();
+      return resolved;
+    }),
+    createDesktopCredentialStore(storage).then((resolved) => {
+      credentialResolvedAt = performance.now();
+      return resolved;
+    }),
+  ]);
+  const prerequisitesReadyAt = performance.now();
   const proofSelection = createDesktopExtensionProofSelectionQueue({
     proofEnabled: proofReceiptPath !== undefined,
     serializedSelections: proofExtensionSelections,
@@ -359,8 +374,8 @@ async function start(): Promise<void> {
     remoteConnections: remoteCodingConnections,
   });
   codingRouter = router;
-  failurePhase = "renderer_load";
-  window = createAssistantWindow(assistant.url, windowChrome);
+  failurePhase = "renderer_navigation";
+  windowNavigation.bindOwnedOrigin(assistant.url);
   removeCodingIpc = installDesktopCodingIpc({
     ipcMain,
     router,
@@ -370,6 +385,7 @@ async function start(): Promise<void> {
       ? {}
       : { diagnostic: desktopProofDiagnostic }),
   });
+  const codingReadyAt = performance.now();
   await window.loadURL(assistant.url);
   const rendererReadyAt = performance.now();
 
@@ -378,7 +394,10 @@ async function start(): Promise<void> {
     await runPackagedProof({
       appReadyAt,
       artifactVerifiedAt,
+      credentialResolvedAt,
+      prerequisitesReadyAt,
       hostReadyAt,
+      codingReadyAt,
       rendererReadyAt,
       ...(service.targetId === undefined ? {} : { targetId: service.targetId }),
     });
@@ -408,10 +427,12 @@ function installAppLifecycle(): void {
       assistant !== undefined &&
       (window === undefined || window.isDestroyed())
     ) {
-      window = createAssistantWindow(
-        assistant.url,
+      const createdWindow = createAssistantWindow(
         resolveWanexDesktopWindowChrome(process.platform),
       );
+      window = createdWindow.window;
+      windowNavigation = createdWindow.navigation;
+      windowNavigation.bindOwnedOrigin(assistant.url);
       void window.loadURL(assistant.url).then(() => window?.show());
     }
   });
@@ -433,9 +454,12 @@ function installAppLifecycle(): void {
 }
 
 function createAssistantWindow(
-  assistantUrl: string,
   chrome: WanexDesktopWindowChromePolicy,
-): BrowserWindow {
+): {
+  readonly window: BrowserWindow;
+  readonly navigation: WanexDesktopNavigationPolicy;
+} {
+  const navigation = createWanexDesktopNavigationPolicy();
   const created = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -458,10 +482,9 @@ function createAssistantWindow(
   if (chrome.documentChrome === "integrated-macos") {
     created.on("page-title-updated", (event) => event.preventDefault());
   }
-  const ownedOrigin = new URL(assistantUrl).origin;
   created.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   created.webContents.on("will-navigate", (event, url) => {
-    if (!isWanexDesktopOwnedNavigation(url, ownedOrigin))
+    if (!navigation.allows(url))
       event.preventDefault();
   });
   created.webContents.on("will-attach-webview", (event) =>
@@ -472,9 +495,12 @@ function createAssistantWindow(
   );
   created.webContents.session.setPermissionCheckHandler(() => false);
   created.on("closed", () => {
-    if (window === created) window = undefined;
+    if (window === created) {
+      window = undefined;
+      windowNavigation = undefined;
+    }
   });
-  return created;
+  return { window: created, navigation };
 }
 
 async function selectCodingProjectDirectory(): Promise<string | undefined> {
@@ -545,7 +571,10 @@ async function createDesktopCredentialStore(
 async function runPackagedProof(timings: {
   readonly appReadyAt: number;
   readonly artifactVerifiedAt: number;
+  readonly credentialResolvedAt: number;
+  readonly prerequisitesReadyAt: number;
   readonly hostReadyAt: number;
+  readonly codingReadyAt: number;
   readonly rendererReadyAt: number;
   readonly targetId?: string;
 }): Promise<void> {
@@ -553,10 +582,10 @@ async function runPackagedProof(timings: {
   if (activeWindow === undefined)
     throw new Error("desktop proof window is missing");
   activeWindow.show();
-  await activeWindow.webContents.executeJavaScript(
+  const rendererStartupMs = await activeWindow.webContents.executeJavaScript(
     `(${waitForDesktopInteractive.toString()})()`,
     true,
-  );
+  ) as import("./proof/startup.js").DesktopRendererStartupTimings;
   const interactiveAt = performance.now();
   const step = requiredWanexDesktopPackagedProofStep(proofStep);
   const renderer = await runWanexDesktopPackagedRendererProof({
@@ -635,8 +664,17 @@ async function runPackagedProof(timings: {
         timings.appReadyAt,
         timings.artifactVerifiedAt,
       ),
-      hostStartup: elapsed(timings.artifactVerifiedAt, timings.hostReadyAt),
-      rendererLoad: elapsed(timings.hostReadyAt, timings.rendererReadyAt),
+      credentialResolution: elapsed(
+        timings.appReadyAt,
+        timings.credentialResolvedAt,
+      ),
+      startupPrerequisites: elapsed(
+        timings.appReadyAt,
+        timings.prerequisitesReadyAt,
+      ),
+      hostStartup: elapsed(timings.prerequisitesReadyAt, timings.hostReadyAt),
+      codingComposition: elapsed(timings.hostReadyAt, timings.codingReadyAt),
+      rendererNavigation: elapsed(timings.codingReadyAt, timings.rendererReadyAt),
       rendererInteractive: elapsed(timings.rendererReadyAt, interactiveAt),
       journeyPreparation: renderer.timingsMs.journeyPreparation,
       conversationSettlement: renderer.timingsMs.conversationSettlement,
@@ -645,6 +683,7 @@ async function runPackagedProof(timings: {
       interactiveTotal: elapsed(processStartedAt, interactiveAt),
       proofTotal: elapsed(processStartedAt, stoppedAt),
     },
+    rendererStartupMs,
   });
   exitAllowed = true;
   app.exit(0);

@@ -269,6 +269,14 @@ export function auditHostDistributionData(request) {
       summary.warm.metrics,
       "Desktop warm metrics"
     )
+    const coldRendererStartup = requireRecord(
+      summary.cold.rendererStartupMs,
+      "Desktop cold Renderer startup timings"
+    )
+    const warmRendererStartup = requireRecord(
+      summary.warm.rendererStartupMetrics,
+      "Desktop warm Renderer startup metrics"
+    )
     expectEqual(failures, "Desktop receipt kind", desktop.kind, "wanex.desktop.proof-receipt")
     expectEqual(failures, "Desktop receipt ok", desktop.ok, true)
     expectEqual(failures, "Desktop target", `${packaged.platform}-${packaged.arch}`, request.targetId)
@@ -368,9 +376,15 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Desktop cold proof wall time ms",
-      coldTimings.wallTime,
-      coldBudget.maxProofWallTimeMs
+      "Desktop cold journey preparation ms",
+      coldTimings.journeyPreparation,
+      coldBudget.maxJourneyPreparationMs
+    )
+    expectMaximum(
+      failures,
+      "Desktop cold Renderer post-settlement ms",
+      coldTimings.rendererPostSettlement,
+      coldBudget.maxRendererPostSettlementMs
     )
     expectMaximum(
       failures,
@@ -416,9 +430,15 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Desktop warm proof wall time maximum ms",
-      maximum(warmMetrics, "wallTime"),
-      warmBudget.maxProofWallTimeMs
+      "Desktop warm journey preparation maximum ms",
+      maximum(warmMetrics, "journeyPreparation"),
+      warmBudget.maxJourneyPreparationMs
+    )
+    expectMaximum(
+      failures,
+      "Desktop warm Renderer post-settlement maximum ms",
+      maximum(warmMetrics, "rendererPostSettlement"),
+      warmBudget.maxRendererPostSettlementMs
     )
     observed.desktop = {
       unpackedBytes: packaged.unpackedBytes,
@@ -441,7 +461,8 @@ export function auditHostDistributionData(request) {
         interactiveTotalMs: coldTimings.interactiveTotal,
         conversationSettlementMs: coldTimings.conversationSettlement,
         proofTotalMs: coldTimings.proofTotal,
-        proofWallTimeMs: coldTimings.wallTime
+        proofWallTimeMs: coldTimings.wallTime,
+        rendererStartupMs: coldRendererStartup
       },
       warm: {
         artifactVerificationMaximumMs:
@@ -454,7 +475,16 @@ export function auditHostDistributionData(request) {
         interactiveTotalMedianMs: median(warmMetrics, "interactiveTotal"),
         interactiveTotalMaximumMs: maximum(warmMetrics, "interactiveTotal"),
         proofTotalMaximumMs: maximum(warmMetrics, "proofTotal"),
-        proofWallTimeMaximumMs: maximum(warmMetrics, "wallTime")
+        proofWallTimeMaximumMs: maximum(warmMetrics, "wallTime"),
+        rendererStartup: Object.fromEntries(
+          Object.keys(warmRendererStartup).sort().map((metric) => [
+            metric,
+            {
+              medianMs: median(warmRendererStartup, metric),
+              maximumMs: maximum(warmRendererStartup, metric)
+            }
+          ])
+        )
       }
     }
   } else if (request.desktop !== undefined) {

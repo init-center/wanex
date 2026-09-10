@@ -12,7 +12,7 @@ export {
   createWanexDesktopOwnedLifecycle,
   type WanexDesktopOwnedLifecycle
 } from "./lifecycle.js"
-export { isWanexDesktopOwnedNavigation } from "./window-policy.js"
+export { createWanexDesktopNavigationPolicy } from "./window-policy.js"
 export {
   DESKTOP_CODING_IPC,
   isDesktopCodingEvent,

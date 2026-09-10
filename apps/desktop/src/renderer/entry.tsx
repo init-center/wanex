@@ -9,6 +9,12 @@ import type { DesktopCodingRendererBridge } from "../coding-bridge.js";
 import type { DesktopRemoteRendererBridge } from "../remote/bridge.js";
 import { createDesktopRendererCodingClient } from "./coding/client.js";
 import { ProductRenderer } from "./product.js";
+import {
+  markDesktopRendererBootstrap,
+  observeDesktopInitialSnapshot,
+} from "../proof/startup.js";
+
+markDesktopRendererBootstrap();
 
 const root = document.querySelector<HTMLElement>("[data-app-root]");
 const script = document.querySelector<HTMLScriptElement>(
@@ -18,7 +24,7 @@ if (root === null || script === null) {
   throw new Error("Desktop renderer bootstrap elements are missing");
 }
 
-const assistantClient: AssistantClient = createHttpClient({
+const assistantClient: AssistantClient = observeDesktopInitialSnapshot(createHttpClient({
   requestPath: requiredDataset(script, "requestPath"),
   hostSessionToken: requiredDataset(script, "hostSessionToken"),
   ...(script.dataset.eventStreamPath === undefined
@@ -39,7 +45,7 @@ const assistantClient: AssistantClient = createHttpClient({
   ...(script.dataset.capabilitySetupPath === undefined
     ? {}
     : { capabilitySetupPath: script.dataset.capabilitySetupPath }),
-});
+}));
 const codingBridge = readCodingBridge();
 const codingClient = codingBridge === undefined
   ? undefined

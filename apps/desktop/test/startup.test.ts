@@ -1,6 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { waitForDesktopInteractive } from "../src/proof/startup.js"
+import {
+  markDesktopRendererBootstrap,
+  markDesktopRendererRootCommit,
+  observeDesktopInitialSnapshot,
+  waitForDesktopInteractive,
+} from "../src/proof/startup.js"
 
 const onboarding = `<main data-ui-assistant-shell><section data-ui-settings-panel>
   <form data-ui-provider-form><input name="conversationModelId"><input name="credential">
@@ -9,7 +14,21 @@ const conversation = `<main data-ui-assistant-shell><form data-ui-composer>
   <textarea name="text"></textarea><button type="submit" disabled>Send</button></form>
   <div data-ui-model-selector><select name="endpointId"><option>Model</option></select></div></main>`
 
-beforeEach(() => {
+beforeEach(async () => {
+  performance.clearMarks()
+  markDesktopRendererBootstrap()
+  markDesktopRendererRootCommit()
+  await observeDesktopInitialSnapshot({
+    async readInitialSnapshot() {
+      return {} as never
+    },
+    async readSnapshot() {
+      return {} as never
+    },
+    async dispatchAction() {
+      return {} as never
+    },
+  }).readInitialSnapshot?.()
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(() =>
     ({ width: 100, height: 30 }) as DOMRect)
 })
@@ -25,9 +44,14 @@ describe("Desktop first interactive boundary", () => {
     const submit = vi.fn()
     document.querySelector("form")!.addEventListener("submit", submit)
     const settled = vi.fn()
-    const result = waitForDesktopInteractive().then(settled)
+    const result = waitForDesktopInteractive()
+    void result.then(settled)
     expect(settled).not.toHaveBeenCalled()
-    await result
+    await expect(result).resolves.toMatchObject({
+      navigationToBootstrap: expect.any(Number),
+      initialSnapshot: expect.any(Number),
+      total: expect.any(Number),
+    })
     expect(settled).toHaveBeenCalledOnce()
     expect(submit).not.toHaveBeenCalled()
   })
@@ -67,5 +91,57 @@ describe("Desktop first interactive boundary", () => {
     textarea.disabled = false
     await result
     expect(settled).toHaveBeenCalledOnce()
+  })
+
+  it("delegates and times the exact initial snapshot request", async () => {
+    performance.clearMarks()
+    markDesktopRendererBootstrap()
+    markDesktopRendererRootCommit()
+    const snapshot = { value: "snapshot" } as never
+    const readInitialSnapshot = vi.fn(async () => snapshot)
+    const client = observeDesktopInitialSnapshot({
+      readInitialSnapshot,
+      async readSnapshot() {
+        throw new Error("not used")
+      },
+      async dispatchAction() {
+        throw new Error("not used")
+      },
+    })
+
+    await expect(client.readInitialSnapshot?.()).resolves.toBe(snapshot)
+    expect(readInitialSnapshot).toHaveBeenCalledOnce()
+    const request = performance.getEntriesByName(
+      "wanex.desktop.renderer.snapshot-request",
+      "mark",
+    ).at(-1)
+    const response = performance.getEntriesByName(
+      "wanex.desktop.renderer.snapshot-response",
+      "mark",
+    ).at(-1)
+    expect(request).toBeDefined()
+    expect(response).toBeDefined()
+    expect(response!.startTime).toBeGreaterThanOrEqual(request!.startTime)
+  })
+
+  it("rejects incomplete startup evidence instead of fabricating a duration", async () => {
+    performance.clearMarks()
+    document.body.innerHTML = onboarding
+    await expect(waitForDesktopInteractive(50)).rejects.toThrow(
+      "Desktop Renderer startup mark is missing",
+    )
+  })
+
+  it("rejects Renderer startup marks that are out of order", async () => {
+    performance.clearMarks()
+    performance.mark("wanex.desktop.renderer.bootstrap", { startTime: 10 })
+    performance.mark("wanex.desktop.renderer.root-commit", { startTime: 20 })
+    performance.mark("wanex.desktop.renderer.snapshot-request", { startTime: 40 })
+    performance.mark("wanex.desktop.renderer.snapshot-response", { startTime: 30 })
+    performance.mark("wanex.desktop.renderer.assistant-surface", { startTime: 50 })
+    document.body.innerHTML = onboarding
+    await expect(waitForDesktopInteractive()).rejects.toThrow(
+      "Desktop Renderer startup marks are out of order",
+    )
   })
 })

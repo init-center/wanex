@@ -47,7 +47,8 @@
         "cold": {
           "maxInteractiveTotalMs": 3000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 20000
+          "maxJourneyPreparationMs": 12000,
+          "maxRendererPostSettlementMs": 5000
         },
         "warm": {
           "maxArtifactVerificationMs": 120,
@@ -57,7 +58,8 @@
           "maxInteractiveTotalMedianMs": 1800,
           "maxInteractiveTotalHardMs": 5000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 20000
+          "maxJourneyPreparationMs": 5000,
+          "maxRendererPostSettlementMs": 5000
         }
       },
       "tui": {
@@ -93,7 +95,8 @@
         "cold": {
           "maxInteractiveTotalMs": 8000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 25000
+          "maxJourneyPreparationMs": 12000,
+          "maxRendererPostSettlementMs": 5000
         },
         "warm": {
           "maxArtifactVerificationMs": 200,
@@ -103,7 +106,8 @@
           "maxInteractiveTotalMedianMs": 3500,
           "maxInteractiveTotalHardMs": 8000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 22000
+          "maxJourneyPreparationMs": 5000,
+          "maxRendererPostSettlementMs": 5000
         }
       },
       "tui": {
@@ -139,7 +143,8 @@
         "cold": {
           "maxInteractiveTotalMs": 3000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 20000
+          "maxJourneyPreparationMs": 12000,
+          "maxRendererPostSettlementMs": 5000
         },
         "warm": {
           "maxArtifactVerificationMs": 100,
@@ -149,7 +154,8 @@
           "maxInteractiveTotalMedianMs": 2500,
           "maxInteractiveTotalHardMs": 5000,
           "maxConversationSettlementMs": 15500,
-          "maxProofWallTimeMs": 20000
+          "maxJourneyPreparationMs": 5000,
+          "maxRendererPostSettlementMs": 5000
         }
       },
       "tui": {

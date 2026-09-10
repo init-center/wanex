@@ -499,6 +499,7 @@ describe("Desktop packaging policy", () => {
       cold: {
         sampleCount: 1,
         timingsMs: { artifactVerification: 50, wallTime: 500 },
+        rendererStartupMs: { total: 50 },
       },
       warm: {
         sampleCount: 4,
@@ -514,8 +515,29 @@ describe("Desktop packaging policy", () => {
             samplesMs: [100, 200, 300, 400],
           },
         },
+        rendererStartupMetrics: {
+          total: {
+            medianMs: 25,
+            maximumMs: 40,
+            samplesMs: [10, 20, 30, 40],
+          },
+        },
       },
     });
+  });
+
+  it("rejects a Desktop sample without exact Renderer startup evidence", () => {
+    const samples = [
+      sample(0, "cold", 50, 500),
+      sample(1, "warm", 10, 100),
+      sample(2, "warm", 20, 200),
+      sample(3, "warm", 30, 300),
+      sample(4, "warm", 40, 400),
+    ];
+    delete samples[0].runtime.rendererStartupMs;
+    expect(() => summarizeDesktopSamples(samples)).toThrow(
+      "Desktop Renderer startup navigationToBootstrap timing",
+    );
   });
 
   it("keeps process inspection mandatory and outside wall time", async () => {
@@ -1561,8 +1583,11 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
         [
           "processToAppReady",
           "artifactVerification",
+          "credentialResolution",
+          "startupPrerequisites",
           "hostStartup",
-          "rendererLoad",
+          "codingComposition",
+          "rendererNavigation",
           "rendererInteractive",
           "journeyPreparation",
           "conversationSettlement",
@@ -1572,6 +1597,15 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
           "proofTotal",
         ].map((metric) => [metric, artifactVerification]),
       ),
+      rendererStartupMs: {
+        navigationToBootstrap: artifactVerification,
+        bootstrapToRootCommit: 0,
+        rootCommitToSnapshotRequest: 0,
+        initialSnapshot: 0,
+        snapshotResponseToAssistantSurface: 0,
+        assistantSurfaceToInteractivePaint: 0,
+        total: artifactVerification,
+      },
     },
   };
 }

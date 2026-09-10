@@ -6,8 +6,11 @@ export const DESKTOP_PROOF_SAMPLE_COUNT =
 const metricNames = [
   "processToAppReady",
   "artifactVerification",
+  "credentialResolution",
+  "startupPrerequisites",
   "hostStartup",
-  "rendererLoad",
+  "codingComposition",
+  "rendererNavigation",
   "rendererInteractive",
   "journeyPreparation",
   "conversationSettlement",
@@ -16,6 +19,16 @@ const metricNames = [
   "interactiveTotal",
   "proofTotal",
   "wallTime"
+]
+
+const rendererStartupMetricNames = [
+  "navigationToBootstrap",
+  "bootstrapToRootCommit",
+  "rootCommitToSnapshotRequest",
+  "initialSnapshot",
+  "snapshotResponseToAssistantSurface",
+  "assistantSurfaceToInteractivePaint",
+  "total"
 ]
 
 export function summarizeDesktopSamples(samples) {
@@ -47,7 +60,13 @@ export function summarizeDesktopSamples(samples) {
       timingsMs: Object.fromEntries(metricNames.map((name) => [
         name,
         readMetric(cold, name)
-      ]))
+      ])),
+      rendererStartupMs: Object.fromEntries(
+        rendererStartupMetricNames.map((name) => [
+          name,
+          readRendererStartupMetric(cold, name)
+        ])
+      )
     },
     warm: {
       sampleCount: DESKTOP_WARM_SAMPLE_COUNT,
@@ -59,9 +78,31 @@ export function summarizeDesktopSamples(samples) {
           maximumMs: values.at(-1),
           samplesMs: values
         }]
-      }))
+      })),
+      rendererStartupMetrics: Object.fromEntries(
+        rendererStartupMetricNames.map((name) => {
+          const values = warm.map((sample) =>
+            readRendererStartupMetric(sample, name)
+          ).sort((left, right) => left - right)
+          return [name, {
+            medianMs: median(values),
+            maximumMs: values.at(-1),
+            samplesMs: values
+          }]
+        })
+      )
     }
   }
+}
+
+function readRendererStartupMetric(sample, name) {
+  const value = sample?.runtime?.rendererStartupMs?.[name]
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw new Error(
+      `Desktop Renderer startup ${name} timing must be a non-negative number`
+    )
+  }
+  return value
 }
 
 function readMetric(sample, name) {

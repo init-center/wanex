@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  closeWanexDesktopOwnedResources,
   createWanexDesktopOwnedLifecycle,
   shouldShutdownAfterWindowAllClosed,
 } from "../src/lifecycle.js"
@@ -56,6 +57,70 @@ describe("Desktop lifecycle and navigation", () => {
     await Promise.all([lifecycle.close(), lifecycle.close(), lifecycle.close()])
     expect(lifecycle.state).toBe("closed")
     expect(closes).toBe(1)
+  })
+
+  it("does not serialize independent owned resource shutdown", async () => {
+    let releaseRemote!: () => void
+    let releaseAssistant!: () => void
+    const remoteClosed = new Promise<void>((resolve) => {
+      releaseRemote = resolve
+    })
+    const assistantClosed = new Promise<void>((resolve) => {
+      releaseAssistant = resolve
+    })
+    let codingClosed = false
+    let remoteCloseStarted = false
+    let assistantCloseStarted = false
+
+    const lifecycle = createWanexDesktopOwnedLifecycle(async () =>
+      await closeWanexDesktopOwnedResources({
+        coding: async () => {
+          codingClosed = true
+        },
+        remoteCoding: async () => {
+          remoteCloseStarted = true
+          await remoteClosed
+        },
+        assistant: async () => {
+          assistantCloseStarted = true
+          await assistantClosed
+        },
+      }),
+    )
+
+    const closing = lifecycle.close()
+    await Promise.resolve()
+    expect(codingClosed).toBe(true)
+    expect(remoteCloseStarted).toBe(true)
+    expect(assistantCloseStarted).toBe(true)
+
+    releaseRemote()
+    releaseAssistant()
+    await closing
+  })
+
+  it("waits for every resource before reporting a shutdown failure", async () => {
+    let releaseAssistant!: () => void
+    const assistantClosed = new Promise<void>((resolve) => {
+      releaseAssistant = resolve
+    })
+    let assistantCloseFinished = false
+
+    const closing = closeWanexDesktopOwnedResources({
+      remoteCoding: async () => {
+        throw new Error("remote close failed")
+      },
+      assistant: async () => {
+        await assistantClosed
+        assistantCloseFinished = true
+      },
+    })
+
+    await Promise.resolve()
+    expect(assistantCloseFinished).toBe(false)
+    releaseAssistant()
+    await expect(closing).rejects.toThrow("remote close failed")
+    expect(assistantCloseFinished).toBe(true)
   })
 
   it("owns and releases the Desktop single-instance lock exactly once", () => {

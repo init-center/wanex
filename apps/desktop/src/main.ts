@@ -24,6 +24,7 @@ import {
   WANEX_DESKTOP_CREDENTIAL_ARTIFACT_FILE,
 } from "./credential-artifact.js";
 import {
+  closeWanexDesktopOwnedResources,
   createWanexDesktopOwnedLifecycle,
   shouldShutdownAfterWindowAllClosed,
 } from "./lifecycle.js";
@@ -123,22 +124,35 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
     removeCodingIpc = undefined;
     const ownedCodingRouter = codingRouter;
     codingRouter = undefined;
-    await ownedCodingRouter?.close();
     const ownedCoding = coding;
     coding = undefined;
-    await ownedCoding?.close();
     const ownedRemoteCodingConnections = remoteCodingConnections;
     remoteCodingConnections = undefined;
     removeRemoteIpc?.();
     removeRemoteIpc = undefined;
-    await ownedRemoteCodingConnections?.close();
     const ownedAssistant = assistant;
     assistant = undefined;
-    await ownedAssistant?.close();
+    await closeWanexDesktopOwnedResources({
+      coding: () => closeOwnedCoding(ownedCodingRouter, ownedCoding),
+      ...(ownedRemoteCodingConnections === undefined
+        ? {}
+        : { remoteCoding: () => ownedRemoteCodingConnections.close() }),
+      ...(ownedAssistant === undefined
+        ? {}
+        : { assistant: () => ownedAssistant.close() }),
+    });
   } finally {
     instanceLock.release();
   }
 });
+
+async function closeOwnedCoding(
+  router: ReturnType<typeof createDesktopCodingRouter> | undefined,
+  composition: DesktopCodingComposition | undefined,
+): Promise<void> {
+  await router?.close();
+  await composition?.close();
+}
 
 if (!instanceLock.acquired) {
   if (proofReceiptPath === undefined) {

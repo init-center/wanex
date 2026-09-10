@@ -3,6 +3,26 @@ export interface WanexDesktopOwnedLifecycle {
   close(): Promise<void>
 }
 
+export interface WanexDesktopOwnedResourceClosers {
+  readonly coding?: () => Promise<void>
+  readonly remoteCoding?: () => Promise<void>
+  readonly assistant?: () => Promise<void>
+}
+
+export async function closeWanexDesktopOwnedResources(
+  closers: WanexDesktopOwnedResourceClosers,
+): Promise<void> {
+  const results = await Promise.allSettled([
+    closers.coding?.(),
+    closers.remoteCoding?.(),
+    closers.assistant?.(),
+  ])
+  const failure = results.find(
+    (result): result is PromiseRejectedResult => result.status === "rejected",
+  )
+  if (failure !== undefined) throw failure.reason
+}
+
 export function shouldShutdownAfterWindowAllClosed(
   platform: NodeJS.Platform,
   state: WanexDesktopOwnedLifecycle["state"],

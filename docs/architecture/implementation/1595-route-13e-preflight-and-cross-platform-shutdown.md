@@ -295,3 +295,28 @@ budgets are unchanged. The corrected test passed independently twenty times,
 and the subsequent full `WANEX_TEST_CONCURRENCY=2 pnpm verify` passed all
 package tests, Rust tests/Clippy, SDK and installed TUI proofs, and 64 Eval
 scenarios. A fresh four-target hosted matrix is still required for Route 13E.
+
+## Latest Hosted Evidence And Shutdown Correction
+
+Hosted run `34323808315` passed the source gate, security checks, packed Core,
+native proof, Server proof, TUI proof, and all Desktop functional journeys on
+all four target jobs. Its only host-audit failures were:
+
+- `win32-x64` warm shutdown maximum `93.31ms` against `50ms`; the other warm
+  samples were below `40ms`;
+- `darwin-arm64` cold `interactiveTotal` `3748.58ms` against `3000ms`.
+
+The Windows sample exposed a real serial teardown cost. Desktop now starts the
+independent Remote and Assistant closers concurrently with the ordered Coding
+closer. The lifecycle helper uses `Promise.allSettled`, so all resources finish
+before the first close error is reported and before the single-instance lock is
+released. The implementation and tests are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1599-route-13e-parallel-desktop-shutdown-completion.md`
+
+The Apple Silicon cold-start failure remains a separate renderer-startup
+investigation. A Settings-domain lazy-loading experiment was removed after its
+actual React test path remained in Suspense fallback; no unverified async UI
+boundary, budget increase, retry, sleep, or timeout change was kept. The next
+startup work must first collect stage-level evidence for document load, initial
+snapshot adoption, and React readiness, then optimize the actual critical path.

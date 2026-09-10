@@ -294,6 +294,22 @@ pass. Do not disable the sandbox, increase the timeout, or relax the budget.
 Hosted target receipts remain authoritative, and do not push another Action
 run until the corrective commit is ready.
 
+The latest hosted matrix was `34323808315`: all functional distribution proofs
+passed, while the Windows host audit exposed one serial-shutdown outlier and
+the Apple Silicon host audit exposed a cold renderer-startup budget miss. The
+Windows lifecycle correction is implemented and locally verified in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1599-route-13e-parallel-desktop-shutdown-completion.md`
+
+Desktop now closes independent Remote and Assistant resources concurrently,
+keeps Coding's internal close order, waits for every closer with
+`Promise.allSettled`, and only then releases the single-instance lock. Do not
+raise either host budget or add retries before the next matrix. The Apple
+Silicon cold-start miss remains a separate renderer evidence/optimization
+route; a discarded Settings lazy-loading experiment must not be restored
+without a complete browser asset and test contract. The next Action should be
+the single batched matrix after this correction is committed and source-gated.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

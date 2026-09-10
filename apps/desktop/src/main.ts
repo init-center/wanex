@@ -230,8 +230,9 @@ async function start(): Promise<void> {
     mode: "persistent",
   };
   failurePhase = "startup_prerequisites";
-  let artifactVerifiedAt = appReadyAt;
-  let credentialResolvedAt = appReadyAt;
+  const prerequisitesStartedAt = performance.now();
+  let artifactVerifiedAt = prerequisitesStartedAt;
+  let credentialResolvedAt = prerequisitesStartedAt;
   const [service, credentialStore] = await Promise.all([
     resolveDesktopSystemService().then((resolved) => {
       artifactVerifiedAt = performance.now();
@@ -393,6 +394,7 @@ async function start(): Promise<void> {
     failurePhase = "renderer_proof";
     await runPackagedProof({
       appReadyAt,
+      prerequisitesStartedAt,
       artifactVerifiedAt,
       credentialResolvedAt,
       prerequisitesReadyAt,
@@ -570,6 +572,7 @@ async function createDesktopCredentialStore(
 
 async function runPackagedProof(timings: {
   readonly appReadyAt: number;
+  readonly prerequisitesStartedAt: number;
   readonly artifactVerifiedAt: number;
   readonly credentialResolvedAt: number;
   readonly prerequisitesReadyAt: number;
@@ -660,16 +663,20 @@ async function runPackagedProof(timings: {
     },
     timingsMs: {
       processToAppReady: elapsed(processStartedAt, timings.appReadyAt),
-      artifactVerification: elapsed(
+      windowInitialization: elapsed(
         timings.appReadyAt,
+        timings.prerequisitesStartedAt,
+      ),
+      artifactVerification: elapsed(
+        timings.prerequisitesStartedAt,
         timings.artifactVerifiedAt,
       ),
       credentialResolution: elapsed(
-        timings.appReadyAt,
+        timings.prerequisitesStartedAt,
         timings.credentialResolvedAt,
       ),
       startupPrerequisites: elapsed(
-        timings.appReadyAt,
+        timings.prerequisitesStartedAt,
         timings.prerequisitesReadyAt,
       ),
       hostStartup: elapsed(timings.prerequisitesReadyAt, timings.hostReadyAt),

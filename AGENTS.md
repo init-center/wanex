@@ -242,9 +242,10 @@ with one lifecycle owner, deterministic cleanup, restart recovery, and no
 duplicate runtime/native payload. Do not add a Gateway, a second listener,
 client-selected paths, or a compatibility layer.
 
-Route 13E: Cross-Platform Server Distribution Matrix is source-complete and
-locally verified; one consolidated target-hosted matrix remains before the
-route may be closed. The latest plan and completion evidence are recorded in:
+Route 13E: Cross-Platform Server Distribution Matrix has proved its Windows
+cold-start correction; one final Intel macOS measurement rerun remains before
+the route may be closed. The latest plan and completion evidence are recorded
+in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1600-route-13e-windows-cold-start-correction-plan.md`
 
@@ -271,11 +272,21 @@ and pnpm `11.17.0`, including all package tests, 64 Eval scenarios, Rust tests
 and Clippy, SDK consumer proofs, and installed TUI proof. No timeout or budget
 was increased, and no retry, sleep, skipped assertion, sandbox disablement,
 package, schema, protocol, Store, Gateway, or compatibility path was added.
-Do not claim Route 13E complete until one batched hosted matrix proves the
-unchanged Windows `interactiveTotal <= 3000ms`, the new Renderer startup
-evidence and phase budgets, unchanged conversation/shutdown ceilings, and green
-Linux and both macOS targets. Do not push another partial diagnostic commit;
-the next push should carry this reviewed source-gated batch.
+Hosted run `34439441510` then passed the complete source gate, packed Node 24,
+Linux, macOS arm64, and Windows x64. Windows passed the unchanged
+`interactiveTotal <= 3000ms`, new Renderer/phase evidence, shutdown, and all
+remaining distribution proofs. Intel macOS failed only warm artifact
+verification at `209.39ms` against `200ms`; its remaining three samples were
+`183.80ms`, `199.99ms`, and `176.05ms`. Source review found that this metric
+incorrectly started at `appReadyAt` and included the newly preceding synchronous
+BrowserWindow construction. The corrected receipt separates
+`windowInitialization`, begins artifact and credential durations at their
+shared real start, and keeps `startupPrerequisites` as the exact concurrent
+resolution critical path. Focused Desktop tests and structure/distribution
+audits pass. No behavior, budget, retry, or sample policy changed. Do not claim
+Route 13E complete until one hosted Intel macOS rerun proves the corrected
+measurement and unchanged ceilings; do not spend another full matrix if the
+workflow can safely rerun only the failed target on the corrected commit.
 
 The completed Route 10 plan remains recorded in:
 

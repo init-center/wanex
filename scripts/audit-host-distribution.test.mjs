@@ -393,6 +393,7 @@ function desktopReceipt() {
     runtime: {
       timingsMs: Object.fromEntries([
         "processToAppReady",
+        "windowInitialization",
         "artifactVerification",
         "credentialResolution",
         "startupPrerequisites",

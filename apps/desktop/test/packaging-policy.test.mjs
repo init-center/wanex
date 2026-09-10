@@ -1582,6 +1582,7 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
       timingsMs: Object.fromEntries(
         [
           "processToAppReady",
+          "windowInitialization",
           "artifactVerification",
           "credentialResolution",
           "startupPrerequisites",

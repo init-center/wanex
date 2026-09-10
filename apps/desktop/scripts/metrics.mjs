@@ -5,6 +5,7 @@ export const DESKTOP_PROOF_SAMPLE_COUNT =
 
 const metricNames = [
   "processToAppReady",
+  "windowInitialization",
   "artifactVerification",
   "credentialResolution",
   "startupPrerequisites",

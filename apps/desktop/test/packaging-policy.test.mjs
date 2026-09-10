@@ -634,7 +634,11 @@ describe("Desktop packaging policy", () => {
         ok: false,
         failurePhase: "renderer_proof",
         failureProofStep: "lifecycle",
-        failureDiagnostic: "renderer_provider_lifecycle",
+        failureDiagnostic:
+          "renderer_provider_lifecycle:surface_count_1:user_rows_2:" +
+          "assistant_rows_1:composer_count_1:composer_disabled_true:" +
+          "model_selector_count_1:model_selector_disabled_false:" +
+          "provider_ready:error_absent",
         error: {
           name: "DesktopRendererProofError",
           code: "desktop_renderer_proof_failed",
@@ -789,7 +793,9 @@ describe("Desktop packaging policy", () => {
       runtimeFailures: [{
         failurePhase: "renderer_proof",
         failureProofStep: "lifecycle",
-        failureDiagnostic: "renderer_provider_lifecycle",
+        failureDiagnostic: expect.stringMatching(
+          /^renderer_provider_lifecycle_surface_count_1_user_rows_2_/
+        ),
         renderer: {
           ok: false,
           failureStage: "provider_lifecycle",

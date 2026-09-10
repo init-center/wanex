@@ -377,6 +377,11 @@ describe("Desktop lifecycle and navigation", () => {
     expect(multimodal).toContain("new DataTransfer")
     expect(multimodal).toContain('transferEvent("paste", "clipboardData"')
     expect(multimodal).toContain('transferEvent("drop", "dataTransfer"')
+    expect(multimodal).toContain('setControlValue(initial.textarea, "")')
+    expect(multimodal).toContain('current.textarea.value === ""')
+    expect(multimodal).toContain('data-ui-composer-mode=\\"submit\\"')
+    expect(multimodal).toContain('new Event("submit"')
+    expect(multimodal).toContain("composerDiagnostic()")
     const imageGeneration = wanexDesktopProviderRelaunchProofScript({
       step: "relaunch-image-generation"
     })

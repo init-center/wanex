@@ -51,7 +51,9 @@ export async function waitForDesktopInteractive(
     const observer = new MutationObserver(check)
     const timeout = setTimeout(() => {
       cleanup()
-      reject(new Error("Desktop did not expose an interactive onboarding form or composer"))
+      reject(new Error(
+        `Desktop did not expose an interactive onboarding form or composer: ${diagnostic()}`
+      ))
     }, timeoutMs)
 
     function cleanup(): void {
@@ -88,6 +90,35 @@ export async function waitForDesktopInteractive(
       }
       return usable(shell.querySelector('[data-ui-composer] textarea[name="text"]')) &&
         usable(shell.querySelector('[data-ui-model-selector] select[name="endpointId"]'))
+    }
+
+    function diagnostic(): string {
+      const shell = document.querySelector("[data-ui-assistant-shell]")
+      const settings = shell?.querySelector("[data-ui-settings-panel]")
+      const form = settings?.querySelector("[data-ui-provider-form]")
+      const composer = shell?.querySelector("[data-ui-composer]")
+      const textarea = composer?.querySelector('textarea[name="text"]')
+      const model = shell?.querySelector(
+        '[data-ui-model-selector] select[name="endpointId"]'
+      )
+      const error = shell?.querySelector('[role="alert"]')
+      const provider = shell?.querySelector("[data-ui-provider-state]")
+      return [
+        `shell_${shell === null ? "missing" : "present"}`,
+        `loading_${String(shell?.querySelector("[data-ui-provider-loading]") != null)}`,
+        `settings_${settings === null || settings === undefined ? "absent" : "present"}`,
+        `provider_form_${form === null || form === undefined ? "absent" : "present"}`,
+        `composer_${composer === null || composer === undefined ? "absent" : "present"}`,
+        `textarea_${controlState(textarea)}`,
+        `model_${controlState(model)}`,
+        `provider_${provider?.getAttribute("data-ui-provider-state") ?? "missing"}`,
+        `error_${error === null || error === undefined ? "absent" : "present"}`
+      ].join(":")
+    }
+
+    function controlState(element: Element | null | undefined): string {
+      if (!(element instanceof HTMLElement)) return "missing"
+      return element.matches(":disabled") ? "disabled" : "enabled"
     }
 
     function check(): void {

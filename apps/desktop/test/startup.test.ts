@@ -81,6 +81,20 @@ describe("Desktop first interactive boundary", () => {
     await result
   })
 
+  it("reports bounded surface state when startup never becomes interactive", async () => {
+    document.body.innerHTML = conversation
+    document.querySelector("textarea")!.disabled = true
+    await expect(waitForDesktopInteractive(50)).rejects.toThrow(
+      "shell_present:loading_false:settings_absent:provider_form_absent:composer_present:textarea_disabled:model_enabled:provider_missing:error_absent",
+    )
+  })
+
+  it("does not report loading when the Assistant shell is absent", async () => {
+    await expect(waitForDesktopInteractive(50)).rejects.toThrow(
+      "shell_missing:loading_false:settings_absent:provider_form_absent:composer_absent:textarea_missing:model_missing:provider_missing:error_absent",
+    )
+  })
+
   it("rechecks readiness after the paint boundary", async () => {
     document.body.innerHTML = conversation
     const settled = vi.fn()

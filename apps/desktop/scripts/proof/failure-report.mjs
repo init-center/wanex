@@ -78,7 +78,7 @@ function boundedRuntimeFailure(value) {
       : {}),
     ...(typeof value.failureDiagnostic === "string"
       ? {
-          failureDiagnostic: boundedIdentifier(
+          failureDiagnostic: boundedDiagnostic(
             value.failureDiagnostic,
             "unknown_diagnostic"
           )
@@ -186,6 +186,16 @@ function boundedIdentifier(value, fallback) {
   return typeof value === "string" && /^[A-Za-z0-9_.-]{1,128}$/.test(value)
     ? value
     : fallback
+}
+
+function boundedDiagnostic(value, fallback) {
+  if (typeof value !== "string") return fallback
+  const normalized = value
+    .replaceAll(/[^A-Za-z0-9_.-]+/g, "_")
+    .replaceAll(/_+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
+    .slice(0, 256)
+  return normalized.length === 0 ? fallback : normalized
 }
 
 function boundedEnum(value, allowed, fallback) {

@@ -243,13 +243,18 @@ duplicate runtime/native payload. Do not add a Gateway, a second listener,
 client-selected paths, or a compatibility layer.
 
 Route 13E: Cross-Platform Server Distribution Matrix has proved its Windows
-cold-start correction; one final Intel macOS measurement rerun remains before
-the route may be closed. The latest plan and completion evidence are recorded
-in:
+cold-start correction and the exact Intel macOS measurement boundary. The
+remaining gate is one consolidated hosted matrix for the deterministic
+Renderer relaunch-submission correction. The latest plans and completion
+evidence are recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1600-route-13e-windows-cold-start-correction-plan.md`
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1601-route-13e-windows-cold-start-correction-completion.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1602-route-13e-cross-platform-relaunch-determinism-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1603-route-13e-cross-platform-relaunch-determinism-completion.md`
 
 Hosted run `34427367136` proved the parallel shutdown correction on Windows:
 warm shutdown fell from `93.31ms` to `41.66ms` against the unchanged `50ms`
@@ -282,11 +287,23 @@ incorrectly started at `appReadyAt` and included the newly preceding synchronous
 BrowserWindow construction. The corrected receipt separates
 `windowInitialization`, begins artifact and credential durations at their
 shared real start, and keeps `startupPrerequisites` as the exact concurrent
-resolution critical path. Focused Desktop tests and structure/distribution
-audits pass. No behavior, budget, retry, or sample policy changed. Do not claim
-Route 13E complete until one hosted Intel macOS rerun proves the corrected
-measurement and unchanged ceilings; do not spend another full matrix if the
-workflow can safely rerun only the failed target on the corrected commit.
+resolution critical path.
+
+Hosted run `34442315907` then passed source verification, packed Node, Linux,
+macOS arm64, and Intel macOS, proving that correction. Windows reached the
+installed `relaunch-multimodal` journey but admitted no new user row and made
+no Provider request. The shared proof helper had replaced an already nonempty
+controlled React draft, observed an already-enabled submit button before the
+new draft committed, and treated a prevented synthetic Enter event as if the
+Turn had been admitted. The helper now observes an exact cleared/disabled
+state, installs and observes the exact new draft/enabled state, re-queries
+connected controls, and dispatches the canonical form submit. Startup and
+settlement failures preserve bounded UI, Provider, and error state. The real
+installed macOS arm64 Desktop proof passes all relaunch journeys with 35
+authorized fixture requests, no `EPERM rename`, and no owned process after
+exit. No budget, timeout, retry, sleep, platform branch, or product behavior
+changed. Do not claim Route 13E complete until one consolidated hosted matrix
+proves this correction on Windows and keeps the other targets green.
 
 The completed Route 10 plan remains recorded in:
 

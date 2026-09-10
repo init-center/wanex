@@ -502,37 +502,40 @@ export async function runWanexDesktopProviderRelaunchProof(
     readonly responseVisible: true
     readonly submittedAt: number
   }> {
-    const surface = await waitFor(() => {
-      const candidate = document.querySelector(
-        '[data-ui-assistant-shell]'
-      )
-      return candidate instanceof Element ? candidate : undefined
-    }, 10_000, "composer_ready")
-    const textarea = surface.querySelector(
-      '[data-ui-composer] textarea[name="text"]'
+    const initial = await waitFor(
+      () => conversationComposer(),
+      10_000,
+      "composer_ready",
+      composerDiagnostic
     )
-    const button = surface.querySelector(
-      '[data-ui-composer] button[type="submit"]'
-    )
-    if (
-      !(textarea instanceof HTMLTextAreaElement) ||
-      !(button instanceof HTMLButtonElement) ||
-      textarea.disabled
-    ) {
+    const initialUserRowIds = conversationRowIds(initial.surface, "user")
+    const initialAssistantRowIds = conversationRowIds(initial.surface, "assistant")
+    setControlValue(initial.textarea, "")
+    await waitFor(() => {
+      const current = conversationComposer()
+      return current !== undefined &&
+        current.textarea.value === "" &&
+        current.button.disabled
+        ? current
+        : undefined
+    }, 10_000, "composer_cleared", composerDiagnostic)
+    const cleared = conversationComposer()
+    if (cleared === undefined) {
       throw new Error("Provider relaunch conversation composer is unavailable")
     }
-    const initialUserRowIds = conversationRowIds(surface, "user")
-    const initialAssistantRowIds = conversationRowIds(surface, "assistant")
-    setControlValue(textarea, options.source)
-    await waitFor(() => !button.disabled ? true : undefined, 10_000, "composer_draft")
+    setControlValue(cleared.textarea, options.source)
+    const ready = await waitFor(() => {
+      const current = conversationComposer()
+      return current !== undefined &&
+        current.textarea.value === options.source &&
+        !current.button.disabled
+        ? current
+        : undefined
+    }, 10_000, "composer_draft", composerDiagnostic)
     const submittedAt = performance.now()
-    const enter = new KeyboardEvent("keydown", {
-      key: "Enter",
-      bubbles: true,
-      cancelable: true
-    })
-    textarea.dispatchEvent(enter)
-    if (!enter.defaultPrevented) {
+    const submit = new Event("submit", { bubbles: true, cancelable: true })
+    ready.form.dispatchEvent(submit)
+    if (!submit.defaultPrevented) {
       throw new Error("Provider relaunch conversation was not submitted")
     }
     return await waitFor(() => {
@@ -611,9 +614,52 @@ export async function runWanexDesktopProviderRelaunchProof(
         `added_assistants_${String(addedAssistantRows.length)}`,
         `user_visible_${String(userVisible)}`,
         `response_visible_${String(responseVisible)}`,
-        `session_preserved_${String(options.expectedSessionId === undefined || currentSessionId === options.expectedSessionId)}`
+        `session_preserved_${String(options.expectedSessionId === undefined || currentSessionId === options.expectedSessionId)}`,
+        composerDiagnostic()
       ].join(":")
     })
+  }
+
+  function conversationComposer(): {
+    readonly surface: Element
+    readonly form: HTMLFormElement
+    readonly textarea: HTMLTextAreaElement
+    readonly button: HTMLButtonElement
+  } | undefined {
+    const surface = document.querySelector('[data-ui-assistant-shell]')
+    const form = surface?.querySelector(
+      '[data-ui-composer][data-ui-composer-mode="submit"]'
+    )
+    const textarea = form?.querySelector('textarea[name="text"]')
+    const button = form?.querySelector('button[type="submit"]')
+    return surface instanceof Element &&
+      form instanceof HTMLFormElement &&
+      form.isConnected &&
+      textarea instanceof HTMLTextAreaElement &&
+      textarea.isConnected &&
+      !textarea.disabled &&
+      button instanceof HTMLButtonElement &&
+      button.isConnected
+      ? { surface, form, textarea, button }
+      : undefined
+  }
+
+  function composerDiagnostic(): string {
+    const surface = document.querySelector('[data-ui-assistant-shell]')
+    const form = surface?.querySelector('[data-ui-composer]')
+    const textarea = form?.querySelector('textarea[name="text"]')
+    const button = form?.querySelector('button[type="submit"]')
+    const timeline = surface?.querySelector('[data-ui-conversation-timeline]')
+    return [
+      `mode_${form?.getAttribute("data-ui-composer-mode") ?? "missing"}`,
+      `form_connected_${String(form?.isConnected === true)}`,
+      `textarea_${textarea instanceof HTMLTextAreaElement ? textarea.disabled ? "disabled" : "enabled" : "missing"}`,
+      `draft_length_${String(textarea instanceof HTMLTextAreaElement ? textarea.value.length : 0)}`,
+      `submit_${button instanceof HTMLButtonElement ? button.disabled ? "disabled" : "enabled" : "missing"}`,
+      `conversation_${timeline?.getAttribute("data-ui-conversation-state") ?? "missing"}`,
+      `readiness_${diagnosticToken(providerReadinessState())}`,
+      `error_${diagnosticToken(rendererError())}`
+    ].join(":")
   }
 
   function conversationRowIds(surface: Element, role: "user" | "assistant"): Set<string> {

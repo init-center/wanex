@@ -388,9 +388,15 @@ export function auditHostDistributionData(request) {
     )
     expectMaximum(
       failures,
-      "Desktop warm artifact verification maximum ms",
+      "Desktop warm artifact verification median ms",
+      median(warmMetrics, "artifactVerification"),
+      warmBudget.maxArtifactVerificationMedianMs
+    )
+    expectMaximum(
+      failures,
+      "Desktop warm artifact verification hard maximum ms",
       maximum(warmMetrics, "artifactVerification"),
-      warmBudget.maxArtifactVerificationMs
+      warmBudget.maxArtifactVerificationHardMs
     )
     expectMaximum(
       failures,
@@ -465,6 +471,8 @@ export function auditHostDistributionData(request) {
         rendererStartupMs: coldRendererStartup
       },
       warm: {
+        artifactVerificationMedianMs:
+          median(warmMetrics, "artifactVerification"),
         artifactVerificationMaximumMs:
           maximum(warmMetrics, "artifactVerification"),
         hostStartupMedianMs: median(warmMetrics, "hostStartup"),

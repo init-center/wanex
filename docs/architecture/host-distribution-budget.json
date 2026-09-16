@@ -51,7 +51,8 @@
           "maxRendererPostSettlementMs": 5000
         },
         "warm": {
-          "maxArtifactVerificationMs": 120,
+          "maxArtifactVerificationMedianMs": 120,
+          "maxArtifactVerificationHardMs": 500,
           "maxHostStartupMedianMs": 250,
           "maxHostStartupHardMs": 1500,
           "maxShutdownMs": 100,
@@ -99,7 +100,8 @@
           "maxRendererPostSettlementMs": 5000
         },
         "warm": {
-          "maxArtifactVerificationMs": 200,
+          "maxArtifactVerificationMedianMs": 200,
+          "maxArtifactVerificationHardMs": 500,
           "maxHostStartupMedianMs": 800,
           "maxHostStartupHardMs": 3000,
           "maxShutdownMs": 100,
@@ -147,7 +149,8 @@
           "maxRendererPostSettlementMs": 5000
         },
         "warm": {
-          "maxArtifactVerificationMs": 100,
+          "maxArtifactVerificationMedianMs": 100,
+          "maxArtifactVerificationHardMs": 500,
           "maxHostStartupMedianMs": 1200,
           "maxHostStartupHardMs": 3000,
           "maxShutdownMs": 50,

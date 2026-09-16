@@ -374,6 +374,23 @@ terminal restoration, and credential cleanup. Submit exactly one consolidated
 hosted matrix for final Route 13E confirmation; do not use hosted CI for
 exploration.
 
+Hosted run `35055773860` then passed source/security, packed Node 24, Linux,
+macOS arm64, and Windows. Linux proved the corrected installed TUI journey.
+Intel macOS passed every functional proof and failed only a maximum-only
+artifact-verification audit: its four warm samples had a `77.535ms` median and
+one `280.34ms` shared-runner outlier. Runtime review found one necessary full
+SHA-256 read and no duplicate I/O. The audit now directly replaces the old
+single maximum with the existing repository policy of a platform-specific
+median ceiling plus a `500ms` hard maximum. It does not cache or skip integrity
+verification, trim samples, retry, or increase a timeout. Focused audit tests
+and exact receipt replay pass. The implementation record is:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1610-route-13e-artifact-verification-statistical-gate-completion.md`
+
+Route 13E now requires one final hosted confirmation of this audit contract.
+Do not make another production change unless that bounded evidence identifies
+a new correctness failure.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

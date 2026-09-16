@@ -200,6 +200,43 @@ describe("host distribution budget", () => {
     ])
   })
 
+  it("uses statistical artifact verification gates without hiding regressions", () => {
+    const sustained = desktopReceipt()
+    sustained.samples.slice(1, 4).forEach((sample) => {
+      sample.runtime.timingsMs.artifactVerification = 101
+    })
+    sustained.summary = summarizeDesktopSamples(sustained.samples)
+    expect(auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop: sustained,
+      desktopDistribution: distributionReceipt(sustained, darwinNativeReceipt())
+    }).failures).toEqual([
+      expect.stringContaining(
+        "Desktop warm artifact verification median ms"
+      )
+    ])
+
+    const pathological = desktopReceipt()
+    pathological.samples[2].runtime.timingsMs.artifactVerification = 201
+    pathological.summary = summarizeDesktopSamples(pathological.samples)
+    expect(auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop: pathological,
+      desktopDistribution: distributionReceipt(
+        pathological,
+        darwinNativeReceipt()
+      )
+    }).failures).toEqual([
+      expect.stringContaining(
+        "Desktop warm artifact verification hard maximum ms"
+      )
+    ])
+  })
+
   it("bounds asynchronous settlement separately from interactive startup", () => {
     const desktop = desktopReceipt()
     desktop.samples[2].runtime.timingsMs.conversationSettlement = 101
@@ -340,7 +377,8 @@ function desktopBudget() {
       maxRendererPostSettlementMs: 100
     },
     warm: {
-      maxArtifactVerificationMs: 100,
+      maxArtifactVerificationMedianMs: 100,
+      maxArtifactVerificationHardMs: 200,
       maxHostStartupMedianMs: 100,
       maxHostStartupHardMs: 200,
       maxShutdownMs: 100,

@@ -140,9 +140,13 @@ pathological launch still cannot exceed the hard physical boundary.
 The Desktop proof has a different fixed contract: exactly one cold launch
 followed by four warm launches. It reports the cold timing directly and the
 warm median, maximum, and raw timings. The cold sample uses hard ceilings.
-Warm host startup and interactive total use both median and hard ceilings;
-bounded artifact verification, shutdown, settlement, journey preparation, and
-Renderer post-settlement work continue to use maxima. Neither short sample set
+Warm artifact verification, host startup, and interactive total use both
+median and hard ceilings. Artifact verification reads and hashes the complete
+native executable, so its median protects normal startup while its half-second
+hard ceiling rejects genuinely unusable storage without treating one
+shared-host I/O scheduling pause as a sustained regression. Shutdown, settlement, journey
+preparation, and Renderer post-settlement work continue to use maxima. Neither
+short sample set
 can establish a meaningful p95, and no sample is trimmed or excluded from
 correctness. Full proof and process wall times remain in receipts so liveness
 and hosted-run cost are visible, but they are not treated as one user-facing

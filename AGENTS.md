@@ -354,6 +354,26 @@ open only for one consolidated hosted matrix; use the new bounded receipt as
 authority if Windows fails, and do not speculate or spend repeated matrix
 runs.
 
+The Linux-only TUI failure from hosted run `35051940379` is now corrected
+locally and recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1608-route-13e-hosted-closure-and-linux-tui-proof-correction.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1609-route-13e-linux-tui-proof-correction-completion.md`
+
+The failure was a stale-frame synchronization defect in the installed Expect
+proof: `Group details` could match the old overlay immediately after `Agent
+added`, so navigation happened before canonical participant refresh. The proof
+now waits for the semantic participant projection `Agent | Active` and then the
+refreshed `Group details` overlay. It does not add a sleep, retry, timeout,
+platform branch, forced exit, or production serialization. The focused script
+tests (11), TUI checks, all TUI tests (106), and the real installed macOS arm64
+TUI proof pass. The proof covers Provider lifecycle, Team agent admission,
+coordinator assignment, coordinated reply, session restoration, final removal,
+terminal restoration, and credential cleanup. Submit exactly one consolidated
+hosted matrix for final Route 13E confirmation; do not use hosted CI for
+exploration.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

@@ -34,6 +34,7 @@ describe("installed TUI proof receipt", () => {
       "expect -exact $secondary_prompt",
       "send -- \"\\r\"",
       "expect -exact \"Agent added\"",
+      "expect -exact \"Agent | Active\"",
       "expect -exact \"Group details\""
     ])
   })

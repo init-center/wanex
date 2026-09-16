@@ -349,10 +349,9 @@ Seatbelt tests and the complete Runtime suite (439 passed, one conditional
 skip) prove the correction. The final bounded
 `WANEX_TEST_CONCURRENCY=2 pnpm verify` passes all TypeScript checks/tests, all
 64 Eval scenarios, 164 Rust tests, formatting and Clippy, SDK consumer proofs,
-installed TUI proof, and architecture/distribution audits. Route 13E remains
-open only for one consolidated hosted matrix; use the new bounded receipt as
-authority if Windows fails, and do not speculate or spend repeated matrix
-runs.
+installed TUI proof, and architecture/distribution audits. At that checkpoint,
+Route 13E remained open for one consolidated hosted matrix, with the bounded
+receipt as the authority for any Windows failure.
 
 The Linux-only TUI failure from hosted run `35051940379` is now corrected
 locally and recorded in:
@@ -387,9 +386,8 @@ and exact receipt replay pass. The implementation record is:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1610-route-13e-artifact-verification-statistical-gate-completion.md`
 
-Route 13E now requires one final hosted confirmation of this audit contract.
-Do not make another production change unless that bounded evidence identifies
-a new correctness failure.
+At that checkpoint, Route 13E required one hosted confirmation of this audit
+contract before any further production change.
 
 That hosted confirmation (`35058468605`) also exposed that a single first
 Desktop launch is not a statistical cohort: Windows measured `5988.06ms` after
@@ -404,8 +402,20 @@ and best-practice review are recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1611-route-13e-cold-first-launch-gate-correction-completion.md`
 
-The next hosted run is the final Route 13E confirmation. Do not change the
-budget again unless it identifies a new correctness failure.
+Final hosted run `35062454552` passed source/security, Packed Core Node 24,
+Linux x64, macOS arm64, Intel macOS, and Windows x64. Every applicable native,
+Desktop, TUI, Server, SDK, process-cleanup, package-shape, and final
+host-distribution audit passed. All four final audit receipts report `ok=true`
+and `failures=[]`. macOS arm64 retains the honest first-launch advisory
+`3025.88ms` against the `3000ms` product target; it remained below the hard
+shared-runner boundary, and its warm median was `1096.17ms`. Route 13E is
+complete. Its final evidence and best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1612-route-13e-cross-platform-distribution-completion.md`
+
+Do not extend Route 13E or change its budgets without new product evidence.
+The next work must begin with a fresh architecture and product-gap review;
+select one user-visible outcome before implementing another route.
 
 The completed Route 10 plan remains recorded in:
 

@@ -320,6 +320,102 @@ describe("@wanex/assistant-host real provider", () => {
     })
   })
 
+  it("keeps a running turn bound while removing its Provider, then falls back", async () => {
+    const provider = await listenControlledProviderRemovalProvider()
+    const credentialStore = new MemorySecretStore()
+    const app = await startAssistantWebApp({
+      storage: {
+        kind: "store-dir",
+        mode: "persistent",
+        storeDir: await createTempDir("wanex-provider-active-removal-")
+      },
+      serviceBin,
+      credentialStore,
+      web: { hostname: "127.0.0.1", port: 0 }
+    })
+    apps.push(app)
+
+    const primary = await app.providers.saveProvider({
+      presetId: "openai-compatible",
+      conversationModelId: "active-removal-primary-model",
+      baseUrl: `${provider.baseUrl}/primary`,
+      credential: "active-removal-primary-secret",
+      makeConversationActive: true
+    })
+    const selected = await app.providers.saveProvider({
+      presetId: "openai-compatible",
+      conversationModelId: "active-removal-selected-model",
+      baseUrl: `${provider.baseUrl}/selected`,
+      credential: "active-removal-selected-secret",
+      makeConversationActive: false
+    })
+    const selectedEndpointId = selected.provider.endpoints[0]?.id
+    if (selectedEndpointId === undefined) {
+      throw new Error("active-removal selected endpoint is missing")
+    }
+    await app.shell.modelEndpoints.setActiveModelEndpoint({
+      endpointId: selectedEndpointId
+    })
+
+    let released = false
+    try {
+      const first = await app.shell.submitConversationOperation({
+        text: "Keep this turn on its selected Provider binding"
+      })
+      if (first.kind !== "assistant.conversation-operation.found") {
+        throw new Error("active-removal conversation was not admitted")
+      }
+      await waitForProviderRequestCount(provider.requests, 1)
+      expect(requestModel(provider.requests[0]?.body)).toBe(
+        "active-removal-selected-model"
+      )
+
+      const removed = await app.providers.removeProvider({
+        connectionId: selected.provider.connectionId
+      })
+      expect(removed).toMatchObject({
+        removedEndpointIds: [selectedEndpointId],
+        readiness: {
+          activeEndpointId: primary.provider.endpoints[0]?.id,
+          canRun: true
+        },
+        credentialCleanupPending: true
+      })
+
+      expect(provider.releaseSelected()).toBe(true)
+      released = true
+      const settled = await waitForConversationTerminal(app)
+      expect(settled.web.conversation).toMatchObject({
+        state: "succeeded",
+        operation: {
+          result: {
+            assistantText: "selected response completed after Provider removal"
+          },
+          capabilities: { terminal: true }
+        }
+      })
+
+      await app.shell.submitConversationOperation({
+        sessionId: first.operation.sessionId,
+        text: "Use the surviving Provider for the next turn"
+      })
+      const fallback = await waitForConversationTerminal(app)
+      expect(provider.requests).toHaveLength(2)
+      expect(requestModel(provider.requests[1]?.body)).toBe(
+        "active-removal-primary-model"
+      )
+      expect(fallback.web.conversation).toMatchObject({
+        state: "succeeded",
+        operation: {
+          result: { assistantText },
+          capabilities: { terminal: true }
+        }
+      })
+    } finally {
+      if (!released) provider.releaseSelected()
+    }
+  })
+
   it("completes a chat-first Web turn through an environment-backed provider", async () => {
     const provider = await listenOpenAICompatibleProvider()
     const storeDir = await createTempDir("wanex-assistant-local-real-provider-")
@@ -775,6 +871,79 @@ async function listenOpenAICompatibleProvider(): Promise<{
   }
 }
 
+async function listenControlledProviderRemovalProvider(): Promise<{
+  readonly baseUrl: string
+  readonly requests: Array<{
+    readonly authorization: string
+    readonly body: unknown
+  }>
+  releaseSelected(): boolean
+}> {
+  const requests: Array<{
+    readonly authorization: string
+    readonly body: unknown
+  }> = []
+  let heldResponse: import("node:http").ServerResponse | undefined
+  let released = false
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = []
+    for await (const chunk of request) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+    }
+    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown
+    requests.push({
+      authorization: request.headers.authorization ?? "",
+      body
+    })
+    response.writeHead(200, {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache"
+    })
+    if (requestModel(body) === "active-removal-selected-model") {
+      if (heldResponse !== undefined) {
+        response.end(textStream("unexpected duplicate selected request"))
+        return
+      }
+      heldResponse = response
+      response.write(`data: ${JSON.stringify({
+        choices: [{
+          delta: { content: "selected response" },
+          finish_reason: null
+        }]
+      })}\n\n`)
+      return
+    }
+    response.end(textStream(assistantText))
+  })
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject)
+    server.listen(0, "127.0.0.1", resolve)
+  })
+  servers.push(server)
+  const address = server.address()
+  if (address === null || typeof address === "string") {
+    throw new Error("controlled Provider fixture did not expose a TCP address")
+  }
+  return {
+    baseUrl: `http://127.0.0.1:${address.port}/v1`,
+    requests,
+    releaseSelected() {
+      if (heldResponse === undefined || released) return false
+      released = true
+      heldResponse.end([
+        `data: ${JSON.stringify({
+          choices: [{
+            delta: { content: " completed after Provider removal" },
+            finish_reason: "stop"
+          }]
+        })}\n\n`,
+        "data: [DONE]\n\n"
+      ].join(""))
+      return true
+    }
+  }
+}
+
 async function listenAnthropicProvider(options: {
   readonly interrupted?: boolean
 } = {}): Promise<{
@@ -970,6 +1139,17 @@ function requestModel(body: unknown): string | undefined {
   return isRecord(body) && typeof body.model === "string"
     ? body.model
     : undefined
+}
+
+async function waitForProviderRequestCount(
+  requests: readonly unknown[],
+  count: number
+): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt += 1) {
+    if (requests.length >= count) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  throw new Error(`Provider fixture did not receive ${count} requests`)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

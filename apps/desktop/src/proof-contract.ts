@@ -167,6 +167,11 @@ export interface WanexDesktopRendererProofResult {
     readonly richHeadingVisible: boolean
     readonly richCodeVisible: boolean
     readonly selectedResponseVisible: boolean
+    readonly conversationState: string
+    readonly composerMode: string
+    readonly operationIdPresent: boolean
+    readonly transientAssistantPresent: boolean
+    readonly fallbackResponseVisible: boolean
   }
   readonly sessionId: string
   readonly providerConfigured: boolean

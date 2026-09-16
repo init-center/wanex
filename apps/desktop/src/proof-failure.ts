@@ -1,14 +1,17 @@
 import {
   DesktopRendererProofError,
 } from "./packaged-renderer-proof.js";
+import { boundedAssistantHostDiagnostics } from "./proof/assistant-diagnostics.js";
 import { boundedCodingHostDiagnostics } from "./proof/coding-diagnostics.js";
 export function createWanexDesktopProofFailureReceipt(input: {
   readonly error: unknown;
   readonly failurePhase: string;
   readonly proofStep?: string;
+  readonly assistantDiagnostics?: unknown;
   readonly codingDiagnostics?: unknown;
 }): unknown {
   const diagnostic = failureDiagnostic(input.error, input.failurePhase);
+  const assistant = boundedAssistantHostDiagnostics(input.assistantDiagnostics);
   const coding = boundedCodingHostDiagnostics(input.codingDiagnostics);
   return {
     kind: "wanex.desktop.runtime-receipt",
@@ -22,6 +25,7 @@ export function createWanexDesktopProofFailureReceipt(input: {
     ...(input.error instanceof DesktopRendererProofError
       ? { renderer: input.error.renderer }
       : {}),
+    ...(assistant === undefined ? {} : { assistant }),
     ...(coding === undefined ? {} : { coding }),
   };
 }

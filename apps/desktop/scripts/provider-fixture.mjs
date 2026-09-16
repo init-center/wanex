@@ -1,5 +1,6 @@
 import { createServer } from "node:http"
 import {
+  WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE,
@@ -23,6 +24,8 @@ import {
   WANEX_DESKTOP_PROOF_PLAN_STEP_TITLE,
   WANEX_DESKTOP_PROOF_PLAN_SUMMARY,
   WANEX_DESKTOP_PROOF_PLAN_TITLE,
+  WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+  WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_ANSWER,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_FINAL_DELTA,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_PARTIAL_RESPONSE,
@@ -53,6 +56,7 @@ const GENERATED_IMAGE_BYTES = Buffer.from(
 
 export async function listenDesktopProofProvider(options) {
   const requests = []
+  const responses = []
   let cancelRegenerateRequestCount = 0
   let guidedParentObserved = false
   let guidedChildObserved = false
@@ -82,7 +86,7 @@ export async function listenDesktopProofProvider(options) {
         ) {
           throw new Error("Desktop proof image generation request is invalid")
         }
-        requests.push({
+        const requestEvidence = {
           path,
           model,
           authorized,
@@ -90,7 +94,9 @@ export async function listenDesktopProofProvider(options) {
           generatedImageCount: 1,
           generatedImageMediaTypes: ["image/png"],
           generatedImageBytes: GENERATED_IMAGE_BYTES.byteLength
-        })
+        }
+        requests.push(requestEvidence)
+        observeProviderResponse(responses, response, { path, model })
         response.writeHead(200, { "content-type": "application/json" })
         response.end(JSON.stringify({
           data: [{ b64_json: GENERATED_IMAGE_BYTES.toString("base64") }]
@@ -215,6 +221,11 @@ export async function listenDesktopProofProvider(options) {
             })
       }
       requests.push(requestEvidence)
+      observeProviderResponse(responses, response, { path, model })
+      if (model === options.holdResponseForModel) {
+        writeHeldTextEventStream(response, "controlled held response", () => {})
+        return
+      }
       if (scheduleProof) {
         if (scheduleRequestCount === 1) {
           scheduleParent = writeDelayedControlledTextEventStream(
@@ -467,6 +478,7 @@ export async function listenDesktopProofProvider(options) {
   return {
     baseUrl: `http://127.0.0.1:${address.port}/v1`,
     requests,
+    responses,
     releaseGuidedFollowUpParent() {
       if (guidedParent === undefined || guidedParent.released) return false
       const parent = guidedParent
@@ -513,6 +525,35 @@ export async function listenDesktopProofProvider(options) {
       await closeServer(server)
     }
   }
+}
+
+function observeProviderResponse(responses, response, request) {
+  const evidence = {
+    kind: request.path.endsWith("/images/generations")
+      ? "image_generation"
+      : request.path.endsWith("/chat/completions")
+        ? "chat_completion"
+        : "other",
+    modelClass: providerModelClass(request.model),
+    state: "accepted"
+  }
+  responses.push(evidence)
+  response.once("finish", () => {
+    evidence.state = "finished"
+  })
+  response.once("close", () => {
+    if (evidence.state !== "finished") evidence.state = "closed_early"
+  })
+}
+
+function providerModelClass(model) {
+  if (model === WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID) return "lifecycle_primary"
+  if (model === WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID) return "lifecycle_selected"
+  if (model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID) return "relaunch"
+  if (model === WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID) {
+    return "image_generation"
+  }
+  return "other"
 }
 
 function readImageGenerationPhase(body) {

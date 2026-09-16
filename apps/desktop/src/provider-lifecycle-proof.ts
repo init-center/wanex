@@ -131,6 +131,9 @@ function createWanexDesktopProviderLifecycleProof(
       }
     },
     async removeSelectedAndRunFallback(reportProgress) {
+      const previous = await waitFor(() => settledComposer())
+      const sessionId = previous.timeline.getAttribute("data-ui-session-id")
+      const operationId = previous.timeline.getAttribute("data-ui-operation-id")
       await openProviderSettings()
       const remove = await waitFor(() => {
         const selected = document.querySelector(
@@ -156,7 +159,22 @@ function createWanexDesktopProviderLifecycleProof(
       } finally {
         window.confirm = originalConfirm
       }
-      const surface = document.querySelector('[data-ui-assistant-shell]')
+      const closeSettings = document.querySelector(
+        '[data-ui-settings-panel] [aria-label="Close settings"]'
+      )
+      if (!(closeSettings instanceof HTMLButtonElement)) {
+        throw new Error("Provider settings close control is missing")
+      }
+      closeSettings.click()
+      await waitFor(() => document.querySelector("[data-ui-settings-panel]") === null)
+      const ready = await waitFor(() => {
+        const current = settledComposer()
+        return current?.timeline.getAttribute("data-ui-session-id") === sessionId &&
+          current.timeline.getAttribute("data-ui-operation-id") === operationId
+          ? current
+          : undefined
+      })
+      const surface = ready.surface
       const modelSelect = surface?.querySelector(
         '[data-ui-model-selector] select[name="endpointId"]'
       )
@@ -172,42 +190,41 @@ function createWanexDesktopProviderLifecycleProof(
         fallbackProviderReady: true,
         fallbackModelId
       })
-      const fallbackText = surface?.querySelector(
-        '[data-ui-composer] textarea[name="text"]'
-      )
-      const fallbackButton = surface?.querySelector(
-        '[data-ui-composer] button[type="submit"]'
-      )
-      const beforeAssistantRows = surface?.querySelectorAll(
-        '[data-ui-conversation-row][data-ui-role="assistant"]'
-      ).length ?? 0
-      if (
-        !(fallbackText instanceof HTMLTextAreaElement) ||
-        !(fallbackButton instanceof HTMLButtonElement)
-      ) {
-        throw new Error("fallback conversation composer is missing")
-      }
-      setControlValue(fallbackText, "Verify the surviving Provider")
-      const enter = new KeyboardEvent("keydown", {
-        key: "Enter",
-        bubbles: true,
-        cancelable: true
+      const beforeUsers = rowIds(surface, "user")
+      const beforeAssistants = rowIds(surface, "assistant")
+      setControlValue(ready.textarea, "")
+      const cleared = await waitFor(() => {
+        const current = settledComposer()
+        return current !== undefined && current.textarea.value === "" &&
+          current.button.disabled ? current : undefined
       })
-      fallbackText.dispatchEvent(enter)
-      if (!enter.defaultPrevented) {
+      const source = "Verify the surviving Provider"
+      setControlValue(cleared.textarea, source)
+      const draft = await waitFor(() => {
+        const current = settledComposer()
+        return current !== undefined && current.textarea.value === source &&
+          !current.button.disabled &&
+          current.timeline.getAttribute("data-ui-session-id") === sessionId &&
+          current.timeline.getAttribute("data-ui-operation-id") === operationId
+          ? current : undefined
+      })
+      const submit = new Event("submit", { bubbles: true, cancelable: true })
+      draft.form.dispatchEvent(submit)
+      if (!submit.defaultPrevented) {
         throw new Error("fallback conversation was not submitted")
       }
       await waitFor(() => {
-        const currentSurface = document.querySelector(
-          '[data-ui-assistant-shell]'
-        )
-        const rows = [
-          ...(currentSurface?.querySelectorAll(
-            '[data-ui-conversation-row][data-ui-role="assistant"]'
-          ) ?? [])
-        ]
-        return rows.length > beforeAssistantRows &&
-          rows.at(-1)?.textContent?.includes(expected.fallbackResponse) === true
+        const current = settledComposer()
+        if (current === undefined ||
+          current.timeline.getAttribute("data-ui-session-id") !== sessionId ||
+          current.timeline.getAttribute("data-ui-operation-id") === operationId) {
+          return false
+        }
+        const users = newRows(current.surface, beforeUsers, "user")
+        const assistants = newRows(current.surface, beforeAssistants, "assistant")
+        return users.length === 1 && assistants.length === 1 &&
+          users[0]?.textContent?.includes(source) === true &&
+          assistants[0]?.textContent?.includes(expected.fallbackResponse) === true
       })
       reportProgress({ fallbackModelResponseVisible: true })
       return {
@@ -217,6 +234,41 @@ function createWanexDesktopProviderLifecycleProof(
         fallbackModelResponseVisible: true
       }
     }
+  }
+
+  function settledComposer() {
+    const surface = document.querySelector('[data-ui-assistant-shell]')
+    const timeline = surface?.querySelector(
+      '[data-ui-conversation-timeline][data-ui-conversation-state="succeeded"]'
+    )
+    const form = surface?.querySelector(
+      '[data-ui-composer][data-ui-composer-mode="submit"]'
+    )
+    const textarea = form?.querySelector('textarea[name="text"]')
+    const button = form?.querySelector('button[type="submit"]')
+    return surface instanceof HTMLElement && timeline instanceof HTMLElement &&
+      Boolean(timeline.getAttribute("data-ui-session-id")) &&
+      Boolean(timeline.getAttribute("data-ui-operation-id")) &&
+      surface.querySelector("[data-ui-transient-assistant]") === null &&
+      form instanceof HTMLFormElement && form.isConnected &&
+      textarea instanceof HTMLTextAreaElement && textarea.isConnected &&
+      !textarea.disabled && button instanceof HTMLButtonElement && button.isConnected
+      ? { surface, timeline, form, textarea, button } : undefined
+  }
+
+  function rowIds(surface: Element, role: "user" | "assistant"): Set<string> {
+    return new Set([...surface.querySelectorAll(
+      `[data-ui-conversation-row][data-ui-role="${role}"]`
+    )].map((row) => row.getAttribute("data-ui-conversation-row") ?? ""))
+  }
+
+  function newRows(surface: Element, before: Set<string>, role: "user" | "assistant") {
+    return [...surface.querySelectorAll(
+      `[data-ui-conversation-row][data-ui-role="${role}"]`
+    )].filter((row) => {
+      const id = row.getAttribute("data-ui-conversation-row")
+      return id !== null && id.length > 0 && !before.has(id)
+    })
   }
 
   async function submitProviderForm(request: {

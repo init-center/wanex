@@ -305,6 +305,55 @@ exit. No budget, timeout, retry, sleep, platform branch, or product behavior
 changed. Do not claim Route 13E complete until one consolidated hosted matrix
 proves this correction on Windows and keeps the other targets green.
 
+Run `34453930918` on `fb0d555` passed source/security, packed Node 24, Linux,
+and both macOS targets. Windows failed earlier, at the initial lifecycle
+fallback conversation: two Provider requests, two user rows, one assistant
+row, and a disabled composer. It never reached multimodal relaunch. Do not
+claim that this run validated the relaunch correction or that it establishes
+a React race as the cause of the fallback stall.
+
+The lifecycle proof correction is locally complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1605-route-13e-provider-lifecycle-settlement-completion.md`
+
+It requires canonical operation success, an enabled ordinary composer, visible
+Settings dismissal, committed draft state, fresh operation/message identity,
+and preserved Session identity. Six executable behavior tests, all 146 Desktop
+tests, type checks, and the installed macOS arm64 proof pass. Runtime and
+product submission semantics remain unchanged. The next diagnostic boundary
+and submission gate are frozen in that completion record: establish response,
+execution, and observation progress before another hosted submission. Do not
+raise budgets, retry failed journeys, force process exit, or add production
+serialization to accommodate a guessed test cause.
+
+That diagnostic and local reproduction slice is now complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1607-route-13e-provider-progress-evidence-and-host-race-completion.md`
+
+Failure receipts now separate bounded Provider response state, trusted
+Assistant observed/refreshed canonical state, and Renderer DOM observation. A
+real Host integration test holds partial Provider output, removes the selected
+Provider during the active turn, then proves that turn completes through its
+frozen binding and the next same-Session turn uses the surviving Provider. The
+test passes, so no local Runtime race was reproduced and no production Runtime
+or Provider mutation behavior changed. Desktop 147 tests, Assistant Host 211
+tests, checks, structure/footprint audits, and the installed macOS arm64 proof
+pass. The installed proof completed five lifecycle samples and every relaunch
+journey with 35 authorized requests, no EPERM rename, and no owned process
+after exit. The consolidated local gate also exposed a current Homebrew Node
+startup requirement under macOS Seatbelt: Node reads the external
+`openssl@3/openssl.cnf` before executing user code. The platform policy now
+admits only the read-only `openssl@3` configuration subdirectory under both
+Homebrew prefixes; it does not admit either complete `etc` tree. Focused
+Seatbelt tests and the complete Runtime suite (439 passed, one conditional
+skip) prove the correction. The final bounded
+`WANEX_TEST_CONCURRENCY=2 pnpm verify` passes all TypeScript checks/tests, all
+64 Eval scenarios, 164 Rust tests, formatting and Clippy, SDK consumer proofs,
+installed TUI proof, and architecture/distribution audits. Route 13E remains
+open only for one consolidated hosted matrix; use the new bounded receipt as
+authority if Windows fails, and do not speculate or spend repeated matrix
+runs.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

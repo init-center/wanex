@@ -169,15 +169,49 @@ if (!instanceLock.acquired) {
   installAppLifecycle();
   void start().catch(async (error: unknown) => {
     console.error(formatWanexDesktopError(error));
-    const codingDiagnostics = await readProofCodingDiagnostics();
+    const [assistantDiagnostics, codingDiagnostics] = await Promise.all([
+      readProofAssistantDiagnostics(),
+      readProofCodingDiagnostics(),
+    ]);
     await writeProofReceipt(createWanexDesktopProofFailureReceipt({
       error,
       failurePhase,
       ...(proofStep === undefined ? {} : { proofStep }),
+      ...(assistantDiagnostics === undefined ? {} : { assistantDiagnostics }),
       ...(codingDiagnostics === undefined ? {} : { codingDiagnostics }),
     }));
     await shutdown(1);
   });
+}
+
+async function readProofAssistantDiagnostics(): Promise<unknown | undefined> {
+  const activeAssistant = assistant;
+  if (proofStep !== "lifecycle" || activeAssistant === undefined) {
+    return undefined;
+  }
+  const observed = activeAssistant.controller.snapshot();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
+  try {
+    const refreshed = await Promise.race([
+      activeAssistant.controller.refresh(),
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => {
+          timedOut = true;
+          reject(new Error("Assistant diagnostics timed out"));
+        }, 2_000);
+      }),
+    ]);
+    return { refreshState: "succeeded", observed, refreshed };
+  } catch (error) {
+    desktopProofDiagnostic("read-assistant-diagnostics", error);
+    return {
+      refreshState: timedOut ? "timed_out" : "failed",
+      observed,
+    };
+  } finally {
+    if (timeout !== undefined) clearTimeout(timeout);
+  }
 }
 
 async function readProofCodingDiagnostics(): Promise<unknown | undefined> {

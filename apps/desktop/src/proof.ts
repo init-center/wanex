@@ -201,12 +201,19 @@ async function runWanexDesktopRendererProof(
       const responseVisible = latestAssistant?.textContent?.includes(
         expected.selectedResponse
       ) === true
+      const timeline = surface.querySelector('[data-ui-conversation-timeline]')
+      const idleComposer = surface.querySelector(
+        '[data-ui-composer][data-ui-composer-mode="submit"] textarea[name="text"]'
+      )
       return users.length === 1 &&
         assistants.length === 1 &&
         sessionId.length > 0 &&
         richHeadingVisible &&
         richCodeVisible &&
-        responseVisible
+        responseVisible &&
+        timeline?.getAttribute("data-ui-conversation-state") === "succeeded" &&
+        surface.querySelector("[data-ui-transient-assistant]") === null &&
+        idleComposer instanceof HTMLTextAreaElement && !idleComposer.disabled
         ? {
             assistants,
             latestAssistant: latestAssistant as HTMLElement,
@@ -575,6 +582,13 @@ async function runWanexDesktopRendererProof(
         selectedResponseVisible: latestAssistant?.textContent?.includes(
           expected.selectedResponse
         ) === true,
+        conversationState: surface?.querySelector("[data-ui-conversation-timeline]")
+          ?.getAttribute("data-ui-conversation-state") ?? "missing",
+        composerMode: composer?.getAttribute("data-ui-composer-mode") ?? "missing",
+        operationIdPresent: Boolean(surface?.querySelector("[data-ui-conversation-timeline]")
+          ?.getAttribute("data-ui-operation-id")),
+        transientAssistantPresent: surface?.querySelector("[data-ui-transient-assistant]") != null,
+        fallbackResponseVisible: latestAssistant?.textContent?.includes(expected.fallbackResponse) === true,
       },
       sessionId: "",
       providerConfigured,

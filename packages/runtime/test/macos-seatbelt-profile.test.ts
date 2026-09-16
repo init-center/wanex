@@ -81,9 +81,11 @@ describe("macOS Seatbelt profile projection", () => {
 
     expect(result.profile).toContain('(subpath "/opt/homebrew/Cellar")')
     expect(result.profile).toContain('(subpath "/opt/homebrew/opt")')
+    expect(result.profile).toContain('(subpath "/opt/homebrew/etc/openssl@3")')
     expect(result.profile).toContain('(subpath "/usr/local/Cellar")')
     expect(result.profile).toContain('(subpath "/usr/local/opt")')
     expect(result.profile).toContain('(subpath "/usr/local/lib")')
+    expect(result.profile).toContain('(subpath "/usr/local/etc/openssl@3")')
   })
 
   it("resolves empty and relative PATH entries against the admitted cwd", () => {

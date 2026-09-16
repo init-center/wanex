@@ -72,6 +72,40 @@ describe("Desktop packaging policy", () => {
       error,
       failurePhase: "renderer_proof",
       proofStep: "relaunch-coding",
+      assistantDiagnostics: {
+        refreshState: "succeeded",
+        observed: {
+          conversation: {
+            state: "running",
+            sessionId: "assistant-session-secret",
+            operationId: "assistant-operation-secret",
+            operation: { capabilities: { terminal: false } },
+            canSubmit: false,
+            historyRows: [
+              { role: "user", text: "assistant-user-secret" },
+            ],
+            transientAssistantText: "assistant-transient-secret",
+          },
+        },
+        refreshed: {
+          web: {
+            conversation: {
+              state: "succeeded",
+              sessionId: "assistant-session-secret",
+              operationId: "assistant-operation-secret",
+              operation: {
+                capabilities: { terminal: true },
+                result: { assistantText: "assistant-result-secret" },
+              },
+              canSubmit: true,
+              historyRows: [
+                { role: "user", text: "assistant-user-secret" },
+                { role: "assistant", text: "assistant-result-secret" },
+              ],
+            },
+          },
+        },
+      },
       codingDiagnostics: {
         state: "open",
         repositories: [{
@@ -164,6 +198,33 @@ describe("Desktop packaging policy", () => {
     expect(receipt).toMatchObject({
       failureDiagnostic: "coding_proposal_apply_timeout",
       failureDiagnosticMessage: expect.stringContaining("token=<redacted>"),
+      assistant: {
+        refreshState: "succeeded",
+        observed: {
+          state: "running",
+          sessionIdPresent: true,
+          operationIdPresent: true,
+          operationTerminal: false,
+          operationResultPresent: false,
+          canSubmit: false,
+          historyRowCount: 1,
+          userRowCount: 1,
+          assistantRowCount: 0,
+          transientAssistantPresent: true,
+        },
+        refreshed: {
+          state: "succeeded",
+          sessionIdPresent: true,
+          operationIdPresent: true,
+          operationTerminal: true,
+          operationResultPresent: true,
+          canSubmit: true,
+          historyRowCount: 2,
+          userRowCount: 1,
+          assistantRowCount: 1,
+          transientAssistantPresent: false,
+        },
+      },
       coding: {
         state: "open",
         repositories: [{
@@ -225,6 +286,11 @@ describe("Desktop packaging policy", () => {
     expect(retained).not.toContain("private job failure");
     expect(retained).not.toContain("private turn failure");
     expect(retained).not.toContain("D:\\private\\coding-secret");
+    expect(retained).not.toContain("assistant-session-secret");
+    expect(retained).not.toContain("assistant-operation-secret");
+    expect(retained).not.toContain("assistant-user-secret");
+    expect(retained).not.toContain("assistant-transient-secret");
+    expect(retained).not.toContain("assistant-result-secret");
   });
 
   it("requires an external installation root and verifies the copied package", async () => {
@@ -663,6 +729,11 @@ describe("Desktop packaging policy", () => {
             richCodeVisible: true,
             selectedResponseVisible: true,
             sessionId: "renderer-session-secret",
+            conversationState: "running",
+            composerMode: "submit",
+            operationIdPresent: true,
+            transientAssistantPresent: true,
+            fallbackResponseVisible: false,
           },
           providerConfigured: true,
           providerEditedWithoutCredential: true,
@@ -671,6 +742,38 @@ describe("Desktop packaging policy", () => {
           fallbackProviderReady: false,
           fallbackModelResponseVisible: false,
           selectedModelEndpointId: "renderer-endpoint-secret",
+        },
+        assistant: {
+          refreshState: "succeeded",
+          observed: {
+            conversation: {
+              state: "running",
+              sessionId: "assistant-runtime-session-secret",
+              operationId: "assistant-runtime-operation-secret",
+              operation: { capabilities: { terminal: false } },
+              canSubmit: false,
+              historyRows: [
+                { role: "user", text: "assistant-runtime-user-secret" },
+              ],
+              transientAssistantText: "assistant-runtime-delta-secret",
+            },
+          },
+          refreshed: {
+            conversation: {
+              state: "succeeded",
+              sessionId: "assistant-runtime-session-secret",
+              operationId: "assistant-runtime-operation-secret",
+              operation: {
+                capabilities: { terminal: true },
+                result: { assistantText: "assistant-runtime-result-secret" },
+              },
+              canSubmit: true,
+              historyRows: [
+                { role: "user", text: "assistant-runtime-user-secret" },
+                { role: "assistant", text: "assistant-runtime-result-secret" },
+              ],
+            },
+          },
         },
         coding: {
           state: "open",
@@ -780,6 +883,19 @@ describe("Desktop packaging policy", () => {
           authorized: false,
         },
       ],
+      providerResponses: [
+        {
+          kind: "chat_completion",
+          modelClass: "lifecycle_selected",
+          state: "finished",
+          model: "provider-response-model-secret",
+        },
+        {
+          kind: "chat_completion",
+          modelClass: "lifecycle_primary",
+          state: "accepted",
+        },
+      ],
       outputRoot,
     });
 
@@ -814,6 +930,11 @@ describe("Desktop packaging policy", () => {
             richHeadingVisible: true,
             richCodeVisible: true,
             selectedResponseVisible: true,
+            conversationState: "running",
+            composerMode: "submit",
+            operationIdPresent: true,
+            transientAssistantPresent: true,
+            fallbackResponseVisible: false,
           },
           providerConfigured: true,
           providerEditedWithoutCredential: true,
@@ -821,6 +942,22 @@ describe("Desktop packaging policy", () => {
           activeProviderRemoved: false,
           fallbackProviderReady: false,
           fallbackModelResponseVisible: false,
+        },
+        assistant: {
+          refreshState: "succeeded",
+          observed: {
+            state: "running",
+            operationTerminal: false,
+            assistantRowCount: 0,
+            transientAssistantPresent: true,
+          },
+          refreshed: {
+            state: "succeeded",
+            operationTerminal: true,
+            operationResultPresent: true,
+            assistantRowCount: 1,
+            transientAssistantPresent: false,
+          },
         },
         coding: {
           state: "open",
@@ -900,8 +1037,18 @@ describe("Desktop packaging policy", () => {
         retainedCount: 2,
         truncated: false,
         requests: [
-          { kind: "chat_completion", authorized: true },
-          { kind: "chat_completion", authorized: false },
+          {
+            kind: "chat_completion",
+            authorized: true,
+            modelClass: "lifecycle_selected",
+            responseState: "finished",
+          },
+          {
+            kind: "chat_completion",
+            authorized: false,
+            modelClass: "lifecycle_primary",
+            responseState: "accepted",
+          },
         ],
       },
     });
@@ -911,7 +1058,7 @@ describe("Desktop packaging policy", () => {
     );
     expect(JSON.parse(persisted)).toEqual(report);
     expect(persisted).not.toMatch(
-      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret|coding-secret/,
+      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret|provider-response-model-secret|coding-secret|assistant-runtime/,
     );
     await removeDesktopProofRoot(proofRoot);
     tempDirs.splice(tempDirs.indexOf(proofRoot), 1);
@@ -932,11 +1079,18 @@ describe("Desktop packaging policy", () => {
       model: `secret-model-${index}`,
       body: { messages: [{ content: `secret-message-${index}` }] },
     }));
+    const providerResponses = Array.from({ length: 70 }, (_, index) => ({
+      kind: index % 2 === 0 ? "chat_completion" : "image_generation",
+      modelClass: index === 0 ? "lifecycle_selected" : "other",
+      state: index === 1 ? "closed_early" : "finished",
+      model: `secret-response-model-${index}`,
+    }));
 
     const report = await writeDesktopFailureReport({
       error: new Error("bounded fixture evidence"),
       proofRoot,
       providerRequests,
+      providerResponses,
       outputRoot,
     });
 
@@ -949,16 +1103,22 @@ describe("Desktop packaging policy", () => {
     expect(report.providerFixture.requests[0]).toEqual({
       kind: "chat_completion",
       authorized: true,
+      modelClass: "lifecycle_selected",
+      responseState: "finished",
     });
     expect(report.providerFixture.requests[1]).toEqual({
       kind: "image_generation",
       authorized: true,
+      modelClass: "other",
+      responseState: "closed_early",
     });
     const persisted = await readFile(
       join(outputRoot, "desktop-report.json"),
       "utf8",
     );
-    expect(persisted).not.toMatch(/secret-model|secret-message|chat\/completions/);
+    expect(persisted).not.toMatch(
+      /secret-model|secret-response-model|secret-message|chat\/completions/,
+    );
   });
 
   it("rejects unknown Renderer failure stages from durable evidence", async () => {

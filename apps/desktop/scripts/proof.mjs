@@ -301,7 +301,8 @@ export async function proveDesktop() {
     await writeDesktopFailureReport({
       error,
       proofRoot,
-      providerRequests: provider.requests.slice(activeProviderRequestOffset)
+      providerRequests: provider.requests.slice(activeProviderRequestOffset),
+      providerResponses: provider.responses.slice(activeProviderRequestOffset)
     })
     throw error
   } finally {

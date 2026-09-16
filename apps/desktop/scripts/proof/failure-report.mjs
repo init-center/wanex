@@ -1,12 +1,14 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { distributionRoot } from "../build.mjs"
+import { boundedAssistantHostDiagnostics } from "../../src/proof/assistant-diagnostics.ts"
 import { boundedCodingHostDiagnostics } from "../../src/proof/coding-diagnostics.ts"
 
 export async function writeDesktopFailureReport({
   error,
   proofRoot,
   providerRequests = [],
+  providerResponses = [],
   outputRoot = distributionRoot
 }) {
   const runtimeFailures = await readRuntimeFailures(proofRoot)
@@ -16,7 +18,7 @@ export async function writeDesktopFailureReport({
     host: { platform: process.platform, arch: process.arch },
     failure: boundedProofError(error),
     runtimeFailures,
-    providerFixture: boundedProviderFixture(providerRequests)
+    providerFixture: boundedProviderFixture(providerRequests, providerResponses)
   }
   await mkdir(outputRoot, { recursive: true })
   await writeFile(
@@ -63,6 +65,7 @@ function boundedRuntimeFailure(value) {
     value.kind !== "wanex.desktop.runtime-receipt" ||
     value.ok !== false) return undefined
   const renderer = boundedRendererFailure(value.renderer)
+  const assistant = boundedAssistantHostDiagnostics(value.assistant)
   const coding = boundedCodingHostDiagnostics(value.coding)
   return {
     kind: "wanex.desktop.runtime-receipt",
@@ -93,6 +96,7 @@ function boundedRuntimeFailure(value) {
         : "assistant_desktop_failed"
     },
     ...(renderer === undefined ? {} : { renderer }),
+    ...(assistant === undefined ? {} : { assistant }),
     ...(coding === undefined ? {} : { coding })
   }
 }
@@ -146,16 +150,42 @@ function boundedRendererDiagnostics(value) {
     activeSessionIdPresent: value.activeSessionIdPresent === true,
     richHeadingVisible: value.richHeadingVisible === true,
     richCodeVisible: value.richCodeVisible === true,
-    selectedResponseVisible: value.selectedResponseVisible === true
+    selectedResponseVisible: value.selectedResponseVisible === true,
+    conversationState: boundedEnum(value.conversationState,
+      ["idle", "queued", "running", "waiting", "succeeded", "failed", "cancelled", "missing"], "unknown"),
+    composerMode: boundedEnum(value.composerMode, ["submit", "queue", "steer", "missing"], "unknown"),
+    operationIdPresent: value.operationIdPresent === true,
+    transientAssistantPresent: value.transientAssistantPresent === true,
+    fallbackResponseVisible: value.fallbackResponseVisible === true
   }
 }
 
-function boundedProviderFixture(requests) {
+function boundedProviderFixture(requests, responses) {
   const values = Array.isArray(requests) ? requests : []
-  const retained = values.slice(0, 64).map((request) => ({
-    kind: providerRequestKind(request),
-    authorized: isRecord(request) && request.authorized === true
-  }))
+  const responseValues = Array.isArray(responses) ? responses : []
+  const retained = values.slice(0, 64).map((request, index) => {
+    const response = responseValues[index]
+    return {
+      kind: providerRequestKind(request),
+      authorized: isRecord(request) && request.authorized === true,
+      modelClass: isRecord(response)
+        ? boundedEnum(response.modelClass, [
+            "lifecycle_primary",
+            "lifecycle_selected",
+            "relaunch",
+            "image_generation",
+            "other"
+          ], "other")
+        : "other",
+      responseState: isRecord(response)
+        ? boundedEnum(
+            response.state,
+            ["accepted", "finished", "closed_early"],
+            "accepted"
+          )
+        : "accepted"
+    }
+  })
   return {
     requestCount: values.length,
     retainedCount: retained.length,

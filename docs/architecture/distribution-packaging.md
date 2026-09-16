@@ -137,9 +137,16 @@ and do not claim a host-cache reset. Native performance gates use both a median
 ceiling and a hard maximum: sustained regressions fail the median, while one
 pathological launch still cannot exceed the hard physical boundary.
 
-The Desktop proof has a different fixed contract: exactly one cold launch
-followed by four warm launches. It reports the cold timing directly and the
-warm median, maximum, and raw timings. The cold sample uses hard ceilings.
+The Desktop proof has a different fixed contract: exactly one first launch
+followed by four warm launches against the same installed package and user-data
+root. It reports the first-launch timing directly and the warm median, maximum,
+and raw timings. A single first launch on a shared hosted runner is not a
+statistical sample, so its three-second product target is reported as an
+advisory while an eight-second catastrophic ceiling remains release-blocking.
+Precise first-launch SLO enforcement requires a controlled benchmark host;
+retries cannot manufacture that environment. Other first-launch phases retain
+their explicit hard ceilings.
+
 Warm artifact verification, host startup, and interactive total use both
 median and hard ceilings. Artifact verification reads and hashes the complete
 native executable, so its median protects normal startup while its half-second
@@ -177,9 +184,9 @@ closure, raw samples, and receipt history.
 | Target | Native executable | Native total median/hard; wall median/hard | Desktop unpacked/files | Desktop cold interactive/settlement/preparation/post | Desktop warm interactive median/hard; settlement/preparation/post max |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `linux-x64` | 10,800,000 B | 1,250/4,000; 2,000/5,000 ms | n/a | n/a | n/a |
-| `darwin-arm64` | 10,800,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 / 15,500 / 12,000 / 5,000 ms | 1,800/5,000; 15,500 / 5,000 / 5,000 ms |
-| `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 8,000 / 15,500 / 12,000 / 5,000 ms | 3,500/8,000; 15,500 / 5,000 / 5,000 ms |
-| `win32-x64` | 14,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 310 | 3,000 / 15,500 / 12,000 / 5,000 ms | 2,500/5,000; 15,500 / 5,000 / 5,000 ms |
+| `darwin-arm64` | 10,800,000 B | 1,500/4,000; 2,000/5,000 ms | 565,000,000 B / 310 | 3,000 target / 8,000 hard; 15,500 / 12,000 / 5,000 ms | 1,800/5,000; 15,500 / 5,000 / 5,000 ms |
+| `darwin-x64` | 9,900,000 B | 2,000/6,000; 3,000/8,000 ms | 575,000,000 B / 310 | 3,000 target / 8,000 hard; 15,500 / 12,000 / 5,000 ms | 3,500/8,000; 15,500 / 5,000 / 5,000 ms |
+| `win32-x64` | 14,600,000 B | 6,000/12,000; 10,000/15,000 ms | 415,000,000 B / 310 | 3,000 target / 8,000 hard; 15,500 / 12,000 / 5,000 ms | 2,500/5,000; 15,500 / 5,000 / 5,000 ms |
 
 Manifest hashes prove the staged resources remain immutable during a proof and
 match the packaged native files. They do not claim cross-build reproducibility:

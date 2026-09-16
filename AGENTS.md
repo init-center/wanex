@@ -391,6 +391,22 @@ Route 13E now requires one final hosted confirmation of this audit contract.
 Do not make another production change unless that bounded evidence identifies
 a new correctness failure.
 
+That hosted confirmation (`35058468605`) also exposed that a single first
+Desktop launch is not a statistical cohort: Windows measured `5988.06ms` after
+an earlier equivalent run measured `1327.61ms`, while all warm samples stayed
+below `713ms`; macOS arm64 measured `3254.81ms` after an earlier `2849.33ms`.
+This was not an artifact, Host, or functional regression. The cold budget now
+directly replaces the old single blocking target with a `3000ms` product target
+reported as an advisory and an `8000ms` catastrophic hard ceiling. Warm median
+and hard gates and all other phase ceilings remain blocking. Exact receipt replay,
+20 host-audit tests, and the preflight/verify script tests pass. The evidence
+and best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1611-route-13e-cold-first-launch-gate-correction-completion.md`
+
+The next hosted run is the final Route 13E confirmation. Do not change the
+budget again unless it identifies a new correctness failure.
+
 The completed Route 10 plan remains recorded in:
 
 `/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1558-post-route-9b-architecture-review-and-route-10-provider-product-readiness-plan.md`

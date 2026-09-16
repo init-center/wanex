@@ -45,7 +45,8 @@
         "maxCredentialBytes": 600000,
         "exactCredentialFileCount": 2,
         "cold": {
-          "maxInteractiveTotalMs": 3000,
+          "targetInteractiveTotalMs": 3000,
+          "maxInteractiveTotalHardMs": 8000,
           "maxConversationSettlementMs": 15500,
           "maxJourneyPreparationMs": 12000,
           "maxRendererPostSettlementMs": 5000
@@ -94,7 +95,8 @@
         "maxCredentialBytes": 600000,
         "exactCredentialFileCount": 2,
         "cold": {
-          "maxInteractiveTotalMs": 8000,
+          "targetInteractiveTotalMs": 3000,
+          "maxInteractiveTotalHardMs": 8000,
           "maxConversationSettlementMs": 15500,
           "maxJourneyPreparationMs": 12000,
           "maxRendererPostSettlementMs": 5000
@@ -143,7 +145,8 @@
         "maxCredentialBytes": 2100000,
         "exactCredentialFileCount": 2,
         "cold": {
-          "maxInteractiveTotalMs": 3000,
+          "targetInteractiveTotalMs": 3000,
+          "maxInteractiveTotalHardMs": 8000,
           "maxConversationSettlementMs": 15500,
           "maxJourneyPreparationMs": 12000,
           "maxRendererPostSettlementMs": 5000

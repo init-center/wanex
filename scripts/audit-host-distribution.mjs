@@ -117,6 +117,7 @@ export function parseHostDistributionAuditArgs(args) {
 
 export function auditHostDistributionData(request) {
   const failures = []
+  const advisories = []
   const budget = requireRecord(request.budget, "host distribution budget")
   if (budget.kind !== "wanex.host-distribution-budget") {
     throw new Error("host distribution budget kind is invalid")
@@ -362,11 +363,18 @@ export function auditHostDistributionData(request) {
     expectMaximum(failures, "Desktop ASAR bytes", packaged.asarBytes, desktopBudget.maxAsarBytes)
     expectMaximum(failures, "Desktop native bytes", packaged.nativeBytes, desktopBudget.maxNativeBytes)
     expectMaximum(failures, "Desktop credential bytes", packaged.credentialBytes, desktopBudget.maxCredentialBytes)
+    expectAtMost(
+      advisories,
+      "Desktop cold interactive total target ms",
+      coldTimings.interactiveTotal,
+      coldBudget.targetInteractiveTotalMs,
+      "target"
+    )
     expectMaximum(
       failures,
-      "Desktop cold interactive total ms",
+      "Desktop cold interactive total hard maximum ms",
       coldTimings.interactiveTotal,
-      coldBudget.maxInteractiveTotalMs
+      coldBudget.maxInteractiveTotalHardMs
     )
     expectMaximum(
       failures,
@@ -465,6 +473,8 @@ export function auditHostDistributionData(request) {
       },
       cold: {
         interactiveTotalMs: coldTimings.interactiveTotal,
+        interactiveTargetMet:
+          coldTimings.interactiveTotal <= coldBudget.targetInteractiveTotalMs,
         conversationSettlementMs: coldTimings.conversationSettlement,
         proofTotalMs: coldTimings.proofTotal,
         proofWallTimeMs: coldTimings.wallTime,
@@ -642,6 +652,7 @@ export function auditHostDistributionData(request) {
     targetId: request.targetId,
     limits: targetBudget,
     observed,
+    advisories,
     failures
   }
 }
@@ -661,12 +672,16 @@ function expectEqual(failures, label, observed, expected) {
 }
 
 function expectMaximum(failures, label, observed, maximum) {
-  if (typeof observed !== "number" || typeof maximum !== "number") {
-    failures.push(`${label}: observed and maximum must be numbers`)
+  expectAtMost(failures, label, observed, maximum, "maximum")
+}
+
+function expectAtMost(failures, label, observed, limit, limitLabel) {
+  if (typeof observed !== "number" || typeof limit !== "number") {
+    failures.push(`${label}: observed and ${limitLabel} must be numbers`)
     return
   }
-  if (observed > maximum) {
-    failures.push(`${label}: observed ${observed}, maximum ${maximum}`)
+  if (observed > limit) {
+    failures.push(`${label}: observed ${observed}, ${limitLabel} ${limit}`)
   }
 }
 

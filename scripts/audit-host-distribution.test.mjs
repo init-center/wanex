@@ -114,7 +114,7 @@ describe("host distribution budget", () => {
     native.summary = summarizeNativeRuntimeSamples(native.samples)
     desktop.packaged.unpackedBytes = 101
     desktop.packaged.hasApplicationNodeModules = true
-    desktop.samples[0].runtime.timingsMs.interactiveTotal = 101
+    desktop.samples[0].runtime.timingsMs.interactiveTotal = 201
     desktop.summary = summarizeDesktopSamples(desktop.samples)
     const result = auditHostDistributionData({
       targetId: "darwin-arm64",
@@ -129,8 +129,55 @@ describe("host distribution budget", () => {
       expect.stringContaining("native total median ms"),
       expect.stringContaining("Desktop unpacked bytes"),
       expect.stringContaining("Desktop node_modules exclusion"),
-      expect.stringContaining("Desktop cold interactive total ms")
+      expect.stringContaining("Desktop cold interactive total hard maximum ms")
     ]))
+  })
+
+  it("reports the first-launch target without making one shared-runner sample an SLO", () => {
+    const targetMiss = desktopReceipt()
+    targetMiss.samples[0].runtime.timingsMs.interactiveTotal = 101
+    targetMiss.summary = summarizeDesktopSamples(targetMiss.samples)
+    const advised = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop: targetMiss,
+      desktopDistribution: distributionReceipt(
+        targetMiss,
+        darwinNativeReceipt()
+      )
+    })
+    expect(advised).toMatchObject({
+      ok: true,
+      observed: { desktop: { cold: { interactiveTargetMet: false } } },
+      advisories: [
+        "Desktop cold interactive total target ms: observed 101, target 100"
+      ],
+      failures: []
+    })
+
+    const hardMiss = desktopReceipt()
+    hardMiss.samples[0].runtime.timingsMs.interactiveTotal = 201
+    hardMiss.summary = summarizeDesktopSamples(hardMiss.samples)
+    const failed = auditHostDistributionData({
+      targetId: "darwin-arm64",
+      budget: budget(true),
+      native: darwinNativeReceipt(),
+      desktop: hardMiss,
+      desktopDistribution: distributionReceipt(
+        hardMiss,
+        darwinNativeReceipt()
+      )
+    })
+    expect(failed.ok).toBe(false)
+    expect(failed.advisories).toEqual([
+      "Desktop cold interactive total target ms: observed 201, target 100"
+    ])
+    expect(failed.failures).toEqual([
+      expect.stringContaining(
+        "Desktop cold interactive total hard maximum ms"
+      )
+    ])
   })
 
   it("requires the bounded Desktop distribution receipt", () => {
@@ -371,7 +418,8 @@ function desktopBudget() {
     maxCredentialBytes: 100,
     exactCredentialFileCount: 2,
     cold: {
-      maxInteractiveTotalMs: 100,
+      targetInteractiveTotalMs: 100,
+      maxInteractiveTotalHardMs: 200,
       maxConversationSettlementMs: 100,
       maxJourneyPreparationMs: 100,
       maxRendererPostSettlementMs: 100

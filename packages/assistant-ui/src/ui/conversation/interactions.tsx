@@ -47,14 +47,14 @@ export function CapabilityRequestCard({
 
   return (
     <aside className={classes("capability-card")} data-ui-capability={request.operation} data-capability-current={current ? "true" : "false"}>
-      <div className={classes("card-heading")}><div><span className={classes("eyebrow")}>Capability</span><h2>{capabilityLabel(request.operation)}</h2></div><Wrench size={16} /></div>
+      <div className={classes("card-heading")}><div><span className={classes("eyebrow")}>One more step</span><h2>{capabilityLabel(request.operation)}</h2></div><Wrench size={16} aria-hidden="true" /></div>
       <ul>{request.requirements.map((item) => <li key={`${item.requirement}:${item.status}`}><span className={classes(`capability-status is-${item.status}`)} />{item.reason}</li>)}</ul>
       {setupAvailable ? (
         <form className={classes("capability-form")} data-ui-capability-form onSubmit={(event) => void setup(event)}>
           <label><span>Image generation model</span><input value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="Model ID" required maxLength={256} /></label>
           <button type="submit" disabled={busy || modelId.trim().length === 0}><Check size={14} /> Configure and continue</button>
         </form>
-      ) : request.setupRequired ? <p className={classes("muted")}>Configure this capability in Provider settings, then refresh the conversation.</p> : null}
+      ) : request.setupRequired ? <p className={classes("muted")}>Set this up in Settings under Models &amp; providers, then try again.</p> : null}
     </aside>
   );
 }

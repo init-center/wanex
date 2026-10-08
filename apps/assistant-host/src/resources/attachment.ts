@@ -3,10 +3,9 @@ import type {
   AttachmentDraft,
   Shell
 } from "@wanex/assistant"
+import { MAX_CONVERSATION_ATTACHMENT_BYTES } from "@wanex/assistant/attachments"
 import type { ResourceKind } from "@wanex/protocol"
 import type { ModelInputModality } from "@wanex/protocol"
-
-export const MAX_ATTACHMENT_UPLOAD_BYTES = 25 * 1024 * 1024
 
 const acceptedKinds = new Set<ResourceKind>([
   "file",
@@ -119,9 +118,9 @@ function normalizeUploadRequest(
   if (request.content.byteLength === 0) {
     throw new Error("attachment content must not be empty")
   }
-  if (request.content.byteLength > MAX_ATTACHMENT_UPLOAD_BYTES) {
+  if (request.content.byteLength > MAX_CONVERSATION_ATTACHMENT_BYTES) {
     throw new Error(
-      `attachment exceeds ${MAX_ATTACHMENT_UPLOAD_BYTES} bytes`
+      `attachment exceeds ${MAX_CONVERSATION_ATTACHMENT_BYTES} bytes`
     )
   }
   const mediaType = request.mediaType.trim().toLowerCase()

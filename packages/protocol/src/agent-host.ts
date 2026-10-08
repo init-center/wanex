@@ -12,7 +12,7 @@ export const AGENT_HOST_MAX_FRAME_BYTES = 16 * 1024 * 1024
 export type AgentHostProtocolVersion =
   typeof WANEX_AGENT_HOST_PROTOCOL_VERSION
 
-export type AgentHostDomain = "assistant" | "coding"
+export type AgentHostDomain = "assistant"
 
 export type AgentHostFeature =
   | "canonical_reads"
@@ -712,11 +712,11 @@ function isOptionalError(value: unknown): value is AgentHostError | undefined {
 }
 
 function isDomain(value: unknown): value is AgentHostDomain {
-  return value === "assistant" || value === "coding"
+  return value === "assistant"
 }
 
 function isDomainList(value: unknown): value is readonly AgentHostDomain[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > 2) {
+  if (!Array.isArray(value) || value.length !== 1) {
     return false
   }
   return value.every(isDomain) && new Set(value).size === value.length

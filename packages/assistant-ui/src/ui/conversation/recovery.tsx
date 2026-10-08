@@ -3,6 +3,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { ConversationRecoveryDecision, ConversationRecoveryItem } from "@wanex/assistant";
 import type { ConversationViewModel } from "../../application/model.js";
 import { classes } from "../classes.js";
+import { Select } from "../primitives/select.js";
 import type { DispatchAction } from "../shared/action.js";
 
 export function RecoveryPanel({
@@ -100,7 +101,7 @@ function RecoveryItem({ item, sessionId, dispatch }: {
         <p className={classes("recovery-unavailable")}>No review action is available for this step.</p>
       ) : (
         <form className={classes("workflow-form recovery-form")} onSubmit={submit} aria-busy={busy}>
-          <label><span>What should happen next?</span><select value={decision} disabled={busy} onChange={(event) => changeDecision(event.target.value as ConversationRecoveryDecision)}>{item.availableDecisions.map((value) => <option key={value} value={value}>{decisionLabel(value)}</option>)}</select></label>
+          <label><span>What should happen next?</span><Select label="What should happen next?" value={decision} disabled={busy} onValueChange={(value) => changeDecision(value as ConversationRecoveryDecision)} options={item.availableDecisions.map((value) => ({ value, label: decisionLabel(value) }))} /></label>
           <label><span>Why are you choosing this?</span><input value={reason} disabled={busy} onChange={(event) => setReason(event.target.value)} maxLength={1024} required /></label>
           {confirms ? <label><span>What happened?</span><textarea value={observation} disabled={busy} onChange={(event) => setObservation(event.target.value)} placeholder="Describe what you observed" required /></label> : null}
           <button type="submit" disabled={busy || reason.trim().length === 0 || (observationRequired && observation.trim().length === 0)}><RotateCcw size={14} /> {decisionLabel(decision)}</button>

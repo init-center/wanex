@@ -112,30 +112,33 @@ export async function runWanexDesktopTeamProof(
     team.main.querySelector("[data-ui-composer]") === null
   const sessionOnlyControlsAbsent = [
     "[data-ui-attachment-input]",
-    "[data-ui-open-commands]",
-    "[data-ui-open-workflows]",
+    '[data-ui-action="open-add-menu"]',
     '[data-ui-action="regenerate-conversation"]',
   ].every((selector) => team.main.querySelector(selector) === null)
 
   const context = await waitForDom(() => {
     const panel = ready.surface.querySelector("[data-ui-team-context]")
-    const select = panel?.querySelector('select[aria-label="Agent conversation"]')
+    const select = panel?.querySelector('[data-ui-select="agentSessionId"]')
     const form = select?.closest("form")
     const add = form?.querySelector('button[type="submit"]')
     if (
       !(panel instanceof HTMLElement) ||
-      !(select instanceof HTMLSelectElement) ||
+      !(select instanceof HTMLButtonElement) ||
       !(form instanceof HTMLFormElement) ||
       !(add instanceof HTMLButtonElement)
     ) return undefined
-    const option = [...select.options].find((candidate) =>
-      candidate.textContent?.includes(expected.agentSessionTitle) === true
-    )
-    return option === undefined ? undefined : { add, panel, select, form, option }
+    return { add, panel, select, form }
   }, 10_000, "team_context")
   const contextAutoOpened = context.panel.isConnected
 
-  setControlValue(context.select, context.option.value)
+  context.select.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+  const agentOption = await waitForDom(() => {
+    const option = [...document.querySelectorAll('[role="option"][data-ui-select-option]')]
+      .find((candidate) => candidate.textContent?.includes(expected.agentSessionTitle) === true)
+    return option instanceof HTMLElement ? option : undefined
+  }, 5_000, "team_agent_choice")
+  agentOption.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+  await waitForDom(() => context.select.getAttribute("aria-expanded") === "false" ? true : undefined, 5_000, "team_agent_choice_closed")
   const addParticipant = await waitForDom(
     () => context.panel.isConnected && !context.add.disabled
       ? context.add

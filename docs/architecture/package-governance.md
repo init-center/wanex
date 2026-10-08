@@ -53,12 +53,22 @@ After an intentional and documented boundary change, regenerate with:
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-The current reviewed Route 9B.2 ceiling is:
+For a security dependency patch with unchanged boundaries, first attribute byte
+growth using identical build parameters and input graphs, then approve only that
+measured delta. Do not blindly regenerate limits, add arbitrary headroom or
+change installed-product budgets to pass a failed gate.
+
+The current reviewed Route 20/security-patch ceiling is:
 
 | Facade           |     Bytes | Static inputs | Workspace packages |
 | ---------------- | --------: | ------------: | -----------------: |
-| `@wanex/runtime` |   546,829 |           278 |                  3 |
-| `@wanex/app`     | 1,462,293 |           486 |                  4 |
+| `@wanex/runtime` |   556,601 |           279 |                  3 |
+| `@wanex/app`     | 1,488,099 |           487 |                  4 |
+
+Implementation/1720 attributes App's latest 442-byte increase solely to
+fast-uri 3.1.6 -> 3.1.8 security fixes. Runtime bytes, input counts and workspace
+sets are unchanged from the preceding reviewed baseline. No extra headroom or
+distribution budget adjustment is included.
 
 These are the current reviewed ceilings, not performance targets. The historical
 notes below explain the reviewed changes that led to this current ceiling.

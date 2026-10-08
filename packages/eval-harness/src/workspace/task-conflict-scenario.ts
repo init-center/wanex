@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -7,12 +7,12 @@ import { LocalRepositoryLocator, WorkspaceRuntime } from "@wanex/workspace"
 import {
   NativeChildSupervisor,
   NativeExecutionEnvironment,
-  type ExecutionScope
+  type ExecutionScope,
 } from "@wanex/runtime/execution"
 import { WorkspaceGitRuntime } from "@wanex/workspace/git"
 import {
   FixedWorkspaceIsolationAdapter,
-  GitWorktreeIsolationAdapter
+  GitWorktreeIsolationAdapter,
 } from "@wanex/workspace/isolation"
 import { ProcessWorkspaceSnapshotClient } from "@wanex/workspace/snapshot"
 import { WorkspaceProposalApplyRuntime } from "@wanex/workspace/review"
@@ -30,15 +30,17 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
   async run(context) {
     const repoDir = await createRepo()
     const worktreeParentDir = await mkdtemp(
-      join(tmpdir(), "wanex-eval-workspace-task-worktrees-")
+      join(tmpdir(), "wanex-eval-workspace-task-worktrees-"),
     )
     const executionEnvironment = new NativeExecutionEnvironment({
       environmentId: "native_eval_workspace_task",
       managedProcess: true,
       strategy: {
         kind: "supervised",
-        childSupervisor: new NativeChildSupervisor({ serviceBin: context.serviceBin })
-      }
+        childSupervisor: new NativeChildSupervisor({
+          serviceBin: context.serviceBin,
+        }),
+      },
     })
     let repositoryScope: ExecutionScope | undefined
     try {
@@ -48,61 +50,85 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
           revision: 1,
           filesystem: {
             roots: [
-              { id: "repository", effects: ["read", "write", "create", "remove"] },
-              { id: "worktrees", effects: ["read", "write", "create", "remove"] },
-              { id: "workspace", effects: ["read", "write", "create", "remove"] }
+              {
+                id: "repository",
+                effects: ["read", "write", "create", "remove"],
+              },
+              {
+                id: "worktrees",
+                effects: ["read", "write", "create", "remove"],
+              },
+              {
+                id: "workspace",
+                effects: ["read", "write", "create", "remove"],
+              },
             ],
             maxReadBytes: 50 * 1024 * 1024,
-            maxDirectoryEntries: 100_000
+            maxDirectoryEntries: 100_000,
           },
           process: {
             oneShot: true,
             managed: true,
             cleanup: "durable_supervisor",
-            environmentVariables: []
+            environmentVariables: [],
           },
           network: "unrestricted",
           isolation: "none",
-          pty: false
+          pty: false,
         },
         fileSystemRoots: [
           { id: "repository", path: repoDir },
           { id: "worktrees", path: worktreeParentDir },
-          { id: "workspace", path: context.workspaceRootDir }
-        ]
+          { id: "workspace", path: context.workspaceRootDir },
+        ],
       })
       const locator = new LocalRepositoryLocator({
-        repositories: [{
-          repositoryId: "repo_eval_workspace_task",
-          repositoryRoot: repoDir,
-          worktreeParent: worktreeParentDir,
-          serviceBin: context.serviceBin,
-          fileSystem: repositoryScope.fileSystem
-        }]
+        repositories: [
+          {
+            repositoryId: "repo_eval_workspace_task",
+            repositoryRoot: repoDir,
+            worktreeParent: worktreeParentDir,
+            serviceBin: context.serviceBin,
+            fileSystem: repositoryScope.fileSystem,
+          },
+        ],
       })
       const repository = await locator.locate("repo_eval_workspace_task")
       const isolation = new GitWorktreeIsolationAdapter({
+        rootIdentity: {
+          device: String((await stat(repoDir, { bigint: true })).dev),
+          inode: String((await stat(repoDir, { bigint: true })).ino),
+        },
         repositoryId: "repo_eval_workspace_task",
         locator,
         snapshot: new ProcessWorkspaceSnapshotClient(),
-        executionScope: repositoryScope
+        executionScope: repositoryScope,
       })
       const tasks = new WorkspaceTaskRuntime({
-        storage: context.storage,
-        readOnlyIsolation: new FixedWorkspaceIsolationAdapter({
+        rootIdentity: {
+          hostId: "host_eval",
+          generationKey: "generation_eval",
+          rootId: "root_eval",
+          device: String((await stat(repoDir, { bigint: true })).dev),
+          inode: String((await stat(repoDir, { bigint: true })).ino),
+        },
+        directIsolation: new FixedWorkspaceIsolationAdapter({
           rootDir: repository.repositoryRoot,
-          fileSystem: repositoryScope.fileSystem
+          fileSystem: repositoryScope.fileSystem,
         }),
-        writableIsolation: isolation,
-        writableCollection: new WorkspaceGitRuntime({
+        gitWorktree: {
           repositoryId: "repo_eval_workspace_task",
-          worktreeParent: repository.worktreeParent,
-          executionScope: repositoryScope
-        }),
-        repositoryId: "repo_eval_workspace_task",
+          isolation: isolation,
+          collection: new WorkspaceGitRuntime({
+            repositoryId: "repo_eval_workspace_task",
+            worktreeParent: repository.worktreeParent,
+            executionScope: repositoryScope,
+          }),
+        },
+        storage: context.storage,
         workspaceId: "eval_workspace_task",
         principalId: "agent_eval_workspace_task",
-        executionEnvironment
+        executionEnvironment,
       })
       const workspace = new WorkspaceRuntime({
         storage: context.storage,
@@ -110,16 +136,17 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
         serviceBin: context.serviceBin,
         executionScope: repositoryScope,
         workspaceId: "eval_workspace_task",
-        principalId: "agent_eval_workspace_task"
+        principalId: "agent_eval_workspace_task",
       })
       const proposals = new WorkspaceProposalApplyRuntime({
         storage: context.storage,
         workspace,
-        actorId: "eval-workspace-task"
+        actorId: "eval-workspace-task",
       })
 
       const [agentA, agentB] = await Promise.all([
         tasks.runTask({
+          strategy: "git_worktree",
           id: "wtsk_eval_agent_a",
           access: "writable",
           input: { prompt: "make agent A own src/shared.ts" },
@@ -130,12 +157,13 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
             await writeFile(
               join(task.rootDir, "src/shared.ts"),
               "export const owner = 'agent-a'\n",
-              "utf8"
+              "utf8",
             )
             return { summary: "Agent A edit" }
-          }
+          },
         }),
         tasks.runTask({
+          strategy: "git_worktree",
           id: "wtsk_eval_agent_b",
           access: "writable",
           input: { prompt: "make agent B own src/shared.ts" },
@@ -146,11 +174,11 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
             await writeFile(
               join(task.rootDir, "src/shared.ts"),
               "export const owner = 'agent-b'\n",
-              "utf8"
+              "utf8",
             )
             return { summary: "Agent B edit" }
-          }
-        })
+          },
+        }),
       ])
 
       assert(agentA.status === "succeeded", "agent A task should succeed")
@@ -158,37 +186,43 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
       assert(
         agentA.changeSet?.currentState === "submitted" &&
           agentA.proposal?.state === "open",
-        "agent A output should be projected to one open proposal"
+        "agent A output should be projected to one open proposal",
       )
       assert(
         agentB.changeSet?.currentState === "submitted" &&
           agentB.proposal?.state === "open",
-        "agent B output should be projected to one open proposal"
+        "agent B output should be projected to one open proposal",
       )
 
       await approveAndRequestApply(
         context.storage,
         agentA.proposal.id,
-        "reviewer_eval_agent_a"
+        "reviewer_eval_agent_a",
       )
       await approveAndRequestApply(
         context.storage,
         agentB.proposal.id,
-        "reviewer_eval_agent_b"
+        "reviewer_eval_agent_b",
       )
 
       const items = [
         { proposalId: agentA.proposal.id },
-        { proposalId: agentB.proposal.id }
+        { proposalId: agentB.proposal.id },
       ]
       const plan = await proposals.planApplyProposalBatch({ items })
-      assert(plan.status === "needs_review", "same-path plan should need review")
+      assert(
+        plan.status === "needs_review",
+        "same-path plan should need review",
+      )
 
       const apply = await proposals.applyProposalBatch({ items })
-      assert(apply.status === "failed", "review-blocked batch should fail closed")
+      assert(
+        apply.status === "failed",
+        "review-blocked batch should fail closed",
+      )
       assert(
         apply.results.some((item) => item.status === "needs_review"),
-        "one item should be marked needs_review"
+        "one item should be marked needs_review",
       )
 
       let activeWorkspaceWritten = true
@@ -203,7 +237,7 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
       }
       assert(
         activeWorkspaceWritten === false,
-        "active workspace should remain unchanged"
+        "active workspace should remain unchanged",
       )
 
       return {
@@ -211,7 +245,7 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
         planStatus: plan.status,
         applyStatus: apply.status,
         conflictCount: plan.items.flatMap((item) => item.conflicts).length,
-        activeWorkspaceWritten
+        activeWorkspaceWritten,
       }
     } finally {
       await repositoryScope?.close()
@@ -219,28 +253,30 @@ export const workspaceTaskMultiAgentConflictScenario = createEvalScenario({
       await rm(worktreeParentDir, { recursive: true, force: true })
       await rm(repoDir, { recursive: true, force: true })
     }
-  }
+  },
 })
 
 async function approveAndRequestApply(
   storage: EvalStore,
   proposalId: string,
-  reviewerId: string
+  reviewerId: string,
 ): Promise<void> {
   await storage.recordWorkspaceChangeProposalOperation({
     proposalId,
     operation: "approve",
-    actorId: reviewerId
+    actorId: reviewerId,
   })
   await storage.recordWorkspaceChangeProposalOperation({
     proposalId,
     operation: "request_apply",
-    actorId: reviewerId
+    actorId: reviewerId,
   })
 }
 
 async function createRepo(): Promise<string> {
-  const repoDir = await mkdtemp(join(tmpdir(), "wanex-eval-workspace-task-repo-"))
+  const repoDir = await mkdtemp(
+    join(tmpdir(), "wanex-eval-workspace-task-repo-"),
+  )
   await git(repoDir, ["init"])
   await git(repoDir, ["config", "user.email", "wanex@example.local"])
   await git(repoDir, ["config", "user.name", "Wanex Eval"])
@@ -254,7 +290,7 @@ async function createRepo(): Promise<string> {
 async function git(repoDir: string, args: readonly string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", ["-C", repoDir, ...args], {
     encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024
+    maxBuffer: 10 * 1024 * 1024,
   })
   return stdout.trim()
 }

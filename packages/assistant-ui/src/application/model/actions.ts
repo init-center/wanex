@@ -1,4 +1,7 @@
 import type {
+  GrantWorkspaceFolderRequest,
+  RegrantWorkspaceFolderRequest,
+  RevokeWorkspaceFolderRequest,
   CancelTrackedConversationOperationRequest,
   OpenWorkbenchRequest,
   QueueGuidedFollowUpRequest,
@@ -37,6 +40,11 @@ import type {
   ReplaceScheduleDefinitionRequest,
   SetScheduleEnabledRequest
 } from "@wanex/assistant/surface"
+import type {
+  WorkspaceChangeDecisionRequest,
+  WorkspaceChangeMutationRequest,
+  WorkspaceChangeReference,
+} from "@wanex/assistant"
 import type {
   ApproveLocalPluginReviewRequest,
   CancelLocalPluginReviewRequest,
@@ -197,6 +205,30 @@ export type Action =
   | {
       readonly type: "remove-conversation-attachment"
       readonly input: RemoveConversationAttachmentRequest
+    }
+  | {
+      readonly type: "grant-workspace-folder"
+      readonly input: GrantWorkspaceFolderRequest
+    }
+  | {
+      readonly type: "regrant-workspace-folder"
+      readonly input: RegrantWorkspaceFolderRequest
+    }
+  | {
+      readonly type: "revoke-workspace-folder"
+      readonly input: RevokeWorkspaceFolderRequest
+    }
+  | {
+      readonly type: "read-workspace-change"
+      readonly input: WorkspaceChangeReference
+    }
+  | {
+      readonly type: "decide-workspace-change"
+      readonly input: WorkspaceChangeDecisionRequest
+    }
+  | {
+      readonly type: "apply-workspace-change" | "undo-workspace-change" | "reapply-workspace-change"
+      readonly input: WorkspaceChangeMutationRequest
     }
   | {
       readonly type: "refresh-conversation"

@@ -4,10 +4,62 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use uuid::Uuid;
 
+mod git;
+use git::{git_command, reject_executable_filters};
+
 const PROTOCOL: u8 = 1;
+
+#[derive(Debug)]
+pub struct WorkspaceSnapshotRootIdentity {
+    pub device: String,
+    pub inode: String,
+}
+
+impl WorkspaceSnapshotRootIdentity {
+    pub fn read(path: &Path) -> Result<Self> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let metadata = fs::metadata(path)?;
+            Ok(Self {
+                device: metadata.dev().to_string(),
+                inode: metadata.ino().to_string(),
+            })
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
+            use windows_sys::Win32::Storage::FileSystem::{
+                GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+            };
+            let file = fs::OpenOptions::new()
+                .read(true)
+                .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+                .open(path)?;
+            let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+            if unsafe { GetFileInformationByHandle(file.as_raw_handle(), &mut info) } == 0 {
+                return Err(std::io::Error::last_os_error().into());
+            }
+            Ok(Self {
+                device: info.dwVolumeSerialNumber.to_string(),
+                inode: ((u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow))
+                    .to_string(),
+            })
+        }
+    }
+
+    fn verify(&self, path: &Path) -> Result<()> {
+        let actual = Self::read(path)?;
+        if self.device != actual.device || self.inode != actual.inode {
+            return Err(SystemServiceError::Conflict(
+                "workspace repository physical identity changed".into(),
+            ));
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Serialize)]
 struct CreatedFrame {
@@ -32,6 +84,7 @@ pub fn run_workspace_snapshot_helper(
     git_bin: &str,
     release: bool,
     expected_base_revision: Option<&str>,
+    expected_root: &WorkspaceSnapshotRootIdentity,
 ) -> Result<()> {
     require_absolute(repository_root, "workspace snapshot repository root")?;
     require_absolute(worktree_parent, "workspace snapshot worktree parent")?;
@@ -43,6 +96,7 @@ pub fn run_workspace_snapshot_helper(
     }
 
     let repository_root = fs::canonicalize(repository_root)?;
+    expected_root.verify(&repository_root)?;
     if !repository_root.is_dir() {
         return Err(SystemServiceError::InvalidInput(
             "workspace snapshot repository root is not a directory".to_string(),
@@ -58,11 +112,17 @@ pub fn run_workspace_snapshot_helper(
     verify_repository(&repository_root, git_bin)?;
     let lock_path = crate::workspace_lock::workspace_mutation_lock_path(&repository_root)?;
     let _lock = acquire_path_write_lock(&lock_path)?;
+    expected_root.verify(&repository_root)?;
     verify_repository(&repository_root, git_bin)?;
 
     let identity = runtime_identity(&worktree_parent, isolation_id);
     if release {
-        release_snapshot(&repository_root, &identity, git_bin, expected_base_revision)?;
+        let expected = expected_base_revision.ok_or_else(|| {
+            SystemServiceError::InvalidInput(
+                "workspace snapshot release requires its base revision".into(),
+            )
+        })?;
+        release_snapshot(&repository_root, &identity, git_bin, expected)?;
         println!(
             "{}",
             serde_json::to_string(&ReleasedFrame {
@@ -73,7 +133,13 @@ pub fn run_workspace_snapshot_helper(
         return Ok(());
     }
 
-    let snapshot = create_snapshot(&repository_root, &worktree_parent, &identity, git_bin)?;
+    let snapshot = create_snapshot(
+        &repository_root,
+        &worktree_parent,
+        &identity,
+        git_bin,
+        expected_base_revision,
+    )?;
     println!("{}", serde_json::to_string(&snapshot)?);
     Ok(())
 }
@@ -103,7 +169,9 @@ fn create_snapshot(
     worktree_parent: &Path,
     identity: &RuntimeIdentity,
     git_bin: &str,
+    expected_base_revision: Option<&str>,
 ) -> Result<CreatedFrame> {
+    reject_executable_filters(repository_root, git_bin, worktree_parent)?;
     let root_exists = identity.root.exists();
     let branch_exists = git_success(
         repository_root,
@@ -114,6 +182,11 @@ fn create_snapshot(
     match (root_exists, branch_exists) {
         (true, true) => {
             let base_revision = verify_existing_worktree(repository_root, identity, git_bin)?;
+            if expected_base_revision.is_some_and(|expected| expected != base_revision) {
+                return Err(SystemServiceError::Conflict(
+                    "workspace snapshot runtime ref changed externally".into(),
+                ));
+            }
             return Ok(frame(identity, base_revision));
         }
         (true, false) | (false, true) => {
@@ -122,6 +195,11 @@ fn create_snapshot(
             ));
         }
         (false, false) => {}
+    }
+    if expected_base_revision.is_some() {
+        return Err(SystemServiceError::Conflict(
+            "prepared workspace snapshot is missing; refusing recreation".into(),
+        ));
     }
 
     let head = git_output(repository_root, git_bin, &["rev-parse", "HEAD"], &[])?;
@@ -198,7 +276,7 @@ fn release_snapshot(
     repository_root: &Path,
     identity: &RuntimeIdentity,
     git_bin: &str,
-    expected_base_revision: Option<&str>,
+    expected_base_revision: &str,
 ) -> Result<()> {
     let branch_exists = git_success(
         repository_root,
@@ -206,13 +284,29 @@ fn release_snapshot(
         &["show-ref", "--verify", "--quiet", &identity.ref_name],
         &[],
     )?;
-    if identity.root.exists() {
-        let actual = verify_existing_worktree(repository_root, identity, git_bin)?;
-        if expected_base_revision.is_some_and(|expected| expected != actual) {
+    let registered = runtime_worktree_registered(repository_root, identity, git_bin)?;
+    if (identity.root.exists() && !registered) || (registered && !branch_exists) {
+        return Err(SystemServiceError::Conflict(
+            "workspace snapshot worktree identity cannot be proven".to_string(),
+        ));
+    }
+    if branch_exists {
+        let actual = git_output(
+            repository_root,
+            git_bin,
+            &["rev-parse", "--verify", &identity.ref_name],
+            &[],
+        )?;
+        if expected_base_revision != actual {
             return Err(SystemServiceError::Conflict(
                 "workspace snapshot runtime ref changed externally".to_string(),
             ));
         }
+    } else {
+        return Ok(());
+    }
+    if registered {
+        // Remove only this registration, including when its directory is already gone.
         git_output(
             repository_root,
             git_bin,
@@ -224,40 +318,20 @@ fn release_snapshot(
             ],
             &[],
         )?;
-    } else if branch_exists {
-        let actual = git_output(
-            repository_root,
-            git_bin,
-            &["rev-parse", "--verify", &identity.ref_name],
-            &[],
-        )?;
-        if expected_base_revision.is_some_and(|expected| expected != actual) {
-            return Err(SystemServiceError::Conflict(
-                "workspace snapshot runtime ref changed externally".to_string(),
-            ));
-        }
-    } else {
-        return Ok(());
     }
     if branch_exists {
-        let expected = expected_base_revision.unwrap_or("");
-        if expected.is_empty() {
-            git_output(
-                repository_root,
-                git_bin,
-                &["update-ref", "-d", &identity.ref_name],
-                &[],
-            )?;
-        } else {
-            git_output(
-                repository_root,
-                git_bin,
-                &["update-ref", "-d", &identity.ref_name, expected],
-                &[],
-            )?;
-        }
+        git_output(
+            repository_root,
+            git_bin,
+            &[
+                "update-ref",
+                "-d",
+                &identity.ref_name,
+                expected_base_revision,
+            ],
+            &[],
+        )?;
     }
-    let _ = git_output(repository_root, git_bin, &["worktree", "prune"], &[])?;
     Ok(())
 }
 
@@ -272,44 +346,43 @@ fn verify_existing_worktree(
         &["rev-parse", "--verify", &identity.ref_name],
         &[],
     )?;
-    let worktree = git_output(
-        repository_root,
-        git_bin,
-        &["worktree", "list", "--porcelain"],
-        &[],
-    )?;
-    let expected_path = normalized_git_path(&identity.root);
-    let mut found = false;
-    let mut current_path: Option<String> = None;
-    let mut current_branch: Option<String> = None;
-    for line in worktree.lines() {
-        if let Some(path) = line.strip_prefix("worktree ") {
-            if current_path
-                .as_deref()
-                .is_some_and(|path| same_git_path(path, &expected_path))
-                && current_branch.as_deref() == Some(identity.ref_name.as_str())
-            {
-                found = true;
-            }
-            current_path = Some(path.to_string());
-            current_branch = None;
-        } else if let Some(branch) = line.strip_prefix("branch ") {
-            current_branch = Some(branch.to_string());
-        }
-    }
-    if current_path
-        .as_deref()
-        .is_some_and(|path| same_git_path(path, &expected_path))
-        && current_branch.as_deref() == Some(identity.ref_name.as_str())
-    {
-        found = true;
-    }
-    if !found {
+    if !runtime_worktree_registered(repository_root, identity, git_bin)? {
         return Err(SystemServiceError::Conflict(
             "workspace snapshot worktree identity cannot be proven".to_string(),
         ));
     }
     Ok(base_revision)
+}
+
+fn runtime_worktree_registered(
+    repository_root: &Path,
+    identity: &RuntimeIdentity,
+    git_bin: &str,
+) -> Result<bool> {
+    let worktree = git_output(
+        repository_root,
+        git_bin,
+        &["worktree", "list", "--porcelain", "-z"],
+        &[],
+    )?;
+    let expected_path = normalized_git_path(&identity.root);
+    for entry in worktree.split("\0\0") {
+        let path = entry
+            .split('\0')
+            .find_map(|field| field.strip_prefix("worktree "));
+        if path.is_some_and(|path| same_git_path(path, &expected_path)) {
+            let branch = entry
+                .split('\0')
+                .find_map(|field| field.strip_prefix("branch "));
+            if branch != Some(identity.ref_name.as_str()) {
+                return Err(SystemServiceError::Conflict(
+                    "workspace snapshot worktree identity cannot be proven".to_string(),
+                ));
+            }
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn frame(identity: &RuntimeIdentity, base_revision: String) -> CreatedFrame {
@@ -402,18 +475,6 @@ fn git_success(
             String::from_utf8_lossy(&output.stderr).trim()
         )))
     }
-}
-
-fn git_command(root: &Path, git_bin: &str) -> Command {
-    let mut command = Command::new(git_bin);
-    // Snapshot worktrees must preserve the committed byte content exactly.
-    command
-        .arg("-c")
-        .arg("core.autocrlf=false")
-        .arg("-C")
-        .arg(root);
-    command.env("GIT_TERMINAL_PROMPT", "0");
-    command
 }
 
 fn canonicalize_parent(path: &Path) -> Result<PathBuf> {

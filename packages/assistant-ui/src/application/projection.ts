@@ -15,9 +15,11 @@ import {
   projectAttachmentInput,
   projectSettings
 } from "./view/settings.js"
+import { SURFACE_COMMANDS } from "@wanex/assistant"
 
 export function buildViewModel(
-  snapshot: Omit<Snapshot, "view">
+  snapshot: Omit<Snapshot, "view">,
+  options: { readonly attachmentUploadAvailable?: boolean } = {}
 ): ViewModel {
   const state = snapshot.status.ok ? snapshot.status.value.state : undefined
   const settings = projectSettings(snapshot, state)
@@ -113,8 +115,21 @@ export function buildViewModel(
     conversationAttachments: snapshot.attachments.ok
       ? snapshot.attachments.value.attachments
       : [],
+    workspaceFolders: snapshot.workspaceFolders.ok
+      ? {
+          available: snapshot.workspaceFolders.value.available,
+          canPick: snapshot.workspaceFolders.value.canPick,
+          folders: snapshot.workspaceFolders.value.folders,
+          recent: snapshot.workspaceFolders.value.recent
+        }
+      : { available: false, canPick: false, folders: [], recent: [] },
     conversationAttachmentCanUpload:
-      attachmentInput.canUpload && snapshot.conversation.canSubmit,
+      attachmentInput.canUpload &&
+      snapshot.conversation.canSubmit &&
+      (options.attachmentUploadAvailable ?? descriptorIncludes(
+        snapshot,
+        SURFACE_COMMANDS.prepareConversationAttachment
+      )),
     conversationAttachmentAccept: attachmentInput.accept,
     conversationAttachmentMessage: attachmentInput.message,
     ...(snapshot.conversation.transientAssistantText === undefined
@@ -144,6 +159,16 @@ export function buildViewModel(
       commandPalette
     })
   }
+}
+
+function descriptorIncludes(
+  snapshot: Pick<Snapshot, "descriptor">,
+  command: string
+): boolean {
+  return snapshot.descriptor.ok &&
+    snapshot.descriptor.value.commands.some(
+      (descriptor) => descriptor.command === command
+    )
 }
 
 function isLiveGoalState(state: ViewModel["goalState"]): boolean {

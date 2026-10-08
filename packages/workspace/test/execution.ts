@@ -5,6 +5,12 @@ import {
   type ExecutionProcess,
   type ExecutionScope
 } from "@wanex/runtime/execution"
+import { stat } from "node:fs/promises"
+
+export async function readWorkspaceTestRootIdentity(path: string) {
+  const metadata = await stat(path, { bigint: true })
+  return { device: String(metadata.dev), inode: String(metadata.ino) }
+}
 
 const environments = new Set<ExecutionEnvironment>()
 let sequence = 0

@@ -2378,6 +2378,15 @@ interface SessionScope {
 type SessionStatus = "active" | "archived";
 
 // @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
+// @public (undocumented)
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
@@ -2450,6 +2459,8 @@ type SessionTurnControlStatus = "pending" | "applied" | "rejected" | "cancelled"
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)

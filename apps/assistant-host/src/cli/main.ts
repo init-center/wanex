@@ -1,4 +1,6 @@
 import { fileURLToPath } from "node:url"
+import { CLIENT_SCRIPT } from "@wanex/assistant-ui/generated/client-script"
+import { STYLESHEET } from "@wanex/assistant-ui/generated/stylesheet"
 import { resolve } from "node:path"
 import {
   parseLocalCliOptions
@@ -35,9 +37,11 @@ const options = parseLocalCliOptions({
   env: process.env
 })
 const app = await startAssistantWebApp({
+  browserAssets: { clientScript: CLIENT_SCRIPT, stylesheet: STYLESHEET },
   storage: options.storage,
   serviceBin: options.serviceBin,
   modelEndpoints: options.modelEndpoints,
+  ...(options.workspace === undefined ? {} : { workspace: options.workspace }),
   secretResolver: new SecretResolver([new EnvSecretProvider(process.env)]),
   web: {
     hostname: options.hostname,

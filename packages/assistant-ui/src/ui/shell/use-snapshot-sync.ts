@@ -31,6 +31,7 @@ export function useSnapshotSync(
   ) => void;
   readonly adoptArrivedSnapshot: (snapshot: Snapshot) => void;
   readonly retrySnapshot: () => void;
+  readonly reportRefreshFailure: (message: string, requestGeneration: number) => void;
 } {
   const [snapshot, setSnapshot] = useState<Snapshot | undefined>(
     initialSnapshot,
@@ -68,6 +69,9 @@ export function useSnapshotSync(
   const adoptArrivedSnapshot = useCallback((next: Snapshot) => {
     adoptSnapshot(next, beginRequest());
   }, [adoptSnapshot, beginRequest]);
+  const reportRefreshFailure = useCallback((message: string, generation: number) => {
+    if (generation >= latestAdoptedGeneration.current) setSnapshotError(message);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -196,6 +200,7 @@ export function useSnapshotSync(
     adoptSnapshot,
     adoptArrivedSnapshot,
     retrySnapshot,
+    reportRefreshFailure,
   };
 }
 

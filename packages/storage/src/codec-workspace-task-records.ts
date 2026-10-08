@@ -19,6 +19,7 @@ import {
   expectWorkspaceTaskRunState,
 } from "./codec-workspace-value-enums.js";
 import { readExecutionEnvironmentBinding } from "./codec-execution-environment.js";
+import { requireExactKeys } from "./codec-model-evidence.js";
 
 export function fromRpcWorkspaceTaskRunRecord(
   value: JsonValue,
@@ -29,6 +30,54 @@ export function fromRpcWorkspaceTaskRunRecord(
   const access = expectString(value.access, "workspace_task_run.access");
   if (access !== "read_only" && access !== "writable") {
     throw new Error(`invalid workspace task access: ${access}`);
+  }
+  const strategy = expectString(value.strategy, "workspace_task_run.strategy");
+  if (strategy !== "direct" && strategy !== "git_worktree") {
+    throw new Error(`invalid workspace task strategy: ${strategy}`);
+  }
+  const rootIdentity = expectJsonField(
+    value,
+    "root_identity",
+    "workspace_task_run.root_identity",
+  );
+  const isolationIdentity = expectJsonField(
+    value,
+    "isolation_identity",
+    "workspace_task_run.isolation_identity",
+  );
+  if (!isRecord(rootIdentity) || !isRecord(isolationIdentity)) {
+    throw new Error("workspace task identities must be objects");
+  }
+  requireExactKeys(rootIdentity, ["host_id", "generation_key", "root_id", "device", "inode"], "workspace task root identity");
+  requireExactKeys(isolationIdentity, ["id", "kind", "repository_id", "base_revision", "runtime_ref"], "workspace task isolation identity");
+  for (const key of ["host_id", "generation_key", "root_id"] as const) {
+    if (!/^[A-Za-z0-9_.:-]{1,256}$/u.test(expectString(rootIdentity[key], key))) {
+      throw new Error(`workspace task root ${key} must be an opaque identifier`);
+    }
+  }
+  for (const key of ["device", "inode"] as const) {
+    if (!/^[0-9]{1,128}$/u.test(expectString(rootIdentity[key], key))) {
+      throw new Error(`workspace task root ${key} must be a decimal identity`);
+    }
+  }
+  const isolationKind = expectString(
+    isolationIdentity.kind,
+    "workspace_task_run.isolation_identity.kind",
+  );
+  if (isolationKind !== "fixed" && isolationKind !== "git_worktree") {
+    throw new Error(`invalid workspace task isolation kind: ${isolationKind}`);
+  }
+  const repositoryId = optionalString(isolationIdentity.repository_id, "workspace task repository id");
+  const baseRevision = optionalString(isolationIdentity.base_revision, "workspace task base revision");
+  const runtimeRef = optionalString(isolationIdentity.runtime_ref, "workspace task runtime ref");
+  const state = expectWorkspaceTaskRunState(value.state, "workspace_task_run.state");
+  if ((baseRevision === undefined) !== (runtimeRef === undefined) ||
+      (strategy === "direct" && (access !== "read_only" || isolationKind !== "fixed" ||
+        repositoryId !== undefined || baseRevision !== undefined)) ||
+      (strategy === "git_worktree" && (access !== "writable" || isolationKind !== "git_worktree" ||
+        repositoryId === undefined || !/^[A-Za-z0-9_.:-]{1,256}$/u.test(repositoryId) ||
+        (["active", "collecting", "proposed"].includes(state) && baseRevision === undefined)))) {
+    throw new Error("workspace task strategy and isolation evidence are inconsistent");
   }
   const executionOutcome = optionalString(
     value.execution_outcome,
@@ -67,22 +116,37 @@ export function fromRpcWorkspaceTaskRunRecord(
       workspaceId: expectString(value.workspace_id, "workspace_task_run.workspace_id"),
       principalId: expectString(value.principal_id, "workspace_task_run.principal_id"),
       access,
-      repositoryId: expectString(value.repository_id, "workspace_task_run.repository_id"),
-      isolationId: expectString(value.isolation_id, "workspace_task_run.isolation_id"),
+      strategy,
+      rootIdentity: {
+        hostId: expectString(rootIdentity.host_id, "workspace_task_run.root_identity.host_id"),
+        generationKey: expectString(rootIdentity.generation_key, "workspace_task_run.root_identity.generation_key"),
+        rootId: expectString(rootIdentity.root_id, "workspace_task_run.root_identity.root_id"),
+        device: expectString(rootIdentity.device, "workspace_task_run.root_identity.device"),
+        inode: expectString(rootIdentity.inode, "workspace_task_run.root_identity.inode"),
+      },
+      isolationIdentity: withOptionalFields(
+        {
+          id: expectString(isolationIdentity.id, "workspace_task_run.isolation_identity.id"),
+          kind: isolationKind,
+        },
+        {
+          repositoryId,
+          baseRevision,
+          runtimeRef,
+        },
+      ),
       executionEnvironment: readExecutionEnvironmentBinding(
         value.execution_environment,
         "workspace_task_run.execution_environment"
       ),
-      state: expectWorkspaceTaskRunState(value.state, "workspace_task_run.state"),
+      state,
       resourceIds,
       createdAt: expectNumber(value.created_at, "workspace_task_run.created_at"),
       updatedAt: expectNumber(value.updated_at, "workspace_task_run.updated_at"),
     },
     {
-      baseRevision: optionalString(value.base_revision, "workspace_task_run.base_revision"),
       jobId: optionalString(value.job_id, "workspace_task_run.job_id"),
       agentId: optionalString(value.agent_id, "workspace_task_run.agent_id"),
-      runtimeRef: optionalString(value.runtime_ref, "workspace_task_run.runtime_ref"),
       executionOutcome,
       outcome,
       summary: optionalString(value.summary, "workspace_task_run.summary"),

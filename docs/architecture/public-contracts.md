@@ -57,7 +57,7 @@ These are export entry points, not separate npm package identities.
 
 - `@wanex/mcp`: source-preview official MCP transport adapters for Runtime tools;
 - `@wanex/workspace`: source-preview changesets, review, isolation, Git, durable tasks, and
-  explicitly registered coding tools;
+  explicitly registered workspace tools;
 - `@wanex/team`: source-preview durable team conversation ledger and coding delegation policies;
 - `@wanex/extension`: dependency-free contribution contracts and resolution;
 - `@wanex/plugin`: source-preview plugin trust, install, sandbox, process, and worker lifecycle;
@@ -98,12 +98,9 @@ Plugin Command Host identities with explicit Assistant owners. No compatibility
 package, export alias, route alias, or deprecated protocol remains.
 
 - `@wanex/cli`: executable headless CLI;
-- `@wanex/coding`: private Coding application domain. Its root owns only safe
-  application models/events; `/host` owns canonical repository admission,
-  disjoint Host data, bounded recovery, and Workspace lifecycle. Neither entry
-  is added to ordinary Runtime/App/Assistant closures;
 - `@wanex/assistant`: Assistant conversations, plans, goals, schedules, teams,
-  attachments, commands, and renderer-safe application surface;
+  attachments, commands, renderer-safe application surface, and optional
+  workspace task workflows;
 - `@wanex/assistant-plugin-host`: optional composable Assistant Plugin execution host;
 - `@wanex/desktop`: private packaged Electron platform and process owner;
 - `@wanex/assistant-host`: presentation-neutral local Assistant lifecycle plus

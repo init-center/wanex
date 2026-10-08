@@ -1,0 +1,31 @@
+/* Shared floating layers. Colors come from the shell tokens only. */
+.menu { z-index: 60; min-width: 232px; max-width: 320px; display: grid; gap: 2px; padding: 6px; background: var(--color-overlay-solid); border: 1px solid var(--color-line); border-radius: 14px; box-shadow: var(--shadow-float); transform-origin: var(--radix-dropdown-menu-content-transform-origin); animation: layer-in 120ms ease-out; }
+.menuItem { min-height: 36px; display: flex; align-items: center; gap: 10px; padding: 6px 10px; color: var(--color-text); border-radius: 9px; outline: 0; cursor: default; user-select: none; }
+.menuItem[data-highlighted] { background: var(--color-control-hover); }
+.menuItem[data-disabled] { opacity: .45; pointer-events: none; }
+.menuItem[data-tone="danger"] { color: var(--color-danger); }
+.menuIcon { width: 18px; flex: 0 0 auto; display: grid; place-items: center; color: var(--color-text-muted); }
+.menuText { min-width: 0; display: grid; gap: 1px; }
+.menuTitle { overflow: hidden; font-size: var(--font-size-md); font-weight: 520; text-overflow: ellipsis; white-space: nowrap; }
+.menuDescription { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.4; }
+.menuLabel { margin: 6px 10px 2px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 600; }
+.menuSeparator { height: 1px; margin: 4px 6px; background: var(--color-line); }
+
+.overlay { position: fixed; inset: 0; z-index: 70; background: var(--color-backdrop); animation: fade-in 120ms ease-out; }
+.dialog { position: fixed; z-index: 71; top: 50%; left: 50%; width: min(420px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 20px; color: var(--color-text); background: var(--color-overlay-solid); border: 1px solid var(--color-line); border-radius: var(--radius-dialog); box-shadow: var(--shadow-float); transform: translate(-50%, -50%); animation: dialog-in 140ms ease-out; }
+.dialogTitle { margin: 0; font-size: var(--font-size-xl); font-weight: 620; }
+.dialogDescription { margin: 0; color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: 1.55; }
+.dialogActions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+
+.button { min-height: 32px; padding: 0 14px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font-size: var(--font-size-md); font-weight: 540; }
+.button:hover:not(:disabled) { background: var(--color-control-hover); }
+.button[data-variant="primary"] { color: var(--color-on-accent); background: var(--color-accent); border-color: transparent; }
+.button[data-variant="primary"]:hover:not(:disabled) { background: var(--color-accent-hover); }
+.button[data-variant="danger"] { color: var(--color-on-accent); background: var(--color-danger); border-color: transparent; }
+.button[data-variant="danger"]:hover:not(:disabled) { background: var(--color-danger); }
+.button[data-variant="quiet"] { background: transparent; border-color: transparent; color: var(--color-text-secondary); }
+.button:disabled { opacity: .5; }
+
+@keyframes layer-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes dialog-in { from { opacity: 0; transform: translate(-50%, calc(-50% + 6px)) scale(.98); } }

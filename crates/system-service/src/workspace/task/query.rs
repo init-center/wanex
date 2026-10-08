@@ -36,6 +36,18 @@ impl SystemService {
         let runs = {
             let mut clauses = Vec::new();
             let mut values = Vec::new();
+            if let Some(root) = request.root_identity.as_ref() {
+                for (column, value) in [
+                    ("host_id", &root.host_id),
+                    ("generation_key", &root.generation_key),
+                    ("root_id", &root.root_id),
+                    ("root_device", &root.device),
+                    ("root_inode", &root.inode),
+                ] {
+                    clauses.push(format!("r.{column} = ?"));
+                    values.push(SqlValue::Text(value.clone()));
+                }
+            }
             if let Some(run_ids) = request.run_ids.as_ref() {
                 clauses.push(format!("r.id IN ({})", vec!["?"; run_ids.len()].join(", ")));
                 values.extend(run_ids.iter().cloned().map(SqlValue::Text));
@@ -44,9 +56,13 @@ impl SystemService {
                 clauses.push("r.workspace_id = ?".to_string());
                 values.push(SqlValue::Text(workspace_id.clone()));
             }
-            if let Some(repository_id) = request.repository_id.as_ref() {
-                clauses.push("r.repository_id = ?".to_string());
-                values.push(SqlValue::Text(repository_id.clone()));
+            if let Some(root_id) = request.root_id.as_ref() {
+                clauses.push("r.root_id = ?".to_string());
+                values.push(SqlValue::Text(root_id.clone()));
+            }
+            if let Some(strategy) = request.strategy.as_ref() {
+                clauses.push("r.strategy = ?".to_string());
+                values.push(SqlValue::Text(strategy.clone()));
             }
             if let Some(state) = request.state.as_ref() {
                 clauses.push("r.state = ?".to_string());

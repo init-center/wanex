@@ -1,6 +1,5 @@
 import { ShieldAlert, X } from "lucide-react";
 import type {
-  KeyboardEvent,
   ReactNode,
   RefObject,
 } from "react";
@@ -9,6 +8,7 @@ import type {
   PluginInstalledVersionSummary,
 } from "@wanex/assistant/plugin-management";
 import { classes } from "../classes.js";
+import { SettingsSubdialog, Title, Description } from "./subdialog.js";
 import {
   capabilityLabel,
   formatBytes,
@@ -19,34 +19,33 @@ import {
 export function ReviewDialog({
   review,
   busy,
+  isBusy,
+  error,
   initialFocus,
+  returnFocus,
   approve,
   cancel,
 }: {
   readonly review: LocalPluginReview;
   readonly busy: boolean;
+  readonly isBusy: () => boolean;
+  readonly error: string | undefined;
   readonly initialFocus: RefObject<HTMLButtonElement | null>;
+  readonly returnFocus: RefObject<HTMLButtonElement | null>;
   readonly approve: () => Promise<void>;
   readonly cancel: () => Promise<void>;
 }): ReactNode {
   return (
-    <div
-      className={classes("settings-subdialog-layer")}
-      data-ui-settings-subdialog
-      onKeyDown={(event) => handleEscape(event, busy, cancel)}
-    >
+    <SettingsSubdialog busy={busy} isBusy={isBusy} initialFocus={initialFocus} returnFocus={returnFocus} cancel={cancel}>
       <section
         className={classes("extension-review")}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="extension-review-title"
         data-ui-extension-review
       >
         <header>
           <div>
             <span className={classes("eyebrow")}>Review local code</span>
-            <h3 id="extension-review-title">{review.displayName}</h3>
-            <p>{review.pluginId} · {review.version}</p>
+            <Title asChild><h3>{review.displayName}</h3></Title>
+            <Description asChild><p>{review.pluginId} · {review.version}</p></Description>
           </div>
           <button
             type="button"
@@ -90,6 +89,7 @@ export function ReviewDialog({
           )}
           empty="No dependencies declared"
         />
+        {error === undefined ? null : <p className={classes("settings-error")} role="alert" data-ui-extension-error>{error}</p>}
         <footer>
           <button
             ref={initialFocus}
@@ -110,41 +110,42 @@ export function ReviewDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </SettingsSubdialog>
   );
 }
 
 export function RemoveDialog({
   install,
   busy,
+  isBusy,
+  error,
   initialFocus,
+  returnFocus,
+  fallbackFocus,
   confirm,
   cancel,
 }: {
   readonly install: PluginInstalledVersionSummary;
   readonly busy: boolean;
+  readonly isBusy: () => boolean;
+  readonly error: string | undefined;
   readonly initialFocus: RefObject<HTMLButtonElement | null>;
+  readonly returnFocus: RefObject<HTMLButtonElement | null>;
+  readonly fallbackFocus: RefObject<HTMLButtonElement | null>;
   readonly confirm: () => Promise<void>;
   readonly cancel: () => void;
 }): ReactNode {
   return (
-    <div
-      className={classes("settings-subdialog-layer")}
-      data-ui-settings-subdialog
-      onKeyDown={(event) => handleEscape(event, busy, cancel)}
-    >
+    <SettingsSubdialog busy={busy} isBusy={isBusy} initialFocus={initialFocus} returnFocus={returnFocus} fallbackFocus={fallbackFocus} cancel={cancel}>
       <section
         className={classes("extension-remove-dialog")}
-        role="alertdialog"
-        aria-modal="true"
-        aria-labelledby="extension-remove-title"
-        aria-describedby="extension-remove-description"
         data-ui-extension-remove-dialog
       >
-        <h3 id="extension-remove-title">Remove {install.displayName}?</h3>
-        <p id="extension-remove-description">
+        <Title asChild><h3>Remove {install.displayName}?</h3></Title>
+        <Description asChild><p>
           Its commands will no longer be available. Reinstalling requires a new review.
-        </p>
+        </p></Description>
+        {error === undefined ? null : <p className={classes("settings-error")} role="alert" data-ui-extension-error>{error}</p>}
         <footer>
           <button ref={initialFocus} type="button" disabled={busy} onClick={cancel}>
             Keep extension
@@ -160,7 +161,7 @@ export function RemoveDialog({
           </button>
         </footer>
       </section>
-    </div>
+    </SettingsSubdialog>
   );
 }
 
@@ -181,15 +182,4 @@ function ReviewList({
       )}
     </section>
   );
-}
-
-function handleEscape(
-  event: KeyboardEvent<HTMLDivElement>,
-  busy: boolean,
-  close: () => void | Promise<void>,
-): void {
-  if (event.key !== "Escape" || busy) return;
-  event.preventDefault();
-  event.stopPropagation();
-  void close();
 }

@@ -17,6 +17,8 @@ import type {
 import type {
   JsonValue,
   MessagePart,
+  ResolveToolExecutionApprovalReceipt,
+  ResolveToolExecutionApprovalRequest,
   RuntimeEvent,
   SchedulerJobRecord,
   TextMessagePart
@@ -46,7 +48,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 21
+const expectedSchemaVersion = 22
 
 const tempDirs: string[] = []
 let testStorageHandle: StorageHandle | undefined
@@ -75,6 +77,93 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/host", () => {
+  it("routes persisted Tool approval through the Host continuation seam", async () => {
+    const handle = requireTestStorageHandle()
+    const events: string[] = []
+    const receipt = {
+      execution: { id: "tool-execution-continuation" },
+      approvalDecision: { id: "approval-continuation", decision: "approve_once" },
+      turn: { id: "turn-continuation" },
+      job: { id: "job-continuation" }
+    } as unknown as ResolveToolExecutionApprovalReceipt
+    const request = {
+      executionId: "tool-execution-continuation",
+      expectedApprovalRevision: 3,
+      decision: "approve_once",
+      principalId: "principal-continuation",
+      reason: "approved",
+      idempotencyKey: "approval-continuation"
+    } satisfies ResolveToolExecutionApprovalRequest
+    const storage = new Proxy(handle.core, {
+      get(target, property) {
+        if (property === "resolveToolExecutionApproval") {
+          return async () => {
+            events.push("storage")
+            return receipt
+          }
+        }
+        const value = Reflect.get(target, property, target) as unknown
+        return typeof value === "function" ? value.bind(target) : value
+      }
+    }) as CoreStore
+    const host = new WanexRuntimeHost({
+      storage,
+      toolApprovalContinuation: {
+        async afterDecision(input) {
+          events.push("continuation")
+          expect(input.request).toEqual(request)
+          expect(input.receipt).toBe(receipt)
+          expect(input.execution).toBe(receipt.execution)
+        }
+      }
+    })
+    try {
+      await expect(host.resolveToolExecutionApproval(request)).resolves.toBe(receipt)
+      expect(events).toEqual(["storage", "continuation"])
+    } finally {
+      await host.dispose()
+    }
+  })
+
+  it("surfaces a continuation failure after the approval decision is persisted", async () => {
+    const handle = requireTestStorageHandle()
+    const receipt = {
+      execution: { id: "tool-execution-continuation-failure" },
+      approvalDecision: { id: "approval-continuation-failure", decision: "deny" },
+      turn: { id: "turn-continuation-failure" },
+      job: { id: "job-continuation-failure" }
+    } as unknown as ResolveToolExecutionApprovalReceipt
+    const storage = new Proxy(handle.core, {
+      get(target, property) {
+        if (property === "resolveToolExecutionApproval") {
+          return async () => receipt
+        }
+        const value = Reflect.get(target, property, target) as unknown
+        return typeof value === "function" ? value.bind(target) : value
+      }
+    }) as CoreStore
+    const host = new WanexRuntimeHost({
+      storage,
+      toolApprovalContinuation: {
+        async afterDecision() {
+          throw new Error("continuation temporarily unavailable")
+        }
+      }
+    })
+    try {
+      await expect(host.resolveToolExecutionApproval({
+        executionId: "tool-execution-continuation-failure",
+        expectedApprovalRevision: 4,
+        decision: "deny",
+        principalId: "principal-continuation",
+        reason: "denied",
+        idempotencyKey: "approval-continuation-failure"
+      })).rejects.toThrow("continuation temporarily unavailable")
+    } finally {
+      await host.dispose()
+    }
+  })
+
   it("isolates Session Turn workers by agent queue on one shared Store", async () => {
     const assistantProvider = new CountingProvider("assistant")
     const codingProvider = new CountingProvider("coding")

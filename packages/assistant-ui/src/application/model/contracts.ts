@@ -8,6 +8,7 @@ import type { ActionResult, Snapshot } from "./view.js"
 
 export interface CreateSurfaceOptions {
   readonly client: SurfaceClient
+  readonly attachmentUploadAvailable?: boolean
   readonly homeOptions?: HomeOptions
   readonly eventLimit?: number
   readonly now?: () => number

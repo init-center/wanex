@@ -29,6 +29,7 @@ export function ResourceImagePreview({
   >(undefined);
   const [state, setState] = useState<ResourcePreviewState>("loading");
   const [attempt, setAttempt] = useState(0);
+  const container = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -68,16 +69,22 @@ export function ResourceImagePreview({
 
   return (
     <span
+      ref={container}
+      tabIndex={-1}
       data-ui-resource-preview={resourceId}
       data-ui-preview-state={state}
     >
       {delivery !== undefined ? (
         <img
+          key={delivery.url}
           className={classes("resource-preview")}
           src={delivery.url}
           alt={label}
-          onLoad={() => setState("ready")}
+          onLoad={() => {
+            if (activeDelivery.current === delivery) setState("ready");
+          }}
           onError={() => {
+            if (activeDelivery.current !== delivery) return;
             releaseActiveDelivery(client, activeDelivery);
             setDelivery(undefined);
             setState("failed");
@@ -106,7 +113,10 @@ export function ResourceImagePreview({
           type="button"
           className={classes("resource-preview-failed")}
           data-ui-resource-preview-retry={resourceId}
-          onClick={() => setAttempt((current) => current + 1)}
+          onClick={(event) => {
+            if (document.activeElement === event.currentTarget) container.current?.focus();
+            setAttempt((current) => current + 1);
+          }}
           aria-label={`Retry ${label}`}
           title={`Preview unavailable. Retry ${label}`}
         >

@@ -104,6 +104,11 @@ import type {
   ScheduleEvents,
 } from "./schedule/model.js";
 import type { SchedulePort } from "./schedule/port.js";
+import type { WorkspaceReviewPort } from "./workspace-review.js";
+import type {
+  WorkspaceFolderCommands,
+  WorkspaceFolderPort,
+} from "./workspace-folders.js";
 
 export type * from "./conversation/model.js";
 export type * from "./attachments/model.js";
@@ -153,6 +158,8 @@ export interface CommandPortJsonResult {
 }
 
 export interface ShellOptions extends BackendAppOptions {
+  readonly workspaceReview?: WorkspaceReviewPort;
+  readonly workspaceFolders?: WorkspaceFolderPort;
   readonly state?: InitialState;
   readonly stateStore?: StateStore;
   readonly teamConversations?: TeamConversationPort;
@@ -321,6 +328,8 @@ export interface CommandPortSummary {
 }
 
 export interface Shell {
+  readonly workspaceReview?: WorkspaceReviewPort;
+  readonly workspaceFolders: WorkspaceFolderCommands;
   readonly commandCatalogEvents: import("./commands/model.js").CommandCatalogEvents;
   readonly commandExecutionEvents: import("./commands/model.js").CommandExecutionEvents;
   readonly events: ConversationEvents;
@@ -658,3 +667,5 @@ export interface WorkbenchFailedResult {
   readonly sessionId?: string;
   readonly error: SafeError;
 }
+
+export type * from "./workspace-review.js";

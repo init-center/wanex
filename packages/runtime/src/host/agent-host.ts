@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto"
 import {
   isAgentHostClientMessage,
   isAgentHostServerMessage,
@@ -16,6 +17,14 @@ import {
   type AgentHostServerMessage,
   type AgentHostClientMessage
 } from "@wanex/protocol"
+
+const MAX_IDEMPOTENT_COMMANDS = 256
+
+interface IdempotentCommandEntry {
+  readonly fingerprint: string
+  readonly result: Promise<AgentHostOperationResult>
+  settled: boolean
+}
 
 export interface AgentHostReplayResult {
   readonly outcome: "replayed" | "gap"
@@ -52,6 +61,7 @@ export function createInProcessAgentHostEndpoint(
   let requestedDomains: AgentHostHandshakeRequest["requestedDomains"] = []
   let unsubscribeSource: (() => void) | undefined
   const listeners = new Set<(event: AgentHostEvent) => void>()
+  const idempotentCommands = new Map<string, IdempotentCommandEntry>()
 
   const endpoint: InProcessAgentHostEndpoint = {
     async send(input) {
@@ -118,6 +128,7 @@ export function createInProcessAgentHostEndpoint(
       unsubscribeSource?.()
       unsubscribeSource = undefined
       listeners.clear()
+      idempotentCommands.clear()
     }
   }
 
@@ -173,26 +184,68 @@ export function createInProcessAgentHostEndpoint(
   async function operation(
     request: AgentHostOperationRequest
   ): Promise<AgentHostServerMessage> {
-    try {
-      const result = await options.handleOperation(request)
-      const response = operationResponse(request, result)
-      return isAgentHostServerMessage(response)
-        ? response
-        : errorResponse(request.requestId, {
-            code: "application_failure",
-            message: "Agent Host operation result is invalid",
-            retryable: true
-          })
-    } catch {
-      return operationResponse(request, {
+    const result = request.operationKind === "command"
+      ? await idempotentCommand(request)
+      : await invokeOperation(request, options.handleOperation)
+    const response = operationResponse(request, result)
+    return isAgentHostServerMessage(response)
+      ? response
+      : errorResponse(request.requestId, {
+          code: "application_failure",
+          message: "Agent Host operation result is invalid",
+          retryable: true
+        })
+  }
+
+  async function idempotentCommand(
+    request: Extract<AgentHostOperationRequest, { readonly operationKind: "command" }>
+  ): Promise<AgentHostOperationResult> {
+    const key = `${request.domain}\u0000${request.idempotencyKey}`
+    const fingerprint = commandFingerprint(request)
+    const existing = idempotentCommands.get(key)
+    if (existing !== undefined) {
+      if (existing.fingerprint !== fingerprint) {
+        return {
+          outcome: "failed",
+          error: {
+            code: "idempotency_conflict",
+            message: "Agent Host idempotency key identifies another command",
+            retryable: false
+          }
+        }
+      }
+      return await existing.result
+    }
+    if (!admitIdempotentCommand()) {
+      return {
         outcome: "failed",
         error: {
-          code: "application_failure",
-          message: "Agent Host operation failed",
+          code: "resource_limit",
+          message: "Agent Host idempotency capacity is exhausted",
           retryable: true
         }
-      })
+      }
     }
+    const entry: IdempotentCommandEntry = {
+      fingerprint,
+      result: invokeOperation(request, options.handleOperation),
+      settled: false
+    }
+    idempotentCommands.set(key, entry)
+    void entry.result.finally(() => {
+      entry.settled = true
+    })
+    return await entry.result
+  }
+
+  function admitIdempotentCommand(): boolean {
+    if (idempotentCommands.size < MAX_IDEMPOTENT_COMMANDS) return true
+    for (const [key, entry] of idempotentCommands) {
+      if (!entry.settled) continue
+      idempotentCommands.delete(key)
+      return true
+    }
+    return false
   }
 
   async function replay(
@@ -269,6 +322,46 @@ export function createInProcessAgentHostEndpoint(
       }
     })
   }
+}
+
+async function invokeOperation(
+  request: AgentHostOperationRequest,
+  handleOperation?: (request: AgentHostOperationRequest) => Promise<AgentHostOperationResult>
+): Promise<AgentHostOperationResult> {
+  try {
+    if (handleOperation === undefined) {
+      throw new Error("Agent Host operation handler is unavailable")
+    }
+    return await handleOperation(request)
+  } catch {
+    return {
+      outcome: "failed",
+      error: {
+        code: "application_failure",
+        message: "Agent Host operation failed",
+        retryable: true
+      }
+    }
+  }
+}
+
+function commandFingerprint(
+  request: Extract<AgentHostOperationRequest, { readonly operationKind: "command" }>
+): string {
+  return createHash("sha256")
+    .update(stableJson({ operation: request.operation, payload: request.payload }))
+    .digest("hex")
+}
+
+function stableJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    return JSON.stringify(value) ?? "null"
+  }
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, item]) => `${JSON.stringify(key)}:${stableJson(item)}`)
+    .join(",")}}`
 }
 
 function operationResponse(

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { execFile, spawn } from "node:child_process"
-import { createHash, randomUUID } from "node:crypto"
+import { execFile, spawn } from "node:child_process";
+import { createHash, randomUUID } from "node:crypto";
 import {
   chmod,
   cp,
@@ -12,11 +12,11 @@ import {
   readlink,
   rm,
   stat,
-  writeFile
-} from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { basename, isAbsolute, join, relative, resolve } from "node:path"
-import { promisify } from "node:util"
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { promisify } from "node:util";
 import {
   auditPackagedDesktop,
   distributionRoot,
@@ -25,18 +25,16 @@ import {
   packageDesktop,
   packagedExecutable,
   desktopResourcesDir,
-  workspaceRoot
-} from "./build.mjs"
+  workspaceRoot,
+} from "./build.mjs";
 import {
   DESKTOP_PROOF_SAMPLE_COUNT,
-  summarizeDesktopSamples
-} from "./metrics.mjs"
-import { listenDesktopProofProvider } from "./provider-fixture.mjs"
-import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs"
-import { createRemoteCodingServer } from "./remote-coding-server.mjs"
-import {
-  writeDesktopFailureReport
-} from "./proof/failure-report.mjs"
+  summarizeDesktopSamples,
+} from "./metrics.mjs";
+import { listenDesktopProofProvider } from "./provider-fixture.mjs";
+import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs";
+import { createPackagedServer } from "./packaged-server.mjs";
+import { writeDesktopFailureReport } from "./proof/failure-report.mjs";
 import {
   WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
   WANEX_DESKTOP_PROOF_CANCEL_PARTIAL_RESPONSE,
@@ -44,6 +42,7 @@ import {
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT,
+  WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
   WANEX_DESKTOP_PROOF_GOAL_CRITERION,
   WANEX_DESKTOP_PROOF_GOAL_FINAL_RESPONSE,
   WANEX_DESKTOP_PROOF_GOAL_FINAL_VERIFICATION_REASON,
@@ -77,17 +76,15 @@ import {
   WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
   WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE,
   WANEX_DESKTOP_PROOF_TEAM_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_FILE,
-  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
   WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
   WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
-  WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID
-} from "../src/proof-contract.ts"
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_RELEASE_MARKER,
+  WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE,
+  WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID,
+} from "../src/proof-contract.ts";
 
-const execFileAsync = promisify(execFile)
+const execFileAsync = promisify(execFile);
 
 const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_RECEIPT",
@@ -98,116 +95,129 @@ const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
   "WANEX_DESKTOP_PROOF_STEP",
   "WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL",
   "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
-  "WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT",
+  "WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL",
   "WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL",
   "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID",
   "WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME",
   "WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID",
   "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
-  "WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS"
-]
+];
 
 if (import.meta.main) {
-  assertCanonicalProofArgs(process.argv.slice(2))
-  const receipt = await proveDesktop()
-  process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`)
+  assertCanonicalProofArgs(process.argv.slice(2));
+  const receipt = await proveDesktop();
+  process.stdout.write(`${JSON.stringify(receipt, null, 2)}\n`);
 }
 
 export function assertCanonicalProofArgs(args) {
   for (const arg of args) {
     if (arg !== "--") {
-      throw new Error(`unknown Desktop proof argument: ${arg}`)
+      throw new Error(`unknown Desktop proof argument: ${arg}`);
     }
   }
 }
 
 export async function proveDesktop() {
-  const proofRoot = await mkdtemp(join(tmpdir(), "Wanex 桌面 证明-"))
-  const userDataDir = join(proofRoot, "用户 数据")
-  const proofCredential = `wanex-desktop-proof-${randomUUID()}`
+  const proofRoot = await mkdtemp(join(tmpdir(), "Wanex 桌面 证明-"));
+  const userDataDir = join(proofRoot, "用户 数据");
+  const proofCredential = `wanex-desktop-proof-${randomUUID()}`;
   const provider = await listenDesktopProofProvider({
-    credential: proofCredential
-  })
-  let remoteCoding
-  let activeProviderRequestOffset = 0
+    credential: proofCredential,
+  });
+  let packagedServer;
+  let activeProviderRequestOffset = 0;
   try {
-    const buildReceipt = await packageDesktop()
+    const buildReceipt = await packageDesktop();
     const installed = await materializeInstalledDesktop({
       sourcePackageDir: buildReceipt.packaged.packageDir,
-      installationRoot: join(proofRoot, "已安装 Wanex Desktop")
-    })
+      installationRoot: join(proofRoot, "已安装 Wanex Desktop"),
+    });
     await auditPackagedDesktop({
       packageDir: installed.packageDir,
       stagedNativeDir: nativeArtifactDir,
-      stagedCredentialDir: credentialArtifactDir
-    })
+      stagedCredentialDir: credentialArtifactDir,
+    });
     const sourceImmutable = await hashImmutableResources(
-      buildReceipt.packaged.packageDir
-    )
-    const immutableBefore = await hashImmutableResources(installed.packageDir)
+      buildReceipt.packaged.packageDir,
+    );
+    const immutableBefore = await hashImmutableResources(installed.packageDir);
     if (JSON.stringify(immutableBefore) !== JSON.stringify(sourceImmutable)) {
-      throw new Error("installed Desktop immutable resources differ")
+      throw new Error("installed Desktop immutable resources differ");
     }
-    const executable = packagedExecutable(installed.packageDir)
+    const executable = packagedExecutable(installed.packageDir);
     const pluginFixtures = await createDesktopPluginProofFixtures({
-      root: join(proofRoot, "plugin-fixtures")
-    })
-    const codingProject = await createDesktopCodingProofRepository(proofRoot)
-    remoteCoding = await createRemoteCodingServer({
-      repositoryPath: codingProject
-    })
-    const samples = []
-    let retainedScreenshot
+      root: join(proofRoot, "plugin-fixtures"),
+    });
+    packagedServer = await createPackagedServer({
+      provider: {
+        baseUrl: provider.baseUrl,
+        credential: proofCredential,
+      },
+    });
+    const samples = [];
+    let retainedScreenshot;
     for (let index = 0; index < DESKTOP_PROOF_SAMPLE_COUNT; index += 1) {
-      const receiptPath = join(proofRoot, `runtime-receipt-${index}.json`)
+      const receiptPath = join(proofRoot, `runtime-receipt-${index}.json`);
       const normalScreenshotPath = join(
         proofRoot,
-        `desktop-normal-${index}.png`
-      )
+        `desktop-normal-${index}.png`,
+      );
       const narrowScreenshotPath = join(
         proofRoot,
-        `desktop-narrow-${index}.png`
-      )
-      const requestOffset = provider.requests.length
-      activeProviderRequestOffset = requestOffset
+        `desktop-narrow-${index}.png`,
+      );
+      const requestOffset = provider.requests.length;
+      activeProviderRequestOffset = requestOffset;
       const measured = await measureDesktopSample(
-        () => run(executable, {
-          WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
-          WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT: normalScreenshotPath,
-          WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT: narrowScreenshotPath,
-          WANEX_DESKTOP_PROOF_USER_DATA: userDataDir,
-          WANEX_DESKTOP_PROOF_PROFILE_ID: `proof-${index}`,
-          WANEX_DESKTOP_PROOF_STEP: "lifecycle",
-          WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: provider.baseUrl,
-          WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: proofCredential
-        }, 60_000, receiptPath),
-        () => assertNoOwnedProcess(userDataDir)
-      )
-      const runtime = JSON.parse(await readFile(receiptPath, "utf8"))
-      assertRuntimeReceipt(runtime)
-      assertProviderFixtureRequests(provider.requests.slice(requestOffset))
-      const normalScreenshot = await readFile(normalScreenshotPath)
-      const narrowScreenshot = await readFile(narrowScreenshotPath)
+        () =>
+          run(
+            executable,
+            {
+              WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
+              WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT: normalScreenshotPath,
+              WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT: narrowScreenshotPath,
+              WANEX_DESKTOP_PROOF_USER_DATA: userDataDir,
+              WANEX_DESKTOP_PROOF_PROFILE_ID: `proof-${index}`,
+              WANEX_DESKTOP_PROOF_STEP: "lifecycle",
+              WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: provider.baseUrl,
+              WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: proofCredential,
+            },
+            60_000,
+            receiptPath,
+          ),
+        () => assertNoOwnedProcess(userDataDir),
+      );
+      const runtime = JSON.parse(await readFile(receiptPath, "utf8"));
+      assertRuntimeReceipt(runtime);
+      assertProviderFixtureRequests(provider.requests.slice(requestOffset));
+      const normalScreenshot = await readFile(normalScreenshotPath);
+      const narrowScreenshot = await readFile(narrowScreenshotPath);
       if (
         normalScreenshot.byteLength !== runtime.screenshots.normal.bytes ||
         narrowScreenshot.byteLength !== runtime.screenshots.narrow.bytes
       ) {
-        throw new Error("Desktop screenshot receipt differs from files")
+        throw new Error("Desktop screenshot receipt differs from files");
       }
-      retainedScreenshot = { normal: normalScreenshot, narrow: narrowScreenshot }
-      const failureEvidence =
-        `${measured.output.stderr}\n${JSON.stringify(runtime)}`
-      if (/EPERM[\s\S]{0,160}rename|rename[\s\S]{0,160}EPERM/i.test(failureEvidence)) {
-        throw new Error("Desktop emitted an EPERM rename failure")
+      retainedScreenshot = {
+        normal: normalScreenshot,
+        narrow: narrowScreenshot,
+      };
+      const failureEvidence = `${measured.output.stderr}\n${JSON.stringify(runtime)}`;
+      if (
+        /EPERM[\s\S]{0,160}rename|rename[\s\S]{0,160}EPERM/i.test(
+          failureEvidence,
+        )
+      ) {
+        throw new Error("Desktop emitted an EPERM rename failure");
       }
       samples.push({
         index,
         temperature: index === 0 ? "cold" : "warm",
         runtime,
-        wallTimeMs: measured.wallTimeMs
-      })
+        wallTimeMs: measured.wallTimeMs,
+      });
     }
-    activeProviderRequestOffset = provider.requests.length
+    activeProviderRequestOffset = provider.requests.length;
     const relaunch = await proveDesktopRelaunchJourneys({
       executable,
       proofRoot,
@@ -215,28 +225,25 @@ export async function proveDesktop() {
       provider,
       credential: proofCredential,
       plugins: pluginFixtures,
-      codingProject,
-      remoteCoding
-    })
-    const immutableAfter = await hashImmutableResources(
-      installed.packageDir
-    )
+      packagedServer,
+    });
+    const immutableAfter = await hashImmutableResources(installed.packageDir);
     if (JSON.stringify(immutableAfter) !== JSON.stringify(immutableBefore)) {
-      throw new Error("packaged Desktop immutable resources changed")
+      throw new Error("packaged Desktop immutable resources changed");
     }
     if (retainedScreenshot === undefined) {
-      throw new Error("Desktop proof did not capture a screenshot")
+      throw new Error("Desktop proof did not capture a screenshot");
     }
-    const normalScreenshotFile = "desktop-proof-normal.png"
-    const narrowScreenshotFile = "desktop-proof-narrow.png"
+    const normalScreenshotFile = "desktop-proof-normal.png";
+    const narrowScreenshotFile = "desktop-proof-narrow.png";
     await writeFile(
       join(distributionRoot, normalScreenshotFile),
-      retainedScreenshot.normal
-    )
+      retainedScreenshot.normal,
+    );
     await writeFile(
       join(distributionRoot, narrowScreenshotFile),
-      retainedScreenshot.narrow
-    )
+      retainedScreenshot.narrow,
+    );
     const receipt = {
       kind: "wanex.desktop.proof-receipt",
       ok: true,
@@ -246,14 +253,14 @@ export async function proveDesktop() {
       credential: buildReceipt.credential,
       packaged: {
         ...buildReceipt.packaged,
-        packageDir: undefined
+        packageDir: undefined,
       },
       installed: {
         externalToWorkspace: installed.externalToWorkspace,
         packageFileCount: installed.packageFileCount,
         packageBytes: installed.packageBytes,
         packageShapeVerified: installed.packageShapeVerified,
-        executedFromInstalledCopy: true
+        executedFromInstalledCopy: true,
       },
       immutableResources: immutableAfter,
       screenshots: {
@@ -262,15 +269,15 @@ export async function proveDesktop() {
           bytes: retainedScreenshot.normal.byteLength,
           sha256: createHash("sha256")
             .update(retainedScreenshot.normal)
-            .digest("hex")
+            .digest("hex"),
         },
         narrow: {
           file: narrowScreenshotFile,
           bytes: retainedScreenshot.narrow.byteLength,
           sha256: createHash("sha256")
             .update(retainedScreenshot.narrow)
-            .digest("hex")
-        }
+            .digest("hex"),
+        },
       },
       sampleCount: samples.length,
       samples,
@@ -280,247 +287,263 @@ export async function proveDesktop() {
       providerFixture: {
         requestCount: provider.requests.length,
         allAuthorized: provider.requests.every((request) => request.authorized),
-        models: [...new Set(provider.requests.map((request) => request.model))]
-          .sort()
+        models: [
+          ...new Set(provider.requests.map((request) => request.model)),
+        ].sort(),
       },
       realDesktopDocument: true,
       screenshotsNonBlank: true,
       noEpermRename: true,
-      noOwnedProcessAfterRun: true
-    }
+      noOwnedProcessAfterRun: true,
+    };
     if (JSON.stringify(receipt).includes(proofCredential)) {
-      throw new Error("Desktop proof receipt leaked the Provider credential")
+      throw new Error("Desktop proof receipt leaked the Provider credential");
     }
     await writeFile(
       join(distributionRoot, "desktop-report.json"),
       `${JSON.stringify(receipt, null, 2)}\n`,
-      "utf8"
-    )
-    return receipt
+      "utf8",
+    );
+    return receipt;
   } catch (error) {
     await writeDesktopFailureReport({
       error,
       proofRoot,
       providerRequests: provider.requests.slice(activeProviderRequestOffset),
-      providerResponses: provider.responses.slice(activeProviderRequestOffset)
-    })
-    throw error
+      providerResponses: provider.responses.slice(activeProviderRequestOffset),
+    });
+    throw error;
   } finally {
     await Promise.all([
       provider.close(),
-      remoteCoding?.close(),
-      removeDesktopProofRoot(proofRoot)
-    ])
+      packagedServer?.close(),
+      removeDesktopProofRoot(proofRoot),
+    ]);
   }
 }
 
 export async function removeDesktopProofRoot(root) {
   if (process.platform !== "win32") {
-    await makeProofTreeOwnerWritable(root)
+    await makeProofTreeOwnerWritable(root);
   }
-  await rm(root, { recursive: true, force: true })
+  await rm(root, { recursive: true, force: true });
 }
 
 export async function materializeInstalledDesktop(options) {
-  const sourcePackageDir = resolve(options.sourcePackageDir)
-  const installationRoot = resolve(options.installationRoot)
-  assertOutsideWorkspace(installationRoot)
+  const sourcePackageDir = resolve(options.sourcePackageDir);
+  const installationRoot = resolve(options.installationRoot);
+  assertOutsideWorkspace(installationRoot);
   if (isPathInsideOrEqual(installationRoot, sourcePackageDir)) {
-    throw new Error("Desktop installation root must not contain its source package")
+    throw new Error(
+      "Desktop installation root must not contain its source package",
+    );
   }
-  await rm(installationRoot, { recursive: true, force: true })
-  await mkdir(installationRoot, { recursive: true })
-  const installedPackageDir = join(installationRoot, basename(sourcePackageDir))
+  await rm(installationRoot, { recursive: true, force: true });
+  await mkdir(installationRoot, { recursive: true });
+  const installedPackageDir = join(
+    installationRoot,
+    basename(sourcePackageDir),
+  );
   await cp(sourcePackageDir, installedPackageDir, {
     recursive: true,
-    verbatimSymlinks: true
-  })
+    verbatimSymlinks: true,
+  });
   const verification = await verifyInstalledDesktopCopy({
     sourcePackageDir,
-    installedPackageDir
-  })
+    installedPackageDir,
+  });
   return {
     packageDir: installedPackageDir,
     externalToWorkspace: true,
     packageFileCount: verification.packageFileCount,
     packageBytes: verification.packageBytes,
-    packageShapeVerified: true
-  }
+    packageShapeVerified: true,
+  };
 }
 
 export async function verifyInstalledDesktopCopy(options) {
-  const sourcePackageDir = resolve(options.sourcePackageDir)
-  const installedPackageDir = resolve(options.installedPackageDir)
-  assertOutsideWorkspace(installedPackageDir)
+  const sourcePackageDir = resolve(options.sourcePackageDir);
+  const installedPackageDir = resolve(options.installedPackageDir);
+  assertOutsideWorkspace(installedPackageDir);
   const [sourceFiles, installedFiles] = await Promise.all([
     listPackageFileMetadata(sourcePackageDir),
-    listPackageFileMetadata(installedPackageDir)
-  ])
+    listPackageFileMetadata(installedPackageDir),
+  ]);
   if (JSON.stringify(sourceFiles) !== JSON.stringify(installedFiles)) {
-    throw new Error("installed Desktop package differs from its source package")
+    throw new Error(
+      "installed Desktop package differs from its source package",
+    );
   }
   return {
     packageFileCount: installedFiles.length,
-    packageBytes: installedFiles.reduce((total, file) => total + file.bytes, 0)
-  }
+    packageBytes: installedFiles.reduce((total, file) => total + file.bytes, 0),
+  };
 }
 
 async function listPackageFileMetadata(root, current = root) {
-  const files = []
+  const files = [];
   for (const entry of await readdir(current, { withFileTypes: true })) {
-    const path = join(current, entry.name)
+    const path = join(current, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await listPackageFileMetadata(root, path))
-      continue
+      files.push(...(await listPackageFileMetadata(root, path)));
+      continue;
     }
-    const file = await lstat(path)
+    const file = await lstat(path);
     if (file.isSymbolicLink()) {
-      const target = await readlink(path)
-      const targetStatus = await stat(path)
+      const target = await readlink(path);
+      const targetStatus = await stat(path);
       files.push({
         path: relative(root, path).replaceAll("\\", "/"),
         kind: "symlink",
         target,
-        bytes: targetStatus.size
-      })
-      continue
+        bytes: targetStatus.size,
+      });
+      continue;
     }
     if (!file.isFile()) {
-      throw new Error(`Desktop package contains a non-file entry: ${path}`)
+      throw new Error(`Desktop package contains a non-file entry: ${path}`);
     }
     files.push({
       path: relative(root, path).replaceAll("\\", "/"),
       kind: "file",
-      bytes: file.size
-    })
+      bytes: file.size,
+    });
   }
-  return files.sort((left, right) => left.path.localeCompare(right.path))
+  return files.sort((left, right) => left.path.localeCompare(right.path));
 }
 
 function assertOutsideWorkspace(path) {
   if (isPathInsideOrEqual(path, workspaceRoot)) {
-    throw new Error("Desktop installation path must be outside the source workspace")
+    throw new Error(
+      "Desktop installation path must be outside the source workspace",
+    );
   }
 }
 
 function isPathInsideOrEqual(path, root) {
-  const fromRoot = relative(resolve(root), resolve(path))
-  return fromRoot === "" || (
-    fromRoot !== ".." &&
-    !fromRoot.startsWith(`..${pathSeparator()}`) &&
-    !isAbsolute(fromRoot)
-  )
+  const fromRoot = relative(resolve(root), resolve(path));
+  return (
+    fromRoot === "" ||
+    (fromRoot !== ".." &&
+      !fromRoot.startsWith(`..${pathSeparator()}`) &&
+      !isAbsolute(fromRoot))
+  );
 }
 
 function pathSeparator() {
-  return process.platform === "win32" ? "\\" : "/"
-}
-
-async function createDesktopCodingProofRepository(proofRoot) {
-  const repositoryRoot = await mkdtemp(join(proofRoot, "coding-repository-"))
-  await writeFile(join(repositoryRoot, "README.md"), "base\n", "utf8")
-  await runProofGit(repositoryRoot, ["init"])
-  await runProofGit(repositoryRoot, ["config", "user.email", "wanex@example.local"])
-  await runProofGit(repositoryRoot, ["config", "user.name", "Wanex Desktop Proof"])
-  await runProofGit(repositoryRoot, ["config", "core.autocrlf", "false"])
-  await runProofGit(repositoryRoot, ["config", "commit.gpgsign", "false"])
-  await runProofGit(repositoryRoot, ["add", "README.md"])
-  await runProofGit(repositoryRoot, ["commit", "-m", "initial proof repository"])
-  return repositoryRoot
-}
-
-async function runProofGit(repositoryRoot, args) {
-  await execFileAsync(
-    "git",
-    ["-C", repositoryRoot, ...args],
-    { encoding: "utf8", maxBuffer: 10 * 1024 * 1024 }
-  )
+  return process.platform === "win32" ? "\\" : "/";
 }
 
 async function makeProofTreeOwnerWritable(path) {
   try {
-    await chmod(path, 0o700)
+    await chmod(path, 0o700);
   } catch (error) {
-    if (error?.code === "ENOENT") return
-    throw error
+    if (error?.code === "ENOENT") return;
+    throw error;
   }
-  const entries = await readdir(path, { withFileTypes: true })
-  await Promise.all(entries.map(async (entry) => {
-    const child = join(path, entry.name)
-    if (entry.isDirectory()) {
-      await makeProofTreeOwnerWritable(child)
-    } else if (entry.isFile()) {
-      await chmod(child, 0o600)
-    }
-  }))
+  const entries = await readdir(path, { withFileTypes: true });
+  await Promise.all(
+    entries.map(async (entry) => {
+      const child = join(path, entry.name);
+      if (entry.isDirectory()) {
+        await makeProofTreeOwnerWritable(child);
+      } else if (entry.isFile()) {
+        await chmod(child, 0o600);
+      }
+    }),
+  );
 }
 
 export async function proveDesktopRelaunchJourneys(options) {
-  const profileId = "proof-relaunch"
-  const steps = []
-  let cleanupRequired = true
-  let journeyFailure
+  const profileId = "proof-relaunch";
+  const steps = [];
+  let cleanupRequired = true;
+  let journeyFailure;
   try {
     await runRelaunchStep("relaunch-configure", {
       WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: options.provider.baseUrl,
-      WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: options.credential
-    })
-    await runRelaunchStep("relaunch-chat")
-    await runRelaunchStep("relaunch-coding", {
-      WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS: JSON.stringify([
-        options.codingProject
-      ])
-    })
-    await runRelaunchStep("relaunch-remote-coding", {
-      WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT: options.remoteCoding.endpoint,
-      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
-      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME: WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
-      WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID: options.remoteCoding.projectId,
-      NODE_EXTRA_CA_CERTS: options.remoteCoding.caPath
-    })
-    await runRelaunchStep("relaunch-cancel-regenerate")
-    await runRelaunchStep("relaunch-guided-follow-up")
-    await runRelaunchStep("relaunch-side-query")
-    await runRelaunchStep("relaunch-multimodal")
-    await runRelaunchStep("relaunch-image-generation")
-    await runRelaunchStep("relaunch-plan")
-    await runRelaunchStep("relaunch-goal")
-    await runRelaunchStep("relaunch-schedule-create")
-    await runRelaunchStep("relaunch-schedule-restore")
-    await runRelaunchStep("relaunch-team")
+      WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: options.credential,
+    });
+    await runRelaunchStep("relaunch-chat");
+    await runRelaunchStep("relaunch-remote-assistant", {
+      WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: options.packagedServer.serverUrl,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+      NODE_EXTRA_CA_CERTS: options.packagedServer.caPath,
+    });
+    await runRelaunchStep("relaunch-remote-assistant-restore", {
+      WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: options.packagedServer.serverUrl,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+      NODE_EXTRA_CA_CERTS: options.packagedServer.caPath,
+    });
+    await runRelaunchStep("relaunch-remote-media", {
+      WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: options.packagedServer.serverUrl,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+      NODE_EXTRA_CA_CERTS: options.packagedServer.caPath,
+    });
+    await runRelaunchStep("relaunch-remote-media-restore", {
+      WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: options.packagedServer.serverUrl,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID,
+      WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME:
+        WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME,
+      NODE_EXTRA_CA_CERTS: options.packagedServer.caPath,
+    });
+    await runRelaunchStep("relaunch-cancel-regenerate");
+    await runRelaunchStep("relaunch-guided-follow-up");
+    await runRelaunchStep("relaunch-side-query");
+    await runRelaunchStep("relaunch-multimodal");
+    await runRelaunchStep("relaunch-image-generation");
+    await runRelaunchStep("relaunch-plan");
+    await runRelaunchStep("relaunch-goal");
+    await runRelaunchStep("relaunch-schedule-create");
+    await runRelaunchStep("relaunch-schedule-restore");
+    await runRelaunchStep("relaunch-team");
     await runRelaunchStep("relaunch-plugin-install", {
       WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: JSON.stringify([
         options.plugins.v1.root,
         options.plugins.v1.root,
-        options.plugins.v2.root
-      ])
-    })
-    await runRelaunchStep("relaunch-plugin-restore")
-    await runRelaunchStep("relaunch-cleanup")
-    cleanupRequired = false
-    await runRelaunchStep("relaunch-unconfigured")
+        options.plugins.v2.root,
+      ]),
+    });
+    await runRelaunchStep("relaunch-plugin-restore");
+    await runRelaunchStep("relaunch-cleanup");
+    cleanupRequired = false;
+    await runRelaunchStep("relaunch-unconfigured");
   } catch (error) {
-    journeyFailure = error
+    journeyFailure = error;
   }
-  let cleanupFailure
+  let cleanupFailure;
   if (cleanupRequired) {
     try {
-      await runRelaunchStep("relaunch-cleanup", {}, {
-        record: false,
-        allowAlreadyClean: true
-      })
+      await runRelaunchStep(
+        "relaunch-cleanup",
+        {},
+        {
+          record: false,
+          allowAlreadyClean: true,
+        },
+      );
     } catch (error) {
-      cleanupFailure = error
+      cleanupFailure = error;
     }
   }
   if (journeyFailure !== undefined && cleanupFailure !== undefined) {
     throw new AggregateError(
       [journeyFailure, cleanupFailure],
-      "Desktop relaunch journey and cleanup both failed"
-    )
+      "Desktop relaunch journey and cleanup both failed",
+    );
   }
-  if (journeyFailure !== undefined) throw journeyFailure
-  if (cleanupFailure !== undefined) throw cleanupFailure
+  if (journeyFailure !== undefined) throw journeyFailure;
+  if (cleanupFailure !== undefined) throw cleanupFailure;
   return {
     kind: "wanex.desktop.relaunch-journeys-receipt",
     ok: true,
@@ -528,8 +551,10 @@ export async function proveDesktopRelaunchJourneys(options) {
     credentialPassedProcessCount: 1,
     sameProfile: true,
     chatRelaunchReceivedCredential: false,
-    codingRelaunchReceivedCredential: false,
-    remoteCodingRelaunchReceivedCredential: false,
+    remoteAssistantRelaunchReceivedCredential: false,
+    remoteAssistantRestoreRelaunchReceivedCredential: false,
+    remoteMediaRelaunchReceivedCredential: false,
+    remoteMediaRestoreRelaunchReceivedCredential: false,
     cancelRegenerateRelaunchReceivedCredential: false,
     guidedFollowUpRelaunchReceivedCredential: false,
     sideQueryRelaunchReceivedCredential: false,
@@ -549,40 +574,41 @@ export async function proveDesktopRelaunchJourneys(options) {
       heldForMs: WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS,
       crossedDeadlineCount: Math.floor(
         WANEX_DESKTOP_PROOF_SCHEDULE_HOLD_MS /
-          (WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS * 1_000)
+          (WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS * 1_000),
       ),
       createProviderRequestCount: 1,
       restoreProviderRequestCount: 1,
       nonOverlapVerified: true,
       disabledQuietWindowVerified: true,
       sameProfileRestored: true,
-      removed: true
+      removed: true,
     },
-    steps
-  }
+    steps,
+  };
 
   async function runRelaunchStep(step, extraEnvironment = {}, behavior = {}) {
-    const receiptPath = join(options.proofRoot, `${step}-receipt.json`)
-    const requestOffset = options.provider.requests.length
+    const receiptPath = join(options.proofRoot, `${step}-receipt.json`);
+    const requestOffset = options.provider.requests.length;
     const environment = {
       WANEX_DESKTOP_PROOF_RECEIPT: receiptPath,
       WANEX_DESKTOP_PROOF_USER_DATA: options.userDataDir,
       WANEX_DESKTOP_PROOF_PROFILE_ID: profileId,
       WANEX_DESKTOP_PROOF_STEP: step,
-      ...extraEnvironment
-    }
+      ...extraEnvironment,
+    };
     if (
       step !== "relaunch-configure" &&
       Object.hasOwn(environment, "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL")
     ) {
-      throw new Error(`Desktop ${step} must not receive a credential`)
+      throw new Error(`Desktop ${step} must not receive a credential`);
     }
-    let measured
-    let proofReleaseTriggered = false
+    let measured;
+    let proofReleaseTriggered = false;
     const releasesHeldProviderResponse =
       step === "relaunch-guided-follow-up" ||
       step === "relaunch-side-query" ||
-      step === "relaunch-schedule-create"
+      step === "relaunch-schedule-create" ||
+      step === "relaunch-remote-assistant";
     const onStdout = releasesHeldProviderResponse
       ? (stdout) => {
           const marker =
@@ -590,22 +616,24 @@ export async function proveDesktopRelaunchJourneys(options) {
               ? WANEX_DESKTOP_PROOF_GUIDED_RELEASE_MARKER
               : step === "relaunch-side-query"
                 ? WANEX_DESKTOP_PROOF_SIDE_QUERY_RELEASE_MARKER
-                : WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER
-          if (proofReleaseTriggered || !stdout.includes(marker)) return
-          proofReleaseTriggered = true
+                : step === "relaunch-schedule-create"
+                  ? WANEX_DESKTOP_PROOF_SCHEDULE_RELEASE_MARKER
+                  : WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_RELEASE_MARKER;
+          if (proofReleaseTriggered || !stdout.includes(marker)) return;
+          proofReleaseTriggered = true;
           const released =
             step === "relaunch-guided-follow-up"
               ? options.provider.releaseGuidedFollowUpParent()
               : step === "relaunch-side-query"
                 ? options.provider.releaseSideQueryParent()
-                : options.provider.releaseSchedule()
+                : step === "relaunch-schedule-create"
+                  ? options.provider.releaseSchedule()
+                  : options.provider.releaseRemoteAssistant();
           if (!released) {
-            throw new Error(
-              `Desktop ${step} parent release was not accepted`
-            )
+            throw new Error(`Desktop ${step} parent release was not accepted`);
           }
         }
-      : undefined
+      : undefined;
     try {
       measured = await measureDesktopSample(
         () =>
@@ -614,72 +642,79 @@ export async function proveDesktopRelaunchJourneys(options) {
             environment,
             step.startsWith("relaunch-schedule-") ? 90_000 : 60_000,
             receiptPath,
-            { onStdout }
+            { onStdout },
           ),
-        () => assertNoOwnedProcess(options.userDataDir)
-      )
+        () => assertNoOwnedProcess(options.userDataDir),
+      );
     } catch (error) {
-      const providerEvidence = options.provider.requests.slice(requestOffset)
+      const providerEvidence = options.provider.requests.slice(requestOffset);
       throw new Error(
         `Desktop ${step} process failed with Provider evidence ${JSON.stringify(providerEvidence)}`,
-        { cause: error }
-      )
+        { cause: error },
+      );
     }
-    const runtime = JSON.parse(await readFile(receiptPath, "utf8"))
+    const runtime = JSON.parse(await readFile(receiptPath, "utf8"));
     assertRelaunchJourneyRuntimeReceipt(runtime, step, {
-      allowAlreadyClean: behavior.allowAlreadyClean === true
-    })
+      allowAlreadyClean: behavior.allowAlreadyClean === true,
+    });
     assertRelaunchJourneyFixtureRequests(
       options.provider.requests.slice(requestOffset),
-      step
-    )
-    if (step === "relaunch-remote-coding") {
-      assertRemoteCodingServerEvidence(options.remoteCoding)
+      step,
+    );
+    if (
+      step === "relaunch-remote-assistant" ||
+      step === "relaunch-remote-assistant-restore" ||
+      step === "relaunch-remote-media" ||
+      step === "relaunch-remote-media-restore"
+    ) {
+      assertPackagedServerEvidence(options.packagedServer);
     }
     const evidence = {
       step,
       runtime,
       wallTimeMs: measured.wallTimeMs,
-      receivedCredential:
-        Object.hasOwn(environment, "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL")
-    }
+      receivedCredential: Object.hasOwn(
+        environment,
+        "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
+      ),
+    };
     if (JSON.stringify(evidence).includes(options.credential)) {
-      throw new Error(`Desktop ${step} receipt leaked the credential`)
+      throw new Error(`Desktop ${step} receipt leaked the credential`);
     }
-    if (behavior.record !== false) steps.push(evidence)
-    return evidence
+    if (behavior.record !== false) steps.push(evidence);
+    return evidence;
   }
 }
 
 export async function measureDesktopSample(
   runSample,
   auditOwnedProcesses,
-  now = () => Date.now()
+  now = () => Date.now(),
 ) {
-  const startedAt = now()
-  let output
-  let runFailure
+  const startedAt = now();
+  let output;
+  let runFailure;
   try {
-    output = await runSample()
+    output = await runSample();
   } catch (error) {
-    runFailure = error
+    runFailure = error;
   }
-  const wallTimeMs = now() - startedAt
-  let auditFailure
+  const wallTimeMs = now() - startedAt;
+  let auditFailure;
   try {
-    await auditOwnedProcesses()
+    await auditOwnedProcesses();
   } catch (error) {
-    auditFailure = error
+    auditFailure = error;
   }
   if (runFailure !== undefined && auditFailure !== undefined) {
     throw new AggregateError(
       [runFailure, auditFailure],
-      "Desktop execution and process audit both failed"
-    )
+      "Desktop execution and process audit both failed",
+    );
   }
-  if (runFailure !== undefined) throw runFailure
-  if (auditFailure !== undefined) throw auditFailure
-  return { output, wallTimeMs }
+  if (runFailure !== undefined) throw runFailure;
+  if (auditFailure !== undefined) throw auditFailure;
+  return { output, wallTimeMs };
 }
 
 function assertRuntimeReceipt(runtime) {
@@ -696,14 +731,16 @@ function assertRuntimeReceipt(runtime) {
     runtime.renderer?.providerEvidenceRedacted !== true ||
     runtime.renderer?.activeProviderRemoved !== true ||
     runtime.renderer?.fallbackProviderReady !== true ||
-    runtime.renderer?.fallbackModelId !== WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID ||
+    runtime.renderer?.fallbackModelId !==
+      WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID ||
     runtime.renderer?.fallbackModelResponseVisible !== true ||
     runtime.renderer?.providerLifecycleWithoutRestart !== true ||
     runtime.renderer?.providerReady !== true ||
     runtime.renderer?.modelSwitchAccepted !== true ||
     runtime.renderer?.draftPreservedAcrossModelSwitch !== true ||
     runtime.renderer?.selectedModelEndpointId?.length === 0 ||
-    runtime.renderer?.selectedModelId !== WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID ||
+    runtime.renderer?.selectedModelId !==
+      WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID ||
     runtime.renderer?.selectedModelResponseVisible !== true ||
     runtime.renderer?.selectedSessionTitle !== "Desktop assistant proof" ||
     runtime.renderer?.listedSessionTitle !== "Desktop assistant proof" ||
@@ -733,9 +770,7 @@ function assertRuntimeReceipt(runtime) {
     runtime.privacy?.exposesElectronApi !== false ||
     !validRendererStartupTimings(runtime.rendererStartupMs)
   ) {
-    throw new Error(
-      `Desktop runtime proof failed: ${JSON.stringify(runtime)}`
-    )
+    throw new Error(`Desktop runtime proof failed: ${JSON.stringify(runtime)}`);
   }
 }
 
@@ -747,28 +782,35 @@ function validRendererStartupTimings(value) {
     "navigationToBootstrap",
     "rootCommitToSnapshotRequest",
     "snapshotResponseToAssistantSurface",
-    "total"
-  ]
-  return value !== null && typeof value === "object" &&
+    "total",
+  ];
+  return (
+    value !== null &&
+    typeof value === "object" &&
     JSON.stringify(Object.keys(value).sort()) === JSON.stringify(keys) &&
-    Object.values(value).every((timing) =>
-      typeof timing === "number" && Number.isFinite(timing) && timing >= 0
+    Object.values(value).every(
+      (timing) =>
+        typeof timing === "number" && Number.isFinite(timing) && timing >= 0,
     ) &&
-    Math.abs(value.total - (
-      value.navigationToBootstrap +
-      value.bootstrapToRootCommit +
-      value.rootCommitToSnapshotRequest +
-      value.initialSnapshot +
-      value.snapshotResponseToAssistantSurface +
-      value.assistantSurfaceToInteractivePaint
-    )) < 0.1
+    Math.abs(
+      value.total -
+        (value.navigationToBootstrap +
+          value.bootstrapToRootCommit +
+          value.rootCommitToSnapshotRequest +
+          value.initialSnapshot +
+          value.snapshotResponseToAssistantSurface +
+          value.assistantSurfaceToInteractivePaint),
+    ) < 0.1
+  );
 }
 
 function positiveScreenshotDimensions(screenshot) {
-  return Number.isSafeInteger(screenshot?.contentWidth) &&
+  return (
+    Number.isSafeInteger(screenshot?.contentWidth) &&
     screenshot.contentWidth > 0 &&
     Number.isSafeInteger(screenshot?.contentHeight) &&
     screenshot.contentHeight > 0
+  );
 }
 
 function validScreenshotScale(screenshot) {
@@ -779,19 +821,21 @@ function validScreenshotScale(screenshot) {
     screenshot.scaleFactor < 1 ||
     screenshot.scaleFactor > 4
   ) {
-    return false
+    return false;
   }
-  const horizontal = screenshot.pixelWidth / screenshot.contentWidth
-  const vertical = screenshot.pixelHeight / screenshot.contentHeight
-  return Math.abs(horizontal - vertical) < 0.01 &&
+  const horizontal = screenshot.pixelWidth / screenshot.contentWidth;
+  const vertical = screenshot.pixelHeight / screenshot.contentHeight;
+  return (
+    Math.abs(horizontal - vertical) < 0.01 &&
     Math.abs(horizontal - screenshot.scaleFactor) < 0.01
+  );
 }
 
 function assertProviderFixtureRequests(requests) {
   const expectedModels = [
     WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID,
-    WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID
-  ]
+    WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
+  ];
   if (
     requests.length !== expectedModels.length ||
     requests.some((request) => request.authorized !== true) ||
@@ -799,140 +843,144 @@ function assertProviderFixtureRequests(requests) {
     requests.some((request, index) => request.model !== expectedModels[index])
   ) {
     throw new Error(
-      `Desktop proof provider requests are invalid: ${JSON.stringify(requests)}`
-    )
+      `Desktop proof provider requests are invalid: ${JSON.stringify(requests)}`,
+    );
   }
 }
 
 export function assertRelaunchJourneyFixtureRequests(requests, step) {
-  if (step === "relaunch-coding") {
-    assertCodingFixtureRequests(requests)
-    return
+  if (step === "relaunch-remote-assistant") {
+    const [request] = requests;
+    if (
+      requests.length !== 1 ||
+      request?.authorized !== true ||
+      request.model !== WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID ||
+      !request.path.endsWith("/chat/completions") ||
+      request.remoteAssistantPhase !== "held" ||
+      request.remoteAssistantReleaseReceived !== true ||
+      request.remoteAssistantSettled !== true ||
+      request.remoteAssistantClientClosed !== false
+    ) {
+      throw new Error(
+        `Desktop Remote Assistant Provider requests are invalid: ${JSON.stringify(requests)}`,
+      );
+    }
+    return;
+  }
+  if (step === "relaunch-remote-assistant-restore") {
+    if (requests.length !== 0) {
+      throw new Error(
+        `Desktop Remote Assistant restore unexpectedly invoked Provider: ${JSON.stringify(requests)}`,
+      );
+    }
+    return;
+  }
+  if (step === "relaunch-remote-media") {
+    assertRemoteMediaFixtureRequests(requests);
+    return;
+  }
+  if (step === "relaunch-remote-media-restore") {
+    if (requests.length !== 0) {
+      throw new Error(
+        `Desktop Remote Media restore unexpectedly invoked Provider: ${JSON.stringify(requests)}`,
+      );
+    }
+    return;
   }
   if (step === "relaunch-schedule-create") {
-    assertScheduleCreateFixtureRequests(requests)
-    return
+    assertScheduleCreateFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-schedule-restore") {
-    assertScheduleRestoreFixtureRequests(requests)
-    return
+    assertScheduleRestoreFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-side-query") {
-    assertSideQueryFixtureRequests(requests)
-    return
+    assertSideQueryFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-guided-follow-up") {
-    assertGuidedFollowUpFixtureRequests(requests)
-    return
+    assertGuidedFollowUpFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-image-generation") {
-    assertImageGenerationFixtureRequests(requests)
-    return
+    assertImageGenerationFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-plan") {
-    assertPlanFixtureRequests(requests)
-    return
+    assertPlanFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-goal") {
-    assertGoalFixtureRequests(requests)
-    return
+    assertGoalFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-team") {
-    assertTeamFixtureRequests(requests)
-    return
+    assertTeamFixtureRequests(requests);
+    return;
   }
   if (step === "relaunch-cancel-regenerate") {
-    assertCancelRegenerateFixtureRequests(requests)
-    return
+    assertCancelRegenerateFixtureRequests(requests);
+    return;
   }
   const expectedModels =
     step === "relaunch-configure" ||
     step === "relaunch-chat" ||
     step === "relaunch-multimodal"
-    ? [WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID]
-    : []
+      ? [WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID]
+      : [];
   if (
     requests.length !== expectedModels.length ||
     requests.some((request) => request.authorized !== true) ||
     requests.some((request) => !request.path.endsWith("/chat/completions")) ||
-    requests.some((request, index) => request.model !== expectedModels[index]) ||
+    requests.some(
+      (request, index) => request.model !== expectedModels[index],
+    ) ||
     requests.some((request) =>
       step === "relaunch-multimodal"
         ? request.imageInputCount !== 1 ||
           request.imageBytes <= 0 ||
-          JSON.stringify(request.imageMediaTypes) !== JSON.stringify(["image/png"])
+          JSON.stringify(request.imageMediaTypes) !==
+            JSON.stringify(["image/png"])
         : request.imageInputCount !== 0 ||
           request.imageBytes !== 0 ||
-          request.imageMediaTypes.length !== 0
+          request.imageMediaTypes.length !== 0,
     )
   ) {
     throw new Error(
-      `Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`
-    )
+      `Desktop ${step} Provider requests are invalid: ${JSON.stringify(requests)}`,
+    );
   }
 }
 
-export function assertRemoteCodingServerEvidence(server) {
+export function assertPackagedServerEvidence(server) {
   if (
     typeof server?.endpoint !== "string" ||
     !server.endpoint.endsWith("/v1/agent-host/message") ||
+    typeof server.serverUrl !== "string" ||
+    new URL(server.endpoint).origin !== new URL(server.serverUrl).origin ||
+    new URL(server.serverUrl).pathname !== "/" ||
     typeof server.caPath !== "string" ||
     server.status?.state !== "open" ||
-    server.status?.coding !== "ready" ||
+    server.status?.assistant !== "ready" ||
     server.status?.listener !== "ready" ||
     server.stderr !== ""
   ) {
     throw new Error(
-      `Desktop Remote Coding Server evidence is invalid: ${JSON.stringify({
+      `Desktop packaged Server evidence is invalid: ${JSON.stringify({
         endpoint: server?.endpoint,
+        serverUrl: server?.serverUrl,
         caPath: server?.caPath,
         status: server?.status,
-        stderr: server?.stderr
-      })}`
-    )
-  }
-}
-
-function assertCodingFixtureRequests(requests) {
-  const [toolCall, final, recoveryFirst, recoveryFinal] = requests
-  const retained = JSON.stringify(requests)
-  if (
-    requests.length !== 4 ||
-    toolCall?.authorized !== true ||
-    !toolCall.path.endsWith("/chat/completions") ||
-    toolCall.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
-    toolCall.codingPhase !== "tool_call" ||
-    toolCall.codingToolName !== "workspace_apply_changeset" ||
-    toolCall.codingToolCallId !== "call_desktop_proof_coding_changes" ||
-    final?.authorized !== true ||
-    !final.path.endsWith("/chat/completions") ||
-    final.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
-    final.codingPhase !== "final" ||
-    final.codingToolResultPresent !== true ||
-    recoveryFirst?.authorized !== true ||
-    recoveryFirst.codingPhase !== "recovery_tool_call" ||
-    recoveryFirst.codingToolName !== WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME ||
-    recoveryFirst.codingToolCallId !== "call_desktop_proof_coding_recovery" ||
-    recoveryFinal?.authorized !== true ||
-    recoveryFinal.codingPhase !== "recovery_final" ||
-    recoveryFinal.codingToolResultPresent !== true ||
-    retained.includes(WANEX_DESKTOP_PROOF_CODING_MESSAGE) ||
-    retained.includes(WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE) ||
-    retained.includes(WANEX_DESKTOP_PROOF_CODING_FILE) ||
-    retained.includes("created by the Wanex coding proof") ||
-    retained.includes("targetText") ||
-    retained.includes("The reviewed coding proof change is complete") ||
-    retained.includes(WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE)
-  ) {
-    throw new Error(
-      `Desktop Coding Provider requests are invalid: ${retained}`
-    )
+        stderr: server?.stderr,
+      })}`,
+    );
   }
 }
 
 function assertScheduleCreateFixtureRequests(requests) {
-  const [request] = requests
-  const retained = JSON.stringify(requests)
+  const [request] = requests;
+  const retained = JSON.stringify(requests);
   if (
     requests.length !== 1 ||
     request?.authorized !== true ||
@@ -951,14 +999,14 @@ function assertScheduleCreateFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESPONSE)
   ) {
     throw new Error(
-      `Desktop Schedule create Provider requests are invalid: ${retained}`
-    )
+      `Desktop Schedule create Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertScheduleRestoreFixtureRequests(requests) {
-  const [request] = requests
-  const retained = JSON.stringify(requests)
+  const [request] = requests;
+  const retained = JSON.stringify(requests);
   if (
     requests.length !== 1 ||
     request?.authorized !== true ||
@@ -973,14 +1021,14 @@ function assertScheduleRestoreFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE)
   ) {
     throw new Error(
-      `Desktop Schedule restore Provider requests are invalid: ${retained}`
-    )
+      `Desktop Schedule restore Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertTeamFixtureRequests(requests) {
-  const [request] = requests
-  const retained = JSON.stringify(requests)
+  const [request] = requests;
+  const retained = JSON.stringify(requests);
   if (
     requests.length !== 1 ||
     request?.authorized !== true ||
@@ -994,23 +1042,22 @@ function assertTeamFixtureRequests(requests) {
     JSON.stringify(request.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
     retained.includes(WANEX_DESKTOP_PROOF_TEAM_MESSAGE)
   ) {
-    throw new Error(
-      `Desktop Team Provider requests are invalid: ${retained}`
-    )
+    throw new Error(`Desktop Team Provider requests are invalid: ${retained}`);
   }
 }
 
 function assertSideQueryFixtureRequests(requests) {
-  const [parent, query] = requests
-  const retained = JSON.stringify(requests)
-  const valid = requests.every((request) =>
-    request.authorized === true &&
-    request.path.endsWith("/chat/completions") &&
-    request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
-    request.imageInputCount === 0 &&
-    request.imageBytes === 0 &&
-    JSON.stringify(request.imageMediaTypes) === JSON.stringify([])
-  )
+  const [parent, query] = requests;
+  const retained = JSON.stringify(requests);
+  const valid = requests.every(
+    (request) =>
+      request.authorized === true &&
+      request.path.endsWith("/chat/completions") &&
+      request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
+      request.imageInputCount === 0 &&
+      request.imageBytes === 0 &&
+      JSON.stringify(request.imageMediaTypes) === JSON.stringify([]),
+  );
   if (
     requests.length !== 2 ||
     !valid ||
@@ -1029,22 +1076,23 @@ function assertSideQueryFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_RESPONSE)
   ) {
     throw new Error(
-      `Desktop Side Query Provider requests are invalid: ${retained}`
-    )
+      `Desktop Side Query Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertGuidedFollowUpFixtureRequests(requests) {
-  const [parent, child] = requests
-  const retained = JSON.stringify(requests)
-  const valid = requests.every((request) =>
-    request.authorized === true &&
-    request.path.endsWith("/chat/completions") &&
-    request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
-    request.imageInputCount === 0 &&
-    request.imageBytes === 0 &&
-    JSON.stringify(request.imageMediaTypes) === JSON.stringify([])
-  )
+  const [parent, child] = requests;
+  const retained = JSON.stringify(requests);
+  const valid = requests.every(
+    (request) =>
+      request.authorized === true &&
+      request.path.endsWith("/chat/completions") &&
+      request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
+      request.imageInputCount === 0 &&
+      request.imageBytes === 0 &&
+      JSON.stringify(request.imageMediaTypes) === JSON.stringify([]),
+  );
   if (
     requests.length !== 2 ||
     !valid ||
@@ -1061,22 +1109,23 @@ function assertGuidedFollowUpFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_GUIDED_CHILD_RESPONSE)
   ) {
     throw new Error(
-      `Desktop guided follow-up Provider requests are invalid: ${retained}`
-    )
+      `Desktop guided follow-up Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertCancelRegenerateFixtureRequests(requests) {
-  const [held, regenerated] = requests
-  const retained = JSON.stringify(requests)
-  const valid = requests.every((request) =>
-    request.authorized === true &&
-    request.path.endsWith("/chat/completions") &&
-    request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
-    request.imageInputCount === 0 &&
-    request.imageBytes === 0 &&
-    JSON.stringify(request.imageMediaTypes) === JSON.stringify([])
-  )
+  const [held, regenerated] = requests;
+  const retained = JSON.stringify(requests);
+  const valid = requests.every(
+    (request) =>
+      request.authorized === true &&
+      request.path.endsWith("/chat/completions") &&
+      request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
+      request.imageInputCount === 0 &&
+      request.imageBytes === 0 &&
+      JSON.stringify(request.imageMediaTypes) === JSON.stringify([]),
+  );
   if (
     requests.length !== 2 ||
     !valid ||
@@ -1090,14 +1139,14 @@ function assertCancelRegenerateFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_REGENERATED_RESPONSE)
   ) {
     throw new Error(
-      `Desktop cancel/regenerate Provider requests are invalid: ${retained}`
-    )
+      `Desktop cancel/regenerate Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertImageGenerationFixtureRequests(requests) {
-  const [toolCall, media, final] = requests
-  const retained = JSON.stringify(requests)
+  const [toolCall, media, final] = requests;
+  const retained = JSON.stringify(requests);
   if (
     requests.length !== 3 ||
     toolCall?.authorized !== true ||
@@ -1106,14 +1155,16 @@ function assertImageGenerationFixtureRequests(requests) {
     toolCall.imageGenerationPhase !== "tool_call" ||
     toolCall.imageInputCount !== 1 ||
     toolCall.imageBytes !== 68 ||
-    JSON.stringify(toolCall.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
+    JSON.stringify(toolCall.imageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
     media?.authorized !== true ||
     !media.path.endsWith("/images/generations") ||
     media.model !== WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID ||
     media.imageGenerationPhase !== "media" ||
     media.generatedImageCount !== 1 ||
     media.generatedImageBytes <= 0 ||
-    JSON.stringify(media.generatedImageMediaTypes) !== JSON.stringify(["image/png"]) ||
+    JSON.stringify(media.generatedImageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
     final?.authorized !== true ||
     !final.path.endsWith("/chat/completions") ||
     final.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
@@ -1127,14 +1178,64 @@ function assertImageGenerationFixtureRequests(requests) {
     retained.includes("data:image/")
   ) {
     throw new Error(
-      `Desktop image generation Provider requests are invalid: ${retained}`
-    )
+      `Desktop image generation Provider requests are invalid: ${retained}`,
+    );
+  }
+}
+
+function assertRemoteMediaFixtureRequests(requests) {
+  const [multimodal, toolCall, media, final] = requests;
+  const retained = JSON.stringify(requests);
+  if (
+    requests.length !== 4 ||
+    multimodal?.authorized !== true ||
+    !multimodal.path.endsWith("/chat/completions") ||
+    multimodal.model !== WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID ||
+    multimodal.imageGenerationPhase !== undefined ||
+    multimodal.imageInputCount !== 1 ||
+    multimodal.imageBytes <= 0 ||
+    JSON.stringify(multimodal.imageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
+    toolCall?.authorized !== true ||
+    !toolCall.path.endsWith("/chat/completions") ||
+    toolCall.model !== WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID ||
+    toolCall.imageGenerationPhase !== "tool_call" ||
+    toolCall.imageInputCount !== 1 ||
+    toolCall.imageBytes <= 0 ||
+    JSON.stringify(toolCall.imageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
+    media?.authorized !== true ||
+    !media.path.endsWith("/images/generations") ||
+    media.model !== WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID ||
+    media.imageGenerationPhase !== "media" ||
+    media.generatedImageCount !== 1 ||
+    media.generatedImageBytes <= 0 ||
+    JSON.stringify(media.generatedImageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
+    final?.authorized !== true ||
+    !final.path.endsWith("/chat/completions") ||
+    final.model !== WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID ||
+    final.imageGenerationPhase !== "final" ||
+    final.imageInputCount !== 1 ||
+    final.imageBytes <= 0 ||
+    JSON.stringify(final.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
+    retained.includes(WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT) ||
+    retained.includes(WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE) ||
+    retained.includes(WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT) ||
+    retained.includes(WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT) ||
+    retained.includes("b64_json") ||
+    retained.includes("data:image/") ||
+    retained.includes("wrd_")
+  ) {
+    throw new Error(
+      `Desktop Remote Media Provider requests are invalid: ${retained}`,
+    );
   }
 }
 
 function assertPlanFixtureRequests(requests) {
-  const [generation, execution] = requests
-  const retained = JSON.stringify(requests)
+  const [generation, execution] = requests;
+  const retained = JSON.stringify(requests);
   if (
     requests.length !== 2 ||
     generation?.authorized !== true ||
@@ -1143,38 +1244,42 @@ function assertPlanFixtureRequests(requests) {
     generation.planPhase !== "generation" ||
     generation.imageInputCount !== 1 ||
     generation.imageBytes !== 68 ||
-    JSON.stringify(generation.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
+    JSON.stringify(generation.imageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
     execution?.authorized !== true ||
     !execution.path.endsWith("/chat/completions") ||
     execution.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
     execution.planPhase !== "execution" ||
     execution.imageInputCount !== 1 ||
     execution.imageBytes !== 68 ||
-    JSON.stringify(execution.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
+    JSON.stringify(execution.imageMediaTypes) !==
+      JSON.stringify(["image/png"]) ||
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_REQUEST) ||
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_TITLE) ||
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_SUMMARY) ||
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_STEP_TITLE) ||
     retained.includes(WANEX_DESKTOP_PROOF_PLAN_RESPONSE)
   ) {
-    throw new Error(
-      `Desktop Plan Provider requests are invalid: ${retained}`
-    )
+    throw new Error(`Desktop Plan Provider requests are invalid: ${retained}`);
   }
 }
 
 function assertGoalFixtureRequests(requests) {
-  const [firstExecution, firstVerifier, secondExecution, secondVerifier] = requests
-  const retained = JSON.stringify(requests)
-  const commonValid = requests.every((request) =>
-    request.authorized === true &&
-    request.path.endsWith("/chat/completions") &&
-    request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
-    JSON.stringify(request.imageMediaTypes) ===
-      JSON.stringify(request.goalPhase === "execution" ? ["image/png"] : []) &&
-    request.imageBytes === (request.goalPhase === "execution" ? 68 : 0) &&
-    request.imageInputCount === (request.goalPhase === "execution" ? 1 : 0)
-  )
+  const [firstExecution, firstVerifier, secondExecution, secondVerifier] =
+    requests;
+  const retained = JSON.stringify(requests);
+  const commonValid = requests.every(
+    (request) =>
+      request.authorized === true &&
+      request.path.endsWith("/chat/completions") &&
+      request.model === WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID &&
+      JSON.stringify(request.imageMediaTypes) ===
+        JSON.stringify(
+          request.goalPhase === "execution" ? ["image/png"] : [],
+        ) &&
+      request.imageBytes === (request.goalPhase === "execution" ? 68 : 0) &&
+      request.imageInputCount === (request.goalPhase === "execution" ? 1 : 0),
+  );
   if (
     requests.length !== 4 ||
     !commonValid ||
@@ -1193,14 +1298,16 @@ function assertGoalFixtureRequests(requests) {
     retained.includes(WANEX_DESKTOP_PROOF_GOAL_FIRST_VERIFICATION_REASON) ||
     retained.includes(WANEX_DESKTOP_PROOF_GOAL_FINAL_VERIFICATION_REASON)
   ) {
-    throw new Error(
-      `Desktop Goal Provider requests are invalid: ${retained}`
-    )
+    throw new Error(`Desktop Goal Provider requests are invalid: ${retained}`);
   }
 }
 
-export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {}) {
-  const renderer = runtime?.renderer
+export function assertRelaunchJourneyRuntimeReceipt(
+  runtime,
+  step,
+  options = {},
+) {
+  const renderer = runtime?.renderer;
   const commonInvalid =
     runtime?.kind !== "wanex.desktop.runtime-receipt" ||
     runtime.ok !== true ||
@@ -1212,13 +1319,13 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
     runtime.privacy?.exposesServiceBinaryPath !== false ||
     runtime.privacy?.exposesSecrets !== false ||
     runtime.privacy?.exposesRawStorageClient !== false ||
-    runtime.privacy?.exposesElectronApi !== false
+    runtime.privacy?.exposesElectronApi !== false;
   if (commonInvalid) {
     throw new Error(
-      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
-    )
+      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`,
+    );
   }
-  let stepInvalid = false
+  let stepInvalid = false;
   if (step === "relaunch-configure") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 0 ||
@@ -1231,7 +1338,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.sessionId.length === 0 ||
       renderer.initialTranscriptVisible !== true ||
       renderer.initialResponseVisible !== true ||
-      renderer.conversationSubmitted !== true
+      renderer.conversationSubmitted !== true;
   } else if (step === "relaunch-chat") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1248,118 +1355,156 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.assistantVisible !== true ||
       renderer.responseVisible !== true ||
       renderer.followUpSessionPreserved !== true ||
-      renderer.followUpResponseVisible !== true
-  } else if (step === "relaunch-remote-coding") {
-    const expectedKeys = [
-      "codingSurfaceSelected",
-      "credentialAbsentAfterSave",
-      "credentialAcceptedByForm",
-      "endpointAbsentAfterSave",
-      "idleInspectorHidden",
-      "internalIdentityEvidenceHidden",
-      "opaqueProjectSelected",
+      renderer.followUpResponseVisible !== true;
+  } else if (
+    step === "relaunch-remote-media" ||
+    step === "relaunch-remote-media-restore"
+  ) {
+    const commonKeys = [
+      "capabilityRetired",
       "ok",
-      "profileInputSubmitted",
-      "profileRemoved",
-      "profilePersistedAfterSave",
-      "projectId",
+      "profileRestored",
       "providerEvidenceRedacted",
-      "reconnectRejectedAfterRemoval",
-      "remoteProfileFormVisible",
-      "remoteProjectVisible",
-      "removedProfileListEmpty",
-      "sharedWorkbenchVisible",
-      "step",
-      "timingsMs"
-    ]
-    stepInvalid =
-      !exactRendererShape(renderer, expectedKeys) ||
-      renderer.providerEvidenceRedacted !== true ||
-      renderer.codingSurfaceSelected !== true ||
-      renderer.remoteProfileFormVisible !== true ||
-      renderer.profileInputSubmitted !== true ||
-      renderer.credentialAcceptedByForm !== true ||
-      renderer.profilePersistedAfterSave !== true ||
-      renderer.credentialAbsentAfterSave !== true ||
-      renderer.endpointAbsentAfterSave !== true ||
-      renderer.remoteProjectVisible !== true ||
-      renderer.opaqueProjectSelected !== true ||
-      typeof renderer.projectId !== "string" ||
-      renderer.projectId.length === 0 ||
-      renderer.sharedWorkbenchVisible !== true ||
-      renderer.idleInspectorHidden !== true ||
-      renderer.profileRemoved !== true ||
-      renderer.removedProfileListEmpty !== true ||
-      renderer.reconnectRejectedAfterRemoval !== true ||
-      renderer.internalIdentityEvidenceHidden !== true
-  } else if (step === "relaunch-coding") {
-    const expectedKeys = [
-      "approvalResolved",
-      "approvalVisible",
-      "codingSurfaceSelected",
-      "emptyProjectStateVisible",
-      "initialAssistantVisible",
-      "noFabricatedToolResult",
-      "ok",
-      "projectId",
-      "projectPathEvidenceHidden",
-      "projectSelected",
-      "proposalApplied",
-      "proposalApplyRequested",
-      "proposalReviewed",
-      "proposalUndone",
-      "proposalVisible",
-      "providerEvidenceRedacted",
-      "providerReady",
-      "recoveryResponseVisible",
-      "recoveryRetried",
-      "recoveryRetryAvailable",
-      "recoverySessionPreserved",
-      "recoveryToolNameVisible",
-      "recoveryTurnSucceeded",
-      "recoveryVisible",
-      "responseVisible",
-      "sessionCreated",
+      "remoteEvidenceHidden",
+      "remoteLocationSelected",
+      "remoteModelReady",
       "sessionId",
       "step",
       "timingsMs",
-      "toolNameVisible",
-      "turnSucceeded",
-      "userMessageVisible"
-    ]
-    stepInvalid =
-      !exactRendererShape(renderer, expectedKeys) ||
-      renderer.providerReady !== true ||
+    ];
+    const uploadKeys = [
+      "attachmentCapabilityUrlLocal",
+      "attachmentPickerVisible",
+      "attachmentPreviewVisible",
+      "generatedPreviewVisible",
+      "generatedResourceEvidenceValid",
+      "generatedResourceVisible",
+      "imageGenerationToolSucceeded",
+      "multimodalConversationSubmitted",
+      "multimodalResponseVisible",
+      "staleUploadAbsent",
+      "staleUploadRejected",
+      "unsupportedAttachmentRejected",
+      "unsupportedDraftPreserved",
+      "uploadedResourceVisible",
+    ];
+    const restoreKeys = [
+      "attachmentDraftEmpty",
+      "generatedPreviewRestored",
+      "generatedResourceRestored",
+      "generatedTranscriptRestored",
+      "uploadedPreviewRestored",
+      "uploadedResourceRestored",
+      "uploadedTranscriptRestored",
+    ];
+    const commonInvalid =
+      !exactRendererShape(renderer, [
+        ...commonKeys,
+        ...(step === "relaunch-remote-media" ? uploadKeys : restoreKeys),
+      ]) ||
       renderer.providerEvidenceRedacted !== true ||
-      renderer.initialAssistantVisible !== true ||
-      renderer.codingSurfaceSelected !== true ||
-      renderer.emptyProjectStateVisible !== true ||
-      renderer.projectSelected !== true ||
-      typeof renderer.projectId !== "string" ||
-      renderer.projectId.length === 0 ||
-      renderer.projectPathEvidenceHidden !== true ||
-      renderer.sessionCreated !== true ||
+      renderer.profileRestored !== true ||
+      renderer.remoteLocationSelected !== true ||
+      renderer.remoteModelReady !== true ||
       typeof renderer.sessionId !== "string" ||
       renderer.sessionId.length === 0 ||
-      renderer.userMessageVisible !== true ||
-      renderer.approvalVisible !== true ||
-      renderer.toolNameVisible !== true ||
-      renderer.approvalResolved !== true ||
-      renderer.turnSucceeded !== true ||
-      renderer.responseVisible !== true ||
-      renderer.proposalVisible !== true ||
-      renderer.proposalReviewed !== true ||
-      renderer.proposalApplyRequested !== true ||
-      renderer.proposalApplied !== true ||
-      renderer.proposalUndone !== true ||
-      renderer.noFabricatedToolResult !== true ||
-      renderer.recoveryVisible !== true ||
-      renderer.recoveryToolNameVisible !== true ||
-      renderer.recoveryRetryAvailable !== true ||
-      renderer.recoveryRetried !== true ||
-      renderer.recoveryTurnSucceeded !== true ||
-      renderer.recoveryResponseVisible !== true ||
-      renderer.recoverySessionPreserved !== true
+      renderer.remoteEvidenceHidden !== true ||
+      renderer.capabilityRetired !== true;
+    stepInvalid =
+      commonInvalid ||
+      (step === "relaunch-remote-media"
+        ? renderer.attachmentPickerVisible !== true ||
+          renderer.unsupportedAttachmentRejected !== true ||
+          renderer.unsupportedDraftPreserved !== true ||
+          renderer.attachmentPreviewVisible !== true ||
+          renderer.attachmentCapabilityUrlLocal !== true ||
+          renderer.multimodalConversationSubmitted !== true ||
+          renderer.multimodalResponseVisible !== true ||
+          renderer.uploadedResourceVisible !== true ||
+          renderer.imageGenerationToolSucceeded !== true ||
+          renderer.generatedResourceVisible !== true ||
+          renderer.generatedResourceEvidenceValid !== true ||
+          renderer.generatedPreviewVisible !== true ||
+          renderer.staleUploadRejected !== true ||
+          renderer.staleUploadAbsent !== true
+        : renderer.uploadedTranscriptRestored !== true ||
+          renderer.uploadedResourceRestored !== true ||
+          renderer.uploadedPreviewRestored !== true ||
+          renderer.generatedTranscriptRestored !== true ||
+          renderer.generatedResourceRestored !== true ||
+          renderer.generatedPreviewRestored !== true ||
+          renderer.attachmentDraftEmpty !== true);
+  } else if (
+    step === "relaunch-remote-assistant" ||
+    step === "relaunch-remote-assistant-restore"
+  ) {
+    const expectedKeys = [
+      "attachmentUploadAvailable",
+      "authenticationFailurePreservedLocal",
+      "authenticationFailureVisible",
+      "credentialAbsentFromRenderer",
+      "credentialCorrectedThroughVisibleForm",
+      "credentialResolvedAfterRelaunch",
+      "hostLocalAdministrationUnavailable",
+      "internalIdentityEvidenceHidden",
+      "localTranscriptRestored",
+      "ok",
+      "profilePersisted",
+      "profileRestoredAfterRelaunch",
+      "profileSavedThroughVisibleForm",
+      "providerEvidenceRedacted",
+      "remoteFinalResponseVisible",
+      "remoteLocationSelected",
+      "remoteMessageSubmitted",
+      "remoteModelReady",
+      "remotePartialVisible",
+      "remotePromptAbsentLocally",
+      "remoteTranscriptReconciled",
+      "remoteTransientAbsent",
+      "serverUrlAbsentFromRenderer",
+      "sessionIdentityIsolated",
+      "step",
+      "switchedToLocalWhileRemoteRunning",
+      "timingsMs",
+    ];
+    const commonAssistantInvalid =
+      !exactRendererShape(renderer, expectedKeys) ||
+      renderer.providerEvidenceRedacted !== true ||
+      renderer.profilePersisted !== true ||
+      renderer.credentialAbsentFromRenderer !== true ||
+      renderer.serverUrlAbsentFromRenderer !== true ||
+      renderer.remoteLocationSelected !== true ||
+      renderer.remoteModelReady !== true ||
+      renderer.localTranscriptRestored !== true ||
+      renderer.remotePromptAbsentLocally !== true ||
+      renderer.sessionIdentityIsolated !== true ||
+      renderer.remoteTranscriptReconciled !== true ||
+      renderer.remoteFinalResponseVisible !== true ||
+      renderer.remoteTransientAbsent !== true ||
+      renderer.attachmentUploadAvailable !== true ||
+      renderer.hostLocalAdministrationUnavailable !== true ||
+      renderer.internalIdentityEvidenceHidden !== true;
+    stepInvalid =
+      commonAssistantInvalid ||
+      (step === "relaunch-remote-assistant"
+        ? renderer.profileSavedThroughVisibleForm !== true ||
+          renderer.authenticationFailureVisible !== true ||
+          renderer.authenticationFailurePreservedLocal !== true ||
+          renderer.credentialCorrectedThroughVisibleForm !== true ||
+          renderer.remoteMessageSubmitted !== true ||
+          renderer.remotePartialVisible !== true ||
+          renderer.switchedToLocalWhileRemoteRunning !== true ||
+          renderer.profileRestoredAfterRelaunch !== false ||
+          renderer.credentialResolvedAfterRelaunch !== false
+        : renderer.profileSavedThroughVisibleForm !== false ||
+          renderer.authenticationFailureVisible !== false ||
+          renderer.authenticationFailurePreservedLocal !== false ||
+          renderer.credentialCorrectedThroughVisibleForm !== false ||
+          renderer.remoteMessageSubmitted !== false ||
+          renderer.remotePartialVisible !== false ||
+          renderer.switchedToLocalWhileRemoteRunning !== false ||
+          renderer.profileRestoredAfterRelaunch !== true ||
+          renderer.credentialResolvedAfterRelaunch !== true);
   } else if (step === "relaunch-cancel-regenerate") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1383,7 +1528,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.regenerationFreshOperation !== true ||
       renderer.regenerationSucceeded !== true ||
       renderer.regenerationSessionPreserved !== true ||
-      renderer.regenerationResponseVisible !== true
+      renderer.regenerationResponseVisible !== true;
   } else if (step === "relaunch-guided-follow-up") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1410,7 +1555,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.guidedChildPromoted !== true ||
       renderer.guidedChildResponseVisible !== true ||
       renderer.guidedFollowUpSessionPreserved !== true ||
-      renderer.guidedParentCompletedWithoutCancellation !== true
+      renderer.guidedParentCompletedWithoutCancellation !== true;
   } else if (step === "relaunch-side-query") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1435,7 +1580,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.sideQueryDismissed !== true ||
       renderer.sideQueryParentResponseVisible !== true ||
       renderer.sideQuerySessionPreserved !== true ||
-      renderer.sideQueryParentCompletedWithoutCancellation !== true
+      renderer.sideQueryParentCompletedWithoutCancellation !== true;
   } else if (step === "relaunch-multimodal") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1459,7 +1604,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.conversationSubmitted !== true ||
       renderer.userVisible !== true ||
       renderer.assistantVisible !== true ||
-      renderer.responseVisible !== true
+      renderer.responseVisible !== true;
   } else if (step === "relaunch-image-generation") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1479,7 +1624,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.imageGenerationSessionPreserved !== true ||
       renderer.imageGenerationToolSucceeded !== true ||
       renderer.generatedResourceEvidenceValid !== true ||
-      renderer.generatedResourcePreviewVisible !== true
+      renderer.generatedResourcePreviewVisible !== true;
   } else if (step === "relaunch-plan") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1501,7 +1646,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.planExecuted !== true ||
       renderer.planSessionPreserved !== true ||
       renderer.planResponseVisible !== true ||
-      renderer.planProposalRevision !== 2
+      renderer.planProposalRevision !== 2;
   } else if (step === "relaunch-goal") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 1 ||
@@ -1523,7 +1668,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.goalFinalResponseVisible !== true ||
       renderer.goalAttemptCount !== 2 ||
       JSON.stringify(renderer.goalVerificationResults) !==
-        JSON.stringify(["failed", "passed"])
+        JSON.stringify(["failed", "passed"]);
   } else if (step === "relaunch-team") {
     const expectedKeys = [
       "activeRoundObserved",
@@ -1559,19 +1704,20 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       "teamComposerVisible",
       "teamTimelineVisible",
       "timingsMs",
-      "zeroAgentStateTruthful"
-    ]
+      "zeroAgentStateTruthful",
+    ];
     const timingKeys = [
       "conversationSettlement",
       "journeyPreparation",
-      "rendererPostSettlement"
-    ]
+      "rendererPostSettlement",
+    ];
     stepInvalid =
-      JSON.stringify(Object.keys(renderer).sort()) !== JSON.stringify(expectedKeys) ||
+      JSON.stringify(Object.keys(renderer).sort()) !==
+        JSON.stringify(expectedKeys) ||
       JSON.stringify(Object.keys(renderer.timingsMs ?? {}).sort()) !==
         JSON.stringify(timingKeys) ||
-      Object.values(renderer.timingsMs ?? {}).some((value) =>
-        !Number.isFinite(value) || value < 0
+      Object.values(renderer.timingsMs ?? {}).some(
+        (value) => !Number.isFinite(value) || value < 0,
       ) ||
       renderer.providerReady !== true ||
       renderer.existingAgentSessionAvailable !== true ||
@@ -1603,7 +1749,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.sessionOnlyControlsAbsent !== true ||
       renderer.internalIdentityEvidenceHidden !== true ||
       renderer.hostPathEvidenceHidden !== true ||
-      renderer.originalSessionRestored !== true
+      renderer.originalSessionRestored !== true;
   } else if (step === "relaunch-schedule-create") {
     const expectedKeys = [
       "activeModelSelected",
@@ -1624,12 +1770,13 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       "skipMisfireSelected",
       "step",
       "timingsMs",
-      "visibleFormCreated"
-    ]
+      "visibleFormCreated",
+    ];
     stepInvalid =
       !exactRendererShape(renderer, expectedKeys) ||
       renderer.providerReady !== true ||
-      renderer.intervalSeconds !== WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
+      renderer.intervalSeconds !==
+        WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
       renderer.visibleFormCreated !== true ||
       renderer.isolatedSessionSelected !== true ||
       renderer.activeModelSelected !== true ||
@@ -1642,7 +1789,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.firstFinalResponseVisible !== true ||
       renderer.disabledBeforeRelease !== true ||
       renderer.disabledQuietWindowObserved !== true ||
-      renderer.internalIdentityEvidenceHidden !== true
+      renderer.internalIdentityEvidenceHidden !== true;
   } else if (step === "relaunch-schedule-restore") {
     const expectedKeys = [
       "canonicalRemovedStateVisible",
@@ -1661,12 +1808,13 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       "restoredExecutionResponseVisible",
       "restoredExecutionUserVisible",
       "step",
-      "timingsMs"
-    ]
+      "timingsMs",
+    ];
     stepInvalid =
       !exactRendererShape(renderer, expectedKeys) ||
       renderer.providerReady !== true ||
-      renderer.intervalSeconds !== WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
+      renderer.intervalSeconds !==
+        WANEX_DESKTOP_PROOF_SCHEDULE_INTERVAL_SECONDS ||
       renderer.restoredDefinitionVisible !== true ||
       renderer.restoredDisabledState !== true ||
       renderer.persistedTranscriptVisible !== true ||
@@ -1677,7 +1825,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.disabledQuietWindowObserved !== true ||
       renderer.removed !== true ||
       renderer.canonicalRemovedStateVisible !== true ||
-      renderer.internalIdentityEvidenceHidden !== true
+      renderer.internalIdentityEvidenceHidden !== true;
   } else if (step === "relaunch-plugin-install") {
     const expectedKeys = [
       "attentionDiagnosticVisible",
@@ -1709,8 +1857,8 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       "v2CommandExecuted",
       "v2Installed",
       "v2ReviewEvidenceVisible",
-      "v2Version"
-    ]
+      "v2Version",
+    ];
     stepInvalid =
       !exactRendererShape(renderer, expectedKeys) ||
       !validPluginIdentity(renderer) ||
@@ -1735,7 +1883,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.singleActiveVersion !== true ||
       renderer.v2CommandExecuted !== true ||
       renderer.pathEvidenceHidden !== true ||
-      renderer.internalIdentityEvidenceHidden !== true
+      renderer.internalIdentityEvidenceHidden !== true;
   } else if (step === "relaunch-plugin-restore") {
     const expectedKeys = [
       "busyTransientAbsent",
@@ -1758,8 +1906,8 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       "v1Version",
       "v2InstalledRestored",
       "v2Removed",
-      "v2Version"
-    ]
+      "v2Version",
+    ];
     stepInvalid =
       !exactRendererShape(renderer, expectedKeys) ||
       !validPluginIdentity(renderer) ||
@@ -1775,7 +1923,7 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.canonicalRemovedStateVisible !== true ||
       renderer.commandAbsentAfterRemoval !== true ||
       renderer.pathEvidenceHidden !== true ||
-      renderer.internalIdentityEvidenceHidden !== true
+      renderer.internalIdentityEvidenceHidden !== true;
   } else if (step === "relaunch-cleanup") {
     stepInvalid =
       (options.allowAlreadyClean === true
@@ -1784,19 +1932,19 @@ export function assertRelaunchJourneyRuntimeReceipt(runtime, step, options = {})
       renderer.configuredProviderCount !== 0 ||
       renderer.cleanupCompleted !== true ||
       renderer.credentialCleanupPending !== false ||
-      renderer.chatBlocked !== true
+      renderer.chatBlocked !== true;
   } else if (step === "relaunch-unconfigured") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 0 ||
       renderer.configuredProviderCount !== 0 ||
-      renderer.chatBlocked !== true
+      renderer.chatBlocked !== true;
   } else {
-    stepInvalid = true
+    stepInvalid = true;
   }
   if (stepInvalid) {
     throw new Error(
-      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`
-    )
+      `Desktop ${step} runtime proof failed: ${JSON.stringify(runtime)}`,
+    );
   }
 }
 
@@ -1804,118 +1952,120 @@ function exactRendererShape(renderer, expectedKeys) {
   const timingKeys = [
     "conversationSettlement",
     "journeyPreparation",
-    "rendererPostSettlement"
-  ]
-  return JSON.stringify(Object.keys(renderer).sort()) ===
+    "rendererPostSettlement",
+  ];
+  return (
+    JSON.stringify(Object.keys(renderer).sort()) ===
       JSON.stringify([...expectedKeys].sort()) &&
     JSON.stringify(Object.keys(renderer.timingsMs ?? {}).sort()) ===
       JSON.stringify(timingKeys) &&
-    Object.values(renderer.timingsMs ?? {}).every((value) =>
-      Number.isFinite(value) && value >= 0
+    Object.values(renderer.timingsMs ?? {}).every(
+      (value) => Number.isFinite(value) && value >= 0,
     )
+  );
 }
 
 function validPluginIdentity(renderer) {
-  return renderer.pluginId === "wanex.proof.extension" &&
+  return (
+    renderer.pluginId === "wanex.proof.extension" &&
     renderer.commandId === "wanex.proof.extension.echo" &&
     renderer.v1Version === "1.0.0" &&
     renderer.v2Version === "2.0.0"
+  );
 }
 
 async function hashImmutableResources(packageDir) {
-  const resourcesDir = desktopResourcesDir(packageDir)
-  const nativeDir = join(resourcesDir, "native")
-  const credentialDir = join(resourcesDir, "credentials")
-  const nativeManifest = JSON.parse(await readFile(
-    join(nativeDir, "runtime-artifacts.json"),
-    "utf8"
-  ))
-  const target = nativeManifest.targets.find((item) =>
-    item.platform === process.platform && item.arch === process.arch
-  )
+  const resourcesDir = desktopResourcesDir(packageDir);
+  const nativeDir = join(resourcesDir, "native");
+  const credentialDir = join(resourcesDir, "credentials");
+  const nativeManifest = JSON.parse(
+    await readFile(join(nativeDir, "runtime-artifacts.json"), "utf8"),
+  );
+  const target = nativeManifest.targets.find(
+    (item) => item.platform === process.platform && item.arch === process.arch,
+  );
   if (target === undefined) {
-    throw new Error("packaged Desktop native target is missing")
+    throw new Error("packaged Desktop native target is missing");
   }
   return {
     nativeManifestSha256: await sha256(
-      join(nativeDir, "runtime-artifacts.json")
+      join(nativeDir, "runtime-artifacts.json"),
     ),
-    systemServiceSha256: await sha256(join(
-      nativeDir,
-      ...target.systemService.path.split("/")
-    )),
-    credentialManifestSha256: await sha256(join(
-      credentialDir,
-      "desktop-credential-artifact.json"
-    )),
-    keyringSha256: await sha256(join(credentialDir, "keyring.node"))
-  }
+    systemServiceSha256: await sha256(
+      join(nativeDir, ...target.systemService.path.split("/")),
+    ),
+    credentialManifestSha256: await sha256(
+      join(credentialDir, "desktop-credential-artifact.json"),
+    ),
+    keyringSha256: await sha256(join(credentialDir, "keyring.node")),
+  };
 }
 
 async function sha256(path) {
-  return createHash("sha256").update(await readFile(path)).digest("hex")
+  return createHash("sha256")
+    .update(await readFile(path))
+    .digest("hex");
 }
 
 function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
   return new Promise((resolve, reject) => {
-    let settled = false
-    let stdout = ""
-    let stderr = ""
+    let settled = false;
+    let stdout = "";
+    let stderr = "";
     const child = spawn(command, [], {
-      env: createDesktopProofProcessEnvironment(
-        process.env,
-        environment
-      ),
+      env: createDesktopProofProcessEnvironment(process.env, environment),
       stdio: ["ignore", "pipe", "pipe"],
-      detached: process.platform !== "win32"
-    })
-    child.stdout.setEncoding("utf8")
-    child.stderr.setEncoding("utf8")
+      detached: process.platform !== "win32",
+    });
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      stdout = appendBounded(stdout, chunk)
-      if (settled || behavior.onStdout === undefined) return
+      stdout = appendBounded(stdout, chunk);
+      if (settled || behavior.onStdout === undefined) return;
       try {
-        behavior.onStdout(stdout)
+        behavior.onStdout(stdout);
       } catch (error) {
-        settled = true
-        clearTimeout(timeout)
-        void terminateProcessTree(child).finally(() => reject(error))
+        settled = true;
+        clearTimeout(timeout);
+        void terminateProcessTree(child).finally(() => reject(error));
       }
-    })
+    });
     child.stderr.on("data", (chunk) => {
-      stderr = appendBounded(stderr, chunk)
-    })
+      stderr = appendBounded(stderr, chunk);
+    });
     const timeout = setTimeout(() => {
-      if (settled) return
-      settled = true
+      if (settled) return;
+      settled = true;
       void terminateProcessTree(child).finally(() => {
-        reject(new Error(
-          `packaged Desktop exceeded ${timeoutMs}ms${formatChildOutput(stdout, stderr)}`
-        ))
-      })
-    }, timeoutMs)
+        reject(
+          new Error(
+            `packaged Desktop exceeded ${timeoutMs}ms${formatChildOutput(stdout, stderr)}`,
+          ),
+        );
+      });
+    }, timeoutMs);
     child.once("error", (error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      reject(error)
-    })
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
     child.once("exit", async (code, signal) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      const runtimeReceipt = await readOptionalReceipt(receiptPath)
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      const runtimeReceipt = await readOptionalReceipt(receiptPath);
       const exitError = desktopProofProcessExitError({
         code,
         signal,
         runtimeReceipt,
         stdout,
-        stderr
-      })
-      if (exitError === undefined) resolve({ stdout, stderr })
-      else reject(exitError)
-    })
-  })
+        stderr,
+      });
+      if (exitError === undefined) resolve({ stdout, stderr });
+      else reject(exitError);
+    });
+  });
 }
 
 export function desktopProofProcessExitError({
@@ -1923,95 +2073,92 @@ export function desktopProofProcessExitError({
   signal,
   runtimeReceipt,
   stdout = "",
-  stderr = ""
+  stderr = "",
 }) {
-  if (code === 0 && runtimeReceipt.length > 0) return undefined
-  const missingReceipt = code === 0 && runtimeReceipt.length === 0
-    ? " without required runtime receipt"
-    : ""
+  if (code === 0 && runtimeReceipt.length > 0) return undefined;
+  const missingReceipt =
+    code === 0 && runtimeReceipt.length === 0
+      ? " without required runtime receipt"
+      : "";
   return new Error(
-    `packaged Desktop exited with ${signal ?? code}${missingReceipt}${formatChildOutput(stdout, stderr, runtimeReceipt)}`
-  )
+    `packaged Desktop exited with ${signal ?? code}${missingReceipt}${formatChildOutput(stdout, stderr, runtimeReceipt)}`,
+  );
 }
 
 export function createDesktopProofProcessEnvironment(
   inheritedEnvironment,
-  proofEnvironment
+  proofEnvironment,
 ) {
-  const environment = { ...inheritedEnvironment }
+  const environment = { ...inheritedEnvironment };
   for (const key of DESKTOP_PROOF_ENVIRONMENT_KEYS) {
-    delete environment[key]
+    delete environment[key];
   }
-  return { ...environment, ...proofEnvironment }
+  return { ...environment, ...proofEnvironment };
 }
 
 async function readOptionalReceipt(path) {
-  if (path === undefined) return ""
+  if (path === undefined) return "";
   try {
-    return (await readFile(path, "utf8")).trim()
+    return (await readFile(path, "utf8")).trim();
   } catch {
-    return ""
+    return "";
   }
 }
 
 async function assertNoOwnedProcess(userDataDir) {
-  await new Promise((resolve) => setTimeout(resolve, 250))
-  const commands = process.platform === "win32"
-    ? await commandOutput("powershell.exe", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine"
-      ])
-    : await commandOutput("ps", ["-ax", "-o", "command="])
+  await new Promise((resolve) => setTimeout(resolve, 250));
+  const commands =
+    process.platform === "win32"
+      ? await commandOutput("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "Get-CimInstance Win32_Process | Select-Object -ExpandProperty CommandLine",
+        ])
+      : await commandOutput("ps", ["-ax", "-o", "command="]);
   if (commands.includes(userDataDir)) {
-    throw new Error("Desktop left an owned process after shutdown")
+    throw new Error("Desktop left an owned process after shutdown");
   }
 }
 
 function commandOutput(command, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] })
-    let output = ""
-    child.stdout.setEncoding("utf8")
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk) => {
-      output = appendBounded(output, chunk)
-    })
-    child.once("error", reject)
+      output = appendBounded(output, chunk);
+    });
+    child.once("error", reject);
     child.once("exit", (code) => {
-      if (code === 0) resolve(output)
-      else reject(new Error(`${command} process audit exited with ${code}`))
-    })
-  })
+      if (code === 0) resolve(output);
+      else reject(new Error(`${command} process audit exited with ${code}`));
+    });
+  });
 }
 
 function terminateProcessTree(child) {
-  if (child.pid === undefined) return Promise.resolve()
+  if (child.pid === undefined) return Promise.resolve();
   if (process.platform !== "win32") {
     try {
-      process.kill(-child.pid, "SIGKILL")
+      process.kill(-child.pid, "SIGKILL");
     } catch (error) {
-      if (error.code !== "ESRCH") return Promise.reject(error)
+      if (error.code !== "ESRCH") return Promise.reject(error);
     }
-    return Promise.resolve()
+    return Promise.resolve();
   }
   return new Promise((resolve) => {
-    const cleanup = spawn("taskkill", [
-      "/PID",
-      String(child.pid),
-      "/T",
-      "/F"
-    ], {
+    const cleanup = spawn("taskkill", ["/PID", String(child.pid), "/T", "/F"], {
       windowsHide: true,
-      stdio: "ignore"
-    })
-    cleanup.once("error", () => resolve())
-    cleanup.once("exit", () => resolve())
-  })
+      stdio: "ignore",
+    });
+    cleanup.once("error", () => resolve());
+    cleanup.once("exit", () => resolve());
+  });
 }
 
 function appendBounded(current, chunk) {
-  return `${current}${chunk}`.slice(-1024 * 1024)
+  return `${current}${chunk}`.slice(-1024 * 1024);
 }
 
 function formatChildOutput(stdout, stderr, runtimeReceipt = "") {
@@ -2020,7 +2167,7 @@ function formatChildOutput(stdout, stderr, runtimeReceipt = "") {
     stderr.trim().length === 0 ? undefined : `stderr:\n${stderr.trim()}`,
     runtimeReceipt.length === 0
       ? undefined
-      : `runtime receipt:\n${runtimeReceipt}`
-  ].filter(Boolean)
-  return details.length === 0 ? "" : `\n${details.join("\n")}`
+      : `runtime receipt:\n${runtimeReceipt}`,
+  ].filter(Boolean);
+  return details.length === 0 ? "" : `\n${details.join("\n")}`;
 }

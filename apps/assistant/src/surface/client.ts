@@ -19,6 +19,11 @@ export {
   handleSurfaceTransportRequest,
 } from "./transport.js";
 export { createSurfaceHostEndpoint } from "./host.js";
+export {
+  isSurfaceDescriptor,
+  isSurfaceEvent,
+  isSurfaceEventPage,
+} from "./validation.js";
 export type {
   SurfaceHostEndpoint,
   SurfaceHostEndpointOptions,
@@ -168,3 +173,13 @@ export type {
   ReadGoalResult,
   StartGoalRequest,
 } from "../goal/model.js";
+export type {
+  GrantWorkspaceFolderRequest,
+  ListWorkspaceFoldersRequest,
+  RecentWorkspaceFolderReadModel,
+  RegrantWorkspaceFolderRequest,
+  RevokeWorkspaceFolderRequest,
+  WorkspaceFolderAccess,
+  WorkspaceFolderReadModel,
+  WorkspaceFoldersReadModel,
+} from "../workspace-folders.js";

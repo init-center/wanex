@@ -4,6 +4,8 @@ import type { WorkspaceChangeSet } from "./workspace.js";
 import type { ExecutionEnvironmentBinding } from "./execution-environment.js";
 
 export type WorkspaceTaskAccess = "read_only" | "writable";
+export type WorkspaceTaskStrategy = "direct" | "git_worktree";
+export type WorkspaceTaskIsolationKind = "fixed" | "git_worktree";
 export type WorkspaceTaskRunState =
   | "preparing"
   | "active"
@@ -30,19 +32,39 @@ export type WorkspaceTaskAttemptState =
   | "expired";
 export type WorkspaceTaskClaimStatus = "claimed" | "busy" | "already_terminal";
 
+export interface WorkspaceTaskRootIdentity {
+  readonly hostId: string;
+  readonly generationKey: string;
+  readonly rootId: string;
+  readonly device: string;
+  readonly inode: string;
+}
+
+export interface WorkspaceTaskPreparedIsolationIdentity {
+  readonly baseRevision: string;
+  readonly runtimeRef: string;
+}
+
+export interface WorkspaceTaskIsolationIdentity {
+  readonly id: string;
+  readonly kind: WorkspaceTaskIsolationKind;
+  readonly repositoryId?: string;
+  readonly baseRevision?: string;
+  readonly runtimeRef?: string;
+}
+
 export interface WorkspaceTaskRunRecord {
   readonly id: string;
   readonly workspaceId: string;
   readonly principalId: PrincipalId;
   readonly access: WorkspaceTaskAccess;
-  readonly repositoryId: string;
-  readonly isolationId: string;
+  readonly strategy: WorkspaceTaskStrategy;
+  readonly rootIdentity: WorkspaceTaskRootIdentity;
+  readonly isolationIdentity: WorkspaceTaskIsolationIdentity;
   readonly executionEnvironment: ExecutionEnvironmentBinding;
   readonly jobId?: string;
   readonly agentId?: string;
   readonly state: WorkspaceTaskRunState;
-  readonly baseRevision?: string;
-  readonly runtimeRef?: string;
   readonly executionOutcome?: WorkspaceTaskExecutionOutcome;
   readonly outcome?: WorkspaceTaskRunOutcome;
   readonly summary?: string;
@@ -83,8 +105,9 @@ export interface BeginWorkspaceTaskRunRequest {
   readonly workspaceId: string;
   readonly principalId: PrincipalId;
   readonly access: WorkspaceTaskAccess;
-  readonly repositoryId: string;
-  readonly isolationId: string;
+  readonly strategy: WorkspaceTaskStrategy;
+  readonly rootIdentity: WorkspaceTaskRootIdentity;
+  readonly isolationIdentity: WorkspaceTaskIsolationIdentity;
   readonly executionEnvironment: ExecutionEnvironmentBinding;
   readonly jobId?: string;
   readonly agentId?: string;
@@ -125,8 +148,7 @@ export interface WorkspaceTaskRunIdentityRequest {
 }
 
 export interface MarkWorkspaceTaskActiveRequest extends WorkspaceTaskRunIdentityRequest {
-  readonly baseRevision?: string;
-  readonly runtimeRef?: string;
+  readonly preparedIsolation?: WorkspaceTaskPreparedIsolationIdentity;
 }
 
 export interface BeginWorkspaceTaskCollectionRequest extends WorkspaceTaskRunIdentityRequest {
@@ -172,9 +194,11 @@ export interface GetWorkspaceTaskRunRequest {
 }
 
 export interface ListWorkspaceTaskRunsRequest {
+  readonly rootIdentity?: WorkspaceTaskRootIdentity;
   readonly runIds?: readonly string[];
   readonly workspaceId?: string;
-  readonly repositoryId?: string;
+  readonly rootId?: string;
+  readonly strategy?: WorkspaceTaskStrategy;
   readonly state?: WorkspaceTaskRunState;
   readonly leaseExpiresBefore?: number;
   readonly limit?: number;

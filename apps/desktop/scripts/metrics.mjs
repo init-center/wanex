@@ -10,7 +10,6 @@ const metricNames = [
   "credentialResolution",
   "startupPrerequisites",
   "hostStartup",
-  "codingComposition",
   "rendererNavigation",
   "rendererInteractive",
   "journeyPreparation",

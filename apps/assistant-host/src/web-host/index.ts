@@ -3,10 +3,6 @@ import { createServer } from "node:http"
 import type { WebEventStreamConnection } from "./event-stream.js"
 import { normalizeMaxAttachmentBytes } from "./routes/attachment.js"
 import { routeWebRequest } from "./router.js"
-import {
-  CLIENT_SCRIPT,
-  STYLESHEET
-} from "./browser-client.js"
 import { createWebHostSessionToken } from "./session-token.js"
 import type {
   ListenWebNodeHostOptions,
@@ -55,9 +51,14 @@ export function createWebNodeRequestHandler(
   const maxAttachmentBytes = normalizeMaxAttachmentBytes(
     options.maxAttachmentBytes
   )
-  const browserAssets = options.browserAssets ?? {
-    clientScript: CLIENT_SCRIPT,
-    stylesheet: STYLESHEET
+  const browserAssets = options.browserAssets
+  if (
+    typeof browserAssets?.clientScript !== "string" ||
+    typeof browserAssets?.stylesheet !== "string" ||
+    browserAssets.clientScript.trim().length === 0 ||
+    browserAssets.stylesheet.trim().length === 0
+  ) {
+    throw new Error("browser assets must contain non-empty clientScript and stylesheet")
   }
   const hostSessionToken = createWebHostSessionToken()
   const resourceDeliveryAudience = createHash("sha256")

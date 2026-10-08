@@ -282,6 +282,9 @@ export type NullableWorkspaceChangeTransactionStateWire = WorkspaceChangeTransac
 export type WorkspaceChangeTransactionStateWire =
   "planning" | "prepared" | "committing" | "applied" | "rolled_back" | "recovery_required";
 export type WorkspaceTaskAccessWire = "read_only" | "writable";
+export type WorkspaceTaskStrategyWire = "direct" | "git_worktree";
+export type WorkspaceTaskIsolationKindWire = "fixed" | "git_worktree";
+export type NullableWorkspaceTaskPreparedIsolationWire = WorkspaceTaskPreparedIsolationWire | null;
 export type WorkspaceTaskExecutionOutcomeWire = "completed" | "failed" | "cancelled";
 export type WorkspaceTaskRunOutcomeWire =
   "read_only_completed" | "no_changes" | "proposed" | "execution_failed" | "cancelled";
@@ -1998,8 +2001,9 @@ export interface BeginWorkspaceTaskRunWire {
   workspace_id: string;
   principal_id: string;
   access: WorkspaceTaskAccessWire;
-  repository_id: string;
-  isolation_id: string;
+  strategy: WorkspaceTaskStrategyWire;
+  root_identity: WorkspaceTaskRootIdentityWire;
+  isolation_identity: WorkspaceTaskIsolationIdentityWire;
   execution_environment: JsonValue;
   job_id: NullableString;
   agent_id: NullableString;
@@ -2007,6 +2011,20 @@ export interface BeginWorkspaceTaskRunWire {
   owner_id: string;
   claim_token: string;
   lease_ms: number;
+}
+export interface WorkspaceTaskRootIdentityWire {
+  host_id: string;
+  generation_key: string;
+  root_id: string;
+  device: string;
+  inode: string;
+}
+export interface WorkspaceTaskIsolationIdentityWire {
+  id: string;
+  kind: WorkspaceTaskIsolationKindWire;
+  repository_id: NullableString;
+  base_revision: NullableString;
+  runtime_ref: NullableString;
 }
 export interface ClaimWorkspaceTaskRecoveryCommand {
   command: "claim-workspace-task-recovery";
@@ -2049,8 +2067,11 @@ export interface MarkWorkspaceTaskActiveWire {
   run_id: string;
   attempt_id: string;
   claim_token: string;
-  base_revision: NullableString;
-  runtime_ref: NullableString;
+  prepared_isolation: NullableWorkspaceTaskPreparedIsolationWire;
+}
+export interface WorkspaceTaskPreparedIsolationWire {
+  base_revision: string;
+  runtime_ref: string;
 }
 export interface BeginWorkspaceTaskCollectionCommand {
   command: "begin-workspace-task-collection";
@@ -2114,9 +2135,11 @@ export interface ListWorkspaceTaskRunsCommand {
   request: ListWorkspaceTaskRunsWire;
 }
 export interface ListWorkspaceTaskRunsWire {
+  root_identity: WorkspaceTaskRootIdentityWire | null;
   run_ids: [string, ...string[]] | null;
   workspace_id: NullableString;
-  repository_id: NullableString;
+  root_id: NullableString;
+  strategy: WorkspaceTaskStrategyWire | null;
   state: NullableWorkspaceTaskRunStateWire;
   lease_expires_before: NullableInteger;
   limit: NullableInteger;
@@ -3197,4 +3220,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "3f9d0ee9921d2d51b8994eb92865a366eee69bf4949390d292a0ade53b059e2b" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "650d399547a218792188e9e20e047ea06d0f11ec004fb6bac3084f02ff9f9dea" as const

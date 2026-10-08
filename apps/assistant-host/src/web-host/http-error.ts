@@ -1,5 +1,6 @@
 import { LocalAttachmentUploadError } from "../resources/attachment.js"
-import { LocalResourceDeliveryError } from "../resources/delivery.js"
+import { AttachmentUploadHttpError } from "../resources/attachment-http.js"
+import { ResourceDeliveryError } from "../resources/delivery.js"
 
 export class WebHostHttpError extends Error {
   constructor(
@@ -19,8 +20,9 @@ export function normalizeHttpError(error: unknown): {
   readonly totalSizeBytes?: number
 } {
   if (error instanceof WebHostHttpError) return error
+  if (error instanceof AttachmentUploadHttpError) return error
   if (error instanceof LocalAttachmentUploadError) return error
-  if (error instanceof LocalResourceDeliveryError) {
+  if (error instanceof ResourceDeliveryError) {
     return {
       statusCode: error.statusCode,
       code: error.code,

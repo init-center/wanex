@@ -1,6 +1,8 @@
 import type {
   SessionInputOrigin,
   SessionTurnExecutionBinding,
+  ExecutionEnvironmentBinding,
+  SessionTurnAdmissionCondition,
   SessionTurnId
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
@@ -61,6 +63,8 @@ export interface ResolvedSessionTurnAgentContext {
   readonly context?: PreparedAgentContext
   readonly contextIdentity?: SessionTurnAgentContextIdentity
   readonly lease?: SessionTurnAgentContextLease
+  readonly executionEnvironment?: ExecutionEnvironmentBinding
+  readonly admissionConditions?: readonly SessionTurnAdmissionCondition[]
 }
 
 export type SessionTurnAgentContextResolver = (

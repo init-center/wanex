@@ -1,12 +1,13 @@
 import {
-  CircleStop,
   RotateCcw,
-  Send,
+  ArrowUp,
+  Square,
   X,
 } from "lucide-react";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -35,14 +36,24 @@ import {
   InitialLoading,
   InitialUnavailable,
 } from "../shared/availability.js";
-import { AttachmentTray, ComposerMetadata, ComposerModeSwitch } from "../composer/controls.js";
+import {
+  AttachmentTray,
+  ComposerModelPicker,
+  ComposerModeSwitch,
+  ComposerAddMenu,
+} from "../composer/controls.js";
+import { FolderTray } from "../composer/folders.js";
 import {
   actionType as composerActionType,
   placeholder as composerPlaceholder,
   type ComposerMode,
 } from "../composer/model.js";
 import { ContextPanel } from "../context/panel.js";
-import { ConversationTimeline } from "../conversation/timeline.js";
+import {
+  ConversationTimeline,
+  EmptyGreeting,
+  QuickStarts,
+} from "../conversation/timeline.js";
 import { Sidebar } from "../navigation/sidebar.js";
 import { Topbar } from "../navigation/topbar.js";
 import { TeamComposer } from "../team/composer.js";
@@ -52,13 +63,35 @@ import type {
   DispatchActionResult,
 } from "../shared/action.js";
 import { classes } from "../classes.js";
+import { PortalContainerProvider } from "../primitives/portal.js";
 import { useSnapshotSync } from "./use-snapshot-sync.js";
+import { useAttachmentUpload } from "../composer/use-attachment-upload.js";
 
-export function App({
+export function App(props: AppProps): ReactNode {
+  const [view, setView] = useState({ client: props.client, generation: 0 });
+  // A Client is one borrowed Host connection. Never reuse its transcript or
+  // pending view state for a replacement connection, even before its first read.
+  if (view.client !== props.client) {
+    setView({ client: props.client, generation: view.generation + 1 });
+  }
+  return <AppView key={view.generation} {...props} />;
+}
+
+function AppView({
   client,
   initialSnapshot,
+  openSettingsRequest,
   onModalStateChange,
+  onThemeChange,
+  headerActions,
+  navigationFooter,
+  composerContext,
 }: AppProps): ReactNode {
+  const lifetime = useMemo(() => ({ active: false }), []);
+  useLayoutEffect(() => {
+    lifetime.active = true;
+    return () => { lifetime.active = false; };
+  }, [lifetime]);
   const {
     snapshot,
     snapshotError,
@@ -68,28 +101,52 @@ export function App({
     adoptSnapshot,
     adoptArrivedSnapshot,
     retrySnapshot,
+    reportRefreshFailure,
   } = useSnapshotSync(client, initialSnapshot);
   const [draft, setDraft] = useState("");
   const draftRevision = useRef(0);
-  const [composerMode, setComposerMode] = useState<ComposerMode>("submit");
+  const [chosenComposerMode, setComposerMode] = useState<ComposerMode>("submit");
   const inFlightActions = useRef(new Map<string, Action["type"]>());
   const [pendingActionTypes, setPendingActionTypes] = useState<
     ReadonlySet<Action["type"]>
   >(() => new Set());
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | undefined>();
+  const [shellElement, setShellElement] = useState<HTMLElement | null>(null);
   const [showContext, setShowContext] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSessions, setShowSessions] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showWorkflows, setShowWorkflows] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const providerSetupPrompted = useRef(false);
+  const handledSettingsRequest = useRef<number | undefined>(undefined);
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const sessionDrawerRef = useRef<HTMLElement | null>(null);
   const sessionReturnFocusRef = useRef<HTMLElement | null>(null);
   const settingsOverlayRef = useRef<HTMLElement | null>(null);
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   const commandReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  const { uploading, isUploading, uploadFiles } = useAttachmentUpload({
+    client,
+    ...(snapshot?.conversation.sessionId === undefined
+      ? {}
+      : { sessionId: snapshot.conversation.sessionId }),
+    canUpload: snapshot?.view.conversationAttachmentCanUpload === true &&
+      snapshot.view.selection?.kind !== "team",
+    unavailableMessage: snapshot?.view.selection?.kind === "team"
+      ? "Attachment upload is unavailable in group conversations"
+      : snapshot?.view.conversationAttachmentMessage ??
+        "Attachment upload is unavailable in this conversation",
+    beginRequest: beginSnapshotRequest,
+    onSnapshot: adoptSnapshot,
+    onError: setError,
+  });
+
+  const theme = snapshot?.view.theme;
+  useEffect(() => {
+    if (theme !== undefined) onThemeChange?.(theme);
+  }, [onThemeChange, theme]);
 
   useEffect(() => {
     if (
@@ -104,10 +161,23 @@ export function App({
   }, [client, snapshot]);
 
   useEffect(() => {
+    if (
+      openSettingsRequest === undefined ||
+      handledSettingsRequest.current === openSettingsRequest
+    ) {
+      return;
+    }
+    handledSettingsRequest.current = openSettingsRequest;
+    setShowSessions(false);
+    setShowSettings(true);
+  }, [openSettingsRequest]);
+
+  useEffect(() => {
     if (!showSessions && !showSettings) return;
     function closeTopLayer(event: KeyboardEvent): void {
       if (event.key !== "Escape") return;
       if (showSettings) {
+        if (settingsOverlayRef.current?.parentElement?.querySelector("[data-ui-settings-subdialog]")) return;
         setShowSettings(false);
         return;
       }
@@ -167,13 +237,19 @@ export function App({
   const canGuide =
     conversation.canSteer && conversation.operation?.state === "running";
   const canQueue = conversation.canQueueFollowUp;
+  // While a response is running, plain Enter cannot start a new Turn. Default to
+  // the choice that always has a clear meaning so Enter never silently does nothing.
+  const responseRunning = conversation.operation?.state === "running";
+  const composerMode: ComposerMode = responseRunning && chosenComposerMode === "submit"
+    ? (canQueue ? "queue" : canGuide ? "steer" : "submit")
+    : chosenComposerMode;
   const actionEnabled = composerMode === "submit"
     ? state.conversationCanSubmit
     : composerMode === "queue"
       ? state.conversationCanQueueFollowUp && canQueue
       : state.conversationCanSteer && canGuide;
   const draftEnabled = composerMode === "submit"
-    ? conversation.canSubmit
+    ? conversation.canSubmit || state.providerRunGate.attentionRequired
     : actionEnabled;
 
   async function dispatch(
@@ -187,6 +263,7 @@ export function App({
     action,
     clearDraftRevision,
   ) => {
+    if (!lifetime.active) return undefined;
     const actionKey = inFlightActionKey(action);
     if (inFlightActions.current.has(actionKey)) return undefined;
     inFlightActions.current.set(actionKey, action.type);
@@ -200,10 +277,16 @@ export function App({
           requestId: createRequestId(),
         });
       } catch (reason) {
-        setError(errorMessage(reason));
-        return undefined;
+        if (!lifetime.active) return undefined;
+        const message = errorMessage(reason);
+        setError(message);
+        return { ok: false, action: action.type, message, snapshot };
       }
+      if (!lifetime.active) return undefined;
       adoptSnapshot(result.snapshot, requestGeneration);
+      if (result.snapshotRefresh !== undefined) {
+        reportRefreshFailure(`Action result received, but data could not refresh: ${result.snapshotRefresh.message}`, requestGeneration);
+      }
       if (!result.ok) {
         setError(result.message);
         return result;
@@ -217,37 +300,9 @@ export function App({
       return result;
     } finally {
       inFlightActions.current.delete(actionKey);
-      setPendingActionTypes(new Set(inFlightActions.current.values()));
+      if (lifetime.active) setPendingActionTypes(new Set(inFlightActions.current.values()));
     }
   };
-
-  async function uploadFiles(files: readonly File[]): Promise<void> {
-    if (files.length === 0) return;
-    if (client.uploadAttachment === undefined) {
-      setError("Attachment upload is unavailable in this host");
-      return;
-    }
-    setUploading(true);
-    setError(undefined);
-    try {
-      for (const file of files) {
-        const requestGeneration = beginSnapshotRequest();
-        const result = await client.uploadAttachment({
-          content: new Uint8Array(await file.arrayBuffer()),
-          mediaType: file.type.length === 0 ? "application/octet-stream" : file.type,
-          label: file.name,
-          ...(conversation.sessionId === undefined
-            ? {}
-            : { sessionId: conversation.sessionId }),
-        });
-        adoptSnapshot(result.snapshot, requestGeneration);
-      }
-    } catch (reason) {
-      setError(errorMessage(reason));
-    } finally {
-      setUploading(false);
-    }
-  }
 
   function pasteAttachments(event: ClipboardEvent<HTMLElement>): void {
     const files = Array.from(event.clipboardData.files);
@@ -293,7 +348,7 @@ export function App({
       !actionEnabled ||
       text.length === 0 ||
       pendingActionTypes.has(actionType) ||
-      uploading
+      isUploading()
     ) return;
     const session = conversation.sessionId === undefined
       ? {}
@@ -360,7 +415,7 @@ export function App({
   }
 
   function closeSettingsPanel(): void {
-    if (document.querySelector("[data-ui-settings-subdialog]")) return;
+    if (shellElement?.querySelector("[data-ui-settings-subdialog]")) return;
     setShowSettings(false);
   }
 
@@ -369,8 +424,151 @@ export function App({
     setShowCommands(true);
   }
 
+  const sessionInput = conversation.sessionId === undefined
+    ? {}
+    : { sessionId: conversation.sessionId };
+  const composerDock = (
+    <div
+      className={classes("composer-dock")}
+      data-ui-composer-dock
+      onPaste={pasteAttachments}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("Files")) event.preventDefault();
+      }}
+      onDrop={dropAttachments}
+    >
+      {conversation.canRegenerate && !conversationIsEmpty ? (
+        <div className={classes("turn-actions")} aria-label="Conversation actions">
+          <button
+            type="button"
+            className={classes("secondary-action")}
+            data-ui-action="regenerate-conversation"
+            disabled={pendingActionTypes.has("regenerate-conversation") || uploading}
+            onClick={() => void dispatch({
+              type: "regenerate-conversation",
+              ...(conversation.sessionId === undefined
+                ? {}
+                : { input: { sessionId: conversation.sessionId } }),
+            })}
+          >
+            <RotateCcw size={14} /> Regenerate
+          </button>
+        </div>
+      ) : null}
+      <div className={classes("composer-surface")}>
+        <CommandPalette
+          snapshot={snapshot}
+          open={showCommands}
+          busy={pendingActionTypes.has("preview-command") || pendingActionTypes.has("execute-command")}
+          dispatch={dispatch}
+          returnFocusRef={commandReturnFocusRef}
+          onClose={() => setShowCommands(false)}
+        />
+        <AttachmentTray
+          snapshot={snapshot}
+          client={client}
+          busy={pendingActionTypes.has("remove-conversation-attachment") || uploading}
+          dispatch={dispatch}
+        />
+        <FolderTray
+          snapshot={snapshot}
+          busy={pendingActionTypes.has("revoke-workspace-folder")}
+          dispatch={dispatch}
+        />
+        {conversation.operation?.state === "running" ? (
+          <ComposerModeSwitch
+            mode={composerMode}
+            canQueue={canQueue}
+            canGuide={canGuide}
+            busy={guidanceBusy || uploading}
+            setMode={setComposerMode}
+          />
+        ) : null}
+        <form
+          className={classes("composer")}
+          data-ui-composer
+          data-ui-composer-mode={composerMode}
+          onSubmit={submit}
+        >
+          <textarea
+            ref={composerRef}
+            name="text"
+            value={draft}
+            onChange={(event) => {
+              draftRevision.current += 1;
+              setDraft(event.target.value);
+            }}
+            onKeyDown={submitFromKeyboard}
+            placeholder={composerPlaceholder(composerMode)}
+            aria-label="Message"
+            disabled={!draftEnabled || composerBusy || uploading}
+          />
+          <div className={classes("composer-toolbar")}>
+            <ComposerAddMenu
+              snapshot={snapshot}
+              busy={uploading}
+              folderBusy={
+                pendingActionTypes.has("grant-workspace-folder") ||
+                pendingActionTypes.has("regrant-workspace-folder")
+              }
+              uploadFiles={uploadFiles}
+              dispatch={dispatch}
+              openCommands={(returnTarget) => openCommandPalette(returnTarget)}
+              openWorkflows={() => {
+                setShowSessions(false);
+                setShowContext(false);
+                setShowSettings(false);
+                setShowCommands(false);
+                setShowWorkflows(true);
+              }}
+            />
+            <div className={classes("composer-submit")}>
+              <ComposerModelPicker
+                snapshot={snapshot}
+                endpoints={endpoints}
+                busy={pendingActionTypes.has("set-active-model-endpoint") || uploading}
+                dispatch={dispatch}
+                openSettings={() => openSettingsPanel()}
+              />
+              {conversation.canCancel ? (
+                <button
+                  type="button"
+                  className={classes("stop-button")}
+                  data-ui-action="cancel-conversation"
+                  aria-label="Stop"
+                  title="Stop response"
+                  disabled={pendingActionTypes.has("cancel-conversation")}
+                  onClick={() => void dispatch({
+                    type: "cancel-conversation",
+                    input: { ...sessionInput, reason: "user requested cancellation" },
+                  })}
+                >
+                  <Square size={13} fill="currentColor" aria-hidden="true" />
+                </button>
+              ) : null}
+              <button
+                type="submit"
+                className={classes("send-button")}
+                disabled={!actionEnabled || composerBusy || uploading || draft.trim().length === 0}
+                aria-label={composerMode === "steer" ? "Guide current response" : "Send message"}
+                title={composerMode === "steer" ? "Guide current response" : "Send message"}
+              >
+                {composerBusy ? <span className={classes("spinner")} /> : <ArrowUp size={18} />}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+      {composerContext === undefined ? null : (
+        <div className={classes("composer-context")} data-ui-composer-context>{composerContext}</div>
+      )}
+    </div>
+  );
+
   return (
+    <PortalContainerProvider value={shellElement}>
     <main
+      ref={setShellElement}
       className={classes("shell")}
       data-renderer="assistant"
       data-ui-assistant-shell
@@ -382,26 +580,11 @@ export function App({
         ? {}
         : { "data-ui-operation-id": conversation.operationId })}
     >
-      <Topbar
-        snapshot={snapshot}
-        streamAvailable={streamAvailable}
-        streamReconnecting={snapshotRetrying}
-        sessionsOpen={showSessions}
-        inactive={showSessions || showSettings}
-        openSessions={openSessionNavigation}
-        reconnectStream={retrySnapshot}
-        toggleContext={() => {
-          setShowSessions(false);
-          setShowSettings(false);
-          setShowWorkflows(false);
-          setShowContext((current) => !current);
-        }}
-        openSettings={() => openSettingsPanel()}
-      />
       <div
-        className={classes(`layout ${showSessions ? "is-sidebar-open" : ""}`)}
+        className={classes(`layout ${showSessions ? "is-sidebar-open" : ""} ${sidebarCollapsed ? "is-sidebar-collapsed" : ""}`)}
         data-ui-layout
         data-ui-sidebar-open={showSessions ? "true" : "false"}
+        data-ui-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
         inert={showSettings ? true : undefined}
       >
         {showSessions ? (
@@ -413,6 +596,7 @@ export function App({
           />
         ) : null}
         <Sidebar
+          footer={navigationFooter}
           snapshot={snapshot}
           dispatch={dispatch}
           pendingActionTypes={pendingActionTypes}
@@ -439,6 +623,22 @@ export function App({
           aria-label={teamSelected ? "Group conversation" : "Conversation"}
           inert={showSessions ? true : undefined}
         >
+          <Topbar
+            snapshot={snapshot}
+            streamAvailable={streamAvailable}
+            streamReconnecting={snapshotRetrying}
+            sessionsOpen={showSessions}
+            sidebarCollapsed={sidebarCollapsed}
+            inactive={showSessions || showSettings}
+            openSessions={openSessionNavigation}
+            toggleSidebar={() => setSidebarCollapsed((current) => !current)}
+            reconnectStream={retrySnapshot}
+            toggleContext={() => {
+              setShowWorkflows(false);
+              setShowContext((current) => !current);
+            }}
+            actions={headerActions}
+          />
           {snapshotError === undefined ? null : (
             <AvailabilityNotice
               message={snapshotError}
@@ -467,127 +667,19 @@ export function App({
                 client={client}
                 onSnapshot={adoptArrivedSnapshot}
                 onError={setError}
-                onOpenSettings={() => openSettingsPanel()}
-                onSelectPrompt={selectQuickStart}
               />
-              <div
-                className={classes("composer-dock")}
-                data-ui-composer-dock
-                onPaste={pasteAttachments}
-                onDragOver={(event) => {
-                  if (event.dataTransfer.types.includes("Files")) event.preventDefault();
-                }}
-                onDrop={dropAttachments}
-              >
-            {conversation.canCancel || conversation.canRegenerate ? (
-              <div className={classes("turn-actions")} aria-label="Conversation actions">
-                {conversation.canCancel ? (
-                  <button
-                    type="button"
-                    className={classes("secondary-action")}
-                    data-ui-action="cancel-conversation"
-                    disabled={pendingActionTypes.has("cancel-conversation")}
-                    onClick={() => void dispatch({
-                      type: "cancel-conversation",
-                      input: {
-                        ...(conversation.sessionId === undefined
-                          ? {}
-                          : { sessionId: conversation.sessionId }),
-                        reason: "user requested cancellation",
-                      },
-                    })}
-                  >
-                    <CircleStop size={15} /> Stop
-                  </button>
-                ) : null}
-                {conversation.canRegenerate ? (
-                  <button
-                    type="button"
-                    className={classes("secondary-action")}
-                    data-ui-action="regenerate-conversation"
-                    disabled={pendingActionTypes.has("regenerate-conversation") || uploading}
-                    onClick={() => void dispatch({
-                      type: "regenerate-conversation",
-                      ...(conversation.sessionId === undefined
-                        ? {}
-                        : { input: { sessionId: conversation.sessionId } }),
-                    })}
-                  >
-                    <RotateCcw size={15} /> Regenerate
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
-            <div className={classes("composer-surface")}>
-              <CommandPalette
-                snapshot={snapshot}
-                open={showCommands}
-                busy={pendingActionTypes.has("preview-command") || pendingActionTypes.has("execute-command")}
-                dispatch={dispatch}
-                returnFocusRef={commandReturnFocusRef}
-                onClose={() => setShowCommands(false)}
-              />
-              <AttachmentTray
-                snapshot={snapshot}
-                client={client}
-                busy={pendingActionTypes.has("remove-conversation-attachment") || uploading}
-                dispatch={dispatch}
-              />
-              {conversation.operation?.state === "running" ? (
-                <ComposerModeSwitch
-                  mode={composerMode}
-                  canQueue={canQueue}
-                  canGuide={canGuide}
-                  busy={guidanceBusy || uploading}
-                  setMode={setComposerMode}
-                />
-              ) : null}
-              <form
-                className={classes("composer")}
-                data-ui-composer
-                data-ui-composer-mode={composerMode}
-                onSubmit={submit}
-              >
-                <textarea
-                  ref={composerRef}
-                  name="text"
-                  value={draft}
-                  onChange={(event) => {
-                    draftRevision.current += 1;
-                    setDraft(event.target.value);
-                  }}
-                  onKeyDown={submitFromKeyboard}
-                  placeholder={composerPlaceholder(composerMode)}
-                  aria-label="Message"
-                  disabled={!draftEnabled || composerBusy || uploading}
-                />
-                <button
-                  type="submit"
-                  className={classes("send-button")}
-                  disabled={!actionEnabled || composerBusy || uploading || draft.trim().length === 0}
-                  aria-label={composerMode === "steer" ? "Guide current response" : "Send message"}
-                  title={composerMode === "steer" ? "Guide current response" : "Send message"}
-                >
-                  {composerBusy ? <span className={classes("spinner")} /> : <Send size={17} />}
-                </button>
-              </form>
-              <ComposerMetadata
-                snapshot={snapshot}
-                endpoints={endpoints}
-                busy={pendingActionTypes.has("set-active-model-endpoint") || uploading}
-                dispatch={dispatch}
-                uploadFiles={uploadFiles}
-                openCommands={() => openCommandPalette()}
-                openWorkflows={() => {
-                  setShowSessions(false);
-                  setShowContext(false);
-                  setShowSettings(false);
-                  setShowCommands(false);
-                  setShowWorkflows(true);
-                }}
-              />
+              {conversationIsEmpty ? (
+                <div className={classes("empty-stage")} data-ui-empty-stage>
+                  <EmptyGreeting />
+                  {composerDock}
+                  <QuickStarts
+                    snapshot={snapshot}
+                    dispatch={dispatch}
+                    onSelectPrompt={selectQuickStart}
+                    onOpenSettings={() => openSettingsPanel()}
+                  />
                 </div>
-              </div>
+              ) : composerDock}
             </>
           )}
         </section>
@@ -627,6 +719,9 @@ export function App({
             snapshot={snapshot}
             dispatch={dispatch}
             dispatchResult={dispatchResult}
+            refreshError={snapshotError}
+            refreshing={snapshotRetrying}
+            retryRefresh={retrySnapshot}
             onboarding={snapshot.view.providerRunGate.attentionRequired}
             onSnapshot={adoptArrivedSnapshot}
             onError={setError}
@@ -635,6 +730,7 @@ export function App({
         </div>
       ) : null}
     </main>
+    </PortalContainerProvider>
   );
 }
 

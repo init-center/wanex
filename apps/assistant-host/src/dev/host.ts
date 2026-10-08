@@ -1,4 +1,6 @@
 import { rm } from "node:fs/promises"
+import { CLIENT_SCRIPT } from "@wanex/assistant-ui/generated/client-script"
+import { STYLESHEET } from "@wanex/assistant-ui/generated/stylesheet"
 import type {
   Shell
 } from "@wanex/assistant"
@@ -31,6 +33,7 @@ export async function startAssistantDemoHost(
   const storeDir = await ensureLocalDemoStoreDir(options.storeDir)
   const cleanupDir = options.storeDir === undefined ? storeDir : undefined
   const assistantApp = await startAssistantWebApp({
+    browserAssets: { clientScript: CLIENT_SCRIPT, stylesheet: STYLESHEET },
     storage: {
       kind: "store-dir",
       storeDir

@@ -59,11 +59,9 @@ describe("@wanex/app agent context commands", () => {
       expect(result).toMatchObject({
         sessionId: "ses_wanex_app_context",
         assistantText: "Fake response from wanex-app-model",
-        context: {
-          instructionSources: 1,
-          skillNames: ["write-tests"],
-          diagnostics: [],
-          activationToolRegistered: true
+        contextEvidence: {
+          instructions: { state: "available", sourceCount: 1 },
+          skills: { state: "available", sourceCount: 1 }
         }
       })
       expect(JSON.stringify(result)).not.toContain("FULL APP SHELL SKILL BODY")
@@ -134,9 +132,8 @@ describe("@wanex/app agent context commands", () => {
           sessionId: "ses_wanex_app_hot_first"
         })
       ).resolves.toMatchObject({
-        context: {
-          skillNames: ["first-skill"],
-          activationToolRegistered: true
+        contextEvidence: {
+          skills: { state: "available", sourceCount: 1 }
         }
       })
 
@@ -170,9 +167,8 @@ describe("@wanex/app agent context commands", () => {
         content: [{ type: "text", text: "second profile" }],
         sessionId: "ses_wanex_app_hot_second"
       })
-      expect(second.context).toMatchObject({
-        skillNames: ["second-skill"],
-        activationToolRegistered: true
+      expect(second.contextEvidence).toMatchObject({
+        skills: { state: "available", sourceCount: 1 }
       })
       expect(JSON.stringify(second)).not.toContain("SECOND APP SHELL SKILL BODY")
       expect(app.status().agentContext).toMatchObject({
@@ -255,8 +251,8 @@ describe("@wanex/app agent context commands", () => {
           sessionId: "ses_wanex_app_bad_profile"
         })
       ).resolves.toMatchObject({
-        context: {
-          skillNames: ["safe-skill"]
+        contextEvidence: {
+          skills: { state: "available", sourceCount: 1 }
         }
       })
     } finally {

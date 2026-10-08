@@ -33,12 +33,13 @@ import {
   createStorageTestStore,
   type StorageTestStore,
 } from "../src/testing.js";
+import { fromRpcWorkspaceTaskRunRecord } from "../src/codec-workspace-task-records.js";
 
 const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
 );
-const expectedSchemaVersion = 21;
+const expectedSchemaVersion = 22;
 
 const tempDirs: string[] = [];
 const servers: Server[] = [];
@@ -217,6 +218,45 @@ afterEach(async () => {
       await rm(dir, { recursive: true, force: true });
     }
   }
+});
+
+describe("workspace task identity codec", () => {
+  function record() {
+    return {
+      id: "task_codec", workspace_id: "workspace_codec", principal_id: "agent_codec",
+      access: "read_only", strategy: "direct", state: "preparing",
+      root_identity: { host_id: "host_codec", generation_key: "generation_codec", root_id: "root_codec", device: "1", inode: "2" },
+      isolation_identity: { id: "isolation_codec", kind: "fixed", repository_id: null, base_revision: null, runtime_ref: null },
+      execution_environment: testExecutionEnvironmentBinding("codec"),
+      resource_ids: [], created_at: 1, updated_at: 1,
+    };
+  }
+
+  it("decodes explicit direct and prepared Git identities", () => {
+    expect(fromRpcWorkspaceTaskRunRecord(record())).toMatchObject({
+      strategy: "direct", rootIdentity: { hostId: "host_codec" }, isolationIdentity: { kind: "fixed" },
+    });
+    const git = { ...record(), access: "writable", strategy: "git_worktree", state: "active",
+      isolation_identity: { id: "isolation_codec", kind: "git_worktree", repository_id: "repo_codec", base_revision: "a".repeat(40), runtime_ref: "wanex/task_codec" },
+    };
+    expect(fromRpcWorkspaceTaskRunRecord(git)).toMatchObject({
+      strategy: "git_worktree", isolationIdentity: { repositoryId: "repo_codec", baseRevision: "a".repeat(40) },
+    });
+  });
+
+  it.each([
+    ["missing strategy", { strategy: undefined }],
+    ["implicit writable", { access: "writable" }],
+    ["inconsistent Git strategy", { strategy: "git_worktree" }],
+    ["numeric inode", { root_identity: { ...record().root_identity, inode: 2 } }],
+    ["path identity", { root_identity: { ...record().root_identity, host_id: "/private/root" } }],
+    ["unknown root field", { root_identity: { ...record().root_identity, path: "/private/root" } }],
+    ["direct repository", { isolation_identity: { ...record().isolation_identity, repository_id: "repo_codec" } }],
+    ["partial preparation", { isolation_identity: { ...record().isolation_identity, base_revision: "a".repeat(40) } }],
+    ["active Git without preparation", { strategy: "git_worktree", access: "writable", state: "active", isolation_identity: { ...record().isolation_identity, kind: "git_worktree", repository_id: "repo_codec" } }],
+  ])("rejects %s rather than reconstructing identity", (_label, change) => {
+    expect(() => fromRpcWorkspaceTaskRunRecord({ ...record(), ...change } as JsonValue)).toThrow();
+  });
 });
 
 describe("@wanex/storage", () => {
@@ -2797,12 +2837,23 @@ setInterval(() => {}, 1000)
       claimToken,
     };
     const claim = await client.beginWorkspaceTaskRun({
+      strategy: "git_worktree",
+      rootIdentity: {
+        hostId: "host_storage",
+        generationKey: "generation_storage",
+        rootId: "root_storage",
+        device: "1",
+        inode: "2",
+      },
+      isolationIdentity: {
+        id: "wiso_task_storage",
+        kind: "git_worktree",
+        repositoryId: "repo_task_storage",
+      },
       id: identity.runId,
       workspaceId: "workspace_task_storage",
       principalId: "agent_task_storage",
       access: "writable",
-      repositoryId: "repo_task_storage",
-      isolationId: "wiso_task_storage",
       executionEnvironment: testExecutionEnvironmentBinding("task"),
       attemptId: identity.attemptId,
       ownerId: "host_task_storage",
@@ -2824,9 +2875,11 @@ setInterval(() => {}, 1000)
 
     const baseRevision = "c".repeat(40);
     await client.markWorkspaceTaskActive({
+      preparedIsolation: {
+        baseRevision: baseRevision,
+        runtimeRef: "refs/heads/wanex/storage-task",
+      },
       ...identity,
-      baseRevision,
-      runtimeRef: "refs/heads/wanex/storage-task",
     });
     await client.beginWorkspaceTaskCollection({
       ...identity,
@@ -2871,13 +2924,13 @@ setInterval(() => {}, 1000)
       client.listWorkspaceTaskRuns({
         runIds: [identity.runId, "wtsk_storage_missing"],
         workspaceId: "workspace_task_storage",
-        repositoryId: "repo_task_storage",
+        rootId: "root_storage",
         state: "released",
       }),
     ).resolves.toHaveLength(1);
-    await expect(
-      client.listWorkspaceTaskRuns({ runIds: [] }),
-    ).rejects.toThrow("runIds must contain 1 to 128 unique non-empty ids");
+    await expect(client.listWorkspaceTaskRuns({ runIds: [] })).rejects.toThrow(
+      "runIds must contain 1 to 128 unique non-empty ids",
+    );
     await expect(
       client.listWorkspaceTaskRuns({
         runIds: [identity.runId],
@@ -2893,19 +2946,32 @@ setInterval(() => {}, 1000)
 
   it("claims a retained workspace task continuation through the storage RPC", async () => {
     const client = await createClient();
-    const executionEnvironment = testExecutionEnvironmentBinding("continuation");
+    const executionEnvironment =
+      testExecutionEnvironmentBinding("continuation");
     const original = {
       runId: "wtsk_storage_continuation",
       attemptId: "wtat_storage_continuation_original",
-      claimToken: "storage-continuation-original-token-abcdefghijklmnopqrstuvwxyz",
+      claimToken:
+        "storage-continuation-original-token-abcdefghijklmnopqrstuvwxyz",
     };
     await client.beginWorkspaceTaskRun({
+      strategy: "git_worktree",
+      rootIdentity: {
+        hostId: "host_storage",
+        generationKey: "generation_storage",
+        rootId: "root_storage",
+        device: "1",
+        inode: "2",
+      },
+      isolationIdentity: {
+        id: "wiso_storage_continuation",
+        kind: "git_worktree",
+        repositoryId: "repo_storage_continuation",
+      },
       id: original.runId,
       workspaceId: "workspace_storage_continuation",
       principalId: "agent_storage_continuation",
       access: "writable",
-      repositoryId: "repo_storage_continuation",
-      isolationId: "wiso_storage_continuation",
       executionEnvironment,
       attemptId: original.attemptId,
       ownerId: "host_storage_continuation_original",
@@ -2913,9 +2979,11 @@ setInterval(() => {}, 1000)
       leaseMs: 60_000,
     });
     await client.markWorkspaceTaskActive({
+      preparedIsolation: {
+        baseRevision: "e".repeat(40),
+        runtimeRef: "refs/heads/wanex/storage-continuation",
+      },
       ...original,
-      baseRevision: "e".repeat(40),
-      runtimeRef: "refs/heads/wanex/storage-continuation",
     });
     await client.markWorkspaceTaskAttention({
       ...original,
@@ -2933,22 +3001,32 @@ setInterval(() => {}, 1000)
       leaseMs: 60_000,
       executionEnvironment,
     };
-    await expect(client.claimWorkspaceTaskContinuation(continuation)).resolves.toMatchObject({
+    await expect(
+      client.claimWorkspaceTaskContinuation(continuation),
+    ).resolves.toMatchObject({
       status: "claimed",
       snapshot: {
         run: {
           state: "active",
-          isolationId: "wiso_storage_continuation",
-          baseRevision: "e".repeat(40),
-          runtimeRef: "refs/heads/wanex/storage-continuation",
+          isolationIdentity: {
+            id: "wiso_storage_continuation",
+            kind: "git_worktree",
+            repositoryId: "repo_storage_continuation",
+            baseRevision: "e".repeat(40),
+            runtimeRef: "refs/heads/wanex/storage-continuation",
+          },
         },
         activeAttempt: { kind: "continuation", state: "active" },
       },
     });
-    const continued = await client.getWorkspaceTaskRun({ runId: original.runId });
+    const continued = await client.getWorkspaceTaskRun({
+      runId: original.runId,
+    });
     expect(continued?.run.failure).toBeUndefined();
     expect(continued?.run.finishedAt).toBeUndefined();
-    await expect(client.claimWorkspaceTaskContinuation(continuation)).resolves.toMatchObject({
+    await expect(
+      client.claimWorkspaceTaskContinuation(continuation),
+    ).resolves.toMatchObject({
       status: "claimed",
       snapshot: { activeAttempt: { id: continuation.attemptId } },
     });

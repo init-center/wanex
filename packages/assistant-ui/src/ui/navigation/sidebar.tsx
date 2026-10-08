@@ -2,11 +2,11 @@ import {
   Check,
   ChevronDown,
   Crown,
-  MessageSquarePlus,
   MessagesSquare,
   Plus,
   Search,
-  SlidersHorizontal,
+  Settings,
+  SquarePen,
   UsersRound,
   X,
 } from "lucide-react";
@@ -23,6 +23,7 @@ import type {
   Snapshot,
 } from "../../application/model.js";
 import { classes } from "../classes.js";
+import { RECENCY_LABEL, groupByRecency } from "./recency.js";
 import type { DispatchAction } from "../shared/action.js";
 import { SessionRow } from "./session-row.js";
 
@@ -36,6 +37,7 @@ export function Sidebar({
   onNavigate,
   onGroupCreated,
   openSettings,
+  footer,
 }: {
   readonly snapshot: Snapshot;
   readonly dispatch: DispatchAction;
@@ -46,6 +48,7 @@ export function Sidebar({
   readonly onNavigate: () => void;
   readonly onGroupCreated: (mode: "discussion" | "coordinated") => void;
   readonly openSettings: () => void;
+  readonly footer?: ReactNode;
 }): ReactNode {
   const state = snapshot.view;
   const [search, setSearch] = useState("");
@@ -57,6 +60,7 @@ export function Sidebar({
   const [editingSessionId, setEditingSessionId] = useState<string | undefined>();
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const activeSessions = matchingSessions(state.recentSessions, normalizedSearch);
+  const recencyGroups = groupByRecency(activeSessions);
   const archivedSessions = matchingSessions(state.archivedSessions, normalizedSearch);
   const groups = snapshot.team.conversations.filter((conversation) =>
     normalizedSearch.length === 0 ||
@@ -117,10 +121,10 @@ export function Sidebar({
           void dispatch({ type: "start-new-conversation" });
         }}
       >
-        <MessageSquarePlus size={16} /> New conversation
+        <SquarePen size={17} /> New conversation
       </button>
       <label className={classes("session-search")}>
-        <Search size={15} aria-hidden="true" />
+        <Search size={17} aria-hidden="true" />
         <span className={classes("sr-only")}>Search conversations and groups</span>
         <input
           type="search"
@@ -130,8 +134,25 @@ export function Sidebar({
           aria-label="Search conversations and groups"
         />
       </label>
+      <hr className={classes("sidebar-divider")} />
       <div className={classes("session-library")} data-ui-session-list>
+        {groups.length === 0 && !creatingGroup && !searching && !(canCreateDiscussion || canCreateCoordinated) ? null : (
         <section aria-labelledby="groups-heading" data-ui-team-list>
+          {groups.length === 0 && !creatingGroup && !searching ? (
+            <button
+              type="button"
+              id="groups-heading"
+              className={classes("quiet-row")}
+              aria-label="New group"
+              title="New group"
+              onClick={() => {
+                setGroupMode(canCreateCoordinated ? "coordinated" : "discussion");
+                setCreatingGroup(true);
+              }}
+            >
+              <UsersRound size={14} aria-hidden="true" /> New group
+            </button>
+          ) : (
           <div className={classes("sidebar-heading")} id="groups-heading">
             <span>Groups</span>
             <span className={classes("sidebar-heading-actions")}>
@@ -151,6 +172,7 @@ export function Sidebar({
               ) : null}
             </span>
           </div>
+          )}
           {creatingGroup ? (
             <form className={classes("group-create")} onSubmit={(event) => void createGroup(event)}>
               <div className={classes("group-create-row")}>
@@ -247,41 +269,46 @@ export function Sidebar({
               );
             })}
           </ul>
-          {!creatingGroup && !searching && groups.length === 0 ? (
-            <p className={classes("session-empty")} data-ui-team-empty>
-              {snapshot.team.state === "unavailable" ? "Groups unavailable" : "No groups yet"}
-            </p>
-          ) : null}
         </section>
-        <section aria-labelledby="active-conversations-heading">
-          <div className={classes("sidebar-heading")} id="active-conversations-heading">
-            <span>Conversations</span><span>{activeSessions.length}</span>
-          </div>
-          <ul className={classes("session-list")} aria-label="Active conversations">
-            {activeSessions.map((session) => (
-              <SessionRow
-                key={session.sessionId}
-                session={session}
-                dispatch={dispatch}
-                pendingActionTypes={pendingActionTypes}
-                menuOpen={openMenuSessionId === session.sessionId}
-                editing={editingSessionId === session.sessionId}
-                setMenuOpen={(open) => setSessionMenu(session.sessionId, open)}
-                beginRename={() => {
-                  setOpenMenuSessionId(undefined);
-                  setEditingSessionId(session.sessionId);
-                }}
-                finishRename={() => setEditingSessionId(undefined)}
-                onSelect={() => {
-                  onNavigate();
-                  void dispatch({
-                    type: "select-session",
-                    sessionId: session.sessionId,
-                  });
-                }}
-              />
-            ))}
-          </ul>
+        )}
+        <section aria-label="Active conversations" data-ui-recents>
+          {activeSessions.length === 0 ? (
+            <div className={classes("sidebar-heading")} id="active-conversations-heading">
+              <span>Recents</span>
+            </div>
+          ) : null}
+          {recencyGroups.map(({ group, rows }) => (
+            <div key={group} data-ui-recency-group={group}>
+              <div className={classes("sidebar-heading")} id={`recency-${group}`}>
+                <span>{RECENCY_LABEL[group]}</span>
+              </div>
+              <ul className={classes("session-list")} aria-labelledby={`recency-${group}`}>
+                {rows.map((session) => (
+                  <SessionRow
+                    key={session.sessionId}
+                    session={session}
+                    dispatch={dispatch}
+                    pendingActionTypes={pendingActionTypes}
+                    menuOpen={openMenuSessionId === session.sessionId}
+                    editing={editingSessionId === session.sessionId}
+                    setMenuOpen={(open) => setSessionMenu(session.sessionId, open)}
+                    beginRename={() => {
+                      setOpenMenuSessionId(undefined);
+                      setEditingSessionId(session.sessionId);
+                    }}
+                    finishRename={() => setEditingSessionId(undefined)}
+                    onSelect={() => {
+                      onNavigate();
+                      void dispatch({
+                        type: "select-session",
+                        sessionId: session.sessionId,
+                      });
+                    }}
+                  />
+                ))}
+              </ul>
+            </div>
+          ))}
           {!searching && activeSessions.length === 0 ? (
             <p className={classes("session-empty")} data-ui-session-empty>No conversations yet</p>
           ) : null}
@@ -318,17 +345,21 @@ export function Sidebar({
           <p className={classes("session-empty")} data-ui-session-empty>No matches</p>
         ) : null}
       </div>
+      <div className={classes("sidebar-footer")}>
+      {footer}
       <button
         type="button"
         className={classes("settings-button")}
         data-ui-action="open-settings"
+        aria-label="Open settings"
         onClick={() => {
           onNavigate();
           openSettings();
         }}
       >
-        <SlidersHorizontal size={16} /> Settings
+        <Settings size={17} /> Settings
       </button>
+      </div>
     </aside>
   );
 }

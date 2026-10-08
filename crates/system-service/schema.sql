@@ -569,7 +569,14 @@ CREATE TABLE IF NOT EXISTS workspace_task_run (
   workspace_id TEXT NOT NULL,
   principal_id TEXT NOT NULL,
   access TEXT NOT NULL,
-  repository_id TEXT NOT NULL,
+  strategy TEXT NOT NULL CHECK (strategy IN ('direct', 'git_worktree')),
+  host_id TEXT NOT NULL,
+  generation_key TEXT NOT NULL,
+  root_id TEXT NOT NULL,
+  root_device TEXT NOT NULL,
+  root_inode TEXT NOT NULL,
+  isolation_kind TEXT NOT NULL,
+  repository_id TEXT,
   isolation_id TEXT NOT NULL UNIQUE,
   execution_environment_json TEXT NOT NULL,
   job_id TEXT,
@@ -586,7 +593,17 @@ CREATE TABLE IF NOT EXISTS workspace_task_run (
   failure_json TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
-  finished_at INTEGER
+  finished_at INTEGER,
+  CHECK (
+    (strategy = 'direct' AND access = 'read_only' AND isolation_kind = 'fixed'
+      AND repository_id IS NULL AND base_revision IS NULL AND runtime_ref IS NULL)
+    OR
+    (strategy = 'git_worktree' AND access = 'writable' AND isolation_kind = 'git_worktree'
+      AND repository_id IS NOT NULL)
+  ),
+  CHECK ((base_revision IS NULL) = (runtime_ref IS NULL)),
+  CHECK (strategy != 'git_worktree' OR state NOT IN ('active', 'collecting', 'proposed')
+    OR base_revision IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_task_run_workspace_state
@@ -1354,4 +1371,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (21, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (22, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

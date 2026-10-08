@@ -4,6 +4,7 @@ import {
   type RunEphemeralSideQueryRequest
 } from "../core/index.js"
 import { createTurnExecutionBinding } from "../turn-binding.js"
+import { assertExecutionEnvironmentBindingEqual } from "../environment-binding.js"
 import { registerSessionTurnHandler } from "../worker/index.js"
 import { TurnControlEventObserver } from "../worker/turn-control-observer.js"
 import type { PreparedAgentContext } from "../../context/agent/index.js"
@@ -18,6 +19,7 @@ import {
 } from "../../provider/index.js"
 import type {
   EphemeralQueryResult,
+  ExecutionEnvironmentBinding,
   ModelEndpoint,
   SessionRecord,
   SessionScope,
@@ -247,6 +249,9 @@ export class WanexAgentRuntime {
     let executionBinding: SessionTurnExecutionBinding
     try {
       const agentContext = resolved?.context ?? this.staticAgentContext
+      const executionEnvironment = resolvePreparedEnvironment(
+        request.executionEnvironment, resolved?.executionEnvironment
+      )
       executionBinding = createTurnExecutionBinding({
         modelEndpoint,
         ...(request.maxOutputTokens === undefined
@@ -254,9 +259,11 @@ export class WanexAgentRuntime {
           : { maxOutputTokens: request.maxOutputTokens }),
         resources: admitted.resources,
         ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
-        ...(request.executionEnvironment === undefined
+        ...(executionEnvironment === undefined
           ? {}
-          : { executionEnvironment: request.executionEnvironment }),
+          : { executionEnvironment }),
+        ...(resolved?.admissionConditions === undefined
+          ? {} : { admissionConditions: resolved.admissionConditions }),
         ...(request.applicationScope === undefined
           ? {}
           : { applicationScope: request.applicationScope }),
@@ -362,6 +369,9 @@ export class WanexAgentRuntime {
     let binding: SessionTurnExecutionBinding
     try {
       const agentContext = resolved?.context ?? this.staticAgentContext
+      const executionEnvironment = resolvePreparedEnvironment(
+        request.executionEnvironment, resolved?.executionEnvironment
+      )
       binding = createTurnExecutionBinding({
         modelEndpoint,
         resources,
@@ -369,9 +379,11 @@ export class WanexAgentRuntime {
           ? {}
           : { maxOutputTokens: request.maxOutputTokens }),
         ...(this.recovery === undefined ? {} : { recovery: this.recovery }),
-        ...(request.executionEnvironment === undefined
+        ...(executionEnvironment === undefined
           ? {}
-          : { executionEnvironment: request.executionEnvironment }),
+          : { executionEnvironment }),
+        ...(resolved?.admissionConditions === undefined
+          ? {} : { admissionConditions: resolved.admissionConditions }),
         ...(request.applicationScope === undefined
           ? {}
           : { applicationScope: request.applicationScope }),
@@ -519,6 +531,16 @@ function withDefaultContextCompilerResolver(
           }),
     }
   }
+}
+
+function resolvePreparedEnvironment(
+  requested: ExecutionEnvironmentBinding | undefined,
+  resolved: ExecutionEnvironmentBinding | undefined
+): ExecutionEnvironmentBinding | undefined {
+  if (requested !== undefined && resolved !== undefined) {
+    assertExecutionEnvironmentBindingEqual(resolved, requested, "resolved execution environment")
+  }
+  return resolved ?? requested
 }
 
 function stableSubmissionIdentity(

@@ -23,6 +23,7 @@ mod rows;
 mod run_control;
 mod scheduler;
 mod secret_references;
+mod session_admission;
 mod sessions;
 mod team;
 mod tools;
@@ -42,11 +43,11 @@ pub use error::{Result, SystemServiceError};
 pub use models::*;
 pub use workspace_child::run_workspace_child_helper;
 pub use workspace_lock::run_workspace_lock_helper;
-pub use workspace_snapshot::run_workspace_snapshot_helper;
+pub use workspace_snapshot::{run_workspace_snapshot_helper, WorkspaceSnapshotRootIdentity};
 pub use workspace_transaction::run_workspace_transaction_helper;
 
 pub const SERVICE_NAME: &str = "wanex-system-service";
-pub const CURRENT_SCHEMA_VERSION: i64 = 21;
+pub const CURRENT_SCHEMA_VERSION: i64 = 22;
 const BASELINE_SCHEMA: &str = include_str!("../schema.sql");
 
 #[derive(Debug)]

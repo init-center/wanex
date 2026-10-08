@@ -22,7 +22,7 @@ describe("in-process Agent Host endpoint", () => {
         connectionKind: "in_process",
         executionLocation: "local"
       },
-      capabilities: capabilities(["assistant", "coding"]),
+      capabilities: capabilities(["assistant"]),
       accessToken: "access_test",
       handleOperation: async () => ({
         outcome: "completed",
@@ -65,9 +65,7 @@ describe("in-process Agent Host endpoint", () => {
     })
 
     const assistantEvent = event("assistant", 1)
-    const codingEvent = event("coding", 2)
     for (const listener of events) listener(assistantEvent)
-    for (const listener of events) listener(codingEvent)
     expect(received).toEqual([assistantEvent])
 
     endpoint.close()
@@ -144,6 +142,76 @@ describe("in-process Agent Host endpoint", () => {
     ])
   })
 
+  it("converges concurrent command retries and rejects idempotency conflicts", async () => {
+    let invocationCount = 0
+    let complete: ((result: AgentHostOperationResult) => void) | undefined
+    const endpoint = createInProcessAgentHostEndpoint({
+      host: {
+        hostId: "host_idempotency",
+        instanceId: "instance_idempotency",
+        connectionKind: "in_process",
+        executionLocation: "local"
+      },
+      capabilities: capabilities(["assistant"]),
+      accessToken: "access_idempotency",
+      handleOperation: async () => {
+        invocationCount += 1
+        return await new Promise<AgentHostOperationResult>((resolve) => {
+          complete = resolve
+        })
+      },
+      replayEvents: () => ({
+        outcome: "replayed",
+        page: emptyPage("stream_idempotency")
+      }),
+      subscribeEvents: () => () => undefined
+    })
+    await endpoint.send({
+      kind: "wanex.agent-host.handshake.request",
+      protocolVersion: 1,
+      clientId: "client_idempotency",
+      accessToken: "access_idempotency",
+      requestedDomains: ["assistant"]
+    })
+
+    const first = endpoint.send(command("req_first", { text: "hello" }))
+    await Promise.resolve()
+    const duplicate = endpoint.send(command("req_duplicate", { text: "hello" }))
+    await Promise.resolve()
+    expect(invocationCount).toBe(1)
+    complete?.({ outcome: "completed", result: { operationId: "operation_once" } })
+
+    await expect(first).resolves.toMatchObject({
+      requestId: "req_first",
+      outcome: "completed",
+      result: { operationId: "operation_once" }
+    })
+    await expect(duplicate).resolves.toMatchObject({
+      requestId: "req_duplicate",
+      outcome: "completed",
+      result: { operationId: "operation_once" }
+    })
+    await expect(endpoint.send(command("req_conflict", { text: "different" })))
+      .resolves.toMatchObject({
+        requestId: "req_conflict",
+        outcome: "failed",
+        error: { code: "idempotency_conflict", retryable: false }
+      })
+    expect(invocationCount).toBe(1)
+
+    function command(requestId: string, payload: { readonly text: string }) {
+      return {
+        kind: "wanex.agent-host.operation.request" as const,
+        operationKind: "command" as const,
+        requestId,
+        idempotencyKey: "same_semantic_command",
+        domain: "assistant" as const,
+        operation: "conversation.start",
+        payload
+      }
+    }
+  })
+
   it("normalizes handler failures and invalid replay results", async () => {
     const endpoint = createInProcessAgentHostEndpoint({
       host: {
@@ -152,7 +220,7 @@ describe("in-process Agent Host endpoint", () => {
         connectionKind: "in_process",
         executionLocation: "local"
       },
-      capabilities: capabilities(["coding"]),
+      capabilities: capabilities(["assistant"]),
       accessToken: "access_failure",
       handleOperation: async (): Promise<AgentHostOperationResult> => {
         throw new Error("private failure")
@@ -167,14 +235,14 @@ describe("in-process Agent Host endpoint", () => {
       protocolVersion: 1,
       clientId: "client_failure",
       accessToken: "access_failure",
-      requestedDomains: ["coding"]
+      requestedDomains: ["assistant"]
     })
 
     const failed = await endpoint.send({
       kind: "wanex.agent-host.operation.request",
       operationKind: "read",
       requestId: "req_failure",
-      domain: "coding",
+      domain: "assistant",
       operation: "project.read",
       payload: {}
     })
@@ -205,9 +273,7 @@ describe("in-process Agent Host endpoint", () => {
   })
 })
 
-function capabilities(
-  domains: readonly ("assistant" | "coding")[]
-) {
+function capabilities(domains: readonly "assistant"[]) {
   return {
     revision: 1 as const,
     domains,
@@ -227,10 +293,7 @@ function capabilities(
   }
 }
 
-function event(
-  domain: "assistant" | "coding",
-  sequence: number
-): AgentHostEvent {
+function event(domain: "assistant", sequence: number): AgentHostEvent {
   return {
     kind: "wanex.agent-host.event",
     streamId: "stream_test",

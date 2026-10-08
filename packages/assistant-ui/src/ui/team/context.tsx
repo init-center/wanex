@@ -19,6 +19,7 @@ import type { TeamParticipantReadModel } from "@wanex/assistant/surface";
 import type { DispatchAction } from "../shared/action.js";
 import { IconButton } from "../shared/icon-button.js";
 import { classes } from "../classes.js";
+import { Select } from "../primitives/select.js";
 
 export function TeamContext({
   snapshot,
@@ -138,10 +139,8 @@ export function TeamContext({
             className={classes("team-add-agent")}
             onSubmit={(event) => {
               event.preventDefault();
-              const selected = event.currentTarget.elements.namedItem("agentSessionId");
-              const candidate = selected instanceof HTMLSelectElement
-                ? candidates.find((session) => session.sessionId === selected.value)
-                : undefined;
+              const selected = new FormData(event.currentTarget).get("agentSessionId");
+              const candidate = candidates.find((session) => session.sessionId === selected);
               if (candidate === undefined || participantBusy) return;
               void dispatch({
                 type: "add-team-participant",
@@ -154,17 +153,14 @@ export function TeamContext({
               });
             }}
           >
-            <select
+            <Select
               key={conversationId}
               name="agentSessionId"
+              label="Agent conversation"
               defaultValue={candidates[0]?.sessionId ?? ""}
-              aria-label="Agent conversation"
               disabled={participantBusy}
-            >
-              {candidates.map((session) => (
-                <option key={session.sessionId} value={session.sessionId}>{session.label}</option>
-              ))}
-            </select>
+              options={candidates.map((session) => ({ value: session.sessionId, label: session.label }))}
+            />
             <button type="submit" disabled={candidates.length === 0 || participantBusy}>
               <UserPlus size={14} /> Add
             </button>

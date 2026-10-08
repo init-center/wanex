@@ -14,11 +14,7 @@ import { requireWorkspaceToolScopeId } from "./scope.js"
 const DEFAULT_MAX_CHANGE_FILES = 32
 const DEFAULT_MAX_CHANGE_BYTES = 1024 * 1024
 
-export class WorkspaceApplyChangeSetTool implements ToolDefinition {
-  readonly name = "workspace_apply_changeset"
-  readonly description =
-    "Apply a bounded, conflict-checked workspace changeset with durable undo history."
-  readonly inputSchema = {
+export const WORKSPACE_CHANGESET_INPUT_SCHEMA = {
     type: "object",
     properties: {
       title: { type: "string", maxLength: 512 },
@@ -42,6 +38,12 @@ export class WorkspaceApplyChangeSetTool implements ToolDefinition {
     required: ["changes"],
     additionalProperties: false
   } as const
+
+export class WorkspaceApplyChangeSetTool implements ToolDefinition {
+  readonly name = "workspace_apply_changeset"
+  readonly description =
+    "Apply a bounded, conflict-checked workspace changeset with durable undo history."
+  readonly inputSchema = WORKSPACE_CHANGESET_INPUT_SCHEMA
   readonly risk = "mutating" as const
   readonly idempotent = false
   readonly concurrency = "exclusive" as const
@@ -190,10 +192,10 @@ function changeSetPresentation(
   }
 }
 
-function parseChangeSet(
+export function parseChangeSet(
   input: JsonValue,
-  maxFiles: number,
-  maxBytes: number,
+  maxFiles = DEFAULT_MAX_CHANGE_FILES,
+  maxBytes = DEFAULT_MAX_CHANGE_BYTES,
   id = "wcs_workspace_tool_presentation"
 ): ChangeSet {
   const record = inputRecord(input)

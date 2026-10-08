@@ -1,11 +1,12 @@
 import { createPackage } from "@electron/asar";
-import { chmod, cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   auditPackagedDesktop,
   auditDesktopStaging,
+  assertDesktopMainInputs,
   buildDesktop,
   createDesktopNativeArtifactStagePlan,
   normalizeAsarEntry,
@@ -25,7 +26,7 @@ import {
 } from "../scripts/metrics.mjs";
 import {
   assertRelaunchJourneyFixtureRequests,
-  assertRemoteCodingServerEvidence,
+  assertPackagedServerEvidence,
   assertRelaunchJourneyRuntimeReceipt,
   assertCanonicalProofArgs,
   createDesktopProofProcessEnvironment,
@@ -46,6 +47,7 @@ import {
 import {
   electronArtifactChecksum,
   electronArtifactFileName,
+  electronVersion,
   prepareElectronArtifact,
   sha256File,
   validateElectronArtifact,
@@ -62,235 +64,29 @@ afterEach(async () => {
 });
 
 describe("Desktop packaging policy", () => {
-  it("retains bounded proof diagnostics without retaining secrets or endpoints", () => {
-    const error = new Error(
-      "Coding proof timed out: coding_proposal_apply " +
-        "token=private-value https://localhost:9443/private " +
-        "wanex-packaged-remote-coding-proof-token",
-    );
-    const receipt = createWanexDesktopProofFailureReceipt({
-      error,
-      failurePhase: "renderer_proof",
-      proofStep: "relaunch-coding",
-      assistantDiagnostics: {
-        refreshState: "succeeded",
-        observed: {
-          conversation: {
-            state: "running",
-            sessionId: "assistant-session-secret",
-            operationId: "assistant-operation-secret",
-            operation: { capabilities: { terminal: false } },
-            canSubmit: false,
-            historyRows: [
-              { role: "user", text: "assistant-user-secret" },
-            ],
-            transientAssistantText: "assistant-transient-secret",
-          },
-        },
-        refreshed: {
-          web: {
-            conversation: {
-              state: "succeeded",
-              sessionId: "assistant-session-secret",
-              operationId: "assistant-operation-secret",
-              operation: {
-                capabilities: { terminal: true },
-                result: { assistantText: "assistant-result-secret" },
-              },
-              canSubmit: true,
-              historyRows: [
-                { role: "user", text: "assistant-user-secret" },
-                { role: "assistant", text: "assistant-result-secret" },
-              ],
-            },
-          },
-        },
-      },
-      codingDiagnostics: {
-        state: "open",
-        repositories: [{
-          repositoryId: "repo-proof",
-          repositoryPath: "/private/secret-project",
-          state: "open",
-          activeTurns: [{
-            reference: {
-              repositoryId: "repo-proof",
-              taskId: "task-proof",
-              sessionId: "session-proof",
-              inputId: "input-proof",
-              turnId: "turn-proof",
-              jobId: "job-proof",
-            },
-            stage: "workspace_task_setup",
-            modelEndpointResolution: "not_started",
-            inputPresent: true,
-            userMessagePresent: false,
-            providerInvocationCount: 0,
-            latestProviderInvocationState: "failed_before_output",
-            providerFailure: {
-              category: "provider_failure",
-              signals: ["provider"],
-              type: "provider.error",
-              message: "private provider failure",
-            },
-            tools: {
-              state: "available",
-              returnedCount: 1,
-              truncated: false,
-              items: [{
-                toolName: "workspace_apply_changeset",
-                state: "failed",
-                attemptCount: 1,
-                currentAttemptState: "failed",
-                failure: {
-                  category: "permission_denied",
-                  signals: ["eperm", "rename", "worktree"],
-                  type: "tool_exception",
-                  message: "D:\\private\\coding-secret",
-                },
-                input: "private tool input",
-              }],
-            },
-            task: {
-              present: true,
-              state: "preparing",
-              attemptState: "active",
-              failure: {
-                category: "unknown",
-                signals: [],
-                message: "private task failure",
-              },
-            },
-            job: {
-              present: false,
-              failure: {
-                category: "storage_failure",
-                signals: ["storage"],
-                code: "storage_failed",
-                message: "private job failure",
-              },
-            },
-            turn: {
-              present: false,
-              failure: {
-                category: "tool_failure",
-                signals: ["tool"],
-                name: "ToolFailure",
-                message: "private turn failure",
-              },
-            },
-            runtime: {
-              started: false,
-              workerCount: 1,
-              activeLoopCount: 0,
-              activeExecutionCount: 0,
-              agentLoopRunCount: 0,
-              agentLoopFailedCount: 0,
-            },
-            message: "private coding prompt",
-            credential: "private coding credential",
-          }],
-        }],
-      },
-    });
-    const retained = `${JSON.stringify(receipt)} ${formatWanexDesktopError(error)}`;
+  it("rejects generic browser assets in the Desktop build graph", () => {
+    for (const file of ["client-script", "stylesheet"]) {
+      for (const separator of ["/", "\\"]) {
+        const path = `packages/assistant-ui/src/generated/${file}.ts`.replaceAll("/", separator);
+        expect(() => assertDesktopMainInputs({ inputs: { [path]: {} } }))
+          .toThrow("Desktop must not bundle generic browser assets");
+      }
+    }
+    expect(() => assertDesktopMainInputs({ inputs: {
+      "apps/desktop/src/main.ts": {},
+      "apps/desktop/src/renderer/entry.tsx": {},
+      "wanex-desktop-renderer-assets:wanex-desktop-renderer-assets": {},
+    } })).not.toThrow();
+  });
 
-    expect(receipt).toMatchObject({
-      failureDiagnostic: "coding_proposal_apply_timeout",
-      failureDiagnosticMessage: expect.stringContaining("token=<redacted>"),
-      assistant: {
-        refreshState: "succeeded",
-        observed: {
-          state: "running",
-          sessionIdPresent: true,
-          operationIdPresent: true,
-          operationTerminal: false,
-          operationResultPresent: false,
-          canSubmit: false,
-          historyRowCount: 1,
-          userRowCount: 1,
-          assistantRowCount: 0,
-          transientAssistantPresent: true,
-        },
-        refreshed: {
-          state: "succeeded",
-          sessionIdPresent: true,
-          operationIdPresent: true,
-          operationTerminal: true,
-          operationResultPresent: true,
-          canSubmit: true,
-          historyRowCount: 2,
-          userRowCount: 1,
-          assistantRowCount: 1,
-          transientAssistantPresent: false,
-        },
-      },
-      coding: {
-        state: "open",
-        repositories: [{
-          repositoryId: "repo-proof",
-          activeTurns: [{
-            stage: "workspace_task_setup",
-            task: { present: true, state: "preparing" },
-            job: {
-              present: false,
-              failure: {
-                category: "storage_failure",
-                signals: ["storage"],
-                code: "storage_failed",
-              },
-            },
-            turn: {
-              present: false,
-              failure: {
-                category: "tool_failure",
-                signals: ["tool"],
-                name: "ToolFailure",
-              },
-            },
-            latestProviderInvocationState: "failed_before_output",
-            providerFailure: {
-              category: "provider_failure",
-              signals: ["provider"],
-              type: "provider.error",
-            },
-            tools: {
-              state: "available",
-              returnedCount: 1,
-              truncated: false,
-              items: [{
-                toolName: "workspace_apply_changeset",
-                state: "failed",
-                attemptCount: 1,
-                currentAttemptState: "failed",
-                failure: {
-                  category: "permission_denied",
-                  signals: ["eperm", "rename", "worktree"],
-                  type: "tool_exception",
-                },
-              }],
-            },
-          }],
-        }],
-      },
-    });
-    expect(retained).not.toContain("private-value");
-    expect(retained).not.toContain("https://localhost:9443/private");
-    expect(retained).not.toContain("wanex-packaged-remote-coding-proof-token");
-    expect(retained).not.toContain("/private/secret-project");
-    expect(retained).not.toContain("private coding prompt");
-    expect(retained).not.toContain("private coding credential");
-    expect(retained).not.toContain("private provider failure");
-    expect(retained).not.toContain("private tool input");
-    expect(retained).not.toContain("private task failure");
-    expect(retained).not.toContain("private job failure");
-    expect(retained).not.toContain("private turn failure");
-    expect(retained).not.toContain("D:\\private\\coding-secret");
-    expect(retained).not.toContain("assistant-session-secret");
-    expect(retained).not.toContain("assistant-operation-secret");
-    expect(retained).not.toContain("assistant-user-secret");
-    expect(retained).not.toContain("assistant-transient-secret");
-    expect(retained).not.toContain("assistant-result-secret");
+  it("explains unsupported internal Stores without suggesting an automatic reset", () => {
+    const error = new Error("local_persistent_startup: unsupported pre-release store schema: expected [(22, baseline)], found [(8, baseline)]; recreate the store");
+    const message = formatWanexDesktopError(error);
+    expect(message).toContain("unsupported pre-release store schema");
+    expect(message).toContain("WANEX_DESKTOP_PROFILE_ID");
+    expect(message).toContain("not reset or migrated");
+    expect(formatWanexDesktopError(new Error("connection failed")))
+      .not.toContain("WANEX_DESKTOP_PROFILE_ID");
   });
 
   it("requires an external installation root and verifies the copied package", async () => {
@@ -357,9 +153,7 @@ describe("Desktop packaging policy", () => {
     const main = await readFile(join(stagingDir, "main.cjs"), "utf8");
     const preload = await readFile(join(stagingDir, "preload.cjs"), "utf8");
     expect(main).toContain("data-ui-product-renderer");
-    expect(main).toContain("data-ui-coding-shell");
-    expect(preload).toContain("wanexCoding");
-    expect(preload).toContain("wanexRemote");
+    expect(preload).toContain("wanexServer");
     expect(preload).toContain("contextBridge");
     expect(preload).not.toContain(workspaceRoot);
     expect(main).not.toMatch(/(?:\bfrom\s*|\bimport\s*\()\s*["']@wanex\//);
@@ -373,25 +167,28 @@ describe("Desktop packaging policy", () => {
     );
   });
 
-  it("freezes the semantic IPC and exact-origin renderer policy", async () => {
-    const main = await readFile(join(packageRoot, "src/main.ts"), "utf8");
+  it("limits Desktop dependencies to explicit composition and UI owners", async () => {
     const manifest = JSON.parse(
       await readFile(join(packageRoot, "package.json"), "utf8"),
     );
-    expect(manifest.dependencies).toEqual({
-      "@wanex/assistant-host": "workspace:*",
-      "@wanex/assistant-plugin-host": "workspace:*",
-      "@wanex/assistant-ui": "workspace:*",
-      "@wanex/coding": "workspace:*",
-      "@wanex/local-credential-store": "workspace:*",
-      "@wanex/plugin": "workspace:*",
-      "@wanex/protocol": "workspace:*",
-      "@wanex/runtime": "workspace:*",
-      "@wanex/workspace": "workspace:*",
-      "lucide-react": "1.28.0",
-      "react": "19.2.8",
-      "react-dom": "19.2.8",
-    });
+    expect(Object.keys(manifest.dependencies).sort()).toEqual([
+      "@radix-ui/react-dialog",
+      "@wanex/assistant-host",
+      "@wanex/assistant-plugin-host",
+      "@wanex/assistant-ui",
+      "@wanex/local-credential-store",
+      "@wanex/plugin",
+      "@wanex/protocol",
+      "@wanex/runtime",
+      "@wanex/workspace",
+      "lucide-react",
+      "react",
+      "react-dom",
+    ].sort());
+  });
+
+  it("freezes the semantic IPC and exact-origin renderer policy", async () => {
+    const main = await readFile(join(packageRoot, "src/main.ts"), "utf8");
     expect(main).toContain("contextIsolation: true");
     expect(main).toContain("nodeIntegration: false");
     expect(main).toContain("sandbox: true");
@@ -409,13 +206,13 @@ describe("Desktop packaging policy", () => {
 
   it("requires a prepared, checksum-verified Electron artifact", async () => {
     const fileName = electronArtifactFileName({
-      version: "43.2.0",
+      version: electronVersion,
       platform: "darwin",
       arch: "arm64",
     });
-    expect(fileName).toBe("electron-v43.2.0-darwin-arm64.zip");
+    expect(fileName).toBe(`electron-v${electronVersion}-darwin-arm64.zip`);
     expect(electronArtifactChecksum(fileName)).toMatch(/^[a-f0-9]{64}$/);
-    expect(() => electronArtifactChecksum("electron-v43.2.0-unknown.zip"))
+    expect(() => electronArtifactChecksum(`electron-v${electronVersion}-unknown.zip`))
       .toThrow("Electron checksum is missing");
     await expect(prepareElectronArtifact({
       platform: process.platform,
@@ -432,7 +229,7 @@ describe("Desktop packaging policy", () => {
       expectedName: fileName,
       expectedChecksum: checksum,
     })).resolves.toMatchObject({
-      path: expect.stringMatching(/electron-v43\.2\.0-darwin-arm64\.zip$/),
+      path: await realpath(filePath),
       bytes: 26,
       sha256: checksum,
     });
@@ -690,384 +487,6 @@ describe("Desktop packaging policy", () => {
     await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("persists bounded failure evidence before the proof root is removed", async () => {
-    const proofRoot = await temporaryDirectory("wanex-desktop-failure-");
-    const outputRoot = await temporaryDirectory("wanex-desktop-report-");
-    await writeFile(
-      join(proofRoot, "runtime-receipt-0.json"),
-      JSON.stringify({
-        kind: "wanex.desktop.runtime-receipt",
-        ok: false,
-        failurePhase: "renderer_proof",
-        failureProofStep: "lifecycle",
-        failureDiagnostic:
-          "renderer_provider_lifecycle:surface_count_1:user_rows_2:" +
-          "assistant_rows_1:composer_count_1:composer_disabled_true:" +
-          "model_selector_count_1:model_selector_disabled_false:" +
-          "provider_ready:error_absent",
-        error: {
-          name: "DesktopRendererProofError",
-          code: "desktop_renderer_proof_failed",
-          message: "runtime-secret",
-        },
-        renderer: {
-          ok: false,
-          failureStage: "provider_lifecycle",
-          failureDiagnostics: {
-            surfaceCount: 1,
-            userRowCount: 2,
-            assistantRowCount: 1,
-            composerCount: 1,
-            composerDisabled: true,
-            modelSelectorCount: 1,
-            modelSelectorDisabled: false,
-            providerState: "ready",
-            errorVisible: false,
-            activeSessionCount: 1,
-            activeSessionIdPresent: true,
-            richHeadingVisible: true,
-            richCodeVisible: true,
-            selectedResponseVisible: true,
-            sessionId: "renderer-session-secret",
-            conversationState: "running",
-            composerMode: "submit",
-            operationIdPresent: true,
-            transientAssistantPresent: true,
-            fallbackResponseVisible: false,
-          },
-          providerConfigured: true,
-          providerEditedWithoutCredential: true,
-          configuredProviderCount: 2,
-          activeProviderRemoved: false,
-          fallbackProviderReady: false,
-          fallbackModelResponseVisible: false,
-          selectedModelEndpointId: "renderer-endpoint-secret",
-        },
-        assistant: {
-          refreshState: "succeeded",
-          observed: {
-            conversation: {
-              state: "running",
-              sessionId: "assistant-runtime-session-secret",
-              operationId: "assistant-runtime-operation-secret",
-              operation: { capabilities: { terminal: false } },
-              canSubmit: false,
-              historyRows: [
-                { role: "user", text: "assistant-runtime-user-secret" },
-              ],
-              transientAssistantText: "assistant-runtime-delta-secret",
-            },
-          },
-          refreshed: {
-            conversation: {
-              state: "succeeded",
-              sessionId: "assistant-runtime-session-secret",
-              operationId: "assistant-runtime-operation-secret",
-              operation: {
-                capabilities: { terminal: true },
-                result: { assistantText: "assistant-runtime-result-secret" },
-              },
-              canSubmit: true,
-              historyRows: [
-                { role: "user", text: "assistant-runtime-user-secret" },
-                { role: "assistant", text: "assistant-runtime-result-secret" },
-              ],
-            },
-          },
-        },
-        coding: {
-          state: "open",
-          repositories: [{
-            repositoryId: "repo-proof",
-            repositoryPath: "/private/coding-secret",
-            state: "open",
-            runtime: {
-              started: false,
-              workerCount: 1,
-              activeLoopCount: 0,
-              activeExecutionCount: 0,
-              agentLoopRunCount: 0,
-              agentLoopFailedCount: 0,
-              settlement: {
-                pendingCount: 0,
-                pendingReferences: [],
-                lastEvent: "wait_released",
-                lastReference: {
-                  sessionId: "session-proof",
-                  inputId: "input-proof",
-                  turnId: "turn-proof",
-                  jobId: "job-proof",
-                },
-                lastPhase: "terminal",
-              },
-              recentRecoveries: [{
-                reference: {
-                  repositoryId: "repo-proof",
-                  taskId: "task-proof",
-                  sessionId: "session-proof",
-                  inputId: "input-proof",
-                  turnId: "turn-proof",
-                  jobId: "job-proof",
-                },
-                executionId: "tool-proof",
-                expectedRecoveryRevision: 2,
-                decision: "retry",
-                phase: "failed",
-                runtimeStage: "tool_result_persisted",
-                action: "turn_requeued",
-                canonical: {
-                  readState: "available",
-                  tool: {
-                    state: "recovery_required",
-                    attemptCount: 1,
-                    currentAttemptState: "recovery_required",
-                  },
-                  provider: {
-                    invocationCount: 1,
-                    latestState: "ambiguous",
-                  },
-                  task: { state: "attention", attemptState: "failed" },
-                  job: { state: "waiting", attempt: 1 },
-                  turn: { state: "recovery_required", attemptState: "recovery_required" },
-                },
-                failure: {
-                  category: "storage_failure",
-                  signals: ["sqlite", "storage"],
-                  code: "recovery_read_failed",
-                },
-              }],
-            },
-            activeTurns: [{
-              reference: {
-                repositoryId: "repo-proof",
-                taskId: "task-proof",
-                sessionId: "session-proof",
-                inputId: "input-proof",
-                turnId: "turn-proof",
-                jobId: "job-proof",
-              },
-              stage: "model_endpoint_resolve",
-              modelEndpointResolution: "not_started",
-              inputPresent: true,
-              userMessagePresent: false,
-              providerInvocationCount: 0,
-              task: { present: true, state: "active", attemptState: "active" },
-              job: { present: false },
-              turn: { present: false },
-              rawError: "coding-runtime-secret",
-            }],
-          }],
-        },
-        secret: "receipt-secret",
-      }),
-      "utf8",
-    );
-    const error = Object.assign(new Error("outer-secret"), {
-      code: "assistant_desktop_process_failed",
-    });
-
-    const report = await writeDesktopFailureReport({
-      error,
-      proofRoot,
-      providerRequests: [
-        {
-          path: "/v1/selected/chat/completions",
-          model: "provider-model-secret",
-          authorized: true,
-          messages: [{ content: "provider-message-secret" }],
-          credential: "provider-credential-secret",
-        },
-        {
-          path: "/v1/primary/chat/completions",
-          model: "provider-fallback-secret",
-          authorized: false,
-        },
-      ],
-      providerResponses: [
-        {
-          kind: "chat_completion",
-          modelClass: "lifecycle_selected",
-          state: "finished",
-          model: "provider-response-model-secret",
-        },
-        {
-          kind: "chat_completion",
-          modelClass: "lifecycle_primary",
-          state: "accepted",
-        },
-      ],
-      outputRoot,
-    });
-
-    expect(report).toMatchObject({
-      kind: "wanex.desktop.proof-receipt",
-      ok: false,
-      failure: {
-        name: "Error",
-        code: "assistant_desktop_process_failed",
-      },
-      runtimeFailures: [{
-        failurePhase: "renderer_proof",
-        failureProofStep: "lifecycle",
-        failureDiagnostic: expect.stringMatching(
-          /^renderer_provider_lifecycle_surface_count_1_user_rows_2_/
-        ),
-        renderer: {
-          ok: false,
-          failureStage: "provider_lifecycle",
-          failureDiagnostics: {
-            surfaceCount: 1,
-            userRowCount: 2,
-            assistantRowCount: 1,
-            composerCount: 1,
-            composerDisabled: true,
-            modelSelectorCount: 1,
-            modelSelectorDisabled: false,
-            providerState: "ready",
-            errorVisible: false,
-            activeSessionCount: 1,
-            activeSessionIdPresent: true,
-            richHeadingVisible: true,
-            richCodeVisible: true,
-            selectedResponseVisible: true,
-            conversationState: "running",
-            composerMode: "submit",
-            operationIdPresent: true,
-            transientAssistantPresent: true,
-            fallbackResponseVisible: false,
-          },
-          providerConfigured: true,
-          providerEditedWithoutCredential: true,
-          configuredProviderCount: 2,
-          activeProviderRemoved: false,
-          fallbackProviderReady: false,
-          fallbackModelResponseVisible: false,
-        },
-        assistant: {
-          refreshState: "succeeded",
-          observed: {
-            state: "running",
-            operationTerminal: false,
-            assistantRowCount: 0,
-            transientAssistantPresent: true,
-          },
-          refreshed: {
-            state: "succeeded",
-            operationTerminal: true,
-            operationResultPresent: true,
-            assistantRowCount: 1,
-            transientAssistantPresent: false,
-          },
-        },
-        coding: {
-          state: "open",
-          repositories: [{
-            repositoryId: "repo-proof",
-            state: "open",
-            activeTurns: [{
-              stage: "model_endpoint_resolve",
-              inputPresent: true,
-              userMessagePresent: false,
-              providerInvocationCount: 0,
-              task: { present: true, state: "active", attemptState: "active" },
-              job: { present: false },
-              turn: { present: false },
-            }],
-            runtime: {
-              started: false,
-              workerCount: 1,
-              activeLoopCount: 0,
-              activeExecutionCount: 0,
-              agentLoopRunCount: 0,
-              agentLoopFailedCount: 0,
-              settlement: {
-                pendingCount: 0,
-                pendingReferences: [],
-                lastEvent: "wait_released",
-                lastReference: {
-                  sessionId: "session-proof",
-                  inputId: "input-proof",
-                  turnId: "turn-proof",
-                  jobId: "job-proof",
-                },
-                lastPhase: "terminal",
-              },
-              recentRecoveries: [{
-                reference: {
-                  repositoryId: "repo-proof",
-                  taskId: "task-proof",
-                  sessionId: "session-proof",
-                  inputId: "input-proof",
-                  turnId: "turn-proof",
-                  jobId: "job-proof",
-                },
-                executionId: "tool-proof",
-                expectedRecoveryRevision: 2,
-                decision: "retry",
-                phase: "failed",
-                runtimeStage: "tool_result_persisted",
-                action: "turn_requeued",
-                canonical: {
-                  readState: "available",
-                  tool: {
-                    state: "recovery_required",
-                    attemptCount: 1,
-                    currentAttemptState: "recovery_required",
-                  },
-                  provider: {
-                    invocationCount: 1,
-                    latestState: "ambiguous",
-                  },
-                  task: { state: "attention", attemptState: "failed" },
-                  job: { state: "waiting", attempt: 1 },
-                  turn: { state: "recovery_required", attemptState: "recovery_required" },
-                },
-                failure: {
-                  category: "storage_failure",
-                  signals: ["sqlite", "storage"],
-                  code: "recovery_read_failed",
-                },
-              }],
-            },
-          }],
-        },
-      }],
-      providerFixture: {
-        requestCount: 2,
-        retainedCount: 2,
-        truncated: false,
-        requests: [
-          {
-            kind: "chat_completion",
-            authorized: true,
-            modelClass: "lifecycle_selected",
-            responseState: "finished",
-          },
-          {
-            kind: "chat_completion",
-            authorized: false,
-            modelClass: "lifecycle_primary",
-            responseState: "accepted",
-          },
-        ],
-      },
-    });
-    const persisted = await readFile(
-      join(outputRoot, "desktop-report.json"),
-      "utf8",
-    );
-    expect(JSON.parse(persisted)).toEqual(report);
-    expect(persisted).not.toMatch(
-      /outer-secret|runtime-secret|renderer-secret|receipt-secret|provider-model-secret|provider-fallback-secret|provider-message-secret|provider-credential-secret|provider-response-model-secret|coding-secret|assistant-runtime/,
-    );
-    await removeDesktopProofRoot(proofRoot);
-    tempDirs.splice(tempDirs.indexOf(proofRoot), 1);
-    await expect(stat(proofRoot)).rejects.toMatchObject({ code: "ENOENT" });
-    await expect(
-      readFile(join(outputRoot, "desktop-report.json"), "utf8"),
-    ).resolves.toBe(persisted);
-  });
-
   it("bounds Provider fixture failure evidence without retaining request data", async () => {
     const proofRoot = await temporaryDirectory("wanex-provider-evidence-root-");
     const outputRoot = await temporaryDirectory("wanex-provider-evidence-report-");
@@ -1121,7 +540,10 @@ describe("Desktop packaging policy", () => {
     );
   });
 
-  it("rejects unknown Renderer failure stages from durable evidence", async () => {
+  it.each([
+    "command_menu", "command_palette", "command_selection", "command_preview",
+    "command_execution", "command_close", "secret_untrusted_stage",
+  ])("bounds Renderer failure stage %s in durable evidence", async (failureStage) => {
     const proofRoot = await temporaryDirectory("wanex-renderer-stage-root-");
     const outputRoot = await temporaryDirectory("wanex-renderer-stage-report-");
     await writeFile(
@@ -1133,7 +555,7 @@ describe("Desktop packaging policy", () => {
         error: { name: "Error", code: "desktop_renderer_proof_failed" },
         renderer: {
           ok: false,
-          failureStage: "secret_untrusted_stage",
+          failureStage,
           providerConfigured: false,
         },
       }),
@@ -1147,7 +569,7 @@ describe("Desktop packaging policy", () => {
     });
 
     expect(report.runtimeFailures[0]?.renderer?.failureStage).toBe(
-      "unknown_stage",
+      failureStage === "secret_untrusted_stage" ? "unknown_stage" : failureStage,
     );
     expect(JSON.stringify(report)).not.toContain("secret_untrusted_stage");
   });
@@ -1499,78 +921,120 @@ describe("Desktop packaging policy", () => {
     ).toThrow("Provider requests are invalid");
   });
 
-  it("accepts only a ready packaged Remote Coding Server", () => {
+  it("accepts only a ready packaged Server", () => {
     const evidence = {
       endpoint: "https://localhost:8443/v1/agent-host/message",
+      serverUrl: "https://localhost:8443/",
       caPath: "/tmp/localhost.crt",
-      status: { state: "open", coding: "ready", listener: "ready" },
+      status: {
+        state: "open",
+        assistant: "ready",
+        listener: "ready",
+      },
       stderr: "",
     };
-    expect(() => assertRemoteCodingServerEvidence(evidence)).not.toThrow();
-    expect(() => assertRemoteCodingServerEvidence({
-      ...evidence,
-      status: { ...evidence.status, coding: "disabled" },
-    })).toThrow("Remote Coding Server evidence is invalid");
-    expect(() => assertRemoteCodingServerEvidence({
+    expect(() => assertPackagedServerEvidence(evidence)).not.toThrow();
+    expect(() => assertPackagedServerEvidence({
       ...evidence,
       endpoint: "https://localhost:8443/invalid",
-    })).toThrow("Remote Coding Server evidence is invalid");
-    expect(() => assertRemoteCodingServerEvidence({
+    })).toThrow("packaged Server evidence is invalid");
+    expect(() => assertPackagedServerEvidence({
       ...evidence,
       stderr: "unexpected error",
-    })).toThrow("Remote Coding Server evidence is invalid");
+    })).toThrow("packaged Server evidence is invalid");
   });
 
-  it("requires the idle Remote Coding workbench to hide its empty inspector", () => {
-    const runtime = {
-      kind: "wanex.desktop.runtime-receipt",
-      ok: true,
-      proofStep: "relaunch-remote-coding",
-      renderer: {
-        ok: true,
-        step: "relaunch-remote-coding",
-        providerEvidenceRedacted: true,
-        codingSurfaceSelected: true,
-        remoteProfileFormVisible: true,
-        profileInputSubmitted: true,
-        credentialAcceptedByForm: true,
-        profilePersistedAfterSave: true,
-        credentialAbsentAfterSave: true,
-        endpointAbsentAfterSave: true,
-        remoteProjectVisible: true,
-        opaqueProjectSelected: true,
-        sharedWorkbenchVisible: true,
-        idleInspectorHidden: true,
-        projectId: "packaged-remote-project",
-        profileRemoved: true,
-        removedProfileListEmpty: true,
-        reconnectRejectedAfterRemoval: true,
-        internalIdentityEvidenceHidden: true,
-        timingsMs: {
-          journeyPreparation: 1,
-          conversationSettlement: 2,
-          rendererPostSettlement: 3,
-        },
-      },
-      privacy: {
-        exposesStorePath: false,
-        exposesServiceBinaryPath: false,
-        exposesSecrets: false,
-        exposesRawStorageClient: false,
-        exposesElectronApi: false,
-      },
-    };
+  it("accepts exact packaged Remote Assistant first-launch and restore receipts", () => {
+    const first = remoteAssistantRuntimeReceipt("relaunch-remote-assistant");
+    const restore = remoteAssistantRuntimeReceipt(
+      "relaunch-remote-assistant-restore",
+    );
     expect(() => assertRelaunchJourneyRuntimeReceipt(
-      runtime,
-      "relaunch-remote-coding",
+      first,
+      "relaunch-remote-assistant",
     )).not.toThrow();
     expect(() => assertRelaunchJourneyRuntimeReceipt(
-      {
-        ...runtime,
-        renderer: { ...runtime.renderer, idleInspectorHidden: false },
+      restore,
+      "relaunch-remote-assistant-restore",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt({
+      ...first,
+      renderer: {
+        ...first.renderer,
+        switchedToLocalWhileRemoteRunning: false,
       },
-      "relaunch-remote-coding",
-    )).toThrow("runtime proof failed");
+    }, "relaunch-remote-assistant")).toThrow("runtime proof failed");
+    expect(() => assertRelaunchJourneyRuntimeReceipt({
+      ...restore,
+      renderer: {
+        ...restore.renderer,
+        credentialResolvedAfterRelaunch: false,
+      },
+    }, "relaunch-remote-assistant-restore")).toThrow("runtime proof failed");
+  });
+
+  it("requires exact Remote Assistant Provider release evidence", () => {
+    expect(() => assertRelaunchJourneyFixtureRequests([{
+      path: "/v1/chat/completions",
+      model: "desktop-proof-remote-assistant-model",
+      authorized: true,
+      remoteAssistantPhase: "held",
+      remoteAssistantReleaseReceived: true,
+      remoteAssistantSettled: true,
+      remoteAssistantClientClosed: false,
+    }], "relaunch-remote-assistant")).not.toThrow();
+    expect(() => assertRelaunchJourneyFixtureRequests(
+      [],
+      "relaunch-remote-assistant-restore",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyFixtureRequests([{
+      path: "/v1/chat/completions",
+      model: "desktop-proof-remote-assistant-model",
+      authorized: true,
+      remoteAssistantPhase: "held",
+      remoteAssistantReleaseReceived: false,
+      remoteAssistantSettled: false,
+      remoteAssistantClientClosed: false,
+    }], "relaunch-remote-assistant")).toThrow(
+      "Remote Assistant Provider requests are invalid",
+    );
+  });
+
+  it("accepts only exact packaged Remote Media evidence", () => {
+    const runtime = remoteMediaRuntimeReceipt("relaunch-remote-media");
+    const restore = remoteMediaRuntimeReceipt("relaunch-remote-media-restore");
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      runtime,
+      "relaunch-remote-media",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt(
+      restore,
+      "relaunch-remote-media-restore",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyRuntimeReceipt({
+      ...runtime,
+      renderer: { ...runtime.renderer, capabilityRetired: false },
+    }, "relaunch-remote-media")).toThrow("runtime proof failed");
+
+    const requests = remoteMediaProviderRequests();
+    expect(() => assertRelaunchJourneyFixtureRequests(
+      requests,
+      "relaunch-remote-media",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyFixtureRequests(
+      requests.map((request, index) => index === 0
+        ? { ...request, model: "desktop-proof-relaunch-model" }
+        : request),
+      "relaunch-remote-media",
+    )).toThrow("Remote Media Provider requests are invalid");
+    expect(() => assertRelaunchJourneyFixtureRequests(
+      [],
+      "relaunch-remote-media-restore",
+    )).not.toThrow();
+    expect(() => assertRelaunchJourneyFixtureRequests(
+      requests.slice(0, 1),
+      "relaunch-remote-media-restore",
+    )).toThrow("restore unexpectedly invoked Provider");
   });
 
   it("accepts only the two canonical Schedule packaged proof steps", () => {
@@ -1649,6 +1113,47 @@ describe("Desktop packaging policy", () => {
       },
       "relaunch-plugin-restore",
     )).toThrow("runtime proof failed");
+  });
+
+  it("keeps focused Windows installed acceptance manual and independent of release", async () => {
+    const workflow = await readFile(
+      join(workspaceRoot, ".github/workflows/windows-installed.yml"),
+      "utf8",
+    );
+    expect(workflow).toContain("on:\n  workflow_dispatch:\n");
+    expect(workflow).not.toMatch(/^\s*(push|pull_request|schedule|workflow_run):/m);
+    expect(workflow.match(/runs-on:/g)).toHaveLength(1);
+    expect(workflow).toContain("runs-on: windows-2025");
+    expect(workflow).toContain("contents: read");
+    expect(workflow).not.toMatch(/\b(matrix|needs|continue-on-error):/);
+    expect(workflow).not.toMatch(/release:|publish|audit-level|ignore-advisories/);
+    expect(workflow).toContain("pnpm install --frozen-lockfile");
+    expect(workflow).toContain("pnpm stage:native -- --target win32-x64");
+    expect(workflow).toContain("WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/win32-x64/wanex-system-service.exe");
+    for (const command of [
+      "pnpm check:desktop",
+      "pnpm test:desktop",
+      "pnpm --filter @wanex/desktop prepare:electron",
+      "pnpm proof:desktop",
+      "pnpm proof:native-runtime -- --artifact-dir target/distribution/native",
+      "pnpm proof:tui -- --native-artifact-dir target/distribution/native",
+      "pnpm proof:desktop-distribution -- --target win32-x64",
+      "pnpm audit:host-distribution -- --target win32-x64",
+    ]) expect(workflow).toContain(`run: ${command}\n`);
+    expect(workflow.indexOf("run: pnpm stage:native"))
+      .toBeLessThan(workflow.indexOf("run: pnpm test:desktop"));
+    expect(workflow.indexOf("run: pnpm --filter @wanex/desktop prepare:electron"))
+      .toBeLessThan(workflow.indexOf("run: pnpm proof:desktop\n"));
+    expect(workflow).toContain("if: always()");
+    for (const receipt of [
+      "native-runtime-proof.json", "desktop-report.json",
+      "desktop-distribution-receipt.json", "host-distribution-audit-win32-x64.json",
+      "target/distribution/tui",
+    ]) expect(workflow).toContain(receipt);
+    expect(workflow).not.toContain("--samples");
+    const refs = [...workflow.matchAll(/uses: [^@\s]+@([^\s]+)/g)].map((match) => match[1]);
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.every((ref) => /^[a-f0-9]{40}$/.test(ref))).toBe(true);
   });
 
   it("freezes the native and Desktop release matrix", async () => {
@@ -1753,7 +1258,6 @@ function sample(index, temperature, artifactVerification, wallTimeMs) {
           "credentialResolution",
           "startupPrerequisites",
           "hostStartup",
-          "codingComposition",
           "rendererNavigation",
           "rendererInteractive",
           "journeyPreparation",
@@ -1958,6 +1462,137 @@ function scheduleRuntimeReceipt(step) {
       exposesElectronApi: false,
     },
   };
+}
+
+function remoteAssistantRuntimeReceipt(step) {
+  const first = step === "relaunch-remote-assistant";
+  return {
+    kind: "wanex.desktop.runtime-receipt",
+    ok: true,
+    proofStep: step,
+    renderer: {
+      ok: true,
+      step,
+      providerEvidenceRedacted: true,
+      profileSavedThroughVisibleForm: first,
+      profilePersisted: true,
+      credentialAbsentFromRenderer: true,
+      serverUrlAbsentFromRenderer: true,
+      authenticationFailureVisible: first,
+      authenticationFailurePreservedLocal: first,
+      credentialCorrectedThroughVisibleForm: first,
+      remoteLocationSelected: true,
+      remoteModelReady: true,
+      remoteMessageSubmitted: first,
+      remotePartialVisible: first,
+      switchedToLocalWhileRemoteRunning: first,
+      localTranscriptRestored: true,
+      remotePromptAbsentLocally: true,
+      sessionIdentityIsolated: true,
+      remoteTranscriptReconciled: true,
+      remoteFinalResponseVisible: true,
+      remoteTransientAbsent: true,
+      attachmentUploadAvailable: true,
+      hostLocalAdministrationUnavailable: true,
+      profileRestoredAfterRelaunch: !first,
+      credentialResolvedAfterRelaunch: !first,
+      internalIdentityEvidenceHidden: true,
+      timingsMs: {
+        journeyPreparation: 1,
+        conversationSettlement: 2,
+        rendererPostSettlement: 3,
+      },
+    },
+    privacy: {
+      exposesStorePath: false,
+      exposesServiceBinaryPath: false,
+      exposesSecrets: false,
+      exposesRawStorageClient: false,
+      exposesElectronApi: false,
+    },
+  };
+}
+
+function remoteMediaRuntimeReceipt(step) {
+  const upload = step === "relaunch-remote-media";
+  return {
+    kind: "wanex.desktop.runtime-receipt",
+    ok: true,
+    proofStep: step,
+    renderer: {
+      ok: true,
+      step,
+      providerEvidenceRedacted: true,
+      profileRestored: true,
+      remoteLocationSelected: true,
+      remoteModelReady: true,
+      sessionId: "session_remote_media",
+      ...(upload ? {
+        attachmentPickerVisible: true,
+        unsupportedAttachmentRejected: true,
+        unsupportedDraftPreserved: true,
+        attachmentPreviewVisible: true,
+        attachmentCapabilityUrlLocal: true,
+        multimodalConversationSubmitted: true,
+        multimodalResponseVisible: true,
+        uploadedResourceVisible: true,
+        imageGenerationToolSucceeded: true,
+        generatedResourceVisible: true,
+        generatedResourceEvidenceValid: true,
+        generatedPreviewVisible: true,
+        staleUploadRejected: true,
+        staleUploadAbsent: true,
+      } : {
+        uploadedTranscriptRestored: true,
+        uploadedResourceRestored: true,
+        uploadedPreviewRestored: true,
+        generatedTranscriptRestored: true,
+        generatedResourceRestored: true,
+        generatedPreviewRestored: true,
+        attachmentDraftEmpty: true,
+      }),
+      remoteEvidenceHidden: true,
+      capabilityRetired: true,
+      timingsMs: {
+        journeyPreparation: 1,
+        conversationSettlement: 2,
+        rendererPostSettlement: 3,
+      },
+    },
+    privacy: {
+      exposesStorePath: false,
+      exposesServiceBinaryPath: false,
+      exposesSecrets: false,
+      exposesRawStorageClient: false,
+      exposesElectronApi: false,
+    },
+  };
+}
+
+function remoteMediaProviderRequests() {
+  const conversation = {
+    path: "/v1/chat/completions",
+    model: "desktop-proof-remote-assistant-model",
+    authorized: true,
+    imageInputCount: 1,
+    imageBytes: 68,
+    imageMediaTypes: ["image/png"],
+  };
+  return [conversation, {
+    ...conversation,
+    imageGenerationPhase: "tool_call",
+  }, {
+    path: "/v1/images/generations",
+    model: "desktop-proof-image-model",
+    authorized: true,
+    imageGenerationPhase: "media",
+    generatedImageCount: 1,
+    generatedImageBytes: 68,
+    generatedImageMediaTypes: ["image/png"],
+  }, {
+    ...conversation,
+    imageGenerationPhase: "final",
+  }];
 }
 
 async function copyToTemp(source, prefix) {

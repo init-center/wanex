@@ -50,6 +50,7 @@ import type {
   RuntimeHostSubmitMediaGenerationResult,
   RuntimeHostPrepareExecutionBindingRequest,
   RuntimeHostPreparedExecutionBinding,
+  RuntimeHostToolApprovalContinuation,
   WanexRuntimeHostOptions
 } from "./types.js"
 import {
@@ -85,6 +86,7 @@ export class WanexRuntimeHost {
   private readonly memoryCompaction: RuntimeHostMemoryCompactionConfig | undefined
   private readonly storageHandle: StorageHandle | undefined
   private readonly observeSessionTurnLifecycle: RuntimeHostSessionTurnLifecycleObserver | undefined
+  private readonly toolApprovalContinuation: RuntimeHostToolApprovalContinuation | undefined
   private started = false
   private disposed = false
   private stopPromise: Promise<void> | undefined
@@ -99,6 +101,7 @@ export class WanexRuntimeHost {
       this.storage = this.storageHandle.core
     }
     this.observeSessionTurnLifecycle = options.observeSessionTurnLifecycle
+    this.toolApprovalContinuation = options.toolApprovalContinuation
     this.loopLifecycle = new RuntimeHostLoopLifecycle({
       ...(options.idleIntervalMs === undefined
         ? {}
@@ -256,6 +259,18 @@ export class WanexRuntimeHost {
     const submitted = await this.workers[0]!.submitUserTurn(request)
     this.wake()
     return submitted
+  }
+
+  async resolveToolExecutionApproval(
+    request: import("@wanex/protocol").ResolveToolExecutionApprovalRequest
+  ): Promise<import("@wanex/protocol").ResolveToolExecutionApprovalReceipt> {
+    const receipt = await this.storage.resolveToolExecutionApproval(request)
+    await this.toolApprovalContinuation?.afterDecision({
+      request,
+      execution: receipt.execution,
+      receipt
+    })
+    return receipt
   }
 
   async prepareUserTurn(

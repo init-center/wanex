@@ -7,6 +7,8 @@ export interface WorkspaceTaskClaimIdentity {
 }
 
 export class WorkspaceTaskLeaseRenewal {
+  private readonly controller = new AbortController()
+  readonly signal = this.controller.signal
   private timer: NodeJS.Timeout | undefined
   private renewal: Promise<void> | undefined
   private failure: unknown
@@ -53,6 +55,7 @@ export class WorkspaceTaskLeaseRenewal {
       this.schedule()
     } catch (error: unknown) {
       this.failure = error
+      this.controller.abort()
       this.timer = undefined
     }
   }

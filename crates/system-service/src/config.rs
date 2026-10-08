@@ -276,7 +276,7 @@ fn validate_config_key(key: &str) -> Result<()> {
     Ok(())
 }
 
-fn read_config_entry(conn: &Connection, key: &str) -> Result<Option<ConfigEntryRecord>> {
+pub(crate) fn read_config_entry(conn: &Connection, key: &str) -> Result<Option<ConfigEntryRecord>> {
     let row = conn
         .query_row(
             "SELECT key, value_json, revision, updated_at

@@ -5,6 +5,7 @@ import {
   type ExecutionEnvironment
 } from "@wanex/runtime/execution"
 import type { WorkspaceIsolationAdapter } from "../isolation/index.js"
+import { assertTaskRuntimeIdentity } from "./identity.js"
 import {
   serializeWorkspaceTaskError,
   workspaceTaskFailureJson,
@@ -17,6 +18,7 @@ import {
 import type { WorkspaceTaskStore } from "./storage.js"
 import type {
   RecoverWorkspaceTaskRequest,
+  WorkspaceTaskRuntimeOptions,
   WorkspaceTaskReceipt
 } from "./types.js"
 
@@ -26,9 +28,9 @@ const RECOVERY_REQUIRED_MESSAGE =
 export async function recoverWorkspaceTask(
   options: {
     readonly storage: WorkspaceTaskStore
-    readonly readOnlyIsolation: WorkspaceIsolationAdapter
-    readonly writableIsolation: WorkspaceIsolationAdapter
-    readonly repositoryId: string
+    readonly directIsolation: WorkspaceIsolationAdapter
+    readonly gitWorktree: WorkspaceTaskRuntimeOptions["gitWorktree"]
+    readonly rootIdentity: WorkspaceTaskRuntimeOptions["rootIdentity"]
     readonly ownerId: string
     readonly leaseMs: number
     readonly executionEnvironment: ExecutionEnvironment
@@ -37,7 +39,7 @@ export async function recoverWorkspaceTask(
 ): Promise<WorkspaceTaskReceipt> {
   const runId = requireOpaqueId(request.runId)
   const current = await requireSnapshot(options.storage, runId)
-  assertRepository(current, options.repositoryId)
+  assertTaskRuntimeIdentity(current.run, options.rootIdentity, options.gitWorktree)
   if (current.run.state === "released" || current.run.state === "attention") {
     return await workspaceTaskReceiptFromSnapshot(options.storage, current)
   }
@@ -62,7 +64,7 @@ export async function recoverWorkspaceTask(
   if (claim.status !== "claimed") {
     return failedRecoveryReceipt(claim.snapshot, "workspace task is already active")
   }
-  assertRepository(claim.snapshot, options.repositoryId)
+  assertTaskRuntimeIdentity(claim.snapshot.run, options.rootIdentity, options.gitWorktree)
 
   const renewal = new WorkspaceTaskLeaseRenewal({
     storage: options.storage,
@@ -152,26 +154,26 @@ function executionBindingError(
 
 async function releaseDurableIsolation(
   options: {
-    readonly readOnlyIsolation: WorkspaceIsolationAdapter
-    readonly writableIsolation: WorkspaceIsolationAdapter
-    readonly repositoryId: string
+    readonly directIsolation: WorkspaceIsolationAdapter
+    readonly gitWorktree: WorkspaceTaskRuntimeOptions["gitWorktree"]
   },
   snapshot: WorkspaceTaskRunSnapshot
 ): Promise<void> {
-  const writable = snapshot.run.access === "writable"
-  await (writable
-    ? options.writableIsolation
-    : options.readOnlyIsolation
+  const isolated = snapshot.run.strategy === "git_worktree"
+  const identity = snapshot.run.isolationIdentity
+  await (isolated
+    ? options.gitWorktree!.isolation
+    : options.directIsolation
   ).releaseDurable({
-    id: snapshot.run.isolationId,
-    kind: writable ? "git_worktree" : "fixed",
-    ...(writable ? { repositoryId: options.repositoryId } : {}),
-    ...(snapshot.run.baseRevision === undefined
+    id: identity.id,
+    kind: identity.kind,
+    ...(identity.repositoryId === undefined ? {} : { repositoryId: identity.repositoryId }),
+    ...(identity.baseRevision === undefined
       ? {}
-      : { baseRevision: snapshot.run.baseRevision }),
-    ...(snapshot.run.runtimeRef === undefined
+      : { baseRevision: identity.baseRevision }),
+    ...(identity.runtimeRef === undefined
       ? {}
-      : { branchName: snapshot.run.runtimeRef })
+      : { branchName: identity.runtimeRef })
   })
 }
 
@@ -184,15 +186,6 @@ async function requireSnapshot(
     throw new Error(`workspace task run does not exist: ${runId}`)
   }
   return snapshot
-}
-
-function assertRepository(
-  snapshot: WorkspaceTaskRunSnapshot,
-  repositoryId: string
-): void {
-  if (snapshot.run.repositoryId !== repositoryId) {
-    throw new Error("workspace task belongs to a different repository")
-  }
 }
 
 function failedRecoveryReceipt(

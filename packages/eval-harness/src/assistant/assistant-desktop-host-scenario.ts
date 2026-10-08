@@ -1,3 +1,4 @@
+import { browserAssets } from "./browser-assets.js"
 import { rm } from "node:fs/promises"
 import {
   startDesktopMainHost,
@@ -23,6 +24,7 @@ export const assistantDesktopHostContractScenario = createEvalScenario({
 
     try {
       host = await startDesktopMainHost({
+        browserAssets,
         storage: {
           kind: "store-dir",
           storeDir

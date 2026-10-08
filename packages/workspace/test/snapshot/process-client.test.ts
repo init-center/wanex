@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest"
 import { ProcessWorkspaceSnapshotClient } from "../../src/snapshot/index.js"
 import {
   createWorkspaceTestExecution,
+  readWorkspaceTestRootIdentity,
   disposeWorkspaceTestExecution
 } from "../execution.js"
 
@@ -27,6 +28,7 @@ describe("ProcessWorkspaceSnapshotClient", () => {
 
     await expect(
       new ProcessWorkspaceSnapshotClient().create({
+        rootIdentity: await readWorkspaceTestRootIdentity(root),
         repositoryRoot: root,
         worktreeParent,
         isolationId: "wiso_snapshot_diagnostic",

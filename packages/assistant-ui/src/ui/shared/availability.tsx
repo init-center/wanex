@@ -6,13 +6,12 @@ export function InitialLoading(): ReactNode {
   return (
     <main
       className={classes("loading")}
-      role="status"
       aria-busy="true"
       aria-label="Loading conversation"
       data-ui-availability-state="loading"
     >
       <LoaderCircle size={17} className={classes("is-running")} aria-hidden="true" />
-      <span>Loading conversation</span>
+      <span role="status">Loading conversation</span>
     </main>
   );
 }

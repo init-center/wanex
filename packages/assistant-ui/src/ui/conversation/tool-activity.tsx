@@ -84,7 +84,7 @@ function ToolActivityGroup({
 }
 
 function ToolRow({ tool }: { readonly tool: ConversationToolPart }): ReactNode {
-  const summary = tool.presentation?.summary ?? tool.name;
+  const summary = tool.presentation?.summary ?? humanizeToolName(tool.name);
   const details = tool.presentation?.details ?? [];
   return (
     <div
@@ -95,7 +95,6 @@ function ToolRow({ tool }: { readonly tool: ConversationToolPart }): ReactNode {
       <ToolIcon state={tool.state} />
       <span className={classes("tool-row-copy")}>
         <strong>{summary}</strong>
-        {tool.presentation === undefined ? null : <small>{tool.name}</small>}
       </span>
       <small>{stateLabel(tool.state)}</small>
       {details.length === 0 ? null : (
@@ -156,11 +155,15 @@ function ToolIcon({ state }: { readonly state: ToolActivityState }): ReactNode {
   return <CircleCheck size={14} className={classes("is-success")} aria-hidden="true" />;
 }
 
+/**
+ * The header reports what the user can still act on first: work that needs a
+ * decision, then work in progress, and only then outcomes that already ended.
+ */
 function aggregateState(tools: readonly ConversationToolPart[]): ToolActivityState {
   if (tools.some((tool) => tool.state === "needs_attention")) return "needs_attention";
-  if (tools.some((tool) => tool.state === "failed")) return "failed";
   if (tools.some((tool) => tool.state === "running")) return "running";
   if (tools.some((tool) => tool.state === "waiting")) return "waiting";
+  if (tools.some((tool) => tool.state === "failed")) return "failed";
   if (tools.some((tool) => tool.state === "cancelled")) return "cancelled";
   return "succeeded";
 }
@@ -192,4 +195,10 @@ function stateLabel(value: ToolActivityState): string {
     case "cancelled": return "Cancelled";
     case "needs_attention": return "Needs attention";
   }
+}
+
+/** Fallback label when a tool offers no summary: never show a dotted internal identifier. */
+function humanizeToolName(name: string): string {
+  const words = name.replace(/[._-]+/gu, " ").trim();
+  return words.length === 0 ? "Tool" : words.charAt(0).toUpperCase() + words.slice(1);
 }

@@ -70,10 +70,282 @@ afterEach(async () => {
 });
 
 describe("@wanex/workspace/tasks", () => {
+  it("recovers a lost create response using the exact existing worktree", async () => {
+    const environment = await createRuntime();
+    let preparedRoot = "";
+    environment.writableIsolation.losePrepareResponse = true;
+    environment.writableIsolation.onPrepared = async (lease) => { preparedRoot = lease.rootDir; };
+    let calls = 0;
+    const first = await environment.runtime.runTask({
+      id: "task_lost_create", access: "writable", strategy: "git_worktree", input: null,
+      handler: () => { calls++; return {}; },
+    });
+    expect(first.status).toBe("failed");
+    expect(calls).toBe(0);
+    const originalRoot = preparedRoot;
+    await writeFile(join(originalRoot, "preserved.txt"), "preserved\n");
+    const resumed = await environment.runtime.resumeTask({
+      runId: first.taskId, input: null,
+      handler: async (context) => {
+        expect(context.rootDir).toBe(originalRoot);
+        expect(await readFile(join(context.rootDir, "preserved.txt"), "utf8")).toBe("preserved\n");
+        return {};
+      },
+    });
+    expect(resumed.status).toBe("succeeded");
+    expect(environment.writableIsolation.preparedIds[0]).toBe(environment.writableIsolation.preparedIds[1]);
+    await expect(stat(originalRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(join(environment.readOnlyRoot, "preserved.txt"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("does not publish cancellation until prepare settles and isolation is released", async () => {
+    const environment = await createRuntime();
+    const controller = new AbortController();
+    const prepared = deferred();
+    const releasePrepare = deferred();
+    let root = "";
+    environment.writableIsolation.onPrepared = async (lease) => {
+      root = lease.rootDir;
+      prepared.resolve();
+      await releasePrepare.promise;
+    };
+    let called = false;
+    const task = environment.runtime.runTask({
+      id: "task_cancel_prepare", access: "writable", strategy: "git_worktree", input: null,
+      signal: controller.signal, handler: () => { called = true; return {}; },
+    });
+    await prepared.promise;
+    controller.abort();
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: "task_cancel_prepare" }))?.run.state).toBe("preparing");
+    expect((await stat(root)).isDirectory()).toBe(true);
+    releasePrepare.resolve();
+    expect((await task).status).toBe("failed");
+    expect(called).toBe(false);
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: "task_cancel_prepare" }))?.run).toMatchObject({ state: "released", executionOutcome: "cancelled", outcome: "cancelled" });
+    await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("recovers release response loss without recreating or deleting unrelated files", async () => {
+    const environment = await createRuntime({ leaseMs: 1_000 });
+    environment.writableIsolation.loseReleaseResponse = true;
+    const first = await environment.runtime.runTask({
+      id: "task_lost_release", access: "writable", strategy: "git_worktree", input: null,
+      handler: () => ({}),
+    });
+    expect(first.status).toBe("failed");
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: first.taskId }))?.run.state).toBe("releasing");
+    await waitForLeaseExpiry(environment.storage, first.taskId);
+    expect((await environment.runtime.recoverTask({ runId: first.taskId })).status).toBe("succeeded");
+    expect(environment.writableIsolation.preparedIds).toHaveLength(1);
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: first.taskId }))?.run.state).toBe("released");
+    expect((await stat(environment.readOnlyRoot)).isDirectory()).toBe(true);
+  });
+
+  it("cancels a real running child and proves cleanup before releasing its worktree", async () => {
+    const environment = await createRuntime({ childSupervisor: new NativeChildSupervisor({ serviceBin }) });
+    const controller = new AbortController();
+    const started = deferred();
+    let terminal: ExecutionResult | undefined;
+    let root = "";
+    const task = environment.runtime.runTask({
+      id: "task_cancel_child", access: "writable", strategy: "git_worktree", input: null, signal: controller.signal,
+      handler: async (context) => {
+        root = context.rootDir;
+        const child = await context.executionScope.process.start({
+          program: process.execPath, args: ["-e", "process.stdout.write('ready'); setInterval(() => {}, 1000)"],
+          cwd: context.rootDir,
+        });
+        for await (const event of child.events) {
+          if (event.type === "stdout") started.resolve();
+        }
+        terminal = await child.wait();
+        return {};
+      },
+    });
+    await started.promise;
+    controller.abort();
+    expect((await task).status).toBe("failed");
+    expect(terminal).toMatchObject({ termination: "cancelled", cleanup: "completed" });
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: "task_cancel_child" }))?.run).toMatchObject({ state: "released", executionOutcome: "cancelled" });
+    await expect(stat(root)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("filters foreign Host and generation records before applying recovery limits", async () => {
+    const environment = await createRuntime();
+    for (const [index, changed] of [
+      { hostId: "other_host" }, { generationKey: "other_generation" }, { rootId: "other_root" }, {},
+    ].entries()) {
+      await environment.storage.beginWorkspaceTaskRun({
+        id: `task_scoped_${index}`, workspaceId: "workspace_task_test", principalId: "principal_task_test",
+        strategy: "direct", access: "read_only", rootIdentity: { ...environment.rootIdentity, ...changed },
+        isolationIdentity: { id: `isolation_scoped_${index}`, kind: "fixed" },
+        executionEnvironment: taskExecutionBinding(environment.executionEnvironment, "read_only"),
+        attemptId: `attempt_scoped_${index}`, ownerId: "lost_owner",
+        claimToken: "scope-test-token-abcdefghijklmnopqrstuvwxyz", leaseMs: 10,
+      });
+    }
+    await waitForLeaseExpiry(environment.storage, "task_scoped_3");
+    const result = await environment.runtime.recoverExpiredTasks({ maxRuns: 1, budgetMs: 5_000 });
+    expect(result).toMatchObject({ attempted: 1, attention: 1, failed: 0, remaining: false });
+    expect(result.entries[0]?.runId).toBe("task_scoped_3");
+    for (const index of [0, 1, 2]) {
+      expect((await environment.storage.getWorkspaceTaskRun({ runId: `task_scoped_${index}` }))?.run.state).toBe("preparing");
+    }
+  });
+
+  it("keeps a failed root independent from another root sharing the same store", async () => {
+    const first = await createRuntime();
+    const second = await createRuntime();
+    first.writableIsolation.losePrepareResponse = true;
+    const failure = await first.runtime.runTask({
+      id: "task_first_root", access: "writable", strategy: "git_worktree", input: null, handler: () => ({}),
+    });
+    expect(failure.status).toBe("failed");
+    const other = new WorkspaceTaskRuntime({
+      storage: first.storage, rootIdentity: { ...second.rootIdentity, rootId: "independent_root" },
+      directIsolation: second.readOnlyIsolation, executionEnvironment: second.executionEnvironment,
+      workspaceId: "workspace_task_test",
+    });
+    expect((await other.runTask({
+      id: "task_second_root", access: "read_only", strategy: "direct", input: null, handler: () => ({}),
+    })).status).toBe("succeeded");
+    expect((await first.storage.getWorkspaceTaskRun({ runId: failure.taskId }))?.run.state).toBe("attention");
+    expect(first.writableIsolation.releasedIds).toEqual([]);
+    expect((await stat(second.readOnlyRoot)).isDirectory()).toBe(true);
+  });
+
+  it("stops a real child when renewal fails and preserves attention instead of releasing", async () => {
+    const environment = await createRuntime({ childSupervisor: new NativeChildSupervisor({ serviceBin }) });
+    let childStarted = false;
+    const storage = new Proxy(environment.storage, {
+      get(target, key, receiver) {
+        if (key === "renewWorkspaceTaskRun") return async (request: Parameters<typeof target.renewWorkspaceTaskRun>[0]) => {
+          if (childStarted) throw new Error("renewal ownership lost");
+          return await target.renewWorkspaceTaskRun(request);
+        };
+        const value = Reflect.get(target, key, receiver);
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    });
+    const runtime = new WorkspaceTaskRuntime({
+      storage, rootIdentity: environment.rootIdentity, directIsolation: environment.readOnlyIsolation,
+      executionEnvironment: environment.executionEnvironment, leaseMs: 3_000,
+    });
+    let terminal: ExecutionResult | undefined;
+    const result = await runtime.runTask({
+      id: "task_lost_renewal", access: "read_only", strategy: "direct", input: null,
+      handler: async (context) => {
+        const child = await context.executionScope.process.start({
+          program: process.execPath, args: ["-e", "process.stdout.write('ready'); setInterval(() => {}, 1000)"], cwd: context.rootDir,
+        });
+        for await (const event of child.events) if (event.type === "stdout") childStarted = true;
+        terminal = await child.wait();
+        return {};
+      },
+    });
+    expect(result.status).toBe("failed");
+    expect(terminal).toMatchObject({ termination: "cancelled", cleanup: "completed" });
+    expect(environment.readOnlyIsolation.releasedIds).toEqual([]);
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: result.taskId }))?.run.state).toBe("attention");
+  });
+
+  it("runs direct read-only tasks without configuring any Git capability", async () => {
+    const environment = await createRuntime();
+    const runtime = new WorkspaceTaskRuntime({
+      storage: environment.storage,
+      rootIdentity: environment.rootIdentity,
+      directIsolation: environment.readOnlyIsolation,
+      executionEnvironment: environment.executionEnvironment,
+    });
+    const receipt = await runtime.runTask({
+      id: "task_without_git",
+      access: "read_only",
+      strategy: "direct",
+      input: null,
+      handler: (context) => {
+        expect(context.strategy).toBe("direct");
+        return { summary: "read only" };
+      },
+    });
+    expect(receipt.status).toBe("succeeded");
+    expect(environment.writableIsolation.preparedIds).toEqual([]);
+    const snapshot = await environment.storage.getWorkspaceTaskRun({
+      runId: receipt.taskId,
+    });
+    expect(snapshot?.run).toMatchObject({
+      strategy: "direct",
+      rootIdentity: environment.rootIdentity,
+      isolationIdentity: { kind: "fixed" },
+    });
+    expect(snapshot?.run.isolationIdentity.repositoryId).toBeUndefined();
+    for (const strategy of ["direct", "git_worktree"] as const) {
+      await expect(
+        runtime.runTask({
+          id: "task_disallowed",
+          access: "writable",
+          strategy,
+          input: null,
+          handler: () => {
+            throw new Error("must not execute");
+          },
+        }),
+      ).rejects.toThrow();
+      expect(
+        await environment.storage.getWorkspaceTaskRun({
+          runId: "task_disallowed",
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it("rejects replay and continuation under a changed root generation", async () => {
+    const environment = await createRuntime();
+    const request = {
+      id: "task_frozen_root",
+      access: "read_only" as const,
+      strategy: "direct" as const,
+      input: null,
+      handler: () => {
+        throw new WorkspaceTaskAttentionError({ message: "needs attention" });
+      },
+    };
+    await environment.runtime.runTask(request);
+    const runtime = new WorkspaceTaskRuntime({
+      storage: environment.storage,
+      directIsolation: environment.readOnlyIsolation,
+      rootIdentity: {
+        ...environment.rootIdentity,
+        generationKey: "different_generation",
+      },
+      workspaceId: "workspace_task_test",
+      principalId: "principal_task_test",
+      executionEnvironment: environment.executionEnvironment,
+    });
+    await expect(runtime.runTask(request)).rejects.toThrow(
+      "different identity",
+    );
+    await expect(
+      runtime.resumeTask({
+        runId: request.id,
+        input: null,
+        handler: () => ({}),
+      }),
+    ).rejects.toThrow("different root identity");
+    await expect(runtime.recoverTask({ runId: request.id })).rejects.toThrow(
+      "different root identity",
+    );
+    expect(
+      await environment.storage.listWorkspaceTaskAttempts({
+        runId: request.id,
+      }),
+    ).toHaveLength(1);
+  });
+
   it("projects writable task edits into one proposal without exposing its lease", async () => {
     const environment = await createRuntime();
     let executionRoot = "";
     const receipt = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_success",
       access: "writable",
       input: { prompt: "create src/app.ts" },
@@ -119,6 +391,7 @@ describe("@wanex/workspace/tasks", () => {
     expect(receipt.resources).toHaveLength(1);
     let replayHandlerCalls = 0;
     const replay = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_success",
       access: "writable",
       input: { prompt: "create src/app.ts" },
@@ -127,12 +400,12 @@ describe("@wanex/workspace/tasks", () => {
       handler: () => {
         replayHandlerCalls += 1;
         return {};
-      }
+      },
     });
     expect(replay).toMatchObject({
       taskId: "wtsk_success",
       status: "succeeded",
-      proposal: { id: receipt.proposal?.id }
+      proposal: { id: receipt.proposal?.id },
     });
     expect(replayHandlerCalls).toBe(0);
     await expect(
@@ -176,6 +449,7 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     let handlerCalls = 0;
     const first = await environment.runtime.runTask({
+      strategy: "direct",
       id: "wtsk_attention_replay",
       access: "read_only",
       input: { prompt: "requires recovery" },
@@ -185,11 +459,12 @@ describe("@wanex/workspace/tasks", () => {
         handlerCalls += 1;
         throw new WorkspaceTaskAttentionError({
           name: "TestAttention",
-          message: "execution result is ambiguous"
+          message: "execution result is ambiguous",
         });
-      }
+      },
     });
     const second = await environment.runtime.runTask({
+      strategy: "direct",
       id: "wtsk_attention_replay",
       access: "read_only",
       input: { prompt: "requires recovery" },
@@ -198,19 +473,19 @@ describe("@wanex/workspace/tasks", () => {
       handler: () => {
         handlerCalls += 1;
         return {};
-      }
+      },
     });
 
     expect(first).toMatchObject({
       status: "failed",
-      error: { message: "execution result is ambiguous" }
+      error: { message: "execution result is ambiguous" },
     });
     expect(second).toEqual(first);
     expect(handlerCalls).toBe(1);
     await expect(
       environment.storage.listWorkspaceTaskAttempts({
-        runId: "wtsk_attention_replay"
-      })
+        runId: "wtsk_attention_replay",
+      }),
     ).resolves.toHaveLength(1);
   });
 
@@ -229,6 +504,7 @@ describe("@wanex/workspace/tasks", () => {
 
     await expect(
       runtime.runTask({
+        strategy: "direct",
         id: "wtsk_unsupported_environment",
         access: "read_only",
         input: null,
@@ -264,6 +540,7 @@ describe("@wanex/workspace/tasks", () => {
     let handlerCalls = 0;
 
     const receipt = await runtime.runTask({
+      strategy: "direct",
       id: "wtsk_scope_binding_drift",
       access: "read_only",
       input: null,
@@ -276,7 +553,8 @@ describe("@wanex/workspace/tasks", () => {
     expect(receipt).toMatchObject({
       status: "failed",
       error: {
-        message: "workspace task bound execution environment changed after admission",
+        message:
+          "workspace task bound execution environment changed after admission",
       },
     });
     expect(handlerCalls).toBe(0);
@@ -290,9 +568,41 @@ describe("@wanex/workspace/tasks", () => {
     ).resolves.toMatchObject({ run: { state: "attention" } });
   });
 
+  it("preserves prepared worktree identity after execution binding fails until explicit continuation", async () => {
+    const environment = await createRuntime();
+    const drifted = new TestExecutionEnvironment(environment.executionEnvironment, {
+      bind: (binding) => ({ ...binding, providerRevision: `${binding.providerRevision}.drifted` }),
+    });
+    let preparedRoot = "";
+    environment.writableIsolation.onPrepared = async (lease) => { preparedRoot = lease.rootDir; };
+    let handlerCalls = 0;
+    const receipt = await runtimeWithExecutionEnvironment(environment, drifted).runTask({
+      id: "task_prepared_binding_failure", access: "writable", strategy: "git_worktree", input: null,
+      handler: () => { handlerCalls++; return {}; },
+    });
+    expect(receipt.status).toBe("failed");
+    expect(handlerCalls).toBe(0);
+    expect(drifted.closedScopeCount).toBe(1);
+    expect(environment.writableIsolation.releasedIds).toEqual([]);
+    const original = preparedRoot;
+    expect((await stat(original)).isDirectory()).toBe(true);
+    const before = await environment.storage.getWorkspaceTaskRun({ runId: receipt.taskId });
+    expect(before?.run.state).toBe("attention");
+    expect(before?.run.isolationIdentity.baseRevision).toBeTruthy();
+    const resumed = await environment.runtime.resumeTask({
+      runId: receipt.taskId, input: null,
+      handler: (context) => { expect(context.rootDir).toBe(original); return {}; },
+    });
+    expect(resumed.status).toBe("succeeded");
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: receipt.taskId }))?.run.isolationIdentity)
+      .toEqual(before?.run.isolationIdentity);
+    await expect(stat(original)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("releases read-only isolation when its handler fails", async () => {
     const environment = await createRuntime();
     const receipt = await environment.runtime.runTask({
+      strategy: "direct",
       id: "wtsk_failure",
       access: "read_only",
       input: null,
@@ -317,6 +627,7 @@ describe("@wanex/workspace/tasks", () => {
     });
     let executionResult: ExecutionResult | undefined;
     const receipt = await environment.runtime.runTask({
+      strategy: "direct",
       id: "wtsk_supervised_child",
       access: "read_only",
       input: null,
@@ -350,6 +661,7 @@ describe("@wanex/workspace/tasks", () => {
     });
     let executionRoot = "";
     const receipt = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_ambiguous_cleanup",
       access: "writable",
       input: null,
@@ -390,15 +702,16 @@ describe("@wanex/workspace/tasks", () => {
   it("does not rerun an expired active task and requires attention", async () => {
     const environment = await createRuntime({ leaseMs: 1_000 });
     await environment.storage.beginWorkspaceTaskRun({
+      strategy: "direct",
+      rootIdentity: environment.rootIdentity,
+      isolationIdentity: { id: "wiso_expired_active", kind: "fixed" },
       id: "wtsk_expired_active",
       workspaceId: "workspace_task_test",
       principalId: "principal_task_test",
       access: "read_only",
-      repositoryId: "repo_task_test",
-      isolationId: "wiso_expired_active",
       executionEnvironment: taskExecutionBinding(
         environment.executionEnvironment,
-        "read_only"
+        "read_only",
       ),
       attemptId: "wtat_expired_active",
       ownerId: "owner_expired_active",
@@ -412,7 +725,6 @@ describe("@wanex/workspace/tasks", () => {
     });
     await waitForLeaseExpiry(environment.storage, "wtsk_expired_active");
 
-    let handlerCalls = 0;
     const recovered = await environment.runtime.recoverTask({
       runId: "wtsk_expired_active",
     });
@@ -424,7 +736,19 @@ describe("@wanex/workspace/tasks", () => {
           "workspace task owner was lost before execution settlement could be proven",
       },
     });
-    expect(handlerCalls).toBe(0);
+    const attempts = await environment.storage.listWorkspaceTaskAttempts({
+      runId: "wtsk_expired_active",
+    });
+    expect(attempts).toHaveLength(2);
+    expect(attempts.filter((attempt) => attempt.kind === "execution")).toMatchObject([
+      { id: "wtat_expired_active", state: "expired" },
+    ]);
+    expect(attempts.filter((attempt) => attempt.kind === "recovery")).toHaveLength(1);
+    expect(environment.readOnlyIsolation.preparedIds).toEqual([]);
+    await environment.runtime.recoverTask({ runId: "wtsk_expired_active" });
+    expect(await environment.storage.listWorkspaceTaskAttempts({
+      runId: "wtsk_expired_active",
+    })).toEqual(attempts);
     const snapshot = await environment.storage.getWorkspaceTaskRun({
       runId: "wtsk_expired_active",
     });
@@ -439,6 +763,7 @@ describe("@wanex/workspace/tasks", () => {
       writableReleaseError: true,
     });
     const first = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_admission_release",
       access: "writable",
       input: null,
@@ -481,15 +806,16 @@ describe("@wanex/workspace/tasks", () => {
   it("keeps an expired execution run in attention without rerunning it", async () => {
     const environment = await createRuntime({ leaseMs: 1_000 });
     await environment.storage.beginWorkspaceTaskRun({
+      strategy: "direct",
+      rootIdentity: environment.rootIdentity,
+      isolationIdentity: { id: "wiso_admission_attention", kind: "fixed" },
       id: "wtsk_admission_attention",
       workspaceId: "workspace_task_test",
       principalId: "principal_task_test",
       access: "read_only",
-      repositoryId: "repo_task_test",
-      isolationId: "wiso_admission_attention",
       executionEnvironment: taskExecutionBinding(
         environment.executionEnvironment,
-        "read_only"
+        "read_only",
       ),
       attemptId: "wtat_admission_attention",
       ownerId: "owner_admission_attention",
@@ -533,15 +859,16 @@ describe("@wanex/workspace/tasks", () => {
   it("does not claim a task whose owner lease is still healthy", async () => {
     const environment = await createRuntime();
     await environment.storage.beginWorkspaceTaskRun({
+      strategy: "direct",
+      rootIdentity: environment.rootIdentity,
+      isolationIdentity: { id: "wiso_admission_healthy", kind: "fixed" },
       id: "wtsk_admission_healthy",
       workspaceId: "workspace_task_test",
       principalId: "principal_task_test",
       access: "read_only",
-      repositoryId: "repo_task_test",
-      isolationId: "wiso_admission_healthy",
       executionEnvironment: taskExecutionBinding(
         environment.executionEnvironment,
-        "read_only"
+        "read_only",
       ),
       attemptId: "wtat_admission_healthy",
       ownerId: "owner_admission_healthy",
@@ -578,15 +905,16 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime({ leaseMs: 1_000 });
     for (const suffix of ["first", "second"]) {
       await environment.storage.beginWorkspaceTaskRun({
+        strategy: "direct",
+        rootIdentity: environment.rootIdentity,
+        isolationIdentity: { id: `wiso_admission_${suffix}`, kind: "fixed" },
         id: `wtsk_admission_${suffix}`,
         workspaceId: "workspace_task_test",
         principalId: "principal_task_test",
         access: "read_only",
-        repositoryId: "repo_task_test",
-        isolationId: `wiso_admission_${suffix}`,
         executionEnvironment: taskExecutionBinding(
           environment.executionEnvironment,
-          "read_only"
+          "read_only",
         ),
         attemptId: `wtat_admission_${suffix}`,
         ownerId: `owner_admission_${suffix}`,
@@ -634,6 +962,7 @@ describe("@wanex/workspace/tasks", () => {
     });
     let handlerCalls = 0;
     const first = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_release_recovery",
       access: "writable",
       input: null,
@@ -683,31 +1012,40 @@ describe("@wanex/workspace/tasks", () => {
       string,
       (binding: ExecutionEnvironmentBinding) => ExecutionEnvironmentBinding,
     ][] = [
-      ["provider", (binding) => ({
-        ...binding,
-        providerRevision: `${binding.providerRevision}.changed`,
-      })],
-      ["capability", (binding) => {
-        const capabilities = {
-          ...binding.capabilities,
-          network: { enforcement: "os" as const },
-        };
-        return {
+      [
+        "provider",
+        (binding) => ({
           ...binding,
-          capabilities,
-          capabilityDigest: digestJson(capabilities),
-        };
-      }],
-      ["policy", (binding) => {
-        const policy = {
-          ...binding.policy,
-          filesystem: {
-            ...binding.policy.filesystem,
-            maxReadBytes: binding.policy.filesystem.maxReadBytes + 1,
-          },
-        };
-        return { ...binding, policy, policyDigest: digestJson(policy) };
-      }],
+          providerRevision: `${binding.providerRevision}.changed`,
+        }),
+      ],
+      [
+        "capability",
+        (binding) => {
+          const capabilities = {
+            ...binding.capabilities,
+            network: { enforcement: "os" as const },
+          };
+          return {
+            ...binding,
+            capabilities,
+            capabilityDigest: digestJson(capabilities),
+          };
+        },
+      ],
+      [
+        "policy",
+        (binding) => {
+          const policy = {
+            ...binding.policy,
+            filesystem: {
+              ...binding.policy.filesystem,
+              maxReadBytes: binding.policy.filesystem.maxReadBytes + 1,
+            },
+          };
+          return { ...binding, policy, policyDigest: digestJson(policy) };
+        },
+      ],
     ];
 
     for (const [label, drift] of drifts) {
@@ -717,6 +1055,7 @@ describe("@wanex/workspace/tasks", () => {
       });
       const taskId = `wtsk_recovery_${label}_drift`;
       const initial = await environment.runtime.runTask({
+        strategy: "git_worktree",
         id: taskId,
         access: "writable",
         input: null,
@@ -740,7 +1079,8 @@ describe("@wanex/workspace/tasks", () => {
       expect(recovered).toMatchObject({
         status: "failed",
         error: {
-          message: "workspace task recovery execution environment changed after admission",
+          message:
+            "workspace task recovery execution environment changed after admission",
         },
       });
       expect(environment.writableIsolation.durableReleasedIds).toEqual([]);
@@ -754,14 +1094,18 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     let called = false;
     const runtime = new WorkspaceTaskRuntime({
+      rootIdentity: environment.rootIdentity,
+      directIsolation: environment.readOnlyIsolation,
+      gitWorktree: {
+        repositoryId: "repo_task_test",
+        isolation: environment.readOnlyIsolation,
+        collection: environment.projection,
+      },
       storage: environment.storage,
-      readOnlyIsolation: environment.readOnlyIsolation,
-      writableIsolation: environment.readOnlyIsolation,
-      writableCollection: environment.projection,
-      repositoryId: "repo_task_test",
       executionEnvironment: environment.executionEnvironment,
     });
     const receipt = await runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_fixed_write",
       access: "writable",
       input: {},
@@ -774,14 +1118,19 @@ describe("@wanex/workspace/tasks", () => {
     expect(called).toBe(false);
     expect(receipt.status).toBe("failed");
     expect(receipt.error?.message).toContain(
-      "requires runtime-owned git_worktree isolation",
+      "isolation does not match its explicit strategy",
     );
-    expect(environment.readOnlyIsolation.releasedIds).toHaveLength(1);
+    expect(environment.readOnlyIsolation.releasedIds).toEqual([]);
+    expect(environment.writableIsolation.preparedIds).toEqual([]);
+    expect((await environment.storage.getWorkspaceTaskRun({ runId: receipt.taskId }))?.run.state)
+      .toBe("attention");
+    expect(await readFile(join(environment.readOnlyRoot, "README.md"), "utf8")).toBe("base\n");
   });
 
   it("redacts the isolation path from cleanup failures", async () => {
     const environment = await createRuntime({ readOnlyReleaseError: true });
     const receipt = await environment.runtime.runTask({
+      strategy: "direct",
       id: "wtsk_release_failure",
       access: "read_only",
       input: {},
@@ -809,6 +1158,7 @@ describe("@wanex/workspace/tasks", () => {
     const session = new WanexSessionCore({ storage: environment.storage });
     let executionRoot = "";
     await submitWorkspaceTaskJob(environment.storage, {
+      strategy: "git_worktree",
       id: "job_workspace_task_success",
       handlerId: "create-file",
       principalId: "principal_task_test",
@@ -890,6 +1240,7 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     const session = new WanexSessionCore({ storage: environment.storage });
     await submitWorkspaceTaskJob(environment.storage, {
+      strategy: "direct",
       id: "job_workspace_task_failure",
       handlerId: "fail-task",
       principalId: "principal_task_test",
@@ -936,6 +1287,7 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     const session = new WanexSessionCore({ storage: environment.storage });
     await submitWorkspaceTaskJob(environment.storage, {
+      strategy: "direct",
       id: "job_workspace_task_missing_handler",
       handlerId: "missing",
       principalId: "principal_task_test",
@@ -1017,6 +1369,7 @@ describe("@wanex/workspace/tasks", () => {
   it("does not create an empty proposal when a writable task changes nothing", async () => {
     const environment = await createRuntime();
     const receipt = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_no_changes",
       access: "writable",
       input: {},
@@ -1037,6 +1390,7 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     let executionRoot = "";
     const receipt = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_projection_attention",
       access: "writable",
       input: { prompt: "create image" },
@@ -1084,6 +1438,7 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     let originalRoot = "";
     const initial = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_resume_attention",
       access: "writable",
       input: { prompt: "prepare an uncertain edit" },
@@ -1099,12 +1454,15 @@ describe("@wanex/workspace/tasks", () => {
 
     expect(initial.error?.name).toBe("WorkspaceProjectionAttention");
     expect(environment.writableIsolation.preparedIds).toEqual([
-      "wiso_" + createHash("sha256")
-        .update("repo_task_test")
-        .update("\0")
-        .update("wtsk_resume_attention")
-        .digest("hex")
-        .slice(0, 32),
+      "wiso_" +
+        createHash("sha256")
+          .update(JSON.stringify([
+            environment.rootIdentity.hostId, environment.rootIdentity.generationKey,
+            environment.rootIdentity.rootId, environment.rootIdentity.device,
+            environment.rootIdentity.inode, "wtsk_resume_attention", "git_worktree",
+          ]))
+          .digest("hex")
+          .slice(0, 32),
     ]);
 
     let resumedRoot = "";
@@ -1114,7 +1472,11 @@ describe("@wanex/workspace/tasks", () => {
       handler: async (context) => {
         resumedRoot = context.rootDir;
         await rm(join(context.rootDir, "image.bin"));
-        await writeFile(join(context.rootDir, "resumed.txt"), "continued\n", "utf8");
+        await writeFile(
+          join(context.rootDir, "resumed.txt"),
+          "continued\n",
+          "utf8",
+        );
         return { summary: "continued safely" };
       },
     });
@@ -1149,12 +1511,17 @@ describe("@wanex/workspace/tasks", () => {
     const environment = await createRuntime();
     let executionRoot = "";
     const parked = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_explicit_attention",
       access: "writable",
       input: { prompt: "run an uncertain tool" },
       handler: async (context) => {
         executionRoot = context.rootDir;
-        await writeFile(join(context.rootDir, "uncertain.txt"), "written\n", "utf8");
+        await writeFile(
+          join(context.rootDir, "uncertain.txt"),
+          "written\n",
+          "utf8",
+        );
         throw new WorkspaceTaskAttentionError({
           name: "ToolOutcomeUnknown",
           message: "tool outcome could not be proven",
@@ -1191,10 +1558,14 @@ describe("@wanex/workspace/tasks", () => {
       runId: "wtsk_explicit_attention",
       input: { prompt: "continue after deciding the tool was successful" },
       handler: async (context) => {
-        await expect(readFile(join(context.rootDir, "uncertain.txt"), "utf8")).resolves.toBe(
-          "written\n",
+        await expect(
+          readFile(join(context.rootDir, "uncertain.txt"), "utf8"),
+        ).resolves.toBe("written\n");
+        await writeFile(
+          join(context.rootDir, "confirmed.txt"),
+          "confirmed\n",
+          "utf8",
         );
-        await writeFile(join(context.rootDir, "confirmed.txt"), "confirmed\n", "utf8");
         return { summary: "continued after explicit recovery" };
       },
     });
@@ -1210,6 +1581,7 @@ describe("@wanex/workspace/tasks", () => {
   it("preserves classifiable partial edits when writable execution fails", async () => {
     const environment = await createRuntime();
     const receipt = await environment.runtime.runTask({
+      strategy: "git_worktree",
       id: "wtsk_partial_failure",
       access: "writable",
       input: { prompt: "edit then fail" },
@@ -1256,6 +1628,7 @@ async function createRuntime(
   readonly storage: StorageTestStore;
   readonly runtime: WorkspaceTaskRuntime;
   readonly projection: WorkspaceGitRuntime;
+  readonly rootIdentity: import("@wanex/protocol").WorkspaceTaskRootIdentity;
   readonly readOnlyRoot: string;
   readonly readOnlyIsolation: RecordingIsolationAdapter;
   readonly writableIsolation: RecordingIsolationAdapter;
@@ -1264,7 +1637,15 @@ async function createRuntime(
   const storeDir = await tempDir("wanex-workspace-task-store-");
   const repoDir = await createRepo();
   const worktreeParentDir = await tempDir("wanex-workspace-task-worktrees-");
-  const readOnlyRoot = await tempDir("wanex-workspace-task-read-only-");
+  const readOnlyRoot = repoDir;
+  const metadata = await stat(repoDir, { bigint: true });
+  const rootIdentity = {
+    hostId: "host_task_test",
+    generationKey: "generation_task_test",
+    rootId: "root_task_test",
+    device: String(metadata.dev),
+    inode: String(metadata.ino),
+  };
   const storage = createStorageTestStore({
     kind: "local-system-service",
     mode: "oneshot",
@@ -1273,7 +1654,7 @@ async function createRuntime(
   });
   const execution = await createWorkspaceTestExecution({
     rootDir: repoDir,
-    additionalRootDirs: [worktreeParentDir, readOnlyRoot],
+    additionalRootDirs: [worktreeParentDir],
     managedProcess: options.childSupervisor !== undefined,
     ...(options.childSupervisor === undefined
       ? {}
@@ -1282,7 +1663,7 @@ async function createRuntime(
   const readOnlyIsolation = new RecordingIsolationAdapter(
     new FixedWorkspaceIsolationAdapter({
       rootDir: readOnlyRoot,
-      fileSystem: execution.scope.fileSystem
+      fileSystem: execution.scope.fileSystem,
     }),
     options.readOnlyReleaseError === true,
   );
@@ -1300,24 +1681,28 @@ async function createRuntime(
   const repository = await locator.locate("repo_task_test");
   const writableIsolation = new RecordingIsolationAdapter(
     new GitWorktreeIsolationAdapter({
+      rootIdentity,
       repositoryId: "repo_task_test",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
-      executionScope: execution.scope
+      executionScope: execution.scope,
     }),
     options.writableReleaseError === true,
   );
   const projection = new WorkspaceGitRuntime({
     repositoryId: "repo_task_test",
     worktreeParent: repository.worktreeParent,
-    executionScope: execution.scope
+    executionScope: execution.scope,
   });
   const runtime = new WorkspaceTaskRuntime({
+    rootIdentity: rootIdentity,
+    directIsolation: readOnlyIsolation,
+    gitWorktree: {
+      repositoryId: "repo_task_test",
+      isolation: writableIsolation,
+      collection: projection,
+    },
     storage,
-    readOnlyIsolation,
-    writableIsolation,
-    writableCollection: projection,
-    repositoryId: "repo_task_test",
     workspaceId: "workspace_task_test",
     principalId: "principal_task_test",
     executionEnvironment: execution.environment,
@@ -1327,6 +1712,7 @@ async function createRuntime(
     storage,
     runtime,
     projection,
+    rootIdentity,
     readOnlyRoot,
     readOnlyIsolation,
     writableIsolation,
@@ -1334,20 +1720,29 @@ async function createRuntime(
   };
 }
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((ready) => { resolve = ready; });
+  return { promise, resolve };
+}
+
 function taskExecutionBinding(
   environment: import("@wanex/runtime/execution").ExecutionEnvironment,
-  access: "read_only" | "writable"
+  access: "read_only" | "writable",
 ) {
   return environment.resolveBinding({
     policy: createWorkspaceTaskExecutionPolicy(
       access,
       environment.capabilities.process.cleanup,
-      environment.capabilities.isolation.enforcement
-    )
-  })
+      environment.capabilities.isolation.enforcement,
+    ),
+  });
 }
 
 class RecordingIsolationAdapter implements WorkspaceIsolationAdapter {
+  losePrepareResponse = false;
+  loseReleaseResponse = false;
+  onPrepared?: (lease: WorkspaceIsolationLease) => Promise<void>;
   readonly preparedIds: string[] = [];
   readonly releasedIds: string[] = [];
   readonly durableReleasedIds: string[] = [];
@@ -1366,7 +1761,13 @@ class RecordingIsolationAdapter implements WorkspaceIsolationAdapter {
     if (request.isolationId !== undefined) {
       this.preparedIds.push(request.isolationId);
     }
-    return await this.delegate.prepare(request);
+    const lease = await this.delegate.prepare(request);
+    await this.onPrepared?.(lease);
+    if (this.losePrepareResponse) {
+      this.losePrepareResponse = false;
+      throw new Error("prepare response lost");
+    }
+    return lease;
   }
 
   async release(lease: WorkspaceIsolationLease): Promise<void> {
@@ -1376,6 +1777,10 @@ class RecordingIsolationAdapter implements WorkspaceIsolationAdapter {
       throw new Error(`cleanup failed at ${lease.rootDir}`);
     }
     await this.delegate.release(lease);
+    if (this.loseReleaseResponse) {
+      this.loseReleaseResponse = false;
+      throw new Error("release response lost");
+    }
   }
 
   async releaseDurable(
@@ -1440,11 +1845,14 @@ function runtimeWithExecutionEnvironment(
   executionEnvironment: ExecutionEnvironment,
 ): WorkspaceTaskRuntime {
   return new WorkspaceTaskRuntime({
+    rootIdentity: environment.rootIdentity,
+    directIsolation: environment.readOnlyIsolation,
+    gitWorktree: {
+      repositoryId: "repo_task_test",
+      isolation: environment.writableIsolation,
+      collection: environment.projection,
+    },
     storage: environment.storage,
-    readOnlyIsolation: environment.readOnlyIsolation,
-    writableIsolation: environment.writableIsolation,
-    writableCollection: environment.projection,
-    repositoryId: "repo_task_test",
     workspaceId: "workspace_task_test",
     principalId: "principal_task_test",
     leaseMs: 1_000,
@@ -1466,11 +1874,11 @@ function stableJson(value: unknown): string {
 }
 
 function ambiguousChildSupervisor(): ChildSupervisor {
-  const native = new NativeChildSupervisor({ serviceBin })
+  const native = new NativeChildSupervisor({ serviceBin });
   return {
     async start(request) {
       if (request.program !== process.execPath) {
-        return await native.start(request)
+        return await native.start(request);
       }
       return {
         async wait() {
@@ -1482,10 +1890,10 @@ function ambiguousChildSupervisor(): ChildSupervisor {
             cleanupError: "test-only ambiguous cleanup",
             stdout: emptyOutput(),
             stderr: emptyOutput(),
-          }
+          };
         },
         async terminate() {},
-      }
+      };
     },
     async startManaged() {
       throw new Error("managed supervisor is not used in this test");

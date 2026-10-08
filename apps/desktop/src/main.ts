@@ -6,6 +6,7 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  protocol,
   type Event as ElectronEvent,
   type OpenDialogOptions,
 } from "electron";
@@ -53,27 +54,26 @@ import {
   WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED,
   WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL,
 } from "./proof-contract.js";
-import {
-  createDesktopCodingComposition,
-  createDesktopCodingProofSelectionQueue,
-  type DesktopCodingComposition,
-} from "./coding.js";
-import { createDesktopExecutionEnvironment } from "./execution.js";
-import { createDesktopCodingRecoveryProofContext } from "./coding-proof.js";
-import {
-  installDesktopCodingIpc,
-} from "./coding-ipc.js";
-import { createDesktopCodingRouter } from "./coding/router.js";
 import { desktopRendererAssets } from "./renderer-assets.js";
 import { waitForDesktopInteractive } from "./proof/startup.js";
+import { createDesktopServerProfileCatalog } from "./server/profile-catalog.js";
 import {
-  createRemoteConnectionProfileCatalog,
-} from "./remote/profiles.js";
+  createDesktopServerConnectionManager,
+  type DesktopServerConnectionManager,
+} from "./server/connection-manager.js";
+import { installDesktopServerIpc } from "./server/ipc.js";
 import {
-  createRemoteCodingConnectionManager,
-  type RemoteCodingConnectionManager,
-} from "./remote/connection.js";
-import { installDesktopRemoteIpc } from "./remote/ipc.js";
+  createDesktopAssistantLocationOwner,
+  type DesktopAssistantLocationOwner,
+} from "./assistant/owner.js";
+import { installDesktopAssistantIpc } from "./assistant/ipc.js";
+import {
+  createDesktopAssistantResourceRelay,
+  DESKTOP_RESOURCE_PROTOCOL_PRIVILEGES,
+  installDesktopResourceProtocol,
+} from "./assistant/resource-relay.js";
+import { createDesktopServerResourceTransport } from "./server/resource-transport.js";
+import { createDesktopServerAttachmentTransport } from "./server/attachment-transport.js";
 import {
   acquireDesktopSingleInstanceLock,
   DesktopSingleInstanceLockUnavailableError,
@@ -88,16 +88,16 @@ const proofNarrowScreenshotPath =
 const proofUserDataPath = process.env.WANEX_DESKTOP_PROOF_USER_DATA;
 const proofProfileId = process.env.WANEX_DESKTOP_PROOF_PROFILE_ID;
 const proofProviderBaseUrl = process.env.WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL;
-const proofProviderCredential = process.env.WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL;
-const proofRemoteEndpoint = process.env.WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT;
+const proofProviderCredential =
+  process.env.WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL;
+const proofRemoteServerUrl = process.env.WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL;
 const proofRemoteProfileId = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID;
-const proofRemoteProfileName = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME;
-const proofRemoteProjectId = process.env.WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID;
+const proofRemoteProfileName =
+  process.env.WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME;
 const proofStep = process.env.WANEX_DESKTOP_PROOF_STEP;
 const proofExtensionSelections =
   process.env.WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS;
-const proofCodingProjectSelections =
-  process.env.WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS;
+const LOCAL_WORKSPACE_HOST_ID = "local-assistant";
 
 if (proofUserDataPath !== undefined) {
   app.setPath("userData", proofUserDataPath);
@@ -105,13 +105,19 @@ if (proofUserDataPath !== undefined) {
 app.setName("Wanex");
 app.setAppUserModelId("com.wanex.assistant.desktop");
 app.commandLine.appendSwitch("proxy-bypass-list", "<-loopback>");
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "wanex-resource",
+    privileges: DESKTOP_RESOURCE_PROTOCOL_PRIVILEGES,
+  },
+]);
 
 let assistant: AssistantWebApp | undefined;
-let coding: DesktopCodingComposition | undefined;
-let codingRouter: ReturnType<typeof createDesktopCodingRouter> | undefined;
-let remoteCodingConnections: RemoteCodingConnectionManager | undefined;
-let removeRemoteIpc: (() => void) | undefined;
-let removeCodingIpc: (() => void) | undefined;
+let serverConnections: DesktopServerConnectionManager | undefined;
+let assistantLocations: DesktopAssistantLocationOwner | undefined;
+let removeServerIpc: (() => void) | undefined;
+let removeAssistantIpc: (() => void) | undefined;
+let removeResourceProtocol: (() => void) | undefined;
 let window: BrowserWindow | undefined;
 let windowNavigation: WanexDesktopNavigationPolicy | undefined;
 let exitAllowed = false;
@@ -123,23 +129,27 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
     window?.destroy();
     window = undefined;
     windowNavigation = undefined;
-    removeCodingIpc?.();
-    removeCodingIpc = undefined;
-    const ownedCodingRouter = codingRouter;
-    codingRouter = undefined;
-    const ownedCoding = coding;
-    coding = undefined;
-    const ownedRemoteCodingConnections = remoteCodingConnections;
-    remoteCodingConnections = undefined;
-    removeRemoteIpc?.();
-    removeRemoteIpc = undefined;
+    removeResourceProtocol?.();
+    removeResourceProtocol = undefined;
+    removeAssistantIpc?.();
+    removeAssistantIpc = undefined;
+    const ownedServerConnections = serverConnections;
+    serverConnections = undefined;
+    const ownedAssistantLocations = assistantLocations;
+    assistantLocations = undefined;
+    removeServerIpc?.();
+    removeServerIpc = undefined;
     const ownedAssistant = assistant;
     assistant = undefined;
     await closeWanexDesktopOwnedResources({
-      coding: () => closeOwnedCoding(ownedCodingRouter, ownedCoding),
-      ...(ownedRemoteCodingConnections === undefined
+      ...(ownedServerConnections === undefined
         ? {}
-        : { remoteCoding: () => ownedRemoteCodingConnections.close() }),
+        : {
+            serverConnections: async () => {
+              await ownedAssistantLocations?.close();
+              await ownedServerConnections.close();
+            },
+          }),
       ...(ownedAssistant === undefined
         ? {}
         : { assistant: () => ownedAssistant.close() }),
@@ -148,14 +158,6 @@ const lifecycle = createWanexDesktopOwnedLifecycle(async () => {
     instanceLock.release();
   }
 });
-
-async function closeOwnedCoding(
-  router: ReturnType<typeof createDesktopCodingRouter> | undefined,
-  composition: DesktopCodingComposition | undefined,
-): Promise<void> {
-  await router?.close();
-  await composition?.close();
-}
 
 if (!instanceLock.acquired) {
   if (proofReceiptPath === undefined) {
@@ -169,17 +171,15 @@ if (!instanceLock.acquired) {
   installAppLifecycle();
   void start().catch(async (error: unknown) => {
     console.error(formatWanexDesktopError(error));
-    const [assistantDiagnostics, codingDiagnostics] = await Promise.all([
-      readProofAssistantDiagnostics(),
-      readProofCodingDiagnostics(),
-    ]);
-    await writeProofReceipt(createWanexDesktopProofFailureReceipt({
-      error,
-      failurePhase,
-      ...(proofStep === undefined ? {} : { proofStep }),
-      ...(assistantDiagnostics === undefined ? {} : { assistantDiagnostics }),
-      ...(codingDiagnostics === undefined ? {} : { codingDiagnostics }),
-    }));
+    const assistantDiagnostics = await readProofAssistantDiagnostics();
+    await writeProofReceipt(
+      createWanexDesktopProofFailureReceipt({
+        error,
+        failurePhase,
+        ...(proofStep === undefined ? {} : { proofStep }),
+        ...(assistantDiagnostics === undefined ? {} : { assistantDiagnostics }),
+      }),
+    );
     await shutdown(1);
   });
 }
@@ -214,35 +214,16 @@ async function readProofAssistantDiagnostics(): Promise<unknown | undefined> {
   }
 }
 
-async function readProofCodingDiagnostics(): Promise<unknown | undefined> {
-  if (proofStep !== "relaunch-coding") return undefined;
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      coding?.readDiagnostics(),
-      new Promise<never>((_resolve, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error("Coding diagnostics timed out")),
-          5_000,
-        );
-      }),
-    ]);
-  } catch (error) {
-    desktopProofDiagnostic("read-coding-diagnostics", error);
-    return { state: "diagnostic_failed", repositories: [] };
-  } finally {
-    if (timeout !== undefined) clearTimeout(timeout);
-  }
-}
-
 async function failProofBeforeStartup(error: Error): Promise<void> {
   console.error(formatWanexDesktopError(error));
   try {
-    await writeProofReceipt(createWanexDesktopProofFailureReceipt({
-      error,
-      failurePhase: "single_instance_lock",
-      ...(proofStep === undefined ? {} : { proofStep }),
-    }));
+    await writeProofReceipt(
+      createWanexDesktopProofFailureReceipt({
+        error,
+        failurePhase: "single_instance_lock",
+        ...(proofStep === undefined ? {} : { proofStep }),
+      }),
+    );
   } finally {
     app.exit(1);
   }
@@ -258,9 +239,10 @@ async function start(): Promise<void> {
   const storage: LocalStorageConfig = {
     kind: "profile",
     rootDir: app.getPath("userData"),
-    profileId: proofReceiptPath === undefined
-      ? "default"
-      : requiredProofValue(proofProfileId, "profile ID"),
+    profileId:
+      proofReceiptPath === undefined
+        ? process.env.WANEX_DESKTOP_PROFILE_ID ?? "default"
+        : requiredProofValue(proofProfileId, "profile ID"),
     mode: "persistent",
   };
   failurePhase = "startup_prerequisites";
@@ -282,145 +264,123 @@ async function start(): Promise<void> {
     proofEnabled: proofReceiptPath !== undefined,
     serializedSelections: proofExtensionSelections,
   });
-  if (
-    proofCodingProjectSelections !== undefined &&
-    proofStep !== "relaunch-coding"
-  ) {
-    throw new Error(
-      "Desktop Coding proof selections are only valid for the Coding proof step",
-    );
-  }
-  const codingProofSelection = createDesktopCodingProofSelectionQueue({
-    proofEnabled: proofReceiptPath !== undefined,
-    serializedSelections: proofCodingProjectSelections,
-  });
-  if (proofStep === "relaunch-coding" && codingProofSelection === undefined) {
-    throw new Error(
-      "Desktop Coding proof requires a serialized project selection",
-    );
-  }
-  const remoteProofValues = [
-    proofRemoteEndpoint,
+  const remoteProfileProofValues = [
+    proofRemoteServerUrl,
     proofRemoteProfileId,
     proofRemoteProfileName,
-    proofRemoteProjectId,
   ];
-  if (
-    remoteProofValues.some((value) => value !== undefined) &&
-    proofStep !== "relaunch-remote-coding"
-  ) {
+  const remoteProofStep =
+    proofStep === "relaunch-remote-assistant" ||
+    proofStep === "relaunch-remote-assistant-restore" ||
+    proofStep === "relaunch-remote-media" ||
+    proofStep === "relaunch-remote-media-restore";
+  if (remoteProfileProofValues.some((value) => value !== undefined) && !remoteProofStep) {
     throw new Error(
-      "Desktop Remote Coding proof values are only valid for the Remote Coding proof step",
+      "Desktop remote proof values are only valid for a remote proof step",
     );
   }
   if (
-    proofStep === "relaunch-remote-coding" &&
-    remoteProofValues.some((value) => value === undefined)
+    remoteProofStep &&
+    remoteProfileProofValues.some((value) => value === undefined)
   ) {
     throw new Error(
-      "Desktop Remote Coding proof requires endpoint, Profile, and project values",
+      "Desktop remote proof requires Server URL and Profile values",
     );
   }
   const pluginCompositionOptions = {
     userDataDir: app.getPath("userData"),
-    selectLocalPackage: proofSelection ?? (async () =>
-      await selectLocalExtensionDirectory(async () => {
-        const options: OpenDialogOptions = {
-          title: "Add local extension",
-          buttonLabel: "Review extension",
-          properties: ["openDirectory", "dontAddToRecent"],
-        };
-        const owner = window;
-        return owner === undefined || owner.isDestroyed()
-          ? await dialog.showOpenDialog(options)
-          : await dialog.showOpenDialog(owner, options);
-      })),
+    selectLocalPackage:
+      proofSelection ??
+      (async () =>
+        await selectLocalExtensionDirectory(async () => {
+          const options: OpenDialogOptions = {
+            title: "Add local extension",
+            buttonLabel: "Review extension",
+            properties: ["openDirectory", "dontAddToRecent"],
+          };
+          const owner = window;
+          return owner === undefined || owner.isDestroyed()
+            ? await dialog.showOpenDialog(options)
+            : await dialog.showOpenDialog(owner, options);
+        })),
   };
-  const pluginComposition = proofStep === "relaunch-plugin-install"
-    ? createDesktopExtensionProofComposition({
-        ...pluginCompositionOptions,
-        proofEnabled: proofReceiptPath !== undefined,
-        failHostCreationOnce: {
-          pluginId: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.pluginId,
-          version: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.v2Version,
-        },
-      })
-    : createDesktopExtensionComposition(pluginCompositionOptions);
+  const pluginComposition =
+    proofStep === "relaunch-plugin-install"
+      ? createDesktopExtensionProofComposition({
+          ...pluginCompositionOptions,
+          proofEnabled: proofReceiptPath !== undefined,
+          failHostCreationOnce: {
+            pluginId: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.pluginId,
+            version: WANEX_DESKTOP_PLUGIN_PROOF_EXPECTED.v2Version,
+          },
+        })
+      : createDesktopExtensionComposition(pluginCompositionOptions);
   failurePhase = "assistant_host_startup";
   assistant = await startAssistantWebApp({
+    browserAssets: desktopRendererAssets,
     storage,
     serviceBin: service.path,
     credentialStore,
     pluginComposition,
+    workspace: { hostId: LOCAL_WORKSPACE_HOST_ID, selectDirectory: selectConversationFolder },
     web: {
       hostname: "127.0.0.1",
       port: 0,
-      browserAssets: desktopRendererAssets,
       windowChrome: windowChrome.documentChrome,
     },
   });
-  const remoteCredentialPolicy = wanexLocalCredentialPolicy({
+  const serverCredentialPolicy = wanexLocalCredentialPolicy({
     namespace: localSecretNamespace(storage),
     scheme: credentialStore.scheme,
   });
-  const remoteProfiles = createRemoteConnectionProfileCatalog({
+  const serverProfiles = createDesktopServerProfileCatalog({
     configuration: assistant.configuration,
     credentialStore,
     credentialResolver: credentialStore,
-    ownsCredentialRef: remoteCredentialPolicy.ownsRef,
+    ownsCredentialRef: serverCredentialPolicy.ownsRef,
     createCredentialRef: ({ profileId, revisionId }) =>
-      remoteCredentialPolicy.createRef({
-        connectionId: `remote-connection:${profileId}`,
+      serverCredentialPolicy.createRef({
+        connectionId: `server-profile:${profileId}`,
         revisionId,
       }),
   });
-  await remoteProfiles.reconcileCredentialRetirement();
-  remoteCodingConnections = createRemoteCodingConnectionManager({
-    profiles: remoteProfiles,
+  await serverProfiles.reconcileCredentialRetirement();
+  serverConnections = createDesktopServerConnectionManager({
+    profiles: serverProfiles,
     clientId: "wanex-desktop",
   });
-  removeRemoteIpc = installDesktopRemoteIpc({
+  const resourceTransport = createDesktopServerResourceTransport({
+    profiles: serverProfiles,
+  });
+  const attachmentTransport = createDesktopServerAttachmentTransport({
+    profiles: serverProfiles,
+  });
+  const resourceRelay = createDesktopAssistantResourceRelay({
+    transport: resourceTransport,
+  });
+  removeResourceProtocol = installDesktopResourceProtocol(
+    protocol,
+    resourceRelay,
+  );
+  assistantLocations = createDesktopAssistantLocationOwner({
+    connections: serverConnections,
+    attachmentTransport,
+    resourceRelay,
+  });
+  removeAssistantIpc = installDesktopAssistantIpc({
     ipcMain,
-    profiles: remoteProfiles,
-    connections: remoteCodingConnections,
+    owner: assistantLocations,
+    getWindow: () => window,
+  });
+  removeServerIpc = installDesktopServerIpc({
+    ipcMain,
+    profiles: serverProfiles,
+    connections: serverConnections,
     getWindow: () => window,
   });
   const hostReadyAt = performance.now();
-  failurePhase = "coding_composition_setup";
-  coding = createDesktopCodingComposition({
-    storage,
-    dataDir: join(app.getPath("userData"), "coding"),
-    serviceBin: service.path,
-    executionEnvironmentFactory: ({ environmentId, serviceBin }) =>
-      createDesktopExecutionEnvironment({
-        kind: process.platform === "darwin" ? "macos-seatbelt" : "native",
-        environmentId,
-        serviceBin,
-      }),
-    secretResolver: assistant.secretResolver,
-    ...(proofStep === "relaunch-coding"
-      ? { baseAgentContext: createDesktopCodingRecoveryProofContext() }
-      : {}),
-    resolveModelEndpointId: async () =>
-      (await assistant?.modelEndpoints.readActiveModelEndpoint())?.id,
-  });
-  const router = createDesktopCodingRouter({
-    local: coding,
-    remoteConnections: remoteCodingConnections,
-  });
-  codingRouter = router;
   failurePhase = "renderer_navigation";
   windowNavigation.bindOwnedOrigin(assistant.url);
-  removeCodingIpc = installDesktopCodingIpc({
-    ipcMain,
-    router,
-    getWindow: () => window,
-    selectProject: codingProofSelection ?? selectCodingProjectDirectory,
-    ...(proofReceiptPath === undefined
-      ? {}
-      : { diagnostic: desktopProofDiagnostic }),
-  });
-  const codingReadyAt = performance.now();
   await window.loadURL(assistant.url);
   const rendererReadyAt = performance.now();
 
@@ -433,7 +393,6 @@ async function start(): Promise<void> {
       credentialResolvedAt,
       prerequisitesReadyAt,
       hostReadyAt,
-      codingReadyAt,
       rendererReadyAt,
       ...(service.targetId === undefined ? {} : { targetId: service.targetId }),
     });
@@ -489,9 +448,7 @@ function installAppLifecycle(): void {
   }
 }
 
-function createAssistantWindow(
-  chrome: WanexDesktopWindowChromePolicy,
-): {
+function createAssistantWindow(chrome: WanexDesktopWindowChromePolicy): {
   readonly window: BrowserWindow;
   readonly navigation: WanexDesktopNavigationPolicy;
 } {
@@ -520,8 +477,7 @@ function createAssistantWindow(
   }
   created.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   created.webContents.on("will-navigate", (event, url) => {
-    if (!navigation.allows(url))
-      event.preventDefault();
+    if (!navigation.allows(url)) event.preventDefault();
   });
   created.webContents.on("will-attach-webview", (event) =>
     event.preventDefault(),
@@ -539,21 +495,20 @@ function createAssistantWindow(
   return { window: created, navigation };
 }
 
-async function selectCodingProjectDirectory(): Promise<string | undefined> {
+/** Trusted native picker for folders the user adds to a conversation. */
+async function selectConversationFolder(): Promise<string | undefined> {
   const owner = window;
-  const result = owner === undefined || owner.isDestroyed()
-    ? await dialog.showOpenDialog({
-        title: "Open project",
-        buttonLabel: "Open project",
-        properties: ["openDirectory", "dontAddToRecent"],
-      })
-    : await dialog.showOpenDialog(owner, {
-        title: "Open project",
-        buttonLabel: "Open project",
-        properties: ["openDirectory", "dontAddToRecent"],
-      });
+  const options: OpenDialogOptions = {
+    title: "Add folder to conversation",
+    buttonLabel: "Add folder",
+    properties: ["openDirectory", "dontAddToRecent"],
+  };
+  const result =
+    owner === undefined || owner.isDestroyed()
+      ? await dialog.showOpenDialog(options)
+      : await dialog.showOpenDialog(owner, options);
   if (result.canceled || result.filePaths.length !== 1) return undefined;
-  const selected = result.filePaths[0]?.trim();
+  const selected = result.filePaths[0];
   return selected === undefined || selected.length === 0 ? undefined : selected;
 }
 
@@ -576,9 +531,7 @@ async function resolveDesktopSystemService() {
   });
 }
 
-async function createDesktopCredentialStore(
-  storage: LocalStorageConfig,
-) {
+async function createDesktopCredentialStore(storage: LocalStorageConfig) {
   const artifactDir = app.isPackaged
     ? join(process.resourcesPath, "credentials")
     : process.env.WANEX_DESKTOP_CREDENTIAL_DIR;
@@ -611,7 +564,6 @@ async function runPackagedProof(timings: {
   readonly credentialResolvedAt: number;
   readonly prerequisitesReadyAt: number;
   readonly hostReadyAt: number;
-  readonly codingReadyAt: number;
   readonly rendererReadyAt: number;
   readonly targetId?: string;
 }): Promise<void> {
@@ -619,10 +571,10 @@ async function runPackagedProof(timings: {
   if (activeWindow === undefined)
     throw new Error("desktop proof window is missing");
   activeWindow.show();
-  const rendererStartupMs = await activeWindow.webContents.executeJavaScript(
+  const rendererStartupMs = (await activeWindow.webContents.executeJavaScript(
     `(${waitForDesktopInteractive.toString()})()`,
     true,
-  ) as import("./proof/startup.js").DesktopRendererStartupTimings;
+  )) as import("./proof/startup.js").DesktopRendererStartupTimings;
   const interactiveAt = performance.now();
   const step = requiredWanexDesktopPackagedProofStep(proofStep);
   const renderer = await runWanexDesktopPackagedRendererProof({
@@ -634,10 +586,13 @@ async function runPackagedProof(timings: {
     ...(proofProviderCredential === undefined
       ? {}
       : { providerCredential: proofProviderCredential }),
-    ...(proofRemoteEndpoint === undefined
+    ...(proofRemoteServerUrl === undefined
       ? {}
-      : { remoteEndpoint: proofRemoteEndpoint }),
-    ...(step === "relaunch-remote-coding"
+      : { remoteServerUrl: proofRemoteServerUrl }),
+    ...(step === "relaunch-remote-assistant" ||
+    step === "relaunch-remote-assistant-restore" ||
+    step === "relaunch-remote-media" ||
+    step === "relaunch-remote-media-restore"
       ? { remoteCredential: WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL }
       : {}),
     ...(proofRemoteProfileId === undefined
@@ -646,11 +601,21 @@ async function runPackagedProof(timings: {
     ...(proofRemoteProfileName === undefined
       ? {}
       : { remoteProfileName: proofRemoteProfileName }),
-    ...(proofRemoteProjectId === undefined
-      ? {}
-      : { remoteProjectId: proofRemoteProjectId }),
+    ...(step === "relaunch-remote-media" ||
+    step === "relaunch-remote-media-restore"
+      ? {
+          probeResourceCapability: async (url: string) => {
+            const response = await activeWindow.webContents.session.fetch(url, {
+              method: "HEAD",
+              cache: "no-store",
+            });
+            return response.status;
+          },
+        }
+      : {}),
   });
   if (!renderer.ok) throw new DesktopRendererProofError(renderer);
+  process.stdout.write("WANEX_DESKTOP_PROOF_RENDERER_COMPLETED\n");
   let screenshots;
   if (step === "lifecycle") {
     failurePhase = "normal_screenshot";
@@ -658,10 +623,7 @@ async function runPackagedProof(timings: {
     await waitForRendererPaint(activeWindow);
     const normalScreenshot = await captureProofScreenshot(
       activeWindow,
-      requiredProofValue(
-        proofNormalScreenshotPath,
-        "normal screenshot path",
-      ),
+      requiredProofValue(proofNormalScreenshotPath, "normal screenshot path"),
     );
 
     failurePhase = "narrow_screenshot";
@@ -669,17 +631,16 @@ async function runPackagedProof(timings: {
     await waitForRendererPaint(activeWindow);
     const narrowScreenshot = await captureProofScreenshot(
       activeWindow,
-      requiredProofValue(
-        proofNarrowScreenshotPath,
-        "narrow screenshot path",
-      ),
+      requiredProofValue(proofNarrowScreenshotPath, "narrow screenshot path"),
     );
     screenshots = { normal: normalScreenshot, narrow: narrowScreenshot };
   }
   failurePhase = "proof_cleanup";
   if (step === "lifecycle") await removeProofProviders();
   const shutdownStartedAt = performance.now();
+  process.stdout.write("WANEX_DESKTOP_PROOF_SHUTDOWN_STARTED\n");
   await lifecycle.close();
+  process.stdout.write("WANEX_DESKTOP_PROOF_SHUTDOWN_COMPLETED\n");
   const stoppedAt = performance.now();
   await writeProofReceipt({
     kind: "wanex.desktop.runtime-receipt",
@@ -714,8 +675,10 @@ async function runPackagedProof(timings: {
         timings.prerequisitesReadyAt,
       ),
       hostStartup: elapsed(timings.prerequisitesReadyAt, timings.hostReadyAt),
-      codingComposition: elapsed(timings.hostReadyAt, timings.codingReadyAt),
-      rendererNavigation: elapsed(timings.codingReadyAt, timings.rendererReadyAt),
+      rendererNavigation: elapsed(
+        timings.hostReadyAt,
+        timings.rendererReadyAt,
+      ),
       rendererInteractive: elapsed(timings.rendererReadyAt, interactiveAt),
       journeyPreparation: renderer.timingsMs.journeyPreparation,
       conversationSettlement: renderer.timingsMs.conversationSettlement,
@@ -730,7 +693,9 @@ async function runPackagedProof(timings: {
   app.exit(0);
 }
 
-async function waitForRendererPaint(activeWindow: BrowserWindow): Promise<void> {
+async function waitForRendererPaint(
+  activeWindow: BrowserWindow,
+): Promise<void> {
   await activeWindow.webContents.executeJavaScript(
     "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
     true,
@@ -798,10 +763,7 @@ async function removeProofProviders(): Promise<void> {
   }
 }
 
-function requiredProofValue(
-  value: string | undefined,
-  label: string,
-): string {
+function requiredProofValue(value: string | undefined, label: string): string {
   if (value === undefined || value.trim().length === 0) {
     throw new Error(`desktop proof ${label} is required`);
   }

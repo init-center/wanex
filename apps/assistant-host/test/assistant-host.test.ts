@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -110,7 +111,15 @@ describe("@wanex/assistant-host", () => {
       state: "open"
     })
 
+    const resourceDeliveries = host.resourceDeliveries
     await host.close()
+    expect(resourceDeliveries.activeGrantCount()).toBe(0)
+    await expect(resourceDeliveries.prepare({
+      audience: "closed-host",
+      resourceId: "resource_after_close",
+      expectedSha256: "a".repeat(64),
+      purpose: "preview"
+    })).rejects.toMatchObject({ code: "resource_delivery_closed" })
     await host.close()
     assistantHosts.pop()
   })
@@ -177,6 +186,7 @@ describe("@wanex/assistant-host", () => {
       installs: []
     }
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir: await tempDir("wanex-local-web-plugin-composition-")
@@ -209,6 +219,7 @@ describe("@wanex/assistant-host", () => {
   it("starts the local assistant web stack through the trusted host boundary", async () => {
     const storeDir = await tempDir("wanex-assistant-host-store-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -271,6 +282,7 @@ describe("@wanex/assistant-host", () => {
   it("executes a durable Team delivery through the shared agent host", async () => {
     const storeDir = await tempDir("wanex-assistant-host-team-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -367,6 +379,7 @@ describe("@wanex/assistant-host", () => {
     await app.close()
     apps.pop()
     const restarted = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -427,6 +440,7 @@ describe("@wanex/assistant-host", () => {
   it("executes a coordinated Assistant round through the canonical lead host", async () => {
     const storeDir = await tempDir("wanex-assistant-host-coordinated-team-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -516,6 +530,7 @@ describe("@wanex/assistant-host", () => {
   it("executes a Team journey through the generic Web request boundary", async () => {
     const storeDir = await tempDir("wanex-assistant-host-web-team-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -720,6 +735,7 @@ describe("@wanex/assistant-host", () => {
   it("fails an unsupported Team resource before creating a child turn", async () => {
     const storeDir = await tempDir("wanex-assistant-host-team-modality-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -889,6 +905,7 @@ describe("@wanex/assistant-host", () => {
     await stagingStorage.dispose()
 
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -935,6 +952,7 @@ describe("@wanex/assistant-host", () => {
   it("starts clean, disables chat, and hot-configures an explicit provider", async () => {
     const storeDir = await tempDir("wanex-assistant-host-unconfigured-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       web: { hostname: "127.0.0.1" }
@@ -974,6 +992,7 @@ describe("@wanex/assistant-host", () => {
   it("rejects unsupported attachments before Resource ingest", async () => {
     const storeDir = await tempDir("wanex-assistant-host-text-only-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoints: endpointCatalog(
@@ -1018,11 +1037,63 @@ describe("@wanex/assistant-host", () => {
     }
   })
 
+  it("converges a response-lost attachment retry on one Resource and draft", async () => {
+    const storeDir = await tempDir("wanex-assistant-host-attachment-retry-")
+    const endpoint = fakeEndpoint("image-input", "image-input-model")
+    const host = await startAssistantHost({
+      storage: { kind: "store-dir", storeDir },
+      serviceBin,
+      modelEndpoint: {
+        ...endpoint,
+        model: {
+          ...endpoint.model,
+          inputModalities: ["text", "image"]
+        }
+      }
+    })
+    assistantHosts.push(host)
+
+    const request = {
+      content: new Uint8Array([137, 80, 78, 71]),
+      mediaType: "image/png",
+      kind: "image" as const,
+      label: "retry.png"
+    }
+    const first = await host.attachments.uploadAttachment(request)
+    const retry = await host.attachments.uploadAttachment(request)
+    expect(retry.attachment.resourceId).toBe(first.attachment.resourceId)
+    expect(retry.attachments.attachments).toHaveLength(1)
+    expect(retry.attachments.attachments[0]?.resourceId).toBe(
+      first.attachment.resourceId
+    )
+
+    await host.close()
+    assistantHosts.pop()
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
+    })
+    try {
+      await expect(storage.listResources({})).resolves.toEqual([
+        expect.objectContaining({
+          id: first.attachment.resourceId,
+          origin: "user_upload",
+          mediaType: "image/png"
+        })
+      ])
+    } finally {
+      await storage.dispose()
+    }
+  })
+
   it("stores a provider credential only in the injected trusted store", async () => {
     const storeDir = await tempDir("wanex-assistant-host-credential-")
     const credentialStore = new TestSecretStore()
     const credential = "local-assistant-credential-value"
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1147,6 +1218,7 @@ describe("@wanex/assistant-host", () => {
     })
     const credentialStore = new TestSecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1235,6 +1307,7 @@ describe("@wanex/assistant-host", () => {
     const storeDir = await tempDir("wanex-assistant-host-provider-removal-")
     const credentialStore = new TestSecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1356,6 +1429,7 @@ describe("@wanex/assistant-host", () => {
     const storeDir = await tempDir("wanex-assistant-host-remove-recovery-")
     const credentialStore = new TestSecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1426,6 +1500,7 @@ describe("@wanex/assistant-host", () => {
     const storeDir = await tempDir("wanex-assistant-host-setup-serial-")
     const credentialStore = new TestSecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1495,6 +1570,7 @@ describe("@wanex/assistant-host", () => {
     const storeDir = await tempDir("wanex-assistant-host-setup-liveness-")
     const credentialStore = new TestSecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1619,6 +1695,7 @@ describe("@wanex/assistant-host", () => {
     const credentialStore = new TestSecretStore()
     const credential = "browser-provider-credential"
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -1888,6 +1965,7 @@ describe("@wanex/assistant-host", () => {
     const storeDir = await tempDir("wanex-assistant-host-browser-setup-failure-")
     const credential = "browser-provider-credential-that-must-not-be-reflected"
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore: {
@@ -1934,6 +2012,7 @@ describe("@wanex/assistant-host", () => {
   it("can isolate local state by profile", async () => {
     const rootDir = await tempDir("wanex-assistant-host-profile-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "profile",
         rootDir,
@@ -1959,6 +2038,7 @@ describe("@wanex/assistant-host", () => {
   it("persists app settings through the trusted host facade", async () => {
     const storeDir = await tempDir("wanex-assistant-host-settings-")
     const first = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2040,6 +2120,7 @@ describe("@wanex/assistant-host", () => {
     apps.pop()
 
     const second = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2071,6 +2152,7 @@ describe("@wanex/assistant-host", () => {
   it("reads a safe refreshed startup snapshot", async () => {
     const storeDir = await tempDir("wanex-assistant-host-snapshot-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2141,6 +2223,7 @@ describe("@wanex/assistant-host", () => {
   it("starts with a trusted full model endpoint and keeps secrets out of snapshots", async () => {
     const storeDir = await tempDir("wanex-assistant-host-full-provider-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2184,6 +2267,7 @@ describe("@wanex/assistant-host", () => {
   it("seeds multiple trusted model endpoints and selects the startup endpoint", async () => {
     const storeDir = await tempDir("wanex-assistant-host-provider-catalog-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2231,9 +2315,69 @@ describe("@wanex/assistant-host", () => {
     expect(JSON.stringify(snapshot)).not.toContain("CATALOG_PROVIDER_SECRET")
   })
 
+  it("installs trusted startup capability routes into the running Assistant", async () => {
+    const credentialStore = new TestSecretStore()
+    const secretRef = "test-secret://startup-capability-route"
+    await credentialStore.put({
+      ref: secretRef,
+      value: "startup-capability-route-secret"
+    })
+    const conversation = fakeEndpoint(
+      "local-capability-conversation",
+      "local-capability-conversation-model"
+    )
+    const image = openAIImageEndpoint({
+      id: "local-capability-image",
+      modelId: "local-capability-image-model",
+      baseUrl: "https://images.example.invalid/v1",
+      secretRef
+    })
+    const app = await startAssistantWebApp({
+      browserAssets,
+      storage: {
+        kind: "store-dir",
+        storeDir: await tempDir("wanex-assistant-host-capability-route-")
+      },
+      serviceBin,
+      credentialStore,
+      modelEndpoints: {
+        endpoints: [conversation, image],
+        activeEndpointId: conversation.id,
+        capabilityRoutes: {
+          "image.generate": image.id
+        }
+      },
+      web: {
+        hostname: "127.0.0.1"
+      }
+    })
+    apps.push(app)
+
+    await expect(app.shell.modelCapabilities.listModelCapabilityRoutes())
+      .resolves.toEqual({
+        routes: [{
+          operation: "image.generate",
+          modelEndpointId: image.id
+        }]
+      })
+    await expect(app.shell.modelCapabilities.readModelCapabilityReadiness({
+      requirement: {
+        operation: "image.generate",
+        inputModalities: ["text"],
+        outputModalities: ["image"],
+        features: []
+      }
+    })).resolves.toMatchObject({
+      status: "ready",
+      selectedEndpoint: { id: image.id },
+      selectedSource: "configured"
+    })
+  })
+
   it("rejects invalid trusted model endpoint catalogs", async () => {
     const storeDir = await tempDir("wanex-assistant-host-provider-invalid-")
     await expect(startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2251,6 +2395,7 @@ describe("@wanex/assistant-host", () => {
     })).rejects.toThrow("duplicate model endpoint id: duplicate")
 
     await expect(startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2271,6 +2416,7 @@ describe("@wanex/assistant-host", () => {
   it("submits a conversation through the local Web request envelope", async () => {
     const storeDir = await tempDir("wanex-assistant-host-workbench-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2353,6 +2499,7 @@ describe("@wanex/assistant-host", () => {
   it("formats CLI startup output from the safe host snapshot", async () => {
     const storeDir = await tempDir("wanex-assistant-host-cli-summary-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2531,6 +2678,7 @@ describe("@wanex/assistant-host", () => {
   it("formats CLI provider readiness when the active provider needs attention", async () => {
     const storeDir = await tempDir("wanex-assistant-host-cli-readiness-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2617,6 +2765,7 @@ describe("@wanex/assistant-host", () => {
   it("runs a bounded CLI smoke check through the local assistant path", async () => {
     const storeDir = await tempDir("wanex-assistant-host-cli-smoke-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2712,6 +2861,7 @@ describe("@wanex/assistant-host", () => {
   it("runs a bounded CLI provider setup through the trusted host facade", async () => {
     const storeDir = await tempDir("wanex-assistant-host-cli-setup-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2791,6 +2941,7 @@ describe("@wanex/assistant-host", () => {
   it("manages model endpoints through the trusted host facade", async () => {
     const storeDir = await tempDir("wanex-assistant-host-provider-")
     const first = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2865,6 +3016,7 @@ describe("@wanex/assistant-host", () => {
     apps.pop()
 
     const second = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -2893,6 +3045,7 @@ describe("@wanex/assistant-host", () => {
   it("configures model endpoints through the host-owned setup facade", async () => {
     const storeDir = await tempDir("wanex-assistant-host-provider-setup-")
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -3142,6 +3295,38 @@ function openAIEndpoint(request: {
       inputModalities: ["text"],
       outputModalities: ["text"],
       features: ["tool_calling"],
+      catalog: {
+        source: "custom",
+        catalogId: `assistant-host.test.${request.id}`,
+        revision: "1"
+      }
+    }
+  }
+}
+
+function openAIImageEndpoint(request: {
+  readonly id: string
+  readonly modelId: string
+  readonly baseUrl: string
+  readonly secretRef?: string
+}): LocalModelEndpointOptions {
+  return {
+    id: request.id,
+    connection: {
+      id: request.id,
+      providerId: "openai-compatible",
+      baseUrl: request.baseUrl,
+      ...(request.secretRef === undefined
+        ? {}
+        : { secretRef: request.secretRef })
+    },
+    protocol: { id: "openai-images" },
+    model: {
+      id: request.modelId,
+      operations: ["image.generate"],
+      inputModalities: ["text"],
+      outputModalities: ["image"],
+      features: [],
       catalog: {
         source: "custom",
         catalogId: `assistant-host.test.${request.id}`,

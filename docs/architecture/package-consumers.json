@@ -176,28 +176,6 @@
       ],
       "realConsumers": []
     },
-    "@wanex/coding": {
-      "consumers": [
-        {
-          "package": "@wanex/desktop",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/server",
-          "field": "dependencies"
-        }
-      ],
-      "realConsumers": [
-        {
-          "package": "@wanex/desktop",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/server",
-          "field": "dependencies"
-        }
-      ]
-    },
     "@wanex/connector": {
       "consumers": [],
       "realConsumers": []
@@ -345,10 +323,6 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/coding",
-          "field": "dependencies"
-        },
-        {
           "package": "@wanex/connector",
           "field": "dependencies"
         },
@@ -412,10 +386,6 @@
         },
         {
           "package": "@wanex/cli",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/coding",
           "field": "dependencies"
         },
         {
@@ -483,10 +453,6 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/coding",
-          "field": "dependencies"
-        },
-        {
           "package": "@wanex/connector",
           "field": "dependencies"
         },
@@ -546,10 +512,6 @@
         },
         {
           "package": "@wanex/cli",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/coding",
           "field": "dependencies"
         },
         {
@@ -617,10 +579,6 @@
           "field": "dependencies"
         },
         {
-          "package": "@wanex/coding",
-          "field": "dependencies"
-        },
-        {
           "package": "@wanex/connector",
           "field": "dependencies"
         },
@@ -680,10 +638,6 @@
         },
         {
           "package": "@wanex/cli",
-          "field": "dependencies"
-        },
-        {
-          "package": "@wanex/coding",
           "field": "dependencies"
         },
         {
@@ -763,7 +717,7 @@
     "@wanex/workspace": {
       "consumers": [
         {
-          "package": "@wanex/coding",
+          "package": "@wanex/assistant-host",
           "field": "dependencies"
         },
         {
@@ -781,7 +735,7 @@
       ],
       "realConsumers": [
         {
-          "package": "@wanex/coding",
+          "package": "@wanex/assistant-host",
           "field": "dependencies"
         },
         {

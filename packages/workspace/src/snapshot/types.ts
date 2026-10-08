@@ -1,6 +1,8 @@
-import type { ExecutionProcess } from "@wanex/runtime/execution"
+import type { ExecutionProcess, ExecutionFileMetadata } from "@wanex/runtime/execution"
 
 export interface WorkspaceSnapshotRequest {
+  readonly rootIdentity: Pick<ExecutionFileMetadata, "device" | "inode">
+  readonly expectedBaseRevision?: string
   readonly repositoryRoot: string
   readonly worktreeParent: string
   readonly isolationId: string

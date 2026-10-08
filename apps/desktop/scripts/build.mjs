@@ -358,7 +358,7 @@ async function bundleDesktopRenderer() {
 }
 
 async function bundleDesktopMain(rendererAssets) {
-  await build({
+  const result = await build({
     absWorkingDir: workspaceRoot,
     entryPoints: [join(packageRoot, "src/main.ts")],
     outfile: join(stagingDir, "main.cjs"),
@@ -376,8 +376,21 @@ async function bundleDesktopMain(rendererAssets) {
     minifyWhitespace: true,
     minifyIdentifiers: true,
     legalComments: "none",
+    metafile: true,
     logLevel: "silent"
   })
+  assertDesktopMainInputs(result.metafile)
+}
+
+export function assertDesktopMainInputs(metafile) {
+  const forbidden = Object.keys(metafile.inputs).filter((path) =>
+    /(?:^|\/)packages\/assistant-ui\/src\/generated\/(?:client-script|stylesheet)\.ts$/.test(
+      path.replaceAll("\\", "/")
+    )
+  )
+  if (forbidden.length > 0) {
+    throw new Error(`Desktop must not bundle generic browser assets: ${forbidden.join(", ")}`)
+  }
 }
 
 function createDesktopRendererAssetsResolver(rendererAssets) {
@@ -435,9 +448,8 @@ async function createWanexSourceResolver() {
     "apps/assistant",
     "apps/assistant-plugin-host",
     "packages/assistant-ui",
-    "apps/assistant-host"
-    ,"packages/workspace"
-    ,"apps/coding"
+    "apps/assistant-host",
+    "packages/workspace"
   ]
   const entries = new Map()
   for (const packageDir of packageDirs) {

@@ -1,9 +1,11 @@
 import {
   ArrowDown,
   ArrowUp,
+  ArrowUpRight,
   Bot,
   CircleAlert,
   Code2,
+  FileText,
   GitPullRequest,
   LoaderCircle,
   ListChecks,
@@ -12,11 +14,19 @@ import {
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type {
+  WorkspaceChangeReadModel,
+  WorkspaceChangeSummary,
+} from "@wanex/assistant";
+import type {
   ConversationHistoryRow,
+  Action,
   Snapshot,
 } from "../../application/model.js";
 import type { Client } from "../../client/contracts.js";
+import { WorkspaceChangeCard } from "./workspace-change.js";
 import { classes } from "../classes.js";
+import { emptyStateSuggestions, type EmptyStateSuggestion } from "./suggestions.js";
+import { requestKey } from "../shared/request-key.js";
 import { ResourceCard } from "../resources/card.js";
 import type { DispatchAction } from "../shared/action.js";
 import {
@@ -39,16 +49,12 @@ export function ConversationTimeline({
   client,
   onSnapshot,
   onError,
-  onOpenSettings,
-  onSelectPrompt,
 }: {
   readonly snapshot: Snapshot;
   readonly dispatch: DispatchAction;
   readonly client: Client;
   readonly onSnapshot: (snapshot: Snapshot) => void;
   readonly onError: (message: string) => void;
-  readonly onOpenSettings: () => void;
-  readonly onSelectPrompt: (prompt: string) => void;
 }): ReactNode {
   const conversation = snapshot.conversation;
   const canonicalRevision = [
@@ -164,26 +170,6 @@ export function ConversationTimeline({
               Some pending messages are not shown.
             </p>
           ) : null}
-          {conversation.historyRows.length === 0 && conversation.transientAssistantText === undefined ? (
-            <div className={classes("empty")}>
-              <div className={classes("empty-heading")}>
-                <div>
-                  <h2>What would you like to do?</h2>
-                  <p>Start with a question, a file, or one of these common tasks.</p>
-                </div>
-              </div>
-              <div className={classes("quick-starts")} data-ui-quick-starts aria-label="Quick starts">
-                <QuickStartButton label="Explain a codebase" detail="Map the important parts" onSelect={onSelectPrompt} />
-                <QuickStartButton label="Review a change" detail="Find risks before they ship" onSelect={onSelectPrompt} />
-                <QuickStartButton label="Draft a plan" detail="Turn an idea into next steps" onSelect={onSelectPrompt} />
-              </div>
-              {snapshot.view.providerRunGate.canRun ? null : (
-                <button type="button" className={classes("primary-action")} data-ui-action="open-settings" onClick={onOpenSettings}>
-                  <SlidersHorizontal size={15} /> Connect a model
-                </button>
-              )}
-            </div>
-          ) : null}
           {conversation.historyRows.map((row) => (
             <TimelineRow
               key={row.id}
@@ -245,35 +231,86 @@ export function ConversationTimeline({
   );
 }
 
-function QuickStartButton({
-  label,
-  detail,
-  onSelect,
-}: {
-  readonly label: string;
-  readonly detail: string;
-  readonly onSelect: (prompt: string) => void;
-}): ReactNode {
-  const prompts: Record<string, string> = {
-    "Explain a codebase": "Explain this codebase and point out the most important files to understand first.",
-    "Review a change": "Review my current changes. Find correctness risks, missing tests, and anything that may regress.",
-    "Draft a plan": "Help me turn this idea into a concrete implementation plan with scope, steps, and verification.",
-  };
+/** Greeting shown above the composer when a conversation has no messages yet. */
+export function EmptyGreeting({ now = new Date() }: { readonly now?: Date }): ReactNode {
+  const hour = now.getHours();
+  const greeting = hour < 5
+    ? "Working late?"
+    : hour < 12
+      ? "Good morning"
+      : hour < 18
+        ? "Good afternoon"
+        : "Good evening";
   return (
-    <button
-      type="button"
-      className={classes("quick-start")}
-      onClick={() => onSelect(prompts[label] ?? label)}
-    >
-      <span>
-        <span className={classes("quick-start-icon")} aria-hidden="true">
-          {label === "Explain a codebase" ? <Code2 size={15} /> : label === "Review a change" ? <GitPullRequest size={15} /> : <ListChecks size={15} />}
-        </span>
-        <strong>{label}</strong>
-        <small>{detail}</small>
-      </span>
-      <ArrowUp size={15} aria-hidden="true" />
-    </button>
+    <div className={classes("empty-heading")}>
+      <h2>{greeting}</h2>
+      <p>Ask anything. Grant a folder when you want me to read or change files.</p>
+    </div>
+  );
+}
+
+/**
+ * Suggestions below the composer. They follow what is true right now: a missing
+ * model comes first, then a folder the user already trusts, then generic starters.
+ */
+export function QuickStarts({
+  snapshot,
+  dispatch,
+  onSelectPrompt,
+  onOpenSettings,
+}: {
+  readonly snapshot: Snapshot;
+  readonly dispatch: DispatchAction;
+  readonly onSelectPrompt: (prompt: string) => void;
+  readonly onOpenSettings: () => void;
+}): ReactNode {
+  const canRun = snapshot.view.providerRunGate.canRun;
+  const suggestions = emptyStateSuggestions(snapshot);
+  const sessionId = snapshot.conversation.sessionId;
+  const session = sessionId === undefined ? {} : { sessionId };
+  function choose(suggestion: EmptyStateSuggestion): void {
+    if (suggestion.kind === "prompt") {
+      onSelectPrompt(suggestion.prompt);
+    } else if (suggestion.kind === "regrant") {
+      void dispatch({
+        type: "regrant-workspace-folder",
+        input: { ...session, recentRef: suggestion.recentRef, idempotencyKey: requestKey("folder-reuse") },
+      });
+    } else {
+      void dispatch({
+        type: "grant-workspace-folder",
+        input: { ...session, access: "read_write", idempotencyKey: requestKey("folder-add") },
+      });
+    }
+  }
+  return (
+    <div className={classes("empty")}>
+      {canRun ? null : (
+        <button type="button" className={classes("setup-callout")} data-ui-action="open-settings" onClick={onOpenSettings}>
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          <span>
+            <strong>Connect a model</strong>
+            <small>Add a provider key to start chatting.</small>
+          </span>
+          <ArrowUpRight size={16} aria-hidden="true" />
+        </button>
+      )}
+      {canRun ? (
+        <div className={classes("quick-starts")} data-ui-quick-starts aria-label="Suggestions">
+          {suggestions.map((suggestion) => (
+            <button
+              key={suggestion.key}
+              type="button"
+              className={classes("quick-start")}
+              onClick={() => choose(suggestion)}
+            >
+              <suggestion.icon size={16} aria-hidden="true" />
+              <span>{suggestion.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -361,6 +398,16 @@ function TimelineRow({
       {clipboardText === undefined
         ? null
         : <MessageCopyAction rowId={row.id} text={clipboardText} />}
+      {row.workspaceChanges?.map((change) => (
+        <WorkspaceChangeCard
+          key={change.changeRef}
+          change={change}
+          {...(sessionId === undefined ? {} : { sessionId })}
+          client={client}
+          onSnapshot={onSnapshot}
+          onError={onError}
+        />
+      ))}
     </article>
   );
 }

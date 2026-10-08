@@ -1616,6 +1616,15 @@ interface SessionMessageRecord {
 }
 
 // @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
+// @public (undocumented)
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
@@ -1643,6 +1652,8 @@ interface SessionTurnContextSourceEvidence {
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)

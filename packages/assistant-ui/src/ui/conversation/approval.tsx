@@ -1,4 +1,4 @@
-import { Check, ShieldAlert, X } from "lucide-react";
+import { Check, ShieldCheck, X } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import type { ConversationApprovalDecision, ConversationApprovalItem } from "@wanex/assistant";
 import type { Snapshot } from "../../application/model.js";
@@ -16,8 +16,8 @@ export function ApprovalPanel({
   return (
     <section className={classes("context-card approval-card")} data-ui-approval>
       <div className={classes("card-heading")}>
-        <div><span className={classes("eyebrow")}>Approval</span><h2>Review tool access</h2></div>
-        <ShieldAlert size={17} aria-hidden="true" />
+        <span className={classes("card-icon")} aria-hidden="true"><ShieldCheck size={17} /></span>
+        <div><span className={classes("eyebrow")}>Needs your approval</span><h2>{items.length > 1 ? "Allow these actions?" : "Allow this action?"}</h2></div>
       </div>
       {items.map((item) => (
         <ApprovalItemView

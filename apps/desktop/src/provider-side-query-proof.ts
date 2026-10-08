@@ -79,7 +79,7 @@ export async function runWanexDesktopProviderSideQueryAdmissionProof(
       "[data-ui-transient-assistant]"
     )
     const workflows = document.querySelector(
-      "[data-ui-open-workflows]"
+      '[data-ui-action="open-add-menu"]'
     )
     const addedUsers = addedRows(initialUserRowIds, "user")
     const addedAssistants = addedRows(initialAssistantRowIds, "assistant")
@@ -96,7 +96,8 @@ export async function runWanexDesktopProviderSideQueryAdmissionProof(
       : undefined
   }, "side_query_parent_running")
 
-  running.workflows.click()
+  const workflowsItem = await openAddMenuItem(running.workflows, "open-workflows")
+  workflowsItem.click()
   const asideTab = await waitFor(() => {
     const candidate = document.querySelector(
       '[data-ui-workflow-tab="aside"]'
@@ -280,6 +281,27 @@ export async function runWanexDesktopProviderSideQueryAdmissionProof(
       throw new Error(`${label} is required`)
     }
     return value
+  }
+
+  async function openAddMenuItem(
+    trigger: Element | null,
+    action: string
+  ): Promise<HTMLElement> {
+    // Attachments, folders, commands and workflows share one Add menu.
+    if (!(trigger instanceof HTMLElement)) throw new Error("composer Add menu is unavailable")
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse"
+    }))
+    const deadline = performance.now() + 5_000
+    while (performance.now() < deadline) {
+      const item = document.querySelector(`[data-ui-add-menu] [data-ui-action="${action}"]`)
+      if (item instanceof HTMLElement) return item
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    throw new Error(`composer Add menu item unavailable: ${action}`)
   }
 
   async function waitFor<T>(

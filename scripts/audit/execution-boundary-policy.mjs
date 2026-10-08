@@ -25,7 +25,7 @@ const childProcessOwners = new Set([
 const nativeEnvironmentCompositionOwners = new Set([
   "apps/assistant-host/src/application/assistant.ts",
   "apps/assistant-host/src/mcp/composition.ts",
-  "apps/coding/src/host/start.ts",
+  "apps/assistant-host/src/workspace/controller.ts",
   "apps/desktop/src/execution.ts",
   "packages/eval-harness/src/assistant/declarative-input-scenario.ts",
   "packages/eval-harness/src/assistant/plugin-action-scenario.ts",
@@ -206,6 +206,7 @@ function importsProcessEnv(node) {
 function destructuresProcessEnv(node) {
   return ts.isVariableDeclaration(node) &&
     ts.isObjectBindingPattern(node.name) &&
+    node.initializer !== undefined &&
     ts.isIdentifier(node.initializer) &&
     node.initializer.text === "process" &&
     node.name.elements.some(
@@ -214,7 +215,7 @@ function destructuresProcessEnv(node) {
 }
 
 function isTaskExecutionSource(path) {
-  return /^(?:packages\/workspace\/src\/(?:tasks|tools|transaction)\/|packages\/plugin\/src\/(?:action-|subprocess)|apps\/coding\/src\/host\/execution\/|apps\/assistant-plugin-host\/src\/)/u.test(path)
+  return /^(?:packages\/workspace\/src\/(?:tasks|tools|transaction)\/|packages\/plugin\/src\/(?:action-|subprocess)|apps\/assistant-host\/src\/workspace\/(?:tools|context)\.ts$|apps\/assistant-plugin-host\/src\/)/u.test(path)
 }
 
 function scriptKind(path) {

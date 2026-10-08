@@ -707,6 +707,14 @@ fn workspace_snapshot_captures_dirty_checkout_and_releases_exact_runtime_resourc
             worktree_parent.to_str().unwrap(),
             "--isolation",
             "wiso_cli_dirty",
+            "--root-device",
+            &wanex_system_service::WorkspaceSnapshotRootIdentity::read(&repository)
+                .unwrap()
+                .device,
+            "--root-inode",
+            &wanex_system_service::WorkspaceSnapshotRootIdentity::read(&repository)
+                .unwrap()
+                .inode,
         ])
         .output()
         .unwrap();
@@ -739,6 +747,37 @@ fn workspace_snapshot_captures_dirty_checkout_and_releases_exact_runtime_resourc
     assert_eq!(git(&repository, &["rev-parse", "HEAD"]), head);
     assert_eq!(git(&repository, &["rev-parse", ":README.md"]), index_before);
 
+    let root_identity =
+        wanex_system_service::WorkspaceSnapshotRootIdentity::read(&repository).unwrap();
+    let unfenced_release = Command::new(bin)
+        .args([
+            "--workspace-snapshot",
+            "--root",
+            repository.to_str().unwrap(),
+            "--worktree-parent",
+            worktree_parent.to_str().unwrap(),
+            "--isolation",
+            "wiso_cli_dirty",
+            "--release",
+            "--root-device",
+            &root_identity.device,
+            "--root-inode",
+            &root_identity.inode,
+        ])
+        .output()
+        .unwrap();
+    assert!(!unfenced_release.status.success());
+    assert!(String::from_utf8_lossy(&unfenced_release.stderr)
+        .contains("release requires its base revision"));
+    assert!(snapshot_root.exists());
+    assert_eq!(
+        git(
+            &repository,
+            &["rev-parse", frame["runtime_ref"].as_str().unwrap()]
+        ),
+        frame["base_revision"].as_str().unwrap()
+    );
+
     let released = Command::new(bin)
         .args([
             "--workspace-snapshot",
@@ -749,6 +788,14 @@ fn workspace_snapshot_captures_dirty_checkout_and_releases_exact_runtime_resourc
             "--isolation",
             "wiso_cli_dirty",
             "--release",
+            "--root-device",
+            &wanex_system_service::WorkspaceSnapshotRootIdentity::read(&repository)
+                .unwrap()
+                .device,
+            "--root-inode",
+            &wanex_system_service::WorkspaceSnapshotRootIdentity::read(&repository)
+                .unwrap()
+                .inode,
             "--base-revision",
             frame["base_revision"].as_str().unwrap(),
         ])

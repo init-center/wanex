@@ -1,15 +1,15 @@
 import type { Shell } from "@wanex/assistant"
 import type {
-  LocalResourceDeliveryAuthorizationRequest,
-  LocalResourceDeliveryAuthorizer
+  ResourceDeliveryAuthorizationRequest,
+  ResourceDeliveryAuthorizer
 } from "./model.js"
 
-export function createLocalResourceDeliveryAuthorizer(
+export function createResourceDeliveryAuthorizer(
   shell: Pick<
     Shell,
     "readSessionTranscript" | "readConversationAttachments"
   >
-): LocalResourceDeliveryAuthorizer {
+): ResourceDeliveryAuthorizer {
   return {
     async authorize(request) {
       if (hasMatchingDraftAttachment(shell, request)) return true
@@ -31,7 +31,7 @@ export function createLocalResourceDeliveryAuthorizer(
 
 function hasMatchingDraftAttachment(
   shell: Pick<Shell, "readConversationAttachments">,
-  request: LocalResourceDeliveryAuthorizationRequest
+  request: ResourceDeliveryAuthorizationRequest
 ): boolean {
   const attachments = shell.readConversationAttachments(
     request.sessionId === undefined ? {} : { sessionId: request.sessionId }

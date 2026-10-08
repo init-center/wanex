@@ -24,7 +24,13 @@ import {
   WANEX_DESKTOP_PROOF_PLAN_STEP_TITLE,
   WANEX_DESKTOP_PROOF_PLAN_SUMMARY,
   WANEX_DESKTOP_PROOF_PLAN_TITLE,
+  WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
   WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_FINAL_DELTA,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MESSAGE,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_PARTIAL_RESPONSE,
+  WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE,
   WANEX_DESKTOP_PROOF_SELECTED_MODEL_ID,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_ANSWER,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_FINAL_DELTA,
@@ -36,15 +42,6 @@ import {
   WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT,
   WANEX_DESKTOP_PROOF_SCHEDULE_RESTORED_RESPONSE,
   WANEX_DESKTOP_PROOF_TEAM_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_FILE,
-  WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT,
-  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE,
-  WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
-  WANEX_DESKTOP_PROOF_CODING_RESPONSE,
-  WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
-  WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
 } from "../src/proof-contract.ts"
 
 const MAX_REQUEST_BYTES = 1024 * 1024
@@ -67,8 +64,8 @@ export async function listenDesktopProofProvider(options) {
   let sideQueryParent
   let scheduleRequestCount = 0
   let scheduleParent
-  let codingRequestCount = 0
-  let codingRecoveryRequestCount = 0
+  let remoteAssistantObserved = false
+  let remoteAssistantParent
   const server = createServer(async (request, response) => {
     try {
       const body = await readJsonBody(request)
@@ -112,14 +109,12 @@ export async function listenDesktopProofProvider(options) {
       const sideQueryPhase = readSideQueryProofPhase(body)
       const teamPhase = readTeamProofPhase(body)
       const scheduleProof = readScheduleProof(body)
-      const codingProof = readCodingProof(body)
+      const remoteAssistantProof = readRemoteAssistantProof(body)
       const teamInputImages = teamPhase === undefined
         ? []
         : inspectLatestUserImageInputs(body)
       if (cancelRegenerate) cancelRegenerateRequestCount += 1
       if (scheduleProof) scheduleRequestCount += 1
-      if (codingProof !== undefined) codingRequestCount += 1
-      if (codingProof === "recovery_tool_call") codingRecoveryRequestCount += 1
       const requestEvidence = {
         path,
         model,
@@ -203,22 +198,14 @@ export async function listenDesktopProofProvider(options) {
                 scheduleAttempt: scheduleRequestCount
               }
             : {}),
-        ...(codingProof === undefined
-          ? {}
-          : {
-              codingPhase: codingProof,
-              ...(codingProof === "tool_call"
-                ? {
-                    codingToolName: readCodingToolName(body),
-                    codingToolCallId: readCodingToolCallId(body)
-                  }
-                : codingProof === "recovery_tool_call"
-                  ? {
-                      codingToolName: readCodingRecoveryToolName(body),
-                      codingToolCallId: "call_desktop_proof_coding_recovery"
-                    }
-                  : { codingToolResultPresent: true })
-            })
+        ...(remoteAssistantProof
+          ? {
+              remoteAssistantPhase: "held",
+              remoteAssistantReleaseReceived: false,
+              remoteAssistantSettled: false,
+              remoteAssistantClientClosed: false
+            }
+          : {}),
       }
       requests.push(requestEvidence)
       observeProviderResponse(responses, response, { path, model })
@@ -250,65 +237,23 @@ export async function listenDesktopProofProvider(options) {
         }
         throw new Error("Desktop proof Schedule dispatched more than twice")
       }
-      if (codingProof !== undefined) {
-        if (codingRequestCount === 1 && codingProof === "tool_call") {
-          writeEventStream(response, {
-            choices: [{
-              delta: {
-                tool_calls: [{
-                  index: 0,
-                  id: WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
-                  function: {
-                    name: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
-                    arguments: JSON.stringify({
-                      title: "Create coding proof file",
-                      changes: [{
-                        path: WANEX_DESKTOP_PROOF_CODING_FILE,
-                        kind: "create",
-                        targetText: WANEX_DESKTOP_PROOF_CODING_FILE_CONTENT
-                      }]
-                    })
-                  }
-                }]
-              },
-              finish_reason: "tool_calls"
-            }]
-          })
-          return
+      if (remoteAssistantProof) {
+        if (remoteAssistantObserved) {
+          throw new Error("Desktop proof Remote Assistant was dispatched twice")
         }
-        if (codingRequestCount === 2 && codingProof === "final") {
-          writeTextEventStream(
-            response,
-            WANEX_DESKTOP_PROOF_CODING_RESPONSE
-          )
-          return
-        }
-        if (
-          codingProof === "recovery_tool_call" &&
-          codingRecoveryRequestCount <= 2
-        ) {
-          writeEventStream(response, {
-            choices: [{
-              delta: {
-                tool_calls: [{
-                  index: 0,
-                  id: "call_desktop_proof_coding_recovery",
-                  function: {
-                    name: WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME,
-                    arguments: JSON.stringify({ operation: "coding recovery" })
-                  }
-                }]
-              },
-              finish_reason: "tool_calls"
-            }]
-          })
-          return
-        }
-        if (codingProof === "recovery_final" && codingRecoveryRequestCount === 1) {
-          writeTextEventStream(response, WANEX_DESKTOP_PROOF_CODING_RECOVERY_RESPONSE)
-          return
-        }
-        throw new Error("Desktop proof Coding did not follow the two-step Tool protocol")
+        remoteAssistantObserved = true
+        remoteAssistantParent = writeControlledTextEventStream(
+          response,
+          WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_PARTIAL_RESPONSE,
+          requestEvidence,
+          () => {
+            requestEvidence.remoteAssistantClientClosed = true
+          },
+          () => {
+            remoteAssistantParent = undefined
+          }
+        )
+        return
       }
       if (guidedFollowUpPhase === "parent") {
         if (guidedParentObserved) {
@@ -457,6 +402,9 @@ export async function listenDesktopProofProvider(options) {
         response,
         imageGenerationPhase === "final"
           ? WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE
+          : model === WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID &&
+              messageText(body.messages?.at(-1)) === WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT
+            ? WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE
           : desktopProofProviderResponse(model)
       )
     } catch (error) {
@@ -518,6 +466,20 @@ export async function listenDesktopProofProvider(options) {
         `${textEvent(WANEX_DESKTOP_PROOF_SCHEDULE_FINAL_DELTA, "stop")}data: [DONE]\n\n`
       )
       parent.evidence.scheduleSettled = true
+      return true
+    },
+    releaseRemoteAssistant() {
+      if (
+        remoteAssistantParent === undefined ||
+        remoteAssistantParent.released
+      ) return false
+      const parent = remoteAssistantParent
+      parent.released = true
+      parent.evidence.remoteAssistantReleaseReceived = true
+      parent.response.end(
+        `${textEvent(WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_FINAL_DELTA, "stop")}data: [DONE]\n\n`
+      )
+      parent.evidence.remoteAssistantSettled = true
       return true
     },
     async close() {
@@ -672,68 +634,12 @@ function readScheduleProof(body) {
   return messageText(latestUser) === WANEX_DESKTOP_PROOF_SCHEDULE_PROMPT
 }
 
-function readCodingProof(body) {
-  if (!Array.isArray(body?.messages)) return undefined
+function readRemoteAssistantProof(body) {
+  if (!Array.isArray(body?.messages)) return false
   const latestUser = [...body.messages]
     .reverse()
     .find((message) => message?.role === "user")
-  const text = messageText(latestUser)
-  if (text === WANEX_DESKTOP_PROOF_CODING_RECOVERY_MESSAGE) {
-    const hasRecoveryTool = Array.isArray(body.tools) && body.tools.some((tool) =>
-      tool?.type === "function" &&
-      tool.function?.name === WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME
-    )
-    const hasRecoveryResult = body.messages.some((message) =>
-      message?.role === "tool" &&
-      message.tool_call_id === "call_desktop_proof_coding_recovery"
-    )
-    if (hasRecoveryResult) return "recovery_final"
-    return hasRecoveryTool ? "recovery_tool_call" : undefined
-  }
-  if (!text.includes(WANEX_DESKTOP_PROOF_CODING_MESSAGE)) return undefined
-  const hasTool = Array.isArray(body.tools) && body.tools.some((tool) =>
-    tool?.type === "function" &&
-    tool.function?.name === WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
-  )
-  const hasResult = body.messages.some((message) =>
-    message?.role === "tool" &&
-    message.tool_call_id === WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID
-  )
-  if (hasResult) return "final"
-  return hasTool ? "tool_call" : undefined
-}
-
-function readCodingToolName(body) {
-  const tool = Array.isArray(body?.tools)
-    ? body.tools.find((candidate) =>
-      candidate?.type === "function" &&
-      candidate.function?.name === WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
-    )
-    : undefined
-  return typeof tool?.function?.name === "string"
-    ? tool.function.name
-    : undefined
-}
-
-function readCodingToolCallId(body) {
-  for (const message of body?.messages ?? []) {
-    for (const call of message?.tool_calls ?? []) {
-      if (typeof call?.id === "string") return call.id
-    }
-  }
-  return WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID
-}
-
-function readCodingRecoveryToolName(body) {
-  const tool = Array.isArray(body?.tools)
-    ? body.tools.find((candidate) =>
-      candidate?.type === "function" &&
-      candidate.function?.name === WANEX_DESKTOP_PROOF_CODING_RECOVERY_TOOL_NAME
-    )
-    : undefined
-  return typeof tool?.function?.name === "string"
-    ? tool.function.name
-    : undefined
+  return messageText(latestUser) === WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MESSAGE
 }
 
 function messageText(message) {

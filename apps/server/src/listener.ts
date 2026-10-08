@@ -7,13 +7,30 @@ import {
 import type { WanexServerListenerConfig } from "./config.js"
 import type {
   WanexServerEndpoint,
+  WanexServerAuthentication,
   WanexServerTlsCredentials
 } from "./model.js"
+import type {
+  LocalAttachmentUploadPort,
+  ResourceDeliveryPort
+} from "@wanex/assistant-host"
+import {
+  REMOTE_ASSISTANT_ATTACHMENT_UPLOAD_PATH,
+  REMOTE_ASSISTANT_RESOURCE_DELIVERY_PATH
+} from "@wanex/assistant-host"
+import {
+  createWanexServerResourceDeliveryHandler
+} from "./resource-delivery.js"
+import { createWanexServerAttachmentUploadHandler } from "./attachment-upload.js"
 
 export interface ListenWanexServerOptions {
   readonly config: WanexServerListenerConfig
   readonly tls: WanexServerTlsCredentials
   readonly handler: RemoteAgentHostHttpHandler
+  readonly authentication: WanexServerAuthentication
+  readonly attachments: LocalAttachmentUploadPort
+  readonly resourceDeliveries: ResourceDeliveryPort
+  readonly maxAttachmentBytes?: number
   readonly requestTimeoutMs?: number
 }
 
@@ -30,10 +47,28 @@ export async function listenWanexServer(
   const adapter = createRemoteAgentHostNodeHttpAdapter({
     handler: options.handler
   })
+  const resourceDelivery = createWanexServerResourceDeliveryHandler({
+    authentication: options.authentication,
+    deliveries: options.resourceDeliveries
+  })
+  const attachmentUpload = createWanexServerAttachmentUploadHandler({
+    authentication: options.authentication,
+    attachments: options.attachments,
+    ...(options.maxAttachmentBytes === undefined
+      ? {}
+      : { maxAttachmentBytes: options.maxAttachmentBytes })
+  })
   const server = createServer(
     { key: options.tls.key, cert: options.tls.cert },
     (request, response) => {
-      void adapter.handle(request, response).catch(() => destroyResponse(response))
+      void attachmentUpload.handle(request, response).then(
+        async (handled) => {
+          if (handled) return
+          if (!await resourceDelivery.handle(request, response)) {
+            await adapter.handle(request, response)
+          }
+        }
+      ).catch(() => destroyResponse(response))
     }
   )
   if (options.requestTimeoutMs !== undefined) {
@@ -63,12 +98,15 @@ export async function listenWanexServer(
     await closeHttpsServer(server).catch(() => {})
     throw new Error("Wanex Server listener did not bind to a TCP address")
   }
+  const origin = `https://${urlHostname(options.config.hostname)}:${address.port}`
   const endpoint = Object.freeze({
     kind: "wanex.server.endpoint" as const,
     transport: "https" as const,
     hostname: options.config.hostname,
     port: address.port,
-    messageUrl: `https://${urlHostname(options.config.hostname)}:${address.port}/v1/agent-host/message`
+    messageUrl: `${origin}/v1/agent-host/message`,
+    attachmentUploadUrl: `${origin}${REMOTE_ASSISTANT_ATTACHMENT_UPLOAD_PATH}`,
+    resourceDeliveryUrl: `${origin}${REMOTE_ASSISTANT_RESOURCE_DELIVERY_PATH}`
   })
   let closePromise: Promise<void> | undefined
   return Object.freeze({

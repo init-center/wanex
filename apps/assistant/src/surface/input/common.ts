@@ -15,6 +15,21 @@ export function expectSurfaceNoInput(
   }
 }
 
+export function record(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new SurfaceValidationError(`${label} must be an object`)
+  }
+  return value as Record<string, unknown>
+}
+
+export function requiredString(value: Record<string, unknown>, key: string): string {
+  const item = value[key]
+  if (typeof item !== "string" || item.trim().length === 0) {
+    throw new SurfaceValidationError(`${key} must be a non-empty string`)
+  }
+  return item
+}
+
 export class SurfaceValidationError extends Error {
   constructor(message: string) {
     super(message);

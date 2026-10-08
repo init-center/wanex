@@ -405,6 +405,35 @@ describe("remote Agent Host HTTP client transport", () => {
     await transport.close()
   })
 
+  it("does not redeliver an event repeated by the server after reconnect", async () => {
+    const received: AgentHostEvent[] = []
+    let fetchCalls = 0
+    const transport = createTransport(async (_input, init) => {
+      fetchCalls += 1
+      if (fetchCalls === 1) return jsonResponse(handshakeResponse(), 200, {
+        "x-wanex-host-session": "session_1"
+      })
+      if (fetchCalls === 2) return sseResponse([sseEvent(event(1))])
+      expect(init?.headers).toMatchObject({
+        "last-event-id": "remote_stream:1"
+      })
+      return sseResponse([sseEvent(event(1)), sseEvent(event(2))])
+    })
+    const client = createAgentHostClient(transport, requestIds())
+    await client.handshake(handshakeInput())
+    const stream = transport.connectEvents({
+      reconnectInitialDelayMs: 1,
+      reconnectMaxDelayMs: 2
+    })
+    client.subscribe((value) => received.push(value))
+    await stream.ready
+    await waitFor(() => received.length === 2)
+    expect(received.map((value) => value.sequence)).toEqual([1, 2])
+    stream.close()
+    await stream.closed
+    await transport.close()
+  })
+
   it("stops reconnecting after an explicit server reset", async () => {
     const resets: unknown[] = []
     let fetchCalls = 0

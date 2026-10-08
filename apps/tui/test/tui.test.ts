@@ -350,6 +350,61 @@ describe("@wanex/tui", () => {
     })
   })
 
+  it("projects Workspace access approval through the generic safe card", () => {
+    const hostPath = "/Users/server-only/private-project"
+    const rendered = renderTuiConversationOperation({
+      kind: "assistant.conversation-operation.found",
+      operation: {
+        kind: "assistant.conversation-operation",
+        operationId: "operation_tui_workspace_access",
+        sessionId: "session_tui_workspace_access",
+        state: "waiting",
+        createdAt: 10,
+        updatedAt: 11,
+        transcript: { rows: [], totalRows: 0, truncated: false },
+        approvals: {
+          items: [{
+            approvalId: "approval_workspace_access",
+            approvalRevision: 0,
+            tool: {
+              name: "workspace_request_access",
+              title: "workspace_request_access",
+              risk: "mutating",
+              idempotent: true
+            },
+            presentation: {
+              summary: "Allow access to a workspace directory (session)?",
+              summaryTruncated: false,
+              details: [
+                { label: "Directory", labelTruncated: false, value: "access_workspace_root", valueTruncated: false },
+                { label: "Effects", labelTruncated: false, value: "read", valueTruncated: false },
+                { label: "Reason", labelTruncated: false, value: "inspect the requested workspace", valueTruncated: false }
+              ],
+              detailsTruncated: false
+            },
+            attemptCount: 0,
+            createdAt: 10,
+            updatedAt: 11,
+            availableDecisions: ["approve_once", "deny"]
+          }],
+          truncated: false
+        },
+        capabilities: {
+          steerable: true,
+          cancellable: true,
+          regeneratable: false,
+          terminal: false
+        }
+      }
+    })
+
+    expect(rendered.text).toContain("approval:approval_workspace_access")
+    expect(rendered.text).toContain("approval-detail:Directory=access_workspace_root")
+    expect(rendered.text).toContain("approval-detail:Effects=read")
+    expect(rendered.text).not.toContain(hostPath)
+    expect(rendered.text).not.toContain("authorizationRef")
+  })
+
   it("renders bounded capacity evidence and validates explicit model selection", () => {
     const rendered = renderTuiConversationOperation({
       kind: "assistant.conversation-operation.found",
@@ -651,7 +706,7 @@ describe("@wanex/tui", () => {
           ok: true,
           value: {
             kind: "assistant.surface-descriptor",
-            commandCount: 73
+            commandCount: 82
           }
         },
         status: {
@@ -703,7 +758,7 @@ describe("@wanex/tui", () => {
         ready: true,
         mode: "chat",
         layout: "single",
-        commandCount: 73,
+        commandCount: 82,
         assistantCommandCount: 14,
         statusCount: 8
       })
@@ -918,7 +973,7 @@ describe("@wanex/tui", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 73
+          commandCount: 82
         }
       })
       expect(status).toMatchObject({

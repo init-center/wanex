@@ -19,7 +19,7 @@ export async function runWanexDesktopProviderPlanProof(
 ): Promise<WanexDesktopProviderRelaunchProofResult> {
   const ready = await context.waitFor(() => {
     const sessionId = selectedSessionId()
-    const workflows = document.querySelector("[data-ui-open-workflows]")
+    const workflows = document.querySelector('[data-ui-action="open-add-menu"]')
     if (
       context.configuredProviderCount() !== 1 ||
       !context.providerReady() ||
@@ -32,7 +32,8 @@ export async function runWanexDesktopProviderPlanProof(
     return { sessionId, workflows }
   }, 10_000, "plan_ready")
 
-  ready.workflows.click()
+  const workflowsItem = await context.openAddMenuItem(ready.workflows, "open-workflows")
+  workflowsItem.click()
   const planTab = await context.waitFor(() => {
     const candidate = document.querySelector('[data-ui-workflow-tab="plan"]')
     return candidate instanceof HTMLButtonElement ? candidate : undefined

@@ -28,6 +28,7 @@ export async function runWanexDesktopPluginInstallProof(
     extensionRows(settings).length === 0;
 
   const cancelledReview = await requestReview(
+    ready.surface,
     settings,
     expected,
     expected.v1Version,
@@ -46,7 +47,7 @@ export async function runWanexDesktopPluginInstallProof(
   }
   cancel.click();
   await waitForDom(
-    () => settings.querySelector("[data-ui-extension-review]") === null
+    () => ready.surface.querySelector("[data-ui-extension-review]") === null
       ? true
       : undefined,
     10_000,
@@ -57,6 +58,7 @@ export async function runWanexDesktopPluginInstallProof(
   const cancelledReviewNotInstalled = extensionRows(settings).length === 0;
 
   const v1Review = await requestReview(
+    ready.surface,
     settings,
     expected,
     expected.v1Version,
@@ -142,6 +144,7 @@ export async function runWanexDesktopPluginInstallProof(
 
   const replaceSettings = await openSettings(ready.surface, ready.settings);
   const v2Review = await requestReview(
+    ready.surface,
     replaceSettings,
     expected,
     expected.v2Version,
@@ -310,6 +313,7 @@ export async function runWanexDesktopPluginInstallProof(
   }
 
   async function requestReview(
+    surface: HTMLElement,
     settings: HTMLElement,
     proof: WanexDesktopPluginProofExpected,
     version: string,
@@ -321,12 +325,12 @@ export async function runWanexDesktopPluginInstallProof(
     }
     add.click();
     const review = await waitForDom(() => {
-      const error = settings.querySelector("[data-ui-extension-error]")
+      const error = surface.querySelector("[data-ui-extension-error]")
         ?.textContent?.trim();
       if (error !== undefined && error.length > 0) {
         throw new Error(`Plugin proof ${stage} rejected: ${error}`);
       }
-      const candidate = settings.querySelector("[data-ui-extension-review]");
+      const candidate = surface.querySelector("[data-ui-extension-review]");
       return candidate instanceof HTMLElement &&
           candidate.textContent?.includes(proof.pluginId) === true &&
           candidate.textContent?.includes(version) === true
@@ -407,13 +411,34 @@ export async function runWanexDesktopPluginInstallProof(
     return toggle;
   }
 
+  async function openAddMenuItem(trigger: Element | null, action: string): Promise<HTMLElement> {
+    // Attachments, folders, commands and workflows share one Add menu.
+    if (!(trigger instanceof HTMLElement)) throw new Error("composer Add menu is unavailable");
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse",
+    }));
+    const deadline = performance.now() + 5_000;
+    while (performance.now() < deadline) {
+      const item = document.querySelector(`[data-ui-add-menu] [data-ui-action="${action}"]`);
+      if (item instanceof HTMLElement) return item;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`composer Add menu item unavailable: ${action}`);
+  }
+
   async function executeCommand(
     surface: HTMLElement,
     commandId: string,
     stage: string,
   ): Promise<boolean> {
-    const opener = surface.querySelector('[data-ui-action="open-commands"]');
-    if (!(opener instanceof HTMLButtonElement) || opener.disabled) {
+    const opener = await openAddMenuItem(
+      surface.querySelector('[data-ui-action="open-add-menu"]'),
+      "open-commands",
+    );
+    if (opener.hasAttribute("data-disabled")) {
       throw new Error(`Plugin proof command opener is unavailable during ${stage}`);
     }
     opener.click();
@@ -468,8 +493,11 @@ export async function runWanexDesktopPluginInstallProof(
     commandId: string,
     stage: string,
   ): Promise<boolean> {
-    const opener = surface.querySelector('[data-ui-action="open-commands"]');
-    if (!(opener instanceof HTMLButtonElement) || opener.disabled) {
+    const opener = await openAddMenuItem(
+      surface.querySelector('[data-ui-action="open-add-menu"]'),
+      "open-commands",
+    );
+    if (opener.hasAttribute("data-disabled")) {
       throw new Error("Plugin proof command opener is unavailable");
     }
     opener.click();
@@ -566,7 +594,7 @@ export async function runWanexDesktopPluginRestoreProof(
       : undefined;
   }, 10_000, "restore_settings_open");
   const reviewTransientAbsent =
-    settings.querySelector("[data-ui-extension-review]") === null;
+    surface.candidate.querySelector("[data-ui-extension-review]") === null;
   const add = settings.querySelector("[data-ui-extension-add]");
   const busyTransientAbsent = add instanceof HTMLButtonElement && !add.disabled &&
     settings.querySelector("[data-ui-extension-error]") === null;
@@ -694,7 +722,7 @@ export async function runWanexDesktopPluginRestoreProof(
     }
     remove.click();
     const confirm = await waitForDom(() => {
-      const button = settings.querySelector("[data-ui-extension-remove-confirm]");
+      const button = surface.candidate.querySelector("[data-ui-extension-remove-confirm]");
       return button instanceof HTMLButtonElement && !button.disabled
         ? button
         : undefined;
@@ -702,7 +730,7 @@ export async function runWanexDesktopPluginRestoreProof(
     confirm.click();
     const removed = await waitForState(version, "removed", stage);
     await waitForDom(
-      () => settings.querySelector("[data-ui-extension-remove-dialog]") === null
+      () => surface.candidate.querySelector("[data-ui-extension-remove-dialog]") === null
         ? true
         : undefined,
       5_000,
@@ -712,11 +740,30 @@ export async function runWanexDesktopPluginRestoreProof(
       removed.querySelector("[data-ui-extension-remove]") === null;
   }
 
+  async function openAddMenuItem(trigger: Element | null, action: string): Promise<HTMLElement> {
+    // Attachments, folders, commands and workflows share one Add menu.
+    if (!(trigger instanceof HTMLElement)) throw new Error("composer Add menu is unavailable");
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse",
+    }));
+    const deadline = performance.now() + 5_000;
+    while (performance.now() < deadline) {
+      const item = document.querySelector(`[data-ui-add-menu] [data-ui-action="${action}"]`);
+      if (item instanceof HTMLElement) return item;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error(`composer Add menu item unavailable: ${action}`);
+  }
+
   async function executeCommand(stage: string): Promise<boolean> {
-    const opener = surface.candidate.querySelector(
-      '[data-ui-action="open-commands"]',
+    const opener = await openAddMenuItem(
+      surface.candidate.querySelector('[data-ui-action="open-add-menu"]'),
+      "open-commands",
     );
-    if (!(opener instanceof HTMLButtonElement) || opener.disabled) {
+    if (opener.hasAttribute("data-disabled")) {
       throw new Error("Plugin restore command opener is unavailable");
     }
     opener.click();
@@ -768,10 +815,11 @@ export async function runWanexDesktopPluginRestoreProof(
   }
 
   async function commandAbsent(stage: string): Promise<boolean> {
-    const opener = surface.candidate.querySelector(
-      '[data-ui-action="open-commands"]',
+    const opener = await openAddMenuItem(
+      surface.candidate.querySelector('[data-ui-action="open-add-menu"]'),
+      "open-commands",
     );
-    if (!(opener instanceof HTMLButtonElement) || opener.disabled) {
+    if (opener.hasAttribute("data-disabled")) {
       throw new Error("Plugin restore command opener is unavailable");
     }
     opener.click();

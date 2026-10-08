@@ -62,7 +62,11 @@ import type {
   WorkbenchViewModel
 } from "./model.js"
 import type { TeamViewModel } from "./team/model.js"
-import type { SurfaceClientEventsResult } from "@wanex/assistant/surface"
+import { SURFACE_COMMANDS } from "@wanex/assistant"
+import type {
+  SurfaceClientDescriptorResult,
+  SurfaceClientEventsResult
+} from "@wanex/assistant/surface"
 import {
   pluginManagementRejectionMessage,
   projectPluginManagementActionOutput
@@ -71,6 +75,10 @@ import {
   isScheduleAction,
   projectScheduleActionOutput
 } from "./schedule/projection.js"
+import {
+  isWorkspaceChangeAction,
+  projectWorkspaceChangeActionOutput
+} from "./workspace-change/projection.js"
 
 export async function createSurface(
   options: CreateSurfaceOptions
@@ -147,6 +155,7 @@ export async function createSurface(
     dispatchAction(action, actionOptions) {
       return mutateSnapshot(async () => {
         const result = await dispatchAction({
+          previousSnapshot: snapshot,
           options,
           action,
           ...(actionOptions === undefined ? {} : { actionOptions }),
@@ -232,7 +241,11 @@ async function readEventSnapshot(request: {
       ? request.options.client.readAssistantCommands()
       : request.snapshot.commandCatalog,
     shouldRefreshPluginManagement(events)
-      ? request.options.client.readPluginManagement()
+      ? pluginManagementRead({
+          client: request.options.client,
+          descriptor: request.snapshot.descriptor,
+          now: request.now
+        })
       : request.snapshot.pluginManagement,
     shouldRefreshScheduleList(events)
       ? request.options.client.listSchedules()
@@ -321,7 +334,7 @@ async function readEventSnapshot(request: {
   }
   return {
     ...base,
-    view: buildViewModel(base)
+    view: buildViewModel(base, request.options)
   }
 }
 
@@ -392,8 +405,8 @@ async function readSnapshot(request: {
   readonly team: TeamViewModel | undefined
   readonly workbench: WorkbenchViewModel | undefined
 }): Promise<Snapshot> {
+  const descriptor = await request.options.client.descriptor()
   const [
-    descriptor,
     status,
     home,
     settings,
@@ -405,7 +418,6 @@ async function readSnapshot(request: {
     pluginManagement,
     scheduleList
   ] = await Promise.all([
-    request.options.client.descriptor(),
     request.options.client.status(),
     request.options.client.readHome(request.homeOptions),
     request.options.client.readSettings(),
@@ -420,7 +432,11 @@ async function readSnapshot(request: {
       client: request.options.client,
       previous: request.plan
     }),
-    request.options.client.readPluginManagement(),
+    pluginManagementRead({
+      client: request.options.client,
+      descriptor,
+      now: request.now
+    }),
     request.options.client.listSchedules()
   ])
   const events = await request.options.client.readSurfaceEvents({
@@ -451,7 +467,7 @@ async function readSnapshot(request: {
   const selectedTeamConversationId = status.ok
     ? teamIdFromSelection(status.value.state.selection)
     : undefined
-  const [conversationResult, transcriptResult, attachments, goal, teamRead] = await Promise.all(
+  const [conversationResult, transcriptResult, attachments, workspaceFolders, goal, teamRead] = await Promise.all(
     [
       request.options.client.readTrackedConversationOperation(
         selectedSessionId === undefined
@@ -464,6 +480,11 @@ async function readSnapshot(request: {
           : { sessionId: selectedSessionId }
       ),
       request.options.client.readConversationAttachments(
+        selectedSessionId === undefined
+          ? undefined
+          : { sessionId: selectedSessionId }
+      ),
+      request.options.client.listWorkspaceFolders(
         selectedSessionId === undefined
           ? undefined
           : { sessionId: selectedSessionId }
@@ -548,6 +569,7 @@ async function readSnapshot(request: {
     goal,
     team,
     attachments,
+    workspaceFolders,
     workbench,
     diagnostics: projectDiagnostics({
       descriptor,
@@ -565,7 +587,39 @@ async function readSnapshot(request: {
   }
   return {
     ...base,
-    view: buildViewModel(base)
+    view: buildViewModel(base, request.options)
+  }
+}
+
+async function pluginManagementRead(request: {
+  readonly client: CreateSurfaceOptions["client"]
+  readonly descriptor: SurfaceClientDescriptorResult
+  readonly now: () => number
+}): Promise<Snapshot["pluginManagement"]> {
+  if (
+    !request.descriptor.ok ||
+    request.descriptor.value.commands.some(
+      ({ command }) => command === SURFACE_COMMANDS.readPluginManagement
+    )
+  ) {
+    return await request.client.readPluginManagement()
+  }
+  const command = SURFACE_COMMANDS.readPluginManagement
+  return {
+    ok: true,
+    command,
+    value: {
+      kind: "assistant.plugin-management.unavailable",
+      reason: "not_configured",
+      message: "Plugin management is unavailable through this Host."
+    },
+    event: {
+      id: "assistant_ui_capability_projection_plugin_management",
+      sequence: 0,
+      type: "assistant.surface.command_completed",
+      command,
+      at: request.now()
+    }
   }
 }
 
@@ -582,6 +636,7 @@ function teamIdFromSelection(
 }
 
 async function dispatchAction(request: {
+  readonly previousSnapshot: Snapshot
   readonly options: CreateSurfaceOptions
   readonly action: Action
   readonly actionOptions?: ActionDispatchOptions
@@ -624,25 +679,49 @@ async function dispatchAction(request: {
     const scheduleOutput = isScheduleAction(request.action)
       ? projectScheduleActionOutput(request.action, transition.actionResult)
       : undefined
-    const output = pluginOutput ?? scheduleOutput
-    let snapshot = await readSnapshot({
-      options: request.options,
-      now: request.now,
-      eventStreamId: request.eventStreamId,
-      eventCursor: request.eventCursor,
-      eventLimit: request.eventLimit,
-      homeOptions: request.options.homeOptions,
-      operationStatus: transition.operationStatus,
-      commandPreview: transition.commandPreview,
-      commandExecution: transition.commandExecution,
-      executionActivity: transition.executionActivity,
-      conversation: transition.conversation,
-      sideQuery: transition.sideQuery,
-      plan: transition.plan,
-      goal: request.goal,
-      team: request.team,
-      workbench: transition.workbench
-    })
+    const workspaceChangeOutput = isWorkspaceChangeAction(request.action)
+      ? projectWorkspaceChangeActionOutput(request.action, transition.actionResult)
+      : undefined
+    const output = pluginOutput ?? scheduleOutput ?? workspaceChangeOutput
+    let snapshot: Snapshot
+    let snapshotRefresh: ActionResult["snapshotRefresh"]
+    try {
+      snapshot = await readSnapshot({
+        options: request.options,
+        now: request.now,
+        eventStreamId: request.eventStreamId,
+        eventCursor: request.eventCursor,
+        eventLimit: request.eventLimit,
+        homeOptions: request.options.homeOptions,
+        operationStatus: transition.operationStatus,
+        commandPreview: transition.commandPreview,
+        commandExecution: transition.commandExecution,
+        executionActivity: transition.executionActivity,
+        conversation: transition.conversation,
+        sideQuery: transition.sideQuery,
+        plan: transition.plan,
+        goal: request.goal,
+        team: request.team,
+        workbench: transition.workbench
+      })
+    } catch (error) {
+      // An acknowledged action and its aggregate readback are separate facts.
+      // Retain the acknowledged transition, never repeat the Host command.
+      snapshotRefresh = { state: "failed", message: error instanceof Error ? error.message : String(error) }
+      const retained = {
+        ...request.previousSnapshot,
+        operationStatus: transition.operationStatus,
+        commandPreview: transition.commandPreview,
+        commandExecution: transition.commandExecution,
+        executionActivity: transition.executionActivity,
+        conversation: transition.conversation,
+        sideQuery: transition.sideQuery,
+        plan: transition.plan,
+        workbench: transition.workbench,
+      }
+      snapshot = { ...retained, view: buildViewModel(retained, request.options) }
+    }
+    const refreshEvidence = snapshotRefresh === undefined ? {} : { snapshotRefresh }
     if (
       request.action.type === "load-earlier-team-history" &&
       transition.actionResult.ok
@@ -654,13 +733,17 @@ async function dispatchAction(request: {
         requestedConversationId: request.action.input.conversationId
       })
       const merged = { ...snapshot, team }
-      snapshot = { ...merged, view: buildViewModel(merged) }
+      snapshot = {
+        ...merged,
+        view: buildViewModel(merged, request.options)
+      }
     }
     if (isFailedActionResult(transition.actionResult)) {
       return {
         ok: false,
         action: request.action.type,
         message: transition.actionResult.error.message,
+        ...refreshEvidence,
         snapshot: withActionDiagnostic(
           snapshot,
           transition.actionResult.error.message
@@ -673,6 +756,7 @@ async function dispatchAction(request: {
         ok: false,
         action: request.action.type,
         message: pluginRejection,
+        ...refreshEvidence,
         ...(output === undefined ? {} : { output }),
         snapshot: withActionDiagnostic(snapshot, pluginRejection)
       }
@@ -682,6 +766,7 @@ async function dispatchAction(request: {
         ok: false,
         action: request.action.type,
         message: transition.operationStatus.message,
+        ...refreshEvidence,
         ...(output === undefined ? {} : { output }),
         snapshot
       }
@@ -689,6 +774,7 @@ async function dispatchAction(request: {
     return {
       ok: true,
       action: request.action.type,
+      ...refreshEvidence,
       ...(output === undefined ? {} : { output }),
       snapshot
     }

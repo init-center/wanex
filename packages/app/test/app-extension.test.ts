@@ -62,11 +62,9 @@ describe("@wanex/app extension contributions", () => {
       expect(result).toMatchObject({
         sessionId: "ses_wanex_app_extension_context",
         assistantText: "Fake response from wanex-app-model",
-        context: {
-          instructionSources: 1,
-          skillNames: ["review-code"],
-          diagnostics: [],
-          activationToolRegistered: false
+        contextEvidence: {
+          instructions: { state: "available", sourceCount: 1 },
+          skills: { state: "available", sourceCount: 1 }
         }
       })
       expect(JSON.stringify(result)).not.toContain("FULL CONTRIBUTED SKILL BODY")
@@ -249,9 +247,8 @@ describe("@wanex/app extension contributions", () => {
         content: [{ type: "text", text: "first generation" }],
         sessionId: "ses_wanex_app_extension_generation_a"
       })
-      expect(first.context).toMatchObject({
-        instructionSources: 1,
-        skillNames: []
+      expect(first.contextEvidence).toMatchObject({
+        instructions: { state: "available", sourceCount: 1 }
       })
 
       catalog.publish({
@@ -273,10 +270,13 @@ describe("@wanex/app extension contributions", () => {
         content: [{ type: "text", text: "second generation" }],
         sessionId: "ses_wanex_app_extension_generation_b"
       })
-      expect(second.context).toMatchObject({
-        instructionSources: 1,
-        skillNames: ["dynamic-skill"]
+      expect(second.contextEvidence).toMatchObject({
+        instructions: { state: "available", sourceCount: 1 },
+        skills: { state: "available", sourceCount: 1 }
       })
+      expect(second.contextEvidence?.instructions?.digest).not.toBe(
+        first.contextEvidence?.instructions?.digest
+      )
       expect(app.status().extensions).toMatchObject({
         revision: "context-generation-b",
         contributionCount: 2

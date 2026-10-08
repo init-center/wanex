@@ -19,6 +19,7 @@ import { WorkspaceGitRuntime } from "../../src/git/index.js"
 import { ProcessWorkspaceSnapshotClient } from "../../src/snapshot/index.js"
 import {
   createWorkspaceTestExecution,
+  readWorkspaceTestRootIdentity,
   disposeWorkspaceTestExecution
 } from "../execution.js"
 
@@ -48,6 +49,7 @@ describe("@wanex/workspace/git", () => {
   it("collects an immutable changeset from text worktree changes", async () => {
     const { repoDir, worktreeParentDir, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -114,6 +116,7 @@ describe("@wanex/workspace/git", () => {
   it("returns binary attention before persisting a changeset", async () => {
     const { repoDir, worktreeParentDir, storage, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -147,8 +150,9 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns binary attention for invalid UTF-8 without a NUL byte", async () => {
-    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
+    const { repoDir, locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -187,6 +191,7 @@ describe("@wanex/workspace/git", () => {
   it("returns rename attention before persisting a changeset", async () => {
     const { repoDir, worktreeParentDir, storage, locator, executionScope } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -226,8 +231,9 @@ describe("@wanex/workspace/git", () => {
   })
 
   it("returns file size attention before reading an oversized untracked file", async () => {
-    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
+    const { repoDir, locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -263,8 +269,9 @@ describe("@wanex/workspace/git", () => {
   it.skipIf(process.platform === "win32")(
     "returns mode attention for a mode-only edit",
     async () => {
-      const { locator, executionScope, worktreeParentDir } = await createEnvironment()
+      const { repoDir, locator, executionScope, worktreeParentDir } = await createEnvironment()
       const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
         repositoryId: "repo_git_runtime",
         locator,
         snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -298,8 +305,9 @@ describe("@wanex/workspace/git", () => {
   it.skipIf(process.platform === "win32")(
     "returns symlink attention instead of reading through a link",
     async () => {
-      const { locator, executionScope, worktreeParentDir } = await createEnvironment()
+      const { repoDir, locator, executionScope, worktreeParentDir } = await createEnvironment()
       const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
         repositoryId: "repo_git_runtime",
         locator,
         snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -331,8 +339,9 @@ describe("@wanex/workspace/git", () => {
   )
 
   it("returns gitlink attention from the staged index mode", async () => {
-    const { locator, executionScope, worktreeParentDir } = await createEnvironment()
+    const { repoDir, locator, executionScope, worktreeParentDir } = await createEnvironment()
     const isolation = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_git_runtime",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),

@@ -1,3 +1,4 @@
+import { browserAssets } from "./browser-assets.js"
 import { rm } from "node:fs/promises"
 import {
   startAssistantWebApp,
@@ -32,6 +33,7 @@ export const assistantHostContractScenario = createEvalScenario({
 
     try {
       app = await startAssistantWebApp({
+        browserAssets,
         storage: {
           kind: "store-dir",
           storeDir

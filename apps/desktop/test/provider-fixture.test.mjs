@@ -8,6 +8,9 @@ import {
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT,
+  WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
+  WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID,
+  WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE,
   WANEX_DESKTOP_PROOF_GUIDED_CHILD_RESPONSE,
   WANEX_DESKTOP_PROOF_GUIDED_FOLLOW_UP_TEXT,
   WANEX_DESKTOP_PROOF_GUIDED_PARENT_FINAL_DELTA,
@@ -24,11 +27,6 @@ import {
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_PARTIAL_RESPONSE,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_PARENT_TEXT,
   WANEX_DESKTOP_PROOF_SIDE_QUERY_QUESTION,
-  WANEX_DESKTOP_PROOF_CODING_FILE,
-  WANEX_DESKTOP_PROOF_CODING_MESSAGE,
-  WANEX_DESKTOP_PROOF_CODING_RESPONSE,
-  WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
-  WANEX_DESKTOP_PROOF_CODING_TOOL_NAME
 } from "../src/proof-contract.ts"
 
 const fixtures = []
@@ -38,91 +36,6 @@ afterEach(async () => {
 })
 
 describe("Desktop proof Provider fixture", () => {
-  it("models a Coding Tool call followed by a Tool result", async () => {
-    const credential = "proof-coding-fixture-secret"
-    const fixture = await listenDesktopProofProvider({ credential })
-    fixtures.push(fixture)
-    const headers = {
-      authorization: `Bearer ${credential}`,
-      "content-type": "application/json"
-    }
-    const tools = [{
-      type: "function",
-      function: { name: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME }
-    }]
-    const first = await fetch(`${fixture.baseUrl}/coding/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
-        messages: [{ role: "user", content: WANEX_DESKTOP_PROOF_CODING_MESSAGE }],
-        tools,
-        stream: true
-      })
-    })
-    expect(first.status).toBe(200)
-    expect(await first.text()).toContain(WANEX_DESKTOP_PROOF_CODING_TOOL_NAME)
-
-    const second = await fetch(`${fixture.baseUrl}/coding/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
-        messages: [
-          { role: "user", content: WANEX_DESKTOP_PROOF_CODING_MESSAGE },
-          {
-            role: "assistant",
-            tool_calls: [{
-              id: WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
-              type: "function",
-              function: {
-                name: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
-                arguments: JSON.stringify({
-                  changes: [{ path: WANEX_DESKTOP_PROOF_CODING_FILE }]
-                })
-              }
-            }]
-          },
-          {
-            role: "tool",
-            tool_call_id: WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID,
-            content: "applied"
-          }
-        ],
-        tools,
-        stream: true
-      })
-    })
-    expect(second.status).toBe(200)
-    expect(await second.text()).toContain(WANEX_DESKTOP_PROOF_CODING_RESPONSE)
-    expect(fixture.requests).toEqual([
-      {
-        path: "/v1/coding/chat/completions",
-        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
-        authorized: true,
-        imageInputCount: 0,
-        imageMediaTypes: [],
-        imageBytes: 0,
-        codingPhase: "tool_call",
-        codingToolName: WANEX_DESKTOP_PROOF_CODING_TOOL_NAME,
-        codingToolCallId: WANEX_DESKTOP_PROOF_CODING_TOOL_CALL_ID
-      },
-      {
-        path: "/v1/coding/chat/completions",
-        model: WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
-        authorized: true,
-        imageInputCount: 0,
-        imageMediaTypes: [],
-        imageBytes: 0,
-        codingPhase: "final",
-        codingToolResultPresent: true
-      }
-    ])
-    expect(JSON.stringify(fixture.requests)).not.toContain(credential)
-    expect(JSON.stringify(fixture.requests)).not.toContain(WANEX_DESKTOP_PROOF_CODING_MESSAGE)
-    expect(JSON.stringify(fixture.requests)).not.toContain(WANEX_DESKTOP_PROOF_CODING_FILE)
-  })
-
   it("holds exactly one Schedule response and restores without retaining the prompt", async () => {
     const credential = "proof-schedule-fixture-secret"
     const fixture = await listenDesktopProofProvider({ credential })
@@ -230,6 +143,40 @@ describe("Desktop proof Provider fixture", () => {
     }])
     expect(JSON.stringify(fixture.requests)).not.toContain(credential)
     expect(JSON.stringify(fixture.responses)).not.toContain("proof-model")
+  })
+
+  it("routes the shared multimodal prompt by model identity", async () => {
+    const credential = "proof-multimodal-routing-secret"
+    const fixture = await listenDesktopProofProvider({ credential })
+    fixtures.push(fixture)
+    const request = async (model) => await fetch(
+      `${fixture.baseUrl}/chat/completions`,
+      {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${credential}`,
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: "user", content: WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT }],
+          stream: true
+        })
+      }
+    )
+
+    const local = await request(WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID)
+    const remote = await request(WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID)
+    const localBody = await local.text()
+    const remoteBody = await remote.text()
+
+    expect(local.status).toBe(200)
+    expect(localBody).toContain(
+      desktopProofProviderResponse(WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID)
+    )
+    expect(localBody).not.toContain(WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE)
+    expect(remote.status).toBe(200)
+    expect(remoteBody).toContain(WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE)
   })
 
   it("distinguishes a finished response from a client-aborted held response", async () => {

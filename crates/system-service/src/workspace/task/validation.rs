@@ -13,6 +13,15 @@ const MAX_RESOURCE_IDS: usize = 1_024;
 const MAX_LIST_RUN_IDS: usize = 128;
 
 pub(super) fn validate_list_runs(request: &crate::ListWorkspaceTaskRuns) -> Result<()> {
+    if let Some(root) = request.root_identity.as_ref() {
+        validate_root(root)?;
+    }
+    if let Some(root_id) = request.root_id.as_deref() {
+        require_opaque_id(root_id, "workspace root id")?;
+    }
+    if let Some(strategy) = request.strategy.as_deref() {
+        validate_strategy(strategy)?;
+    }
     if let Some(state) = request.state.as_deref() {
         validate_run_state(state)?;
     }
@@ -48,8 +57,34 @@ pub(super) fn validate_begin(request: &BeginWorkspaceTaskRun) -> Result<()> {
     require_non_empty(&request.id, "workspace task run id")?;
     require_non_empty(&request.workspace_id, "workspace id")?;
     require_non_empty(&request.principal_id, "workspace task principal id")?;
-    require_opaque_id(&request.repository_id, "workspace repository id")?;
-    require_opaque_id(&request.isolation_id, "workspace isolation id")?;
+    validate_strategy(&request.strategy)?;
+    validate_root(&request.root_identity)?;
+    let isolation = &request.isolation_identity;
+    require_opaque_id(&isolation.id, "workspace isolation id")?;
+    if isolation.base_revision.is_some() || isolation.runtime_ref.is_some() {
+        return Err(SystemServiceError::InvalidInput(
+            "workspace task begin cannot contain prepared isolation evidence".to_string(),
+        ));
+    }
+    match (
+        request.strategy.as_str(),
+        request.access.as_str(),
+        isolation.kind.as_str(),
+    ) {
+        ("direct", "read_only", "fixed") if isolation.repository_id.is_none() => {}
+        ("git_worktree", "writable", "git_worktree") => {
+            require_opaque_id(
+                isolation.repository_id.as_deref().unwrap_or(""),
+                "workspace repository id",
+            )?;
+        }
+        _ => {
+            return Err(SystemServiceError::InvalidInput(
+                "workspace task strategy, access and isolation identity are inconsistent"
+                    .to_string(),
+            ))
+        }
+    }
     crate::execution_environment::validate_binding(
         &request.execution_environment,
         "workspace task execution environment",
@@ -74,6 +109,31 @@ pub(super) fn validate_begin(request: &BeginWorkspaceTaskRun) -> Result<()> {
         &request.claim_token,
         request.lease_ms,
     )
+}
+
+fn validate_root(root: &crate::WorkspaceTaskRootIdentity) -> Result<()> {
+    require_opaque_id(&root.host_id, "workspace host id")?;
+    require_opaque_id(&root.generation_key, "workspace generation key")?;
+    require_opaque_id(&root.root_id, "workspace root id")?;
+    for (value, label) in [(&root.device, "device"), (&root.inode, "inode")] {
+        if value.is_empty() || value.len() > 128 || !value.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "workspace root {label} must be a decimal identity"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn validate_strategy(value: &str) -> Result<()> {
+    if matches!(value, "direct" | "git_worktree") {
+        Ok(())
+    } else {
+        Err(SystemServiceError::InvalidInput(format!(
+            "invalid workspace task strategy: {value}"
+        )))
+    }
 }
 
 pub(super) fn validate_claim(

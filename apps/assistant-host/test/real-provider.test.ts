@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { createServer, type Server } from "node:http"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -101,6 +102,7 @@ describe("@wanex/assistant-host real provider", () => {
     const storeDir = await createTempDir("wanex-assistant-local-first-run-")
     const credentialStore = new MemorySecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         mode: "persistent",
@@ -246,6 +248,7 @@ describe("@wanex/assistant-host real provider", () => {
     const provider = await listenOpenAICompatibleProvider()
     const credentialStore = new MemorySecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         mode: "persistent",
@@ -324,6 +327,7 @@ describe("@wanex/assistant-host real provider", () => {
     const provider = await listenControlledProviderRemovalProvider()
     const credentialStore = new MemorySecretStore()
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: {
         kind: "store-dir",
         mode: "persistent",
@@ -769,6 +773,7 @@ async function startRealProviderApp(options: {
 }): Promise<AssistantWebApp> {
   const protocol = options.protocol ?? "openai-chat-completions"
   const app = await startAssistantWebApp({
+    browserAssets,
     storage: {
       kind: "store-dir",
       mode: "persistent",

@@ -22,12 +22,15 @@ import {
   startAssistantHostInternal,
   type StartedAssistantHost,
 } from "./assistant.js"
+import { startWorkspaceAssistantHostInternal } from "./workspace.js"
 import { preservePrimaryError } from "./errors.js"
 
 export async function startAssistantWebApp(
   options: StartAssistantWebAppOptions,
 ): Promise<AssistantWebApp> {
-  const assistant = await startAssistantHostInternal(options)
+  const assistant = options.workspace === undefined
+    ? await startAssistantHostInternal(options)
+    : await startWorkspaceAssistantHostInternal(options)
   let controller: Controller | undefined
   let host: WebNodeHostServer | undefined
 
@@ -69,6 +72,7 @@ export async function startAssistantWebApp(
       capabilitySetup,
       mcpSettings: assistant.mcpSettings,
       ...(options.web ?? {}),
+      browserAssets: options.browserAssets,
     })
 
     return createAssistantWebAppHandle({
@@ -99,6 +103,7 @@ function createAssistantWebAppHandle(request: {
 }): AssistantWebApp {
   let closePromise: Promise<void> | undefined
   return {
+    ...(request.assistant.workspace === undefined ? {} : { workspace: request.assistant.workspace.port }),
     shell: request.assistant.shell,
     teamConversations: request.assistant.shell.teamConversations,
     modelEndpoints: request.assistant.shell.modelEndpoints,

@@ -188,7 +188,7 @@ describe("@wanex/protocol", () => {
       streamId: "stream_1",
       sequence: 2,
       eventId: "event_2",
-      domain: "coding",
+      domain: "assistant",
       type: "workspace.task.updated",
       payload: { state: "running" },
       occurredAt: 10

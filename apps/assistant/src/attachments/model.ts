@@ -1,5 +1,7 @@
 import type { ResourceKind, ResourceState } from "@wanex/protocol"
 
+export const MAX_CONVERSATION_ATTACHMENT_BYTES = 25 * 1024 * 1024
+
 export type AttachmentPreviewKind =
   | "image"
   | "audio"

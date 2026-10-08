@@ -1,8 +1,10 @@
 import { randomUUID } from "node:crypto"
+import { join } from "node:path"
 import {
   startAssistantHost,
   type StartAssistantHostOptions
 } from "@wanex/assistant-host/application"
+import { startWorkspaceAssistantHost } from "@wanex/assistant-host/application/workspace"
 import {
   bootstrapWanexStorage,
   type BootstrappedWanexStorage
@@ -10,7 +12,6 @@ import {
 import type { RemoteAgentHostHttpHandler } from "@wanex/runtime/host"
 import { localSecretNamespace } from "@wanex/assistant-host"
 import { resolveLocalStore } from "@wanex/storage"
-import { startWanexServerCoding } from "./coding.js"
 import { parseWanexServerConfig } from "./config.js"
 import {
   listenWanexServer,
@@ -22,12 +23,14 @@ import type {
   WanexServer,
   WanexServerState
 } from "./model.js"
+import type { WanexServerConfig } from "./config.js"
 import { createWanexServerRemoteHandler } from "./remote.js"
+import { bindWanexServerAuthentication } from "./authentication.js"
 
 interface WanexServerDependencies {
   readonly bootstrapStorage: typeof bootstrapWanexStorage
   readonly startAssistant: typeof startAssistantHost
-  readonly startCoding: typeof startWanexServerCoding
+  readonly startAssistantWithWorkspace: typeof startWorkspaceAssistantHost
   readonly createRemoteHandler: typeof createWanexServerRemoteHandler
   readonly listen: typeof listenWanexServer
   readonly createInstanceId: () => string
@@ -36,7 +39,7 @@ interface WanexServerDependencies {
 const defaultDependencies: WanexServerDependencies = {
   bootstrapStorage: bootstrapWanexStorage,
   startAssistant: startAssistantHost,
-  startCoding: startWanexServerCoding,
+  startAssistantWithWorkspace: startWorkspaceAssistantHost,
   createRemoteHandler: createWanexServerRemoteHandler,
   listen: listenWanexServer,
   createInstanceId: randomUUID
@@ -46,6 +49,18 @@ export async function startWanexServer(
   options: StartWanexServerOptions
 ): Promise<WanexServer> {
   const started = await startWanexServerInternal(options, defaultDependencies)
+  return publicServer(started)
+}
+
+export async function startWanexServerFromParsedConfig(
+  options: StartWanexServerOptions,
+  config: WanexServerConfig
+): Promise<WanexServer> {
+  const started = await startWanexServerInternal(options, defaultDependencies, config)
+  return publicServer(started)
+}
+
+function publicServer(started: StartedWanexServer): WanexServer {
   return Object.freeze({
     get state() {
       return started.state
@@ -58,21 +73,22 @@ export async function startWanexServer(
 
 export async function startWanexServerInternal(
   options: StartWanexServerOptions,
-  dependencyOverrides: Partial<WanexServerDependencies> = {}
+  dependencyOverrides: Partial<WanexServerDependencies> = {},
+  parsedConfig?: WanexServerConfig
 ): Promise<StartedWanexServer> {
   const dependencies: WanexServerDependencies = {
     ...defaultDependencies,
     ...dependencyOverrides
   }
-  const config = parseWanexServerConfig(options.config)
+  const config = parsedConfig ?? parseWanexServerConfig(options.config)
   validateStartOptions(options)
+  const authentication = bindWanexServerAuthentication(options.authentication)
   const location = resolveLocalStore({
     rootDir: config.dataRoot,
     profileId: config.profileId
   })
   let runtime: BootstrappedWanexStorage | undefined
   let assistantHost: Awaited<ReturnType<typeof startAssistantHost>> | undefined
-  let codingHost: Awaited<ReturnType<typeof startWanexServerCoding>> | undefined
   let remoteHandler: RemoteAgentHostHttpHandler | undefined
   let listener: WanexServerListener | undefined
 
@@ -115,23 +131,16 @@ export async function startWanexServerInternal(
         ? {}
         : { trustedProviderHost: options.trustedProviderHost })
     }
-    assistantHost = await dependencies.startAssistant(assistantOptions)
-    if (config.coding !== undefined) {
-      if (serviceBin === undefined) {
-        throw new Error("Wanex Server Coding requires a system service binary")
-      }
-      codingHost = await dependencies.startCoding({
-        profileStoreDir: location.storeDir,
-        storage: {
-          core: runtime.storage,
-          transport: runtime.transport
-        },
-        serviceBin,
-        config: config.coding,
-        secretResolver: assistantHost.secretResolver,
-        modelEndpoints: assistantHost.modelEndpoints
-      })
-    }
+    assistantHost = config.workspace === undefined
+      ? await dependencies.startAssistant(assistantOptions)
+      : await dependencies.startAssistantWithWorkspace({
+          ...assistantOptions,
+          workspace: {
+            ...config.workspace,
+            worktreeDirectory: config.workspace.worktreeDirectory ??
+              join(location.storeDir, "workspace-worktrees")
+          },
+        })
     const host = Object.freeze({
       hostId: config.hostId,
       instanceId: dependencies.createInstanceId(),
@@ -139,9 +148,8 @@ export async function startWanexServerInternal(
       executionLocation: "remote" as const
     })
     remoteHandler = dependencies.createRemoteHandler({
-      authentication: options.authentication,
+      authentication,
       assistantHost,
-      ...(codingHost === undefined ? {} : { codingHost }),
       host,
       ...(options.remoteLimits === undefined ? {} : { limits: options.remoteLimits })
     })
@@ -149,6 +157,9 @@ export async function startWanexServerInternal(
       config: config.listener,
       tls: options.tls,
       handler: remoteHandler,
+      authentication,
+      attachments: assistantHost.attachments,
+      resourceDeliveries: assistantHost.resourceDeliveries,
       ...(options.remoteLimits?.requestTimeoutMs === undefined
         ? {}
         : { requestTimeoutMs: options.remoteLimits.requestTimeoutMs })
@@ -157,7 +168,6 @@ export async function startWanexServerInternal(
       profileId: location.profileId,
       runtime,
       assistantHost,
-      ...(codingHost === undefined ? {} : { codingHost }),
       remoteHandler,
       listener,
       ...(options.drainTimeoutMs === undefined
@@ -168,7 +178,6 @@ export async function startWanexServerInternal(
     listener?.destroyConnections()
     await listener?.close().catch(() => {})
     await remoteHandler?.close().catch(() => {})
-    await codingHost?.close().catch(() => {})
     await assistantHost?.close().catch(() => {})
     await runtime?.dispose().catch(() => {})
     throw error
@@ -179,7 +188,6 @@ function createServerHandle(request: {
   readonly profileId: string
   readonly runtime: BootstrappedWanexStorage
   readonly assistantHost: Awaited<ReturnType<typeof startAssistantHost>>
-  readonly codingHost?: Awaited<ReturnType<typeof startWanexServerCoding>>
   readonly remoteHandler: RemoteAgentHostHttpHandler
   readonly listener: WanexServerListener
   readonly drainTimeoutMs?: number
@@ -192,9 +200,6 @@ function createServerHandle(request: {
     },
     endpoint: request.listener.endpoint,
     assistantHost: request.assistantHost,
-    ...(request.codingHost === undefined
-      ? {}
-      : { codingHost: request.codingHost }),
     remoteHandler: request.remoteHandler,
     readStatus() {
       return Object.freeze({
@@ -202,9 +207,6 @@ function createServerHandle(request: {
         state,
         profileId: request.profileId,
         assistant: state === "open" ? "ready" as const : state,
-        coding: request.codingHost === undefined
-          ? "disabled" as const
-          : state === "open" ? "ready" as const : state,
         listener: state === "open" ? "ready" as const : state,
         endpoint: request.listener.endpoint
       })
@@ -227,11 +229,6 @@ function createServerHandle(request: {
         }
         const listenerError = await listenerClose
         firstError ??= listenerError
-        try {
-          await request.codingHost?.close()
-        } catch (error) {
-          firstError ??= error
-        }
         try {
           await request.assistantHost.close()
         } catch (error) {

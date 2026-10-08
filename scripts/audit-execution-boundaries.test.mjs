@@ -9,8 +9,8 @@ describe("execution boundary policy", () => {
         text: 'import { spawn } from "node:child_process"'
       },
       {
-        path: "apps/coding/src/host/start.ts",
-        text: 'import { NativeExecutionEnvironment as Native } from "@wanex/runtime/execution"; new Native({})'
+        path: "apps/assistant-host/src/workspace/controller.ts",
+        text: 'import { NativeExecutionEnvironment } from "@wanex/runtime/execution"; new NativeExecutionEnvironment({})'
       },
       {
         path: "packages/workspace/src/tasks/run.ts",
@@ -35,6 +35,12 @@ describe("execution boundary policy", () => {
       path: "packages/workspace/src/tasks/rogue.ts",
       text: 'import { readFile } from "node:fs/promises"'
     })).toContain("direct-task-filesystem")
+    for (const name of ["tools", "context"]) {
+      expect(codes({
+        path: `apps/assistant-host/src/workspace/${name}.ts`,
+        text: 'import { readFile } from "node:fs/promises"'
+      })).toContain("direct-task-filesystem")
+    }
   })
 
   it("rejects Native environment construction outside composition roots", () => {
@@ -62,6 +68,13 @@ describe("execution boundary policy", () => {
     expect(findExecutionBoundaryViolations([{
       path: "packages/eval-harness/src/scenario.ts",
       text: "const script = `require('node:child_process').spawn('node')`"
+    }])).toEqual([])
+  })
+
+  it("handles destructuring for-of bindings without an initializer", () => {
+    expect(findExecutionBoundaryViolations([{
+      path: "apps/assistant-host/src/workspace/controller.ts",
+      text: "for (const { root } of generation.roots) inspect(root)"
     }])).toEqual([])
   })
 })

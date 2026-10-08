@@ -60,6 +60,13 @@ import {
   parseSurfaceReplaceScheduleRequest,
   parseSurfaceSetScheduleEnabledRequest,
   parseSurfaceRemoveScheduleRequest
+  ,parseWorkspaceChangeReference
+  ,parseWorkspaceChangeDecision
+  ,parseWorkspaceChangeMutation
+  ,parseListWorkspaceFolders
+  ,parseGrantWorkspaceFolder
+  ,parseRegrantWorkspaceFolder
+  ,parseRevokeWorkspaceFolder
 } from "./input.js"
 import type {
   SurfaceCommand,
@@ -386,5 +393,28 @@ export async function runSurfaceCommand(
     case "retryPluginRefresh":
       expectSurfaceNoInput(request.input, "retryPluginRefresh")
       return await app.pluginManagement.retryRefresh()
+    case "readWorkspaceChange":
+      if (app.workspaceReview === undefined) throw new Error("workspace review is unavailable")
+      return await app.workspaceReview.readChange(parseWorkspaceChangeReference(request.input))
+    case "decideWorkspaceChange":
+      if (app.workspaceReview === undefined) throw new Error("workspace review is unavailable")
+      return await app.workspaceReview.decideChange(parseWorkspaceChangeDecision(request.input))
+    case "applyWorkspaceChange":
+      if (app.workspaceReview === undefined) throw new Error("workspace review is unavailable")
+      return await app.workspaceReview.applyChange(parseWorkspaceChangeMutation(request.input))
+    case "undoWorkspaceChange":
+      if (app.workspaceReview === undefined) throw new Error("workspace review is unavailable")
+      return await app.workspaceReview.undoChange(parseWorkspaceChangeMutation(request.input))
+    case "reapplyWorkspaceChange":
+      if (app.workspaceReview === undefined) throw new Error("workspace review is unavailable")
+      return await app.workspaceReview.reapplyChange(parseWorkspaceChangeMutation(request.input))
+    case "listWorkspaceFolders":
+      return await app.workspaceFolders.listWorkspaceFolders(parseListWorkspaceFolders(request.input))
+    case "grantWorkspaceFolder":
+      return await app.workspaceFolders.grantWorkspaceFolder(parseGrantWorkspaceFolder(request.input))
+    case "regrantWorkspaceFolder":
+      return await app.workspaceFolders.regrantWorkspaceFolder(parseRegrantWorkspaceFolder(request.input))
+    case "revokeWorkspaceFolder":
+      return await app.workspaceFolders.revokeWorkspaceFolder(parseRevokeWorkspaceFolder(request.input))
   }
 }

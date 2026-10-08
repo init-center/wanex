@@ -10,8 +10,9 @@ import type {
   WorkspaceIsolationLease
 } from "../isolation/index.js"
 import { ingestWorkspaceTaskArtifacts } from "./artifacts.js"
-import { WorkspaceTaskExecutionGuard } from "./execution.js"
+import { WorkspaceTaskExecutionGuard, assertNotCancelled, combineTaskSignals } from "./execution.js"
 import { isolationRequestForTask } from "./isolation.js"
+import { assertTaskRuntimeIdentity, freezeTaskRootIdentity, sameTaskRoot, taskIsolationIdentity } from "./identity.js"
 import {
   combineWorkspaceTaskErrors,
   releaseWorkspaceTaskLease,
@@ -46,11 +47,10 @@ const MAX_SUMMARY_LENGTH = 4_000
 
 export class WorkspaceTaskRuntime {
   private readonly storage: WorkspaceTaskStore
-  private readonly readOnlyIsolation: WorkspaceIsolationAdapter
-  private readonly writableIsolation: WorkspaceIsolationAdapter
-  private readonly writableCollection: WorkspaceTaskRuntimeOptions["writableCollection"]
+  private readonly directIsolation: WorkspaceIsolationAdapter
+  private readonly gitWorktree: WorkspaceTaskRuntimeOptions["gitWorktree"]
+  private readonly rootIdentity: WorkspaceTaskRuntimeOptions["rootIdentity"]
   private readonly resourceRuntime: WanexResourceRuntime
-  private readonly repositoryId: string
   private readonly ownerId: string
   private readonly leaseMs: number
   private readonly defaultWorkspaceId: string
@@ -59,11 +59,10 @@ export class WorkspaceTaskRuntime {
 
   constructor(options: WorkspaceTaskRuntimeOptions) {
     this.storage = options.storage
-    this.readOnlyIsolation = options.readOnlyIsolation
-    this.writableIsolation = options.writableIsolation
-    this.writableCollection = options.writableCollection
+    this.directIsolation = options.directIsolation
+    this.gitWorktree = options.gitWorktree === undefined ? undefined : Object.freeze({ ...options.gitWorktree })
+    this.rootIdentity = freezeTaskRootIdentity(options.rootIdentity)
     this.resourceRuntime = new WanexResourceRuntime({ storage: options.storage })
-    this.repositoryId = requireOpaqueId(options.repositoryId, "repositoryId")
     this.ownerId = options.ownerId ?? DEFAULT_PRINCIPAL_ID
     this.leaseMs = options.leaseMs ?? DEFAULT_LEASE_MS
     if (this.leaseMs < 30 || this.leaseMs > 300_000) {
@@ -75,10 +74,12 @@ export class WorkspaceTaskRuntime {
   }
 
   async runTask(request: WorkspaceTaskRequest): Promise<WorkspaceTaskReceipt> {
+    assertNotCancelled(request.signal)
     const taskId = request.id ?? `wtsk_${randomUUID().replaceAll("-", "")}`
     const workspaceId = request.workspaceId ?? this.defaultWorkspaceId
     const principalId = request.principalId ?? this.defaultPrincipalId
-    const isolationId = isolationIdFor(this.repositoryId, taskId)
+    const isolationIdentity = taskIsolationIdentity(this.rootIdentity, taskId, request.strategy, request.access, this.gitWorktree)
+    const isolationId = isolationIdentity.id
     const policy = createWorkspaceTaskExecutionPolicy(
       request.access,
       this.executionEnvironment.capabilities.process.cleanup,
@@ -93,8 +94,9 @@ export class WorkspaceTaskRuntime {
         workspaceId,
         principalId,
         access: request.access,
-        repositoryId: this.repositoryId,
-        isolationId,
+        strategy: request.strategy,
+        rootIdentity: this.rootIdentity,
+        isolationIdentity,
         ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
         ...(request.agentId === undefined ? {} : { agentId: request.agentId })
       })
@@ -115,8 +117,9 @@ export class WorkspaceTaskRuntime {
       workspaceId,
       principalId,
       access: request.access,
-      repositoryId: this.repositoryId,
-      isolationId,
+      strategy: request.strategy,
+      rootIdentity: this.rootIdentity,
+      isolationIdentity,
       executionEnvironment,
       ...(request.jobId === undefined ? {} : { jobId: request.jobId }),
       ...(request.agentId === undefined ? {} : { agentId: request.agentId }),
@@ -157,22 +160,20 @@ export class WorkspaceTaskRuntime {
       identity,
       policy,
       environment: this.executionEnvironment,
-      executionBinding: executionEnvironment,
-      retainIsolationOnSetupFailure: false
+      executionBinding: executionEnvironment
     })
   }
 
   async resumeTask(
     request: ResumeWorkspaceTaskRequest
   ): Promise<WorkspaceTaskReceipt> {
+    assertNotCancelled(request.signal)
     const taskId = requireOpaqueId(request.runId, "runId")
     const current = await this.storage.getWorkspaceTaskRun({ runId: taskId })
     if (current === null) {
       throw new Error(`workspace task run does not exist: ${taskId}`)
     }
-    if (current.run.repositoryId !== this.repositoryId) {
-      throw new Error("workspace task belongs to a different repository")
-    }
+    assertTaskRuntimeIdentity(current.run, this.rootIdentity, this.gitWorktree)
     if (current.run.state === "released") {
       return await workspaceTaskReceiptFromSnapshot(this.storage, current)
     }
@@ -224,10 +225,12 @@ export class WorkspaceTaskRuntime {
 
     const stored = claim.snapshot.run
     const resumedRequest: WorkspaceTaskRequest = {
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
       id: stored.id,
       workspaceId: stored.workspaceId,
       principalId: stored.principalId,
       access,
+      strategy: stored.strategy,
       input: request.input,
       ...(stored.jobId === undefined ? {} : { jobId: stored.jobId }),
       ...(stored.agentId === undefined ? {} : { agentId: stored.agentId }),
@@ -237,19 +240,18 @@ export class WorkspaceTaskRuntime {
       taskId,
       workspaceId: stored.workspaceId,
       principalId: stored.principalId,
-      isolationId: stored.isolationId,
+      isolationId: stored.isolationIdentity.id,
       identity,
       policy,
       environment: this.executionEnvironment,
       executionBinding: executionEnvironment,
-      retainIsolationOnSetupFailure: true,
       expectedLease: {
-        ...(stored.baseRevision === undefined
+        ...(stored.isolationIdentity.baseRevision === undefined
           ? {}
-          : { baseRevision: stored.baseRevision }),
-        ...(stored.runtimeRef === undefined
+          : { baseRevision: stored.isolationIdentity.baseRevision }),
+        ...(stored.isolationIdentity.runtimeRef === undefined
           ? {}
-          : { branchName: stored.runtimeRef })
+          : { branchName: stored.isolationIdentity.runtimeRef })
       }
     })
   }
@@ -269,7 +271,6 @@ export class WorkspaceTaskRuntime {
       readonly policy: ReturnType<typeof createWorkspaceTaskExecutionPolicy>
       readonly environment: WorkspaceTaskRuntimeOptions["executionEnvironment"]
       readonly executionBinding: import("@wanex/runtime/execution").ExecutionEnvironmentBinding
-      readonly retainIsolationOnSetupFailure: boolean
       readonly expectedLease?: {
         readonly baseRevision?: string
         readonly branchName?: string
@@ -285,7 +286,6 @@ export class WorkspaceTaskRuntime {
       policy,
       environment,
       executionBinding,
-      retainIsolationOnSetupFailure,
       expectedLease
     } = options
 
@@ -296,28 +296,28 @@ export class WorkspaceTaskRuntime {
     })
     renewal.start()
     const isolation =
-      request.access === "writable"
-        ? this.writableIsolation
-        : this.readOnlyIsolation
+      request.strategy === "git_worktree"
+        ? this.gitWorktree!.isolation
+        : this.directIsolation
     let lease: WorkspaceIsolationLease
     try {
       lease = await isolation.prepare(
-        isolationRequestForTask(request, {
+        { ...isolationRequestForTask(request, {
           taskId,
           isolationId,
           workspaceId,
           principalId
-        })
+        }), rootIdentity: this.rootIdentity,
+        ...(expectedLease?.baseRevision === undefined ? {} : { expectedBaseRevision: expectedLease.baseRevision }) }
       )
       if (lease.id !== isolationId) {
         throw new Error("workspace isolation adapter changed the durable isolation identity")
       }
-      if (request.access === "writable" && lease.kind !== "git_worktree") {
-        if (!retainIsolationOnSetupFailure) {
-          await isolation.release(lease)
-        }
+      const expectedKind = request.strategy === "git_worktree" ? "git_worktree" : "fixed"
+      if (lease.kind !== expectedKind || lease.repositoryId !==
+          (request.strategy === "git_worktree" ? this.gitWorktree!.repositoryId : undefined)) {
         throw new Error(
-          `writable workspace task requires runtime-owned git_worktree isolation: ${lease.kind}`
+          `workspace task isolation does not match its explicit strategy: ${lease.kind}`
         )
       }
       if (
@@ -330,12 +330,17 @@ export class WorkspaceTaskRuntime {
         throw new Error("workspace continuation changed the durable isolation identity")
       }
       renewal.assertHealthy()
+      if (request.strategy === "git_worktree" && (!lease.baseRevision || !lease.branchName)) {
+        throw new Error("prepared worktree must provide its base revision and runtime ref")
+      }
       await this.storage.markWorkspaceTaskActive({
         ...identity,
-        ...(lease.baseRevision === undefined
-          ? {}
-          : { baseRevision: lease.baseRevision }),
-        ...(lease.branchName === undefined ? {} : { runtimeRef: lease.branchName })
+        ...(request.strategy === "direct" ? {} : {
+          preparedIsolation: {
+            baseRevision: lease.baseRevision!,
+            runtimeRef: lease.branchName!
+          }
+        })
       })
     } catch (error) {
       const taskError = serializeWorkspaceTaskError(error)
@@ -370,7 +375,7 @@ export class WorkspaceTaskRuntime {
       await executionScope?.close().catch(() => {})
       const taskError = serializeWorkspaceTaskError(error, [lease.rootDir])
       await markAttentionBestEffort(this.storage, identity, taskError)
-      if (!retainIsolationOnSetupFailure) {
+      if (request.strategy === "direct") {
         await releaseWorkspaceTaskLease(isolation, lease)
       }
       await renewal.stop()
@@ -385,18 +390,21 @@ export class WorkspaceTaskRuntime {
     if (executionScope === undefined) {
       throw new Error("workspace task execution Scope was not bound")
     }
-    const executionGuard = new WorkspaceTaskExecutionGuard(executionScope.process)
+    const cancellation = combineTaskSignals(request.signal, renewal.signal)
+    const executionGuard = new WorkspaceTaskExecutionGuard(executionScope.process, cancellation.signal)
     let executionScopeClosed = false
     const closeExecutionScope = async (): Promise<void> => {
       if (executionScopeClosed) return
       executionScopeClosed = true
-      await executionScope.close()
+      try { await executionScope.close() } finally { cancellation.dispose() }
     }
     const context: WorkspaceTaskContext = {
+      signal: cancellation.signal,
       taskId,
       workspaceId,
       principalId,
       access: request.access,
+      strategy: request.strategy,
       input: request.input,
       rootDir: lease.rootDir,
       executionScope: {
@@ -409,7 +417,9 @@ export class WorkspaceTaskRuntime {
     let handlerError: WorkspaceTaskError | undefined
     let resources: readonly ResourceRecord[] = []
     try {
+      assertNotCancelled(cancellation.signal)
       handlerResult = await request.handler(context)
+      assertNotCancelled(cancellation.signal)
       executionGuard.assertCleanupProven()
       resources = await ingestWorkspaceTaskArtifacts(
         this.resourceRuntime,
@@ -445,26 +455,27 @@ export class WorkspaceTaskRuntime {
       handlerError = serializeWorkspaceTaskError(error, [lease.rootDir])
     }
 
+    const cancelled = request.signal?.aborted === true
     let summary: string | undefined
     try {
       summary = normalizeSummary(handlerResult.summary)
       await this.storage.beginWorkspaceTaskCollection({
         ...identity,
-        executionOutcome: handlerError === undefined ? "completed" : "failed",
+        executionOutcome: handlerError === undefined ? "completed" : cancelled ? "cancelled" : "failed",
         ...(summary === undefined ? {} : { summary }),
         resourceIds: resources.map((resource) => resource.id),
         ...(handlerError === undefined
           ? {}
           : { failure: workspaceTaskFailureJson(handlerError) })
       })
-      if (request.access === "writable") {
+      if (request.strategy === "git_worktree") {
         const ids = projectionIds(workspaceId, taskId)
         // Projection is a host-owned read after the agent scope is closed.
         // The Git runtime carries the broader repository scope it needs for
         // linked-worktree metadata and never reuses the agent scope here.
         await closeExecutionScope()
         executionGuard.assertCleanupProven()
-        const collection = await this.writableCollection.collectWorktree({
+        const collection = await this.gitWorktree!.collection.collectWorktree({
           lease,
           changeSetId: ids.changeSetId
         })
@@ -501,7 +512,7 @@ export class WorkspaceTaskRuntime {
               ? {}
               : {
                   proposalMetadata: {
-                    executionOutcome: "failed",
+                    executionOutcome: cancelled ? "cancelled" : "failed",
                     incomplete: true
                   }
                 })
@@ -510,7 +521,7 @@ export class WorkspaceTaskRuntime {
         } else {
           await this.storage.finalizeWorkspaceTaskCollection({
             ...identity,
-            outcome: handlerError === undefined ? "no_changes" : "execution_failed"
+            outcome: handlerError === undefined ? "no_changes" : cancelled ? "cancelled" : "execution_failed"
           })
         }
       } else {
@@ -521,7 +532,7 @@ export class WorkspaceTaskRuntime {
           outcome:
             handlerError === undefined
               ? "read_only_completed"
-              : "execution_failed"
+              : cancelled ? "cancelled" : "execution_failed"
         })
       }
       renewal.assertHealthy()
@@ -598,9 +609,9 @@ export class WorkspaceTaskRuntime {
     return await recoverWorkspaceTask(
       {
         storage: this.storage,
-        readOnlyIsolation: this.readOnlyIsolation,
-        writableIsolation: this.writableIsolation,
-        repositoryId: this.repositoryId,
+        directIsolation: this.directIsolation,
+        gitWorktree: this.gitWorktree,
+        rootIdentity: this.rootIdentity,
         ownerId: this.ownerId,
         leaseMs: this.leaseMs,
         executionEnvironment: this.executionEnvironment
@@ -615,9 +626,9 @@ export class WorkspaceTaskRuntime {
     return await recoverExpiredWorkspaceTasks(
       {
         storage: this.storage,
-        readOnlyIsolation: this.readOnlyIsolation,
-        writableIsolation: this.writableIsolation,
-        repositoryId: this.repositoryId,
+        directIsolation: this.directIsolation,
+        gitWorktree: this.gitWorktree,
+        rootIdentity: this.rootIdentity,
         ownerId: this.ownerId,
         leaseMs: this.leaseMs,
         defaultWorkspaceId: this.defaultWorkspaceId,
@@ -689,15 +700,6 @@ function projectionIds(
   }
 }
 
-function isolationIdFor(repositoryId: string, taskId: string): string {
-  return `wiso_${createHash("sha256")
-    .update(repositoryId)
-    .update("\0")
-    .update(taskId)
-    .digest("hex")
-    .slice(0, 32)}`
-}
-
 function normalizeSummary(summary: string | undefined): string | undefined {
   if (summary === undefined) {
     return undefined
@@ -759,8 +761,9 @@ function assertWorkspaceTaskRunIdentity(
     readonly workspaceId: string
     readonly principalId: string
     readonly access: WorkspaceTaskRequest["access"]
-    readonly repositoryId: string
-    readonly isolationId: string
+    readonly strategy: WorkspaceTaskRequest["strategy"]
+    readonly rootIdentity: WorkspaceTaskRuntimeOptions["rootIdentity"]
+    readonly isolationIdentity: import("@wanex/protocol").WorkspaceTaskIsolationIdentity
     readonly jobId?: string
     readonly agentId?: string
   }
@@ -770,8 +773,11 @@ function assertWorkspaceTaskRunIdentity(
     run.workspaceId !== identity.workspaceId ||
     run.principalId !== identity.principalId ||
     run.access !== identity.access ||
-    run.repositoryId !== identity.repositoryId ||
-    run.isolationId !== identity.isolationId ||
+    run.strategy !== identity.strategy ||
+    !sameTaskRoot(run.rootIdentity, identity.rootIdentity) ||
+    run.isolationIdentity.id !== identity.isolationIdentity.id ||
+    run.isolationIdentity.kind !== identity.isolationIdentity.kind ||
+    run.isolationIdentity.repositoryId !== identity.isolationIdentity.repositoryId ||
     run.jobId !== identity.jobId ||
     run.agentId !== identity.agentId
   ) {

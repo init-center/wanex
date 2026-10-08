@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { execFile, fork } from "node:child_process"
-import { createHash } from "node:crypto"
 import { request as httpsRequest } from "node:https"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -25,12 +24,10 @@ export async function proveServerDistribution(options = {}) {
   const targetId = options.targetId ?? `${process.platform}-${process.arch}`
   const proofRoot = await mkdtemp(join(workspaceRoot, "target/server-proof-"))
   const artifactRoot = join(proofRoot, "artifact")
-  const repositoryRoot = join(proofRoot, "repository")
   const tlsRoot = join(proofRoot, "tls")
   let child
   const startedAt = performance.now()
   try {
-    await createRepository(repositoryRoot)
     await mkdir(tlsRoot, { recursive: true })
     const certificate = await createCertificate(tlsRoot)
     const artifact = await buildServerDistribution({
@@ -44,10 +41,6 @@ export async function proveServerDistribution(options = {}) {
       profileId: "server-distribution-proof",
       hostId: "server-distribution-proof",
       listener: { hostname: "127.0.0.1", port: 0 },
-      coding: {
-        execution: { kind: "native" },
-        projects: [{ repositoryPath: repositoryRoot }]
-      },
       tls: { keyFile: certificate.keyPath, certFile: certificate.certPath }
     })}\n`, "utf8")
     child = fork(join(artifactRoot, "server.mjs"), [
@@ -74,7 +67,7 @@ export async function proveServerDistribution(options = {}) {
       protocolVersion: 1,
       clientId: "server-distribution-proof-invalid",
       accessToken: "opaque-proof-access-token",
-      requestedDomains: ["coding"]
+      requestedDomains: ["assistant"]
     })
     if (invalid.status !== 401) throw new Error("invalid bearer was accepted")
     const handshake = await requestJson(endpoint, certificate.certPath, {
@@ -84,7 +77,7 @@ export async function proveServerDistribution(options = {}) {
       protocolVersion: 1,
       clientId: "server-distribution-proof",
       accessToken: "opaque-proof-access-token",
-      requestedDomains: ["coding"]
+      requestedDomains: ["assistant"]
     })
     if (
       handshake.status !== 200 ||
@@ -100,19 +93,18 @@ export async function proveServerDistribution(options = {}) {
       kind: "wanex.agent-host.operation.request",
       operationKind: "read",
       requestId: "server-distribution-proof-projects",
-      domain: "coding",
-      operation: "coding.read",
-      payload: { command: "project.list" }
+      domain: "assistant",
+      operation: "assistant.surface.descriptor",
+      payload: null
     })
-    const projectList = projects.body?.result
     if (
       projects.status !== 200 ||
       projects.body?.kind !== "wanex.agent-host.operation.response" ||
       projects.body.outcome !== "completed" ||
-      !Array.isArray(projectList) ||
-      projectList.length !== 1
+      typeof projects.body.result !== "object" ||
+      projects.body.result === null
     ) {
-      throw new Error("Server Coding project.list proof failed")
+      throw new Error("Server Assistant descriptor proof failed")
     }
     await requestShutdown(child)
     await waitForExit(child)
@@ -194,26 +186,13 @@ export function createServerDistributionProofReceipt({
       status: ready.status,
       invalidBearerRejected: true,
       handshakeAccepted: true,
-      codingProjectListAccepted: true,
+      assistantDescriptorAccepted: true,
       shutdownExitCode
     },
     timingsMs: { total: totalMs },
     noCredentialsRetained: true,
     noOwnedProcessAfterRun: true
   }
-}
-
-async function createRepository(root) {
-  await mkdir(root, { recursive: true })
-  await writeFile(join(root, "README.md"), "server distribution proof\n", "utf8")
-  for (const args of [
-    ["init"],
-    ["config", "user.email", "wanex@example.local"],
-    ["config", "user.name", "Wanex Server Distribution Proof"],
-    ["config", "commit.gpgsign", "false"],
-    ["add", "README.md"],
-    ["commit", "-m", "initial proof repository"]
-  ]) await execFileAsync("git", ["-C", root, ...args])
 }
 
 async function createCertificate(root) {

@@ -12,7 +12,7 @@ const baseRequest = {
   grant: {
     subjectId: "subject_1",
     hostId: "host_1",
-    domains: ["assistant", "coding"] as const,
+    domains: ["assistant"] as const,
     expiresAt: 1_500
   },
   host: {
@@ -76,18 +76,11 @@ describe("remote Host authorization policy", () => {
     ).toEqual({ outcome: "denied", code: "unauthorized", retryable: false })
   })
 
-  it("rejects domains outside the server-resolved grant", () => {
+  it("rejects requests outside the server-resolved grant", () => {
     expect(
       authorizeRemoteHostRequest({
         ...baseRequest,
-        requestedDomains: ["coding"]
-      })
-    ).toEqual({ outcome: "allowed", context: expect.objectContaining({ grantedDomains: ["coding"] }) })
-    expect(
-      authorizeRemoteHostRequest({
-        ...baseRequest,
-        grant: { ...baseRequest.grant, domains: ["assistant"] },
-        requestedDomains: ["coding"]
+        requestedDomains: []
       })
     ).toEqual({ outcome: "denied", code: "unauthorized", retryable: false })
   })
@@ -122,11 +115,6 @@ describe("remote Host authorization policy", () => {
     expect(authorizeRemoteHostDomain(decision.context, "assistant", 1_200)).toEqual({
       outcome: "allowed",
       context: decision.context
-    })
-    expect(authorizeRemoteHostDomain(decision.context, "coding", 1_200)).toEqual({
-      outcome: "denied",
-      code: "unauthorized",
-      retryable: false
     })
     expect(authorizeRemoteHostDomain(decision.context, "assistant", 1_500)).toEqual({
       outcome: "denied",

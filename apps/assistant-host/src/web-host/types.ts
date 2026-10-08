@@ -2,7 +2,7 @@ import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Controller } from "@wanex/assistant-ui";
 import type { SurfaceClient } from "@wanex/assistant/surface";
 import type { LocalAttachmentUploadPort } from "../resources/attachment.js";
-import type { LocalResourceDeliveryPort } from "../resources/delivery.js";
+import type { ResourceDeliveryPort } from "../resources/delivery.js";
 import type { LocalMcpSettingsPort } from "../mcp/settings/model.js";
 import type {
   LocalCapabilitySetupCommands,
@@ -25,7 +25,7 @@ export interface WebNodeRequestHandlerOptions {
     "readSurfaceEvents" | "subscribeSurfaceEvents"
   >;
   readonly attachments: LocalAttachmentUploadPort;
-  readonly resourceDeliveries: LocalResourceDeliveryPort;
+  readonly resourceDeliveries: ResourceDeliveryPort;
   /** Present only for the trusted local Assistant composition. */
   readonly providers?: LocalProviderCommands;
   /** Fixed-source metadata refresh, owned by the trusted local Host. */
@@ -35,7 +35,7 @@ export interface WebNodeRequestHandlerOptions {
   /** Constrained MCP settings commands owned by the trusted local Host. */
   readonly mcpSettings?: LocalMcpSettingsPort;
   /** Fixed generated browser assets supplied by a trusted composition owner. */
-  readonly browserAssets?: WebBrowserAssets;
+  readonly browserAssets: WebBrowserAssets;
   readonly windowChrome?: WebWindowChrome;
   readonly requestPath?: string;
   readonly maxBodyBytes?: number;

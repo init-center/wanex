@@ -67,6 +67,7 @@ const packageScopedSourceImportAllowlist = new Map([
       [
         "@wanex/assistant-ui",
         new Set([
+          "packages/eval-harness/src/assistant/browser-assets.ts",
           "packages/eval-harness/src/assistant/conversation-lifecycle-scenario.ts",
           "packages/eval-harness/src/assistant/feedback-matrix-scenario.ts",
           "packages/eval-harness/src/assistant/goal-journey-scenario.ts",

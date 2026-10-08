@@ -193,6 +193,32 @@ export function fromRpcRequestSessionTurnCancelReceipt(
   ) as RequestSessionTurnCancelReceipt
 }
 
+function readAdmissionConditions(value: JsonValue | undefined): SessionTurnExecutionBinding["admissionConditions"] {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length === 0 || value.length > 16) {
+    throw new Error("execution_binding.admissionConditions must contain 1 to 16 entries")
+  }
+  const keys = new Set<string>()
+  return value.map((item) => {
+    if (!isRecord(item)) throw new Error("admission condition must be an object")
+    requireExactKeys(item, ["key", "expectedRevision", "expectedValueDigest"], "admission condition")
+    const key = expectString(item.key, "admission condition.key")
+    const revision = item.expectedRevision
+    if (Buffer.byteLength(key) === 0 || Buffer.byteLength(key) > 512 || keys.has(key) ||
+      (revision !== null && (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision <= 0))) {
+      throw new Error("admission condition key or revision is invalid")
+    }
+    keys.add(key)
+    if (revision === null && item.expectedValueDigest !== null) {
+      throw new Error("absent admission condition must have a null value digest")
+    }
+    return {
+      key, expectedRevision: revision,
+      expectedValueDigest: revision === null ? null : expectSha256(item.expectedValueDigest, "admission condition digest")
+    }
+  })
+}
+
 export function readExecutionBinding(value: JsonValue | undefined): SessionTurnExecutionBinding {
   if (!isRecord(value)) {
     throw new Error("turn.execution_binding must be an object")
@@ -208,6 +234,7 @@ export function readExecutionBinding(value: JsonValue | undefined): SessionTurnE
       "resources",
       "recovery",
       ...("contextEvidence" in value ? ["contextEvidence"] : []),
+      ...("admissionConditions" in value ? ["admissionConditions"] : []),
       ...("toolSnapshot" in value ? ["toolSnapshot"] : []),
       ...("permissionSnapshot" in value ? ["permissionSnapshot"] : []),
       ...("executionEnvironment" in value ? ["executionEnvironment"] : []),
@@ -248,6 +275,7 @@ export function readExecutionBinding(value: JsonValue | undefined): SessionTurnE
     },
     {
       contextEvidence: readContextEvidence(value.contextEvidence),
+      admissionConditions: readAdmissionConditions(value.admissionConditions),
       toolSnapshot: value.toolSnapshot,
       permissionSnapshot: value.permissionSnapshot,
       executionEnvironment:

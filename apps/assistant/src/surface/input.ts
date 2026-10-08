@@ -75,6 +75,17 @@ export {
   parseSurfaceRemoveScheduleRequest,
 } from "./input/schedule.js";
 export {
+  parseWorkspaceChangeReference,
+  parseWorkspaceChangeDecision,
+  parseWorkspaceChangeMutation,
+} from "./input/workspace-review.js";
+export {
+  parseListWorkspaceFolders,
+  parseGrantWorkspaceFolder,
+  parseRegrantWorkspaceFolder,
+  parseRevokeWorkspaceFolder,
+} from "./input/workspace-folders.js";
+export {
   expectSurfaceNoInput,
   normalizeSurfaceError,
   normalizeSurfaceValidationError,

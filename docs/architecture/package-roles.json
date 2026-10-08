@@ -1,7 +1,6 @@
 {
   "@wanex/app": "public-facade",
   "@wanex/cli": "app",
-  "@wanex/coding": "app",
   "@wanex/connector": "public-capability",
   "@wanex/eval-harness": "test",
   "@wanex/extension": "public-capability",

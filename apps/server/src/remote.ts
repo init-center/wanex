@@ -3,10 +3,6 @@ import {
   type AssistantHost
 } from "@wanex/assistant-host"
 import {
-  createCodingAgentHostEndpoint,
-  type CodingApplicationHost
-} from "@wanex/coding/host"
-import {
   createRemoteAgentHostHttpHandler,
   type RemoteAgentHostHandshakeContext,
   type RemoteAgentHostHttpHandler,
@@ -14,11 +10,11 @@ import {
   type RemoteHostRequestLimits
 } from "@wanex/runtime/host"
 import type { WanexServerAuthentication } from "./model.js"
+import { isWanexServerOwner } from "./authentication.js"
 
 export function createWanexServerRemoteHandler(options: {
   readonly authentication: WanexServerAuthentication
   readonly assistantHost: AssistantHost
-  readonly codingHost?: CodingApplicationHost
   readonly host: RemoteAgentHostResolvedHost["host"]
   readonly limits?: Partial<RemoteHostRequestLimits>
 }): RemoteAgentHostHttpHandler {
@@ -26,6 +22,7 @@ export function createWanexServerRemoteHandler(options: {
     authenticateBearerToken: async (token) =>
       await options.authentication.authenticateBearerToken(token),
     resolveHost: (subject, context) => {
+      if (!isWanexServerOwner(options.authentication, subject)) return null
       const domain = exactRequestedDomain(context)
       if (domain === undefined) return null
       const grant = {
@@ -42,25 +39,15 @@ export function createWanexServerRemoteHandler(options: {
           createEndpoint: (accessToken: string) =>
             createAssistantAgentHostEndpoint({
               surface: options.assistantHost.surface,
-              commands: options.assistantHost.shell,
               host: options.host,
-              accessToken
+              accessToken,
+              resourceDeliveries: options.assistantHost.resourceDeliveries,
+              resourceDeliveryAudience: subject.subjectId
             })
         }
       }
 
-      const codingHost = options.codingHost
-      if (codingHost === undefined) return null
-      return {
-        host: options.host,
-        grant,
-        createEndpoint: (accessToken: string) =>
-          createCodingAgentHostEndpoint({
-            application: codingHost.application,
-            host: options.host,
-            accessToken
-          })
-      }
+      return null
     },
     ...(options.limits === undefined ? {} : { limits: options.limits })
   })

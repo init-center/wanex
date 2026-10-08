@@ -3,7 +3,6 @@ import {
   LoaderCircle,
   PanelLeft,
   PanelRight,
-  SlidersHorizontal,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Snapshot } from "../../application/model.js";
@@ -15,23 +14,28 @@ export function Topbar({
   streamAvailable,
   streamReconnecting,
   sessionsOpen,
+  sidebarCollapsed,
   inactive,
   openSessions,
+  toggleSidebar,
   reconnectStream,
   toggleContext,
-  openSettings,
+  actions,
 }: {
   readonly snapshot: Snapshot;
   readonly streamAvailable: boolean;
   readonly streamReconnecting: boolean;
   readonly sessionsOpen: boolean;
+  readonly sidebarCollapsed: boolean;
   readonly inactive: boolean;
   readonly openSessions: () => void;
+  readonly toggleSidebar: () => void;
   readonly reconnectStream: () => void;
   readonly toggleContext: () => void;
-  readonly openSettings: () => void;
+  readonly actions?: ReactNode;
 }): ReactNode {
   const state = snapshot.view;
+  const needsSetup = state.providerRunGate.state !== "ready";
   return (
     <header className={classes("topbar")} data-ui-topbar inert={inactive ? true : undefined}>
       <div className={classes("topbar-title")}>
@@ -46,25 +50,23 @@ export function Topbar({
         >
           <PanelLeft size={17} />
         </button>
+        <button
+          type="button"
+          className={classes("icon-button desktop-sidebar-toggle")}
+          data-ui-action="toggle-sidebar"
+          aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          aria-controls="conversation-navigation"
+          aria-expanded={!sidebarCollapsed}
+          onClick={toggleSidebar}
+        >
+          <PanelLeft size={17} />
+        </button>
         <h1 data-ui-selected-session-title>
           {state.title}
         </h1>
       </div>
       <div className={classes("top-actions")}>
-        <IconButton label="Toggle context panel" onClick={toggleContext}>
-          <PanelRight size={17} />
-        </IconButton>
-        <IconButton label="Open settings" qa="open-settings" onClick={openSettings}>
-          <SlidersHorizontal size={17} />
-        </IconButton>
-        <span
-          className={classes(`readiness readiness-${state.providerRunGate.state}`)}
-          data-ui-provider-state={state.providerRunGate.state}
-          title={state.providerRunGate.message}
-        >
-          <span className={classes("status-dot")} aria-hidden="true" />
-          <span>{statusLabel(state.providerRunGate.state)}</span>
-        </span>
         {streamAvailable ? null : (
           <button
             type="button"
@@ -82,6 +84,18 @@ export function Topbar({
             <span className={classes("sr-only")}>Live updates paused</span>
           </button>
         )}
+        <span
+          className={classes(`readiness readiness-${state.providerRunGate.state}`)}
+          data-ui-provider-state={state.providerRunGate.state}
+          title={state.providerRunGate.message}
+        >
+          <span className={classes("status-dot")} aria-hidden="true" />
+          <span>{needsSetup ? statusLabel(state.providerRunGate.state) : "Ready"}</span>
+        </span>
+        {actions}
+        <IconButton label="Toggle context panel" onClick={toggleContext}>
+          <PanelRight size={17} />
+        </IconButton>
       </div>
     </header>
   );

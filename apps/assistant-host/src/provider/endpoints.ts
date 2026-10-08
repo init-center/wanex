@@ -3,12 +3,14 @@ import { normalizeModelEndpoint } from "@wanex/runtime/provider"
 import type { Shell } from "@wanex/assistant"
 import type {
   LocalModelEndpointOptions,
+  LocalModelCapabilityOperation,
   LocalModelEndpointsOptions
 } from "../model.js"
 
 export interface ResolvedLocalModelEndpoints {
   readonly endpoints: readonly ModelEndpoint[]
   readonly activeEndpointId?: string
+  readonly capabilityRoutes?: Partial<Record<LocalModelCapabilityOperation, string>>
 }
 
 export function resolveLocalModelEndpoints(
@@ -29,9 +31,13 @@ export function resolveLocalModelEndpoints(
       `active model endpoint must be included in modelEndpoints.endpoints: ${activeEndpointId}`
     )
   }
+  const capabilityRoutes = options?.capabilityRoutes === undefined
+    ? undefined
+    : normalizeCapabilityRoutes(options.capabilityRoutes, endpoints)
   return {
     endpoints,
-    ...(activeEndpointId === undefined ? {} : { activeEndpointId })
+    ...(activeEndpointId === undefined ? {} : { activeEndpointId }),
+    ...(capabilityRoutes === undefined ? {} : { capabilityRoutes })
   }
 }
 
@@ -49,13 +55,26 @@ export async function seedLocalModelEndpoints(input: {
     await input.shell.modelEndpoints.setActiveModelEndpoint({
       endpointId: input.modelEndpoints.activeEndpointId
     })
-    return
+  } else {
+    const active = await input.shell.modelEndpoints.readActiveModelEndpoint()
+    if (active === null && input.modelEndpoints.endpoints[0] !== undefined) {
+      await input.shell.modelEndpoints.setActiveModelEndpoint({
+        endpointId: input.modelEndpoints.endpoints[0].id
+      })
+    }
   }
-  const active = await input.shell.modelEndpoints.readActiveModelEndpoint()
-  if (active === null && input.modelEndpoints.endpoints[0] !== undefined) {
-    await input.shell.modelEndpoints.setActiveModelEndpoint({
-      endpointId: input.modelEndpoints.endpoints[0].id
+  for (const [operation, endpointId] of Object.entries(
+    input.modelEndpoints.capabilityRoutes ?? {}
+  )) {
+    const readiness = await input.shell.modelCapabilities.setModelCapabilityRoute({
+      operation: operation as LocalModelCapabilityOperation,
+      modelEndpointId: endpointId
     })
+    if (readiness.status !== "ready") {
+      throw new Error(
+        `configured model capability route is not ready: ${operation} -> ${endpointId} (${readiness.status})`
+      )
+    }
   }
 }
 
@@ -89,4 +108,36 @@ function normalizeOptionalString(
     throw new Error(`${name} must not be empty`)
   }
   return normalized
+}
+
+function normalizeCapabilityRoutes(
+  routes: Partial<Record<LocalModelCapabilityOperation, string>>,
+  endpoints: readonly ModelEndpoint[]
+): Partial<Record<LocalModelCapabilityOperation, string>> {
+  const normalized: Partial<Record<LocalModelCapabilityOperation, string>> = {}
+  for (const [operation, endpointId] of Object.entries(routes)) {
+    if (!isCapabilityOperation(operation)) {
+      throw new Error(`unsupported model capability route: ${operation}`)
+    }
+    if (typeof endpointId !== "string" || endpointId.trim().length === 0) {
+      throw new Error(`model capability route endpoint is invalid: ${operation}`)
+    }
+    const endpoint = endpoints.find((candidate) => candidate.id === endpointId)
+    if (endpoint === undefined) {
+      throw new Error(`model capability route endpoint not found: ${endpointId}`)
+    }
+    if (!endpoint.model.operations.includes(operation)) {
+      throw new Error(`model endpoint ${endpointId} does not support ${operation}`)
+    }
+    normalized[operation] = endpointId
+  }
+  return normalized
+}
+
+function isCapabilityOperation(value: string): value is LocalModelCapabilityOperation {
+  return value === "image.generate" ||
+    value === "image.edit" ||
+    value === "video.generate" ||
+    value === "audio.transcribe" ||
+    value === "audio.synthesize"
 }

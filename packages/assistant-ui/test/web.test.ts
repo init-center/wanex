@@ -162,6 +162,43 @@ describe("@wanex/assistant-ui", () => {
     );
   });
 
+  it.each([true, false])("preserves schedule acknowledgement (applied=%s) when readback fails without repeating removal", async (applied) => {
+    class RemovalPort extends WebSchedulePort {
+      override async removeDefinition(): Promise<ScheduleMutationResult> {
+        return applied ? { kind: "assistant.schedule.applied", operation: "remove", scheduleId: this.definition.scheduleId, revision: 4 }
+          : await super.removeDefinition();
+      }
+    }
+    const schedules = new RemovalPort();
+    await withWebSurface(async ({ client }) => {
+      let failReadback = false;
+      let mutations = 0;
+      const surface = await createSurface({ client: {
+        ...client,
+        async removeSchedule(input, options) {
+          mutations++;
+          const result = await client.removeSchedule(input, options);
+          failReadback = true;
+          return result;
+        },
+        async descriptor() {
+          if (failReadback) throw new Error("Schedule readback interrupted");
+          return await client.descriptor();
+        },
+      } });
+      const result = await surface.dispatchAction({ type: "remove-schedule", input: {
+        scheduleId: schedules.definition.scheduleId, expectedRevision: schedules.definition.revision,
+      } });
+      expect(result).toMatchObject({ ok: applied, output: { kind: "web.schedule-action", result: {
+        kind: applied ? "assistant.schedule.applied" : "assistant.schedule.rejected",
+      } }, snapshotRefresh: { state: "failed", message: "Schedule readback interrupted" } });
+      await expect(surface.refresh()).rejects.toThrow("Schedule readback interrupted");
+      failReadback = false;
+      await surface.refresh();
+      expect(mutations).toBe(1);
+    }, { schedules });
+  });
+
   it.each([
     ["pending", "submitted"],
     ["ready", "submitted"],
@@ -415,7 +452,7 @@ describe("@wanex/assistant-ui", () => {
         descriptor: {
           ok: true,
           value: {
-            commandCount: 73,
+            commandCount: 82,
           },
         },
         view: {
@@ -473,7 +510,7 @@ describe("@wanex/assistant-ui", () => {
               rendererMayReceiveServiceBinaryPath: false,
             },
           },
-          commandCount: 73,
+          commandCount: 82,
           commandPaletteCount: 1,
           commandPalette: {
             kind: "web.command-palette",
@@ -1540,6 +1577,74 @@ describe("@wanex/assistant-ui", () => {
       });
     });
   });
+
+  it("requires Host attachment capability before accepting attachment input", async () => {
+    await withWebSurface(async ({ surface }) => {
+      const snapshot = surface.snapshot();
+      if (
+        !snapshot.descriptor.ok ||
+        !snapshot.home.ok ||
+        !snapshot.settings.ok ||
+        !snapshot.modelEndpoints.ok
+      ) {
+        throw new Error("expected complete Assistant fixture state");
+      }
+      const activeEndpointId = snapshot.settings.value.profile.activeModelEndpointId;
+      if (activeEndpointId === undefined) {
+        throw new Error("expected an active model endpoint");
+      }
+      const capableBase = {
+        ...snapshot,
+        home: {
+          ...snapshot.home,
+          value: {
+            ...snapshot.home.value,
+            providerReadiness: {
+              ...snapshot.home.value.providerReadiness,
+              canRun: true,
+            },
+          },
+        },
+        modelEndpoints: {
+          ...snapshot.modelEndpoints,
+          value: {
+            ...snapshot.modelEndpoints.value,
+            endpoints: snapshot.modelEndpoints.value.endpoints.map((endpoint) =>
+              endpoint.id === activeEndpointId
+                ? {
+                    ...endpoint,
+                    active: true,
+                    model: {
+                      ...endpoint.model,
+                      inputModalities: ["text", "image"] as const,
+                    },
+                  }
+                : endpoint
+            ),
+          },
+        },
+      };
+      expect(buildViewModel(capableBase).conversationAttachmentCanUpload).toBe(true);
+
+      const withoutUpload = {
+        ...capableBase,
+        descriptor: {
+          ...snapshot.descriptor,
+          value: {
+            ...snapshot.descriptor.value,
+            commands: snapshot.descriptor.value.commands.filter(
+              ({ command }) => command !== "prepareConversationAttachment",
+            ),
+          },
+        },
+      };
+      expect(buildViewModel(withoutUpload).conversationAttachmentCanUpload).toBe(false);
+      expect(buildViewModel(withoutUpload, {
+        attachmentUploadAvailable: true,
+      }).conversationAttachmentCanUpload).toBe(true);
+    });
+  });
+
   it("runs a controller loop from typed action to canonical snapshot reconciliation", async () => {
     await withWebSurface(async ({ app, client, observed }) => {
       await seedSession(
@@ -1745,6 +1850,14 @@ describe("@wanex/assistant-ui", () => {
           },
         },
       });
+      expect(
+        observed.some(
+          (request) =>
+            request.operation === "dispatchSurfaceCommand" &&
+            request.command.command === "setMode" &&
+            request.command.requestId === "req_submit",
+        ),
+      ).toBe(true);
 
       const invalidAction = await handleRequest(controller, {
         kind: "web.request",
@@ -1838,6 +1951,14 @@ describe("@wanex/assistant-ui", () => {
           },
         },
       });
+      expect(
+        observed.some(
+          (request) =>
+            request.operation === "dispatchSurfaceCommand" &&
+            request.command.command === "submitConversationOperation" &&
+            request.command.requestId === "req_submit_conversation",
+        ),
+      ).toBe(true);
       await waitForAppConversationTerminal(app, "ses_request_workbench");
 
       const selectedWorkbench = await handleRequest(controller, {

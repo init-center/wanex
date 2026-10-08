@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path"
+import { join } from "node:path"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { afterEach, describe, expect, it } from "vitest"
@@ -9,7 +9,6 @@ import {
 } from "@wanex/runtime/secrets"
 import type { BootstrappedWanexStorage } from "@wanex/runtime/bootstrap"
 import type { AssistantHost } from "@wanex/assistant-host/application"
-import type { CodingApplicationHost } from "@wanex/coding/host"
 import {
   startWanexServerInternal
 } from "../src/start.js"
@@ -37,6 +36,48 @@ afterEach(async () => {
 })
 
 describe("Wanex Server ownership foundation", () => {
+  it.each([undefined, null, "", " ", "bad/id", "x".repeat(201)])(
+    "rejects invalid owner %j before bootstrapping a Store", async (ownerSubjectId) => {
+      const events: string[] = []
+      const options = serverOptions(await createTempDir())
+      await expect(startWanexServerInternal({
+        ...options,
+        authentication: { ...options.authentication, ownerSubjectId } as StartWanexServerOptions["authentication"]
+      }, {
+        async bootstrapStorage() { events.push("bootstrap"); return fakeRuntime(events) }
+      })).rejects.toThrow("ownerSubjectId")
+      expect(events).toEqual([])
+    }
+  )
+
+  it("snapshots the trusted owner before startup and shares it across network entrypoints", async () => {
+    const options = serverOptions(await createTempDir())
+    const authentication = { ...options.authentication }
+    const events: string[] = []
+    let remoteAuthentication: StartWanexServerOptions["authentication"] | undefined
+    const server = await startWanexServerInternal({ ...options, authentication }, {
+      async bootstrapStorage() {
+        authentication.ownerSubjectId = "different-owner"
+        return fakeRuntime(events)
+      },
+      startAssistant: async () => fakeAssistant(events),
+      createRemoteHandler(options) {
+        remoteAuthentication = options.authentication
+        expect(remoteAuthentication.ownerSubjectId).toBe("server-test-subject")
+        expect(Object.isFrozen(remoteAuthentication)).toBe(true)
+        return { close: async () => {}, drain: async () => {} } as ReturnType<
+          typeof import("../src/remote.js").createWanexServerRemoteHandler
+        >
+      },
+      async listen(options) {
+        expect(options.authentication).toBe(remoteAuthentication)
+        return fakeListener(events)
+      }
+    })
+    servers.push(server)
+    expect(remoteAuthentication?.ownerSubjectId).toBe("server-test-subject")
+  })
+
   it("owns one real Store and runs Assistant over its borrowed handle", async () => {
     const dataRoot = await createTempDir()
     const server = await startWanexServerInternal({
@@ -57,7 +98,6 @@ describe("Wanex Server ownership foundation", () => {
       state: "open",
       profileId: "primary",
       assistant: "ready",
-      coding: "disabled",
       listener: "ready",
       endpoint: fakeEndpointAddress
     })
@@ -77,7 +117,6 @@ describe("Wanex Server ownership foundation", () => {
       state: "closed",
       profileId: "primary",
       assistant: "closed",
-      coding: "disabled",
       listener: "closed",
       endpoint: fakeEndpointAddress
     })
@@ -171,100 +210,6 @@ describe("Wanex Server ownership foundation", () => {
     ])
   })
 
-  it("starts Coding over the borrowed Store and closes it before Assistant", async () => {
-    const events: string[] = []
-    const runtime = fakeRuntime(events)
-    const assistant = fakeAssistant(events)
-    const coding = fakeCoding(events)
-    const dataRoot = await createTempDir()
-    const server = await startWanexServerInternal({
-      ...serverOptions(dataRoot),
-      serviceBin: resolve("target/test-wanex-system-service"),
-      config: {
-        dataRoot,
-        listener: { hostname: "127.0.0.1", port: 0 },
-        coding: {
-          execution: { kind: "native" },
-          projects: [{ repositoryPath: resolve("target/test-repository") }]
-        }
-      }
-    }, {
-      async bootstrapStorage() {
-        events.push("bootstrap")
-        return runtime
-      },
-      async startAssistant() {
-        events.push("assistant-start")
-        return assistant
-      },
-      async startCoding(options) {
-        events.push("coding-start")
-        expect(options.storage).toEqual({
-          core: runtime.storage,
-          transport: runtime.transport
-        })
-        expect(options.profileStoreDir).toContain("profiles/default")
-        return coding
-      },
-      listen: async () => fakeListener(events)
-    })
-    servers.push(server)
-
-    expect(server.readStatus()).toMatchObject({ coding: "ready" })
-    await server.close()
-    servers.pop()
-    expect(events).toEqual([
-      "bootstrap",
-      "assistant-start",
-      "coding-start",
-      "listener-close",
-      "listener-destroy",
-      "coding-close",
-      "assistant-close",
-      "storage-dispose"
-    ])
-  })
-
-  it("closes Assistant and Store when Coding startup fails", async () => {
-    const events: string[] = []
-    const runtime = fakeRuntime(events)
-    const assistant = fakeAssistant(events)
-    const dataRoot = await createTempDir()
-
-    await expect(startWanexServerInternal({
-      ...serverOptions(dataRoot),
-      serviceBin: resolve("target/test-wanex-system-service"),
-      config: {
-        dataRoot,
-        listener: { hostname: "127.0.0.1", port: 0 },
-        coding: {
-          execution: { kind: "native" },
-          projects: [{ repositoryPath: resolve("target/test-repository") }]
-        }
-      }
-    }, {
-      async bootstrapStorage() {
-        events.push("bootstrap")
-        return runtime
-      },
-      async startAssistant() {
-        events.push("assistant-start")
-        return assistant
-      },
-      async startCoding() {
-        events.push("coding-start")
-        throw new Error("planned Coding startup failure")
-      }
-    })).rejects.toThrow("planned Coding startup failure")
-
-    expect(events).toEqual([
-      "bootstrap",
-      "assistant-start",
-      "coding-start",
-      "assistant-close",
-      "storage-dispose"
-    ])
-  })
 })
 
 const fakeEndpointAddress: WanexServerEndpoint = Object.freeze({
@@ -272,7 +217,9 @@ const fakeEndpointAddress: WanexServerEndpoint = Object.freeze({
   transport: "https",
   hostname: "127.0.0.1",
   port: 9443,
-  messageUrl: "https://127.0.0.1:9443/v1/agent-host/message"
+  messageUrl: "https://127.0.0.1:9443/v1/agent-host/message",
+  attachmentUploadUrl: "https://127.0.0.1:9443/v1/assistant/attachment",
+  resourceDeliveryUrl: "https://127.0.0.1:9443/v1/assistant/resource"
 })
 
 function serverOptions(
@@ -286,6 +233,7 @@ function serverOptions(
       listener: { hostname: "127.0.0.1", port: 0 }
     },
     authentication: {
+      ownerSubjectId: "server-test-subject",
       async authenticateBearerToken(token) {
         return token === "server-test-bearer"
           ? { subjectId: "server-test-subject", expiresAt: Date.now() + 60_000 }
@@ -362,22 +310,6 @@ function fakeAssistant(events: string[]): AssistantHost {
     resourceDeliveries: {} as AssistantHost["resourceDeliveries"],
     async close() {
       events.push("assistant-close")
-    }
-  }
-}
-
-function fakeCoding(events: string[]): CodingApplicationHost {
-  return {
-    application: {} as CodingApplicationHost["application"],
-    openProject: async () => {
-      throw new Error("fake Coding project is unavailable")
-    },
-    readDiagnostics: async () => ({
-      state: "open",
-      repositories: []
-    }),
-    async close() {
-      events.push("coding-close")
     }
   }
 }

@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@wanex/assistant-host": "workspace:*",
-    "@wanex/coding": "workspace:*",
     "@wanex/runtime": "workspace:*",
     "@wanex/storage": "workspace:*",
     "@wanex/workspace": "workspace:*"

@@ -18,14 +18,16 @@ impl SystemService {
         request: &MarkWorkspaceTaskActive,
     ) -> Result<WorkspaceTaskRunSnapshot> {
         validate_identity(&request.run_id, &request.attempt_id, &request.claim_token)?;
-        validate_revision(request.base_revision.as_deref())?;
-        validate_runtime_ref(request.runtime_ref.as_deref())?;
-        if request.base_revision.is_some() != request.runtime_ref.is_some() {
-            return Err(SystemServiceError::InvalidInput(
-                "workspace task base revision and runtime ref must be provided together"
-                    .to_string(),
-            ));
-        }
+        let base_revision = request
+            .prepared_isolation
+            .as_ref()
+            .map(|value| value.base_revision.as_str());
+        let runtime_ref = request
+            .prepared_isolation
+            .as_ref()
+            .map(|value| value.runtime_ref.as_str());
+        validate_revision(base_revision)?;
+        validate_runtime_ref(runtime_ref)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
         let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
@@ -37,47 +39,21 @@ impl SystemService {
             &request.claim_token,
             now,
         )?;
+        if (run.strategy == "git_worktree") != request.prepared_isolation.is_some() {
+            return Err(SystemServiceError::InvalidInput(
+                "workspace task prepared isolation must match its strategy".to_string(),
+            ));
+        }
         if run.state == "active" {
-            if run.base_revision.is_some() != run.runtime_ref.is_some() {
+            if run.isolation_identity.base_revision.is_some()
+                != run.isolation_identity.runtime_ref.is_some()
+            {
                 return Err(SystemServiceError::Invariant(
                     "active workspace task has incomplete prepared identity".to_string(),
                 ));
             }
-            if run.access == "writable"
-                && (request.base_revision.is_none() || request.runtime_ref.is_none())
-            {
-                return Err(SystemServiceError::InvalidInput(
-                    "writable workspace task requires base revision and runtime ref".to_string(),
-                ));
-            }
-            if run.base_revision.is_none()
-                && request.base_revision.is_some()
-                && request.runtime_ref.is_some()
-            {
-                tx.execute(
-                    "UPDATE workspace_task_run
-                     SET base_revision = ?, runtime_ref = ?, updated_at = ?
-                     WHERE id = ? AND state = 'active'
-                       AND base_revision IS NULL AND runtime_ref IS NULL",
-                    params![
-                        request.base_revision,
-                        request.runtime_ref,
-                        now,
-                        request.run_id
-                    ],
-                )?;
-                append_task_event(
-                    &tx,
-                    "workspace.task_run.identity_recorded",
-                    &request.run_id,
-                    "active",
-                    now,
-                )?;
-                let snapshot = snapshot_tx(&tx, require_run_tx(&tx, &request.run_id)?)?;
-                tx.commit()?;
-                return Ok(snapshot);
-            }
-            if run.base_revision != request.base_revision || run.runtime_ref != request.runtime_ref
+            if run.isolation_identity.base_revision.as_deref() != base_revision
+                || run.isolation_identity.runtime_ref.as_deref() != runtime_ref
             {
                 return Err(SystemServiceError::Conflict(
                     "workspace task active replay changed prepared identity".to_string(),
@@ -88,23 +64,11 @@ impl SystemService {
             return Ok(snapshot);
         }
         require_state(&run, "preparing", "active")?;
-        if run.access == "writable"
-            && (request.base_revision.is_none() || request.runtime_ref.is_none())
-        {
-            return Err(SystemServiceError::InvalidInput(
-                "writable workspace task requires base revision and runtime ref".to_string(),
-            ));
-        }
         tx.execute(
             "UPDATE workspace_task_run
              SET state = 'active', base_revision = ?, runtime_ref = ?, updated_at = ?
              WHERE id = ? AND state = 'preparing'",
-            params![
-                request.base_revision,
-                request.runtime_ref,
-                now,
-                request.run_id
-            ],
+            params![base_revision, runtime_ref, now, request.run_id],
         )?;
         append_task_event(
             &tx,

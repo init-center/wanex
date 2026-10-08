@@ -5,6 +5,7 @@ import type {
   CommandInputObjectControl,
 } from "../../application/model.js";
 import { classes } from "../classes.js";
+import { Select } from "../primitives/select.js";
 
 export type CommandInputDraft = unknown;
 
@@ -166,17 +167,13 @@ function CommandControl({
     if (control.options !== undefined) {
       return (
         <ScalarLabel control={control}>
-          <select
+          <Select
+            label={control.label}
             value={String(value)}
             required={control.required}
-            onChange={(event) => onChange(event.target.value === "true")}
-          >
-            {control.options.map((option) => (
-              <option value={String(option)} key={String(option)}>
-                {option ? "True" : "False"}
-              </option>
-            ))}
-          </select>
+            onValueChange={(next) => onChange(next === "true")}
+            options={control.options.map((option) => ({ value: String(option), label: option ? "True" : "False" }))}
+          />
         </ScalarLabel>
       );
     }
@@ -195,30 +192,26 @@ function CommandControl({
   if (control.kind === "string" && control.options !== undefined) {
     return (
       <ScalarLabel control={control}>
-        <select
-          value={typeof value === "string" ? value : ""}
+        <Select
+          label={control.label}
+          value={control.options.includes(value as string) ? String(control.options.indexOf(value as string)) : ""}
           required={control.required}
-          onChange={(event) => onChange(event.target.value)}
-        >
-          {control.options.map((option) => (
-            <option value={option} key={option}>{option}</option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange(control.options![Number(next)])}
+          options={control.options.map((option, index) => ({ value: String(index), label: option === "" ? "Empty value" : option }))}
+        />
       </ScalarLabel>
     );
   }
   if ((control.kind === "number" || control.kind === "integer") && control.options !== undefined) {
     return (
       <ScalarLabel control={control}>
-        <select
+        <Select
+          label={control.label}
           value={String(value)}
           required={control.required}
-          onChange={(event) => onChange(Number(event.target.value))}
-        >
-          {control.options.map((option) => (
-            <option value={String(option)} key={String(option)}>{option}</option>
-          ))}
-        </select>
+          onValueChange={(next) => onChange(Number(next))}
+          options={control.options.map((option) => ({ value: String(option), label: String(option) }))}
+        />
       </ScalarLabel>
     );
   }

@@ -9,6 +9,7 @@ import type {
 const PAYLOAD_FIELDS = new Set([
   "handlerId",
   "access",
+  "strategy",
   "input",
   "taskId",
   "workspaceId",
@@ -64,6 +65,7 @@ export function workspaceTaskJobPayloadToJson(payload: WorkspaceTaskJobPayload):
     {
       handlerId: payload.handlerId,
       access: payload.access,
+      strategy: payload.strategy,
       input: payload.input
     },
     {
@@ -91,6 +93,7 @@ export function workspaceTaskJobPayloadFromJson(payload: JsonValue): WorkspaceTa
   return {
     handlerId,
     access: expectAccess(payload.access),
+    strategy: expectStrategy(payload.strategy),
     input: payload.input,
     ...(payload.taskId === undefined
       ? {}
@@ -118,6 +121,11 @@ export function workspaceTaskJobPayloadFromJson(payload: JsonValue): WorkspaceTa
       ? {}
       : { agentId: expectString(payload.agentId, "workspace.task.agentId") })
   }
+}
+
+function expectStrategy(value: JsonValue | undefined): import("@wanex/protocol").WorkspaceTaskStrategy {
+  if (value !== "direct" && value !== "git_worktree") throw new Error("workspace.task.strategy is invalid")
+  return value
 }
 
 function withOptionalJobResultFields(

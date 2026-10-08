@@ -1,6 +1,8 @@
-import { RefreshCw, Settings2, Trash2, X } from "lucide-react";
+import { Palette, RefreshCw, Settings2, Trash2, X } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -14,6 +16,7 @@ import type {
   SaveProviderRequest,
 } from "../../client/contracts.js";
 import { classes } from "../classes.js";
+import { Select } from "../primitives/select.js";
 import type {
   DispatchAction,
   DispatchActionResult,
@@ -21,6 +24,7 @@ import type {
 import { ExtensionsSection } from "./extensions.js";
 import { SchedulesSection } from "./schedules.js";
 import { McpSection } from "./mcp.js";
+import { AvailabilityNotice } from "../shared/availability.js";
 
 const providerLabels: Readonly<Record<ProviderPresetId, string>> = {
   openai: "OpenAI",
@@ -34,6 +38,9 @@ export function SettingsPanel({
   snapshot,
   dispatch,
   dispatchResult,
+  refreshError,
+  refreshing,
+  retryRefresh,
   onboarding,
   onSnapshot,
   onError,
@@ -43,6 +50,9 @@ export function SettingsPanel({
   readonly snapshot: Snapshot;
   readonly dispatch: DispatchAction;
   readonly dispatchResult: DispatchActionResult;
+  readonly refreshError: string | undefined;
+  readonly refreshing: boolean;
+  readonly retryRefresh: () => void;
   readonly onboarding: boolean;
   readonly onSnapshot: (snapshot: Snapshot) => void;
   readonly onError: (message: string | undefined) => void;
@@ -57,6 +67,14 @@ export function SettingsPanel({
   const [appearanceBusy, setAppearanceBusy] = useState(false);
   const [appearanceError, setAppearanceError] = useState<string>();
   const [appearanceStatus, setAppearanceStatus] = useState<string>();
+  const closeButton = useRef<HTMLButtonElement | null>(null);
+  const hadRefreshError = useRef(false);
+  useLayoutEffect(() => {
+    if (hadRefreshError.current && refreshError === undefined && document.activeElement === document.body) {
+      closeButton.current?.focus();
+    }
+    hadRefreshError.current = refreshError !== undefined;
+  }, [refreshError]);
 
   useEffect(() => {
     if (client.listProviders === undefined) return;
@@ -103,7 +121,6 @@ export function SettingsPanel({
 
   async function remove(provider: Provider): Promise<void> {
     if (client.removeProvider === undefined || busy) return;
-    if (!globalThis.confirm(`Remove ${provider.providerId}?`)) return;
     setBusy(true);
     setError(undefined);
     setStatus(undefined);
@@ -173,13 +190,14 @@ export function SettingsPanel({
     >
       <div className={classes("context-panel-header")}>
         <div>
-          <span className={classes("eyebrow")}>{onboarding ? "Get started" : "Settings"}</span>
+          {onboarding ? <span className={classes("eyebrow")}>Get started</span> : null}
           <h2>{onboarding ? "Connect a model" : "Settings"}</h2>
         </div>
         <button
           type="button"
           className={classes("icon-button")}
           data-ui-initial-focus={onboarding ? undefined : "true"}
+          ref={closeButton}
           onClick={onClose}
           aria-label="Close settings"
           title="Close settings"
@@ -187,31 +205,10 @@ export function SettingsPanel({
           <X size={17} />
         </button>
       </div>
-      {onboarding ? null : (
-        <AppearanceSection
-          theme={snapshot.view.theme}
-          density={snapshot.view.density}
-          busy={appearanceBusy}
-          error={appearanceError}
-          status={appearanceStatus}
-          update={updateAppearance}
-        />
+      {refreshError === undefined ? null : (
+        <AvailabilityNotice message={refreshError} retrying={refreshing} retry={retryRefresh} />
       )}
-      {onboarding ? null : (
-        <SchedulesSection
-          scheduleSettings={snapshot.view.settings.schedules}
-          snapshot={snapshot}
-          dispatch={dispatchResult}
-        />
-      )}
-      {onboarding ? null : (
-        <ExtensionsSection
-          plugins={snapshot.view.settings.plugins}
-          dispatch={dispatchResult}
-        />
-      )}
-      {onboarding ? null : <McpSection settings={client.mcpSettings} />}
-      <section className={classes("settings-section")}>
+      <section className={classes("settings-section")} data-ui-provider-settings>
         <div className={classes("settings-heading")}>
           <div><Settings2 size={15} /><strong>Models & providers</strong></div>
           {client.refreshModelCatalog === undefined ? null : (
@@ -240,19 +237,22 @@ export function SettingsPanel({
                 remove={remove}
               />
             )}
+            {providers !== undefined && providers.providers.length > 0 ? (
+              <p className={classes("settings-subheading")}>
+                {editing === undefined ? "Add another provider" : `Edit ${providerName(editing)}`}
+              </p>
+            ) : null}
             <form className={classes("settings-form")} data-ui-provider-form onSubmit={(event) => void save(event)} autoComplete="off">
               <label>
                 <span>Provider</span>
-                <select
+                <Select
                   name="presetId"
+                  label="Provider"
                   value={presetId}
                   disabled={busy || editing !== undefined}
-                  onChange={(event) => setPresetId(event.target.value as ProviderPresetId)}
-                >
-                  {Object.entries(providerLabels).map(([id, label]) => (
-                    <option key={id} value={id}>{label}</option>
-                  ))}
-                </select>
+                  onValueChange={(value) => setPresetId(value as ProviderPresetId)}
+                  options={Object.entries(providerLabels).map(([value, label]) => ({ value, label }))}
+                />
               </label>
               <label>
                 <span>Conversation model</span>
@@ -310,6 +310,30 @@ export function SettingsPanel({
         {error === undefined ? null : <p className={classes("settings-error")} role="alert">{error}</p>}
         {status === undefined ? null : <p className={classes("success")} role="status" data-ui-provider-status>{status}</p>}
       </section>
+      {onboarding ? null : (
+        <AppearanceSection
+          theme={snapshot.view.theme}
+          density={snapshot.view.density}
+          busy={appearanceBusy}
+          error={appearanceError}
+          status={appearanceStatus}
+          update={updateAppearance}
+        />
+      )}
+      {onboarding ? null : (
+        <SchedulesSection
+          scheduleSettings={snapshot.view.settings.schedules}
+          snapshot={snapshot}
+          dispatch={dispatchResult}
+        />
+      )}
+      {onboarding ? null : (
+        <ExtensionsSection
+          plugins={snapshot.view.settings.plugins}
+          dispatch={dispatchResult}
+        />
+      )}
+      {onboarding ? null : <McpSection settings={client.mcpSettings} />}
     </section>
   );
 }
@@ -334,7 +358,7 @@ function AppearanceSection({
   return (
     <section className={classes("settings-section appearance-section")} data-ui-appearance-settings>
       <div className={classes("settings-heading")}>
-        <div><strong>Appearance</strong></div>
+        <div><Palette size={15} /><strong>Appearance</strong></div>
       </div>
       <PreferenceControl
         label="Theme"
@@ -412,6 +436,7 @@ function ProviderList({
   readonly beginEdit: (provider: Provider) => void;
   readonly remove: (provider: Provider) => Promise<void>;
 }): ReactNode {
+  const [confirming, setConfirming] = useState<string>();
   if (providers.length === 0) {
     return (
       <p className={classes("muted")} data-ui-provider-empty>
@@ -429,29 +454,55 @@ function ProviderList({
           data-ui-conversation-model-id={conversationEndpoint(provider)?.model.id ?? ""}
           data-ui-image-generation-model-id={imageEndpoint(provider)?.model.id ?? ""}
         >
-          <span><strong>{provider.providerId}</strong><small>{conversationEndpoint(provider)?.model.id ?? provider.connectionId}</small></span>
-          {provider.active ? <em>Active</em> : null}
-          <div>
-            {provider.presetId === undefined ? null : (
+          <span className={classes("provider-copy")}>
+            <strong>{providerName(provider)}</strong>
+            <small>{conversationEndpoint(provider)?.model.id ?? provider.connectionId}</small>
+          </span>
+          {provider.active ? <em>Default</em> : null}
+          {confirming === provider.connectionId ? (
+            <div className={classes("provider-confirm")} role="group" aria-label={`Remove ${provider.providerId}?`}>
+              <span>Remove?</span>
+              <button type="button" disabled={busy} onClick={() => setConfirming(undefined)}>
+                Keep
+              </button>
               <button
                 type="button"
+                className={classes("danger-action")}
                 disabled={busy}
-                data-ui-provider-edit={provider.connectionId}
-                onClick={() => beginEdit(provider)}
+                data-ui-provider-remove-confirm={provider.connectionId}
+                onClick={() => {
+                  setConfirming(undefined);
+                  void remove(provider);
+                }}
               >
-                Edit
+                Remove
               </button>
-            )}
-            <button
-              type="button"
-              disabled={busy}
-              data-ui-provider-remove={provider.connectionId}
-              onClick={() => void remove(provider)}
-              aria-label={`Remove ${provider.providerId}`}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
+            </div>
+          ) : (
+            <div>
+              {provider.presetId === undefined ? null : (
+                <button
+                  type="button"
+                  disabled={busy}
+                  data-ui-provider-edit={provider.connectionId}
+                  onClick={() => beginEdit(provider)}
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                type="button"
+                className={classes("provider-remove")}
+                disabled={busy}
+                data-ui-provider-remove={provider.connectionId}
+                onClick={() => setConfirming(provider.connectionId)}
+                aria-label={`Remove ${provider.providerId}`}
+                title={`Remove ${provider.providerId}`}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
         </li>
       ))}
     </ul>
@@ -483,6 +534,12 @@ function providerRequest(
     ...(credential === undefined ? {} : { credential }),
     makeConversationActive: data.get("makeConversationActive") !== null,
   };
+}
+
+function providerName(provider: Provider): string {
+  return provider.presetId === undefined
+    ? provider.providerId
+    : providerLabels[provider.presetId];
 }
 
 function conversationEndpoint(provider: Provider | undefined) {

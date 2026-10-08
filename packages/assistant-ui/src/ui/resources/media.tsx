@@ -6,6 +6,8 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -25,6 +27,21 @@ interface ResumeIntent {
   readonly shouldPlay: boolean;
 }
 
+interface DeliveryAttempt {
+  active: boolean;
+  ready: boolean;
+  released: boolean;
+  delivery?: PreparedResourceDelivery;
+}
+
+interface PlaybackScope {
+  active: boolean;
+  resume: ResumeIntent;
+  shouldPlay: boolean;
+  expiryRenewals: number;
+  attempt?: DeliveryAttempt;
+}
+
 const EXPIRY_RECOVERY_WINDOW_MS = 5_000;
 
 export function ResourceMediaPlayback({
@@ -42,61 +59,90 @@ export function ResourceMediaPlayback({
   readonly label: string;
   readonly sessionId?: string;
 }): ReactNode {
-  const resume = useRef<ResumeIntent>({ currentTime: 0, shouldPlay: true });
-  const playbackIntent = useRef(true);
-  const readinessApplied = useRef(false);
-  const expiryRenewals = useRef(0);
-  const activeDelivery = useRef<
-    PreparedResourceDelivery | undefined
-  >(undefined);
-  const [requestRevision, setRequestRevision] = useState(0);
-  const [delivery, setDelivery] = useState<
-    PreparedResourceDelivery | undefined
-  >();
-  const [state, setState] = useState<ResourceMediaState>("idle");
+  const container = useRef<HTMLDivElement>(null);
+  const scope = useMemo<PlaybackScope>(() => ({
+    active: false,
+    resume: { currentTime: 0, shouldPlay: true },
+    shouldPlay: true,
+    expiryRenewals: 0,
+  }), [client, resourceId, sha256, sessionId, kind]);
+  const [request, setRequest] = useState<{ scope: PlaybackScope; revision: number }>();
+  const requestRevision = request?.scope === scope ? request.revision : 0;
+  const [view, setView] = useState<{
+    scope: PlaybackScope;
+    revision: number;
+    state: ResourceMediaState;
+    attempt: DeliveryAttempt;
+  }>();
+  const current = view?.scope === scope && view.revision === requestRevision ? view : undefined;
+  const attempt = current?.attempt;
+  const delivery = attempt?.delivery;
+  const state = current?.state ?? (requestRevision === 0 ? "idle" : "loading");
+  const isLive = (candidate: DeliveryAttempt | undefined): candidate is DeliveryAttempt =>
+    scope.active && candidate !== undefined && candidate.active && scope.attempt === candidate;
+
+  useLayoutEffect(() => {
+    scope.active = true;
+    return () => {
+      scope.active = false;
+      if (scope.attempt !== undefined) {
+        scope.attempt.active = false;
+        releaseAttempt(client, scope.attempt);
+      }
+    };
+  }, [client, scope]);
 
   useEffect(() => {
     if (requestRevision === 0 || client.prepareResourceDelivery === undefined) return;
-    let active = true;
-    releaseActiveDelivery(client, activeDelivery);
-    readinessApplied.current = false;
-    setDelivery(undefined);
-    setState("loading");
+    const next: DeliveryAttempt = { active: true, ready: false, released: false };
+    scope.attempt = next;
+    const publish = (nextState: ResourceMediaState): void => {
+      setView({ scope, revision: requestRevision, state: nextState, attempt: next });
+    };
+    publish("loading");
     void client.prepareResourceDelivery({
       resourceId,
       sha256,
       purpose: "media",
       ...(sessionId === undefined ? {} : { sessionId }),
     }).then((nextDelivery) => {
-      if (!active) {
-        releaseDelivery(client, nextDelivery);
+      next.delivery = nextDelivery;
+      if (!scope.active || !next.active || scope.attempt !== next) {
+        releaseAttempt(client, next);
         return;
       }
-      activeDelivery.current = nextDelivery;
-      setDelivery(nextDelivery);
+      publish("loading");
     }).catch(() => {
-      if (active) setState("failed");
+      if (scope.active && next.active && scope.attempt === next) publish("failed");
     });
     return () => {
-      active = false;
+      next.active = false;
+      releaseAttempt(client, next);
     };
-  }, [client, requestRevision, resourceId, sessionId, sha256]);
+  }, [client, requestRevision, resourceId, scope, sessionId, sha256]);
 
-  useEffect(() => () => {
-    releaseActiveDelivery(client, activeDelivery);
-  }, [client]);
+  const requestDelivery = (): void => {
+    if (!scope.active) return;
+    if (scope.attempt !== undefined) {
+      scope.attempt.active = false;
+      releaseAttempt(client, scope.attempt);
+    }
+    setRequest((previous) => ({ scope, revision: previous?.scope === scope ? previous.revision + 1 : 1 }));
+  };
 
   const requestPlayback = (restart: boolean): void => {
-    expiryRenewals.current = 0;
-    playbackIntent.current = true;
-    if (restart) resume.current = { currentTime: 0, shouldPlay: true };
-    setRequestRevision((current) => current + 1);
+    scope.expiryRenewals = 0;
+    if (restart) {
+      scope.resume = { currentTime: 0, shouldPlay: true };
+      scope.shouldPlay = true;
+    }
+    requestDelivery();
   };
   const handleReady = (event: SyntheticEvent<HTMLMediaElement>): void => {
-    if (readinessApplied.current) return;
-    readinessApplied.current = true;
+    if (!isLive(attempt) || attempt.ready) return;
+    attempt.ready = true;
     const element = event.currentTarget;
-    const targetTime = resume.current.currentTime;
+    const targetTime = scope.resume.currentTime;
     if (Number.isFinite(targetTime) && targetTime > 0) {
       try {
         element.currentTime = targetTime;
@@ -104,37 +150,40 @@ export function ResourceMediaPlayback({
         // The native media control remains usable when a codec cannot seek yet.
       }
     }
-    setState("ready");
-    playbackIntent.current = resume.current.shouldPlay;
-    if (playbackIntent.current) {
+    setView({ scope, revision: requestRevision, state: "ready", attempt });
+    scope.shouldPlay = scope.resume.shouldPlay;
+    if (document.activeElement === container.current) element.focus();
+    if (scope.shouldPlay) {
       void element.play().catch(() => undefined);
     }
   };
   const handleError = (event: SyntheticEvent<HTMLMediaElement>): void => {
-    if (delivery === undefined) return;
+    if (!isLive(attempt) || delivery === undefined) return;
     const element = event.currentTarget;
     const nearExpiry = Date.now() >= delivery.expiresAt - EXPIRY_RECOVERY_WINDOW_MS;
-    if (nearExpiry && expiryRenewals.current === 0) {
-      expiryRenewals.current = 1;
-      resume.current = {
+    if (nearExpiry && scope.expiryRenewals === 0) {
+      scope.expiryRenewals = 1;
+      scope.resume = {
         currentTime: finiteMediaTime(element.currentTime),
-        shouldPlay: playbackIntent.current,
+        shouldPlay: scope.shouldPlay,
       };
-      setRequestRevision((current) => current + 1);
+      if (document.activeElement === element) container.current?.focus();
+      requestDelivery();
       return;
     }
-    resume.current = {
+    scope.resume = {
       currentTime: finiteMediaTime(element.currentTime),
-      shouldPlay: playbackIntent.current,
+      shouldPlay: scope.shouldPlay,
     };
-    releaseActiveDelivery(client, activeDelivery);
-    setDelivery(undefined);
-    setState("failed");
+    if (document.activeElement === element) container.current?.focus();
+    attempt.active = false;
+    releaseAttempt(client, attempt);
+    setView({ scope, revision: requestRevision, state: "failed", attempt });
   };
 
   const unavailable = client.prepareResourceDelivery === undefined;
   const mediaProps = {
-    className: `resource-media resource-media-${kind}`,
+    className: classes(`resource-media resource-media-${kind}`),
     src: delivery?.url,
     controls: true,
     preload: "metadata" as const,
@@ -143,22 +192,24 @@ export function ResourceMediaPlayback({
     onCanPlay: handleReady,
     onError: handleError,
     onPlay: () => {
-      playbackIntent.current = true;
+      if (isLive(attempt)) scope.shouldPlay = true;
     },
     onPause: () => {
-      playbackIntent.current = false;
+      if (isLive(attempt)) scope.shouldPlay = false;
     },
   };
 
   return (
     <div
+      ref={container}
+      tabIndex={-1}
       className={classes(`resource-media-shell is-${state}`)}
       data-ui-resource-media={resourceId}
       data-ui-media-kind={kind}
       data-ui-media-state={state}
     >
-      {delivery !== undefined ? (
-        kind === "audio" ? <audio {...mediaProps} /> : <video {...mediaProps} />
+      {delivery !== undefined && state !== "failed" ? (
+        kind === "audio" ? <audio key={requestRevision} {...mediaProps} /> : <video key={requestRevision} {...mediaProps} />
       ) : state === "loading" ? (
         <span className={classes("resource-media-status")} role="status">
           <LoaderCircle size={16} className={classes("is-running")} aria-hidden="true" />
@@ -174,7 +225,10 @@ export function ResourceMediaPlayback({
           <button
             type="button"
             className={classes("resource-media-action is-retry")}
-            onClick={() => requestPlayback(false)}
+            onClick={(event) => {
+              if (document.activeElement === event.currentTarget) container.current?.focus();
+              requestPlayback(false);
+            }}
             aria-label={`Retry ${label}`}
           >
             <RotateCcw size={14} aria-hidden="true" />
@@ -185,7 +239,10 @@ export function ResourceMediaPlayback({
         <button
           type="button"
           className={classes("resource-media-action")}
-          onClick={() => requestPlayback(true)}
+          onClick={(event) => {
+            if (document.activeElement === event.currentTarget) container.current?.focus();
+            requestPlayback(true);
+          }}
           aria-label={`Play ${label}`}
         >
           <Play size={15} fill="currentColor" aria-hidden="true" />
@@ -200,18 +257,11 @@ function finiteMediaTime(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-function releaseDelivery(
+function releaseAttempt(
   client: Client,
-  delivery: PreparedResourceDelivery,
+  attempt: DeliveryAttempt,
 ): void {
-  void client.releaseResourceDelivery?.(delivery).catch(() => undefined);
-}
-
-function releaseActiveDelivery(
-  client: Client,
-  active: { current: PreparedResourceDelivery | undefined },
-): void {
-  const delivery = active.current;
-  active.current = undefined;
-  if (delivery !== undefined) releaseDelivery(client, delivery);
+  if (attempt.delivery === undefined || attempt.released) return;
+  attempt.released = true;
+  void client.releaseResourceDelivery?.(attempt.delivery).catch(() => undefined);
 }

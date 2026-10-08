@@ -8,6 +8,23 @@ import { NativeExecutionEnvironment } from "../src/execution/index.js"
 import { fakeModelEndpoint } from "./model-endpoint-fixture.js"
 
 describe("Turn context binding evidence", () => {
+  it("validates and owns its bounded admission preconditions", () => {
+    const condition = { key: "context", expectedRevision: 1, expectedValueDigest: "a".repeat(64) }
+    const create = (admissionConditions: import("@wanex/protocol").SessionTurnAdmissionCondition[]) => createTurnExecutionBinding({
+      modelEndpoint: fakeModelEndpoint("admission-evidence"), createdAt: 1, admissionConditions
+    })
+    const binding = create([condition])
+    condition.key = "mutated"
+    expect(binding.admissionConditions?.[0]?.key).toBe("context")
+    expect(create([{ key: "missing", expectedRevision: null, expectedValueDigest: null }]).admissionConditions).toHaveLength(1)
+    for (const invalid of [
+      [], Array.from({ length: 17 }, (_, index) => ({ ...condition, key: String(index) })),
+      [condition, condition], [{ ...condition, key: "x".repeat(513) }],
+      [{ ...condition, expectedRevision: 0 }], [{ ...condition, expectedRevision: 1.1 }],
+      [{ ...condition, expectedRevision: null }], [{ ...condition, expectedValueDigest: null }],
+      [{ ...condition, extra: true }], [{ ...condition, expectedValueDigest: "A".repeat(64) }]
+    ]) expect(() => create(invalid)).toThrow(/admission condition/)
+  })
   it("persists only bounded context evidence and rejects semantic drift", () => {
     const context = preparedContext({
       instructionPath: "/private/repository/AGENTS.md",

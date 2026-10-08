@@ -45,10 +45,48 @@ afterEach(async () => {
 })
 
 describe("Wanex Server Remote Assistant", () => {
-  it("serves the typed Assistant client through its real TLS listener", async () => {
+  it("rejects a fresh connection by another authenticated account", async () => {
     const certificate = await createTestCertificate()
     certificates.push(certificate)
     const server = await startWanexServer({
+      config: { dataRoot: await createTempDir(), listener: { hostname: "127.0.0.1", port: 0 } },
+      serviceBin, tls: certificate,
+      authentication: new TestAuthentication(),
+      credentialStore: new MemorySecretStore(),
+      modelEndpoints: { endpoints: [fakeEndpoint()], activeEndpointId: "server-remote-assistant" }
+    })
+    servers.push(server)
+    const owner = await createRemoteAssistantAgentHostComposition({
+      messageUrl: server.endpoint.messageUrl, getBearerToken: () => "valid-server-token",
+      fetch: createHttpsFetch(certificate.cert), clientId: "owner-first-device"
+    })
+    clients.push(owner)
+    const sessionId = "account-private-history"
+    await expect(owner.client.submitConversationOperation({
+      sessionId, text: "account-private-message", idempotencyKey: "private-message"
+    })).resolves.toMatchObject({ ok: true })
+    const second = await createRemoteAssistantAgentHostComposition({
+      messageUrl: server.endpoint.messageUrl, getBearerToken: () => "second-owner-token",
+      fetch: createHttpsFetch(certificate.cert), clientId: "owner-second-device"
+    })
+    clients.push(second)
+    await waitFor(async () => {
+      const transcript = await second.client.readSessionTranscript({ sessionId })
+      return transcript.ok && JSON.stringify(transcript.value).includes("account-private-message")
+    })
+    const connection = createRemoteAssistantAgentHostComposition({
+      messageUrl: server.endpoint.messageUrl,
+      getBearerToken: () => "other-server-token",
+      fetch: createHttpsFetch(certificate.cert),
+      clientId: "different-account-fresh-connection"
+    }).then((client) => { clients.push(client); return client })
+    await expect(connection).rejects.toThrow()
+  })
+
+  it("serves the typed Assistant client through its real TLS listener", async () => {
+    const certificate = await createTestCertificate()
+    certificates.push(certificate)
+    const server = await startWanexServerInternal({
       config: {
         dataRoot: await createTempDir(),
         profileId: "remote-assistant",
@@ -93,17 +131,20 @@ describe("Wanex Server Remote Assistant", () => {
     })
     clients.push(composition)
     const received: unknown[] = []
-    composition.client.subscribe((event) => received.push(event))
+    composition.client.subscribeSurfaceEvents((event) => received.push(event))
     const stream = composition.startEvents()
     await stream.ready
 
-    await expect(composition.client.readStatus()).resolves.toMatchObject({
-      kind: "assistant.status",
-      disposed: false,
-      assistant: {
-        started: true,
+    await expect(composition.client.status()).resolves.toMatchObject({
+      ok: true,
+      value: {
+        kind: "assistant.status",
         disposed: false,
-        activeModelEndpointId: "server-remote-assistant"
+        assistant: {
+          started: true,
+          disposed: false,
+          activeModelEndpointId: "server-remote-assistant"
+        }
       }
     })
     const request = {
@@ -111,16 +152,17 @@ describe("Wanex Server Remote Assistant", () => {
       sessionId: "server_remote_session",
       idempotencyKey: "server_remote_submit_once"
     }
-    const first = await composition.client.submitConversation(request)
-    const duplicate = await composition.client.submitConversation(request)
+    const first = await composition.client.submitConversationOperation(request)
+    const duplicate = await composition.client.submitConversationOperation(request)
     expect(duplicate).toEqual(first)
 
     await waitFor(async () => {
       const transcript = await composition.client.readSessionTranscript({
         sessionId: request.sessionId
       })
-      return transcript.kind === "assistant.session-transcript.found" &&
-        transcript.transcript.rows.some((row) =>
+      return transcript.ok &&
+        transcript.value.kind === "assistant.session-transcript.found" &&
+        transcript.value.transcript.rows.some((row) =>
           row.role === "assistant" &&
           row.parts.some((part) =>
             part.type === "text" &&
@@ -128,16 +170,15 @@ describe("Wanex Server Remote Assistant", () => {
           )
         )
     })
-    await expect(composition.client.cancelConversation({
+    await expect(composition.client.cancelTrackedConversationOperation({
       sessionId: request.sessionId,
-      reason: "server remote terminal cancellation",
-      idempotencyKey: "server_remote_cancel"
+      reason: "server remote terminal cancellation"
     })).resolves.toMatchObject({
-      status: "already_terminal"
+      ok: true,
+      value: { status: "already_terminal" }
     })
     expect(received).toEqual(expect.arrayContaining([
       expect.objectContaining({
-        domain: "assistant",
         type: "assistant.surface.conversation.operation-invalidated"
       })
     ]))
@@ -146,8 +187,9 @@ describe("Wanex Server Remote Assistant", () => {
     await stream.closed
     await server.close()
     servers.pop()
-    await expect(composition.client.readStatus()).rejects.toMatchObject({
-      code: expect.stringMatching(/unauthenticated|transport_failure/u)
+    await expect(composition.client.status()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "command_error" }
     })
     await composition.close()
     clients.pop()
@@ -156,6 +198,43 @@ describe("Wanex Server Remote Assistant", () => {
       assistant: "closed",
       listener: "closed"
     })
+  })
+
+  it("keeps Workspace capability execution on the remote Server machine", async () => {
+    const certificate = await createTestCertificate()
+    certificates.push(certificate)
+    const root = await createTempDir()
+    const server = await startWanexServerInternal({
+      config: {
+        dataRoot: await createTempDir(),
+        profileId: "remote-workspace",
+        listener: { hostname: "127.0.0.1", port: 0 },
+        workspace: {
+          initialRoots: [{ id: "server-root", path: root }]
+        }
+      },
+      serviceBin,
+      tls: certificate,
+      authentication: new TestAuthentication(),
+      credentialStore: new MemorySecretStore(),
+      modelEndpoints: {
+        endpoints: [fakeEndpoint()],
+        activeEndpointId: "server-remote-assistant"
+      }
+    })
+    servers.push(server)
+
+    expect(server.assistantHost.workspace).toBeDefined()
+    const prepared = await server.assistantHost.shell.trustedExecution.prepareExecutionBinding({
+      sessionId: "remote-workspace-session",
+      inputId: "remote-workspace-input",
+      turnId: "remote-workspace-turn",
+      content: [{ id: "remote-workspace-part", type: "text", text: "inspect workspace" }]
+    })
+    const names = ((prepared.binding.toolSnapshot as { tools?: readonly { descriptor?: { name?: string } }[] }).tools ?? [])
+      .map((tool) => tool.descriptor?.name)
+    expect(names).toContain("workspace_git_capability")
+    prepared.context.rollback()
   })
 
   it("rejects an unknown bearer before exposing the Assistant Host", async () => {
@@ -226,7 +305,7 @@ describe("Wanex Server Remote Assistant", () => {
     const received: Array<{ readonly sequence?: number }> = []
     const resets: string[] = []
     const states: string[] = []
-    composition.client.subscribe((event) => received.push(event))
+    composition.client.subscribeSurfaceEvents((event) => received.push(event))
     const stream = composition.startEvents({
       reconnectInitialDelayMs: 500,
       reconnectMaxDelayMs: 500,
@@ -246,9 +325,9 @@ describe("Wanex Server Remote Assistant", () => {
     await stream.closed
     expect(states).toContain("reconnecting")
     expect(resets).toEqual(["gap"])
-    await expect(composition.client.readStatus()).resolves.toMatchObject({
-      kind: "assistant.status",
-      disposed: false
+    await expect(composition.client.status()).resolves.toMatchObject({
+      ok: true,
+      value: { kind: "assistant.status", disposed: false }
     })
   })
 
@@ -281,12 +360,14 @@ describe("Wanex Server Remote Assistant", () => {
     clients.push(composition)
 
     bearer = "other-server-token"
-    await expect(composition.client.readStatus()).rejects.toMatchObject({
-      code: "unauthenticated"
+    await expect(composition.client.status()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "command_error" }
     })
     bearer = "valid-server-token"
-    await expect(composition.client.readStatus()).rejects.toMatchObject({
-      code: "transport_failure"
+    await expect(composition.client.status()).resolves.toMatchObject({
+      ok: false,
+      error: { code: "command_error" }
     })
   })
 })
@@ -333,8 +414,9 @@ async function waitFor(predicate: () => Promise<boolean>): Promise<void> {
 }
 
 class TestAuthentication {
+  readonly ownerSubjectId = "server-product-subject"
   async authenticateBearerToken(token: string) {
-    const subjectId = token === "valid-server-token"
+    const subjectId = token === "valid-server-token" || token === "second-owner-token"
       ? "server-product-subject"
       : token === "other-server-token"
         ? "server-other-subject"

@@ -14,36 +14,10 @@ export {
 } from "./lifecycle.js"
 export { createWanexDesktopNavigationPolicy } from "./window-policy.js"
 export {
-  DESKTOP_CODING_IPC,
-  isDesktopCodingEvent,
-  isDesktopCodingRemoteProjectList,
-  isCodingCommandRequest,
-  isDesktopCodingProjectSelection,
-  type DesktopCodingProjectSelection,
-  type DesktopCodingCanonicalReadRequired,
-  type DesktopCodingEvent,
-  type DesktopCodingProjectCapabilities,
-  type DesktopCodingProjectLocation,
-  type DesktopCodingRemoteProjectList,
-  type DesktopCodingRendererBridge,
-} from "./coding-bridge.js"
-export { installDesktopCodingIpc } from "./coding-ipc.js"
-export {
-  DESKTOP_REMOTE_IPC,
-  isDesktopRemoteConnectionEvent,
-  isDesktopRemoteConnectionProfileList,
-  isDesktopRemoteConnectionStatus,
-  type DesktopRemoteConnectionEvent,
-  type DesktopRemoteConnectionStatus,
-  type DesktopRemoteRendererBridge,
-} from "./remote/bridge.js"
-export type {
-  DesktopCodingIpcEvent,
-  DesktopCodingIpcMain,
-  DesktopCodingWindow,
-  DesktopCodingWebContents,
-  InstallDesktopCodingIpcOptions,
-} from "./coding-ipc.js"
+  DESKTOP_SERVER_IPC,
+  isDesktopServerProfileList,
+  type DesktopServerRendererBridge,
+} from "./server/bridge.js"
 export {
   createDesktopExtensionComposition,
   extensionInstallBaseDir,

@@ -1,6 +1,7 @@
 import { ArrowLeft, Check, Command, Search, X } from "lucide-react";
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -238,6 +239,7 @@ function CommandCatalog({
   readonly setActiveIndex: (value: number) => void;
   readonly selectCommand: (command: CommandPaletteItem) => void;
 }): ReactNode {
+  const listId = useId();
   function navigate(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -257,6 +259,11 @@ function CommandCatalog({
         <span className={classes("sr-only")}>Search commands</span>
         <input
           data-ui-command-search
+          role="combobox"
+          aria-autocomplete="list"
+          aria-expanded={commands.length > 0}
+          aria-controls={commands.length === 0 ? undefined : listId}
+          aria-activedescendant={commands[activeIndex] === undefined ? undefined : `${listId}-${activeIndex}`}
           value={search}
           placeholder="Search commands"
           autoComplete="off"
@@ -270,12 +277,14 @@ function CommandCatalog({
       {commands.length === 0 ? (
         <p className={classes("command-empty")}>No matching commands</p>
       ) : (
-        <ul role="listbox" aria-label="Available commands">
+        <ul id={listId} role="listbox" aria-label="Available commands">
           {commands.map((command, index) => (
-            <li key={command.id}>
+            <li key={command.id} role="presentation">
               <button
                 type="button"
                 role="option"
+                id={`${listId}-${index}`}
+                tabIndex={-1}
                 aria-selected={index === activeIndex}
                 className={classes(index === activeIndex ? "is-active" : "")}
                 data-ui-command={command.id}

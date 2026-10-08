@@ -1,0 +1,55 @@
+.workspace-change { display: grid; gap: 10px; margin: 14px 0 0; padding: 12px 14px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-card); }
+.workspace-change[data-tone="danger"] { border-color: var(--color-danger-line); }
+.workspace-change[data-tone="warn"] { border-color: var(--color-warning-line); }
+.workspace-change-header { display: flex; align-items: center; gap: 10px; }
+.workspace-change-icon { width: 30px; height: 30px; flex: 0 0 auto; display: grid; place-items: center; color: var(--color-accent); background: var(--color-accent-soft); border-radius: 9px; }
+.workspace-change-title { min-width: 0; flex: 1; display: grid; gap: 1px; }
+.workspace-change-title strong { overflow: hidden; color: var(--color-text); font-size: var(--font-size-md); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-change-title span { color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.workspace-change-status { flex: 0 0 auto; padding: 3px 9px; color: var(--color-text-secondary); background: var(--color-surface-subtle); border-radius: 999px; font-size: var(--font-size-xs); font-weight: 560; }
+.workspace-change-status[data-tone="ok"] { color: var(--color-success); background: var(--color-success-soft); }
+.workspace-change-status[data-tone="warn"] { color: var(--color-warning); background: var(--color-warning-soft); }
+.workspace-change-status[data-tone="danger"] { color: var(--color-danger); background: var(--color-danger-soft); }
+.workspace-change-note { margin: 0; color: var(--color-danger); font-size: var(--font-size-sm); }
+.workspace-change-conflicts { display: grid; gap: 6px; padding: 10px 12px; color: var(--color-danger); background: var(--color-danger-soft); border-radius: var(--radius-control); font-size: var(--font-size-sm); }
+.workspace-change-conflicts strong { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.workspace-change-conflicts ul { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.workspace-change-conflicts li { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.workspace-change-conflicts li span { color: var(--color-text-secondary); }
+.workspace-change-files { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.workspace-change-files li { min-width: 0; display: flex; align-items: center; gap: 8px; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.workspace-change-files li svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.workspace-change-files code, .diff code { overflow: hidden; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: var(--font-size-sm); text-overflow: ellipsis; white-space: nowrap; }
+.workspace-change-more { color: var(--color-text-muted); }
+.workspace-change-detail { display: grid; gap: 10px; }
+.workspace-review-loading { display: flex; align-items: center; gap: 8px; margin: 0; padding: 8px 0; color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+.workspace-review-loading svg { flex: 0 0 auto; animation: review-spin 1s linear infinite; }
+.workspace-review-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px; color: var(--color-danger); background: var(--color-danger-soft); border-radius: var(--radius-control); font-size: var(--font-size-sm); }
+.workspace-review-error span { min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; }
+.workspace-review-error button { min-height: 32px; padding: 4px 10px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font-size: inherit; }
+.workspace-review-error button:hover:not(:disabled) { background: var(--color-control-hover); }
+@keyframes review-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .workspace-review-loading svg { animation: none; } }
+.diff { margin: 0; overflow: hidden; border: 1px solid var(--color-line); border-radius: var(--radius-control); }
+.diff figcaption { padding: 7px 10px; background: var(--color-surface-subtle); border-bottom: 1px solid var(--color-line); }
+.diff-body { max-height: 320px; overflow: auto; font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; font-size: var(--font-size-xs); line-height: 1.6; }
+.diff-body:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -2px; }
+.diff-row { display: grid; grid-template-columns: 44px 18px minmax(0, 1fr); min-width: max-content; }
+.diff-no { padding-right: 8px; color: var(--color-text-secondary); text-align: right; user-select: none; }
+.diff-sign { color: var(--color-text-muted); user-select: none; }
+.diff-text { padding-right: 12px; white-space: pre; }
+.diff-row.is-add { background: var(--color-success-soft); }
+.diff-row.is-add .diff-sign { color: var(--color-success); }
+.diff-row.is-del { background: var(--color-danger-soft); }
+.diff-row.is-del .diff-sign { color: var(--color-danger); }
+.diff-gap { padding: 2px 10px; color: var(--color-text-muted); background: var(--color-surface-subtle); font-family: inherit; font-size: var(--font-size-xs); }
+.diff-empty { margin: 0; padding: 8px 10px; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.workspace-change-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.workspace-change-spacer { flex: 1; }
+.workspace-change-actions button { min-height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font-size: var(--font-size-sm); font-weight: 540; }
+.workspace-change-actions button:hover:not(:disabled) { background: var(--color-control-hover); }
+.workspace-change-actions button[data-variant="quiet"] { color: var(--color-text-secondary); background: transparent; border-color: transparent; }
+.workspace-change-actions button[data-variant="primary"] { color: var(--color-on-accent); background: var(--color-accent); border-color: transparent; }
+.workspace-change-actions button[data-variant="primary"]:hover:not(:disabled) { background: var(--color-accent-hover); }
+.workspace-change-actions button:disabled { cursor: wait; opacity: .55; }
+.workspace-change-actions svg[data-open="true"] { transform: rotate(180deg); }

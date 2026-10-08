@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process"
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
@@ -12,6 +12,7 @@ import { LocalRepositoryLocator } from "../../src/index.js"
 import { ProcessWorkspaceSnapshotClient } from "../../src/snapshot/index.js"
 import {
   createWorkspaceTestExecution,
+  readWorkspaceTestRootIdentity,
   disposeWorkspaceTestExecution
 } from "../execution.js"
 
@@ -34,6 +35,75 @@ afterEach(async () => {
 })
 
 describe("@wanex/workspace/isolation", () => {
+  it.each([false, true])("releases only its own registration when its directory is missing: %s", async (missing) => {
+    const repoDir = await createRepo()
+    const parent = await tempDir("wanex-worktree-exact-release-")
+    const { locator, executionScope } = await createLocator(repoDir, parent)
+    const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir), repositoryId: "repo_isolation_test",
+      locator, snapshot: new ProcessWorkspaceSnapshotClient(), executionScope,
+    })
+    const lease = await adapter.prepare({ isolationId: "wiso_exact_release" })
+    const unrelated = join(parent, "unrelated")
+    await git(repoDir, ["worktree", "add", "--detach", unrelated, "HEAD"])
+    const before = await git(repoDir, ["worktree", "list", "--porcelain"])
+    const unrelatedLine = before.split("\n").find((line) => line.startsWith("worktree ") && line.endsWith("/unrelated"))
+    expect(unrelatedLine).toBeDefined()
+    await rm(unrelated, { recursive: true })
+    if (missing) await rm(lease.rootDir, { recursive: true })
+
+    await adapter.release(lease)
+    await adapter.release(lease)
+    const after = await git(repoDir, ["worktree", "list", "--porcelain"])
+    expect(after).toContain(unrelatedLine)
+    expect(after).not.toContain(`branch refs/heads/${lease.branchName}`)
+    expect(await git(repoDir, ["branch", "--list", lease.branchName!])).toBe("")
+    await expect(stat(lease.rootDir)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("fences a replaced repository and rejects the same stale identity inside the native helper", async () => {
+    const repoDir = await createRepo()
+    const parent = await tempDir("wanex-worktree-fence-")
+    const backupParent = await tempDir("wanex-replaced-root-")
+    const { locator, executionScope } = await createLocator(repoDir, parent)
+    const rootIdentity = await readWorkspaceTestRootIdentity(repoDir)
+    const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity, repositoryId: "repo_isolation_test", locator,
+      snapshot: new ProcessWorkspaceSnapshotClient(), executionScope,
+    })
+    await rename(repoDir, join(backupParent, "original"))
+    await mkdir(repoDir)
+    await writeFile(join(repoDir, "untouched.txt"), "replacement\n")
+    await expect(adapter.prepare({ isolationId: "wiso_replaced" })).rejects.toThrow("physical identity changed")
+    await expect(new ProcessWorkspaceSnapshotClient().create({
+      rootIdentity, repositoryRoot: repoDir, worktreeParent: parent,
+      isolationId: "wiso_replaced", serviceBin, executionProcess: executionScope.process,
+    })).rejects.toThrow("physical identity changed")
+    expect(await readFile(join(repoDir, "untouched.txt"), "utf8")).toBe("replacement\n")
+    expect(await readFile(join(backupParent, "original", "README.md"), "utf8")).toBe("base\n")
+  })
+
+  it("never recreates a prepared worktree or accepts a changed runtime ref", async () => {
+    const repoDir = await createRepo()
+    const parent = await tempDir("wanex-worktree-identity-")
+    const { locator, executionScope } = await createLocator(repoDir, parent)
+    const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir), repositoryId: "repo_isolation_test",
+      locator, snapshot: new ProcessWorkspaceSnapshotClient(), executionScope,
+    })
+    const lease = await adapter.prepare({ isolationId: "wiso_prepared" })
+    const original = lease.baseRevision!
+    const head = await git(repoDir, ["rev-parse", "HEAD"])
+    await git(repoDir, ["update-ref", `refs/heads/${lease.branchName}`, head])
+    await expect(adapter.prepare({ isolationId: lease.id, expectedBaseRevision: original })).rejects.toThrow("runtime ref changed")
+    await expect(adapter.release(lease)).rejects.toThrow("runtime ref changed")
+    expect((await stat(lease.rootDir)).isDirectory()).toBe(true)
+    await git(repoDir, ["update-ref", `refs/heads/${lease.branchName}`, original])
+    await adapter.release(lease)
+    await expect(adapter.prepare({ isolationId: lease.id, expectedBaseRevision: original })).rejects.toThrow("refusing recreation")
+    await expect(stat(lease.rootDir)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   it("resolves only registered opaque repositories and rejects unsafe parents", async () => {
     const repoDir = await createRepo()
     const worktreeParentDir = await tempDir("wanex-worktrees-")
@@ -93,6 +163,7 @@ describe("@wanex/workspace/isolation", () => {
     const baseRevision = await git(repoDir, ["rev-parse", "HEAD"])
     const { locator, executionScope } = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -130,6 +201,7 @@ describe("@wanex/workspace/isolation", () => {
     const worktreeParentDir = await tempDir("wanex-worktrees-")
     const { locator, executionScope } = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -173,6 +245,7 @@ describe("@wanex/workspace/isolation", () => {
     const worktreeParentDir = await tempDir("wanex-worktrees-")
     const first = await createLocator(repoDir, worktreeParentDir)
     const lease = await new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator: first.locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -180,6 +253,7 @@ describe("@wanex/workspace/isolation", () => {
     }).prepare({ isolationId: "wiso_restart" })
     const second = await createLocator(repoDir, worktreeParentDir)
     const restarted = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator: second.locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -194,6 +268,7 @@ describe("@wanex/workspace/isolation", () => {
     const worktreeParentDir = await tempDir("wanex-worktrees-")
     const environment = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator: environment.locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),
@@ -216,6 +291,7 @@ describe("@wanex/workspace/isolation", () => {
     const worktreeParentDir = await tempDir("wanex-worktrees-")
     const environment = await createLocator(repoDir, worktreeParentDir)
     const adapter = new GitWorktreeIsolationAdapter({
+      rootIdentity: await readWorkspaceTestRootIdentity(repoDir),
       repositoryId: "repo_isolation_test",
       locator: environment.locator,
       snapshot: new ProcessWorkspaceSnapshotClient(),

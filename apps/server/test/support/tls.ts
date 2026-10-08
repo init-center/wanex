@@ -86,12 +86,16 @@ export function createHttpsFetch(ca: Buffer): typeof globalThis.fetch {
             Array.isArray(values) ? values.join(", ") : values
           )
         }
+        const status = response.statusCode ?? 500
+        const hasBody = init.method !== "HEAD" &&
+          status !== 204 &&
+          status !== 205 &&
+          status !== 304
         resolve(new Response(
-          Readable.toWeb(response) as ReadableStream<Uint8Array>,
-          {
-            status: response.statusCode ?? 500,
-            headers: responseHeaders
-          }
+          hasBody
+            ? Readable.toWeb(response) as ReadableStream<Uint8Array>
+            : null,
+          { status, headers: responseHeaders }
         ))
       })
       request.on("error", (error) => {

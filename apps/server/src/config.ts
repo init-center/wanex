@@ -1,25 +1,14 @@
 import { isAbsolute } from "node:path"
 import { resolveLocalStore } from "@wanex/storage"
+import type { WorkspaceHostOptions } from "@wanex/assistant-host"
 
 export interface WanexServerConfig {
   readonly dataRoot: string
   readonly profileId: string
   readonly hostId: string
   readonly listener: WanexServerListenerConfig
-  readonly coding?: WanexServerCodingConfig
-}
-
-export interface WanexServerCodingConfig {
-  readonly execution: WanexServerCodingExecutionConfig
-  readonly projects: readonly WanexServerProjectConfig[]
-}
-
-export interface WanexServerCodingExecutionConfig {
-  readonly kind: "native"
-}
-
-export interface WanexServerProjectConfig {
-  readonly repositoryPath: string
+  /** Workspace authority resolved and executed on this Server machine. */
+  readonly workspace?: WorkspaceHostOptions
 }
 
 export interface WanexServerListenerConfig {
@@ -33,7 +22,7 @@ export function parseWanexServerConfig(value: unknown): WanexServerConfig {
     "profileId",
     "hostId",
     "listener",
-    "coding"
+    "workspace"
   ])
   const dataRoot = requiredAbsolutePath(input.dataRoot, "Server dataRoot")
   const requestedProfileId = optionalString(input.profileId, "Server profileId")
@@ -45,54 +34,51 @@ export function parseWanexServerConfig(value: unknown): WanexServerConfig {
     ? `wanex-server:${location.profileId}`
     : requiredIdentifier(input.hostId, "Server hostId")
   const listener = parseListener(input.listener)
-  const coding = parseCoding(input.coding)
+  const workspace = parseWorkspace(input.workspace, hostId)
   return Object.freeze({
     dataRoot: location.rootDir,
     profileId: location.profileId,
     hostId,
     listener,
-    ...(coding === undefined ? {} : { coding })
+    ...(workspace === undefined ? {} : { workspace })
   })
 }
 
-function parseCoding(value: unknown): WanexServerCodingConfig | undefined {
+function parseWorkspace(value: unknown, hostId: string): WorkspaceHostOptions | undefined {
   if (value === undefined) return undefined
-  const input = exactRecord(value, "Server coding", ["execution", "projects"])
-  const executionInput = exactRecord(
-    input.execution,
-    "Server coding execution",
-    ["kind"]
-  )
-  if (executionInput.kind !== "native") {
-    throw new Error("Server coding execution kind must be native")
+  const input = exactRecord(value, "Server workspace", ["initialRoots", "worktreeDirectory"])
+  const isolation = input.worktreeDirectory === undefined ? {} : {
+    worktreeDirectory: requiredAbsolutePath(input.worktreeDirectory, "Server workspace worktreeDirectory")
   }
-  if (!Array.isArray(input.projects) || input.projects.length === 0 || input.projects.length > 32) {
-    throw new Error("Server coding projects must contain 1 to 32 entries")
+  if (input.initialRoots === undefined) {
+    return Object.freeze({ hostId, ...isolation })
+  }
+  if (!Array.isArray(input.initialRoots) || input.initialRoots.length > 16) {
+    throw new Error("Server workspace initialRoots must contain at most 16 roots")
   }
   const seen = new Set<string>()
-  const projects = input.projects.map((value, index) => {
-    const project = exactRecord(
-      value,
-      `Server coding project ${index}`,
-      ["repositoryPath"]
-    )
-    const repositoryPath = requiredAbsolutePath(
-      project.repositoryPath,
-      `Server coding project ${index} repositoryPath`
-    )
-    const duplicateKey = process.platform === "win32"
-      ? repositoryPath.toLowerCase()
-      : repositoryPath
-    if (seen.has(duplicateKey)) {
-      throw new Error("Server coding project repositoryPath is duplicated")
-    }
-    seen.add(duplicateKey)
-    return Object.freeze({ repositoryPath })
+  const initialRoots = input.initialRoots.map((value, index) => {
+    const root = exactRecord(value, `Server workspace root ${index}`, ["id", "path", "effects"])
+    const id = requiredIdentifier(root.id, `Server workspace root ${index} id`)
+    if (seen.has(id)) throw new Error("Server workspace root IDs must be unique")
+    seen.add(id)
+    const path = requiredAbsolutePath(root.path, `Server workspace root ${index} path`)
+    const effects = parseWorkspaceEffects(root.effects, index)
+    return Object.freeze({ id, path, ...(effects === undefined ? {} : { effects }) })
   })
-  return Object.freeze({
-    execution: Object.freeze({ kind: "native" as const }),
-    projects: Object.freeze(projects)
-  })
+  return Object.freeze({ hostId, ...isolation, initialRoots: Object.freeze(initialRoots) })
+}
+
+function parseWorkspaceEffects(value: unknown, index: number): readonly ("read" | "write" | "create" | "remove")[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length === 0 || value.length > 4) {
+    throw new Error(`Server workspace root ${index} effects must be a non-empty array`)
+  }
+  const allowed = new Set(["read", "write", "create", "remove"])
+  if (value.some((effect) => typeof effect !== "string" || !allowed.has(effect)) || new Set(value).size !== value.length || !value.includes("read")) {
+    throw new Error(`Server workspace root ${index} effects must contain unique read/write/create/remove values including read`)
+  }
+  return value as readonly ("read" | "write" | "create" | "remove")[]
 }
 
 function parseListener(value: unknown): WanexServerListenerConfig {

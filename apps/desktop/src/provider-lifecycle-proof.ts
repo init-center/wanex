@@ -145,20 +145,23 @@ function createWanexDesktopProviderLifecycleProof(
           : undefined
       })
       const connectionId = remove.getAttribute("data-ui-provider-remove") ?? ""
-      const originalConfirm = window.confirm
-      window.confirm = () => true
-      try {
-        remove.click()
-        await waitFor(() =>
-          document.querySelector(
-            `[data-ui-provider="${connectionId}"]`
-          ) === null &&
-          document.querySelectorAll("[data-ui-provider]").length === 1 &&
-          document.querySelector('[data-ui-provider-state="ready"]') !== null
+      remove.click()
+      const confirmRemove = await waitFor(() => {
+        const candidate = document.querySelector(
+          `[data-ui-provider-remove-confirm="${connectionId}"]`
         )
-      } finally {
-        window.confirm = originalConfirm
-      }
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          ? candidate
+          : undefined
+      })
+      confirmRemove.click()
+      await waitFor(() =>
+        document.querySelector(
+          `[data-ui-provider="${connectionId}"]`
+        ) === null &&
+        document.querySelectorAll("[data-ui-provider]").length === 1 &&
+        document.querySelector('[data-ui-provider-state="ready"]') !== null
+      )
       const closeSettings = document.querySelector(
         '[data-ui-settings-panel] [aria-label="Close settings"]'
       )
@@ -176,11 +179,11 @@ function createWanexDesktopProviderLifecycleProof(
       })
       const surface = ready.surface
       const modelSelect = surface?.querySelector(
-        '[data-ui-model-selector] select[name="endpointId"]'
+        'button[data-ui-model-selector]'
       )
       const fallbackModelId =
-        modelSelect instanceof HTMLSelectElement
-          ? modelSelect.selectedOptions[0]?.textContent?.split(" - ")[0]?.trim() ?? ""
+        modelSelect instanceof HTMLButtonElement
+          ? modelSelect.textContent?.split(" \u00b7 ")[0]?.trim() ?? ""
           : ""
       if (fallbackModelId !== expected.primaryModelId) {
         throw new Error(`Provider fallback selected unexpected model: ${fallbackModelId}`)
@@ -286,7 +289,15 @@ function createWanexDesktopProviderLifecycleProof(
         ? candidate
         : undefined
     })
-    setProviderField(form, "presetId", "openai-compatible")
+    const preset = form.querySelector('[data-ui-select="presetId"]')
+    if (!(preset instanceof HTMLButtonElement)) throw new Error("Provider preset control is missing")
+    preset.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+    const option = await waitFor(() => {
+      const candidate = document.querySelector('[role="option"][data-ui-select-option="openai-compatible"]')
+      return candidate instanceof HTMLElement ? candidate : undefined
+    })
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+    await waitFor(() => preset.getAttribute("aria-expanded") === "false" ? true : undefined)
     setProviderField(form, "baseUrl", request.baseUrl)
     setProviderField(form, "conversationModelId", request.modelId)
     setProviderField(form, "credential", request.credential)

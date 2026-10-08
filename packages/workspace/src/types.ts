@@ -51,12 +51,20 @@ export interface UndoWorkspaceChangeSetRequest {
   readonly signal?: RuntimeAbortSignal
 }
 
+export interface ReapplyWorkspaceChangeSetRequest {
+  readonly changeSetId: string
+  readonly mutation: WorkspaceMutationIdentity
+  readonly signal?: RuntimeAbortSignal
+}
+
 export interface UndoWorkspaceChangeSetResult {
   readonly changeSet: WorkspaceChangeSetRecord
   readonly operation: WorkspaceChangeOperationRecord
   readonly receipt: ChangeSetReceipt
   readonly transaction: WorkspaceChangeTransactionFinalization
 }
+
+export type ReapplyWorkspaceChangeSetResult = ApplyWorkspaceChangeSetResult
 
 export interface WorkspaceChangeSetHistory {
   readonly changeSet: WorkspaceChangeSetRecord

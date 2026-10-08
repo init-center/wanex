@@ -16,6 +16,8 @@ import type {
   ListWorkspaceRuntimeChangeSetsRequest,
   UndoWorkspaceChangeSetRequest,
   UndoWorkspaceChangeSetResult,
+  ReapplyWorkspaceChangeSetRequest,
+  ReapplyWorkspaceChangeSetResult,
   WorkspaceRuntimeOptions,
   WorkspaceChangeSetHistory
 } from "./types.js"
@@ -123,6 +125,24 @@ export class WorkspaceRuntime {
       receipt: executed.receipt,
       transaction: executed.finalization
     }
+  }
+
+  async reapplyChangeSet(
+    request: ReapplyWorkspaceChangeSetRequest
+  ): Promise<ReapplyWorkspaceChangeSetResult> {
+    const changeSet = await this.storage.getWorkspaceChangeSet({
+      changeSetId: request.changeSetId
+    })
+    if (changeSet === null) {
+      throw new Error(`workspace changeset does not exist: ${request.changeSetId}`)
+    }
+    return await this.applyChangeSet({
+      changeSet: changeSet.changeSet,
+      workspaceId: changeSet.workspaceId,
+      principalId: changeSet.principalId,
+      mutation: request.mutation,
+      ...(request.signal === undefined ? {} : { signal: request.signal })
+    })
   }
 
   async getHistory(changeSetId: string): Promise<WorkspaceChangeSetHistory | null> {

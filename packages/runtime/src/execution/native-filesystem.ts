@@ -109,8 +109,10 @@ export class NativeExecutionFileSystem implements ExecutionFileSystem {
     this.#assertOpen();
     await this.#authorize(path, "read", false);
     try {
-      const value = await lstat(resolve(path));
+      const value = await lstat(resolve(path), { bigint: true });
       return {
+        device: String(value.dev),
+        inode: String(value.ino),
         kind: value.isFile()
           ? "file"
           : value.isDirectory()
@@ -118,8 +120,8 @@ export class NativeExecutionFileSystem implements ExecutionFileSystem {
             : value.isSymbolicLink()
               ? "symlink"
               : "other",
-        size: value.size,
-        modifiedAt: value.mtimeMs,
+        size: Number(value.size),
+        modifiedAt: Number(value.mtimeNs / 1_000_000n) + Number(value.mtimeNs % 1_000_000n) / 1_000_000,
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;

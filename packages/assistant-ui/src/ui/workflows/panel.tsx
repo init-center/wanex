@@ -3,6 +3,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import type { Snapshot } from "../../application/model.js";
 import { classes } from "../classes.js";
 import type { DispatchAction } from "../shared/action.js";
+import { humanState } from "../shared/state-label.js";
 
 type WorkflowTab = "plan" | "goal" | "aside";
 
@@ -21,7 +22,7 @@ export function WorkflowsPanel({
   return (
     <aside className={classes("context-panel workflows-panel")} aria-label="Workflows" data-ui-workflows-panel>
       <div className={classes("context-panel-header")}>
-        <div><span className={classes("eyebrow")}>Workflows</span><h2>Plan, Goal, and aside</h2></div>
+        <div><span className={classes("eyebrow")}>Workflows</span><h2>Plan, Goal, and aside</h2><p className={classes("workflow-intro")}>Review a plan before it runs, pursue a goal across turns, or ask a side question without changing this conversation.</p></div>
         <button type="button" className={classes("icon-button")} onClick={onClose} aria-label="Close workflows" title="Close workflows"><X size={17} /></button>
       </div>
       <div className={classes("workflow-tabs")} role="tablist" aria-label="Workflow">
@@ -53,7 +54,7 @@ function WorkflowTabButton({
 }): ReactNode {
   return (
     <button type="button" role="tab" aria-selected={selected} data-ui-workflow-tab={id} className={classes(selected ? "is-active" : "")} onClick={() => select(id)}>
-      <span>{children}</span><small>{stateLabel(state)}</small>
+      <span>{children}</span><small>{humanState(state)}</small>
     </button>
   );
 }
@@ -126,7 +127,7 @@ function PlanJourney({
       )}
       {generation === undefined || generation.state === "running" ? null : (
         <WorkflowStatus
-          title={`Generation ${stateLabel(generation.state)}`}
+          title={generation.state === "succeeded" ? "Plan drafted" : `Plan ${humanState(generation.state).toLowerCase()}`}
           {...(generation.error?.message === undefined ? {} : { detail: generation.error.message })}
         >
           <button type="button" data-ui-action="dismiss-plan-generation" disabled={busy} onClick={() => void dispatch({ type: "dismiss-plan-generation", input: { operationId: generation.operationId } })}>Dismiss</button>
@@ -139,7 +140,7 @@ function PlanJourney({
           data-ui-plan-proposal-state={proposal.state}
           data-ui-plan-revision={proposal.revision}
         >
-          <header><div><span className={classes("eyebrow")}>Proposal · {stateLabel(proposal.state)}</span><h3>{proposal.title}</h3></div><span>r{proposal.revision}</span></header>
+          <header><div><span className={classes("eyebrow")}>Plan · {humanState(proposal.state)}</span><h3>{proposal.title}</h3></div><span className={classes("workflow-badge")} title="Revision">v{proposal.revision}</span></header>
           <p>{proposal.summary}</p>
           <ol>{proposal.steps.map((step) => <li key={step.id} data-ui-plan-step={step.id}><strong>{step.title}</strong>{step.detail === undefined ? null : <p>{step.detail}</p>}</li>)}</ol>
           {proposal.state === "open" ? (
@@ -163,7 +164,7 @@ function PlanJourney({
           {proposal.state === "approved" && proposal.execution === undefined ? (
             <button type="button" className={classes("primary-action")} data-ui-action="execute-plan-proposal" disabled={busy} onClick={() => void dispatch({ type: "execute-plan-proposal", input: { proposalId: proposal.proposalId, expectedRevision: proposal.revision } })}><Play size={14} /> Execute Plan</button>
           ) : null}
-          {proposal.execution === undefined ? null : <p className={classes("muted")} data-ui-plan-execution data-ui-job-state={proposal.execution.jobState}>Execution {stateLabel(proposal.execution.jobState)}</p>}
+          {proposal.execution === undefined ? null : <p className={classes("muted")} data-ui-plan-execution data-ui-job-state={proposal.execution.jobState}>Execution: {humanState(proposal.execution.jobState)}</p>}
         </article>
       )}
     </section>
@@ -220,8 +221,8 @@ function GoalJourney({ snapshot, busy, dispatch }: JourneyProps): ReactNode {
       data-ui-goal-state={goal.state}
       data-ui-goal-revision={goal.revision}
     >
-      <header><div><span className={classes("eyebrow")}>Goal · {stateLabel(goal.state)}</span><h3>{goal.objective}</h3></div><span>{goal.attemptCount}/{goal.stopPolicy.maxAttempts}</span></header>
-      <p>{goal.reason.detail ?? stateLabel(goal.reason.code)}</p>
+      <header><div><span className={classes("eyebrow")}>Goal · {humanState(goal.state)}</span><h3>{goal.objective}</h3></div><span className={classes("workflow-badge")} title="Attempts">{goal.attemptCount}/{goal.stopPolicy.maxAttempts}</span></header>
+      <p>{goal.reason.detail ?? humanState(goal.reason.code)}</p>
       <h4>Success criteria</h4>
       <ul>{goal.successCriteria.map((criterion) => <li key={criterion.id}>{criterion.description}</li>)}</ul>
       <h4>Attempts</h4>
@@ -261,7 +262,7 @@ function SideQueryJourney({ snapshot, busy, dispatch }: JourneyProps): ReactNode
   if (query.queryId === undefined) return null;
   return (
     <article className={classes("workflow-card")} data-ui-side-query={query.queryId} data-ui-side-query-state={query.state}>
-      <header><div><span className={classes("eyebrow")}>Ask aside · {stateLabel(query.state)}</span><h3 data-ui-side-query-question>{query.question}</h3></div></header>
+      <header><div><span className={classes("eyebrow")}>Ask aside · {humanState(query.state)}</span><h3 data-ui-side-query-question>{query.question}</h3></div></header>
       {query.state === "running" ? <p>Thinking in a temporary context…</p> : null}
       {query.state === "succeeded" ? <p className={classes("aside-answer")} data-ui-side-query-answer>{query.answerText}</p> : null}
       {query.state === "failed" ? <p role="alert">{query.errorMessage ?? "Side question failed"}</p> : null}
@@ -322,8 +323,4 @@ function optionalText(data: FormData, field: string): string | undefined {
 function boundedInteger(data: FormData, field: string, minimum: number, maximum: number, fallback: number): number {
   const value = Number(data.get(field) ?? fallback);
   return Number.isSafeInteger(value) && value >= minimum && value <= maximum ? value : fallback;
-}
-
-function stateLabel(value: string): string {
-  return value.replaceAll("_", " ").replaceAll("-", " ");
 }

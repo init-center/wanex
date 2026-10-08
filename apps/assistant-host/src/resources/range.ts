@@ -1,14 +1,14 @@
-import { LocalResourceDeliveryError } from "./model.js"
+import { ResourceDeliveryError } from "./model.js"
 
-export interface LocalResourceByteRange {
+export interface ResourceByteRange {
   readonly start: number
   readonly end: number
 }
 
-export function parseLocalResourceRange(
+export function parseResourceRange(
   value: string | undefined,
   totalSizeBytes: number
-): LocalResourceByteRange | undefined {
+): ResourceByteRange | undefined {
   if (value === undefined) return undefined
   const match = /^bytes=(.+)$/i.exec(value.trim())
   if (match === null || match[1] === undefined || match[1].includes(",")) {
@@ -51,8 +51,8 @@ function parseSafeInteger(value: string, totalSizeBytes: number): number {
   return parsed
 }
 
-function invalidRange(totalSizeBytes: number): LocalResourceDeliveryError {
-  return new LocalResourceDeliveryError(
+function invalidRange(totalSizeBytes: number): ResourceDeliveryError {
+  return new ResourceDeliveryError(
     416,
     "resource_range_not_satisfiable",
     "resource Range must contain exactly one satisfiable byte range",

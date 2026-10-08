@@ -3,6 +3,7 @@ import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import {
   auditTuiDistribution,
+  assertWorkspaceReadClosure,
   buildTuiDistribution,
   bundleRelativePath,
   distributionRoot,
@@ -26,6 +27,7 @@ describe("TUI distribution", () => {
     expect(receipt).toMatchObject({
       kind: "wanex.tui.distribution-receipt",
       name: "@wanex/tui",
+      workspaceSources: [],
       staging: {
         fileCount: expect.any(Number),
         chunkCount: expect.any(Number),
@@ -69,6 +71,14 @@ describe("TUI distribution", () => {
     expect(bundle).not.toContain(workspaceRoot)
     expect(bundle).not.toContain("@napi-rs/keyring")
     expect(bundle).not.toMatch(/(?:\bfrom\s*|\bimport\s*\(|\brequire\s*\()\s*["']@wanex\//)
+  })
+
+  it("rejects actual Git or mutating Workspace code in the compiled read-only closure", () => {
+    for (const source of ["git/index.ts", "tools/apply-tool.ts", "tasks/runtime.ts", "tools/exec-tool.ts"]) {
+      expect(() => assertWorkspaceReadClosure({ outputs: {
+        "dist/chunk.js": { inputs: { [`packages/workspace/src/${source}`]: { bytesInOutput: 1 } } }
+      } })).toThrow("read-only Workspace closure rejects")
+    }
   })
 
   it("fails closed when generated package metadata or files drift", async () => {

@@ -82,8 +82,8 @@ describe("environment artifact export", () => {
 
   it.each([
     ["missing", null, /does not exist/],
-    ["directory", { kind: "directory", size: 0, modifiedAt: 1 }, /not a regular file: directory/],
-    ["symlink", { kind: "symlink", size: 12, modifiedAt: 1 }, /not a regular file: symlink/]
+    ["directory", { kind: "directory", size: 0, device: "1", inode: "2", modifiedAt: 1 }, /not a regular file: directory/],
+    ["symlink", { kind: "symlink", size: 12, device: "1", inode: "2", modifiedAt: 1 }, /not a regular file: symlink/]
   ] as const)("rejects a %s artifact before reading", async (_label, metadata, error) => {
     const { scope } = await createScope()
     let reads = 0
@@ -110,7 +110,7 @@ describe("environment artifact export", () => {
     let reads = 0
     const runtime = runtimeThatMustNotIngest()
     const guarded = withFileSystem(scope, {
-      metadata: async () => ({ kind: "file", size: 1_025, modifiedAt: 1 }),
+      metadata: async () => ({ kind: "file", size: 1_025, device: "1", inode: "2", modifiedAt: 1 }),
       read: async () => {
         reads += 1
         return new Uint8Array(1_025)
@@ -130,7 +130,7 @@ describe("environment artifact export", () => {
     const { scope } = await createScope()
     const runtime = runtimeThatMustNotIngest()
     const guarded = withFileSystem(scope, {
-      metadata: async () => ({ kind: "file", size: 3, modifiedAt: 1 }),
+      metadata: async () => ({ kind: "file", size: 3, device: "1", inode: "2", modifiedAt: 1 }),
       read: async () => new Uint8Array(4)
     })
 
@@ -152,7 +152,7 @@ describe("environment artifact export", () => {
         return {
           kind: "file",
           size: metadataCalls === 1 ? 3 : 4,
-          modifiedAt: metadataCalls
+          device: "1", inode: "2", modifiedAt: metadataCalls
         }
       },
       read: async () => new Uint8Array(3)
@@ -170,7 +170,7 @@ describe("environment artifact export", () => {
     const { scope } = await createScope()
     const runtime = runtimeThatMustNotIngest()
     const guarded = withFileSystem(scope, {
-      metadata: async () => ({ kind: "file", size: 3, modifiedAt: 1 }),
+      metadata: async () => ({ kind: "file", size: 3, device: "1", inode: "2", modifiedAt: 1 }),
       read: async () => new Uint8Array([1, 2, 3])
     })
 

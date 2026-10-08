@@ -12,7 +12,7 @@ const onboarding = `<main data-ui-assistant-shell><section data-ui-settings-pane
   <button type="submit">Connect</button></form></section></main>`
 const conversation = `<main data-ui-assistant-shell><form data-ui-composer>
   <textarea name="text"></textarea><button type="submit" disabled>Send</button></form>
-  <div data-ui-model-selector><select name="endpointId"><option>Model</option></select></div></main>`
+  <button type="button" data-ui-model-selector data-ui-active-endpoint="model">Model</button></main>`
 
 beforeEach(async () => {
   performance.clearMarks()

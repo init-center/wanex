@@ -1,5 +1,3 @@
-import { CLIENT_SCRIPT } from "@wanex/assistant-ui/generated/client-script";
-import { STYLESHEET } from "@wanex/assistant-ui/generated/stylesheet";
 import type { WebWindowChrome } from "./window-chrome.js";
 
 export const CLIENT_SCRIPT_PATH = "/assets/app.js";
@@ -57,5 +55,3 @@ function escapeAttribute(value: string): string {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
-
-export { CLIENT_SCRIPT, STYLESHEET };

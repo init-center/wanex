@@ -1,39 +1,39 @@
-export type LocalResourceDeliveryPurpose = "preview" | "media"
-export type LocalResourceDeliveryKind = "image" | "audio" | "video"
+export type ResourceDeliveryPurpose = "preview" | "media"
+export type ResourceDeliveryKind = "image" | "audio" | "video"
 
-export interface LocalResourceDeliveryAuthorizationRequest {
+export interface ResourceDeliveryAuthorizationRequest {
   readonly resourceId: string
   readonly expectedSha256: string
-  readonly purpose: LocalResourceDeliveryPurpose
+  readonly purpose: ResourceDeliveryPurpose
   readonly sessionId?: string
 }
 
-export interface LocalResourceDeliveryAuthorizer {
+export interface ResourceDeliveryAuthorizer {
   authorize(
-    request: LocalResourceDeliveryAuthorizationRequest
+    request: ResourceDeliveryAuthorizationRequest
   ): Promise<boolean>
 }
 
-export interface LocalPrepareResourceDeliveryRequest
-  extends LocalResourceDeliveryAuthorizationRequest {
+export interface PrepareResourceDeliveryRequest
+  extends ResourceDeliveryAuthorizationRequest {
   /** Trusted Host-owned audience. Renderer input must never populate it. */
   readonly audience: string
 }
 
-export interface LocalPreparedResourceDelivery {
+export interface PreparedResourceDelivery {
   readonly kind: "assistant-host.resource-delivery"
   readonly token: string
   readonly resourceId: string
   readonly sha256: string
-  readonly resourceKind: LocalResourceDeliveryKind
+  readonly resourceKind: ResourceDeliveryKind
   readonly mediaType: string
   readonly sizeBytes: number
-  readonly purpose: LocalResourceDeliveryPurpose
+  readonly purpose: ResourceDeliveryPurpose
   readonly sessionId?: string
   readonly expiresAt: number
 }
 
-export interface LocalOpenResourceDeliveryRequest {
+export interface OpenResourceDeliveryRequest {
   readonly token: string
   readonly method: "GET" | "HEAD"
   readonly range?: string
@@ -42,12 +42,12 @@ export interface LocalOpenResourceDeliveryRequest {
   readonly signal?: AbortSignal
 }
 
-export interface LocalResourceDeliveryRead {
+export interface ResourceDeliveryRead {
   readonly kind: "assistant-host.resource-delivery-read"
   readonly statusCode: 200 | 206 | 304
   readonly resourceId: string
   readonly sha256: string
-  readonly resourceKind: LocalResourceDeliveryKind
+  readonly resourceKind: ResourceDeliveryKind
   readonly mediaType: string
   readonly totalSizeBytes: number
   readonly contentLength: number
@@ -61,19 +61,19 @@ export interface LocalResourceDeliveryRead {
   readonly body?: AsyncIterable<Uint8Array>
 }
 
-export interface LocalResourceDeliveryPort {
+export interface ResourceDeliveryPort {
   prepare(
-    request: LocalPrepareResourceDeliveryRequest
-  ): Promise<LocalPreparedResourceDelivery>
+    request: PrepareResourceDeliveryRequest
+  ): Promise<PreparedResourceDelivery>
   open(
-    request: LocalOpenResourceDeliveryRequest
-  ): Promise<LocalResourceDeliveryRead>
+    request: OpenResourceDeliveryRequest
+  ): Promise<ResourceDeliveryRead>
   revoke(token: string): boolean
   close(): void
   activeGrantCount(): number
 }
 
-export type LocalResourceDeliveryErrorCode =
+export type ResourceDeliveryErrorCode =
   | "invalid_resource_delivery"
   | "resource_delivery_forbidden"
   | "resource_delivery_capacity_exceeded"
@@ -90,14 +90,14 @@ export type LocalResourceDeliveryErrorCode =
   | "resource_delivery_closed"
   | "resource_delivery_aborted"
 
-export class LocalResourceDeliveryError extends Error {
+export class ResourceDeliveryError extends Error {
   constructor(
     readonly statusCode: 400 | 403 | 404 | 409 | 410 | 413 | 415 | 416 | 429,
-    readonly code: LocalResourceDeliveryErrorCode,
+    readonly code: ResourceDeliveryErrorCode,
     message: string,
     readonly totalSizeBytes?: number
   ) {
     super(message)
-    this.name = "LocalResourceDeliveryError"
+    this.name = "ResourceDeliveryError"
   }
 }

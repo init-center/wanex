@@ -32,7 +32,10 @@ import type {
   ReadPlanProposalResult,
   GoalReadModel,
   ReadGoalResult,
-  TeamConversationListReadModel
+  TeamConversationListReadModel,
+  WorkspaceFoldersReadModel,
+  WorkspaceFolderReadModel,
+  RecentWorkspaceFolderReadModel
 } from "@wanex/assistant/surface"
 import type {
   ScheduleDefinitionReadResult,
@@ -60,6 +63,11 @@ import type {
 } from "../commands/palette/model.js"
 import type { Action } from "./actions.js"
 import type { TeamViewModel } from "../team/model.js"
+import type {
+  WorkspaceChangeMutationResult,
+  WorkspaceChangeReadModel,
+  WorkspaceChangeSummary,
+} from "@wanex/assistant"
 
 export interface Snapshot {
   readonly kind: "web.snapshot"
@@ -86,6 +94,7 @@ export interface Snapshot {
   readonly teamList: SurfaceClientCommandEnvelope<TeamConversationListReadModel>
   readonly team: TeamViewModel
   readonly attachments: SurfaceClientCommandEnvelope<ConversationAttachmentsReadModel>
+  readonly workspaceFolders: SurfaceClientCommandEnvelope<WorkspaceFoldersReadModel>
   readonly workbench: WorkbenchViewModel
   readonly diagnostics: readonly Diagnostic[]
   readonly view: ViewModel
@@ -141,6 +150,7 @@ export interface ViewModel {
   readonly teamCanSubmit: boolean
   readonly team: TeamViewModel
   readonly conversationAttachments: readonly AttachmentDraft[]
+  readonly workspaceFolders: WorkspaceFoldersViewModel
   readonly conversationAttachmentCanUpload: boolean
   readonly conversationAttachmentAccept: string
   readonly conversationAttachmentMessage: string
@@ -488,6 +498,7 @@ export type ActionResult =
       readonly action: Action["type"]
       readonly output?: ActionOutput
       readonly snapshot: Snapshot
+      readonly snapshotRefresh?: { readonly state: "failed"; readonly message: string }
     }
   | {
       readonly ok: false
@@ -495,6 +506,7 @@ export type ActionResult =
       readonly message: string
       readonly output?: ActionOutput
       readonly snapshot: Snapshot
+      readonly snapshotRefresh?: { readonly state: "failed"; readonly message: string }
     }
 
 export interface PluginManagementActionOutput {
@@ -516,6 +528,20 @@ export interface PluginManagementActionOutput {
 export type ActionOutput =
   | PluginManagementActionOutput
   | ScheduleActionOutput
+  | WorkspaceChangeActionOutput
+
+export type WorkspaceChangeActionType =
+  | "read-workspace-change"
+  | "decide-workspace-change"
+  | "apply-workspace-change"
+  | "undo-workspace-change"
+  | "reapply-workspace-change"
+
+export interface WorkspaceChangeActionOutput {
+  readonly kind: "web.workspace-change-action"
+  readonly action: WorkspaceChangeActionType
+  readonly result: WorkspaceChangeReadModel | WorkspaceChangeSummary | WorkspaceChangeMutationResult
+}
 
 export type ScheduleActionType =
   | "read-schedule"
@@ -559,3 +585,11 @@ export type DiagnosticCode =
   | "web.team_list_failed"
   | "web.events_failed"
   | "web.action_failed"
+
+/** Folders the user added to the current conversation; names only, never paths. */
+export interface WorkspaceFoldersViewModel {
+  readonly available: boolean
+  readonly canPick: boolean
+  readonly folders: readonly WorkspaceFolderReadModel[]
+  readonly recent: readonly RecentWorkspaceFolderReadModel[]
+}

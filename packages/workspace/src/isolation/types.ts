@@ -8,6 +8,8 @@ import type {
 export type WorkspaceIsolationKind = "fixed" | "git_worktree"
 
 export interface WorkspaceIsolationRequest {
+  readonly rootIdentity?: import("../snapshot/types.js").WorkspaceSnapshotRequest["rootIdentity"]
+  readonly expectedBaseRevision?: string
   readonly isolationId?: string
   readonly workspaceId?: string
   readonly jobId?: string
@@ -48,6 +50,7 @@ export interface FixedWorkspaceIsolationAdapterOptions {
 }
 
 export interface GitWorktreeIsolationAdapterOptions {
+  readonly rootIdentity: import("../snapshot/types.js").WorkspaceSnapshotRequest["rootIdentity"]
   readonly repositoryId: string
   readonly locator: RepositoryLocator
   readonly snapshot: WorkspaceSnapshotClient

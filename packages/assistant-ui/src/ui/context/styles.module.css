@@ -1,6 +1,12 @@
-.context-panel { width: 340px; min-width: 0; min-height: 0; padding: 20px 17px; overflow-y: auto; background: var(--color-overlay); border-left: 1px solid var(--color-glass-edge); box-shadow: inset 1px 0 0 var(--color-glass-highlight); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); }
-.context-panel-header { justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.context-value { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--color-line); font-size: 11px; }
-.context-value span { color: var(--color-text-muted); }
-.context-value strong { color: var(--color-text-secondary); font-weight: 600; text-align: right; text-transform: capitalize; }
-.context-note { margin-top: 18px; color: var(--color-text-muted); font-size: 10px; line-height: 1.6; }
+/* Context side panel: what this conversation can see and use. */
+.context-panel { width: 340px; min-width: 0; min-height: 0; padding: 18px 20px 24px; overflow-y: auto; background: var(--color-overlay-solid); border-left: 1px solid var(--color-line); box-shadow: inset 1px 0 0 var(--color-line); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); }
+.context-panel-header { justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.context-section + .context-section { margin-top: 20px; }
+.context-section h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 620; }
+.context-section h3 > svg { color: var(--color-text-muted); }
+.context-section ul { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.context-item { min-height: 38px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; background: var(--color-surface); border: 1px solid var(--color-line-muted); border-radius: var(--radius-control); font-size: var(--font-size-sm); }
+.context-item > span { min-width: 0; overflow: hidden; color: var(--color-text); text-overflow: ellipsis; white-space: nowrap; }
+.context-item > small { flex: 0 0 auto; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.context-empty { margin: 0; padding: 2px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: 19px; }
+.context-note { margin-top: 18px; color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 1.6; }

@@ -5,8 +5,8 @@ import {
   DEFAULT_RESOURCE_MEDIA_DELIVERY_TTL_MS,
   DEFAULT_RESOURCE_PREVIEW_DELIVERY_TTL_MS,
   MAX_IMAGE_PREVIEW_BYTES,
-  createLocalResourceDeliveryPort,
-  parseLocalResourceRange
+  createResourceDeliveryPort,
+  parseResourceRange
 } from "../src/resources/delivery.js"
 
 const TOKEN_A = `wrd_${"a".repeat(43)}`
@@ -18,7 +18,7 @@ describe("Assistant Host resource delivery", () => {
     const resource = imageResource(content)
     const reads: Array<{ readonly offset: number; readonly limit: number }> = []
     const authorize = vi.fn(async () => true)
-    const port = createLocalResourceDeliveryPort(
+    const port = createResourceDeliveryPort(
       resourceReads(resource, content, reads),
       {
         authorizer: { authorize },
@@ -74,7 +74,7 @@ describe("Assistant Host resource delivery", () => {
     const content = new Uint8Array([10, 20, 30, 40, 50, 60])
     const resource = imageResource(content)
     const reads: Array<{ readonly offset: number; readonly limit: number }> = []
-    const port = createLocalResourceDeliveryPort(
+    const port = createResourceDeliveryPort(
       resourceReads(resource, content, reads),
       allowAll({ tokens: [TOKEN_A] })
     )
@@ -122,7 +122,7 @@ describe("Assistant Host resource delivery", () => {
       [image.id, { resource: image, content: imageContent }],
       [audio.id, { resource: audio, content: audioContent }]
     ])
-    const port = createLocalResourceDeliveryPort({
+    const port = createResourceDeliveryPort({
       async readResource(request) {
         return resources.get(request.resourceId)?.resource ?? null
       },
@@ -173,7 +173,7 @@ describe("Assistant Host resource delivery", () => {
   it("fails closed for authorization, audience, expiration, revocation, close, and capacity", async () => {
     const content = new Uint8Array([1])
     const resource = imageResource(content)
-    const denied = createLocalResourceDeliveryPort(
+    const denied = createResourceDeliveryPort(
       resourceReads(resource, content),
       { authorizer: { authorize: async () => false } }
     )
@@ -184,7 +184,7 @@ describe("Assistant Host resource delivery", () => {
 
     let now = 100
     const tokens = [TOKEN_A, TOKEN_B]
-    const port = createLocalResourceDeliveryPort(
+    const port = createResourceDeliveryPort(
       resourceReads(resource, content),
       {
         authorizer: { authorize: async () => true },
@@ -228,7 +228,7 @@ describe("Assistant Host resource delivery", () => {
     const base = imageResource(content)
     let current: ResourceRecord | null = null
     let contentReads = 0
-    const port = createLocalResourceDeliveryPort({
+    const port = createResourceDeliveryPort({
       async readResource() {
         return current
       },
@@ -261,7 +261,7 @@ describe("Assistant Host resource delivery", () => {
     const content = new Uint8Array(300_000).fill(7)
     const resource = imageResource(content)
     const reads: Array<{ readonly offset: number; readonly limit: number }> = []
-    const port = createLocalResourceDeliveryPort(
+    const port = createResourceDeliveryPort(
       resourceReads(resource, content, reads),
       allowAll({ tokens: [TOKEN_A] })
     )
@@ -290,7 +290,7 @@ describe("Assistant Host resource delivery", () => {
       releaseAuthorization = resolve
     })
     const tokens = [TOKEN_A, TOKEN_B]
-    const port = createLocalResourceDeliveryPort(
+    const port = createResourceDeliveryPort(
       resourceReads(resource, content),
       {
         authorizer: {
@@ -333,15 +333,15 @@ describe("Assistant Host resource delivery", () => {
 
 describe("Assistant Host resource Range parser", () => {
   it("supports closed, open-ended, and suffix ranges", () => {
-    expect(parseLocalResourceRange("bytes=2-4", 10)).toEqual({ start: 2, end: 4 })
-    expect(parseLocalResourceRange("bytes=7-", 10)).toEqual({ start: 7, end: 9 })
-    expect(parseLocalResourceRange("bytes=-3", 10)).toEqual({ start: 7, end: 9 })
-    expect(parseLocalResourceRange("bytes=8-20", 10)).toEqual({ start: 8, end: 9 })
+    expect(parseResourceRange("bytes=2-4", 10)).toEqual({ start: 2, end: 4 })
+    expect(parseResourceRange("bytes=7-", 10)).toEqual({ start: 7, end: 9 })
+    expect(parseResourceRange("bytes=-3", 10)).toEqual({ start: 7, end: 9 })
+    expect(parseResourceRange("bytes=8-20", 10)).toEqual({ start: 8, end: 9 })
   })
 
   it("rejects invalid, unsatisfiable, and multi-range values", () => {
     for (const range of ["items=0-1", "bytes=", "bytes=9-2", "bytes=10-", "bytes=-0", "bytes=0-1,4-5"]) {
-      expect(() => parseLocalResourceRange(range, 10)).toThrowError(
+      expect(() => parseResourceRange(range, 10)).toThrowError(
         expect.objectContaining({
           statusCode: 416,
           code: "resource_range_not_satisfiable",
@@ -362,7 +362,7 @@ function allowAll(options: { readonly tokens: string[] }) {
 }
 
 async function prepareImage(
-  port: ReturnType<typeof createLocalResourceDeliveryPort>,
+  port: ReturnType<typeof createResourceDeliveryPort>,
   resource: ResourceRecord
 ) {
   return await port.prepare({

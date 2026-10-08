@@ -29,6 +29,4 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wanex/runtime run check
-      - run: pnpm --filter @wanex/coding run check
       - run: pnpm --filter @wanex/runtime exec vitest run test/local-agent-host-ipc.test.ts
-      - run: pnpm --filter @wanex/coding exec vitest run test/agent-host.test.ts

@@ -1027,6 +1027,10 @@ export type ExecutionFileEffect = "read" | "write" | "create" | "remove";
 // @public (undocumented)
 export interface ExecutionFileMetadata {
     // (undocumented)
+    readonly device: string;
+    // (undocumented)
+    readonly inode: string;
+    // (undocumented)
     readonly kind: "file" | "directory" | "symlink" | "other";
     // (undocumented)
     readonly modifiedAt: number;
@@ -2765,9 +2769,13 @@ interface ResolvedSecret {
 // @public (undocumented)
 export interface ResolvedSessionTurnAgentContext {
     // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
+    // (undocumented)
     readonly context?: PreparedAgentContext;
     // (undocumented)
     readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly lease?: SessionTurnAgentContextLease;
 }
@@ -3273,6 +3281,15 @@ interface SessionScope {
 // @public (undocumented)
 type SessionStatus = "active" | "archived";
 
+// @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
 // @public
 export type SessionTurnAgentContextIdentity = symbol & {
     readonly [sessionTurnAgentContextIdentityBrand]: true;
@@ -3367,6 +3384,8 @@ type SessionTurnControlStatus = "pending" | "applied" | "rejected" | "cancelled"
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)

@@ -5,9 +5,8 @@ import {
   createHttpClient,
   type Client as AssistantClient,
 } from "@wanex/assistant-ui/client";
-import type { DesktopCodingRendererBridge } from "../coding-bridge.js";
-import type { DesktopRemoteRendererBridge } from "../remote/bridge.js";
-import { createDesktopRendererCodingClient } from "./coding/client.js";
+import type { DesktopServerRendererBridge } from "../server/bridge.js";
+import type { DesktopAssistantRendererBridge } from "../assistant/bridge.js";
 import { ProductRenderer } from "./product.js";
 import {
   markDesktopRendererBootstrap,
@@ -24,53 +23,47 @@ if (root === null || script === null) {
   throw new Error("Desktop renderer bootstrap elements are missing");
 }
 
-const assistantClient: AssistantClient = observeDesktopInitialSnapshot(createHttpClient({
-  requestPath: requiredDataset(script, "requestPath"),
-  hostSessionToken: requiredDataset(script, "hostSessionToken"),
-  ...(script.dataset.eventStreamPath === undefined
-    ? {}
-    : { eventStreamPath: script.dataset.eventStreamPath }),
-  ...(script.dataset.attachmentPath === undefined
-    ? {}
-    : { attachmentPath: script.dataset.attachmentPath }),
-  ...(script.dataset.resourceDeliveryPreparePath === undefined
-    ? {}
-    : { resourceDeliveryPreparePath: script.dataset.resourceDeliveryPreparePath }),
-  ...(script.dataset.providerManagementPath === undefined
-    ? {}
-    : { providerManagementPath: script.dataset.providerManagementPath }),
-  ...(script.dataset.modelCatalogRefreshPath === undefined
-    ? {}
-    : { modelCatalogRefreshPath: script.dataset.modelCatalogRefreshPath }),
-  ...(script.dataset.capabilitySetupPath === undefined
-    ? {}
-    : { capabilitySetupPath: script.dataset.capabilitySetupPath }),
-}));
-const codingBridge = readCodingBridge();
-const codingClient = codingBridge === undefined
-  ? undefined
-  : createDesktopRendererCodingClient(codingBridge);
-const remoteClient = readRemoteBridge();
+const createLocalAssistantClient = (): AssistantClient =>
+  observeDesktopInitialSnapshot(createHttpClient({
+    requestPath: requiredDataset(script, "requestPath"),
+    hostSessionToken: requiredDataset(script, "hostSessionToken"),
+    ...(script.dataset.eventStreamPath === undefined
+      ? {}
+      : { eventStreamPath: script.dataset.eventStreamPath }),
+    ...(script.dataset.attachmentPath === undefined
+      ? {}
+      : { attachmentPath: script.dataset.attachmentPath }),
+    ...(script.dataset.resourceDeliveryPreparePath === undefined
+      ? {}
+      : { resourceDeliveryPreparePath: script.dataset.resourceDeliveryPreparePath }),
+    ...(script.dataset.providerManagementPath === undefined
+      ? {}
+      : { providerManagementPath: script.dataset.providerManagementPath }),
+    ...(script.dataset.capabilitySetupPath === undefined
+      ? {}
+      : { capabilitySetupPath: script.dataset.capabilitySetupPath }),
+  }));
+const serverProfileClient = readServerBridge();
+const assistantLocationClient = readAssistantBridge();
 
 createRoot(root).render(
   <ProductRenderer
-    assistantClient={assistantClient}
-    codingClient={codingClient}
-    remoteClient={remoteClient}
+    createLocalAssistantClient={createLocalAssistantClient}
+    assistantLocationClient={assistantLocationClient}
+    serverProfileClient={serverProfileClient}
   />,
 );
 
-function readCodingBridge(): DesktopCodingRendererBridge | undefined {
-  const value = (globalThis as typeof globalThis & {
-    wanexCoding?: DesktopCodingRendererBridge;
-  }).wanexCoding;
-  return value;
+function readAssistantBridge(): DesktopAssistantRendererBridge | undefined {
+  return (globalThis as typeof globalThis & {
+    wanexAssistant?: DesktopAssistantRendererBridge;
+  }).wanexAssistant;
 }
 
-function readRemoteBridge(): DesktopRemoteRendererBridge | undefined {
+function readServerBridge(): DesktopServerRendererBridge | undefined {
   const value = (globalThis as typeof globalThis & {
-    wanexRemote?: DesktopRemoteRendererBridge;
-  }).wanexRemote;
+    wanexServer?: DesktopServerRendererBridge;
+  }).wanexServer;
   return value;
 }
 

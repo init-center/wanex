@@ -1,10 +1,10 @@
 import { once } from "node:events"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import type {
-  LocalResourceDeliveryPort,
-  LocalResourceDeliveryPurpose
+  ResourceDeliveryPort,
+  ResourceDeliveryPurpose
 } from "../resources/delivery.js"
-import { LocalResourceDeliveryError } from "../resources/delivery.js"
+import { ResourceDeliveryError } from "../resources/delivery.js"
 import { readJsonBody } from "./request-body.js"
 import {
   sendJson,
@@ -16,7 +16,7 @@ import {
 } from "./session-token.js"
 
 export async function handleResourceDeliveryPrepare(request: {
-  readonly deliveries: LocalResourceDeliveryPort
+  readonly deliveries: ResourceDeliveryPort
   readonly audience: string
   readonly deliveryPath: string
   readonly maxBodyBytes: number
@@ -55,7 +55,7 @@ export async function handleResourceDeliveryPrepare(request: {
 }
 
 export async function handleResourceDelivery(request: {
-  readonly deliveries: LocalResourceDeliveryPort
+  readonly deliveries: ResourceDeliveryPort
   readonly expectedHostSessionToken: string
   readonly request: IncomingMessage
   readonly response: ServerResponse
@@ -80,7 +80,7 @@ export async function handleResourceDelivery(request: {
     return
   }
   if (method !== "GET" && method !== "HEAD") {
-    throw new LocalResourceDeliveryError(
+    throw new ResourceDeliveryError(
       400,
       "invalid_resource_delivery",
       "resource delivery endpoint requires GET, HEAD, or DELETE"
@@ -146,7 +146,7 @@ export async function handleResourceDelivery(request: {
 function parsePrepareBody(value: unknown): {
   readonly resourceId: string
   readonly sha256: string
-  readonly purpose: LocalResourceDeliveryPurpose
+  readonly purpose: ResourceDeliveryPurpose
   readonly sessionId?: string
 } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -177,7 +177,7 @@ function parsePrepareBody(value: unknown): {
 function requiredSingleQuery(url: URL, name: string): string {
   const values = url.searchParams.getAll(name)
   if (values.length !== 1 || values[0] === undefined || values[0].length === 0) {
-    throw new LocalResourceDeliveryError(
+    throw new ResourceDeliveryError(
       400,
       "invalid_resource_delivery",
       `resource delivery query requires exactly one ${name}`
@@ -206,7 +206,7 @@ function optionalHeader(
   const value = request.headers[headerName]
   if (value === undefined) return {}
   if (Array.isArray(value)) {
-    throw new LocalResourceDeliveryError(
+    throw new ResourceDeliveryError(
       400,
       "invalid_resource_delivery",
       `resource delivery ${headerName} header must be singular`
@@ -217,8 +217,8 @@ function optionalHeader(
     : { range: value }
 }
 
-function invalidPrepare(message: string): LocalResourceDeliveryError {
-  return new LocalResourceDeliveryError(
+function invalidPrepare(message: string): ResourceDeliveryError {
+  return new ResourceDeliveryError(
     400,
     "invalid_resource_delivery",
     message

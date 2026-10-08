@@ -28,6 +28,7 @@ export async function submitWorkspaceTaskJob(
     payload: workspaceTaskJobPayloadToJson({
       handlerId: request.handlerId,
       access: request.access,
+      strategy: request.strategy,
       input: request.input,
       ...(request.taskId === undefined ? {} : { taskId: request.taskId }),
       ...(request.workspaceId === undefined ? {} : { workspaceId: request.workspaceId }),
@@ -60,7 +61,9 @@ export function createWorkspaceTaskJobHandler(
       throw new Error(`workspace.task handler not registered: ${payload.handlerId}`)
     }
     const receipt = await options.runtime.runTask({
+      signal: context.signal,
       access: payload.access,
+      strategy: payload.strategy,
       input: payload.input,
       ...(payload.taskId === undefined ? {} : { id: payload.taskId }),
       principalId: payload.principalId ?? context.job.principalId,

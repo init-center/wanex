@@ -13,7 +13,9 @@
     "./transaction": "./src/transaction/index.ts",
     "./locator": "./src/locator/index.ts",
     "./snapshot": "./src/snapshot/index.ts",
-    "./tools": "./src/tools/index.ts"
+    "./tools": "./src/tools/index.ts",
+    "./tools/read": "./src/tools/read-tool.ts",
+    "./tools/apply": "./src/tools/apply-tool.ts"
   },
   "scripts": {
     "check": "tsc --noEmit && tsc -p tsconfig.test.json",

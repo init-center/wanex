@@ -35,26 +35,13 @@ describe("Wanex Server config", () => {
     })
   })
 
-  it("normalizes one strict trusted Coding catalog", () => {
-    const dataRoot = resolve("target/server-config-coding-test")
-    const repositoryPath = resolve("target/server-config-coding-repository")
-    const config = parseWanexServerConfig({
-      dataRoot,
-      listener: { hostname: "localhost" },
-      coding: {
-        execution: { kind: "native" },
-        projects: [{ repositoryPath }]
-      }
-    })
-
-    expect(config.coding).toEqual({
-      execution: { kind: "native" },
-      projects: [{ repositoryPath }]
-    })
-    expect(Object.isFrozen(config.coding)).toBe(true)
-    expect(Object.isFrozen(config.coding!.execution)).toBe(true)
-    expect(Object.isFrozen(config.coding!.projects)).toBe(true)
-    expect(Object.isFrozen(config.coding!.projects[0])).toBe(true)
+  it("accepts only Host-local absolute isolation directory configuration", () => {
+    const base = { dataRoot: resolve("target/server-config-workspace"), listener: { hostname: "localhost" } }
+    const worktreeDirectory = resolve("target/server-worktrees")
+    expect(parseWanexServerConfig({ ...base, workspace: { worktreeDirectory } }).workspace).toMatchObject({ worktreeDirectory })
+    for (const path of ["relative", "invalid\0path"]) {
+      expect(() => parseWanexServerConfig({ ...base, workspace: { worktreeDirectory: path } })).toThrow()
+    }
   })
 
   it.each([
@@ -105,62 +92,6 @@ describe("Wanex Server config", () => {
         listener: { hostname: "localhost", port: 65_536 }
       },
       "Server listener port must be between 0 and 65535"
-    ],
-    [
-      {
-        dataRoot: resolve("target/server-config-coding-empty"),
-        listener: { hostname: "localhost" },
-        coding: { execution: { kind: "native" }, projects: [] }
-      },
-      "Server coding projects must contain 1 to 32 entries"
-    ],
-    [
-      {
-        dataRoot: resolve("target/server-config-coding-relative"),
-        listener: { hostname: "localhost" },
-        coding: {
-          execution: { kind: "native" },
-          projects: [{ repositoryPath: "relative-project" }]
-        }
-      },
-      "Server coding project 0 repositoryPath must be absolute"
-    ],
-    [
-      {
-        dataRoot: resolve("target/server-config-coding-execution"),
-        listener: { hostname: "localhost" },
-        coding: {
-          execution: { kind: "container" },
-          projects: [{ repositoryPath: resolve("target/project") }]
-        }
-      },
-      "Server coding execution kind must be native"
-    ],
-    [
-      {
-        dataRoot: resolve("target/server-config-coding-duplicate"),
-        listener: { hostname: "localhost" },
-        coding: {
-          execution: { kind: "native" },
-          projects: [
-            { repositoryPath: resolve("target/project") },
-            { repositoryPath: resolve("target/project") }
-          ]
-        }
-      },
-      "Server coding project repositoryPath is duplicated"
-    ],
-    [
-      {
-        dataRoot: resolve("target/server-config-coding-extra"),
-        listener: { hostname: "localhost" },
-        coding: {
-          execution: { kind: "native" },
-          projects: [{ repositoryPath: resolve("target/project") }],
-          unsafePath: resolve("target/other")
-        }
-      },
-      "Server coding field is not allowed: unsafePath"
     ],
     [
       {

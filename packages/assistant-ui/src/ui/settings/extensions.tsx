@@ -4,7 +4,6 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import {
-  useEffect,
   useRef,
   useState,
   type ReactNode,
@@ -22,6 +21,7 @@ import type { DispatchActionResult } from "../shared/action.js";
 import { classes } from "../classes.js";
 import { ReviewDialog, RemoveDialog } from "./extension-dialogs.js";
 import { ExtensionRow } from "./extension-row.js";
+import { useSettingsOperation } from "./use-operation.js";
 
 export function ExtensionsSection({
   plugins,
@@ -32,7 +32,6 @@ export function ExtensionsSection({
 }): ReactNode {
   const [review, setReview] = useState<LocalPluginReview>();
   const [removeTarget, setRemoveTarget] = useState<PluginInstalledVersionSummary>();
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [status, setStatus] = useState<string>();
   const addButton = useRef<HTMLButtonElement | null>(null);
@@ -40,111 +39,89 @@ export function ExtensionsSection({
   const removeTrigger = useRef<HTMLButtonElement | null>(null);
   const removeFocus = useRef<HTMLButtonElement | null>(null);
 
-  useEffect(() => {
-    if (review === undefined) return;
-    const frame = requestAnimationFrame(() => reviewFocus.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [review]);
-
-  useEffect(() => {
-    if (removeTarget === undefined) return;
-    const frame = requestAnimationFrame(() => removeFocus.current?.focus());
-    return () => cancelAnimationFrame(frame);
-  }, [removeTarget]);
+  const { busy, isBusy, run } = useSettingsOperation(clearFeedback, setError);
 
   if (plugins.state === "unavailable") return null;
 
   async function requestReview(): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({ type: "request-local-plugin-review" });
-    setBusy(false);
-    const value = pluginOutput(result, "request-local-plugin-review");
-    if (value?.kind === "plugin.management.review-ready") {
-      setReview(value.review);
-      return;
-    }
-    if (value?.kind === "plugin.management.review-cancelled") {
-      setStatus("No extension selected");
-      addButton.current?.focus();
-      return;
-    }
-    setError(resultMessage(result, value, "Extension review could not be prepared"));
+    await run(() => dispatch({ type: "request-local-plugin-review" }), (result) => {
+      const value = pluginOutput(result, "request-local-plugin-review");
+      if (value?.kind === "plugin.management.review-ready") {
+        setReview(value.review);
+        return;
+      }
+      if (value?.kind === "plugin.management.review-cancelled") {
+        setStatus("No extension selected");
+        addButton.current?.focus();
+        return;
+      }
+      setError(resultMessage(result, value, "Extension review could not be prepared"));
+    });
   }
 
   async function retryRead(): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({ type: "read-plugin-management" });
-    setBusy(false);
-    const value = pluginOutput(result, "read-plugin-management");
-    if (result?.ok === true && value !== undefined) {
-      setStatus("Extensions refreshed");
-      return;
-    }
-    setError(resultMessage(result, value, "Extensions could not be refreshed"));
+    await run(() => dispatch({ type: "read-plugin-management" }), (result) => {
+      const value = pluginOutput(result, "read-plugin-management");
+      if (result?.ok === true && value !== undefined) {
+        setStatus("Extensions refreshed");
+        return;
+      }
+      setError(resultMessage(result, value, "Extensions could not be refreshed"));
+    });
   }
 
   async function approveReview(): Promise<void> {
-    if (review === undefined || busy) return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({
+    if (review === undefined) return;
+    await run(() => dispatch({
       type: "approve-local-plugin-review",
       input: {
         reviewId: review.reviewId,
         reason: "Approved after local extension review",
       },
-    });
-    setBusy(false);
-    const value = pluginOutput(result, "approve-local-plugin-review");
-    if (applied(value)) {
-      closeReview();
-      setStatus(value.kind === "plugin.management.attention-required"
-        ? "Extension installed, but loading needs attention"
-        : "Extension installed");
-      if (value.kind === "plugin.management.attention-required") {
-        setError(value.diagnostic.message);
+    }), (result) => {
+      const value = pluginOutput(result, "approve-local-plugin-review");
+      if (applied(value)) {
+        closeReview();
+        setStatus(value.kind === "plugin.management.attention-required"
+          ? "Extension installed, but loading needs attention"
+          : "Extension installed");
+        if (value.kind === "plugin.management.attention-required") {
+          setError(value.diagnostic.message);
+        }
+        return;
       }
-      return;
-    }
-    setError(resultMessage(result, value, "Extension could not be installed"));
-    if (value?.kind === "plugin.management.rejected" &&
-      (value.reason === "review_expired" ||
-        value.reason === "review_stale" ||
-        value.reason === "review_not_found")) {
-      closeReview();
-    }
+      setError(resultMessage(result, value, "Extension could not be installed"));
+      if (value?.kind === "plugin.management.rejected" &&
+        (value.reason === "review_expired" ||
+          value.reason === "review_stale" ||
+          value.reason === "review_not_found")) {
+        closeReview();
+      }
+    });
   }
 
   async function cancelReview(): Promise<void> {
-    if (review === undefined || busy) return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({
+    if (review === undefined) return;
+    await run(() => dispatch({
       type: "cancel-local-plugin-review",
       input: { reviewId: review.reviewId },
+    }), (result) => {
+      const value = pluginOutput(result, "cancel-local-plugin-review");
+      if (value?.kind === "plugin.management.review-cancelled") {
+        closeReview();
+        setStatus("Extension review cancelled");
+        return;
+      }
+      setError(resultMessage(result, value, "Extension review could not be cancelled"));
     });
-    setBusy(false);
-    const value = pluginOutput(result, "cancel-local-plugin-review");
-    if (value?.kind === "plugin.management.review-cancelled") {
-      closeReview();
-      setStatus("Extension review cancelled");
-      return;
-    }
-    setError(resultMessage(result, value, "Extension review could not be cancelled"));
   }
 
   async function setState(
     install: PluginInstalledVersionSummary,
     state: "installed" | "disabled" | "removed",
   ): Promise<void> {
-    if (busy || install.state === "removed") return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({
+    if (install.state === "removed") return;
+    await run(() => dispatch({
       type: "set-plugin-install-state",
       input: {
         pluginId: install.pluginId,
@@ -152,59 +129,56 @@ export function ExtensionsSection({
         expectedState: install.state,
         state,
       },
-    });
-    setBusy(false);
-    const value = pluginOutput(result, "set-plugin-install-state");
-    if (applied(value)) {
-      setRemoveTarget(undefined);
-      setStatus(state === "installed"
-        ? "Extension enabled"
-        : state === "disabled"
-          ? "Extension disabled"
-          : "Extension removed");
-      if (value.kind === "plugin.management.attention-required") {
-        setError(value.diagnostic.message);
+    }), (result) => {
+      const value = pluginOutput(result, "set-plugin-install-state");
+      if (applied(value)) {
+        setRemoveTarget(undefined);
+        setStatus(state === "installed"
+          ? "Extension enabled"
+          : state === "disabled"
+            ? "Extension disabled"
+            : "Extension removed");
+        if (value.kind === "plugin.management.attention-required") {
+          setError(value.diagnostic.message);
+        }
+        return;
       }
-      return;
-    }
-    setError(resultMessage(result, value, "Extension state could not be changed"));
+      setError(resultMessage(result, value, "Extension state could not be changed"));
+    });
   }
 
   async function retryRefresh(): Promise<void> {
-    if (busy) return;
-    setBusy(true);
-    clearFeedback();
-    const result = await dispatch({ type: "retry-plugin-refresh" });
-    setBusy(false);
-    const value = pluginOutput(result, "retry-plugin-refresh");
-    if (value?.kind === "plugin.management.applied") {
-      setStatus("Extension catalog refreshed");
-      return;
-    }
-    if (value?.kind === "plugin.management.attention-required") {
-      setError(value.diagnostic.message);
-      return;
-    }
-    setError(resultMessage(result, value, "Extension catalog could not be refreshed"));
+    await run(() => dispatch({ type: "retry-plugin-refresh" }), (result) => {
+      const value = pluginOutput(result, "retry-plugin-refresh");
+      if (value?.kind === "plugin.management.applied") {
+        setStatus("Extension catalog refreshed");
+        return;
+      }
+      if (value?.kind === "plugin.management.attention-required") {
+        setError(value.diagnostic.message);
+        return;
+      }
+      setError(resultMessage(result, value, "Extension catalog could not be refreshed"));
+    });
   }
 
   function beginRemove(
     install: PluginInstalledVersionSummary,
     trigger: HTMLButtonElement,
   ): void {
+    if (isBusy()) return;
     removeTrigger.current = trigger;
     setRemoveTarget(install);
     clearFeedback();
   }
 
   function cancelRemove(): void {
+    if (isBusy()) return;
     setRemoveTarget(undefined);
-    requestAnimationFrame(() => removeTrigger.current?.focus());
   }
 
   function closeReview(): void {
     setReview(undefined);
-    requestAnimationFrame(() => addButton.current?.focus());
   }
 
   function clearFeedback(): void {
@@ -272,7 +246,7 @@ export function ExtensionsSection({
         </ul>
       )}
 
-      {error === undefined ? null : (
+      {error === undefined || review !== undefined || removeTarget !== undefined ? null : (
         <p className={classes("settings-error")} role="alert" data-ui-extension-error>
           {error}
         </p>
@@ -287,7 +261,10 @@ export function ExtensionsSection({
         <ReviewDialog
           review={review}
           busy={busy}
+          isBusy={isBusy}
+          error={error}
           initialFocus={reviewFocus}
+          returnFocus={addButton}
           approve={approveReview}
           cancel={cancelReview}
         />
@@ -296,7 +273,11 @@ export function ExtensionsSection({
         <RemoveDialog
           install={removeTarget}
           busy={busy}
+          isBusy={isBusy}
+          error={error}
           initialFocus={removeFocus}
+          returnFocus={removeTrigger}
+          fallbackFocus={addButton}
           confirm={() => setState(removeTarget, "removed")}
           cancel={cancelRemove}
         />
@@ -319,8 +300,8 @@ function applied(
   value: NonNullable<ActionResult["output"]>["result"] | undefined,
 ): value is PluginManagementMutationResult & {
   readonly kind:
-    | "plugin.management.applied"
-    | "plugin.management.attention-required";
+  | "plugin.management.applied"
+  | "plugin.management.attention-required";
 } {
   return value?.kind === "plugin.management.applied" ||
     value?.kind === "plugin.management.attention-required";

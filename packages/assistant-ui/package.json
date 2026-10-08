@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./host": "./src/application/host.ts",
     "./client": "./src/client/index.ts",
+    "./client/contracts": "./src/client/contracts.ts",
     "./generated/client-script": "./src/generated/client-script.ts",
     "./generated/stylesheet": "./src/generated/stylesheet.ts",
     "./styles.css": "./src/assets/styles.css"
@@ -17,6 +18,9 @@
     "test": "node ../../scripts/run-package-test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-alert-dialog": "1.1.24",
+    "@radix-ui/react-dropdown-menu": "2.1.25",
+    "@radix-ui/react-select": "2.3.8",
     "@wanex/assistant": "workspace:*",
     "lucide-react": "1.28.0",
     "micromark": "4.0.2",

@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import {
@@ -93,6 +94,7 @@ describe("Assistant Host hot image generation", () => {
     tempDirs.push(storeDir);
     const credentialStore = new MemorySecretStore();
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -277,6 +279,7 @@ describe("Assistant Host hot image generation", () => {
     tempDirs.push(storeDir);
     const credentialStore = new MemorySecretStore();
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -455,6 +458,7 @@ describe("Assistant Host hot image generation", () => {
     tempDirs.push(storeDir);
     const credentialStore = new MemorySecretStore();
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,
@@ -602,6 +606,7 @@ describe("Assistant Host hot image generation", () => {
     tempDirs.push(storeDir);
     const credentialStore = new MemorySecretStore();
     const app = await startAssistantWebApp({
+      browserAssets,
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       credentialStore,

@@ -1,4 +1,5 @@
 import { resolve } from "node:path"
+import type { WorkspaceHostOptions, WorkspaceRoot } from "../workspace/model.js"
 import {
   parseLocalCliModelEndpoints
 } from "./provider-options.js"
@@ -34,6 +35,8 @@ export interface LocalCliEnvironment {
   readonly WANEX_ASSISTANT_HOST_MODEL_ENDPOINTS_FILE?: string
   readonly WANEX_ASSISTANT_HOST_MODEL_ENDPOINTS_JSON?: string
   readonly WANEX_ASSISTANT_HOST_ACTIVE_MODEL_ENDPOINT_ID?: string
+  readonly WANEX_ASSISTANT_HOST_WORKSPACE_HOST_ID?: string
+  readonly WANEX_ASSISTANT_HOST_WORKSPACE_ROOTS_JSON?: string
   readonly WANEX_STORE_DIR?: string
   readonly WANEX_SYSTEM_SERVICE_BIN?: string
   readonly WANEX_MODEL_ENDPOINT_ID?: string
@@ -61,6 +64,7 @@ export interface ParseLocalCliOptionsInput {
 }
 
 export interface LocalCliOptions {
+  readonly workspace?: WorkspaceHostOptions
   readonly open: boolean
   readonly smoke: boolean
   readonly setupProvider: boolean
@@ -74,7 +78,11 @@ export interface LocalCliOptions {
 
 export type LocalCliSummaryFormat = "text" | "json"
 
+const DEFAULT_LOCAL_WORKSPACE_HOST_ID = "local-assistant"
+
 const knownFlags = new Set([
+  "workspace-host-id",
+  "workspace-roots-json",
   "open",
   "smoke",
   "setup-provider",
@@ -162,6 +170,12 @@ export function parseLocalCliOptions(
     flags,
     env
   })
+  const configuredWorkspaceHostId = flags.get("workspace-host-id") ?? env.WANEX_ASSISTANT_HOST_WORKSPACE_HOST_ID
+  const rootsJson = flags.get("workspace-roots-json") ?? env.WANEX_ASSISTANT_HOST_WORKSPACE_ROOTS_JSON
+  if (rootsJson !== undefined && configuredWorkspaceHostId === undefined) throw new Error("workspace roots require an explicit workspace-host-id")
+  const workspaceHostId = configuredWorkspaceHostId ?? DEFAULT_LOCAL_WORKSPACE_HOST_ID
+  if (!/^[A-Za-z0-9_.:-]{1,128}$/u.test(workspaceHostId)) throw new Error("workspace-host-id is invalid")
+  const initialRoots = rootsJson === undefined ? undefined : parseWorkspaceRoots(rootsJson, input.cwd)
 
   return {
     open,
@@ -172,8 +186,23 @@ export function parseLocalCliOptions(
     ...(port === undefined ? {} : { port }),
     serviceBin,
     storage,
-    modelEndpoints
+    modelEndpoints,
+    workspace: { hostId: workspaceHostId, ...(initialRoots === undefined ? {} : { initialRoots }) }
   }
+}
+
+function parseWorkspaceRoots(value: string, cwd: string): readonly WorkspaceRoot[] {
+  const parsed: unknown = JSON.parse(value)
+  if (!Array.isArray(parsed) || parsed.length > 16) throw new Error("workspace-roots-json must be an array of at most 16 roots")
+  return parsed.map((item: unknown) => {
+    if (item === null || typeof item !== "object" || Array.isArray(item)) throw new Error("workspace root must be an object")
+    const root = item as Record<string, unknown>
+    if ((Object.keys(root).length !== 2 && Object.keys(root).length !== 3) || typeof root.id !== "string" || typeof root.path !== "string" || root.path.trim() === "") throw new Error("workspace root requires id and path")
+    if (root.effects !== undefined && (!Array.isArray(root.effects) || root.effects.some((effect) => typeof effect !== "string"))) throw new Error("workspace root effects must be an array of strings")
+    const path = resolve(cwd, root.path)
+    if (root.effects === undefined) return { id: root.id, path }
+    return { id: root.id, path, effects: root.effects as NonNullable<WorkspaceRoot["effects"]> }
+  })
 }
 
 export function parseLocalCliSummaryFormat(

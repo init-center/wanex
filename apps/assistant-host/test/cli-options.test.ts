@@ -53,6 +53,7 @@ describe("@wanex/assistant-host CLI options", () => {
         kind: "store-dir",
         storeDir: resolve("/repo/store")
       },
+      workspace: { hostId: "local-assistant" },
       modelEndpoints: {
         endpoints: []
       }
@@ -81,6 +82,7 @@ describe("@wanex/assistant-host CLI options", () => {
         rootDir: resolve("/workspace/assistant/.wanex-assistant-host"),
         profileId: "default"
       },
+      workspace: { hostId: "local-assistant" },
       modelEndpoints: {
         endpoints: []
       }
@@ -121,6 +123,7 @@ describe("@wanex/assistant-host CLI options", () => {
         rootDir: resolve("/repo/profiles"),
         profileId: "work"
       },
+      workspace: { hostId: "local-assistant" },
       modelEndpoints: {
         endpoints: [fakeModelEndpoint("fallback-endpoint", "fallback-model")]
       }

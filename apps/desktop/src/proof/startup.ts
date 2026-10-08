@@ -89,7 +89,7 @@ export async function waitForDesktopInteractive(
           usable(form?.querySelector('button[type="submit"]') ?? null)
       }
       return usable(shell.querySelector('[data-ui-composer] textarea[name="text"]')) &&
-        usable(shell.querySelector('[data-ui-model-selector] select[name="endpointId"]'))
+        usable(shell.querySelector('button[data-ui-model-selector]'))
     }
 
     function diagnostic(): string {
@@ -99,7 +99,7 @@ export async function waitForDesktopInteractive(
       const composer = shell?.querySelector("[data-ui-composer]")
       const textarea = composer?.querySelector('textarea[name="text"]')
       const model = shell?.querySelector(
-        '[data-ui-model-selector] select[name="endpointId"]'
+        'button[data-ui-model-selector]'
       )
       const error = shell?.querySelector('[role="alert"]')
       const provider = shell?.querySelector("[data-ui-provider-state]")

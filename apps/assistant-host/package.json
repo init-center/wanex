@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./application": "./src/application/index.ts",
+    "./application/workspace": "./src/application/workspace.ts",
     "./desktop-host": "./src/desktop/index.ts",
     "./system-service": "./src/native/system-service.ts",
     "./web-host": "./src/web-host/index.ts"
@@ -29,6 +30,7 @@
     "@wanex/runtime": "workspace:*",
     "@wanex/storage": "workspace:*",
     "@wanex/team": "workspace:*",
+    "@wanex/workspace": "workspace:*",
     "@wanex/assistant-ui": "workspace:*",
     "croner": "10.0.1"
   },

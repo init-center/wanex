@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises"
 import { dirname, isAbsolute, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseWanexServerProcessConfig } from "./config.js"
-import { startWanexServer } from "../start.js"
+import { startWanexServerFromParsedConfig } from "../start.js"
 import type { WanexServerAuthentication } from "../model.js"
 import {
   InMemoryResolvedSecret,
@@ -22,7 +22,7 @@ export async function main(
   const token = requireEnvironment(environment, "WANEX_SERVER_BEARER_TOKEN")
   const serviceBin = environment.WANEX_SYSTEM_SERVICE_BIN?.trim() || undefined
   const packagedArtifacts = await resolvePackagedArtifacts()
-  const server = await startWanexServer({
+  const server = await startWanexServerFromParsedConfig({
     config: parsed.server,
     tls: {
       key: await readFile(parsed.tls.keyFile),
@@ -30,9 +30,12 @@ export async function main(
     },
     ...(serviceBin === undefined ? {} : { serviceBin }),
     ...(packagedArtifacts === undefined ? {} : { artifacts: packagedArtifacts }),
+    ...(parsed.modelEndpoints === undefined
+      ? {}
+      : { modelEndpoints: parsed.modelEndpoints }),
     credentialStore: new EnvironmentSecretStore(environment),
     authentication: bearerAuthentication(token)
-  })
+  }, parsed.server)
   process.stdout.write(`${JSON.stringify({
     kind: "wanex.server.ready",
     endpoint: server.endpoint,
@@ -79,6 +82,7 @@ function requireEnvironment(environment: NodeJS.ProcessEnv, name: string): strin
 
 function bearerAuthentication(token: string): WanexServerAuthentication {
   return {
+    ownerSubjectId: "server-process-subject",
     async authenticateBearerToken(candidate) {
       return candidate === token
         ? { subjectId: "server-process-subject", expiresAt: Date.now() + 60_000 }

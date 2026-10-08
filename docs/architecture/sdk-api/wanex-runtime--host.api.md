@@ -131,7 +131,7 @@ interface AgentHostDescriptor {
 }
 
 // @public (undocumented)
-type AgentHostDomain = "assistant" | "coding";
+type AgentHostDomain = "assistant";
 
 // @public (undocumented)
 interface AgentHostError {
@@ -3371,9 +3371,13 @@ interface ResolvedSecret {
 // @public (undocumented)
 interface ResolvedSessionTurnAgentContext {
     // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
+    // (undocumented)
     readonly context?: PreparedAgentContext;
     // (undocumented)
     readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly lease?: SessionTurnAgentContextLease;
 }
@@ -3940,6 +3944,22 @@ export interface RuntimeHostStatus {
 export type RuntimeHostSubmitMediaGenerationResult = MediaGenerationOperationSubmission;
 
 // @public (undocumented)
+export interface RuntimeHostToolApprovalContinuation {
+    // (undocumented)
+    afterDecision(request: RuntimeHostToolApprovalContinuationRequest): Promise<void>;
+}
+
+// @public (undocumented)
+export interface RuntimeHostToolApprovalContinuationRequest {
+    // (undocumented)
+    readonly execution: ToolExecutionRecord;
+    // (undocumented)
+    readonly receipt: ResolveToolExecutionApprovalReceipt;
+    // (undocumented)
+    readonly request: ResolveToolExecutionApprovalRequest;
+}
+
+// @public (undocumented)
 type RuntimeWorkerLoop = WorkerLoop;
 
 // @public (undocumented)
@@ -4191,6 +4211,15 @@ interface SessionScope {
 // @public (undocumented)
 type SessionStatus = "active" | "archived";
 
+// @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
 // @public
 type SessionTurnAgentContextIdentity = symbol & {
     readonly [sessionTurnAgentContextIdentityBrand]: true;
@@ -4285,6 +4314,8 @@ type SessionTurnControlStatus = "pending" | "applied" | "rejected" | "cancelled"
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)
@@ -5579,6 +5610,8 @@ export class WanexRuntimeHost {
     // (undocumented)
     requestSessionTurnCancel(request: RequestSessionTurnCancelRequest): Promise<RequestSessionTurnCancelReceipt>;
     // (undocumented)
+    resolveToolExecutionApproval(request: ResolveToolExecutionApprovalRequest): Promise<ResolveToolExecutionApprovalReceipt>;
+    // (undocumented)
     runEphemeralQuery(request: RuntimeHostEphemeralQueryRequest): Promise<RuntimeHostEphemeralQueryResult>;
     // (undocumented)
     runOnce(): Promise<RuntimeHostRunOnceResult>;
@@ -5650,6 +5683,7 @@ export interface WanexRuntimeHostBehaviorOptions {
     readonly secretResolver?: SecretResolverPort;
     // (undocumented)
     readonly timeoutMs?: number;
+    readonly toolApprovalContinuation?: RuntimeHostToolApprovalContinuation;
     // (undocumented)
     readonly toolMaxConcurrency?: number;
     // (undocumented)

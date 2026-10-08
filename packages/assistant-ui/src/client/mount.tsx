@@ -24,6 +24,12 @@ export function mountClient(
       {...(options.onModalStateChange === undefined
         ? {}
         : { onModalStateChange: options.onModalStateChange })}
+      {...(options.onThemeChange === undefined
+        ? {}
+        : { onThemeChange: options.onThemeChange })}
+      {...(options.openSettingsRequest === undefined
+        ? {}
+        : { openSettingsRequest: options.openSettingsRequest })}
     />,
   );
   return { root, unmount: () => root.unmount() };

@@ -83,10 +83,10 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
   }, 10_000, "create_form")
   setField(form, "title", expected.title)
   setField(form, "prompt", expected.prompt)
-  setField(form, "triggerKind", "interval")
+  await chooseField(form, "triggerKind", "interval")
   setField(form, "intervalAnchorAt", localMinute(Date.now()))
   setField(form, "intervalValue", String(expected.intervalSeconds))
-  setField(form, "intervalUnit", "seconds")
+  await chooseField(form, "intervalUnit", "seconds")
 
   const isolatedSessionSelected = fieldValue(form, "sessionMode") === "isolated"
   const activeModelSelected = fieldValue(form, "modelMode") === "active"
@@ -212,6 +212,18 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
       item.textContent?.includes(text)
     ) || document.querySelector("[data-ui-transient-assistant]")
       ?.textContent?.includes(text) === true
+  }
+
+  async function chooseField(formValue: HTMLFormElement, name: string, value: string): Promise<void> {
+    const trigger = formValue.querySelector(`[data-ui-select="${name}"]`)
+    if (!(trigger instanceof HTMLButtonElement)) throw new Error(`Desktop Schedule choice is missing: ${name}`)
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+    const option = await waitFor(() => {
+      const candidate = document.querySelector(`[role="option"][data-ui-select-option="${value}"]`)
+      return candidate instanceof HTMLElement ? candidate : undefined
+    }, 5_000, `choice_${name}`)
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+    await waitFor(() => trigger.getAttribute("aria-expanded") === "false" ? true : undefined, 5_000, `choice_${name}_closed`)
   }
 
   function setField(formValue: HTMLFormElement, name: string, value: string): void {

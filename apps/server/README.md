@@ -6,21 +6,51 @@ lifecycle for that machine.
 
 Route 13A established the single-profile ownership foundation. Route 13B serves
 the typed Assistant endpoint through a real authenticated HTTPS listener with
-bounded SSE, replay, idempotency, subject isolation, and drain. Route 13C.1
-adds an optional strict trusted Coding catalog. The Server bootstraps one
-persistent local Store, derives the matching credential namespace, starts
-Assistant and Coding against borrowed views of that Store, opens every
-configured Git repository before readiness, and remains the only owner that
-can close the physical Storage transport.
+bounded SSE, replay, idempotency, subject isolation, and drain. The Server
+bootstraps one persistent local Store, derives the matching credential
+namespace, starts the Assistant application against the borrowed Store, and
+remains the only owner that can close the physical Storage transport.
 
-Remote clients cannot submit repository paths. Route 13C.2 serves Assistant or
-Coding as exact one-domain sessions through the same listener and bounded
-Remote Host session manager. The complete remote Coding journey follows in
-Route 13C.3; distribution and installed product proof remain Route 13D work.
+Remote clients cannot submit repository paths. The listener serves the
+Assistant domain through the bounded Remote Host session manager.
 
 This package is not a Gateway, account service, generic composition framework,
 or renderer dependency. Remote clients never select its Store or filesystem
 paths.
+
+## Account Boundary
+
+One Server instance exposes one resolved profile Store to one trusted account.
+Programmatic startup requires `authentication.ownerSubjectId` alongside
+`authenticateBearerToken`. Authentication alone is not authorization: a valid
+token resolving to a different subject cannot connect to either application,
+upload attachments, or read Resources. Startup snapshots this owner binding;
+it cannot be changed by mutating the caller's options while the Server runs.
+
+Multiple devices or rotated credentials may resolve to the same subject and
+access its existing Sessions. The account subject is not a tool/agent
+`principalId`. A multi-account service must resolve separately owned Host/Store
+instances in its trusted control plane instead of returning this single Host
+for every logged-in account. Existing transport-session fencing additionally
+prevents one account from reusing another account's connection credentials.
+The process CLI uses one configured bearer mapped to `server-process-subject`;
+it does not accept an account ID or Store path from the remote client.
+
+## Unified Workspace
+
+Trusted Server configuration can additionally declare
+`workspace.initialRoots: [{ id, path, effects }]`. Paths belong to the Server
+machine; effects default to read-only. Explicit `read/write/create/remove`
+grants enable controlled direct text edits, and optional Git worktree preparation
+uses the same Assistant Session. Clients only reference authorized root IDs and
+do not provide helper paths or need a local Git installation.
+
+The Server derives its isolation directory from the profile store, or accepts
+an absolute `workspace.worktreeDirectory` in trusted configuration. This location
+is frozen for admitted work. Preparation produces a durable Proposal and does
+not apply it to the original root. Missing Git or executable Git filters reject
+the explicit worktree operation without affecting ordinary direct editing.
+Unused global filter registrations do not disable ordinary repositories.
 
 ## Headless process
 

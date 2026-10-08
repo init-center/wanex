@@ -20,6 +20,7 @@ import { RuntimeHostDiagnosticsInput } from '@wanex/runtime/host';
 import { RuntimeHostPreparedExecutionBinding } from '@wanex/runtime/host';
 import { RuntimeHostPrepareExecutionBindingRequest } from '@wanex/runtime/host';
 import { RuntimeHostSessionTurnLifecycleSignal } from '@wanex/runtime/host';
+import { RuntimeHostToolApprovalContinuation } from '@wanex/runtime/host';
 import { SecretResolverPort } from '@wanex/runtime/secrets';
 import { SecretStorePort } from '@wanex/runtime/secrets';
 import { SessionTurnAgentContextIdentity } from '@wanex/runtime/execution';
@@ -1456,6 +1457,15 @@ type SessionKind = "chat" | "agent";
 type SessionStatus = "active" | "archived";
 
 // @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
+// @public (undocumented)
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
@@ -1483,6 +1493,8 @@ interface SessionTurnContextSourceEvidence {
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)
@@ -2952,6 +2964,7 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
     readonly runtimeContextResolver?: WanexAppRuntimeContextResolver;
     // (undocumented)
     readonly secretResolver?: SecretResolverPort;
+    readonly toolApprovalContinuation?: RuntimeHostToolApprovalContinuation;
     // (undocumented)
     readonly trustedProviderHost?: WanexAppTrustedProviderHostOptions;
     // (undocumented)
@@ -3461,7 +3474,7 @@ export interface WanexAppRunAgentTurnResult {
     // (undocumented)
     readonly assistantText: string;
     // (undocumented)
-    readonly context?: WanexAppAgentContextSummary;
+    readonly contextEvidence?: SessionTurnContextEvidence;
     // (undocumented)
     readonly jobStatuses: readonly SchedulerJobState[];
     // (undocumented)
@@ -3471,20 +3484,21 @@ export interface WanexAppRunAgentTurnResult {
 }
 
 // @public (undocumented)
-export type WanexAppRuntimeContext = Pick<PreparedAgentContext, "tools" | "toolPermissionPolicy">;
-
-// @public (undocumented)
 interface WanexAppRuntimeContextResolution {
     // (undocumented)
-    readonly context?: WanexAppRuntimeContext;
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
+    readonly context?: PreparedAgentContext;
     // (undocumented)
     readonly contextIdentity?: SessionTurnAgentContextIdentity;
+    // (undocumented)
+    readonly executionEnvironment?: ExecutionEnvironmentBinding;
     // (undocumented)
     readonly lease?: SessionTurnAgentContextLease;
 }
 
 // @public (undocumented)
-export type WanexAppRuntimeContextResolver = (request: ResolveSessionTurnAgentContextRequest) => Promise<WanexAppRuntimeContextResolution | undefined> | WanexAppRuntimeContextResolution | undefined;
+export type WanexAppRuntimeContextResolver = (request: ResolveSessionTurnAgentContextRequest,
+defaultContext: PreparedAgentContext | undefined) => Promise<WanexAppRuntimeContextResolution | undefined> | WanexAppRuntimeContextResolution | undefined;
 
 // @public (undocumented)
 export interface WanexAppSafeCommandRequest<T> {

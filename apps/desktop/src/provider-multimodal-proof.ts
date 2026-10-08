@@ -14,6 +14,8 @@ export interface WanexDesktopProviderJourneyProofContext {
   readonly configuredProviderCount: () => number
   readonly providerReady: () => boolean
   readonly redacted: () => boolean
+  /** Opens the composer Add menu and returns one of its items. */
+  readonly openAddMenuItem: (trigger: Element | null, action: string) => Promise<HTMLElement>
   readonly setControlValue: (
     control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement,
     value: string,

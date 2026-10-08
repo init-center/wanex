@@ -1,3 +1,4 @@
+import { browserAssets } from "./browser-assets.js"
 import { createHash } from "node:crypto"
 import { join } from "node:path"
 import { InMemoryResolvedSecret, type SecretStorePort } from "@wanex/runtime/secrets"
@@ -66,6 +67,7 @@ export const capabilitySetupContinuationScenario = createEvalScenario({
     let app: AssistantWebApp | undefined
     try {
       app = await startAssistantWebApp({
+        browserAssets,
         storage: { kind: "store-dir", storeDir },
         serviceBin: context.serviceBin,
         credentialStore: new EvalSecretStore(),

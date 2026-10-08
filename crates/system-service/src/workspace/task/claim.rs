@@ -42,20 +42,28 @@ impl SystemService {
             "INSERT INTO workspace_task_run (
                 id, workspace_id, principal_id, access, repository_id, isolation_id,
                 execution_environment_json, job_id, agent_id, state,
-                resource_ids_json, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'preparing', '[]', ?, ?)",
+                resource_ids_json, created_at, updated_at,
+                strategy, host_id, generation_key, root_id, root_device, root_inode, isolation_kind
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'preparing', '[]', ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             params![
                 request.id,
                 request.workspace_id,
                 request.principal_id,
                 request.access,
-                request.repository_id,
-                request.isolation_id,
+                request.isolation_identity.repository_id,
+                request.isolation_identity.id,
                 serde_json::to_string(&request.execution_environment)?,
                 request.job_id,
                 request.agent_id,
                 now,
-                now
+                now,
+                request.strategy,
+                request.root_identity.host_id,
+                request.root_identity.generation_key,
+                request.root_identity.root_id,
+                request.root_identity.device,
+                request.root_identity.inode,
+                request.isolation_identity.kind
             ],
         )?;
         tx.execute(
@@ -263,7 +271,9 @@ impl SystemService {
         )?;
         tx.execute(
             "UPDATE workspace_task_run
-             SET state = 'active', execution_outcome = NULL, outcome = NULL,
+             SET state = CASE WHEN strategy = 'git_worktree' AND base_revision IS NULL
+                              THEN 'preparing' ELSE 'active' END,
+                 execution_outcome = NULL, outcome = NULL,
                  summary = NULL, failure_json = NULL, updated_at = ?, finished_at = NULL
              WHERE id = ? AND state = 'attention'",
             params![now, request.run_id],
@@ -272,7 +282,11 @@ impl SystemService {
             &tx,
             "workspace.task_run.continuation_claimed",
             &request.run_id,
-            "active",
+            if run.strategy == "git_worktree" && run.isolation_identity.base_revision.is_none() {
+                "preparing"
+            } else {
+                "active"
+            },
             now,
         )?;
         let snapshot = snapshot_tx(&tx, require_run_tx(&tx, &request.run_id)?)?;

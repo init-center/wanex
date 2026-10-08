@@ -36,6 +36,7 @@ export interface CreateTurnExecutionBindingRequest {
   readonly recovery?: SessionTurnRecoveryBinding
   readonly resources?: readonly ResourceInputEvidence[]
   readonly createdAt?: number
+  readonly admissionConditions?: SessionTurnExecutionBinding["admissionConditions"]
 }
 
 export const DEFAULT_TURN_RECOVERY_BINDING = {
@@ -74,7 +75,10 @@ export function createTurnExecutionBinding(
       : { executionEnvironment: request.executionEnvironment }),
     ...(request.applicationScope === undefined
       ? {}
-      : { applicationScope: request.applicationScope })
+      : { applicationScope: request.applicationScope }),
+    ...(request.admissionConditions === undefined
+      ? {}
+      : { admissionConditions: normalizeAdmissionConditions(request.admissionConditions) })
   }
   return {
     digest: digestJson(withoutDigest),
@@ -138,12 +142,39 @@ export function assertTurnExecutionBindingValid(
     "turn recovery idempotentToolMaxAttempts"
   )
   assertContextEvidence(binding.contextEvidence)
+  if (binding.admissionConditions !== undefined) {
+    normalizeAdmissionConditions(binding.admissionConditions)
+  }
   if (binding.executionEnvironment !== undefined) {
     assertExecutionEnvironmentBindingValid(binding.executionEnvironment)
   }
   if (binding.applicationScope !== undefined) {
     assertApplicationScopeBindingValid(binding.applicationScope)
   }
+}
+
+function normalizeAdmissionConditions(
+  conditions: NonNullable<SessionTurnExecutionBinding["admissionConditions"]>
+): NonNullable<SessionTurnExecutionBinding["admissionConditions"]> {
+  if (conditions.length === 0 || conditions.length > 16) {
+    throw new Error("turn admission conditions must contain 1 to 16 entries")
+  }
+  const keys = new Set<string>()
+  return conditions.map((condition) => {
+    if (
+      Object.keys(condition).length !== 3 ||
+      typeof condition.key !== "string" ||
+      Buffer.byteLength(condition.key) === 0 || Buffer.byteLength(condition.key) > 512 ||
+      keys.has(condition.key) ||
+      (condition.expectedRevision !== null &&
+        (!Number.isSafeInteger(condition.expectedRevision) || condition.expectedRevision <= 0)) ||
+      (condition.expectedRevision === null
+        ? condition.expectedValueDigest !== null
+        : typeof condition.expectedValueDigest !== "string" || !/^[a-f0-9]{64}$/u.test(condition.expectedValueDigest))
+    ) throw new Error("turn admission condition is invalid")
+    keys.add(condition.key)
+    return { ...condition }
+  })
 }
 
 function resolveTurnCompletionBinding(

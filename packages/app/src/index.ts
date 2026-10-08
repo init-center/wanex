@@ -100,7 +100,6 @@ export type {
   WanexAppNormalizedWorkflowAgentInput,
   WanexAppNormalizedWorkflowEnvelope,
   WanexAppOptions,
-  WanexAppRuntimeContext,
   WanexAppRuntimeContextResolver,
   WanexAppTrustedExecutionHost,
   WanexAppTrustedProviderHostOptions,

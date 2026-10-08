@@ -85,6 +85,7 @@ import { createGoalShell } from "./goal/service.js";
 import { createTeamConversationService } from "./team/service.js";
 import { createAssistantPluginManagementService } from "./plugin-management/service.js";
 import { createScheduleService } from "./schedule/service.js";
+import { createWorkspaceFolderService } from "./workspace-folders.js";
 import type { TeamConversationCommands } from "./team/port.js";
 import { reconcileConversationSelection } from "./state/reconciliation.js";
 import {
@@ -93,6 +94,8 @@ import {
   parseConversationHistoryCursor,
 } from "./conversation/history-row.js";
 import { projectConversationTimelineParts } from "./conversation/timeline.js";
+import { attachWorkspaceChanges } from "./conversation/workspace-changes.js";
+import type { WorkspaceReviewPort } from "./workspace-review.js";
 
 const availableLayouts = ["single", "split", "diagnostics"] as const;
 const availableModes = ["chat", "workbench", "diagnostics"] as const;
@@ -149,8 +152,14 @@ export async function createShell(
   const schedules = createScheduleService({
     ...(options.schedules === undefined ? {} : { port: options.schedules }),
   });
+  const workspaceFolders = createWorkspaceFolderService({
+    state: stateCoordinator,
+    ...(options.workspaceFolders === undefined ? {} : { port: options.workspaceFolders }),
+  });
 
   return {
+    ...(options.workspaceReview === undefined ? {} : { workspaceReview: options.workspaceReview }),
+    workspaceFolders,
     commandCatalogEvents,
     commandExecutionEvents,
     events: conversationEvents,
@@ -319,7 +328,7 @@ export async function createShell(
       return await openWorkbench(backend, stateCoordinator, request);
     },
     async readSessionTranscript(request) {
-      return await readSessionTranscript(backend, state, request);
+      return await readSessionTranscript(backend, state, options.workspaceReview, request);
     },
     async prepareConversationAttachment(request) {
       return await prepareConversationAttachment({
@@ -553,6 +562,7 @@ async function openWorkbench(
 async function readSessionTranscript(
   backend: BackendShell,
   state: MutableState,
+  workspaceReview: WorkspaceReviewPort | undefined,
   request?: ReadSessionTranscriptRequest,
 ): Promise<SessionTranscriptReadResult> {
   const sessionId = resolveSessionId(state, request?.sessionId);
@@ -562,22 +572,25 @@ async function readSessionTranscript(
       message: "select a session before reading its transcript",
     };
   }
+  const transcript = await backend.commands.readSessionTranscript({
+    sessionId,
+    ...(request?.cursor === undefined
+      ? {}
+      : {
+          beforeSequence: parseConversationHistoryCursor(
+            sessionId,
+            request.cursor,
+          ),
+        }),
+    ...(request?.limit === undefined ? {} : { limit: request.limit }),
+  });
   return {
     kind: "assistant.session-transcript.found",
     sessionId,
-    transcript: projectConversationHistory(
-      await backend.commands.readSessionTranscript({
-        sessionId,
-        ...(request?.cursor === undefined
-          ? {}
-          : {
-              beforeSequence: parseConversationHistoryCursor(
-                sessionId,
-                request.cursor,
-              ),
-            }),
-        ...(request?.limit === undefined ? {} : { limit: request.limit }),
-      }),
+    transcript: await attachWorkspaceChanges(
+      projectConversationHistory(transcript),
+      transcript,
+      workspaceReview,
     ),
   };
 }

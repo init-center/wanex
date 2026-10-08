@@ -25,6 +25,19 @@ stages the host keychain binding, and enters the normal Assistant lifecycle. It
 does not select a fake Provider, use proof receipts, or delete Assistant state on
 exit.
 
+Internal Store schemas intentionally have no compatibility migration. If a
+previous development profile is rejected, keep it intact and explicitly select
+a new local profile (this does not transfer its history or model settings):
+
+```bash
+WANEX_DESKTOP_PROFILE_ID=preview-20261008 pnpm start:desktop
+```
+
+The default remains `default`; the selected profile is validated by the existing
+StoreLocator. There is no automatic reset or fallback on schema rejection. Use
+the same variable on subsequent launches to reopen that profile. This selects a
+local Store, not a remote Server connection or user account.
+
 From the repository root, build and prove the packaged Desktop:
 
 ```bash
@@ -50,7 +63,7 @@ Session title while the complete rich heading and code remain visible in the
 conversation. The proof-only Provider fixture and generated credential remain
 outside the packaged ASAR and production dependency closure.
 
-The proof also runs a separate sixteen-process same-profile relaunch journey. Only
+The proof also runs a separate twenty-process same-profile relaunch journey. Only
 the first packaged process receives the raw credential and configures the
 Provider. Later credential-free processes reopen the same canonical Session,
 continue its conversation, cancel one response after transient output, verify
@@ -69,7 +82,7 @@ conversation Turn in the same Session. Another credential-free process starts
 one bounded Goal, observes App coordinate two ordinary attempt Turns, and
 renders failed-then-passed independent verification plus terminal success. The
 final two processes remove the Provider through the trusted Host and verify the
-unconfigured blocked state. All 35 Provider requests are authorized, and only
+unconfigured blocked state. All 36 Provider requests are authorized, and only
 the configuration process receives the raw credential. All receipts are
 bounded and secret-free; this is
 acceptance coverage, not a production restart mode.
@@ -79,7 +92,7 @@ reopens it from the canonical Session/transcript projection, and submits a
 follow-up under the same Session ID. The controlled fixture records both
 authorized conversation requests in order.
 
-A fifth same-profile process proves multimodal input without receiving the
+A later same-profile process proves multimodal input without receiving the
 credential. It rejects a PDF before Provider dispatch while preserving the
 composer draft, then drives a real PNG through the file input, authenticated
 upload, preview, remove/re-add, resource-bearing conversation request, and
@@ -123,29 +136,28 @@ The latest evidence is written to:
 
 The report records content dimensions separately from physical screenshot
 dimensions and DPI scale. The proof passed with five lifecycle samples,
-35 authorized Provider requests, no `EPERM` rename, no owned-process residue,
+36 authorized Provider requests, no `EPERM` rename, no owned-process residue,
 and an ASAR containing only `main.cjs`, `preload.cjs`, and `package.json` with no application
 `node_modules`.
 
-## Coding composition boundary
+## Unified Workspace boundary
 
-Coding is a lazy domain inside this Desktop executable. Assistant startup does
-not open a repository, workspace, or Coding Host. The first project selection
-is owned by Electron main through the native directory picker; the Renderer
-never supplies an absolute path. Main then creates the existing Coding Host
-with the same local profile, storage authority, credential resolver, and active
-model-endpoint resolver used by Assistant.
+Ordinary chat and file work use one Assistant Session. There is no separate
+Coding Host, Coding transcript or mode classifier. Directory selection and
+Server connection credentials remain trusted-main concerns. The Renderer uses
+semantic Assistant commands and opaque root/change references; it does not own
+absolute Server paths, leases or file transactions.
 
-The preload exposes only `selectProject`, `sendCodingCommand`, and
-`subscribeCodingEvents`. IPC accepts the existing `wanex.coding/1` request
-contract and validates command responses, project read models, and event
-envelopes before they cross the process boundary. Paths, credentials, Storage,
-Runtime, Workspace, execution scopes, and process handles remain trusted-main
-or Host concerns. A Coding close is idempotent and does not close the Assistant
-Host or its profile Store.
+Desktop explicitly injects its own Renderer assets into the shared HTTP Host.
+The build checks the esbuild dependency graph and rejects generic generated Web
+assets in the main bundle, independently of byte budgets. This prevents shipping
+both the generic browser client and the Desktop client in one application.
 
-Route 3A proved composition and the bridge. Route 3B.1/3B.2/3B.3/3B.4 now
-provides the event-driven Coding workbench, the real approval/Proposal
-journey, and explicit Tool recovery inside this same Desktop window; it does
-not create a second Coding UI or a standalone Coding executable. Route 3C
-extends the proof to an external installed copy.
+## Renderer CSS support
+
+The current Renderer colour tokens require `CSS.supports("color",
+"light-dark(black, white)")`. Electron 43.7.8 / Chromium 150.0.7871.250 was
+checked with actual light/dark computed colours on 2026-10-08. The same runtime
+supports `interpolate-size: allow-keywords` and `::details-content`; these are
+animation enhancements, not prerequisites for the native disclosure behaviour.
+This local probe is not accessibility, contrast or full visual acceptance.

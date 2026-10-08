@@ -1314,6 +1314,7 @@ fn workspace_task_payload(target: &WorkspaceTaskProjectionTarget) -> serde_json:
         "handlerId": target.handler_id,
         "principalId": target.principal_id,
         "access": target.access,
+        "strategy": target.strategy,
         "input": target.input
     });
     if let Some(task_id) = &target.task_id {
@@ -1452,6 +1453,7 @@ struct WorkspaceTaskProjectionTarget {
     handler_id: String,
     principal_id: String,
     access: String,
+    strategy: String,
     input: serde_json::Value,
     task_id: Option<String>,
     workspace_id: Option<String>,
@@ -1480,10 +1482,20 @@ impl WorkspaceTaskProjectionTarget {
                 "workspace.task projection access must be read_only or writable".to_string(),
             ));
         }
+        let strategy = required_string(value, "strategy")?;
+        if !matches!(
+            (strategy.as_str(), access.as_str()),
+            ("direct", "read_only") | ("git_worktree", "writable")
+        ) {
+            return Err(SystemServiceError::Invariant(
+                "workspace.task projection strategy and access are inconsistent".to_string(),
+            ));
+        }
         Ok(Self {
             handler_id: required_string(value, "handlerId")?,
             principal_id: required_string(value, "principalId")?,
             access,
+            strategy,
             input: required_json(value, "input")?.clone(),
             task_id: optional_string_json(value, "taskId")?,
             workspace_id: optional_string_json(value, "workspaceId")?,

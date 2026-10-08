@@ -15,6 +15,7 @@ describe("Desktop direct development start", () => {
     const workspaceRoot = join("", "workspace", "wanex");
     const inheritedEnvironment = {
       KEEP_ME: "retained",
+      WANEX_DESKTOP_PROFILE_ID: "fresh-development-profile",
       WANEX_DESKTOP_PROOF_RECEIPT: "forbidden-receipt.json",
       WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT: "forbidden-normal-proof.png",
       WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT: "forbidden-narrow-proof.png",
@@ -23,13 +24,12 @@ describe("Desktop direct development start", () => {
       WANEX_DESKTOP_PROOF_STEP: "relaunch-chat",
       WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: "http://127.0.0.1:1/v1",
       WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: "forbidden-credential",
-      WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT: "https://127.0.0.1:1/v1/agent-host/message",
+      WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: "https://127.0.0.1:1/",
       WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL: "forbidden-remote-credential",
       WANEX_DESKTOP_PROOF_REMOTE_PROFILE_ID: "forbidden-remote-profile",
       WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME: "forbidden-remote-name",
       WANEX_DESKTOP_PROOF_REMOTE_PROJECT_ID: "forbidden-remote-project",
       WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS: '["/forbidden-extension"]',
-      WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS: '["/forbidden-project"]',
     };
 
     const plan = createDesktopStartPlan({
@@ -58,6 +58,7 @@ describe("Desktop direct development start", () => {
       cwd: workspaceRoot,
       env: {
         KEEP_ME: "retained",
+        WANEX_DESKTOP_PROFILE_ID: "fresh-development-profile",
         WANEX_SYSTEM_SERVICE_BIN: join(
           workspaceRoot,
           "target",
@@ -96,7 +97,7 @@ describe("Desktop direct development start", () => {
       "WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL",
     );
     expect(plan.desktop.env).not.toHaveProperty(
-      "WANEX_DESKTOP_PROOF_REMOTE_ENDPOINT",
+      "WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL",
     );
     expect(plan.desktop.env).not.toHaveProperty(
       "WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL",
@@ -112,9 +113,6 @@ describe("Desktop direct development start", () => {
     );
     expect(plan.desktop.env).not.toHaveProperty(
       "WANEX_DESKTOP_PROOF_EXTENSION_SELECTIONS",
-    );
-    expect(plan.desktop.env).not.toHaveProperty(
-      "WANEX_DESKTOP_PROOF_CODING_PROJECT_SELECTIONS",
     );
     expect(JSON.stringify(plan)).not.toContain("desktop-proof-selected");
     expect(inheritedEnvironment.WANEX_DESKTOP_PROOF_RECEIPT).toBe(

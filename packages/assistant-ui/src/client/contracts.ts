@@ -8,6 +8,8 @@ import type {
   ConversationAttachmentsReadModel,
 } from "@wanex/assistant";
 
+export { MAX_CONVERSATION_ATTACHMENT_BYTES } from "@wanex/assistant/attachments";
+
 export interface AttachmentUploadRequest {
   readonly content: Uint8Array;
   readonly mediaType: string;
@@ -269,9 +271,16 @@ export interface Client {
 }
 
 export interface AppProps {
+  readonly headerActions?: import("react").ReactNode;
+  readonly navigationFooter?: import("react").ReactNode;
+  /** Host-owned controls shown directly under the composer, such as where the conversation runs. */
+  readonly composerContext?: import("react").ReactNode;
   readonly client: Client;
   readonly initialSnapshot?: Snapshot;
+  readonly openSettingsRequest?: number;
   readonly onModalStateChange?: (state: AppModalState) => void;
+  /** Reports canonical appearance to an enclosing product shell; does not persist preferences. */
+  readonly onThemeChange?: (theme: Snapshot["view"]["theme"]) => void;
 }
 
 export type AppModalState =

@@ -38,6 +38,7 @@ export async function runWanexDesktopProviderRelaunchProof(
     configuredProviderCount,
     providerReady,
     redacted,
+    openAddMenuItem,
     result,
     setControlValue,
     submitConversation,
@@ -80,7 +81,15 @@ export async function runWanexDesktopProviderRelaunchProof(
     }
     const providerBaseUrl = required(expected.providerBaseUrl, "Provider base URL")
     const credentialValue = required(expected.credential, "Provider credential")
-    setField(form, "presetId", "openai-compatible")
+    const preset = form.querySelector('[data-ui-select="presetId"]')
+    if (!(preset instanceof HTMLButtonElement)) throw new Error("Provider preset control is missing")
+    preset.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+    const option = await waitFor(() => {
+      const candidate = document.querySelector('[role="option"][data-ui-select-option="openai-compatible"]')
+      return candidate instanceof HTMLElement ? candidate : undefined
+    })
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+    await waitFor(() => preset.getAttribute("aria-expanded") === "false" ? true : undefined)
     setField(form, "baseUrl", `${providerBaseUrl}/relaunch`)
     setField(form, "conversationModelId", expected.modelId)
     setField(form, "imageGenerationModelId", expected.imageGenerationModelId)
@@ -252,6 +261,7 @@ export async function runWanexDesktopProviderRelaunchProof(
     await waitFor(() =>
       document.querySelector('[data-ui-assistant-shell]') ?? undefined
     )
+    const serverProfilesRemoved = await removeServerProfiles()
     await openProviderSettings()
     const initialConfiguredProviderCount = await waitFor(() => {
       const rows = document.querySelectorAll("[data-ui-provider]")
@@ -270,16 +280,17 @@ export async function runWanexDesktopProviderRelaunchProof(
       if (!(remove instanceof HTMLButtonElement)) {
         return result({ initialConfiguredProviderCount })
       }
-      const originalConfirm = window.confirm
-      window.confirm = () => true
-      try {
-        remove.click()
-        await waitFor(() =>
-          configuredProviderCount() === 0 && providerStatus().startsWith("Provider removed")
-        , 10_000, "provider_removal", providerRemovalDiagnostic)
-      } finally {
-        window.confirm = originalConfirm
-      }
+      remove.click()
+      const confirmRemove = await waitFor(() => {
+        const candidate = document.querySelector("[data-ui-provider-remove-confirm]")
+        return candidate instanceof HTMLButtonElement && !candidate.disabled
+          ? candidate
+          : undefined
+      }, 10_000, "provider_removal_confirmation", providerRemovalDiagnostic)
+      confirmRemove.click()
+      await waitFor(() =>
+        configuredProviderCount() === 0 && providerStatus().startsWith("Provider removed")
+      , 10_000, "provider_removal", providerRemovalDiagnostic)
     }
     const blocked = await waitFor(
       () => chatBlocked() ? true : undefined,
@@ -288,7 +299,8 @@ export async function runWanexDesktopProviderRelaunchProof(
       chatBlockedDiagnostic
     )
     const credentialCleanupPending = providerStatus().includes("retry")
-    const cleanupCompleted = blocked && !credentialCleanupPending
+    const cleanupCompleted =
+      blocked && !credentialCleanupPending && serverProfilesRemoved
     const redaction = redactionEvidence()
     const settledAt = performance.now()
     return result({
@@ -302,6 +314,20 @@ export async function runWanexDesktopProviderRelaunchProof(
       chatBlocked: true,
       journeyPreparation: settledAt - startedAt
     })
+  }
+
+  async function removeServerProfiles(): Promise<boolean> {
+    const bridge = (globalThis as typeof globalThis & {
+      wanexServer?: {
+        listProfiles(): Promise<readonly { readonly profileId: string }[]>
+        removeProfile(profileId: string): Promise<void>
+      }
+    }).wanexServer
+    if (bridge === undefined) return true
+    for (const profile of await bridge.listProfiles()) {
+      await bridge.removeProfile(profile.profileId)
+    }
+    return (await bridge.listProfiles()).length === 0
   }
 
   async function proveUnconfigured(): Promise<WanexDesktopProviderRelaunchProofResult> {
@@ -367,9 +393,8 @@ export async function runWanexDesktopProviderRelaunchProof(
   }
 
   function providerModelVisible(): boolean {
-    return [...document.querySelectorAll(
-      '[data-ui-model-selector] option'
-    )].some((option) => option.textContent?.startsWith(`${expected.modelId} - `)) ||
+    return document.querySelector("[data-ui-model-selector]")
+      ?.textContent?.startsWith(expected.modelId) === true ||
       document.querySelector(
         `[data-ui-provider][data-ui-conversation-model-id="${expected.modelId}"]`
       ) !== null
@@ -680,6 +705,27 @@ export async function runWanexDesktopProviderRelaunchProof(
       throw new Error(`Provider relaunch proof field is missing: ${name}`)
     }
     setControlValue(field, value)
+  }
+
+  async function openAddMenuItem(
+    trigger: Element | null,
+    action: string
+  ): Promise<HTMLElement> {
+    // Attachments, folders, commands and workflows share one Add menu.
+    if (!(trigger instanceof HTMLElement)) throw new Error("composer Add menu is unavailable")
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse"
+    }))
+    const deadline = performance.now() + 5_000
+    while (performance.now() < deadline) {
+      const item = document.querySelector(`[data-ui-add-menu] [data-ui-action="${action}"]`)
+      if (item instanceof HTMLElement) return item
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    throw new Error(`composer Add menu item unavailable: ${action}`)
   }
 
   function setControlValue(

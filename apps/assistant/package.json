@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./attachments": "./src/attachments/model.ts",
     "./backend": "./src/backend/index.ts",
     "./plugin-management": "./src/plugin-management/index.ts",
     "./schedule": "./src/schedule/index.ts",

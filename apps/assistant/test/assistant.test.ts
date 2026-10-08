@@ -1808,6 +1808,15 @@ describe("@wanex/assistant", () => {
       })
       expect(JSON.stringify(descriptor)).not.toContain("readResourceContent")
       expect(descriptor.commands.map((command) => command.command)).toEqual([
+        "readWorkspaceChange",
+        "decideWorkspaceChange",
+        "applyWorkspaceChange",
+        "undoWorkspaceChange",
+        "reapplyWorkspaceChange",
+        "listWorkspaceFolders",
+        "grantWorkspaceFolder",
+        "regrantWorkspaceFolder",
+        "revokeWorkspaceFolder",
         "status",
         "readHome",
         "readSettings",
@@ -2718,7 +2727,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 73
+          commandCount: 82
         }
       })
       const commandCatalog = await client.readAssistantCommands({
@@ -2955,7 +2964,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 73
+          commandCount: 82
         }
       })
 
@@ -3098,7 +3107,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 73
+          commandCount: 82
         }
       })
       expect(selected).toMatchObject({

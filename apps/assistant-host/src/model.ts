@@ -41,9 +41,10 @@ import type {
 } from "./web-host/types.js";
 import type { WebWindowChrome } from "./web-host/window-chrome.js";
 import type { LocalAttachmentUploadPort } from "./resources/attachment.js";
-import type { LocalResourceDeliveryPort } from "./resources/delivery.js";
+import type { ResourceDeliveryPort } from "./resources/delivery.js";
 import type { LocalPluginCompositionPort } from "./application/plugin.js";
 import type { LocalMcpSettingsPort } from "./mcp/settings/model.js";
+import type { WorkspaceHostOptions, WorkspaceHostPort } from "./workspace/model.js";
 
 export type LocalStorageMode = "oneshot" | "persistent";
 
@@ -76,9 +77,17 @@ export interface LocalProfileStorageConfig {
 
 export type LocalModelEndpointOptions = ModelEndpoint;
 
+export type LocalModelCapabilityOperation =
+  | "image.generate"
+  | "image.edit"
+  | "video.generate"
+  | "audio.transcribe"
+  | "audio.synthesize";
+
 export interface LocalModelEndpointsOptions {
   readonly endpoints: readonly LocalModelEndpointOptions[];
   readonly activeEndpointId?: string;
+  readonly capabilityRoutes?: Partial<Record<LocalModelCapabilityOperation, string>>;
 }
 
 export interface AssistantWebHostOptions {
@@ -90,11 +99,12 @@ export interface AssistantWebHostOptions {
   readonly maxAttachmentBytes?: number;
   readonly resourceDeliveryPreparePath?: string;
   readonly resourceDeliveryPath?: string;
-  readonly browserAssets?: WebBrowserAssets;
   readonly windowChrome?: WebWindowChrome;
 }
 
 export interface StartAssistantWebAppOptions {
+  readonly browserAssets: WebBrowserAssets;
+  readonly workspace?: WorkspaceHostOptions;
   readonly storage: LocalStorageConfig;
   readonly serviceBin: string;
   readonly modelEndpoints?: LocalModelEndpointsOptions;
@@ -171,6 +181,7 @@ export interface LocalConfigurationConflict {
 }
 
 export interface StartAssistantHostOptions {
+  readonly workspace?: WorkspaceHostOptions;
   readonly storage: AssistantHostStorageConfig;
   readonly serviceBin?: string;
   readonly modelEndpoint?: LocalModelEndpointOptions;
@@ -188,6 +199,7 @@ export interface StartAssistantHostOptions {
 }
 
 export interface AssistantHost {
+  readonly workspace?: WorkspaceHostPort;
   readonly shell: Shell;
   readonly surface: SurfaceAdapter;
   readonly teamConversations: Shell["teamConversations"];
@@ -197,11 +209,12 @@ export interface AssistantHost {
   readonly secretResolver: SecretResolverPort;
   readonly mcpSettings: LocalMcpSettingsPort;
   readonly attachments: LocalAttachmentUploadPort;
-  readonly resourceDeliveries: LocalResourceDeliveryPort;
+  readonly resourceDeliveries: ResourceDeliveryPort;
   close(): Promise<void>;
 }
 
 export interface AssistantWebApp {
+  readonly workspace?: WorkspaceHostPort;
   readonly shell: Shell;
   readonly teamConversations: Shell["teamConversations"];
   readonly modelEndpoints: ModelEndpointCommands;
@@ -214,7 +227,7 @@ export interface AssistantWebApp {
   readonly secretResolver: SecretResolverPort;
   readonly configuration: LocalConfigurationPort;
   readonly attachments: LocalAttachmentUploadPort;
-  readonly resourceDeliveries: LocalResourceDeliveryPort;
+  readonly resourceDeliveries: ResourceDeliveryPort;
   readonly controller: Controller;
   readonly host: WebNodeHostServer;
   readonly url: string;

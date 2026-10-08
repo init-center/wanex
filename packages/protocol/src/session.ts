@@ -100,6 +100,14 @@ export interface SessionTurnExecutionBinding {
   readonly permissionSnapshot?: JsonValue
   readonly executionEnvironment?: ExecutionEnvironmentBinding
   readonly applicationScope?: ApplicationScopeBinding
+  readonly admissionConditions?: readonly SessionTurnAdmissionCondition[]
+}
+
+export interface SessionTurnAdmissionCondition {
+  readonly key: string
+  readonly expectedRevision: number | null
+  /** SHA-256 of the config value encoded with RFC 8785 (JCS); null requires absence. */
+  readonly expectedValueDigest: string | null
 }
 
 export interface SessionTurnRecoveryBinding {

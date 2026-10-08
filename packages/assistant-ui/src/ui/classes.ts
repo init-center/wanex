@@ -12,6 +12,7 @@ import settingsStyles from "./settings/styles.module.css";
 import workflowStyles from "./workflows/styles.module.css";
 import sharedStyles from "./shared/styles.module.css";
 import teamStyles from "./team/styles.module.css";
+import workspaceChangeStyles from "./conversation/workspace-change.module.css";
 import responsiveStyles from "./shell/responsive.module.css";
 
 const styleMaps: readonly Readonly<Record<string, string>>[] = [
@@ -29,6 +30,7 @@ const styleMaps: readonly Readonly<Record<string, string>>[] = [
   workflowStyles,
   sharedStyles,
   teamStyles,
+  workspaceChangeStyles,
   responsiveStyles,
 ];
 

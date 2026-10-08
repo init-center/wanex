@@ -1,0 +1,63 @@
+.trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-line-strong);
+  border-radius: var(--radius-control);
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+  text-align: start;
+  cursor: default;
+}
+.trigger:hover:not(:disabled) { background: var(--color-surface-subtle); }
+.trigger:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.trigger[data-placeholder] { color: var(--color-text-muted); }
+.trigger:disabled { opacity: .5; cursor: not-allowed; }
+.value { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.icon { display: grid; place-items: center; flex: 0 0 auto; color: var(--color-text-secondary); }
+.content {
+  z-index: 110;
+  min-width: var(--radix-select-trigger-width);
+  max-width: min(360px, calc(100vw - 24px));
+  max-height: var(--radix-select-content-available-height);
+  overflow: hidden;
+  color: var(--color-text);
+  background: var(--color-overlay-solid);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-float);
+  transform-origin: var(--radix-select-content-transform-origin);
+  animation: appear var(--motion-fast) var(--ease-out);
+}
+.viewport { padding: 4px; }
+.item {
+  position: relative;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  padding: 7px 30px 7px 10px;
+  border-radius: 6px;
+  font-size: var(--font-size-md);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  outline: 0;
+  cursor: default;
+  user-select: none;
+}
+.item[data-highlighted] { background: var(--color-control-hover); }
+.item[data-disabled] { color: var(--color-text-muted); opacity: .5; }
+.indicator { position: absolute; right: 9px; display: grid; place-items: center; }
+.scroll { display: grid; place-items: center; height: 24px; background: var(--color-overlay-solid); }
+@keyframes appear { from { opacity: 0; transform: translateY(-3px); } }
+@media (forced-colors: active) {
+  .trigger, .content { border-color: ButtonText; }
+  .item[data-highlighted] { color: HighlightText; background: Highlight; }
+  .item[data-disabled] { color: GrayText; opacity: 1; }
+}

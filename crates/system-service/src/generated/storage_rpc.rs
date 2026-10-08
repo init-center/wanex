@@ -4218,12 +4218,13 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunCom
 #[doc = "    \"claim_token\","]
 #[doc = "    \"execution_environment\","]
 #[doc = "    \"id\","]
-#[doc = "    \"isolation_id\","]
+#[doc = "    \"isolation_identity\","]
 #[doc = "    \"job_id\","]
 #[doc = "    \"lease_ms\","]
 #[doc = "    \"owner_id\","]
 #[doc = "    \"principal_id\","]
-#[doc = "    \"repository_id\","]
+#[doc = "    \"root_identity\","]
+#[doc = "    \"strategy\","]
 #[doc = "    \"workspace_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
@@ -4249,9 +4250,8 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunCom
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"minLength\": 1"]
 #[doc = "    },"]
-#[doc = "    \"isolation_id\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"minLength\": 1"]
+#[doc = "    \"isolation_identity\": {"]
+#[doc = "      \"$ref\": \"#/$defs/WorkspaceTaskIsolationIdentityWire\""]
 #[doc = "    },"]
 #[doc = "    \"job_id\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
@@ -4269,9 +4269,11 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunCom
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"minLength\": 1"]
 #[doc = "    },"]
-#[doc = "    \"repository_id\": {"]
-#[doc = "      \"type\": \"string\","]
-#[doc = "      \"minLength\": 1"]
+#[doc = "    \"root_identity\": {"]
+#[doc = "      \"$ref\": \"#/$defs/WorkspaceTaskRootIdentityWire\""]
+#[doc = "    },"]
+#[doc = "    \"strategy\": {"]
+#[doc = "      \"$ref\": \"#/$defs/WorkspaceTaskStrategyWire\""]
 #[doc = "    },"]
 #[doc = "    \"workspace_id\": {"]
 #[doc = "      \"type\": \"string\","]
@@ -4291,12 +4293,13 @@ pub struct BeginWorkspaceTaskRunWire {
     pub claim_token: BeginWorkspaceTaskRunWireClaimToken,
     pub execution_environment: ::serde_json::Value,
     pub id: BeginWorkspaceTaskRunWireId,
-    pub isolation_id: BeginWorkspaceTaskRunWireIsolationId,
+    pub isolation_identity: WorkspaceTaskIsolationIdentityWire,
     pub job_id: NullableString,
     pub lease_ms: i64,
     pub owner_id: BeginWorkspaceTaskRunWireOwnerId,
     pub principal_id: BeginWorkspaceTaskRunWirePrincipalId,
-    pub repository_id: BeginWorkspaceTaskRunWireRepositoryId,
+    pub root_identity: WorkspaceTaskRootIdentityWire,
+    pub strategy: WorkspaceTaskStrategyWire,
     pub workspace_id: BeginWorkspaceTaskRunWireWorkspaceId,
 }
 #[doc = "`BeginWorkspaceTaskRunWireAttemptId`"]
@@ -4507,74 +4510,6 @@ impl<'de> ::serde::Deserialize<'de> for BeginWorkspaceTaskRunWireId {
             })
     }
 }
-#[doc = "`BeginWorkspaceTaskRunWireIsolationId`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"minLength\": 1"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[serde(transparent)]
-pub struct BeginWorkspaceTaskRunWireIsolationId(::std::string::String);
-impl ::std::ops::Deref for BeginWorkspaceTaskRunWireIsolationId {
-    type Target = ::std::string::String;
-    fn deref(&self) -> &::std::string::String {
-        &self.0
-    }
-}
-impl ::std::convert::From<BeginWorkspaceTaskRunWireIsolationId> for ::std::string::String {
-    fn from(value: BeginWorkspaceTaskRunWireIsolationId) -> Self {
-        value.0
-    }
-}
-impl ::std::str::FromStr for BeginWorkspaceTaskRunWireIsolationId {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        if value.chars().count() < 1usize {
-            return Err("shorter than 1 characters".into());
-        }
-        Ok(Self(value.to_string()))
-    }
-}
-impl ::std::convert::TryFrom<&str> for BeginWorkspaceTaskRunWireIsolationId {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for BeginWorkspaceTaskRunWireIsolationId {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunWireIsolationId {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for BeginWorkspaceTaskRunWireIsolationId {
-    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-    where
-        D: ::serde::Deserializer<'de>,
-    {
-        ::std::string::String::deserialize(deserializer)?
-            .parse()
-            .map_err(|e: self::error::ConversionError| {
-                <D::Error as ::serde::de::Error>::custom(e.to_string())
-            })
-    }
-}
 #[doc = "`BeginWorkspaceTaskRunWireOwnerId`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -4700,74 +4635,6 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunWir
     }
 }
 impl<'de> ::serde::Deserialize<'de> for BeginWorkspaceTaskRunWirePrincipalId {
-    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
-    where
-        D: ::serde::Deserializer<'de>,
-    {
-        ::std::string::String::deserialize(deserializer)?
-            .parse()
-            .map_err(|e: self::error::ConversionError| {
-                <D::Error as ::serde::de::Error>::custom(e.to_string())
-            })
-    }
-}
-#[doc = "`BeginWorkspaceTaskRunWireRepositoryId`"]
-#[doc = r""]
-#[doc = r" <details><summary>JSON schema</summary>"]
-#[doc = r""]
-#[doc = r" ```json"]
-#[doc = "{"]
-#[doc = "  \"type\": \"string\","]
-#[doc = "  \"minLength\": 1"]
-#[doc = "}"]
-#[doc = r" ```"]
-#[doc = r" </details>"]
-#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-#[serde(transparent)]
-pub struct BeginWorkspaceTaskRunWireRepositoryId(::std::string::String);
-impl ::std::ops::Deref for BeginWorkspaceTaskRunWireRepositoryId {
-    type Target = ::std::string::String;
-    fn deref(&self) -> &::std::string::String {
-        &self.0
-    }
-}
-impl ::std::convert::From<BeginWorkspaceTaskRunWireRepositoryId> for ::std::string::String {
-    fn from(value: BeginWorkspaceTaskRunWireRepositoryId) -> Self {
-        value.0
-    }
-}
-impl ::std::str::FromStr for BeginWorkspaceTaskRunWireRepositoryId {
-    type Err = self::error::ConversionError;
-    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        if value.chars().count() < 1usize {
-            return Err("shorter than 1 characters".into());
-        }
-        Ok(Self(value.to_string()))
-    }
-}
-impl ::std::convert::TryFrom<&str> for BeginWorkspaceTaskRunWireRepositoryId {
-    type Error = self::error::ConversionError;
-    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<&::std::string::String> for BeginWorkspaceTaskRunWireRepositoryId {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: &::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl ::std::convert::TryFrom<::std::string::String> for BeginWorkspaceTaskRunWireRepositoryId {
-    type Error = self::error::ConversionError;
-    fn try_from(
-        value: ::std::string::String,
-    ) -> ::std::result::Result<Self, self::error::ConversionError> {
-        value.parse()
-    }
-}
-impl<'de> ::serde::Deserialize<'de> for BeginWorkspaceTaskRunWireRepositoryId {
     fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
     where
         D: ::serde::Deserializer<'de>,
@@ -27069,9 +26936,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 #[doc = "  \"required\": ["]
 #[doc = "    \"lease_expires_before\","]
 #[doc = "    \"limit\","]
-#[doc = "    \"repository_id\","]
+#[doc = "    \"root_id\","]
+#[doc = "    \"root_identity\","]
 #[doc = "    \"run_ids\","]
 #[doc = "    \"state\","]
+#[doc = "    \"strategy\","]
 #[doc = "    \"workspace_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
@@ -27081,8 +26950,18 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 #[doc = "    \"limit\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableInteger\""]
 #[doc = "    },"]
-#[doc = "    \"repository_id\": {"]
+#[doc = "    \"root_id\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"root_identity\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/$defs/WorkspaceTaskRootIdentityWire\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
 #[doc = "    },"]
 #[doc = "    \"run_ids\": {"]
 #[doc = "      \"oneOf\": ["]
@@ -27104,6 +26983,16 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 #[doc = "    \"state\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableWorkspaceTaskRunStateWire\""]
 #[doc = "    },"]
+#[doc = "    \"strategy\": {"]
+#[doc = "      \"oneOf\": ["]
+#[doc = "        {"]
+#[doc = "          \"$ref\": \"#/$defs/WorkspaceTaskStrategyWire\""]
+#[doc = "        },"]
+#[doc = "        {"]
+#[doc = "          \"type\": \"null\""]
+#[doc = "        }"]
+#[doc = "      ]"]
+#[doc = "    },"]
 #[doc = "    \"workspace_id\": {"]
 #[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    }"]
@@ -27117,9 +27006,11 @@ impl ::std::convert::TryFrom<::std::string::String> for ListWorkspaceTaskRunsCom
 pub struct ListWorkspaceTaskRunsWire {
     pub lease_expires_before: NullableInteger,
     pub limit: NullableInteger,
-    pub repository_id: NullableString,
+    pub root_id: NullableString,
+    pub root_identity: ::std::option::Option<WorkspaceTaskRootIdentityWire>,
     pub run_ids: ::std::option::Option<Vec<ListWorkspaceTaskRunsWireRunIdsItem>>,
     pub state: NullableWorkspaceTaskRunStateWire,
+    pub strategy: ::std::option::Option<WorkspaceTaskStrategyWire>,
     pub workspace_id: NullableString,
 }
 #[doc = "`ListWorkspaceTaskRunsWireRunIdsItem`"]
@@ -28024,30 +27915,26 @@ impl ::std::convert::TryFrom<::std::string::String> for MarkWorkspaceTaskActiveC
 #[doc = "  \"type\": \"object\","]
 #[doc = "  \"required\": ["]
 #[doc = "    \"attempt_id\","]
-#[doc = "    \"base_revision\","]
 #[doc = "    \"claim_token\","]
-#[doc = "    \"run_id\","]
-#[doc = "    \"runtime_ref\""]
+#[doc = "    \"prepared_isolation\","]
+#[doc = "    \"run_id\""]
 #[doc = "  ],"]
 #[doc = "  \"properties\": {"]
 #[doc = "    \"attempt_id\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"minLength\": 1"]
 #[doc = "    },"]
-#[doc = "    \"base_revision\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
-#[doc = "    },"]
 #[doc = "    \"claim_token\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"maxLength\": 512,"]
 #[doc = "      \"minLength\": 32"]
 #[doc = "    },"]
+#[doc = "    \"prepared_isolation\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableWorkspaceTaskPreparedIsolationWire\""]
+#[doc = "    },"]
 #[doc = "    \"run_id\": {"]
 #[doc = "      \"type\": \"string\","]
 #[doc = "      \"minLength\": 1"]
-#[doc = "    },"]
-#[doc = "    \"runtime_ref\": {"]
-#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
 #[doc = "    }"]
 #[doc = "  },"]
 #[doc = "  \"additionalProperties\": false"]
@@ -28058,10 +27945,9 @@ impl ::std::convert::TryFrom<::std::string::String> for MarkWorkspaceTaskActiveC
 #[serde(deny_unknown_fields)]
 pub struct MarkWorkspaceTaskActiveWire {
     pub attempt_id: MarkWorkspaceTaskActiveWireAttemptId,
-    pub base_revision: NullableString,
     pub claim_token: MarkWorkspaceTaskActiveWireClaimToken,
+    pub prepared_isolation: NullableWorkspaceTaskPreparedIsolationWire,
     pub run_id: MarkWorkspaceTaskActiveWireRunId,
-    pub runtime_ref: NullableString,
 }
 #[doc = "`MarkWorkspaceTaskActiveWireAttemptId`"]
 #[doc = r""]
@@ -32544,6 +32430,48 @@ impl ::std::convert::From<::std::option::Option<WorkspaceChangeTransactionStateW
     for NullableWorkspaceChangeTransactionStateWire
 {
     fn from(value: ::std::option::Option<WorkspaceChangeTransactionStateWire>) -> Self {
+        Self(value)
+    }
+}
+#[doc = "`NullableWorkspaceTaskPreparedIsolationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"oneOf\": ["]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/WorkspaceTaskPreparedIsolationWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"type\": \"null\""]
+#[doc = "    }"]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(transparent)]
+pub struct NullableWorkspaceTaskPreparedIsolationWire(
+    pub ::std::option::Option<WorkspaceTaskPreparedIsolationWire>,
+);
+impl ::std::ops::Deref for NullableWorkspaceTaskPreparedIsolationWire {
+    type Target = ::std::option::Option<WorkspaceTaskPreparedIsolationWire>;
+    fn deref(&self) -> &::std::option::Option<WorkspaceTaskPreparedIsolationWire> {
+        &self.0
+    }
+}
+impl ::std::convert::From<NullableWorkspaceTaskPreparedIsolationWire>
+    for ::std::option::Option<WorkspaceTaskPreparedIsolationWire>
+{
+    fn from(value: NullableWorkspaceTaskPreparedIsolationWire) -> Self {
+        value.0
+    }
+}
+impl ::std::convert::From<::std::option::Option<WorkspaceTaskPreparedIsolationWire>>
+    for NullableWorkspaceTaskPreparedIsolationWire
+{
+    fn from(value: ::std::option::Option<WorkspaceTaskPreparedIsolationWire>) -> Self {
         Self(value)
     }
 }
@@ -56490,6 +56418,789 @@ impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskExecutionOu
         value.parse()
     }
 }
+#[doc = "`WorkspaceTaskIsolationIdentityWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"base_revision\","]
+#[doc = "    \"id\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"repository_id\","]
+#[doc = "    \"runtime_ref\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"base_revision\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 256,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"$ref\": \"#/$defs/WorkspaceTaskIsolationKindWire\""]
+#[doc = "    },"]
+#[doc = "    \"repository_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"runtime_ref\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskIsolationIdentityWire {
+    pub base_revision: NullableString,
+    pub id: WorkspaceTaskIsolationIdentityWireId,
+    pub kind: WorkspaceTaskIsolationKindWire,
+    pub repository_id: NullableString,
+    pub runtime_ref: NullableString,
+}
+#[doc = "`WorkspaceTaskIsolationIdentityWireId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 256,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskIsolationIdentityWireId(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskIsolationIdentityWireId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskIsolationIdentityWireId> for ::std::string::String {
+    fn from(value: WorkspaceTaskIsolationIdentityWireId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskIsolationIdentityWireId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 256usize {
+            return Err("longer than 256 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskIsolationIdentityWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskIsolationIdentityWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskIsolationIdentityWireId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskIsolationIdentityWireId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskIsolationKindWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"fixed\","]
+#[doc = "    \"git_worktree\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum WorkspaceTaskIsolationKindWire {
+    #[serde(rename = "fixed")]
+    Fixed,
+    #[serde(rename = "git_worktree")]
+    GitWorktree,
+}
+impl ::std::fmt::Display for WorkspaceTaskIsolationKindWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Fixed => f.write_str("fixed"),
+            Self::GitWorktree => f.write_str("git_worktree"),
+        }
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskIsolationKindWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "fixed" => Ok(Self::Fixed),
+            "git_worktree" => Ok(Self::GitWorktree),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskIsolationKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskIsolationKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskIsolationKindWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`WorkspaceTaskPreparedIsolationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"base_revision\","]
+#[doc = "    \"runtime_ref\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"base_revision\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"runtime_ref\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskPreparedIsolationWire {
+    pub base_revision: WorkspaceTaskPreparedIsolationWireBaseRevision,
+    pub runtime_ref: WorkspaceTaskPreparedIsolationWireRuntimeRef,
+}
+#[doc = "`WorkspaceTaskPreparedIsolationWireBaseRevision`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskPreparedIsolationWireBaseRevision(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskPreparedIsolationWireBaseRevision {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskPreparedIsolationWireBaseRevision>
+    for ::std::string::String
+{
+    fn from(value: WorkspaceTaskPreparedIsolationWireBaseRevision) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskPreparedIsolationWireBaseRevision {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskPreparedIsolationWireBaseRevision {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for WorkspaceTaskPreparedIsolationWireBaseRevision
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for WorkspaceTaskPreparedIsolationWireBaseRevision
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskPreparedIsolationWireBaseRevision {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskPreparedIsolationWireRuntimeRef`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskPreparedIsolationWireRuntimeRef(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskPreparedIsolationWireRuntimeRef {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskPreparedIsolationWireRuntimeRef> for ::std::string::String {
+    fn from(value: WorkspaceTaskPreparedIsolationWireRuntimeRef) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskPreparedIsolationWireRuntimeRef {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskPreparedIsolationWireRuntimeRef {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for WorkspaceTaskPreparedIsolationWireRuntimeRef
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for WorkspaceTaskPreparedIsolationWireRuntimeRef
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskPreparedIsolationWireRuntimeRef {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskRootIdentityWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"device\","]
+#[doc = "    \"generation_key\","]
+#[doc = "    \"host_id\","]
+#[doc = "    \"inode\","]
+#[doc = "    \"root_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"device\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 128,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"generation_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 256,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"host_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 256,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"inode\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 128,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    },"]
+#[doc = "    \"root_id\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 256,"]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskRootIdentityWire {
+    pub device: WorkspaceTaskRootIdentityWireDevice,
+    pub generation_key: WorkspaceTaskRootIdentityWireGenerationKey,
+    pub host_id: WorkspaceTaskRootIdentityWireHostId,
+    pub inode: WorkspaceTaskRootIdentityWireInode,
+    pub root_id: WorkspaceTaskRootIdentityWireRootId,
+}
+#[doc = "`WorkspaceTaskRootIdentityWireDevice`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 128,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskRootIdentityWireDevice(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskRootIdentityWireDevice {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskRootIdentityWireDevice> for ::std::string::String {
+    fn from(value: WorkspaceTaskRootIdentityWireDevice) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskRootIdentityWireDevice {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 128usize {
+            return Err("longer than 128 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskRootIdentityWireDevice {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskRootIdentityWireDevice {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRootIdentityWireDevice {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskRootIdentityWireDevice {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskRootIdentityWireGenerationKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 256,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskRootIdentityWireGenerationKey(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskRootIdentityWireGenerationKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskRootIdentityWireGenerationKey> for ::std::string::String {
+    fn from(value: WorkspaceTaskRootIdentityWireGenerationKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskRootIdentityWireGenerationKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 256usize {
+            return Err("longer than 256 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskRootIdentityWireGenerationKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for WorkspaceTaskRootIdentityWireGenerationKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRootIdentityWireGenerationKey {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskRootIdentityWireGenerationKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskRootIdentityWireHostId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 256,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskRootIdentityWireHostId(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskRootIdentityWireHostId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskRootIdentityWireHostId> for ::std::string::String {
+    fn from(value: WorkspaceTaskRootIdentityWireHostId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskRootIdentityWireHostId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 256usize {
+            return Err("longer than 256 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskRootIdentityWireHostId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskRootIdentityWireHostId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRootIdentityWireHostId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskRootIdentityWireHostId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskRootIdentityWireInode`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 128,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskRootIdentityWireInode(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskRootIdentityWireInode {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskRootIdentityWireInode> for ::std::string::String {
+    fn from(value: WorkspaceTaskRootIdentityWireInode) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskRootIdentityWireInode {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 128usize {
+            return Err("longer than 128 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskRootIdentityWireInode {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskRootIdentityWireInode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRootIdentityWireInode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskRootIdentityWireInode {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`WorkspaceTaskRootIdentityWireRootId`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 256,"]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct WorkspaceTaskRootIdentityWireRootId(::std::string::String);
+impl ::std::ops::Deref for WorkspaceTaskRootIdentityWireRootId {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<WorkspaceTaskRootIdentityWireRootId> for ::std::string::String {
+    fn from(value: WorkspaceTaskRootIdentityWireRootId) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskRootIdentityWireRootId {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 256usize {
+            return Err("longer than 256 characters".into());
+        }
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskRootIdentityWireRootId {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskRootIdentityWireRootId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRootIdentityWireRootId {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for WorkspaceTaskRootIdentityWireRootId {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
 #[doc = "`WorkspaceTaskRunIdentityWire`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -56920,6 +57631,78 @@ impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskRunStateWir
         value.parse()
     }
 }
+#[doc = "`WorkspaceTaskStrategyWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"direct\","]
+#[doc = "    \"git_worktree\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum WorkspaceTaskStrategyWire {
+    #[serde(rename = "direct")]
+    Direct,
+    #[serde(rename = "git_worktree")]
+    GitWorktree,
+}
+impl ::std::fmt::Display for WorkspaceTaskStrategyWire {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Direct => f.write_str("direct"),
+            Self::GitWorktree => f.write_str("git_worktree"),
+        }
+    }
+}
+impl ::std::str::FromStr for WorkspaceTaskStrategyWire {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "direct" => Ok(Self::Direct),
+            "git_worktree" => Ok(Self::GitWorktree),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for WorkspaceTaskStrategyWire {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for WorkspaceTaskStrategyWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for WorkspaceTaskStrategyWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`WriteAtomicFileCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -57031,4 +57814,4 @@ impl ::std::convert::TryFrom<::std::string::String> for WriteAtomicFileCommandCo
 }
 
 pub const STORAGE_RPC_SCHEMA_SHA256: &str =
-    "3f9d0ee9921d2d51b8994eb92865a366eee69bf4949390d292a0ade53b059e2b";
+    "650d399547a218792188e9e20e047ea06d0f11ec004fb6bac3084f02ff9f9dea";

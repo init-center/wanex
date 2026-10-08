@@ -40,6 +40,8 @@ export class ProcessWorkspaceSnapshotClient implements WorkspaceSnapshotClient {
         "--workspace-snapshot",
         "--root",
         resolve(request.repositoryRoot),
+        "--root-device", request.rootIdentity.device,
+        "--root-inode", request.rootIdentity.inode,
         "--worktree-parent",
         resolve(request.worktreeParent),
         "--isolation",
@@ -47,7 +49,7 @@ export class ProcessWorkspaceSnapshotClient implements WorkspaceSnapshotClient {
         ...(request.gitBin === undefined ? [] : ["--git", request.gitBin]),
         ...(operation === "release"
           ? ["--base-revision", releaseBaseRevision ?? "", "--release"]
-          : [])
+          : request.expectedBaseRevision === undefined ? [] : ["--base-revision", request.expectedBaseRevision])
       ],
       cwd: resolve(request.repositoryRoot),
       timeoutMs: request.timeoutMs ?? DEFAULT_TIMEOUT_MS,

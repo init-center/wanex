@@ -3,48 +3,81 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Client as AssistantClient } from "@wanex/assistant-ui/client";
 import {
+  AssistantLocationControl,
   ProductRenderer,
-  WorkspaceRail,
 } from "../src/renderer/product.js";
+import { ConnectionsDialog } from "../src/renderer/server/connections.js";
 
-describe("Desktop product renderer", () => {
-  it("renders stable left-side workspace navigation without the retired floating switch", () => {
-    const html = renderToStaticMarkup(createElement(ProductRenderer, {
-      assistantClient: assistantClient(),
-      codingClient: undefined,
-      remoteClient: undefined,
-    }));
+describe("desktop product renderer", () => {
+  it("renders one immersive Assistant surface without a Coding rail", () => {
+    const html = renderToStaticMarkup(
+      createElement(ProductRenderer, {
+        createLocalAssistantClient: () => assistantClient,
+        assistantLocationClient: undefined,
+        serverProfileClient: undefined,
+      }),
+    );
 
-    expect(html).toContain('class="workspace-rail"');
-    expect(html).toContain('aria-label="Workspaces"');
-    expect(html).toContain('data-ui-product-surface="assistant"');
-    expect(html).toContain('data-ui-product-surface="coding"');
-    expect(html).toContain('aria-label="Open chat workspace"');
-    expect(html).toContain('aria-label="Open code workspace"');
+    expect(html).toContain('data-ui-product-renderer="true"');
+    expect(html).toContain('data-ui-surface="assistant"');
     expect(html).toContain('class="workspace-viewport"');
-    expect(html).not.toContain("product-switcher");
+    expect(html).toContain('<main class="assistant-location-loading"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain("workspace-rail");
+    expect(html).not.toContain("data-ui-product-surface=\"coding\"");
+    expect(html).not.toContain("wanexCoding");
   });
 
-  it("makes every workspace control inert while the active surface owns a modal", () => {
-    const html = renderToStaticMarkup(createElement(WorkspaceRail, {
-      surface: "assistant",
-      inactive: true,
-      onSelect: () => {},
-    }));
+  it("offers local and remote conversation locations without exposing transport details", () => {
+    const html = renderToStaticMarkup(
+      createElement(AssistantLocationControl, {
+        location: { kind: "server", profileId: "office", name: "Office" },
+        profiles: [{ profileId: "office", name: "Office" }],
+        pending: false,
+        disabled: false,
+        onSelect: () => {},
+        onManageServers: () => {},
+      }),
+    );
 
-    expect(html).toContain('inert=""');
-    expect(html).toContain('data-ui-workspace-rail-inactive="true"');
-    expect(html.match(/disabled=""/g)).toHaveLength(2);
+    // The chip names the active location; the menu itself opens on demand.
+    expect(html).toContain('aria-label="Chat execution location"');
+    expect(html).toContain("<span>Office</span>");
+    expect(html).not.toContain("agent-host");
+    expect(html).not.toContain("https://");
+  });
+
+  it("keeps server profile management in one product-owned dialog", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConnectionsDialog, {
+        client: {
+          listProfiles: async () => [],
+          saveProfile: async () => profile,
+          removeProfile: async () => {},
+        },
+        profiles: [profile],
+        loading: false,
+        loadError: undefined,
+        onProfilesChanged: () => {},
+        onClose: () => {},
+      }),
+    );
+
+    expect(html).toContain('data-ui-connections-dialog="true"');
+    expect(html).toContain('data-ui-server-profile-action="add"');
+    expect(html).toContain('data-ui-server-profile="office"');
+    expect(html).toContain("Servers available to chat");
   });
 });
 
-function assistantClient(): AssistantClient {
-  return {
-    readSnapshot: async () => {
-      throw new Error("not used during server render");
-    },
-    dispatchAction: async () => {
-      throw new Error("not used during server render");
-    },
-  };
-}
+const profile = {
+  profileId: "office",
+  name: "Office",
+  serverUrl: "https://office.example.test/",
+  credentialConfigured: true,
+  createdAt: 1,
+  updatedAt: 1,
+};
+
+const assistantClient = {} as AssistantClient;

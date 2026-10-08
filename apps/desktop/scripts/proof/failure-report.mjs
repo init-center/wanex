@@ -2,7 +2,6 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { distributionRoot } from "../build.mjs"
 import { boundedAssistantHostDiagnostics } from "../../src/proof/assistant-diagnostics.ts"
-import { boundedCodingHostDiagnostics } from "../../src/proof/coding-diagnostics.ts"
 
 export async function writeDesktopFailureReport({
   error,
@@ -66,7 +65,6 @@ function boundedRuntimeFailure(value) {
     value.ok !== false) return undefined
   const renderer = boundedRendererFailure(value.renderer)
   const assistant = boundedAssistantHostDiagnostics(value.assistant)
-  const coding = boundedCodingHostDiagnostics(value.coding)
   return {
     kind: "wanex.desktop.runtime-receipt",
     ok: false,
@@ -97,7 +95,6 @@ function boundedRuntimeFailure(value) {
     },
     ...(renderer === undefined ? {} : { renderer }),
     ...(assistant === undefined ? {} : { assistant }),
-    ...(coding === undefined ? {} : { coding })
   }
 }
 
@@ -114,7 +111,12 @@ function boundedRendererFailure(value) {
         "renderer_ready",
         "model_switch",
         "conversation_settlement",
-        "canonical_command",
+        "command_menu",
+        "command_palette",
+        "command_selection",
+        "command_preview",
+        "command_execution",
+        "command_close",
         "provider_lifecycle"
       ],
       "unknown_stage"

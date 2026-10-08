@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { createServer, type Server } from "node:http"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -451,6 +452,7 @@ async function startProductApp(request: {
   readonly credentialStore: SecretStorePort
 }): Promise<AssistantWebApp> {
   return await startAssistantWebApp({
+    browserAssets,
     storage: {
       kind: "store-dir",
       mode: "persistent",

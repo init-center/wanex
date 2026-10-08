@@ -1,23 +1,40 @@
-.workflows-panel { width: 390px; }
-.workflow-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; margin-bottom: 18px; padding: 4px; background: var(--color-control-hover); border-radius: 8px; }
-.workflow-tabs button { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 6px; font-size: 11px; }
-.workflow-tabs button small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-muted); font-size: 9px; text-transform: capitalize; }
-.workflow-tabs button.is-active { color: var(--color-accent-strong); background: var(--color-surface); border-color: var(--color-line); box-shadow: 0 3px 10px rgb(26 35 50 / 6%); }
-.workflow-form { display: flex; flex-direction: column; gap: 10px; }
-.workflow-form label { display: flex; flex-direction: column; gap: 5px; color: var(--color-text-secondary); font-size: 11px; }
-.workflow-form textarea, .workflow-form input { width: 100%; min-height: var(--size-control); padding: 8px 9px; color: var(--color-text); background: var(--color-control); border: 1px solid var(--color-line-strong); border-radius: 7px; resize: vertical; }
-.workflow-form textarea { min-height: 82px; }
-.workflow-form button, .primary-action { min-height: 34px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 11px; color: var(--color-on-accent); background: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 7px; font-size: 11px; }
-.workflow-form button:hover:not(:disabled), .primary-action:hover:not(:disabled) { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.workflow-card { padding: 14px; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 8px; }
-.workflow-card header { display: flex; justify-content: space-between; gap: 12px; }
-.workflow-card h3, .workflow-card h4 { margin: 3px 0 8px; color: var(--color-text); font-size: 13px; }
-.workflow-card p, .workflow-card li { color: var(--color-text-secondary); font-size: 11px; line-height: 1.55; }
+.workflows-panel { width: 392px; }
+.workflow-intro { margin: 6px 0 0; color: var(--color-text-muted); font-size: var(--font-size-sm); line-height: 19px; }
+.workflow-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; margin-bottom: 18px; padding: 4px; background: var(--color-control-hover); border-radius: 12px; }
+.workflow-tabs button { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 9px; font-size: var(--font-size-sm); font-weight: 560; }
+.workflow-tabs button:hover:not(.is-active) { color: var(--color-text); }
+.workflow-tabs button small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 400; }
+.workflow-tabs button.is-active { color: var(--color-text); background: var(--color-surface); border-color: var(--color-line-muted); box-shadow: var(--shadow-control); }
+.workflow-form { display: flex; flex-direction: column; gap: 14px; }
+.workflow-form label { display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 560; }
+.workflow-form textarea, .workflow-form input, .workflow-form select { width: 100%; min-height: 38px; padding: 9px 12px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font-size: var(--font-size-md); line-height: 20px; resize: vertical; transition: border-color 140ms ease, box-shadow 140ms ease; }
+.workflow-form textarea:focus, .workflow-form input:focus, .workflow-form select:focus { border-color: var(--color-line-accent); box-shadow: 0 0 0 3px var(--color-accent-soft); outline: 0; }
+.workflow-form textarea { min-height: 96px; }
+.workflow-form > .muted { margin: 0; }
+.workflow-form button[type="submit"], .primary-action { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 16px; color: var(--color-on-ink); background: var(--color-ink); border: 1px solid var(--color-ink); border-radius: var(--radius-control); font-size: var(--font-size-sm); font-weight: 580; }
+.workflow-form > button, .primary-action { align-self: flex-start; }
+.workflow-form button[type="submit"]:hover:not(:disabled), .primary-action:hover:not(:disabled) { background: var(--color-ink-hover); border-color: var(--color-ink-hover); }
+.workflow-form button[type="submit"]:disabled, .primary-action:disabled { opacity: .42; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.workflow-card { padding: 16px; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-card); box-shadow: var(--shadow-control); }
+.workflow-card + .workflow-status, .workflow-status + .workflow-card, .workflow-form + .workflow-status, .workflow-status + .workflow-form, .workflow-form + .workflow-card { margin-top: 14px; }
+.workflow-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.workflow-badge { flex: 0 0 auto; padding: 2px 8px; color: var(--color-text-secondary); background: var(--color-surface-subtle); border-radius: 999px; font-size: var(--font-size-xs); }
+.workflow-card h3 { margin: 4px 0 8px; color: var(--color-text); font-size: var(--font-size-lg); line-height: 22px; font-weight: 620; }
+.workflow-card h4 { margin: 14px 0 6px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 620; }
+.workflow-card p, .workflow-card li { color: var(--color-text-secondary); font-size: var(--font-size-md); line-height: 1.55; }
 .workflow-card ol, .workflow-card ul { padding-left: 20px; }
-.workflow-card li small { display: block; color: var(--color-text-muted); }
-.workflow-card details { margin: 12px 0; }
-.workflow-card summary { color: var(--color-text-secondary); font-size: 11px; cursor: pointer; }
-.workflow-status { padding: 12px; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 8px; }
-.workflow-status p { color: var(--color-text-muted); font-size: 11px; }
+.workflow-card li + li { margin-top: 6px; }
+.workflow-card li strong { color: var(--color-text); font-weight: 580; }
+.workflow-card li p { margin: 2px 0 0; font-size: var(--font-size-sm); }
+.workflow-card li small { display: block; color: var(--color-text-muted); font-size: var(--font-size-xs); }
+.workflow-card details { margin: 14px 0; }
+.workflow-card summary { color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: 560; cursor: pointer; }
+.workflow-card details .workflow-form { margin-top: 12px; }
+.workflow-card > button { margin-top: 12px; }
+.workflow-status { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; background: var(--color-surface); border: 1px solid var(--color-line-muted); border-radius: var(--radius-card); }
+.workflow-status strong { color: var(--color-text); font-size: var(--font-size-md); font-weight: 600; }
+.workflow-status p { margin: 0; color: var(--color-text-muted); font-size: var(--font-size-sm); }
+.workflow-status > div { margin-top: 4px; }
+.workflow-status button, .workflow-card > button:not(.primary-action) { min-height: 34px; padding: 0 14px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font-size: var(--font-size-sm); }
 .aside-answer { white-space: pre-wrap; }

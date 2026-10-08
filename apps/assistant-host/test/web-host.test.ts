@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { createHash } from "node:crypto"
 import { afterEach, describe, expect, it } from "vitest"
 import {
@@ -11,8 +12,8 @@ import {
 } from "../src/web-host/index.js"
 import type { LocalAttachmentUploadPort } from "../src/resources/attachment.js"
 import {
-  createLocalResourceDeliveryPort,
-  type LocalResourceDeliveryPort
+  createResourceDeliveryPort,
+  type ResourceDeliveryPort
 } from "../src/resources/delivery.js"
 import type {
   LocalCapabilitySetupCommands,
@@ -38,6 +39,19 @@ afterEach(async () => {
 })
 
 describe("@wanex/assistant-host Web host", () => {
+  it.each([
+    undefined,
+    null,
+    {},
+    { clientScript: "", stylesheet: "body{}" },
+    { clientScript: "console.log('ok')", stylesheet: " " }
+  ])("rejects missing or empty caller-owned browser assets (%j)", async (invalid) => {
+    await expect(withNodeHost(async () => {
+      throw new Error("invalid assets must not start the HTTP Host")
+    }, { browserAssets: invalid as unknown as typeof browserAssets }))
+      .rejects.toThrow("browser assets must contain non-empty clientScript and stylesheet")
+  })
+
   it("serves the sole browser shell and typed request envelopes over Node HTTP", async () => {
     await withNodeHost(async ({ controller, host }) => {
       const shell = await fetch(`${host.url}/`)
@@ -736,6 +750,7 @@ describe("@wanex/assistant-host Web host", () => {
 
   it("closes active event streams before the Node host closes", async () => {
     const host = await listenWebNodeHost({
+      browserAssets,
       controller: createFakeController(),
       surfaceEvents: emptySurfaceEvents(),
       attachments: {
@@ -768,6 +783,7 @@ describe("@wanex/assistant-host Web host", () => {
 
   it("force-closes active loopback requests during Node host shutdown", async () => {
     const host = await listenWebNodeHost({
+      browserAssets,
       controller: createFakeController(),
       surfaceEvents: emptySurfaceEvents(),
       attachments: {
@@ -1113,7 +1129,7 @@ describe("@wanex/assistant-host Web host", () => {
     const content = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])
     const sha256 = createHash("sha256").update(content).digest("hex")
     const reads: unknown[] = []
-    const resourceDeliveries = createLocalResourceDeliveryPort({
+    const resourceDeliveries = createResourceDeliveryPort({
       async readResource(request) {
         reads.push(request)
         return {
@@ -1295,7 +1311,7 @@ async function withNodeHost(
     readonly surfaceEvents?: WebEventSource
     readonly maxAttachmentBytes?: number
     readonly attachments?: LocalAttachmentUploadPort
-    readonly resourceDeliveries?: LocalResourceDeliveryPort
+    readonly resourceDeliveries?: ResourceDeliveryPort
     readonly capabilitySetup?: LocalCapabilitySetupCommands
     readonly modelCatalog?: LocalModelCatalogCommands
     readonly mcpSettings?: LocalMcpSettingsPort
@@ -1308,6 +1324,7 @@ async function withNodeHost(
 ): Promise<void> {
   const controller = createFakeController()
   const host = await listenWebNodeHost({
+    browserAssets,
     controller,
     surfaceEvents: emptySurfaceEvents(),
     attachments: {
@@ -1460,7 +1477,7 @@ function successfulCapabilitySetup(request: {
   }
 }
 
-function unconfiguredResourceDeliveries(): LocalResourceDeliveryPort {
+function unconfiguredResourceDeliveries(): ResourceDeliveryPort {
   return {
     async prepare() {
       throw new Error("resource delivery was not configured for this test")

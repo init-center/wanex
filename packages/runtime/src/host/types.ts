@@ -33,6 +33,11 @@ import type {
   MediaGenerationOperationRecord,
   MediaGenerationOperationSubmission
 } from "@wanex/protocol"
+import type {
+  ResolveToolExecutionApprovalReceipt,
+  ResolveToolExecutionApprovalRequest,
+  ToolExecutionRecord
+} from "@wanex/protocol"
 
 export type WanexRuntimeHostOptions = WanexRuntimeHostStorageOptions &
   WanexRuntimeHostBehaviorOptions
@@ -56,6 +61,12 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly provider?: ProviderAdapter
   readonly tools?: ToolRegistry
   readonly toolPermissionPolicy?: ToolPermissionPolicy
+  /**
+   * Host-owned follow-up for an already persisted Tool approval decision.
+   * Runtime only transports opaque authorization evidence; it does not know
+   * which capability owns the reference.
+   */
+  readonly toolApprovalContinuation?: RuntimeHostToolApprovalContinuation
   readonly recovery?: SessionTurnRecoveryBinding
   readonly toolMaxConcurrency?: number
   readonly contextCompiler?: ContextCompiler
@@ -76,6 +87,18 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly mediaGenerationPollInitialDelayMs?: number
   readonly mediaGenerationPollMaxDelayMs?: number
   readonly mediaGenerationMaxConsecutivePollFailures?: number
+}
+
+/** @public */
+export interface RuntimeHostToolApprovalContinuation {
+  afterDecision(request: RuntimeHostToolApprovalContinuationRequest): Promise<void>
+}
+
+/** @public */
+export interface RuntimeHostToolApprovalContinuationRequest {
+  readonly request: ResolveToolExecutionApprovalRequest
+  readonly execution: ToolExecutionRecord
+  readonly receipt: ResolveToolExecutionApprovalReceipt
 }
 
 export type RuntimeHostSessionTurnLifecycleObserver = (

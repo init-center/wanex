@@ -69,6 +69,14 @@ import type {
   ScheduleListReadModel,
   ScheduleMutationResult
 } from "../schedule/model.js"
+import type {
+  WorkspaceChangeDecisionRequest,
+  WorkspaceChangeMutationRequest,
+  WorkspaceChangeReference,
+  WorkspaceChangeMutationResult,
+  WorkspaceChangeReadModel,
+  WorkspaceChangeSummary
+} from "../workspace-review.js"
 
 export const SURFACE_COMMANDS = {
   status: "status",
@@ -145,6 +153,15 @@ export const SURFACE_COMMANDS = {
   cancelLocalPluginReview: "cancelLocalPluginReview",
   setPluginInstallState: "setPluginInstallState",
   retryPluginRefresh: "retryPluginRefresh"
+  ,readWorkspaceChange: "readWorkspaceChange"
+  ,decideWorkspaceChange: "decideWorkspaceChange"
+  ,applyWorkspaceChange: "applyWorkspaceChange"
+  ,undoWorkspaceChange: "undoWorkspaceChange"
+  ,reapplyWorkspaceChange: "reapplyWorkspaceChange"
+  ,listWorkspaceFolders: "listWorkspaceFolders"
+  ,grantWorkspaceFolder: "grantWorkspaceFolder"
+  ,regrantWorkspaceFolder: "regrantWorkspaceFolder"
+  ,revokeWorkspaceFolder: "revokeWorkspaceFolder"
 } as const
 
 export type SurfaceCommand =
@@ -177,6 +194,9 @@ export interface SurfaceCommandDescriptor {
   /** Whether the command changes the Assistant-owned navigation/preferences snapshot. */
   readonly mutatesState: boolean
 }
+
+export type WorkspaceReviewCommandInput = WorkspaceChangeReference | WorkspaceChangeDecisionRequest | WorkspaceChangeMutationRequest
+export type WorkspaceReviewCommandResult = WorkspaceChangeReadModel | WorkspaceChangeSummary | WorkspaceChangeMutationResult
 
 export type SurfaceCommandInputKind =
   | "none"
@@ -239,6 +259,12 @@ export type SurfaceCommandInputKind =
   | "plugin-review-approval"
   | "plugin-review-cancel"
   | "plugin-install-state-change"
+  | "workspace-review-reference"
+  | "workspace-review-decision"
+  | "workspace-folder-list"
+  | "workspace-folder-grant"
+  | "workspace-folder-regrant"
+  | "workspace-folder-revoke"
 
 export interface SurfaceCommandRequest {
   readonly command: string

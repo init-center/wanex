@@ -65,7 +65,7 @@ interface WanexDesktopRendererProofExpected {
   readonly fallbackResponse: string
 }
 
-async function runWanexDesktopRendererProof(
+export async function runWanexDesktopRendererProof(
   expected: WanexDesktopRendererProofExpected,
   createProviderLifecycleProof: WanexDesktopProviderLifecycleProofFactory,
   createLayoutProof: WanexDesktopRendererLayoutProofFactory
@@ -116,13 +116,13 @@ async function runWanexDesktopRendererProof(
       const textarea = composer?.querySelector('textarea[name="text"]')
       const button = composer?.querySelector('button[type="submit"]')
       const modelSelect = surface?.querySelector(
-        '[data-ui-model-selector] select[name="endpointId"]'
+        'button[data-ui-model-selector]'
       )
       return surface instanceof HTMLElement &&
         composer instanceof HTMLFormElement &&
         textarea instanceof HTMLTextAreaElement &&
         button instanceof HTMLButtonElement &&
-        modelSelect instanceof HTMLSelectElement &&
+        modelSelect instanceof HTMLButtonElement &&
         !textarea.disabled &&
         !modelSelect.disabled
         ? { button, composer, modelSelect, surface, textarea }
@@ -133,8 +133,8 @@ async function runWanexDesktopRendererProof(
     const initialAssistantRowIds = rowIds(ready.surface, "assistant")
     failureStage = "model_switch"
     setControlValue(ready.textarea, expected.source)
-    setControlValue(ready.modelSelect, selectedEndpointId)
-    if (ready.modelSelect.value !== selectedEndpointId) {
+    await chooseModel(ready.modelSelect, selectedEndpointId)
+    if (ready.modelSelect.getAttribute("data-ui-active-endpoint") !== selectedEndpointId) {
       throw new Error("selected Provider endpoint is not available")
     }
 
@@ -145,12 +145,12 @@ async function runWanexDesktopRendererProof(
       const textarea = composer?.querySelector('textarea[name="text"]')
       const button = composer?.querySelector('button[type="submit"]')
       const modelSelect = document.querySelector(
-        '[data-ui-model-selector] select[name="endpointId"]'
+        'button[data-ui-model-selector]'
       )
       return textarea instanceof HTMLTextAreaElement &&
         button instanceof HTMLButtonElement &&
-        modelSelect instanceof HTMLSelectElement &&
-        modelSelect.value === selectedEndpointId &&
+        modelSelect instanceof HTMLButtonElement &&
+        modelSelect.getAttribute("data-ui-active-endpoint") === selectedEndpointId &&
         textarea.value === expected.source &&
         !textarea.disabled &&
         !button.disabled
@@ -229,24 +229,28 @@ async function runWanexDesktopRendererProof(
     }, "conversation_settlement")
     const settledAt = performance.now()
 
-    failureStage = "canonical_command"
-    const commandOpener = settled.surface.querySelector(
-      '[data-ui-action="open-commands"]'
+    failureStage = "command_menu"
+    const commandOpener = await openAddMenuItem(
+      settled.surface.querySelector('[data-ui-action="open-add-menu"]'),
+      "open-commands"
     )
-    if (!(commandOpener instanceof HTMLButtonElement) || commandOpener.disabled) {
+    if (commandOpener.hasAttribute("data-disabled")) {
       throw new Error("Assistant command opener is unavailable")
     }
+    failureStage = "command_palette"
     commandOpener.click()
     const commandPalette = await waitFor(() => {
       const palette = settled.surface.querySelector("[data-ui-command-palette]")
       return palette instanceof HTMLElement ? palette : undefined
     }, "command_palette")
+    failureStage = "command_selection"
     const statusCommand = commandPalette.querySelector(
       '[data-ui-command="assistant.status"]'
     )
     if (!(statusCommand instanceof HTMLButtonElement)) {
       throw new Error("Canonical status command is missing")
     }
+    failureStage = "command_preview"
     statusCommand.click()
     const commandPreview = await waitFor(() => {
       const preview = settled.surface.querySelector(
@@ -257,10 +261,13 @@ async function runWanexDesktopRendererProof(
         : [...preview.querySelectorAll("button")].find((button) =>
             button.textContent?.trim() === "Execute"
           )
-      return preview instanceof HTMLElement && execute instanceof HTMLButtonElement
+      return preview instanceof HTMLElement &&
+        execute instanceof HTMLButtonElement &&
+        !execute.disabled
         ? { execute, preview }
         : undefined
     }, "command_preview")
+    failureStage = "command_execution"
     commandPreview.execute.click()
     const commandExecution = await waitFor(() => {
       const execution = settled.surface.querySelector(
@@ -276,10 +283,12 @@ async function runWanexDesktopRendererProof(
       ) === true
       return execution instanceof HTMLElement &&
         done instanceof HTMLButtonElement &&
+        !done.disabled &&
         completionVisible
         ? { done, execution }
         : undefined
     }, "command_execution")
+    failureStage = "command_close"
     commandExecution.done.click()
     await waitFor(() =>
       settled.surface.querySelector("[data-ui-command-palette]") === null
@@ -292,13 +301,13 @@ async function runWanexDesktopRendererProof(
     )
     const composer = settled.surface.querySelector("[data-ui-composer]")
     const modelSelect = settled.surface.querySelector(
-      '[data-ui-model-selector] select[name="endpointId"]'
+      'button[data-ui-model-selector]'
     )
     const attachmentInput = settled.surface.querySelector(
       "[data-ui-attachment-input]"
     )
     const workflowTrigger = settled.surface.querySelector(
-      "[data-ui-open-workflows]"
+      '[data-ui-action="open-add-menu"]'
     )
     const timelineRect = timeline?.getBoundingClientRect()
     const latestAssistantRect = settled.latestAssistant.getBoundingClientRect()
@@ -345,11 +354,10 @@ async function runWanexDesktopRendererProof(
     const workflowsContextual =
       workflowTrigger instanceof HTMLButtonElement &&
       !workflowTrigger.disabled &&
-      workflowTrigger.textContent?.includes("Workflows") === true &&
       settled.surface.querySelector("[data-ui-workflows-panel]") === null
     const composerControlsComplete =
       composer instanceof HTMLFormElement &&
-      modelSelect instanceof HTMLSelectElement &&
+      modelSelect instanceof HTMLButtonElement &&
       attachmentInput instanceof HTMLInputElement &&
       workflowTrigger instanceof HTMLButtonElement &&
       composer.querySelector('textarea[aria-label="Message"]') !== null &&
@@ -440,7 +448,7 @@ async function runWanexDesktopRendererProof(
       modelSwitchAccepted: true,
       draftPreservedAcrossModelSwitch: true,
       selectedModelEndpointId:
-        modelSelect instanceof HTMLSelectElement ? modelSelect.value : "",
+        modelSelect instanceof HTMLButtonElement ? modelSelect.getAttribute("data-ui-active-endpoint") ?? "" : "",
       selectedModelId: expected.selectedModelId,
       selectedModelResponseVisible,
       richHeadingVisible: true,
@@ -483,6 +491,44 @@ async function runWanexDesktopRendererProof(
     return new Set([...surface.querySelectorAll(
       `[data-ui-conversation-row][data-ui-role="${role}"]`
     )].map((row) => row.getAttribute("data-ui-conversation-row") ?? ""))
+  }
+
+  async function chooseModel(trigger: HTMLElement, endpointId: string): Promise<void> {
+    // The model picker is a menu: open it as a pointer would, then choose the item.
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse",
+    }))
+    const deadline = performance.now() + 5_000
+    let item: Element | null = null
+    while (performance.now() < deadline) {
+      item = [...document.querySelectorAll("[data-ui-endpoint]")]
+        .find((candidate) => candidate.getAttribute("data-ui-endpoint") === endpointId) ?? null
+      if (item !== null) break
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    if (!(item instanceof HTMLElement)) throw new Error("selected Provider endpoint is not available")
+    item.click()
+  }
+
+  async function openAddMenuItem(trigger: Element | null, action: string): Promise<HTMLElement> {
+    // Attachments, folders, commands and workflows share one Add menu.
+    if (!(trigger instanceof HTMLElement)) throw new Error("composer Add menu is unavailable")
+    trigger.dispatchEvent(new PointerEvent("pointerdown", {
+      button: 0,
+      bubbles: true,
+      cancelable: true,
+      pointerType: "mouse",
+    }))
+    const deadline = performance.now() + 5_000
+    while (performance.now() < deadline) {
+      const item = document.querySelector(`[data-ui-add-menu] [data-ui-action="${action}"]`)
+      if (item instanceof HTMLElement) return item
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    throw new Error(`composer Add menu item unavailable: ${action}`)
   }
 
   function setControlValue(
@@ -531,7 +577,7 @@ async function runWanexDesktopRendererProof(
     const composer = surface?.querySelector("[data-ui-composer]")
     const textarea = composer?.querySelector("textarea[name=\"text\"]")
     const modelSelector = surface?.querySelector(
-      '[data-ui-model-selector] select[name="endpointId"]'
+      'button[data-ui-model-selector]'
     )
     const providerState = document.querySelector(
       '[data-ui-provider-state]'
@@ -561,9 +607,9 @@ async function runWanexDesktopRendererProof(
           ? textarea.disabled
           : true,
         modelSelectorCount: surface?.querySelectorAll(
-          '[data-ui-model-selector] select[name="endpointId"]'
+          'button[data-ui-model-selector]'
         ).length ?? 0,
-        modelSelectorDisabled: modelSelector instanceof HTMLSelectElement
+        modelSelectorDisabled: modelSelector instanceof HTMLButtonElement
           ? modelSelector.disabled
           : true,
         ...(providerState === undefined ? {} : { providerState }),

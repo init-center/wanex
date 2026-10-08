@@ -1,5 +1,30 @@
 import { describe, expect, it } from "vitest"
 import { buildDistributionPackageMetrics } from "./audit/distribution-footprint/package-metrics.mjs"
+import { forbiddenCapabilityPackages } from "./audit/distribution-footprint/capability-policy.mjs"
+
+describe("distribution capability policy", () => {
+  const capabilities = ["@wanex/plugin", "@wanex/connector", "@wanex/workspace"]
+
+  it.each(["@wanex/assistant-host", "@wanex/tui"])(
+    "allows Workspace only at the reviewed Host consumer %s",
+    (entry) => {
+      expect(forbiddenCapabilityPackages(entry, capabilities)).toEqual([
+        "@wanex/plugin", "@wanex/connector"
+      ])
+    }
+  )
+
+  it.each(["@wanex/runtime", "@wanex/app", "@wanex/assistant", "@wanex/cli", "@wanex/assistant-ui"])(
+    "keeps all optional capabilities forbidden for %s",
+    (entry) => {
+      expect(forbiddenCapabilityPackages(entry, capabilities)).toEqual(capabilities)
+    }
+  )
+
+  it("reports only capabilities actually present in the closure", () => {
+    expect(forbiddenCapabilityPackages("@wanex/app", ["@wanex/protocol"])).toEqual([])
+  })
+})
 
 describe("distribution footprint package metrics", () => {
   it("excludes test fixtures omitted by the package files field", () => {

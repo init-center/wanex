@@ -104,7 +104,7 @@ fn finalize_proposed_tx(
         "baseRevision",
         "workspace changeset baseRevision",
     )?;
-    if base_revision != run.base_revision {
+    if base_revision != run.isolation_identity.base_revision {
         return Err(SystemServiceError::Conflict(
             "workspace task changeset base revision differs from prepared run".to_string(),
         ));

@@ -33,8 +33,9 @@ import { composeLocalSecretStore } from "../provider/secrets.js"
 import { createStorageStateStore } from "../state/storage.js"
 import { createLocalAttachmentUploadPort } from "../resources/attachment.js"
 import {
-  createLocalResourceDeliveryAuthorizer,
-  createLocalResourceDeliveryPort,
+  createResourceDeliveryAuthorizer,
+  createResourceDeliveryPort,
+  type ResourceDeliveryPort,
 } from "../resources/delivery.js"
 import { LocalToolPermissionPolicy } from "../provider/tool-permission.js"
 import {
@@ -60,8 +61,11 @@ import {
   type LocalMcpSettingsPort,
 } from "../mcp/index.js"
 import { ToolRegistry } from "@wanex/runtime/tools"
+import type { WorkspaceController } from "../workspace/controller.js"
+import type { WorkspaceHostOptions } from "../workspace/model.js"
 
 export interface StartedAssistantHost {
+  readonly workspace?: WorkspaceController
   readonly runtime: BootstrappedWanexStorage
   readonly shell: Shell
   readonly surface: SurfaceAdapter
@@ -71,12 +75,20 @@ export interface StartedAssistantHost {
   readonly scheduleController: LocalScheduleController
   readonly teamHost: TeamConversationExecutionHost
   readonly attachments: ReturnType<typeof createLocalAttachmentUploadPort>
-  readonly resourceDeliveries: ReturnType<typeof createLocalResourceDeliveryPort>
+  readonly resourceDeliveries: ReturnType<typeof createResourceDeliveryPort>
   readonly pluginComposition?: LocalPluginCompositionBinding
   readonly pluginExecutionEnvironment?: ExecutionEnvironment
   readonly mcpController: LocalMcpGenerationController
   readonly mcpManagement: LocalMcpManagementPort
   readonly mcpSettings: LocalMcpSettingsPort
+}
+
+export interface AssistantHostWorkspaceFactory {
+  create(options: {
+    readonly runtime: BootstrappedWanexStorage
+    readonly workspace: WorkspaceHostOptions
+    readonly serviceBin: string
+  }): Promise<WorkspaceController>
 }
 
 export async function startAssistantHost(
@@ -85,11 +97,22 @@ export async function startAssistantHost(
   return createAssistantHostHandle(await startAssistantHostInternal(options))
 }
 
+/**
+ * Trusted application composition for a Host that owns a Workspace.
+ *
+ * The base Host intentionally stays capability-minimal. Web and Server are
+ * trusted application owners, so they opt into the concrete Workspace tool
+ * set through this single composition path instead of injecting factories.
+ */
 export async function startAssistantHostInternal(
   options: StartAssistantHostOptions,
+  workspaceFactory?: AssistantHostWorkspaceFactory,
 ): Promise<StartedAssistantHost> {
   if (options.modelEndpoint !== undefined && options.modelEndpoints !== undefined) {
     throw new Error("Assistant Host accepts either modelEndpoint or modelEndpoints")
+  }
+  if (options.workspace !== undefined && workspaceFactory === undefined) {
+    throw new Error("Workspace Assistant Host requires the workspace application composition")
   }
   const modelEndpoints = resolveLocalModelEndpoints(options.modelEndpoints)
   const secrets = await composeLocalSecretStore({
@@ -115,6 +138,8 @@ export async function startAssistantHostInternal(
   let mcpController: LocalMcpGenerationController | undefined
   let mcpManagement: LocalMcpManagementPort | undefined
   let mcpSettings: LocalMcpSettingsPort | undefined
+  let resourceDeliveries: ResourceDeliveryPort | undefined
+  let workspace: WorkspaceController | undefined
   const teamConversations = new TeamConversationRuntime({
     storage: teamStorage,
     principalId: "assistant-host-team",
@@ -152,6 +177,21 @@ export async function startAssistantHostInternal(
   })
 
   try {
+    if (options.workspace !== undefined) {
+      const serviceBin = runtime.artifacts.systemService?.path ?? options.serviceBin
+      if (serviceBin === undefined) {
+        throw new Error("Assistant Workspace requires the system service binary")
+      }
+      workspace = await workspaceFactory!.create({
+        runtime,
+        workspace: options.workspace,
+        serviceBin,
+      })
+      // Restore Host-owned Workspace grants before createShell starts the
+      // Runtime worker loop. A persisted approval can wake a waiting Turn
+      // immediately after restart, so the grant must be reconciled first.
+      await workspace.reconcile()
+    }
     mcpController = await createLocalMcpGenerationController({
       storage: runtime.storage,
       secretResolver: secrets.secretResolver,
@@ -212,26 +252,36 @@ export async function startAssistantHostInternal(
       mediaGenerationAdapters: [
         new OpenAIImagesAdapter({ secretResolver: secrets.secretResolver }),
       ],
+      ...(workspace === undefined
+        ? {}
+        : { toolApprovalContinuation: workspace.toolApprovalContinuation }),
       runtimeContext: {
-        toolPermissionPolicy: new LocalToolPermissionPolicy(),
+        toolPermissionPolicy:
+          workspace?.toolPermissionPolicy ?? new LocalToolPermissionPolicy(),
       },
-      runtimeContextResolver: async (request) => {
+      runtimeContextResolver: async (request, defaultContext) => {
         const mcp = startedMcpController.resolve(request)
         try {
+          const workspaceContext = await workspace?.resolve(request, defaultContext)
+          const base = workspaceContext?.context ?? defaultContext
           const team = await resolveTeamContext(
             request.phase === "admission" || mcp?.contextIdentity === undefined
               ? request
               : { ...request, contextIdentity: mcp.contextIdentity }
           )
           const tools = mergeToolRegistries(
-            mcp?.context?.tools,
-            team?.tools
+            base?.tools,
+            mergeToolRegistries(mcp?.context?.tools, team?.tools)
           )
-          if (tools === undefined && mcp?.lease === undefined) {
+          if (tools === undefined && mcp?.lease === undefined && workspaceContext === undefined) {
             return undefined
           }
           return {
-            context: tools === undefined ? {} : { tools },
+            ...workspaceContext,
+            context: {
+              ...base,
+              ...(tools === undefined ? {} : { tools })
+            },
             ...(mcp?.contextIdentity === undefined
               ? {}
               : { contextIdentity: mcp.contextIdentity }),
@@ -258,6 +308,7 @@ export async function startAssistantHostInternal(
       ...(options.trustedProviderHost === undefined
         ? {}
         : { trustedProviderHost: options.trustedProviderHost }),
+      ...(workspace === undefined ? {} : { workspaceReview: workspace.review, workspaceFolders: workspace.folders }),
       ...(options.initialState === undefined
         ? {}
         : { state: options.initialState }),
@@ -284,9 +335,9 @@ export async function startAssistantHostInternal(
     teamHost.start()
     surface = createSurfaceAdapter(shell)
     const attachments = createLocalAttachmentUploadPort(shell)
-    const resourceDeliveries = createLocalResourceDeliveryPort(
+    resourceDeliveries = createResourceDeliveryPort(
       shell.trustedResources,
-      { authorizer: createLocalResourceDeliveryAuthorizer(shell) },
+      { authorizer: createResourceDeliveryAuthorizer(shell) },
     )
     await pluginComposition?.start()
     scheduleController = createLocalScheduleController({
@@ -297,6 +348,7 @@ export async function startAssistantHostInternal(
     await scheduleController.start()
     return {
       runtime,
+      ...(workspace === undefined ? {} : { workspace }),
       shell,
       surface,
       secrets,
@@ -318,6 +370,7 @@ export async function startAssistantHostInternal(
     try {
       await closeStartedAssistantHost({
         runtime,
+        ...(workspace === undefined ? {} : { workspace }),
         shell,
         surface,
         teamHost,
@@ -329,6 +382,7 @@ export async function startAssistantHostInternal(
           ? {}
           : { pluginExecutionEnvironment }),
         ...(mcpController === undefined ? {} : { mcpController }),
+        ...(resourceDeliveries === undefined ? {} : { resourceDeliveries }),
       })
     } catch (cleanupError) {
       throw preservePrimaryError(error, cleanupError)
@@ -342,6 +396,7 @@ export function createAssistantHostHandle(
 ): AssistantHost {
   let closePromise: Promise<void> | undefined
   return {
+    ...(started.workspace === undefined ? {} : { workspace: started.workspace.port }),
     shell: started.shell,
     surface: started.surface,
     teamConversations: started.shell.teamConversations,
@@ -359,6 +414,7 @@ export function createAssistantHostHandle(
 }
 
 export async function closeStartedAssistantHost(request: {
+  readonly workspace?: WorkspaceController
   readonly runtime: BootstrappedWanexStorage
   readonly shell: Shell | undefined
   readonly surface: SurfaceAdapter | undefined
@@ -369,9 +425,11 @@ export async function closeStartedAssistantHost(request: {
   readonly pluginComposition?: LocalPluginCompositionBinding
   readonly pluginExecutionEnvironment?: ExecutionEnvironment
   readonly mcpController?: LocalMcpGenerationController
+  readonly resourceDeliveries?: ResourceDeliveryPort
 }): Promise<void> {
   let firstError: unknown
   for (const close of [
+    async () => request.resourceDeliveries?.close(),
     async () => await request.scheduleController?.dispose(),
     async () => await request.pluginComposition?.stop(),
     async () => await request.teamHost?.dispose(),
@@ -382,6 +440,7 @@ export async function closeStartedAssistantHost(request: {
     async () => await request.pluginComposition?.dispose(),
     async () => await request.pluginExecutionEnvironment?.close(),
     async () => await request.mcpController?.dispose(),
+    async () => await request.workspace?.close(),
     async () => await request.runtime.dispose(),
   ]) {
     try {

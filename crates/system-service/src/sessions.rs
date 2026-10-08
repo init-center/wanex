@@ -440,6 +440,7 @@ pub(crate) fn submit_session_turn_tx(
     }
 
     require_active_session_tx(tx, &request.session_id)?;
+    crate::session_admission::require_admission_conditions_tx(tx, &request.execution_binding)?;
     require_follow_up_head_tx(tx, request, intent)?;
 
     let input = if let Some(existing) = existing_input {
@@ -808,6 +809,7 @@ pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<St
         "resources",
         "recovery",
         "contextEvidence",
+        "admissionConditions",
         "toolSnapshot",
         "permissionSnapshot",
         "executionEnvironment",
@@ -880,6 +882,7 @@ pub(crate) fn execution_binding_digest(binding: &serde_json::Value) -> Result<St
     if let Some(context_evidence) = object.get("contextEvidence") {
         validate_context_evidence(context_evidence)?;
     }
+    crate::session_admission::validate_admission_conditions(binding)?;
     if let Some(execution_environment) = object.get("executionEnvironment") {
         crate::execution_environment::validate_binding(
             execution_environment,

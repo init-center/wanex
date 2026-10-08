@@ -9,6 +9,60 @@ import {
 export const surfaceCommandDescriptors: readonly SurfaceCommandDescriptor[] =
   [
     {
+      command: SURFACE_COMMANDS.readWorkspaceChange,
+      title: "Read workspace change",
+      input: "workspace-review-reference",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.decideWorkspaceChange,
+      title: "Decide workspace change",
+      input: "workspace-review-decision",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.applyWorkspaceChange,
+      title: "Apply workspace change",
+      input: "workspace-review-reference",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.undoWorkspaceChange,
+      title: "Undo workspace change",
+      input: "workspace-review-reference",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.reapplyWorkspaceChange,
+      title: "Reapply workspace change",
+      input: "workspace-review-reference",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.listWorkspaceFolders,
+      title: "List conversation folders",
+      input: "workspace-folder-list",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.grantWorkspaceFolder,
+      title: "Add a folder to the conversation",
+      input: "workspace-folder-grant",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.regrantWorkspaceFolder,
+      title: "Add a recent folder to the conversation",
+      input: "workspace-folder-regrant",
+      mutatesState: false
+    },
+    {
+      command: SURFACE_COMMANDS.revokeWorkspaceFolder,
+      title: "Remove a folder from the conversation",
+      input: "workspace-folder-revoke",
+      mutatesState: false
+    },
+    {
       command: SURFACE_COMMANDS.status,
       title: "Read app status",
       input: "none",

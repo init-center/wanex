@@ -2,6 +2,18 @@ export {
   WorkspaceGitRuntime,
   WANEX_WORKSPACE_GIT
 } from "./runtime.js"
+export {
+  probeWorkspaceGitCapability,
+  resolveWorkspaceStrategy
+} from "./capability.js"
+export type {
+  ProbeWorkspaceGitCapabilityOptions,
+  ResolveWorkspaceStrategyOptions,
+  WorkspaceExecutionStrategy,
+  WorkspaceGitCapability,
+  WorkspaceGitCapabilityStatus,
+  WorkspaceStrategyResolution
+} from "./capability.js"
 export type {
   CollectWorktreeRequest,
   EmptyWorktreeProjection,

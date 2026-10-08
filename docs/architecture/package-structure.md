@@ -33,7 +33,7 @@ forwarding packages. No second Coding Desktop executable is authorized.
 | Runtime facade | `@wanex/runtime` |
 | Optional kernel capabilities | `@wanex/mcp`, `@wanex/workspace`, `@wanex/team`, `@wanex/extension`, `@wanex/plugin`, `@wanex/connector` |
 | Trusted app facade | `@wanex/app` |
-| Products and trusted hosts | `@wanex/cli`, `@wanex/coding`, `@wanex/assistant`, `@wanex/assistant-plugin-host`, `@wanex/desktop`, `@wanex/assistant-host`, `@wanex/assistant-ui`, `@wanex/server`, `@wanex/tui` |
+| Products and trusted hosts | `@wanex/cli`, `@wanex/assistant`, `@wanex/assistant-plugin-host`, `@wanex/desktop`, `@wanex/assistant-host`, `@wanex/assistant-ui`, `@wanex/server`, `@wanex/tui` |
 | Shared product capabilities | `@wanex/connector`, `@wanex/extension`, `@wanex/mcp`, `@wanex/plugin`, `@wanex/storage`, `@wanex/storage-control-plane`, `@wanex/team`, `@wanex/workspace` |
 | Non-production proof | `@wanex/eval-harness` plus non-workspace external consumer fixtures |
 
@@ -101,18 +101,14 @@ Do not expose internal filesystem paths or create forwarding packages.
   native-resource staging, and packaged lifecycle. Assistant Host remains
   the framework-neutral local Assistant owner below it.
 - Server owns the headless remote product process, one authoritative profile
-  bootstrap, application endpoint routing, authentication boundary, readiness,
-  drain, and distribution. Assistant Host and Coding remain the application
-  owners it composes; Server is not a Gateway or another Runtime facade.
-- Coding owns one application-safe root contract and one explicit trusted Host
-  subpath. The Host owns repository admission, data placement, Workspace/native
-  composition, recovery, and lifecycle. Writable Turns bind Runtime execution
-  to durable Workspace tasks and isolated Git worktrees; the Application owns
-  bounded read models, command settlement, and ordered invalidations while
-  Proposal review/apply/undo remains a facade over Workspace authority. The
-  Coding leaf stays outside generic Runtime, App, CLI, and Assistant closures.
+  bootstrap, Assistant endpoint routing, authentication boundary, readiness,
+  drain, and distribution. Server is not a Gateway or another Runtime facade.
+- Workspace owns repository admission, data placement, Workspace/native
+  composition, recovery, isolation, durable tasks, and Proposal authority. The
+  Assistant application consumes these capabilities explicitly when a user
+  grants workspace access; no second Coding application closure is retained.
 
-The active workspace has 22 package manifests. Deleted identities are recorded
+The active workspace has 21 package manifests. Deleted identities are recorded
 only as governance tombstones and implementation history.
 
 ## Verification

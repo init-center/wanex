@@ -7,8 +7,8 @@ and macOS Seatbelt platforms
 ## Decision Summary
 
 Wanex has one user-visible product per platform, not separate Chat, Work, and
-Coding applications. Internally, the product keeps Assistant and Coding as
-separate application domains over shared Runtime infrastructure.
+Coding applications. The unified Assistant application projects conversation,
+tasks, and workspace work over shared Runtime infrastructure.
 
 The user works with understandable objects:
 
@@ -27,7 +27,6 @@ The target shape is:
 Desktop / Web / Mobile / TUI
   -> Product shell
       -> Assistant application
-      -> Coding application
       -> Host directory and connection UI
   -> AgentHostClient
       -> local or remote Agent Host
@@ -71,15 +70,14 @@ another Codex-mode switch.
 
 ### Shared Surface, Separate Domains
 
-The unified platform product may project Assistant and Coding activity into one
-navigation system, notification center, settings surface, and visual language.
-The canonical domains remain separate:
+The unified platform product projects all user activity through one Assistant
+surface and one navigation system. Capability ownership remains explicit:
 
 - Assistant owns ordinary conversation, artifacts, plans, goals, schedules,
   teams, media generation, and everyday tool workflows.
-- Coding owns trusted repository admission, repository-scoped Sessions,
-  Workspace tasks, isolated worktrees, Tool activity, Proposals, apply, undo,
-  and code-oriented recovery.
+- Workspace owns trusted repository admission, Workspace tasks, isolation, Tool
+  activity, Proposals, apply, undo, and code-oriented recovery. These are
+  optional capabilities of the Assistant path, not a second application domain.
 - The platform shell owns navigation, connection selection, shared Provider
   setup, Secret Store access, and platform permissions.
 
@@ -113,16 +111,15 @@ The current application identities are:
 ```text
 @wanex/app        trusted application facade
 @wanex/assistant  Assistant application domain
-@wanex/coding     Coding application domain
 @wanex/desktop    one unified Electron product
 @wanex/server     one headless remote Agent Host product
 @wanex/tui        one terminal product
 ```
 
 `@wanex/server` is the concrete installable owner for a remote machine. It
-composes the existing Assistant and Coding domains over one server-owned Store
-and explicit execution policy, then exposes their typed application endpoints.
-It is not a Gateway, product shell, account service, or replacement Runtime.
+composes the Assistant application over one server-owned Store and explicit
+execution policy, then exposes its typed endpoint. It is not a Gateway,
+product shell, account service, or replacement Runtime.
 
 The owner audit also proved that the old `@wanex/web`, `@wanex/local-host`, and
 `@wanex/plugin-command-host` closures are Assistant-specific. They now exist

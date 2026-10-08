@@ -6,6 +6,8 @@ export type {
   ListWorkspaceRuntimeChangeSetsRequest,
   UndoWorkspaceChangeSetRequest,
   UndoWorkspaceChangeSetResult,
+  ReapplyWorkspaceChangeSetRequest,
+  ReapplyWorkspaceChangeSetResult,
   WorkspaceRuntimeOptions,
   WorkspaceChangeSetHistory
 } from "./types.js"

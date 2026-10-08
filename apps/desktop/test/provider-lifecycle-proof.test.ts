@@ -13,7 +13,7 @@ beforeEach(() => {
   document.body.innerHTML = `<main data-ui-assistant-shell>
     <button data-ui-action="open-settings">Settings</button>
     <div data-ui-provider-state="ready"></div>
-    <div data-ui-model-selector><select name="endpointId"><option>primary</option></select></div>
+    <button type="button" data-ui-model-selector data-ui-active-endpoint="primary">primary</button>
     <section data-ui-conversation-timeline data-ui-conversation-state="running"
       data-ui-session-id="session-1" data-ui-operation-id="operation-1">
       <article data-ui-conversation-row="user-1" data-ui-role="user">First</article>
@@ -60,7 +60,13 @@ function start() {
       </div>
     </section>`)
     element('[data-ui-provider-remove]').addEventListener("click", () => {
-      if (window.confirm("Remove?")) element('[data-ui-provider="selected"]').remove()
+      element('[data-ui-provider="selected"]').insertAdjacentHTML(
+        "beforeend",
+        '<button data-ui-provider-remove-confirm="selected">Remove</button>'
+      )
+      element('[data-ui-provider-remove-confirm]').addEventListener("click", () => {
+        element('[data-ui-provider="selected"]').remove()
+      })
     })
     element('[aria-label="Close settings"]').addEventListener("click", () => {
       element('[data-ui-settings-panel]').remove()

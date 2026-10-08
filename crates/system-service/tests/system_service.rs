@@ -2189,6 +2189,118 @@ fn workspace_change_transaction_recovery_fences_old_owner_and_persists_decision(
 }
 
 #[test]
+fn workspace_task_strategy_and_root_identity_are_immutable() {
+    use wanex_system_service::{
+        WorkspaceTaskIsolationIdentity, WorkspaceTaskPreparedIsolationIdentity,
+        WorkspaceTaskRootIdentity,
+    };
+    let root = tempdir().unwrap();
+    let service = SystemService::open(root.path()).unwrap();
+    let request = BeginWorkspaceTaskRun {
+        id: "task_identity_contract".into(),
+        workspace_id: "workspace_identity".into(),
+        principal_id: "principal_identity".into(),
+        access: "read_only".into(),
+        strategy: "direct".into(),
+        root_identity: WorkspaceTaskRootIdentity {
+            host_id: "host_identity".into(),
+            generation_key: "generation_identity".into(),
+            root_id: "root_identity".into(),
+            device: "1".into(),
+            inode: "2".into(),
+        },
+        isolation_identity: WorkspaceTaskIsolationIdentity {
+            id: "isolation_identity".into(),
+            kind: "fixed".into(),
+            repository_id: None,
+            base_revision: None,
+            runtime_ref: None,
+        },
+        execution_environment: test_execution_environment_binding("identity_contract"),
+        job_id: None,
+        agent_id: None,
+        attempt_id: "attempt_identity".into(),
+        owner_id: "owner_identity".into(),
+        claim_token: "identity-contract-claim-token-0000000000000000".into(),
+        lease_ms: 60_000,
+    };
+    for change in 0..7 {
+        let mut invalid = request.clone();
+        match change {
+            0 => invalid.access = "writable".into(),
+            1 => invalid.strategy = "git_worktree".into(),
+            2 => invalid.isolation_identity.repository_id = Some("repo".into()),
+            3 => invalid.isolation_identity.base_revision = Some("a".repeat(40)),
+            4 => invalid.root_identity.device = "../device".into(),
+            5 => invalid.root_identity.host_id = "/host/path".into(),
+            _ => invalid.isolation_identity.kind = "git_worktree".into(),
+        }
+        assert!(matches!(
+            service.begin_workspace_task_run(&invalid),
+            Err(SystemServiceError::InvalidInput(_))
+        ));
+        assert!(service
+            .get_workspace_task_run(&request.id)
+            .unwrap()
+            .is_none());
+    }
+    service.begin_workspace_task_run(&request).unwrap();
+    for change in 0..7 {
+        let mut changed = request.clone();
+        match change {
+            0 => changed.root_identity.host_id = "another_host".into(),
+            1 => changed.root_identity.generation_key = "another_generation".into(),
+            2 => changed.root_identity.root_id = "another_root".into(),
+            3 => changed.root_identity.device = "3".into(),
+            4 => changed.root_identity.inode = "4".into(),
+            5 => changed.isolation_identity.id = "another_isolation".into(),
+            _ => {
+                changed.strategy = "git_worktree".into();
+                changed.access = "writable".into();
+                changed.isolation_identity.kind = "git_worktree".into();
+                changed.isolation_identity.repository_id = Some("repo".into());
+            }
+        }
+        assert!(matches!(
+            service.begin_workspace_task_run(&changed),
+            Err(SystemServiceError::Conflict(_))
+        ));
+    }
+    let mut active = MarkWorkspaceTaskActive {
+        run_id: request.id.clone(),
+        attempt_id: request.attempt_id.clone(),
+        claim_token: request.claim_token.clone(),
+        prepared_isolation: Some(WorkspaceTaskPreparedIsolationIdentity {
+            base_revision: "a".repeat(40),
+            runtime_ref: "wanex/runtime/test".into(),
+        }),
+    };
+    assert!(matches!(
+        service.mark_workspace_task_active(&active),
+        Err(SystemServiceError::InvalidInput(_))
+    ));
+    active.prepared_isolation = None;
+    service.mark_workspace_task_active(&active).unwrap();
+    let reopened = SystemService::open(root.path()).unwrap();
+    let run = reopened
+        .get_workspace_task_run(&request.id)
+        .unwrap()
+        .unwrap()
+        .run;
+    assert_eq!(run.root_identity, request.root_identity);
+    assert_eq!(run.isolation_identity, request.isolation_identity);
+    let json = serde_json::to_value(&run).unwrap();
+    for removed in [
+        "repository_id",
+        "isolation_id",
+        "base_revision",
+        "runtime_ref",
+    ] {
+        assert!(json.get(removed).is_none());
+    }
+}
+
+#[test]
 fn workspace_task_run_atomically_projects_and_survives_reopen() {
     let root = tempdir().unwrap();
     let service = SystemService::open(root.path()).unwrap();
@@ -2205,8 +2317,21 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             workspace_id: "workspace_task_atomic".to_string(),
             principal_id: "agent_task_atomic".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_atomic".to_string(),
-            isolation_id: "wiso_task_atomic".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_atomic".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_atomic".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: execution_environment.clone(),
             job_id: Some("job_task_atomic".to_string()),
             agent_id: Some("agent_task_atomic_worker".to_string()),
@@ -2226,8 +2351,21 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             workspace_id: "workspace_task_atomic".to_string(),
             principal_id: "agent_task_atomic".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_atomic".to_string(),
-            isolation_id: "wiso_task_atomic".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_atomic".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_atomic".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: execution_environment.clone(),
             job_id: Some("job_task_atomic".to_string()),
             agent_id: Some("agent_task_atomic_worker".to_string()),
@@ -2246,8 +2384,21 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             workspace_id: "workspace_task_atomic".to_string(),
             principal_id: "agent_task_atomic".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_atomic".to_string(),
-            isolation_id: "wiso_task_atomic".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into()
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_atomic".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_atomic".to_string()),
+                base_revision: None,
+                runtime_ref: None
+            },
             execution_environment: changed_environment,
             job_id: Some("job_task_atomic".to_string()),
             agent_id: Some("agent_task_atomic_worker".to_string()),
@@ -2264,8 +2415,21 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             workspace_id: "workspace_task_changed".to_string(),
             principal_id: "agent_task_atomic".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_atomic".to_string(),
-            isolation_id: "wiso_task_atomic".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into()
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_atomic".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_atomic".to_string()),
+                base_revision: None,
+                runtime_ref: None
+            },
             execution_environment: execution_environment.clone(),
             job_id: Some("job_task_changed".to_string()),
             agent_id: Some("agent_task_atomic_worker".to_string()),
@@ -2282,8 +2446,21 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             workspace_id: "workspace_task_atomic".to_string(),
             principal_id: "agent_task_atomic".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_atomic".to_string(),
-            isolation_id: "wiso_task_atomic".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into()
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_atomic".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_atomic".to_string()),
+                base_revision: None,
+                runtime_ref: None
+            },
             execution_environment,
             job_id: Some("job_task_atomic".to_string()),
             agent_id: Some("agent_task_atomic_worker".to_string()),
@@ -2301,8 +2478,12 @@ fn workspace_task_run_atomically_projects_and_survives_reopen() {
             run_id: identity.run_id.clone(),
             attempt_id: identity.attempt_id.clone(),
             claim_token: identity.claim_token.clone(),
-            base_revision: Some(base_revision.clone()),
-            runtime_ref: Some("refs/heads/wanex/task-atomic".to_string()),
+            prepared_isolation: Some(
+                wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                    base_revision: base_revision.clone(),
+                    runtime_ref: "refs/heads/wanex/task-atomic".to_string(),
+                },
+            ),
         })
         .unwrap();
     let collection = BeginWorkspaceTaskCollection {
@@ -2445,8 +2626,21 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
             workspace_id: "workspace_task_recovery".to_string(),
             principal_id: "agent_task_recovery".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_recovery".to_string(),
-            isolation_id: "wiso_task_recovery".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_recovery".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_recovery".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: test_execution_environment_binding("task_recovery"),
             job_id: None,
             agent_id: None,
@@ -2464,9 +2658,11 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
     .unwrap();
     let due = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            root_identity: None,
             run_ids: None,
             workspace_id: Some("workspace_task_recovery".to_string()),
-            repository_id: Some("repo_task_recovery".to_string()),
+            root_id: Some("root_task_test".into()),
+            strategy: None,
             state: Some("preparing".to_string()),
             lease_expires_before: Some(test_now_ms()),
             limit: None,
@@ -2475,12 +2671,14 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
     assert_eq!(due.len(), 1);
     let exact = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            root_identity: None,
             run_ids: Some(vec![
                 "wtsk_recovery".to_string(),
                 "wtsk_recovery_missing".to_string(),
             ]),
             workspace_id: Some("workspace_task_recovery".to_string()),
-            repository_id: Some("repo_task_recovery".to_string()),
+            root_id: Some("root_task_test".into()),
+            strategy: None,
             state: None,
             lease_expires_before: None,
             limit: None,
@@ -2495,26 +2693,30 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
     );
     assert!(matches!(
         service.list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            root_identity: None,
             run_ids: Some(vec!["wtsk_recovery".to_string()]),
             workspace_id: None,
-            repository_id: None,
+            root_id: Some("root_task_test".into()),
+            strategy: None,
             state: None,
             lease_expires_before: Some(test_now_ms()),
             limit: None,
         }),
         Err(SystemServiceError::InvalidInput(_))
     ));
-    let other_repository = service
+    let other_root = service
         .list_workspace_task_runs(&ListWorkspaceTaskRuns {
+            root_identity: None,
             run_ids: None,
             workspace_id: Some("workspace_task_recovery".to_string()),
-            repository_id: Some("repo_task_other".to_string()),
+            root_id: Some("different_root".into()),
+            strategy: None,
             state: Some("preparing".to_string()),
             lease_expires_before: Some(test_now_ms()),
             limit: None,
         })
         .unwrap();
-    assert!(other_repository.is_empty());
+    assert!(other_root.is_empty());
 
     let recovery_token = "task-recovery-token-00000000000000000000000000000000".to_string();
     let claimed = service
@@ -2533,8 +2735,12 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
             run_id: "wtsk_recovery".to_string(),
             attempt_id: "wtat_old".to_string(),
             claim_token: old_token,
-            base_revision: Some("b".repeat(40)),
-            runtime_ref: Some("refs/heads/wanex/stale".to_string()),
+            prepared_isolation: Some(
+                wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                    base_revision: "b".repeat(40),
+                    runtime_ref: "refs/heads/wanex/stale".to_string()
+                }
+            ),
         }),
         Err(SystemServiceError::Conflict(_))
     ));
@@ -2543,8 +2749,12 @@ fn workspace_task_recovery_fences_expired_owner_and_lists_due_run() {
             run_id: "wtsk_recovery".to_string(),
             attempt_id: "wtat_recovery".to_string(),
             claim_token: recovery_token,
-            base_revision: Some("b".repeat(40)),
-            runtime_ref: Some("refs/heads/wanex/recovered".to_string()),
+            prepared_isolation: Some(
+                wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                    base_revision: "b".repeat(40),
+                    runtime_ref: "refs/heads/wanex/recovered".to_string(),
+                },
+            ),
         })
         .unwrap();
     assert_eq!(active.run.state, "active");
@@ -2576,8 +2786,21 @@ fn workspace_task_continuation_reactivates_attention_without_changing_isolation(
             workspace_id: "workspace_task_continuation".to_string(),
             principal_id: "agent_task_continuation".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_continuation".to_string(),
-            isolation_id: "wiso_task_continuation".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_continuation".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_continuation".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: execution_environment.clone(),
             job_id: Some("job_task_continuation".to_string()),
             agent_id: Some("agent_task_continuation_worker".to_string()),
@@ -2593,8 +2816,12 @@ fn workspace_task_continuation_reactivates_attention_without_changing_isolation(
             run_id: original.run_id.clone(),
             attempt_id: original.attempt_id.clone(),
             claim_token: original.claim_token.clone(),
-            base_revision: Some(base_revision.clone()),
-            runtime_ref: Some("refs/heads/wanex/task-continuation".to_string()),
+            prepared_isolation: Some(
+                wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                    base_revision: base_revision.clone(),
+                    runtime_ref: "refs/heads/wanex/task-continuation".to_string(),
+                },
+            ),
         })
         .unwrap();
     service
@@ -2615,8 +2842,21 @@ fn workspace_task_continuation_reactivates_attention_without_changing_isolation(
             workspace_id: "workspace_task_continuation".to_string(),
             principal_id: "agent_task_continuation".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_continuation".to_string(),
-            isolation_id: "wiso_task_continuation".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_continuation".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_continuation".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: execution_environment.clone(),
             job_id: Some("job_task_continuation".to_string()),
             agent_id: Some("agent_task_continuation_worker".to_string()),
@@ -2658,13 +2898,26 @@ fn workspace_task_continuation_reactivates_attention_without_changing_isolation(
         .unwrap();
     assert_eq!(claimed.status, "claimed");
     assert_eq!(claimed.snapshot.run.state, "active");
-    assert_eq!(claimed.snapshot.run.isolation_id, "wiso_task_continuation");
     assert_eq!(
-        claimed.snapshot.run.base_revision.as_deref(),
+        claimed.snapshot.run.isolation_identity.id,
+        "wiso_task_continuation"
+    );
+    assert_eq!(
+        claimed
+            .snapshot
+            .run
+            .isolation_identity
+            .base_revision
+            .as_deref(),
         Some(base_revision.as_str())
     );
     assert_eq!(
-        claimed.snapshot.run.runtime_ref.as_deref(),
+        claimed
+            .snapshot
+            .run
+            .isolation_identity
+            .runtime_ref
+            .as_deref(),
         Some("refs/heads/wanex/task-continuation")
     );
     assert!(claimed.snapshot.run.failure.is_none());
@@ -2702,7 +2955,7 @@ fn workspace_task_continuation_reactivates_attention_without_changing_isolation(
 }
 
 #[test]
-fn workspace_task_active_records_missing_prepared_identity_once() {
+fn workspace_task_continuation_requires_preparation_before_activation() {
     let root = tempdir().unwrap();
     let service = SystemService::open(root.path()).unwrap();
     let execution_environment = test_execution_environment_binding("task_identity_recovery");
@@ -2718,8 +2971,21 @@ fn workspace_task_active_records_missing_prepared_identity_once() {
             workspace_id: "workspace_task_identity_recovery".to_string(),
             principal_id: "agent_task_identity_recovery".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_identity_recovery".to_string(),
-            isolation_id: "wiso_task_identity_recovery".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_identity_recovery".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_identity_recovery".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: execution_environment.clone(),
             job_id: None,
             agent_id: None,
@@ -2754,9 +3020,19 @@ fn workspace_task_active_records_missing_prepared_identity_once() {
     let claimed = service
         .claim_workspace_task_continuation(&continuation)
         .unwrap();
-    assert_eq!(claimed.snapshot.run.state, "active");
-    assert!(claimed.snapshot.run.base_revision.is_none());
-    assert!(claimed.snapshot.run.runtime_ref.is_none());
+    assert_eq!(claimed.snapshot.run.state, "preparing");
+    assert!(claimed
+        .snapshot
+        .run
+        .isolation_identity
+        .base_revision
+        .is_none());
+    assert!(claimed
+        .snapshot
+        .run
+        .isolation_identity
+        .runtime_ref
+        .is_none());
 
     let base_revision = "e".repeat(40);
     let runtime_ref = "refs/heads/wanex/task-identity-recovery".to_string();
@@ -2764,32 +3040,37 @@ fn workspace_task_active_records_missing_prepared_identity_once() {
         run_id: continuation.run_id.clone(),
         attempt_id: continuation.attempt_id.clone(),
         claim_token: continuation.claim_token.clone(),
-        base_revision: Some(base_revision.clone()),
-        runtime_ref: Some(runtime_ref.clone()),
+        prepared_isolation: Some(
+            wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                base_revision: base_revision.clone(),
+                runtime_ref: runtime_ref.clone(),
+            },
+        ),
     };
     let recorded = service.mark_workspace_task_active(&active).unwrap();
     assert_eq!(recorded.run.state, "active");
     assert_eq!(
-        recorded.run.base_revision.as_deref(),
+        recorded.run.isolation_identity.base_revision.as_deref(),
         Some(base_revision.as_str())
     );
     assert_eq!(
-        recorded.run.runtime_ref.as_deref(),
+        recorded.run.isolation_identity.runtime_ref.as_deref(),
         Some(runtime_ref.as_str())
     );
 
     let replay = service.mark_workspace_task_active(&active).unwrap();
     assert_eq!(
-        replay.run.base_revision.as_deref(),
+        replay.run.isolation_identity.base_revision.as_deref(),
         Some(base_revision.as_str())
     );
     assert_eq!(
-        replay.run.runtime_ref.as_deref(),
+        replay.run.isolation_identity.runtime_ref.as_deref(),
         Some(runtime_ref.as_str())
     );
 
     let mut changed = active.clone();
-    changed.runtime_ref = Some("refs/heads/wanex/forged-identity".to_string());
+    changed.prepared_isolation.as_mut().unwrap().runtime_ref =
+        "refs/heads/wanex/forged-identity".to_string();
     assert!(matches!(
         service.mark_workspace_task_active(&changed),
         Err(SystemServiceError::Conflict(_))
@@ -2839,8 +3120,21 @@ fn workspace_task_proposal_conflict_rolls_back_changeset_and_run_linkage() {
             workspace_id: "workspace_task_conflict".to_string(),
             principal_id: "agent_task_conflict".to_string(),
             access: "writable".to_string(),
-            repository_id: "repo_task_conflict".to_string(),
-            isolation_id: "wiso_task_conflict".to_string(),
+            strategy: "git_worktree".to_string(),
+            root_identity: wanex_system_service::WorkspaceTaskRootIdentity {
+                host_id: "host_task_test".into(),
+                generation_key: "generation_task_test".into(),
+                root_id: "root_task_test".into(),
+                device: "1".into(),
+                inode: "2".into(),
+            },
+            isolation_identity: wanex_system_service::WorkspaceTaskIsolationIdentity {
+                id: "wiso_task_conflict".to_string(),
+                kind: "git_worktree".into(),
+                repository_id: Some("repo_task_conflict".to_string()),
+                base_revision: None,
+                runtime_ref: None,
+            },
             execution_environment: test_execution_environment_binding("task_conflict"),
             job_id: None,
             agent_id: None,
@@ -2856,8 +3150,12 @@ fn workspace_task_proposal_conflict_rolls_back_changeset_and_run_linkage() {
             run_id: identity.run_id.clone(),
             attempt_id: identity.attempt_id.clone(),
             claim_token: identity.claim_token.clone(),
-            base_revision: Some(base_revision.clone()),
-            runtime_ref: Some("refs/heads/wanex/task-conflict".to_string()),
+            prepared_isolation: Some(
+                wanex_system_service::WorkspaceTaskPreparedIsolationIdentity {
+                    base_revision: base_revision.clone(),
+                    runtime_ref: "refs/heads/wanex/task-conflict".to_string(),
+                },
+            ),
         })
         .unwrap();
     service
@@ -14851,6 +15149,7 @@ fn projects_channel_inbound_events_into_runtime_primitives() {
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
                 "access": "writable",
+                "strategy": "git_worktree",
                 "input": { "prompt": "fix file" },
                 "taskId": "wtsk_projection",
                 "workspaceId": "workspace_projection",
@@ -14946,7 +15245,8 @@ fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
                 "kind": "workspace.task",
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
-                "access": "read_only"
+                "access": "read_only",
+                "strategy": "direct"
             }),
             "input",
         ),
@@ -14968,6 +15268,7 @@ fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
                 "access": "writable",
+                "strategy": "git_worktree",
                 "input": null,
                 "keepLease": true
             }),
@@ -14980,6 +15281,7 @@ fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
                 "access": "writable",
+                "strategy": "git_worktree",
                 "input": null,
                 "isolation": { "rootDir": "/tmp/untrusted" }
             }),
@@ -14992,6 +15294,7 @@ fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
                 "handlerId": "coding.default",
                 "principalId": "principal_projection",
                 "access": "writable",
+                "strategy": "git_worktree",
                 "input": null,
                 "metadata": { "rootDir": "/tmp/untrusted" }
             }),

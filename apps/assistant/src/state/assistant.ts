@@ -36,6 +36,11 @@ export interface MutableState {
     string,
     readonly AttachmentDraft[]
   >
+  /**
+   * Session id reserved for the unsent new conversation once the user adds a
+   * folder to it. Process-local: an unsent draft does not survive a restart.
+   */
+  newConversationSessionId?: string
 }
 
 export interface StateCoordinator {
@@ -263,6 +268,11 @@ function replaceState(
   current.conversationAttachmentDrafts = cloneAttachmentDrafts(
     next.conversationAttachmentDrafts
   )
+  if (next.newConversationSessionId === undefined) {
+    delete current.newConversationSessionId
+  } else {
+    current.newConversationSessionId = next.newConversationSessionId
+  }
 }
 
 function cloneAttachmentDrafts(

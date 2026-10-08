@@ -15,8 +15,19 @@ export function conversationModelEndpoints(
   );
 }
 
-export function conversationModelLabel(
-  endpoint: Snapshot["view"]["settings"]["profile"]["endpoints"][number],
-): string {
-  return `${endpoint.model.id} - ${endpoint.connection.providerId}`;
+type Endpoint = Snapshot["view"]["settings"]["profile"]["endpoints"][number];
+
+/**
+ * Labels for a set of endpoints: just the model name, plus the connection only
+ * where two endpoints would otherwise read the same.
+ */
+export function conversationModelLabels(endpoints: readonly Endpoint[]): ReadonlyMap<string, string> {
+  const counts = new Map<string, number>();
+  for (const endpoint of endpoints) counts.set(endpoint.model.id, (counts.get(endpoint.model.id) ?? 0) + 1);
+  return new Map(endpoints.map((endpoint) => [
+    endpoint.id,
+    (counts.get(endpoint.model.id) ?? 0) > 1
+      ? `${endpoint.model.id} \u00b7 ${endpoint.connection.providerId}`
+      : endpoint.model.id,
+  ]));
 }

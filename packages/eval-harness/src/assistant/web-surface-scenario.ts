@@ -1,3 +1,4 @@
+import { browserAssets } from "./browser-assets.js"
 import {
   createShell,
   createSurfaceAdapter,
@@ -9,8 +10,8 @@ import {
 import { createHostSurfaceClient } from "@wanex/assistant-ui/host";
 import {
   createLocalAttachmentUploadPort,
-  createLocalResourceDeliveryAuthorizer,
-  createLocalResourceDeliveryPort,
+  createResourceDeliveryAuthorizer,
+  createResourceDeliveryPort,
 } from "@wanex/assistant-host";
 import {
   listenWebNodeHost,
@@ -62,13 +63,14 @@ export const webSurfaceContractScenario = createEvalScenario({
         now: () => 12_001,
       });
       nodeHost = await listenWebNodeHost({
+        browserAssets,
         controller: webController,
         surfaceEvents: client,
         attachments: createLocalAttachmentUploadPort(app),
-        resourceDeliveries: createLocalResourceDeliveryPort(
+        resourceDeliveries: createResourceDeliveryPort(
           app.trustedResources,
           {
-            authorizer: createLocalResourceDeliveryAuthorizer(app),
+            authorizer: createResourceDeliveryAuthorizer(app),
           },
         ),
       });

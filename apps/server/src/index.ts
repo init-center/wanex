@@ -1,5 +1,5 @@
 export { parseWanexServerConfig } from "./config.js"
-export { startWanexServer } from "./start.js"
+export { startWanexServer, startWanexServerFromParsedConfig } from "./start.js"
 export type {
   StartWanexServerOptions,
   WanexServerAuthentication,
@@ -9,10 +9,4 @@ export type {
   WanexServerStatus,
   WanexServerTlsCredentials
 } from "./model.js"
-export type {
-  WanexServerConfig,
-  WanexServerCodingConfig,
-  WanexServerCodingExecutionConfig,
-  WanexServerListenerConfig,
-  WanexServerProjectConfig
-} from "./config.js"
+export type { WanexServerConfig, WanexServerListenerConfig } from "./config.js"

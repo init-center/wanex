@@ -58,6 +58,9 @@ export async function createWanexApp(
   let releaseTrustedProviderHost: (() => void) | undefined
   const host = runtime.app.createRuntimeHost({
     workerCount: options.workerCount ?? 1,
+    ...(options.toolApprovalContinuation === undefined
+      ? {}
+      : { toolApprovalContinuation: options.toolApprovalContinuation }),
     observeProviderEvent: events.observeProviderEvent,
       observeSessionTurnLifecycle(signal) {
         events.observeSessionTurnLifecycle(signal)
@@ -96,15 +99,13 @@ export async function createWanexApp(
           ? {}
           : { runtime: options.runtimeContext })
       })
-      const contextualRuntime = await options.runtimeContextResolver?.(request)
+      const contextualRuntime = await options.runtimeContextResolver?.(
+        request,
+        configured
+      )
       try {
         const base = await extensions.prepareAgentContext(
-          composeWanexAppAgentContext({
-            ...(configured === undefined ? {} : { discovered: configured }),
-            ...(contextualRuntime?.context === undefined
-              ? {}
-              : { runtime: contextualRuntime.context })
-          })
+          contextualRuntime?.context ?? configured
         )
         const context = await prepareWanexAppModelCapabilityContext({
           storage: runtime.storage,
@@ -115,6 +116,10 @@ export async function createWanexApp(
             : { executionBinding: request.executionBinding })
         })
         return {
+          ...(contextualRuntime?.executionEnvironment === undefined
+            ? {} : { executionEnvironment: contextualRuntime.executionEnvironment }),
+          ...(contextualRuntime?.admissionConditions === undefined
+            ? {} : { admissionConditions: contextualRuntime.admissionConditions }),
           ...(context === undefined ? {} : { context }),
           ...(contextualRuntime?.contextIdentity === undefined
             ? {}

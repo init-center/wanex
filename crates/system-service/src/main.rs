@@ -56,6 +56,7 @@ fn main() {
             git,
             release,
             base_revision,
+            root_identity,
         } => {
             if let Err(error) = run_workspace_snapshot_helper(
                 &root,
@@ -64,6 +65,7 @@ fn main() {
                 &git,
                 release,
                 base_revision.as_deref(),
+                &root_identity,
             ) {
                 eprintln!("workspace snapshot helper failed: {error}");
                 std::process::exit(1);
@@ -98,6 +100,7 @@ enum CliArgs {
         git: String,
         release: bool,
         base_revision: Option<String>,
+        root_identity: wanex_system_service::WorkspaceSnapshotRootIdentity,
     },
     WorkspaceChild,
 }
@@ -118,6 +121,8 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<CliArgs, Sy
     let mut snapshot_isolation: Option<String> = None;
     let mut snapshot_git = String::from("git");
     let mut snapshot_release = false;
+    let mut snapshot_root_device = None;
+    let mut snapshot_root_inode = None;
     let mut snapshot_base_revision: Option<String> = None;
     let mut workspace_child = false;
     let mut serve = false;
@@ -189,6 +194,8 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<CliArgs, Sy
             }
             "--release" => snapshot_release = true,
             "--base-revision" => snapshot_base_revision = args.next(),
+            "--root-device" => snapshot_root_device = args.next(),
+            "--root-inode" => snapshot_root_inode = args.next(),
             _ => {
                 return Err(SystemServiceError::InvalidLogicalPath(format!(
                     "unknown argument: {arg}"
@@ -246,6 +253,10 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<CliArgs, Sy
                 git: snapshot_git,
                 release: snapshot_release,
                 base_revision: snapshot_base_revision,
+                root_identity: wanex_system_service::WorkspaceSnapshotRootIdentity {
+                    device: snapshot_root_device.ok_or_else(|| SystemServiceError::InvalidInput("workspace snapshot requires --root-device".into()))?,
+                    inode: snapshot_root_inode.ok_or_else(|| SystemServiceError::InvalidInput("workspace snapshot requires --root-inode".into()))?,
+                },
             })
         }
         (None, None, false, None, None)
@@ -260,7 +271,7 @@ fn parse_args_from(args: impl IntoIterator<Item = String>) -> Result<CliArgs, Sy
             "workspace lock path must be absolute".to_string(),
         )),
         _ => Err(SystemServiceError::InvalidLogicalPath(
-            "usage: wanex-system-service (--store <dir> [--serve] | --workspace-lock <absolute-file> | --workspace-transaction --root <absolute-dir> --transaction <id> | --workspace-snapshot --root <absolute-dir> --worktree-parent <absolute-dir> --isolation <id> [--git <path>] [--release] [--base-revision <oid>] | --workspace-child)"
+            "usage: wanex-system-service (--store <dir> [--serve] | --workspace-lock <absolute-file> | --workspace-transaction --root <absolute-dir> --transaction <id> | --workspace-snapshot --root <absolute-dir> --root-device <id> --root-inode <id> --worktree-parent <absolute-dir> --isolation <id> [--git <path>] [--base-revision <oid>] [--release (requires --base-revision)] | --workspace-child)"
                 .to_string(),
         )),
     }

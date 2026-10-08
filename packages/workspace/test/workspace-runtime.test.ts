@@ -60,9 +60,9 @@ describe("@wanex/workspace transaction runtime", () => {
     expect(undone.changeSet.currentState).toBe("undone")
     await expect(readFile(join(rootDir, "src/app.ts"), "utf8")).resolves.toBe("one\n")
 
-    await runtime.applyChangeSet({
-      changeSet,
-      mutation: mutation("apply-second")
+    await runtime.reapplyChangeSet({
+      changeSetId: changeSet.id,
+      mutation: mutation("reapply")
     })
     const history = await runtime.getHistory(changeSet.id)
     expect(history?.operations.map((operation) => operation.operation)).toEqual([

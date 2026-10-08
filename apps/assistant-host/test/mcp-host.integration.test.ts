@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -9,6 +9,7 @@ import {
   createAssistantHostHandle,
   startAssistantHostInternal,
 } from "../src/application/assistant.js"
+import { startWorkspaceAssistantHostInternal } from "../src/application/workspace.js"
 import {
   encodeLocalMcpServerDefinition,
   localMcpServerKey,
@@ -44,6 +45,13 @@ describe("Assistant Host MCP integration", () => {
     await mcpHost.start()
 
     const storeDir = await createStoreDir()
+    const projectDir = await createStoreDir()
+    await writeFile(join(projectDir, "AGENTS.md"), "Keep the Host project instructions.")
+    const skillDir = join(projectDir, ".agents", "skills", "review")
+    await mkdir(skillDir, { recursive: true })
+    await writeFile(join(skillDir, "SKILL.md"), [
+      "---", "name: review", "description: Review project changes.", "---", "", "Review carefully."
+    ].join("\n"))
     const definition = httpDefinition("product-tools", mcpHost.url())
     const seed = await bootstrapWanexStorage({
       storage: {
@@ -65,6 +73,13 @@ describe("Assistant Host MCP integration", () => {
       storage: { kind: "store-dir", storeDir },
       serviceBin,
       modelEndpoint: fakeEndpoint,
+      agentContextProfile: {
+        instructions: { cwd: projectDir, projectRoot: projectDir, trustProject: true },
+        skills: {
+          cwd: projectDir, projectRoot: projectDir, trustProject: true,
+          registerActivationTool: true
+        }
+      },
     })
     const host = createAssistantHostHandle(started)
     expect(started.mcpController.status()).toEqual([{
@@ -102,7 +117,38 @@ describe("Assistant Host MCP integration", () => {
     expect(JSON.stringify(binding.binding.toolSnapshot)).toContain(
       '"name":"product-tools__echo"'
     )
+    expect(JSON.stringify(binding.binding.toolSnapshot)).toContain('"name":"activate_skill"')
+    expect(binding.binding.contextEvidence).toMatchObject({
+      instructions: { sourceCount: 1, state: "available" },
+      skills: { sourceCount: 1, state: "available" }
+    })
+    expect(binding.binding.permissionSnapshot).toMatchObject({
+      implementationId: "wanex.assistant-host.tool-policy"
+    })
     binding.context.rollback()
+
+    // Enabling file capability must compose with the existing live MCP generation.
+    await host.close()
+    const combined = await startWorkspaceAssistantHostInternal({
+      storage: { kind: "store-dir", storeDir }, serviceBin, modelEndpoint: fakeEndpoint,
+      workspace: { hostId: "mcp-workspace", initialRoots: [{ id: "project", path: projectDir }] }
+    })
+    const combinedHost = createAssistantHostHandle(combined)
+    try {
+      await combined.runtime.storage.createSession({ id: "ses_combined", kind: "agent" })
+      await combined.workspace!.port.setContext({ sessionId: "ses_combined", expectedRevision: null, context: { rootIds: ["project"] } })
+      const prepared = await combinedHost.shell.trustedExecution.prepareExecutionBinding({
+        sessionId: "ses_combined", inputId: "input_combined", turnId: "turn_combined",
+        content: [{ id: "part_combined", type: "text", text: "Read the project and use MCP." }]
+      })
+      expect(JSON.stringify(prepared.binding.toolSnapshot)).toContain('"name":"product-tools__echo"')
+      expect(JSON.stringify(prepared.binding.toolSnapshot)).toContain('"name":"workspace_read_text"')
+      expect(JSON.stringify(prepared.binding.toolSnapshot)).toContain('"name":"workspace_activate_skill"')
+      expect(prepared.binding.contextEvidence).toMatchObject({
+        instructions: { sourceCount: 1, state: "available" }, skills: { sourceCount: 1, state: "available" }
+      })
+      prepared.context.rollback()
+    } finally { await combinedHost.close() }
 
     await host.close()
     await host.close()

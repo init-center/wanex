@@ -4,9 +4,9 @@ import type {
   SessionId,
   SessionInputIntent,
   SessionInputOrigin,
+  SessionTurnContextEvidence,
   UserMessageInputPart
 } from "@wanex/protocol"
-import type { WanexAppAgentContextSummary } from "./types-context.js"
 
 export interface WanexAppAgentCommands {
   runAgentTurn(
@@ -33,5 +33,5 @@ export interface WanexAppRunAgentTurnResult {
   readonly assistantText: string
   readonly messageCount: number
   readonly jobStatuses: readonly SchedulerJobState[]
-  readonly context?: WanexAppAgentContextSummary
+  readonly contextEvidence?: SessionTurnContextEvidence
 }

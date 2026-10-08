@@ -54,7 +54,7 @@ describe("Server distribution proof", () => {
         status: { state: "open", listener: "ready" },
         invalidBearerRejected: true,
         handshakeAccepted: true,
-        codingProjectListAccepted: true,
+        assistantDescriptorAccepted: true,
         shutdownExitCode: 0
       },
       timingsMs: { total: 2100 },

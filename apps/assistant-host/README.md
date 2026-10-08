@@ -25,6 +25,19 @@ execution. A browser, desktop wrapper, or local HTTP test can submit
 flows through application/App Shell and returns a typed snapshot or action-result
 snapshot. The root HTTP response is only the static browser shell.
 
+Browser assets are explicit composition inputs. `startAssistantWebApp` requires
+top-level `browserAssets: { clientScript, stylesheet }`; `listenWebNodeHost`
+requires the same field. Neither entry imports or chooses generated default
+assets. The browser CLI/demo supplies the generic Assistant UI bundle; Desktop
+supplies its own Renderer bundle. Missing or empty assets fail before listening.
+
+The generic Web UI currently requires a browser that supports
+`CSS.supports("color", "light-dark(black, white)")` because its semantic colour
+tokens use that function. This is a browser capability requirement, not a claim
+of testing every Safari/Firefox/mobile version. Disclosure animation features
+are optional enhancements; the native open/closed disclosure remains functional
+without them. Browser-matrix and accessibility checks remain with the UI owner.
+
 Browser progress uses `GET /wanex/assistant/events`, an authenticated
 fetch-SSE endpoint. The per-launch capability remains in the
 `x-wanex-host-session` header and never enters the URL or event payload.
@@ -37,6 +50,77 @@ are bounded; there is no permanent refresh timer.
 
 It is not a gateway, public server, auth layer, plugin host, connector host,
 Electron app, Tauri app, or renderer framework.
+
+## Optional Read-Only Workspace
+
+Trusted startup can pass `workspace: { hostId, initialRoots: [{ id, path }] }`.
+The same Assistant Session can then read text in multiple authorized directories
+without a Chat/Coding switch, project registration, Git, or another conversation.
+Omitting `workspace` keeps the deployment file-free. This option does not enable
+shell execution, project hooks, file editing, or OS sandboxing.
+
+The trusted `workspace` port provides `readAuthority`/`setAuthority` and
+`readContext`/`setContext`. Mutations require the observed revision. Authority
+roots are canonical directories; Session context is a selected root-ID set and
+optional absolute cwd, not a permission grant. Relative tool paths need cwd or
+an explicit root ID. Already-authorized absolute paths work without selection.
+Do not expose the trusted authority port directly to a renderer or remote client.
+
+Use the existing Web host CLI from the repository root:
+
+```sh
+cargo build -p wanex-system-service
+pnpm --filter @wanex/assistant-host start \
+  --store-dir /Users/asuna/workspace/tmp/wanex-workspace-preview \
+  --workspace-host-id personal \
+  --workspace-roots-json '[{"id":"wanex","path":"/Users/asuna/workspace/my/wanex"},{"id":"design","path":"/Users/asuna/workspace/study/agent-runtime-kernel-design"}]' \
+  --port 0
+```
+
+Open the printed URL, configure a real tool-capable conversation model through
+the existing Provider settings, then ask a question and request a read of
+`README.md` from each root in that same conversation. These example grants are
+read-only and broad; choose narrower directories for sensitive work. Do not put
+API keys in CLI flags; use the existing secret-reference or credential settings.
+
+`initialRoots` initializes a missing authority record only. Changing startup
+flags does not overwrite later authorization decisions; use the trusted CAS
+port for changes. A different store is a separate preview, not a migration.
+
+For explicitly writable roots, the Web composition uses
+`@wanex/assistant-host/application/workspace`. Direct bounded text changes remain
+Git-free. Its `workspace_prepare_isolated_changes` tool can instead prepare
+changes in a Git worktree and return a durable Proposal reference without
+writing the original directory. Proposal review/application in the unified
+client is a separate integration step, not an automatic effect of preparation.
+
+`worktreeDirectory` is trusted Host-only configuration. Local stores default to
+`workspace-worktrees` under their store directory; injected storage needs an
+explicit directory. It must not overlap an authorized root, and its admitted
+location survives restart. The base `application` entry and the TUI retain
+their smaller read-only Workspace composition.
+
+Controlled isolation never authorizes project commands: hooks, fsmonitor,
+external diff/textconv and automatic maintenance are disabled. Executable Git
+clean/smudge/process filters actually selected by file attributes (including Git LFS) make this
+controlled worktree strategy unavailable; it does not execute them or silently
+fall back to direct writes. A worktree is not an OS sandbox.
+
+Turns reference immutable, content-addressed context generations. Context changes
+affect future admissions; authority changes fence old work before/after protected
+reads and before Provider context compilation. Missing generations, directory
+identity changes, or changed skill bodies fail closed. Existing history remains.
+Roots with the same canonical path are deduplicated using the first ID in sorted
+order; overlapping distinct roots are rejected rather than silently merging
+permissions. The normalized roots returned by `readAuthority` are authoritative.
+
+Limits: 16 authority roots, 512 KiB per persisted generation, 256 KiB per file
+read, 64 KiB file output, and 64 KiB scoped instruction/catalog output. Native
+access uses library guards, not protection against a hostile OS process racing
+filesystem mutations. Root/cwd skills are frozen at admission; nested instructions
+discovered by a file read are recorded in its result. Additional nested skill
+catalogs require selecting that cwd for a subsequent Turn; this stage does not
+invent a second mutable skill registry.
 
 ## Optional Plugin Composition
 

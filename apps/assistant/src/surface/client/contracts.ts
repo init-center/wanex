@@ -61,7 +61,20 @@ import type {
   SubmitConversationOperationRequest,
   SubmitConversationOperationResult,
   UpdatePreferencesRequest,
+  WorkspaceChangeDecisionRequest,
+  WorkspaceChangeMutationRequest,
+  WorkspaceChangeMutationResult,
+  WorkspaceChangeReadModel,
+  WorkspaceChangeReference,
+  WorkspaceChangeSummary,
 } from "../../model.js";
+import type {
+  GrantWorkspaceFolderRequest,
+  ListWorkspaceFoldersRequest,
+  RegrantWorkspaceFolderRequest,
+  RevokeWorkspaceFolderRequest,
+  WorkspaceFoldersReadModel,
+} from "../../workspace-folders.js";
 import type {
   DecidePlanProposalRequest,
   DismissPlanGenerationResult,
@@ -208,6 +221,15 @@ export interface SurfaceClient {
   cancelLocalPluginReview(input: CancelLocalPluginReviewRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CancelLocalPluginReviewResult>>;
   setPluginInstallState(input: SetPluginInstallStateRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<PluginManagementMutationResult>>;
   retryPluginRefresh(options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<PluginManagementMutationResult>>;
+  readWorkspaceChange(input: WorkspaceChangeReference, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceChangeReadModel>>;
+  decideWorkspaceChange(input: WorkspaceChangeDecisionRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceChangeSummary>>;
+  applyWorkspaceChange(input: WorkspaceChangeMutationRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceChangeMutationResult>>;
+  undoWorkspaceChange(input: WorkspaceChangeMutationRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceChangeMutationResult>>;
+  reapplyWorkspaceChange(input: WorkspaceChangeMutationRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceChangeMutationResult>>;
+  listWorkspaceFolders(input?: ListWorkspaceFoldersRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceFoldersReadModel>>;
+  grantWorkspaceFolder(input: GrantWorkspaceFolderRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceFoldersReadModel>>;
+  regrantWorkspaceFolder(input: RegrantWorkspaceFolderRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceFoldersReadModel>>;
+  revokeWorkspaceFolder(input: RevokeWorkspaceFolderRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<WorkspaceFoldersReadModel>>;
   readSurfaceEvents(request?: ReadSurfaceEventsRequest): Promise<SurfaceClientEventsResult>;
   subscribeSurfaceEvents(listener: SurfaceEventListener): SurfaceEventUnsubscribe;
 }

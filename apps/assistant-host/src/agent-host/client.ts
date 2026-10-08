@@ -1,9 +1,23 @@
+import { randomUUID } from "node:crypto";
+import {
+  type SurfaceDescriptor,
+  type SurfaceEnvelope,
+  type SurfaceEvent,
+  type SurfaceEventPage,
+} from "@wanex/assistant";
+import {
+  createSurfaceClient,
+  isSurfaceDescriptor,
+  isSurfaceEvent,
+  isSurfaceEventPage,
+  type SurfaceClient,
+  type SurfaceClientCommandRequest,
+  type SurfaceClientTransport,
+} from "@wanex/assistant/surface";
 import type {
   AgentHostClient,
   AgentHostClientTransport,
-  AgentHostEvent,
-  AgentHostEventPage,
-  AgentHostEventReplayResponse,
+  AgentHostFeature,
   AgentHostHandshakeResponse,
   AgentHostOperationResponse,
   JsonValue,
@@ -13,131 +27,25 @@ import {
   createAgentHostClient,
 } from "@wanex/protocol";
 import type {
-  HomeOptions,
-  HomeReadModel,
-  ReadSessionTranscriptRequest,
-  SettingsReadModel,
-  ShellStatus,
-  SteerTrackedConversationOperationRequest,
-  SubmitConversationOperationRequest,
-  CancelTrackedConversationOperationRequest,
-  CancelTrackedConversationOperationResult,
-  ResolveTrackedConversationApprovalRequest,
-  ResolveTrackedConversationApprovalResult,
-  ResolveTrackedConversationRecoveryRequest,
-  ResolveTrackedConversationRecoveryResult,
-  SteerTrackedConversationOperationResult,
-  SessionTranscriptReadResult,
-} from "@wanex/assistant";
-import {
-  isSurfaceCommandValue,
-  isSurfaceEvent,
-  SURFACE_COMMANDS,
-  type SurfaceCommand,
-  type SurfaceEvent,
-} from "@wanex/assistant";
-import {
-  ASSISTANT_AGENT_HOST_OPERATIONS,
-  type AssistantAgentHostOperation,
-} from "./model.js";
+  PreparedResourceDelivery,
+  ResourceDeliveryAuthorizationRequest,
+} from "../resources/model.js";
+import { ASSISTANT_AGENT_HOST_OPERATIONS } from "./model.js";
+import { remoteAssistantSurfaceCommandKind } from "./policy.js";
 
 export interface AssistantAgentHostClientOptions {
   readonly clientId: string;
   readonly accessToken: string;
   readonly createRequestId?: () => string;
+  readonly createIdempotencyKey?: () => string;
 }
 
-export type AssistantAgentHostEvent = Omit<
-  AgentHostEvent,
-  "domain" | "payload"
-> & {
-  readonly domain: "assistant";
-  readonly payload: SurfaceEvent;
-};
-
-export type AssistantAgentHostEventListener = (
-  event: AssistantAgentHostEvent,
-) => void;
-
-export interface AssistantAgentHostReplayRequest {
-  readonly streamId: string;
-  readonly afterSequence: number;
-  readonly limit: number;
-}
-
-export type AssistantAgentHostReplayResult =
-  | {
-      readonly outcome: "replayed";
-      readonly page: Omit<AgentHostEventPage, "events"> & {
-        readonly events: readonly AssistantAgentHostEvent[];
-      };
-    }
-  | {
-      readonly outcome: "gap";
-      readonly gap: NonNullable<AgentHostEventReplayResponse["gap"]>;
-    };
-
-export type AssistantConversationAdmission = {
-  readonly operationId: string;
-};
-
-export type AssistantSubmitConversationRequest = Omit<
-  SubmitConversationOperationRequest,
-  "idempotencyKey"
-> & {
-  readonly idempotencyKey: string;
-};
-
-export type AssistantSteerConversationRequest = Omit<
-  SteerTrackedConversationOperationRequest,
-  "requestId" | "idempotencyKey"
-> & {
-  readonly idempotencyKey: string;
-};
-
-export type AssistantResolveApprovalRequest = Omit<
-  ResolveTrackedConversationApprovalRequest,
-  "idempotencyKey"
-> & {
-  readonly idempotencyKey: string;
-};
-
-export type AssistantResolveRecoveryRequest = Omit<
-  ResolveTrackedConversationRecoveryRequest,
-  "idempotencyKey"
-> & {
-  readonly idempotencyKey: string;
-};
-
-export interface AssistantAgentHostClient {
+export interface AssistantAgentHostClient extends SurfaceClient {
   connect(): Promise<AgentHostHandshakeResponse>;
-  readStatus(): Promise<ShellStatus>;
-  readHome(options?: HomeOptions): Promise<HomeReadModel>;
-  readSettings(): Promise<SettingsReadModel>;
-  readSessionTranscript(
-    request?: ReadSessionTranscriptRequest,
-  ): Promise<SessionTranscriptReadResult>;
-  submitConversation(
-    request: AssistantSubmitConversationRequest,
-  ): Promise<AssistantConversationAdmission>;
-  cancelConversation(
-    request: CancelTrackedConversationOperationRequest & {
-      readonly idempotencyKey: string;
-    },
-  ): Promise<CancelTrackedConversationOperationResult>;
-  steerConversation(
-    request: AssistantSteerConversationRequest,
-  ): Promise<SteerTrackedConversationOperationResult>;
-  resolveApproval(
-    request: AssistantResolveApprovalRequest,
-  ): Promise<ResolveTrackedConversationApprovalResult>;
-  resolveRecovery(
-    request: AssistantResolveRecoveryRequest,
-  ): Promise<ResolveTrackedConversationRecoveryResult>;
-  subscribe(listener: AssistantAgentHostEventListener): () => void;
-  replay(
-    request: AssistantAgentHostReplayRequest,
-  ): Promise<AssistantAgentHostReplayResult>;
+  prepareResourceDelivery(
+    request: ResourceDeliveryAuthorizationRequest,
+  ): Promise<PreparedResourceDelivery>;
+  revokeResourceDelivery(token: string): Promise<boolean>;
   close(): void;
 }
 
@@ -149,11 +57,14 @@ export function createAssistantAgentHostClient(
     transport,
     options.createRequestId,
   );
+  const createIdempotencyKey = options.createIdempotencyKey ?? randomUUID;
   const subscriptions = new Set<() => void>();
   let connection: AgentHostHandshakeResponse | undefined;
   let closed = false;
+  const surface = createSurfaceClient(createSurfaceTransport());
 
   const client: AssistantAgentHostClient = {
+    ...surface,
     async connect() {
       assertOpen();
       if (connection !== undefined) return connection;
@@ -167,120 +78,30 @@ export function createAssistantAgentHostClient(
       connection = response;
       return response;
     },
-    async readStatus() {
-      return await readSurface(
-        SURFACE_COMMANDS.status,
-        undefined,
-        isKind<ShellStatus>("assistant.status"),
+    async prepareResourceDelivery(request) {
+      assertFeature("resource_delivery");
+      const value = await command(
+        ASSISTANT_AGENT_HOST_OPERATIONS.resourceDeliveryPrepare,
+        createIdempotencyKey(),
+        jsonValue(request),
       );
-    },
-    async readHome(options) {
-      return await readSurface(
-        SURFACE_COMMANDS.readHome,
-        options,
-        isKind<HomeReadModel>("assistant.home"),
-      );
-    },
-    async readSettings() {
-      return await readSurface(
-        SURFACE_COMMANDS.readSettings,
-        undefined,
-        isKind<SettingsReadModel>("assistant.settings"),
-      );
-    },
-    async readSessionTranscript(request) {
-      return await readSurface(
-        SURFACE_COMMANDS.readSessionTranscript,
-        request,
-        (value) => isSurfaceCommandValue(value, SURFACE_COMMANDS.readSessionTranscript),
-      ) as SessionTranscriptReadResult;
-    },
-    async submitConversation(request) {
-      const response = await command(
-        ASSISTANT_AGENT_HOST_OPERATIONS.conversationSubmit,
-        request.idempotencyKey,
-        withoutKey(request),
-      );
-      if (response.outcome !== "accepted" || response.operationId === undefined) {
-        throw invalidResponse("Assistant conversation admission did not return an operation");
+      const prepared = parsePreparedResourceDelivery(value, request);
+      if (prepared === undefined) {
+        throw invalidResponse("Assistant Resource delivery grant is invalid");
       }
-      return { operationId: response.operationId };
+      return prepared;
     },
-    async cancelConversation(request) {
-      const response = await command(
-        ASSISTANT_AGENT_HOST_OPERATIONS.conversationCancel,
-        request.idempotencyKey,
-        withoutKey(request),
+    async revokeResourceDelivery(token) {
+      assertFeature("resource_delivery");
+      const value = await command(
+        ASSISTANT_AGENT_HOST_OPERATIONS.resourceDeliveryRevoke,
+        createIdempotencyKey(),
+        { token },
       );
-      return expectAssistantResult<CancelTrackedConversationOperationResult>(
-        response,
-        "assistant.conversation-operation.cancel",
-      );
-    },
-    async steerConversation(request) {
-      const response = await command(
-        ASSISTANT_AGENT_HOST_OPERATIONS.conversationSteer,
-        request.idempotencyKey,
-        withoutKey(request),
-      );
-      return expectConversationResult<SteerTrackedConversationOperationResult>(response);
-    },
-    async resolveApproval(request) {
-      const response = await command(
-        ASSISTANT_AGENT_HOST_OPERATIONS.conversationApprovalResolve,
-        request.idempotencyKey,
-        withoutKey(request),
-      );
-      return expectConversationResult<ResolveTrackedConversationApprovalResult>(response);
-    },
-    async resolveRecovery(request) {
-      const response = await command(
-        ASSISTANT_AGENT_HOST_OPERATIONS.conversationRecoveryResolve,
-        request.idempotencyKey,
-        withoutKey(request),
-      );
-      return expectConversationResult<ResolveTrackedConversationRecoveryResult>(response);
-    },
-    subscribe(listener) {
-      assertOpen();
-      const unsubscribe = protocolClient.subscribe((event) => {
-        const projected = projectEvent(event);
-        if (projected === undefined) return;
-        try {
-          listener(projected);
-        } catch {
-          // One domain subscriber cannot affect another subscriber.
-        }
-      });
-      subscriptions.add(unsubscribe);
-      let active = true;
-      return () => {
-        if (!active) return;
-        active = false;
-        subscriptions.delete(unsubscribe);
-        unsubscribe();
-      };
-    },
-    async replay(request) {
-      assertOpen();
-      const response = await protocolClient.replay(request);
-      if (response.outcome === "gap") {
-        if (response.gap === undefined) {
-          throw invalidResponse("Assistant replay gap has no detail");
-        }
-        return { outcome: "gap", gap: response.gap };
+      if (!isResourceDeliveryRevocation(value)) {
+        throw invalidResponse("Assistant Resource delivery revocation is invalid");
       }
-      if (response.page === undefined) {
-        throw invalidResponse("Assistant replay response has no event page");
-      }
-      const events = response.page.events.map(projectEvent);
-      if (events.some((event): event is undefined => event === undefined)) {
-        throw invalidResponse("Assistant event replay contains an invalid event");
-      }
-      return {
-        outcome: "replayed",
-        page: { ...response.page, events: events as AssistantAgentHostEvent[] },
-      };
+      return value.revoked;
     },
     close() {
       if (closed) return;
@@ -292,58 +113,97 @@ export function createAssistantAgentHostClient(
 
   return Object.freeze(client);
 
-  async function readSurface<T>(
-    commandName: SurfaceCommand,
-    input: unknown,
-    guard: (value: unknown) => boolean,
-  ): Promise<T> {
-    const response = await command(
-      ASSISTANT_AGENT_HOST_OPERATIONS.surfaceRead,
-      undefined,
-      input === undefined
-        ? { command: commandName }
-        : { command: commandName, input: input as JsonValue },
-      "read",
-    );
-    if (
-      response.outcome !== "completed" ||
-      response.result === undefined ||
-      !guard(response.result)
-    ) {
-      throw invalidResponse(`Assistant read ${commandName} returned an invalid result`);
-    }
-    return response.result as T;
+  function createSurfaceTransport(): SurfaceClientTransport {
+    return {
+      async descriptor() {
+        const value = await read(
+          ASSISTANT_AGENT_HOST_OPERATIONS.surfaceDescriptor,
+          null,
+        );
+        if (!isSurfaceDescriptor(value)) {
+          throw invalidResponse("Assistant Surface descriptor is invalid");
+        }
+        return value as unknown as SurfaceDescriptor;
+      },
+      async dispatchSurfaceCommand(request) {
+        const kind = remoteAssistantSurfaceCommandKind(request.command);
+        if (kind === "unavailable") {
+          throw new AgentHostClientError(
+            "unauthorized",
+            "Assistant Surface command is unavailable through a remote Host",
+          );
+        }
+        const payload = jsonValue(request);
+        const response = kind === "read"
+          ? await read(ASSISTANT_AGENT_HOST_OPERATIONS.surfaceDispatch, payload)
+          : await command(
+              ASSISTANT_AGENT_HOST_OPERATIONS.surfaceDispatch,
+              surfaceIdempotencyKey(request, createIdempotencyKey),
+              payload,
+            );
+        return response as unknown as SurfaceEnvelope;
+      },
+      async readSurfaceEvents(request = {}) {
+        const value = await read(
+          ASSISTANT_AGENT_HOST_OPERATIONS.surfaceEventsRead,
+          jsonValue(request),
+        );
+        if (!isSurfaceEventPage(value)) {
+          throw invalidResponse("Assistant Surface event page is invalid");
+        }
+        return value as unknown as SurfaceEventPage;
+      },
+      subscribeSurfaceEvents(listener) {
+        assertConnected();
+        const unsubscribe = protocolClient.subscribe((event) => {
+          if (event.domain !== "assistant" || !isSurfaceEvent(event.payload)) return;
+          try {
+            listener(event.payload as SurfaceEvent);
+          } catch {
+            // One Surface subscriber cannot affect the shared Host transport.
+          }
+        });
+        subscriptions.add(unsubscribe);
+        let active = true;
+        return () => {
+          if (!active) return;
+          active = false;
+          subscriptions.delete(unsubscribe);
+          unsubscribe();
+        };
+      },
+    };
+  }
+
+  async function read(operation: string, payload: JsonValue): Promise<JsonValue> {
+    assertConnected();
+    const response = await protocolClient.read({
+      domain: "assistant",
+      operation,
+      payload,
+    });
+    return completedResult(response);
   }
 
   async function command(
-    operation: AssistantAgentHostOperation,
-    idempotencyKey: string | undefined,
-    payload: unknown,
-    operationKind: "command" | "read" = "command",
-  ): Promise<AgentHostOperationResponse> {
-    assertOpen();
-    if (connection === undefined) {
-      throw new AgentHostClientError("unauthenticated", "Assistant Host client is not connected");
-    }
-    if (operationKind === "read") {
-      return await protocolClient.read({
-        domain: "assistant",
-        operation: ASSISTANT_AGENT_HOST_OPERATIONS.surfaceRead,
-        payload: payload as JsonValue,
-      });
-    }
-    if (idempotencyKey === undefined) {
-      throw new AgentHostClientError("malformed_request", "Assistant command requires an idempotency key");
-    }
+    operation: string,
+    idempotencyKey: string,
+    payload: JsonValue,
+  ): Promise<JsonValue> {
+    assertConnected();
     const response = await protocolClient.command({
       domain: "assistant",
       operation,
       idempotencyKey,
-      payload: payload as JsonValue,
+      payload,
     });
+    return completedResult(response);
+  }
+
+  function completedResult(response: AgentHostOperationResponse): JsonValue {
     if (response.outcome === "failed") {
       if (response.error === undefined) {
-        throw invalidResponse("Assistant command failure has no error detail");
+        throw invalidResponse("Assistant Host failure has no error detail");
       }
       throw new AgentHostClientError(
         response.error.code,
@@ -351,7 +211,30 @@ export function createAssistantAgentHostClient(
         response.error,
       );
     }
-    return response;
+    if (response.outcome !== "completed" || response.result === undefined) {
+      throw invalidResponse("Assistant Surface operation did not complete");
+    }
+    return response.result;
+  }
+
+  function assertConnected(): void {
+    assertOpen();
+    if (connection === undefined) {
+      throw new AgentHostClientError(
+        "unauthenticated",
+        "Assistant Host client is not connected",
+      );
+    }
+  }
+
+  function assertFeature(feature: AgentHostFeature): void {
+    assertConnected();
+    if (!connection?.capabilities.features.includes(feature)) {
+      throw new AgentHostClientError(
+        "unauthorized",
+        `Assistant Host does not advertise ${feature}`,
+      );
+    }
   }
 
   function assertOpen(): void {
@@ -362,6 +245,79 @@ export function createAssistantAgentHostClient(
       );
     }
   }
+}
+
+function parsePreparedResourceDelivery(
+  value: JsonValue,
+  request: ResourceDeliveryAuthorizationRequest,
+): PreparedResourceDelivery | undefined {
+  if (!isExactRecord(value, [
+    "kind",
+    "token",
+    "resourceId",
+    "sha256",
+    "resourceKind",
+    "mediaType",
+    "sizeBytes",
+    "purpose",
+    "sessionId",
+    "expiresAt",
+  ])) return undefined;
+  const token = value.token;
+  const resourceKind = value.resourceKind;
+  const mediaType = value.mediaType;
+  const sizeBytes = value.sizeBytes;
+  const expiresAt = value.expiresAt;
+  if (
+    value.kind !== "assistant-host.resource-delivery" ||
+    !isResourceDeliveryToken(token) ||
+    value.resourceId !== request.resourceId ||
+    value.sha256 !== request.expectedSha256 ||
+    (resourceKind !== "image" && resourceKind !== "audio" && resourceKind !== "video") ||
+    !isBoundedIdentity(mediaType) ||
+    !isPositiveSafeInteger(sizeBytes) ||
+    value.purpose !== request.purpose ||
+    value.sessionId !== request.sessionId ||
+    !isPositiveSafeInteger(expiresAt)
+  ) return undefined;
+  return {
+    kind: "assistant-host.resource-delivery",
+    token,
+    resourceId: request.resourceId,
+    sha256: request.expectedSha256,
+    resourceKind,
+    mediaType,
+    sizeBytes,
+    purpose: request.purpose,
+    ...(request.sessionId === undefined ? {} : { sessionId: request.sessionId }),
+    expiresAt,
+  };
+}
+
+function isResourceDeliveryRevocation(
+  value: JsonValue,
+): value is { readonly kind: "assistant-host.resource-delivery-revoked"; readonly revoked: boolean } {
+  return isExactRecord(value, ["kind", "revoked"]) &&
+    value.kind === "assistant-host.resource-delivery-revoked" &&
+    typeof value.revoked === "boolean";
+}
+
+function isExactRecord(
+  value: JsonValue,
+  allowedKeys: readonly string[],
+): value is Record<string, JsonValue> {
+  return typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.keys(value).every((key) => allowedKeys.includes(key));
+}
+
+function isResourceDeliveryToken(value: unknown): value is string {
+  return typeof value === "string" && /^wrd_[A-Za-z0-9_-]{43}$/.test(value);
+}
+
+function isPositiveSafeInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 }
 
 function assertCapabilities(response: AgentHostHandshakeResponse): void {
@@ -377,58 +333,32 @@ function assertCapabilities(response: AgentHostHandshakeResponse): void {
   }
 }
 
-function projectEvent(event: AgentHostEvent): AssistantAgentHostEvent | undefined {
-  return event.domain === "assistant" && isSurfaceEvent(event.payload)
-    ? (event as unknown as AssistantAgentHostEvent)
-    : undefined;
+function jsonValue(value: unknown): JsonValue {
+  const encoded = JSON.stringify(value);
+  return encoded === undefined ? null : (JSON.parse(encoded) as JsonValue);
 }
 
-function isKind<T>(kind: string): (value: unknown) => value is T {
-  return (value): value is T =>
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    (value as Record<string, unknown>).kind === kind;
-}
-
-function expectAssistantResult<T>(
-  response: AgentHostOperationResponse,
-  kind: string,
-): T {
-  if (response.outcome !== "completed" || response.result === undefined) {
-    throw invalidResponse("Assistant command did not complete");
+function surfaceIdempotencyKey(
+  request: SurfaceClientCommandRequest,
+  create: () => string,
+): string {
+  if (
+    typeof request.input === "object" &&
+    request.input !== null &&
+    !Array.isArray(request.input) &&
+    "idempotencyKey" in request.input
+  ) {
+    const value = (request.input as Record<string, unknown>).idempotencyKey;
+    if (isBoundedIdentity(value)) return value;
   }
-  if (!isKind<T>(kind)(response.result)) {
-    throw invalidResponse(`Assistant command result kind ${kind} is invalid`);
-  }
-  return response.result as T;
+  return request.requestId ?? create();
 }
 
-function expectConversationResult<T>(response: AgentHostOperationResponse): T {
-  if (response.outcome !== "completed" || response.result === undefined) {
-    throw invalidResponse("Assistant conversation command did not complete");
-  }
-  if (!hasKind(response.result, "assistant.conversation-operation.found") &&
-      !hasKind(response.result, "assistant.conversation-operation.rejected")) {
-    throw invalidResponse("Assistant conversation command result is invalid");
-  }
-  return response.result as T;
-}
-
-function hasKind(value: unknown, kind: string): boolean {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    !Array.isArray(value) &&
-    (value as Record<string, unknown>).kind === kind
-  );
-}
-
-function withoutKey<T extends object>(
-  value: T & { readonly idempotencyKey?: string },
-): Record<string, unknown> {
-  const { idempotencyKey: _idempotencyKey, ...payload } = value;
-  return payload;
+function isBoundedIdentity(value: unknown): value is string {
+  return typeof value === "string" &&
+    value.length > 0 &&
+    Buffer.byteLength(value, "utf8") <= 256 &&
+    !/[\u0000-\u001f\u007f]/u.test(value);
 }
 
 function invalidResponse(message: string): AgentHostClientError {

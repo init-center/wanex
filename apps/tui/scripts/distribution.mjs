@@ -55,7 +55,7 @@ if (import.meta.main) {
 export async function buildTuiDistribution() {
   await rm(distributionRoot, { recursive: true, force: true })
   await mkdir(dirname(bundlePath), { recursive: true })
-  await bundleTui()
+  const workspaceSources = await bundleTui()
   await chmod(bundlePath, 0o755)
 
   const sourceManifest = JSON.parse(
@@ -79,6 +79,7 @@ export async function buildTuiDistribution() {
     kind: "wanex.tui.distribution-receipt",
     name: manifest.name,
     version: manifest.version,
+    workspaceSources,
     staging,
     tarball: packed
   }
@@ -209,7 +210,7 @@ export async function auditTuiDistribution(root = stagingDir) {
 }
 
 async function bundleTui() {
-  await build({
+  const bundled = await build({
     absWorkingDir: workspaceRoot,
     entryPoints: [join(packageRoot, "src/cli/main.ts")],
     outdir: dirname(bundlePath),
@@ -218,6 +219,7 @@ async function bundleTui() {
     format: "esm",
     target: "node26",
     splitting: true,
+    metafile: true,
     entryNames: "wanex-tui",
     chunkNames: "chunks/[name]-[hash]",
     external: ["@napi-rs/keyring"],
@@ -236,6 +238,25 @@ async function bundleTui() {
     legalComments: "none",
     logLevel: "silent"
   })
+  return assertWorkspaceReadClosure(bundled.metafile)
+}
+
+export function assertWorkspaceReadClosure(metafile) {
+  const allowed = new Set([
+    "packages/workspace/src/path-policy.ts",
+    "packages/workspace/src/tools/input.ts",
+    "packages/workspace/src/tools/read-tool.ts",
+    "packages/workspace/src/tools/scope.ts"
+  ])
+  const sources = [...new Set(Object.values(metafile.outputs).flatMap((output) =>
+    Object.entries(output.inputs).filter(([, input]) => input.bytesInOutput > 0)
+      .map(([path]) => path.replaceAll("\\", "/"))
+      .filter((path) => path.startsWith("packages/workspace/"))
+  ))].sort()
+  for (const source of sources) {
+    if (!allowed.has(source)) throw new Error(`TUI read-only Workspace closure rejects: ${source}`)
+  }
+  return sources
 }
 
 async function createWanexSourceResolver() {
@@ -249,6 +270,7 @@ async function createWanexSourceResolver() {
     "packages/app",
     "apps/assistant",
     "packages/team",
+    "packages/workspace",
     "apps/assistant-host",
     "apps/tui"
   ]
@@ -259,6 +281,7 @@ async function createWanexSourceResolver() {
       await readFile(join(absoluteDir, "package.json"), "utf8")
     )
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
+      if (manifest.name === "@wanex/workspace" && subpath !== "./tools/read") continue
       if (typeof target !== "string") {
         throw new Error(
           `unsupported TUI workspace export: ${manifest.name} ${subpath}`

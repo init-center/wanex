@@ -1,6 +1,10 @@
-.shell { position: relative; isolation: isolate; height: 100vh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--color-text); background: var(--color-canvas); }
+.shell { position: relative; isolation: isolate; height: 100vh; height: 100dvh; min-height: 0; display: flex; flex-direction: column; overflow: hidden; color: var(--color-text); background: var(--color-canvas); }
 .message-header, .card-heading, .context-panel-header, .inline-actions, .composer-meta, .turn-actions { display: flex; align-items: center; }
-.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--size-sidebar) minmax(0, 1fr) auto; overflow: hidden; background: transparent; }
+.layout { flex: 1; min-height: 0; display: grid; grid-template-columns: var(--size-sidebar) minmax(0, 1fr) auto; overflow: hidden; background: transparent; transition: grid-template-columns 200ms ease; }
+@media (min-width: 781px) {
+  .layout.is-sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) auto; }
+  .layout.is-sidebar-collapsed > aside[data-ui-session-drawer] { visibility: hidden; pointer-events: none; }
+}
 .secondary-action, .mode-switch button, .inline-actions button {
   min-height: 34px;
   display: inline-flex;
@@ -8,20 +12,40 @@
   justify-content: center;
   gap: 7px;
   padding: 0 11px;
-  color: var(--color-text-button);
+  color: var(--color-text);
   background: var(--color-surface);
   border: 1px solid var(--color-line-strong);
-  border-radius: 7px;
+  border-radius: 9px;
   transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.main { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; background: transparent; }
-.main.is-empty { justify-content: flex-start; }
-.availability-notice { width: min(var(--size-content), calc(100% - 84px)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 18px auto 0; padding: 11px 13px; color: var(--color-warning); background: var(--color-warning-soft); border: 1px solid var(--color-border-warning-soft); border-radius: 10px; font-size: 11px; line-height: 17px; }
+
+/* The conversation area is one warm surface; soft glows give it depth without cards. */
+.main {
+  position: relative;
+  isolation: isolate;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-canvas);
+}
+/* The warm glow belongs to the empty state only; reading surfaces stay calm. */
+.main.is-empty {
+  justify-content: flex-start;
+  background:
+    radial-gradient(ellipse 60% 48% at 38% 0%, var(--color-glow-a), transparent 70%),
+    radial-gradient(ellipse 52% 46% at 100% 100%, var(--color-glow-b), transparent 72%),
+    var(--color-canvas);
+}
+
+.availability-notice { width: min(760px, calc(100% - 64px)); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin: 12px auto 0; padding: 11px 13px; color: var(--color-warning); background: var(--color-warning-soft); border: 1px solid var(--color-warning-line); border-radius: 12px; font-size: var(--font-size-xs); line-height: 18px; }
 .availability-icon { display: grid; place-items: center; }
 .availability-copy { min-width: 0; display: flex; flex-direction: column; }
-.availability-copy strong { color: var(--color-warning-strong); font-size: 11px; }
+.availability-copy strong { color: var(--color-warning); font-size: var(--font-size-xs); }
 .availability-copy > span { overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
-.availability-notice button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; color: var(--color-warning-strong); background: var(--color-surface-soft); border: 1px solid var(--color-border-warning-soft); border-radius: 6px; }
-.availability-notice button:hover:not(:disabled) { background: var(--color-surface); border-color: var(--color-border-warning-soft); }
-.error { width: min(var(--size-content), calc(100% - 84px)); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 18px auto 0; padding: 11px 13px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-border-danger-soft); border-radius: 10px; font-size: 12px; line-height: 18px; }
-.error button { display: grid; place-items: center; padding: 2px; color: inherit; background: transparent; border: 0; }
+.availability-notice button { min-height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 9px; color: var(--color-warning); background: var(--color-surface-subtle); border: 1px solid var(--color-warning-line); border-radius: 8px; }
+.availability-notice button:hover:not(:disabled) { background: var(--color-surface); }
+.error { width: min(760px, calc(100% - 64px)); display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin: 12px auto 0; padding: 11px 13px; color: var(--color-danger); background: var(--color-danger-soft); border: 1px solid var(--color-danger-line); border-radius: 12px; font-size: var(--font-size-xs); line-height: 18px; }
+.error button { display: grid; place-items: center; padding: 2px; color: inherit; background: transparent; border: 0; border-radius: 6px; }

@@ -12,7 +12,8 @@ pub(super) const RUN_SELECT: &str = "SELECT
     id, workspace_id, principal_id, access, repository_id, isolation_id,
     execution_environment_json, job_id, agent_id, state, base_revision, runtime_ref,
     execution_outcome, outcome, summary, resource_ids_json, changeset_id, proposal_id,
-    failure_json, created_at, updated_at, finished_at
+    failure_json, created_at, updated_at, finished_at,
+    strategy, host_id, generation_key, root_id, root_device, root_inode, isolation_kind
  FROM workspace_task_run";
 
 pub(super) const ATTEMPT_SELECT: &str = "SELECT
@@ -81,8 +82,11 @@ pub(super) fn assert_same_run(
     if run.workspace_id != request.workspace_id
         || run.principal_id != request.principal_id
         || run.access != request.access
-        || run.repository_id != request.repository_id
-        || run.isolation_id != request.isolation_id
+        || run.strategy != request.strategy
+        || run.root_identity != request.root_identity
+        || run.isolation_identity.id != request.isolation_identity.id
+        || run.isolation_identity.kind != request.isolation_identity.kind
+        || run.isolation_identity.repository_id != request.isolation_identity.repository_id
         || run.execution_environment != request.execution_environment
         || run.job_id != request.job_id
         || run.agent_id != request.agent_id
@@ -221,8 +225,21 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceT
         workspace_id: row.get(1)?,
         principal_id: row.get(2)?,
         access: row.get(3)?,
-        repository_id: row.get(4)?,
-        isolation_id: row.get(5)?,
+        strategy: row.get(22)?,
+        root_identity: crate::WorkspaceTaskRootIdentity {
+            host_id: row.get(23)?,
+            generation_key: row.get(24)?,
+            root_id: row.get(25)?,
+            device: row.get(26)?,
+            inode: row.get(27)?,
+        },
+        isolation_identity: crate::WorkspaceTaskIsolationIdentity {
+            id: row.get(5)?,
+            kind: row.get(28)?,
+            repository_id: row.get(4)?,
+            base_revision: row.get(10)?,
+            runtime_ref: row.get(11)?,
+        },
         execution_environment: serde_json::from_str(&execution_environment_json).map_err(
             |error| {
                 rusqlite::Error::FromSqlConversionFailure(
@@ -235,8 +252,6 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<WorkspaceT
         job_id: row.get(7)?,
         agent_id: row.get(8)?,
         state: row.get(9)?,
-        base_revision: row.get(10)?,
-        runtime_ref: row.get(11)?,
         execution_outcome: row.get(12)?,
         outcome: row.get(13)?,
         summary: row.get(14)?,

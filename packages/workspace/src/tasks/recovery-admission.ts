@@ -1,4 +1,4 @@
-import type { WorkspaceTaskRunState } from "@wanex/protocol"
+import type { WorkspaceTaskRunState, WorkspaceTaskRootIdentity } from "@wanex/protocol"
 import { recoverWorkspaceTask } from "./recovery.js"
 import type { WorkspaceTaskStore } from "./storage.js"
 import type {
@@ -23,9 +23,9 @@ const MAX_BUDGET_MS = 10_000
 export async function recoverExpiredWorkspaceTasks(
   options: {
     readonly storage: WorkspaceTaskStore
-    readonly readOnlyIsolation: WorkspaceTaskRuntimeOptions["readOnlyIsolation"]
-    readonly writableIsolation: WorkspaceTaskRuntimeOptions["writableIsolation"]
-    readonly repositoryId: string
+    readonly directIsolation: WorkspaceTaskRuntimeOptions["directIsolation"]
+    readonly gitWorktree: WorkspaceTaskRuntimeOptions["gitWorktree"]
+    readonly rootIdentity: WorkspaceTaskRuntimeOptions["rootIdentity"]
     readonly ownerId: string
     readonly leaseMs: number
     readonly defaultWorkspaceId: string
@@ -50,7 +50,7 @@ export async function recoverExpiredWorkspaceTasks(
   const candidates = await findCandidates(
     options.storage,
     workspaceId,
-    options.repositoryId,
+    options.rootIdentity,
     maxRuns,
     startedAt,
     budgetMs
@@ -72,9 +72,9 @@ export async function recoverExpiredWorkspaceTasks(
       await recoverWorkspaceTask(
         {
           storage: options.storage,
-          readOnlyIsolation: options.readOnlyIsolation,
-          writableIsolation: options.writableIsolation,
-          repositoryId: options.repositoryId,
+          directIsolation: options.directIsolation,
+          gitWorktree: options.gitWorktree,
+          rootIdentity: options.rootIdentity,
           ownerId: options.ownerId,
           leaseMs: options.leaseMs,
           executionEnvironment: options.executionEnvironment
@@ -119,7 +119,7 @@ export async function recoverExpiredWorkspaceTasks(
 async function findCandidates(
   storage: WorkspaceTaskStore,
   workspaceId: string,
-  repositoryId: string,
+  rootIdentity: WorkspaceTaskRootIdentity,
   maxRuns: number,
   startedAt: number,
   budgetMs: number
@@ -144,7 +144,7 @@ async function findCandidates(
     }
     const rows = await storage.listWorkspaceTaskRuns({
       workspaceId,
-      repositoryId,
+      rootIdentity,
       state,
       leaseExpiresBefore: Date.now(),
       limit: maxRuns + 1

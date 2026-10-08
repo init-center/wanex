@@ -1,7 +1,7 @@
 import type { ResourceKind, ResourceRecord } from "@wanex/protocol"
-import type { LocalResourceDeliveryPurpose } from "./model.js"
-import type { LocalResourceDeliveryKind } from "./model.js"
-import { LocalResourceDeliveryError } from "./model.js"
+import type { ResourceDeliveryPurpose } from "./model.js"
+import type { ResourceDeliveryKind } from "./model.js"
+import { ResourceDeliveryError } from "./model.js"
 
 export const MAX_IMAGE_PREVIEW_BYTES = 25 * 1024 * 1024
 export const MAX_AUDIO_DELIVERY_BYTES = 256 * 1024 * 1024
@@ -19,9 +19,9 @@ export function validateResourceDeliveryRecord(request: {
   readonly resource: ResourceRecord | null
   readonly resourceId: string
   readonly expectedSha256: string
-  readonly purpose: LocalResourceDeliveryPurpose
+  readonly purpose: ResourceDeliveryPurpose
 }): ResourceRecord & {
-  readonly kind: LocalResourceDeliveryKind
+  readonly kind: ResourceDeliveryKind
   readonly mediaType: string
 } {
   const { resource, resourceId, expectedSha256, purpose } = request
@@ -74,7 +74,7 @@ export function validateResourceDeliveryRecord(request: {
   }
   return {
     ...resource,
-    kind: resource.kind as LocalResourceDeliveryKind,
+    kind: resource.kind as ResourceDeliveryKind,
     mediaType: resource.mediaType
   }
 }
@@ -82,7 +82,7 @@ export function validateResourceDeliveryRecord(request: {
 export function deliverySizeLimit(
   kind: ResourceKind,
   mediaType: string,
-  purpose: LocalResourceDeliveryPurpose
+  purpose: ResourceDeliveryPurpose
 ): number | undefined {
   if (
     purpose === "preview" &&
@@ -109,9 +109,9 @@ function isSafeMediaType(value: string): boolean {
 }
 
 function deliveryPolicyError(
-  statusCode: LocalResourceDeliveryError["statusCode"],
-  code: LocalResourceDeliveryError["code"],
+  statusCode: ResourceDeliveryError["statusCode"],
+  code: ResourceDeliveryError["code"],
   message: string
-): LocalResourceDeliveryError {
-  return new LocalResourceDeliveryError(statusCode, code, message)
+): ResourceDeliveryError {
+  return new ResourceDeliveryError(statusCode, code, message)
 }

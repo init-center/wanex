@@ -1,10 +1,13 @@
 import type {
   JsonValue,
+  RuntimeAbortSignal,
   PrincipalId,
   ResourceRecord,
   WorkspaceChangeProposalRecord,
   WorkspaceChangeSetRecord,
   WorkspaceTaskAccess,
+  WorkspaceTaskRootIdentity,
+  WorkspaceTaskStrategy,
   WorkspaceTaskRunState
 } from "@wanex/protocol"
 import type { ProviderArtifactOutput } from "@wanex/runtime/resources"
@@ -21,10 +24,13 @@ export type WorkspaceTaskStatus = "succeeded" | "failed"
 
 export interface WorkspaceTaskRuntimeOptions {
   readonly storage: WorkspaceTaskStore
-  readonly readOnlyIsolation: WorkspaceIsolationAdapter
-  readonly writableIsolation: WorkspaceIsolationAdapter
-  readonly writableCollection: WorkspaceGitRuntime
-  readonly repositoryId: string
+  readonly rootIdentity: WorkspaceTaskRootIdentity
+  readonly directIsolation: WorkspaceIsolationAdapter
+  readonly gitWorktree?: {
+    readonly repositoryId: string
+    readonly isolation: WorkspaceIsolationAdapter
+    readonly collection: WorkspaceGitRuntime
+  }
   readonly ownerId?: PrincipalId
   readonly leaseMs?: number
   readonly workspaceId?: string
@@ -33,7 +39,9 @@ export interface WorkspaceTaskRuntimeOptions {
 }
 
 export interface WorkspaceTaskRequest {
+  readonly signal?: RuntimeAbortSignal
   readonly access: WorkspaceTaskAccess
+  readonly strategy: WorkspaceTaskStrategy
   readonly input: JsonValue
   readonly id?: string
   readonly workspaceId?: string
@@ -48,6 +56,7 @@ export interface RecoverWorkspaceTaskRequest {
 }
 
 export interface ResumeWorkspaceTaskRequest {
+  readonly signal?: RuntimeAbortSignal
   readonly runId: string
   readonly input: JsonValue
   readonly handler: WorkspaceTaskHandler
@@ -92,10 +101,12 @@ export interface WorkspaceTaskRecoveryAdmissionRequest {
 }
 
 export interface WorkspaceTaskContext {
+  readonly signal?: RuntimeAbortSignal
   readonly taskId: string
   readonly workspaceId: string
   readonly principalId: PrincipalId
   readonly access: WorkspaceTaskAccess
+  readonly strategy: WorkspaceTaskStrategy
   readonly input: JsonValue
   readonly rootDir: string
   readonly executionScope: BorrowedExecutionScope
@@ -142,6 +153,7 @@ export class WorkspaceTaskAttentionError extends Error {
 export interface WorkspaceTaskJobPayload {
   readonly handlerId: string
   readonly access: WorkspaceTaskAccess
+  readonly strategy: WorkspaceTaskStrategy
   readonly input: JsonValue
   readonly taskId?: string
   readonly workspaceId?: string
@@ -155,6 +167,7 @@ export interface SubmitWorkspaceTaskJobRequest {
   readonly handlerId: string
   readonly principalId: PrincipalId
   readonly access: WorkspaceTaskAccess
+  readonly strategy: WorkspaceTaskStrategy
   readonly input: JsonValue
   readonly taskId?: string
   readonly workspaceId?: string

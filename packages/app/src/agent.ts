@@ -1,17 +1,16 @@
-import type { PreparedAgentContext } from "@wanex/runtime/context"
+import type { CoreStore } from "@wanex/storage"
 import type { WanexAppConversationOperationController } from "./conversation-operation.js"
 import type {
   WanexAppRunAgentTurnRequest,
   WanexAppRunAgentTurnResult
 } from "./types-agent.js"
-import type { WanexAppAgentContextSummary } from "./types-context.js"
 
 export async function runWanexAppAgentTurn(
   conversationOperations: WanexAppConversationOperationController,
   options: {
     readonly request: WanexAppRunAgentTurnRequest
     readonly modelEndpointId: string
-    readonly preparedAgentContext?: PreparedAgentContext
+    readonly storage: Pick<CoreStore, "getSessionTurn">
   }
 ): Promise<WanexAppRunAgentTurnResult> {
   if (!conversationOperations.isStarted()) {
@@ -28,34 +27,21 @@ export async function runWanexAppAgentTurn(
   const messageCount = await conversationOperations.countSessionMessages(
     completed.operation.sessionId
   )
+  const turn = await options.storage.getSessionTurn(receipt.turnId)
+  if (
+    turn === null ||
+    turn.sessionId !== receipt.sessionId ||
+    turn.primaryInputId !== receipt.inputId ||
+    turn.jobId !== receipt.jobId
+  ) {
+    throw new Error("completed agent turn binding was not found")
+  }
+  const contextEvidence = turn.executionBinding.contextEvidence
   return {
     sessionId: completed.operation.sessionId,
     assistantText: completed.operation.result?.assistantText ?? "",
     messageCount,
     jobStatuses: [completed.operation.state],
-    ...(options.preparedAgentContext === undefined
-      ? {}
-      : { context: agentContextSummary(options.preparedAgentContext) })
-  }
-}
-
-function agentContextSummary(
-  prepared: PreparedAgentContext
-): WanexAppAgentContextSummary {
-  return {
-    instructionSources: prepared.instructionSnapshot?.sources.length ?? 0,
-    skillNames:
-      prepared.skillSnapshot?.complete === true
-        ? prepared.skillSnapshot.sources.map((source) => source.name)
-        : [],
-    diagnostics: [
-      ...(prepared.instructionSnapshot?.diagnostics.map(
-        (diagnostic) => diagnostic.code
-      ) ?? []),
-      ...(prepared.skillSnapshot?.diagnostics.map(
-        (diagnostic) => diagnostic.code
-      ) ?? [])
-    ],
-    activationToolRegistered: prepared.tools !== undefined
+    ...(contextEvidence === undefined ? {} : { contextEvidence })
   }
 }

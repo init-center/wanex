@@ -182,31 +182,18 @@ describe("remote Agent Host HTTP handler", () => {
     expect(fixture.closeCalls).toBe(1)
   })
 
-  it("enforces grant domains at handshake and on every operation", async () => {
+  it("enforces the Assistant grant at handshake", async () => {
     const fixture = createFixture({ grantDomains: ["assistant"] })
     const deniedHandshake = await fixture.handler.handle(
       request(
-        handshakeMessage(["coding"]),
+        handshakeMessage([]),
         "Bearer bearer_token"
       )
     )
-    expect(deniedHandshake.status).toBe(403)
+    expect(deniedHandshake.status).toBe(400)
     expect(fixture.endpointSecrets).toEqual([])
 
-    const handshake = await fixture.handler.handle(
-      request(handshakeMessage(), "Bearer bearer_token")
-    )
-    const sessionId = handshake.headers[REMOTE_AGENT_HOST_SESSION_HEADER]
-    const deniedOperation = await fixture.handler.handle(
-      request(
-        operationMessage("request_1", "coding.read", "coding"),
-        "Bearer bearer_token",
-        sessionId
-      )
-    )
-    expect(deniedOperation.status).toBe(403)
-    expect(deniedOperation.body).toMatchObject({ error: { code: "unauthorized" } })
-    expect(fixture.operationCalls).toEqual([])
+    expect(fixture.endpointSecrets).toEqual([])
   })
 
   it("closes an expired session before dispatching another request", async () => {
@@ -829,7 +816,7 @@ describe("remote Agent Host HTTP handler", () => {
 })
 
 interface FixtureOptions {
-  readonly grantDomains?: readonly ("assistant" | "coding")[]
+  readonly grantDomains?: readonly "assistant"[]
   readonly grantExpiresAt?: number
   readonly maxBodyBytes?: number
   readonly maxResponseBytes?: number
@@ -853,7 +840,7 @@ function createFixture(options: FixtureOptions = {}) {
   const operationCalls: string[] = []
   const resolverContexts: Array<{
     readonly clientId: string
-    readonly requestedDomains: readonly ("assistant" | "coding")[]
+    readonly requestedDomains: readonly "assistant"[]
   }> = []
   const eventListeners = new Set<(event: AgentHostEvent) => void>()
   let closeCalls = 0
@@ -879,7 +866,7 @@ function createFixture(options: FixtureOptions = {}) {
         grant: {
           subjectId: "subject_1",
           hostId: "host_1",
-          domains: options.grantDomains ?? ["assistant", "coding"],
+          domains: options.grantDomains ?? ["assistant"],
           expiresAt: options.grantExpiresAt ?? 2_000
         },
         createEndpoint: (accessToken) => {
@@ -1012,7 +999,7 @@ function request(
 }
 
 function handshakeMessage(
-  requestedDomains: readonly ("assistant" | "coding")[] = ["assistant"]
+  requestedDomains: readonly "assistant"[] = ["assistant"]
 ) {
   return {
     kind: "wanex.agent-host.handshake.request" as const,
@@ -1026,7 +1013,7 @@ function handshakeMessage(
 function operationMessage(
   requestId: string,
   operation: string,
-  domain: "assistant" | "coding" = "assistant"
+  domain: "assistant" = "assistant"
 ) {
   return {
     kind: "wanex.agent-host.operation.request" as const,
@@ -1050,7 +1037,7 @@ function remoteHost() {
 function capabilities() {
   return {
     revision: 1 as const,
-    domains: ["assistant", "coding"] as const,
+    domains: ["assistant"] as const,
     features: [
       "canonical_reads",
       "ordered_events",

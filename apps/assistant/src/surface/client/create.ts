@@ -59,6 +59,15 @@ import type {
   ScheduleListReadModel,
   ScheduleMutationResult
 } from "../../schedule/model.js";
+import type {
+  WorkspaceChangeDecisionRequest,
+  WorkspaceChangeMutationRequest,
+  WorkspaceChangeMutationResult,
+  WorkspaceChangeReadModel,
+  WorkspaceChangeReference,
+  WorkspaceChangeSummary
+} from "../../workspace-review.js";
+import type { WorkspaceFoldersReadModel } from "../../workspace-folders.js";
 import { SURFACE_COMMANDS, type SurfaceCommand } from "../model.js";
 import type { SurfaceClientTransport } from "../client-model.js";
 import { createSurfaceClientEventFactory } from "../events.js";
@@ -177,6 +186,15 @@ export function createSurfaceClient(
     cancelLocalPluginReview: (input, options) => send<CancelLocalPluginReviewResult>(SURFACE_COMMANDS.cancelLocalPluginReview, input, options),
     setPluginInstallState: (input, options) => send<PluginManagementMutationResult>(SURFACE_COMMANDS.setPluginInstallState, input, options),
     retryPluginRefresh: (options) => send<PluginManagementMutationResult>(SURFACE_COMMANDS.retryPluginRefresh, undefined, options),
+  readWorkspaceChange: (input, options) => send<WorkspaceChangeReadModel>(SURFACE_COMMANDS.readWorkspaceChange, input, options),
+  decideWorkspaceChange: (input, options) => send<WorkspaceChangeSummary>(SURFACE_COMMANDS.decideWorkspaceChange, input, options),
+  applyWorkspaceChange: (input, options) => send<WorkspaceChangeMutationResult>(SURFACE_COMMANDS.applyWorkspaceChange, input, options),
+  undoWorkspaceChange: (input, options) => send<WorkspaceChangeMutationResult>(SURFACE_COMMANDS.undoWorkspaceChange, input, options),
+  reapplyWorkspaceChange: (input, options) => send<WorkspaceChangeMutationResult>(SURFACE_COMMANDS.reapplyWorkspaceChange, input, options),
+    listWorkspaceFolders: (input, options) => send<WorkspaceFoldersReadModel>(SURFACE_COMMANDS.listWorkspaceFolders, input, options),
+    grantWorkspaceFolder: (input, options) => send<WorkspaceFoldersReadModel>(SURFACE_COMMANDS.grantWorkspaceFolder, input, options),
+    regrantWorkspaceFolder: (input, options) => send<WorkspaceFoldersReadModel>(SURFACE_COMMANDS.regrantWorkspaceFolder, input, options),
+    revokeWorkspaceFolder: (input, options) => send<WorkspaceFoldersReadModel>(SURFACE_COMMANDS.revokeWorkspaceFolder, input, options),
     async readSurfaceEvents(request) {
       try {
         const page = await transport.readSurfaceEvents(request);

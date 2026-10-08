@@ -445,20 +445,46 @@ pub struct WorkspaceChangeTransactionFinalization {
     pub proposal_attempt: Option<WorkspaceChangeProposalApplyAttemptRecord>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskRootIdentity {
+    pub host_id: String,
+    pub generation_key: String,
+    pub root_id: String,
+    pub device: String,
+    pub inode: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskIsolationIdentity {
+    pub id: String,
+    pub kind: String,
+    pub repository_id: Option<String>,
+    pub base_revision: Option<String>,
+    pub runtime_ref: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WorkspaceTaskPreparedIsolationIdentity {
+    pub base_revision: String,
+    pub runtime_ref: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceTaskRunRecord {
     pub id: String,
     pub workspace_id: String,
     pub principal_id: String,
     pub access: String,
-    pub repository_id: String,
-    pub isolation_id: String,
+    pub strategy: String,
+    pub root_identity: WorkspaceTaskRootIdentity,
+    pub isolation_identity: WorkspaceTaskIsolationIdentity,
     pub execution_environment: Value,
     pub job_id: Option<String>,
     pub agent_id: Option<String>,
     pub state: String,
-    pub base_revision: Option<String>,
-    pub runtime_ref: Option<String>,
     pub execution_outcome: Option<String>,
     pub outcome: Option<String>,
     pub summary: Option<String>,
@@ -1143,8 +1169,9 @@ pub struct BeginWorkspaceTaskRun {
     pub workspace_id: String,
     pub principal_id: String,
     pub access: String,
-    pub repository_id: String,
-    pub isolation_id: String,
+    pub strategy: String,
+    pub root_identity: WorkspaceTaskRootIdentity,
+    pub isolation_identity: WorkspaceTaskIsolationIdentity,
     pub execution_environment: Value,
     pub job_id: Option<String>,
     pub agent_id: Option<String>,
@@ -1193,8 +1220,7 @@ pub struct MarkWorkspaceTaskActive {
     pub run_id: String,
     pub attempt_id: String,
     pub claim_token: String,
-    pub base_revision: Option<String>,
-    pub runtime_ref: Option<String>,
+    pub prepared_isolation: Option<WorkspaceTaskPreparedIsolationIdentity>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1230,9 +1256,11 @@ pub struct MarkWorkspaceTaskAttention {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ListWorkspaceTaskRuns {
+    pub root_identity: Option<WorkspaceTaskRootIdentity>,
     pub run_ids: Option<Vec<String>>,
     pub workspace_id: Option<String>,
-    pub repository_id: Option<String>,
+    pub root_id: Option<String>,
+    pub strategy: Option<String>,
     pub state: Option<String>,
     pub lease_expires_before: Option<i64>,
     pub limit: Option<i64>,

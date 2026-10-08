@@ -155,10 +155,13 @@ export async function submitConversationOperation(request: {
         }
       }
 
+      // A new conversation that already has folders starts in its reserved Session.
+      const newSessionId =
+        sessionId ?? state.newConversationSessionId;
       const receipt =
         await request.backend.commands.submitConversationOperation({
           content,
-          ...(sessionId === undefined ? {} : { sessionId }),
+          ...(newSessionId === undefined ? {} : { sessionId: newSessionId }),
           ...(request.input.principalId === undefined
             ? {}
             : { principalId: request.input.principalId }),
@@ -175,6 +178,7 @@ export async function submitConversationOperation(request: {
         ),
         sessionId,
       );
+      if (sessionId === undefined) delete next.newConversationSessionId;
       return {
         value: await readSubmittedOperation(request.backend, receipt),
         next,

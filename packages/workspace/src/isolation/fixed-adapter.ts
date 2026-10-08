@@ -26,6 +26,10 @@ export class FixedWorkspaceIsolationAdapter implements WorkspaceIsolationAdapter
     if (metadata?.kind !== "directory") {
       throw new Error("fixed workspace root is unavailable")
     }
+    if (request.rootIdentity !== undefined &&
+        (metadata.device !== request.rootIdentity.device || metadata.inode !== request.rootIdentity.inode)) {
+      throw new Error("fixed workspace root physical identity changed")
+    }
     const id = request.isolationId ?? createLeaseId()
     const optional = optionalLeaseFields({
       workspaceId: request.workspaceId ?? this.workspaceId,

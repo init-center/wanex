@@ -26,7 +26,27 @@ describe("LocalToolPermissionPolicy", () => {
     })
   })
 
+  it("allows only the durable workspace mutation contracts", async () => {
+    for (const name of ["workspace_apply_changeset", "workspace_undo_changeset", "workspace_reapply_changeset", "workspace_prepare_isolated_changes"]) {
+      await expect(policy.authorize(permissionRequest({
+        ...descriptor(name, "mutating"),
+        idempotent: false,
+        concurrency: "exclusive",
+        resultMode: "immediate"
+      }))).resolves.toEqual({
+        status: "allow",
+        reason: "assistant_local_workspace_changeset_tool"
+      })
+    }
+  })
+
   it("denies other effects and lookalike image tools", async () => {
+    for (const override of [{ concurrency: "parallel_safe" as const }, { idempotent: true }, { resultMode: "deferred" as const }]) {
+      await expect(policy.authorize(permissionRequest({
+        ...descriptor("workspace_prepare_isolated_changes", "mutating"),
+        ...override
+      }))).resolves.toMatchObject({ status: "deny" })
+    }
     await expect(policy.authorize(permissionRequest(
       descriptor("shell_exec", "mutating")
     ))).resolves.toMatchObject({ status: "deny" })

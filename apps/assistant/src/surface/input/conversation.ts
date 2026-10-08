@@ -39,6 +39,11 @@ export function parseSurfaceConversationSubmitRequest(
       "principalId",
       "submitConversationOperation input",
     ),
+    ...optionalStringField(
+      record,
+      "idempotencyKey",
+      "submitConversationOperation input",
+    ),
   };
 }
 

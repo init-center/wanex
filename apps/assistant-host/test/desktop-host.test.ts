@@ -1,3 +1,4 @@
+import { browserAssets } from "./support/browser-assets.js"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -32,6 +33,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("starts a trusted desktop main-process host with a safe snapshot", async () => {
     const storeDir = await tempDir("wanex-desktop-host-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -78,6 +80,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("handles web application request envelopes for desktop IPC adapters", async () => {
     const storeDir = await tempDir("wanex-desktop-host-ipc-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -147,6 +150,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("returns web application request errors without throwing", async () => {
     const storeDir = await tempDir("wanex-desktop-host-error-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -176,6 +180,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("handles structured desktop host requests for IPC adapters", async () => {
     const storeDir = await tempDir("wanex-desktop-host-request-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -382,6 +387,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("configures providers through the trusted desktop host setup facade", async () => {
     const storeDir = await tempDir("wanex-desktop-host-setup-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -433,6 +439,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("returns structured desktop host request errors", async () => {
     const storeDir = await tempDir("wanex-desktop-host-request-error-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir
@@ -490,6 +497,7 @@ describe("@wanex/assistant-host/desktop-host", () => {
   it("closes resources idempotently", async () => {
     const storeDir = await tempDir("wanex-desktop-host-close-")
     const host = await startDesktopMainHost({
+      browserAssets,
       storage: {
         kind: "store-dir",
         storeDir

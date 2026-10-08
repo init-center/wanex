@@ -20,6 +20,8 @@ import type {
   ProviderMutationResult,
   SaveProviderRequest,
 } from "./contracts.js";
+import { isSurfaceEvent, type SurfaceEvent } from "@wanex/assistant/surface";
+import { projectSurfaceEvent } from "./surface-events.js";
 
 export interface HttpClientOptions {
   readonly requestPath: string;
@@ -447,8 +449,7 @@ export function createHttpClient(
       if (
         payload.kind !== "assistant.surface-stream.event" ||
         payload.streamId === undefined ||
-        event === undefined ||
-        event.sequence === undefined ||
+        !isSurfaceEvent(event) ||
         !validCursor(payload.streamId, event.sequence)
       ) {
         emit({ kind: "snapshot-invalidated" });
@@ -460,39 +461,8 @@ export function createHttpClient(
         emit({ kind: "snapshot-invalidated" });
         return;
       }
-      if (event?.type === "assistant.surface.conversation.assistant-text-delta") {
-        if (
-          event.conversation?.operationId === undefined ||
-          event.conversation.sessionId === undefined ||
-          event.conversation.text === undefined
-        ) {
-          emit({ kind: "snapshot-invalidated" });
-          return;
-        }
-        emit({
-          kind: "assistant-text-delta",
-          operationId: event.conversation.operationId,
-          sessionId: event.conversation.sessionId,
-          text: event.conversation.text,
-          sequence: event.sequence,
-        });
-        return;
-      }
-      if (event?.type === "assistant.surface.conversation.operation-invalidated") {
-        emit({
-          kind: "snapshot-invalidated",
-          ...(event.conversation?.operationId === undefined
-            ? {}
-            : { operationId: event.conversation.operationId }),
-          ...(event.conversation?.sessionId === undefined
-            ? {}
-            : { sessionId: event.conversation.sessionId }),
-        });
-        return;
-      }
-      if (surfaceEventInvalidatesSnapshot(event.type)) {
-        emit({ kind: "snapshot-invalidated" });
-      }
+      const projected = projectSurfaceEvent(event as SurfaceEvent);
+      if (projected !== undefined) emit(projected);
     } catch {
       emit({ kind: "snapshot-invalidated" });
     }
@@ -657,15 +627,7 @@ interface SurfaceStreamPayload {
   readonly kind?: string;
   readonly streamId?: string;
   readonly latestSequence?: number;
-  readonly event?: {
-    readonly type?: string;
-    readonly sequence?: number;
-    readonly conversation?: {
-      readonly operationId?: string;
-      readonly sessionId?: string;
-      readonly text?: string;
-    };
-  };
+  readonly event?: unknown;
 }
 
 function validCursor(
@@ -676,17 +638,6 @@ function validCursor(
     /^[A-Za-z0-9._-]{1,200}$/.test(streamId) &&
     Number.isSafeInteger(sequence) &&
     (sequence ?? -1) >= 0;
-}
-
-function surfaceEventInvalidatesSnapshot(type: string | undefined): boolean {
-  return type === "assistant.surface.state_changed" ||
-    type === "assistant.surface.command-catalog.invalidated" ||
-    type === "assistant.surface.command-execution.invalidated" ||
-    type === "assistant.surface.conversation.operation-invalidated" ||
-    type === "assistant.surface.side-query.invalidated" ||
-    type === "assistant.surface.plan.invalidated" ||
-    type === "assistant.surface.goal.invalidated" ||
-    type === "assistant.surface.team.invalidated";
 }
 
 function isAbortError(error: unknown): boolean {

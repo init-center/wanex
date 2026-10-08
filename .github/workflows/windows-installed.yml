@@ -1,0 +1,58 @@
+name: Windows Installed Acceptance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installed-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installed:
+    name: Installed Desktop and TUI win32-x64
+    runs-on: windows-2025
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+        with:
+          version: 11.17.0
+          run_install: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm stage:native -- --target win32-x64
+      - run: pnpm check:desktop
+      - run: pnpm test:desktop
+        env:
+          WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/win32-x64/wanex-system-service.exe
+      - run: pnpm --filter @wanex/desktop prepare:electron
+      - run: pnpm proof:desktop
+      - run: pnpm proof:native-runtime -- --artifact-dir target/distribution/native
+      - run: pnpm proof:tui -- --native-artifact-dir target/distribution/native
+      - run: pnpm proof:desktop-distribution -- --target win32-x64
+      - run: pnpm audit:host-distribution -- --target win32-x64
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: wanex-windows-installed-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            target/distribution/native
+            target/distribution/native-runtime-proof.json
+            target/distribution/tui
+            target/distribution/host-distribution-audit-win32-x64.json
+            target/distribution/desktop/electron-artifact.json
+            target/distribution/desktop/desktop-report.json
+            target/distribution/desktop/desktop-distribution-receipt.json
+            target/distribution/desktop/desktop-proof-normal.png
+            target/distribution/desktop/desktop-proof-narrow.png

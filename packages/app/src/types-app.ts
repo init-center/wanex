@@ -3,13 +3,15 @@ import type {
   PreparedAgentContext
 } from "@wanex/runtime/context"
 import type {
-  SessionTurnAgentContextIdentity,
   ResolveSessionTurnAgentContextRequest,
+  SessionTurnAgentContextIdentity,
   SessionTurnAgentContextLease
 } from "@wanex/runtime/execution"
+import type { ExecutionEnvironmentBinding, SessionTurnAdmissionCondition } from "@wanex/protocol"
 import type {
   RuntimeHostPrepareExecutionBindingRequest,
   RuntimeHostPreparedExecutionBinding,
+  RuntimeHostToolApprovalContinuation,
   RuntimeHostSessionTurnLifecycleSignal
 } from "@wanex/runtime/host"
 import type { BootstrapWanexStorageOptions } from "@wanex/runtime/bootstrap"
@@ -89,6 +91,8 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
     PreparedAgentContext,
     "tools" | "toolPermissionPolicy"
   >
+  /** Host-owned continuation after a persisted Tool approval decision. */
+  readonly toolApprovalContinuation?: RuntimeHostToolApprovalContinuation
   readonly runtimeContextResolver?: WanexAppRuntimeContextResolver
   readonly observeSessionTurnLifecycle?: (
     signal: RuntimeHostSessionTurnLifecycleSignal
@@ -115,19 +119,19 @@ export interface WanexApp {
   dispose(): Promise<void>
 }
 
-export type WanexAppRuntimeContext = Pick<
-  PreparedAgentContext,
-  "tools" | "toolPermissionPolicy"
->
-
 export interface WanexAppRuntimeContextResolution {
-  readonly context?: WanexAppRuntimeContext
+  /** Complete replacement; omission retains the prepared default context. */
+  readonly context?: PreparedAgentContext
   readonly contextIdentity?: SessionTurnAgentContextIdentity
   readonly lease?: SessionTurnAgentContextLease
+  readonly executionEnvironment?: ExecutionEnvironmentBinding
+  readonly admissionConditions?: readonly SessionTurnAdmissionCondition[]
 }
 
 export type WanexAppRuntimeContextResolver = (
-  request: ResolveSessionTurnAgentContextRequest
+  request: ResolveSessionTurnAgentContextRequest,
+  /** Borrowed prepared default; compose without mutating its registry or snapshots. */
+  defaultContext: PreparedAgentContext | undefined
 ) =>
   | Promise<WanexAppRuntimeContextResolution | undefined>
   | WanexAppRuntimeContextResolution

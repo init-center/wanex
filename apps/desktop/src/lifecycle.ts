@@ -4,8 +4,7 @@ export interface WanexDesktopOwnedLifecycle {
 }
 
 export interface WanexDesktopOwnedResourceClosers {
-  readonly coding?: () => Promise<void>
-  readonly remoteCoding?: () => Promise<void>
+  readonly serverConnections?: () => Promise<void>
   readonly assistant?: () => Promise<void>
 }
 
@@ -13,8 +12,7 @@ export async function closeWanexDesktopOwnedResources(
   closers: WanexDesktopOwnedResourceClosers,
 ): Promise<void> {
   const results = await Promise.allSettled([
-    closers.coding?.(),
-    closers.remoteCoding?.(),
+    closers.serverConnections?.(),
     closers.assistant?.(),
   ])
   const failure = results.find(

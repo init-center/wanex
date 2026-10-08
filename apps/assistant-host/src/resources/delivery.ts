@@ -1,15 +1,15 @@
 import { createHash, randomBytes } from "node:crypto"
 import type { Shell } from "@wanex/assistant"
-import { parseLocalResourceRange } from "./range.js"
+import { parseResourceRange } from "./range.js"
 import { validateResourceDeliveryRecord } from "./policy.js"
 import {
-  LocalResourceDeliveryError,
-  type LocalOpenResourceDeliveryRequest,
-  type LocalPreparedResourceDelivery,
-  type LocalPrepareResourceDeliveryRequest,
-  type LocalResourceDeliveryAuthorizer,
-  type LocalResourceDeliveryPort,
-  type LocalResourceDeliveryRead
+  ResourceDeliveryError,
+  type OpenResourceDeliveryRequest,
+  type PreparedResourceDelivery,
+  type PrepareResourceDeliveryRequest,
+  type ResourceDeliveryAuthorizer,
+  type ResourceDeliveryPort,
+  type ResourceDeliveryRead
 } from "./model.js"
 
 export * from "./authorizer.js"
@@ -32,17 +32,17 @@ interface ResourceDeliveryGrant {
   readonly audience: string
   readonly resourceId: string
   readonly sha256: string
-  readonly resourceKind: LocalPreparedResourceDelivery["resourceKind"]
+  readonly resourceKind: PreparedResourceDelivery["resourceKind"]
   readonly mediaType: string
   readonly sizeBytes: number
-  readonly purpose: LocalPreparedResourceDelivery["purpose"]
+  readonly purpose: PreparedResourceDelivery["purpose"]
   readonly sessionId?: string
   readonly expiresAt: number
   readonly abort: AbortController
 }
 
-export interface CreateLocalResourceDeliveryPortOptions {
-  readonly authorizer: LocalResourceDeliveryAuthorizer
+export interface CreateResourceDeliveryPortOptions {
+  readonly authorizer: ResourceDeliveryAuthorizer
   readonly previewTtlMs?: number
   readonly mediaTtlMs?: number
   readonly capacity?: number
@@ -50,10 +50,10 @@ export interface CreateLocalResourceDeliveryPortOptions {
   readonly createToken?: () => string
 }
 
-export function createLocalResourceDeliveryPort(
+export function createResourceDeliveryPort(
   resources: TrustedResourceReads,
-  options: CreateLocalResourceDeliveryPortOptions
-): LocalResourceDeliveryPort {
+  options: CreateResourceDeliveryPortOptions
+): ResourceDeliveryPort {
   const previewTtlMs = boundedPositiveInteger(
     options.previewTtlMs ?? DEFAULT_RESOURCE_PREVIEW_DELIVERY_TTL_MS,
     "resource preview delivery ttlMs"
@@ -193,8 +193,8 @@ export function createLocalResourceDeliveryPort(
 async function openDelivery(
   resources: TrustedResourceReads,
   grant: ResourceDeliveryGrant,
-  request: LocalOpenResourceDeliveryRequest
-): Promise<LocalResourceDeliveryRead> {
+  request: OpenResourceDeliveryRequest
+): Promise<ResourceDeliveryRead> {
   if (request.method !== "GET" && request.method !== "HEAD") {
     throw deliveryError(
       400,
@@ -219,7 +219,7 @@ async function openDelivery(
       expiresAt: grant.expiresAt
     }
   }
-  const range = parseLocalResourceRange(request.range, grant.sizeBytes)
+  const range = parseResourceRange(request.range, grant.sizeBytes)
   const start = range?.start ?? 0
   const end = range?.end ?? grant.sizeBytes - 1
   const contentLength = end - start + 1
@@ -289,8 +289,8 @@ async function* streamResourceRange(
 }
 
 function normalizePrepareRequest(
-  request: LocalPrepareResourceDeliveryRequest
-): LocalPrepareResourceDeliveryRequest {
+  request: PrepareResourceDeliveryRequest
+): PrepareResourceDeliveryRequest {
   return {
     audience: requiredIdentifier(request.audience, "audience"),
     resourceId: requiredIdentifier(request.resourceId, "resourceId"),
@@ -325,8 +325,8 @@ function requiredSha256(value: string): string {
 }
 
 function requiredPurpose(
-  value: LocalPrepareResourceDeliveryRequest["purpose"]
-): LocalPrepareResourceDeliveryRequest["purpose"] {
+  value: PrepareResourceDeliveryRequest["purpose"]
+): PrepareResourceDeliveryRequest["purpose"] {
   if (value !== "preview" && value !== "media") {
     throw deliveryError(
       400,
@@ -359,7 +359,7 @@ function hashToken(token: string): string {
 function preparedDelivery(
   token: string,
   grant: ResourceDeliveryGrant
-): LocalPreparedResourceDelivery {
+): PreparedResourceDelivery {
   return {
     kind: "assistant-host.resource-delivery",
     token,
@@ -421,14 +421,14 @@ function assertNotAborted(signal: AbortSignal | undefined): void {
   }
 }
 
-function contentMismatch(message: string): LocalResourceDeliveryError {
+function contentMismatch(message: string): ResourceDeliveryError {
   return deliveryError(409, "resource_content_mismatch", message)
 }
 
 function deliveryError(
-  statusCode: LocalResourceDeliveryError["statusCode"],
-  code: LocalResourceDeliveryError["code"],
+  statusCode: ResourceDeliveryError["statusCode"],
+  code: ResourceDeliveryError["code"],
   message: string
-): LocalResourceDeliveryError {
-  return new LocalResourceDeliveryError(statusCode, code, message)
+): ResourceDeliveryError {
+  return new ResourceDeliveryError(statusCode, code, message)
 }

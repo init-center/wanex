@@ -34,6 +34,17 @@ export function isSurfaceCommandValue(
   command: SurfaceCommand,
 ): boolean {
   switch (command) {
+    case "readWorkspaceChange":
+    case "decideWorkspaceChange":
+    case "applyWorkspaceChange":
+    case "undoWorkspaceChange":
+    case "reapplyWorkspaceChange":
+      return isRecord(value)
+    case "listWorkspaceFolders":
+    case "grantWorkspaceFolder":
+    case "regrantWorkspaceFolder":
+    case "revokeWorkspaceFolder":
+      return isWorkspaceFoldersReadModel(value)
     case "readPluginManagement":
       return isPluginManagementReadResult(value);
     case "requestLocalPluginReview":
@@ -118,6 +129,35 @@ export function isSurfaceCommandValue(
     default:
       return true;
   }
+}
+
+function isWorkspaceFoldersReadModel(value: unknown): boolean {
+  const isAccess = (access: unknown) => access === "read" || access === "read_write";
+  return (
+    isRecord(value) &&
+    value.kind === "assistant.workspace-folders" &&
+    typeof value.available === "boolean" &&
+    typeof value.canPick === "boolean" &&
+    optionalString(value.sessionId) &&
+    Array.isArray(value.folders) &&
+    value.folders.length <= 64 &&
+    value.folders.every((folder) =>
+      isRecord(folder) &&
+      Object.keys(folder).length === 3 &&
+      typeof folder.grantId === "string" &&
+      typeof folder.name === "string" &&
+      isAccess(folder.access)
+    ) &&
+    Array.isArray(value.recent) &&
+    value.recent.length <= 64 &&
+    value.recent.every((folder) =>
+      isRecord(folder) &&
+      Object.keys(folder).length === 3 &&
+      typeof folder.recentRef === "string" &&
+      typeof folder.name === "string" &&
+      isAccess(folder.access)
+    )
+  );
 }
 
 function isGoalReadResult(value: unknown): boolean {

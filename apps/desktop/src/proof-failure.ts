@@ -2,17 +2,14 @@ import {
   DesktopRendererProofError,
 } from "./packaged-renderer-proof.js";
 import { boundedAssistantHostDiagnostics } from "./proof/assistant-diagnostics.js";
-import { boundedCodingHostDiagnostics } from "./proof/coding-diagnostics.js";
 export function createWanexDesktopProofFailureReceipt(input: {
   readonly error: unknown;
   readonly failurePhase: string;
   readonly proofStep?: string;
   readonly assistantDiagnostics?: unknown;
-  readonly codingDiagnostics?: unknown;
 }): unknown {
   const diagnostic = failureDiagnostic(input.error, input.failurePhase);
   const assistant = boundedAssistantHostDiagnostics(input.assistantDiagnostics);
-  const coding = boundedCodingHostDiagnostics(input.codingDiagnostics);
   return {
     kind: "wanex.desktop.runtime-receipt",
     ok: false,
@@ -26,16 +23,18 @@ export function createWanexDesktopProofFailureReceipt(input: {
       ? { renderer: input.error.renderer }
       : {}),
     ...(assistant === undefined ? {} : { assistant }),
-    ...(coding === undefined ? {} : { coding }),
   };
 }
 
 export function formatWanexDesktopError(error: unknown): string {
   const value = boundedDesktopError(error);
   const diagnostic = safeDiagnosticMessage(error);
-  return diagnostic === undefined
+  const formatted = diagnostic === undefined
     ? `[wanex-desktop] ${value.name}: ${value.code}`
     : `[wanex-desktop] ${value.name}: ${value.code}: ${diagnostic}`;
+  return diagnostic?.includes("unsupported pre-release store schema") === true
+    ? `${formatted}\nThis internal Store is incompatible with this build. Existing data was not reset or migrated. To start separately, set WANEX_DESKTOP_PROFILE_ID to a new profile name; keep the old profile for inspection.`
+    : formatted;
 }
 
 function failureDiagnostic(
@@ -135,11 +134,6 @@ function classifyRendererProofFailure(error: unknown): string {
   if (message.includes("side-query proof timed out during parent settlement")) {
     return "side_query_parent_settlement_timeout";
   }
-  const codingTimeout = message.match(/Coding proof timed out: ([a-z_]+)/);
-  if (codingTimeout !== null) {
-    const stage = codingTimeout[1] ?? "renderer";
-    return `${stage.startsWith("coding_") ? stage : `coding_${stage}`}_timeout`;
-  }
   const relaunchTimeout = message.match(
     /Provider relaunch proof timed out during [^:]+:([a-z_]+):([^`\n]*)/,
   );
@@ -162,20 +156,6 @@ function classifyRendererProofFailure(error: unknown): string {
     return `schedule_${scheduleTimeout[1] ?? "renderer"}_timeout`.slice(0, 256);
   }
   for (const stage of [
-    "coding_navigation",
-    "coding_surface",
-    "coding_project",
-    "coding_composer",
-    "coding_submit",
-    "coding_user_message",
-    "coding_approval",
-    "coding_proposal",
-    "coding_turn",
-    "coding_response",
-    "coding_proposal_review",
-    "coding_proposal_apply_request",
-    "coding_proposal_apply",
-    "coding_proposal_undo",
     "chat_ready",
     "transcript_restore",
     "composer_ready",

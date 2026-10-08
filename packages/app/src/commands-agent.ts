@@ -23,13 +23,10 @@ export function createWanexAppAgentCommands(
     async runAgentTurn(request) {
       context.assertActive()
       const modelEndpointId = await context.refreshActiveModelEndpointId()
-      const preparedAgentContext = await context.extensions.prepareAgentContext(
-        context.agentContext.current()
-      )
       return await runWanexAppAgentTurn(context.conversationOperations, {
         request,
         modelEndpointId,
-        ...(preparedAgentContext === undefined ? {} : { preparedAgentContext })
+        storage: context.runtime.storage
       })
     },
     async queueGuidedFollowUp(request) {

@@ -22,6 +22,8 @@ import type {
   McpTransportKind,
 } from "../../client/contracts.js";
 import { classes } from "../classes.js";
+import { Select } from "../primitives/select.js";
+import { ConfirmDialog } from "../primitives/confirm-dialog.js";
 
 type FormMode =
   | { readonly kind: "create" }
@@ -35,6 +37,7 @@ export function McpSection({ settings }: {
   const [form, setForm] = useState<FormMode>();
   const [transport, setTransport] = useState<McpTransportKind>("streamable_http");
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState<McpServer>();
   const [error, setError] = useState<string>();
   const [status, setStatus] = useState<string>();
 
@@ -106,9 +109,8 @@ export function McpSection({ settings }: {
 
   async function remove(server: McpServer): Promise<void> {
     const identity = actionable(server);
-    if (busy || !globalThis.confirm(`Remove ${server.label ?? identity.serverId}?`)) {
-      return;
-    }
+    if (busy) return;
+    setRemoving(undefined);
     setBusy(true);
     clearFeedback();
     try {
@@ -206,7 +208,7 @@ export function McpSection({ settings }: {
               rename={() => begin({ kind: "rename", server })}
               replace={() => begin({ kind: "replace", server })}
               setEnabled={setEnabled}
-              remove={remove}
+              requestRemoval={() => setRemoving(server)}
             />
           ))}
         </ul>
@@ -232,6 +234,16 @@ export function McpSection({ settings }: {
           {status}
         </p>
       )}
+      <ConfirmDialog
+        open={removing !== undefined}
+        title={`Remove ${removing?.label ?? "this server"}?`}
+        description="Its tools stop being available to new conversations. Conversations already running keep the tools they started with."
+        confirmLabel="Remove server"
+        busy={busy}
+        qa="mcp-remove"
+        onCancel={() => setRemoving(undefined)}
+        onConfirm={() => { if (removing !== undefined) void remove(removing); }}
+      />
     </section>
   );
 }
@@ -242,14 +254,14 @@ function ServerRow({
   rename,
   replace,
   setEnabled,
-  remove,
+  requestRemoval,
 }: {
   readonly server: McpServer;
   readonly busy: boolean;
   readonly rename: () => void;
   readonly replace: () => void;
   readonly setEnabled: (server: McpServer, enabled: boolean) => Promise<void>;
-  readonly remove: (server: McpServer) => Promise<void>;
+  readonly requestRemoval: () => void;
 }): ReactNode {
   const actionableServer = server.serverId !== undefined && server.revision !== undefined;
   return (
@@ -287,7 +299,7 @@ function ServerRow({
         <button type="button" className={classes("icon-button")} disabled={busy || !actionableServer} onClick={replace} aria-label={`Replace ${server.label ?? "server"} connection`} title="Replace connection">
           <RotateCcw size={13} />
         </button>
-        <button type="button" className={classes("icon-button danger-icon")} disabled={busy || !actionableServer} onClick={() => void remove(server)} aria-label={`Remove ${server.label ?? "server"}`} title="Remove server">
+        <button type="button" className={classes("icon-button danger-icon")} disabled={busy || !actionableServer} onClick={requestRemoval} aria-label={`Remove ${server.label ?? "server"}`} title="Remove server">
           <Trash2 size={13} />
         </button>
       </div>
@@ -331,10 +343,9 @@ function ServerForm({
         <>
           <label>
             <span>Connection</span>
-            <select name="transport" value={transport} disabled={busy} onChange={(event) => setTransport(event.target.value as McpTransportKind)}>
-              <option value="streamable_http">HTTP</option>
-              <option value="stdio">Local process</option>
-            </select>
+            <Select name="transport" label="Connection" value={transport} disabled={busy}
+              onValueChange={(value) => setTransport(value as McpTransportKind)}
+              options={[{ value: "streamable_http", label: "HTTP" }, { value: "stdio", label: "Local process" }]} />
           </label>
           {transport === "streamable_http" ? (
             <label>

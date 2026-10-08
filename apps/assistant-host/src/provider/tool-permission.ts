@@ -13,6 +13,7 @@ export class LocalToolPermissionPolicy
       implementationRevision: "1",
       configuration: {
         readOnly: "allow",
+        workspaceChanges: "allow_exact_builtin_contract",
         imageGenerate: "allow_exact_builtin_contract",
         other: "deny"
       }
@@ -26,6 +27,32 @@ export class LocalToolPermissionPolicy
       return {
         status: "allow",
         reason: "assistant_local_read_only_tool"
+      }
+    }
+    if (
+      request.descriptor.risk === "mutating" &&
+      request.descriptor.idempotent === false &&
+      request.descriptor.concurrency === "exclusive" &&
+      request.descriptor.resultMode === "immediate" &&
+      request.descriptor.name === "workspace_apply_changeset"
+    ) {
+      return {
+        status: "allow",
+        reason: "assistant_local_workspace_changeset_tool"
+      }
+    }
+    if (
+      request.descriptor.risk === "mutating" &&
+      request.descriptor.idempotent === false &&
+      request.descriptor.concurrency === "exclusive" &&
+      request.descriptor.resultMode === "immediate" &&
+      (request.descriptor.name === "workspace_undo_changeset" ||
+        request.descriptor.name === "workspace_reapply_changeset" ||
+        request.descriptor.name === "workspace_prepare_isolated_changes")
+    ) {
+      return {
+        status: "allow",
+        reason: "assistant_local_workspace_changeset_tool"
       }
     }
     if (

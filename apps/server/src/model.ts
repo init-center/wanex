@@ -13,9 +13,10 @@ import type {
   RemoteHostAuthenticatedSubject,
   RemoteHostRequestLimits
 } from "@wanex/runtime/host"
-import type { CodingApplicationHost } from "@wanex/coding/host"
 
 export interface WanexServerAuthentication {
+  /** Trusted account owning this Server's resolved Store, not an agent principal. */
+  readonly ownerSubjectId: string
   authenticateBearerToken(
     token: string
   ): Promise<RemoteHostAuthenticatedSubject | null>
@@ -48,6 +49,8 @@ export interface WanexServerEndpoint {
   readonly hostname: string
   readonly port: number
   readonly messageUrl: string
+  readonly attachmentUploadUrl: string
+  readonly resourceDeliveryUrl: string
 }
 
 export interface WanexServerStatus {
@@ -55,7 +58,6 @@ export interface WanexServerStatus {
   readonly state: WanexServerState
   readonly profileId: string
   readonly assistant: "ready" | "closing" | "closed"
-  readonly coding: "disabled" | "ready" | "closing" | "closed"
   readonly listener: "ready" | "closing" | "closed"
   readonly endpoint: WanexServerEndpoint
 }
@@ -69,6 +71,5 @@ export interface WanexServer {
 
 export interface StartedWanexServer extends WanexServer {
   readonly assistantHost: AssistantHost
-  readonly codingHost?: CodingApplicationHost
   readonly remoteHandler: RemoteAgentHostHttpHandler
 }

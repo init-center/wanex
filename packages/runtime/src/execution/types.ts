@@ -151,6 +151,8 @@ export interface BindExecutionScopeRequest {
 }
 
 export interface ExecutionFileMetadata {
+  readonly device: string;
+  readonly inode: string;
   readonly kind: "file" | "directory" | "symlink" | "other";
   readonly size: number;
   readonly modifiedAt: number;

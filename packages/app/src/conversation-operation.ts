@@ -483,7 +483,7 @@ export class WanexAppConversationOperationController {
     ) {
       throw new Error("conversation approval execution was not found")
     }
-    const receipt = await this.#storage.resolveToolExecutionApproval({
+    const receipt = await this.#host.resolveToolExecutionApproval({
       executionId,
       expectedApprovalRevision: request.expectedApprovalRevision,
       decision: request.decision,

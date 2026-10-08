@@ -19,15 +19,6 @@
       "rationale": "A separately executable CLI is a real product and lifecycle boundary.",
       "evidence": "Its bin/start path is production-facing; it will consume only Runtime/App public entries."
     },
-    "@wanex/coding": {
-      "path": "apps/coding",
-      "role": "app",
-      "disposition": "retain",
-      "targetOwner": "@wanex/coding",
-      "targetPhase": "CODING-3A",
-      "rationale": "Coding application projection and trusted repository/native composition share one product owner with an explicit renderer/Host trust boundary and a distinct five-package dependency and resource closure.",
-      "evidence": "The package root is application-safe; the explicit /host subpath alone opens canonical Git repositories and owns Runtime/Storage/Workspace lifecycle. Bounded read models, command settlement, and ordered invalidations expose no trusted paths or authority objects."
-    },
     "@wanex/connector": {
       "path": "packages/connector",
       "role": "public-capability",
@@ -116,7 +107,7 @@
       "targetOwner": "@wanex/assistant-host",
       "targetPhase": "Route 1.1",
       "rationale": "The authoritative Assistant Host owns Assistant storage, Provider, resource, schedule, Team, Web, and lifecycle composition independently of whether its client is local or remote.",
-      "evidence": "Desktop and TUI currently borrow its lifecycle in-process; a later remote Agent Host protocol may address the same owner without changing its package identity. Coding remains independently composed through @wanex/coding, so no generic multi-domain Host closure is claimed."
+      "evidence": "Desktop, TUI, and remote clients consume the Assistant Host over explicit local or remote transports; the Server owns one Assistant composition and one generic Store lifecycle."
     },
     "@wanex/tui": {
       "path": "apps/tui",
@@ -201,6 +192,15 @@
     }
   },
   "tombstones": {
+    "@wanex/coding": {
+      "path": "apps/coding",
+      "role": "app",
+      "disposition": "delete",
+      "targetOwner": "@wanex/assistant and @wanex/workspace",
+      "targetPhase": "Route 20E-1B-3",
+      "rationale": "The unpublished Coding application duplicated the unified Assistant Surface and Workspace capability path; retaining it would preserve the retired dual product model.",
+      "evidence": "Server, protocol, distribution, and package consumers were retired after unified Assistant acceptance. No compatibility alias or forwarding package remains."
+    },
     "@wanex/product": {
       "path": "apps/product",
       "role": "app",

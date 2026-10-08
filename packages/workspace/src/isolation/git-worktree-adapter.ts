@@ -11,12 +11,14 @@ import type {
 } from "./types.js"
 
 export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
+  private readonly rootIdentity: GitWorktreeIsolationAdapterOptions["rootIdentity"]
   private readonly repositoryId: string
   private readonly locator: RepositoryLocator
   private readonly snapshot: GitWorktreeIsolationAdapterOptions["snapshot"]
   private readonly executionScope: GitWorktreeIsolationAdapterOptions["executionScope"]
 
   constructor(options: GitWorktreeIsolationAdapterOptions) {
+    this.rootIdentity = Object.freeze({ ...options.rootIdentity })
     this.repositoryId = requireRepositoryId(options.repositoryId)
     this.locator = options.locator
     this.snapshot = options.snapshot
@@ -30,8 +32,14 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
     if (isolationId === undefined || isolationId.length === 0) {
       throw new Error("git worktree isolation requires a durable isolation id")
     }
-    const repository = await this.locator.locate(this.repositoryId)
+    if (request.rootIdentity !== undefined &&
+        (request.rootIdentity.device !== this.rootIdentity.device || request.rootIdentity.inode !== this.rootIdentity.inode)) {
+      throw new Error("workspace task root does not match the isolation adapter")
+    }
+    const repository = await this.locateRoot()
     const snapshot = await this.snapshot.create({
+      rootIdentity: this.rootIdentity,
+      ...(request.expectedBaseRevision === undefined ? {} : { expectedBaseRevision: request.expectedBaseRevision }),
       repositoryRoot: repository.repositoryRoot,
       worktreeParent: repository.worktreeParent,
       isolationId,
@@ -71,7 +79,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
     if (lease.baseRevision === undefined || lease.branchName === undefined) {
       throw new Error("git worktree lease is missing its durable runtime identity")
     }
-    const repository = await this.locator.locate(this.repositoryId)
+    const repository = await this.locateRoot()
     const expected = deterministicGitWorktreeIdentity(
       repository.worktreeParent,
       lease.id
@@ -89,6 +97,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
       },
       {
         repositoryRoot: repository.repositoryRoot,
+        rootIdentity: this.rootIdentity,
         worktreeParent: repository.worktreeParent,
         isolationId: lease.id,
         serviceBin: repository.serviceBin,
@@ -111,7 +120,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
     if (identity.baseRevision === undefined || identity.branchName === undefined) {
       throw new Error("git worktree durable identity is incomplete")
     }
-    const repository = await this.locator.locate(this.repositoryId)
+    const repository = await this.locateRoot()
     const expected = deterministicGitWorktreeIdentity(
       repository.worktreeParent,
       identity.id
@@ -126,6 +135,7 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
       },
       {
         repositoryRoot: repository.repositoryRoot,
+        rootIdentity: this.rootIdentity,
         worktreeParent: repository.worktreeParent,
         isolationId: identity.id,
         serviceBin: repository.serviceBin,
@@ -134,6 +144,15 @@ export class GitWorktreeIsolationAdapter implements WorkspaceIsolationAdapter {
         timeoutMs: repository.gitTimeoutMs
       }
     )
+  }
+
+  private async locateRoot() {
+    const repository = await this.locator.locate(this.repositoryId)
+    const metadata = await repository.fileSystem.metadata(repository.repositoryRoot)
+    if (metadata?.kind !== "directory" || metadata.device !== this.rootIdentity.device || metadata.inode !== this.rootIdentity.inode) {
+      throw new Error("workspace repository physical identity changed")
+    }
+    return repository
   }
 }
 

@@ -284,7 +284,8 @@ function isTimestamp(value: unknown): value is number {
 function isDomainList(value: unknown): value is readonly AgentHostDomain[] {
   return (
     Array.isArray(value) &&
-    value.every((domain) => domain === "assistant" || domain === "coding") &&
+    value.length === 1 &&
+    value.every((domain) => domain === "assistant") &&
     new Set(value).size === value.length
   )
 }

@@ -10,6 +10,7 @@ import type {
   ToolActivityPresentation,
   ToolResultContentPart,
 } from "@wanex/protocol";
+import type { WorkspaceChangeSummary } from "../workspace-review.js";
 
 export interface TrustedConversationSubmissionIdentity {
   readonly idempotencyKeyDigest: string
@@ -69,6 +70,8 @@ export interface ConversationHistoryRow {
   readonly updatedAt: number;
   readonly parts: readonly ConversationPresentationPart[];
   readonly capabilityRequests: readonly CapabilityRequestInteraction[];
+  /** File changes made by this row's Tool calls; present only when non-empty. */
+  readonly workspaceChanges?: readonly WorkspaceChangeSummary[];
 }
 
 export type ConversationPresentationPart =

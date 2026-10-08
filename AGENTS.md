@@ -24,7 +24,593 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (2026-09-09)
+## Authoritative Current Route (Revised 2026-10-08)
+
+Implementation/1733 and implementation/1734 record partial native macOS window
+observations, not completed traffic-light or dark-frame visual acceptance.
+Implementation/1735 freezes exactly one manual Windows installed acceptance.
+The user explicitly authorized committing and pushing the verified complete
+source snapshot and dispatching that one run. Use an automatic-CI skip marker
+on the snapshot commit, preserve the existing release/security workflow, and
+dispatch only windows-installed.yml. Do not automatically rerun a failed or
+ambiguous dispatch, trigger a release matrix, or publish a release. Keep the
+untracked styles.module.css-E backup local and unchanged. Record the exact SHA,
+run URL and target receipts; a targeted pass is not a release/security pass.
+
+The user reassigned UI and final acceptance to this window on 2026-10-08.
+Implementation/1712 is the current UI closure plan, using implementation/1704
+and the v7 visual reference. There is no remaining external UI-owner dependency.
+Implementation/1713 completes shared Select controls and the first rendered
+surface matrix: 12 authored selects replaced, 80 browser screenshots checked,
+180 UI tests, full local verify, fresh installed Desktop/TUI/native proofs and
+unchanged distribution budgets pass. The whole UI route is not complete.
+Implementation/1714 and implementation/1715 complete Workspace review loading,
+explicit read retry, preview retention across approval/mutation and obsolete
+response fencing. UI 193 tests, 24 browser state checks, full verify and fresh
+installed Desktop/native/distribution gates pass. Implementation/1716 and
+implementation/1717 complete Desktop outer-shell appearance: canonical App
+theme notification, shared tokens, corrected loading semantics/URL contrast,
+five new tests and 96 browser state checks. UI 197, Desktop 125, full verify and
+fresh installed Desktop/native/distribution gates pass. Implementation/1718 and
+implementation/1719 close Connections modal focus/lifetimes, write/readback
+recovery, transient review retry focus, responsive drawer visibility/focus and
+proven-unused Coding/rail CSS. Desktop 137, UI 200, full verify and fresh installed
+Desktop/TUI/native/distribution gates pass. Native-frame visual evidence remains
+explicitly incomplete; browser content is not proof of traffic-light clearance.
+Implementation/1720 and the partial results in implementation/1721 correct the
+known production dependency advisories: production audit is now clean, while
+the full audit still fails on one moderate development-tool sprintf-js chain
+without a published upstream fix. Security/release closure is NOT complete.
+The current installed Electron 43.7.8 journey passes after bounded diagnostics
+were added, but preceding intermittent command/cancel-regenerate failures remain
+unexplained and must not be described as fixed by a later successful run. Retain
+their logs and investigate a recurrence with the fixed stage/lifecycle markers.
+Implementation/1723 and implementation/1724 complete a separately reproduced
+acceptance-driver defect: command preview/execution waits now require enabled
+Execute/Done controls before clicking. Three controlled-clock regressions and one
+fresh complete installed journey pass, without action retries or larger deadlines.
+This does not establish either historical failure's root cause. No production UI,
+SDK export, package or execution owner changes. Its full verify passes with
+Desktop 146; fresh native/distribution gates pass.
+Independent security scanning still fails on the same development-tool advisory.
+Implementation/1725 records the bounded SDK-tooling decision and explicitly
+supersedes the earlier all-development sequencing blocker. Latest maintained
+parents retain the same chain; keep API Extractor and all 31 reports rather than
+invent a replacement to clear the scanner. The unchanged failing full security
+audit continues to block release and final 1709 success, not independent local
+correctness work. No audit waiver, forced major override or private fork.
+Implementation/1726 completes 1722A attachment upload admission/lifetime: synchronous
+admission prevents duplicate uploads/submission before React commits, and exact
+view lifetime fences file reads, Host calls and publication. Twenty-seven new
+regressions pass; successful batch attachments and text drafts are preserved.
+Already-sent Host writes are not undone or replayed on navigation. No new package,
+public contract, persistence or authority owner. Implementation/1727 and 1728
+complete 1722B resource delivery/native events: exact media scope/attempt fencing,
+explicit Play on replacement, bounded expiry renewal, exact release and retry
+focus. Twenty-three new regressions, 32 real-browser media state screenshots,
+full verify and fresh installed/native/distribution gates pass. No shared image
+framework or new package was added. Implementation/1729 is the finite remaining
+surface review. Implementation/1730 and implementation/1731 complete its sole
+selected Settings-subdialog follow-up: maintained nested dialogs, synchronous
+admission, exact Client/view lifetime, visible failures and acknowledged-write
+preservation when aggregate readback fails. Twenty UI/Surface regressions and
+120 native Chrome states pass. The first installed run exposed an independently
+reproduced proof-driver portal-query defect; preserve its failure receipt. Four
+driver regressions pass after modal queries move to the owning App shell, not
+global DOM or the old Settings subtree. This does not explain historical
+intermittency. The corrected-source complete verify and fresh installed Desktop,
+native/distribution gates pass. No new package, dependency or schema; the existing
+UI ActionResult explicitly carries readback failure evidence, not kernel state.
+Implementation/1732 completes the finite evidence reconciliation and freezes no
+further functional route: final 1709 remains blocked by the development-tool
+advisory, unobscured native-frame evidence and current Windows evidence. No
+Actions, push or dependency waiver; optional highlighting/animation/SSH are not
+another runtime route. Do not introduce another backend route or claim release
+closure while these actual acceptance requirements remain outstanding.
+The final current-source local verify passes (Desktop 150, UI 270, Runtime 444
+plus one existing skip, Host 276, Rust 168, Eval 64/64, SDK consumers and installed
+TUI); fresh native/Desktop distribution and unchanged darwin-arm64 budgets pass.
+These functional gates do not override the independent failing security audit
+or establish the cause of the preceding intermittent installed failures.
+Do not call footprint advisories a vulnerability audit, hide findings, relax
+budgets, introduce another package or wait for an external UI handoff.
+Implementation/1705 and implementation/1706 correct overstated Route 20F evidence:
+pending-access-approval restart and packaged disconnected multi-root execution
+now have executable coverage. Implementation/1707 and implementation/1708 close
+the non-UI Desktop distribution/startup stage: browser assets are caller-owned,
+the build rejects duplicate generic Web resources, and incompatible internal
+Stores are preserved with explicit fresh-profile startup. The current complete
+local verify, installed Desktop/TUI/native proofs and unchanged darwin-arm64
+distribution budgets pass. No visual or Windows acceptance is implied. The next
+cycle follows implementation/1712: complete shared controls and the unchecked
+product surfaces, then verify one stable integrated snapshot and its installed
+product under implementation/1709. Do not introduce a new package/compatibility
+path or manufacture unrelated backend work. Implementation/1710 and
+implementation/1711 close a proven review-authority gap: dynamic grants are
+resolved from original Tool input, not a Session-wide same-path grant search,
+and validated by the existing Access Coordinator for expiry, source invocation
+subject/scope and directory identity. New grants must not retarget old changes.
+The final full verify, installed Desktop/TUI/native proofs and unchanged
+distribution budgets pass. This bounded correction adds no UI or permission
+owner; implementation/1712 now owns UI closure before the 1709 final gate.
+
+Route 19 is complete locally. The current frozen plan is **Route 20: Unified
+Conversation And Multi-Project Workspace Context**:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1648-route-20-unified-conversation-workspace-plan.md`
+
+This plan supersedes the product-boundary recommendations in 1646/1647 where
+they preserve separate Assistant/Coding conversation ownership. The user
+journey is one canonical Session that starts without a directory, then works
+across multiple authorized projects or ordinary text-file directories on the
+same Host. Do not require a Chat/Coding switch or clone the transcript.
+
+The implementation order is 20A unified Session context/admission, 20B Git-free
+multi-directory editing and review, 20C optional Git/worktree strategies, 20D in-chat
+workspace requests with durable continuation, 20E shared clients and removal
+of the old dual application path, and 20F remote/installed/regression closure.
+20A, 20B, 20C-1, 20C-2A/B/C, 20C-3, 20C-4, 20D-1, 20D-2A, 20D-2B, 20D-2C, 20D-3, and 20D-4A/B are complete locally; 20E-1B-1b, 20E-1B-2, and 20E-1B-3 are complete locally. Implementation/1696 records the final Server/protocol/package retirement. 20F historical closure and current evidence corrections are recorded below; the current next action is defined above. Implementation/1652 records the
+real same-Session Web/Host/App/Storage two-directory read, immutable context
+generations, atomic admission conditions, restart/child recovery, revocation,
+and complete local verification. No-file deployments remain file-free; MCP,
+Team, and global context keep their existing ownership. This does not claim
+that unified Desktop/TUI workspace UI or file editing has shipped.
+
+Route 20B is complete in implementation/1653 and implementation/1654. Git-free
+multi-root text apply/review/undo/reapply now reuses Workspace ChangeSet and
+native transaction ownership. Authority effects default to read-only; writable
+effects are explicit. Web/CLI inject the mutation capability, while the current
+TUI distribution keeps a verified read-only Workspace closure. Per-root success
+is durable and no cross-root distributed transaction is claimed. The complete
+local verify, 64 Eval scenarios, 167 Rust tests, SDK consumers, and installed
+TUI proof pass.
+
+Route 20C-2 optional Git/worktree prepare/release is frozen in
+implementation/1655, completed for 20C-1 in implementation/1656, and refined
+into 20C-2A through 20C-2C in implementation/1657. The 20C-2A persistence-contract
+replacement is complete in implementation/1658, with full local verify,
+168 Rust tests, 64 Eval scenarios, SDK consumers, and installed TUI proof passing.
+20C-2B is complete in implementation/1659: full-root recovery filtering, physical
+identity fences, exact snapshot continuation/release, cancellation and lease-loss
+cleanup, and preserved attention resources pass the final local verify. Workspace
+129 tests, Rust 168 tests, Eval 64/64, SDK consumers, and installed TUI proof pass.
+Release must never use repository-wide worktree prune or delete an unverified
+lease; prepared worktrees remain available when execution binding fails.
+20C-2C is complete in implementation/1660: the production controlled-text-change
+tool runs through the same Session and real TLS Server, preserves original roots,
+retains uncertain transactions for attention, and freezes Host-local worktree
+placement across restart. Final full verify passes: Host 256, Server 58,
+Workspace 129, Rust 168, Eval 64/64, SDK consumers, and installed TUI.
+File-write authority does not grant project-code execution: trusted Git commands
+disable hooks/fsmonitor/external diff/automatic maintenance and reject executable
+filters actually selected by file attributes. Dormant global filter registration
+does not disable ordinary repositories. Worktree is not an OS sandbox.
+20C-3 is complete in implementation/1663: same-Session Proposal
+review/approve/apply/undo/reapply uses existing owners, with exact
+source/root authority checks and a real TLS journey. Human approval is not
+a model self-approval tool. No package or parallel review state machine was added.
+Implementation/1662 corrected a discovered prerequisite: transport-session subject
+fencing was not application account isolation. The single-Store Server now
+requires a trusted ownerSubjectId, snapshots it before startup, and rejects
+other authenticated subjects at Host resolution, upload, and Resource delivery.
+Do not equate this account identity with Store-local agent principalId or route
+all authenticated accounts into one profile. 20C-4 is complete in
+implementation/1665: the real TLS Server now proves two independent Git roots
+and one ordinary root in the same Session, with separate root identities,
+proposals, worktrees, direct mutation and path privacy. The next implementation
+is 20D, which is not a mode switch: it is durable in-conversation workspace
+admission and continuation, frozen only after its generation/grant/turn-binding
+boundaries are reviewed. 20D-1 is complete in implementation/1667: the Host-owned
+Access Request/Grant store uses existing CoreStore Config CAS, with no new Protocol,
+Storage RPC, Rust schema, migration, or compatibility aliases. Because Runtime Tool approval
+and Host Config CAS are separate persistence boundaries, 20D-2 is replanned in
+implementation/1668 as 20D-2A/B/C. 20D-2A is complete in implementation/1669: App and
+Coding approvals now pass through the generic Runtime Host continuation seam. 20D-2B is
+complete in implementation/1670: the Workspace coordinator owns dynamic access requests,
+approval continuation, grant validation, and root identity fences. 20D-2C is complete in
+implementation/1672: Local/TLS/TUI/Desktop product-entry acceptance proves one Session
+continues through dynamic Workspace approval without path leakage or a second authorization
+protocol. 20D-3 is complete in implementation/1674; the frozen 20D-4 plan is
+implementation/1675. The first Desktop product-shell UI pass is recorded in implementation/1676
+and implementation/1677; it changes only product-layer presentation and does not authorize a
+new runtime boundary. 20D-4A/B are recorded in implementation/1682 and implementation/1683;
+the next implementation is 20E-1's functional product-entry contract. Do not bypass the
+coordinator by mutating Workspace tools or UI directly.
+20F-1 is complete in implementation/1698: the real TLS multi-root Server
+journey reconnects after proposal creation, replays the same submission key
+without creating a second Turn or Workspace run, and continues the original
+approvals. The fix preserves `idempotencyKey` at the Surface input boundary;
+Runtime and Storage remain the durable owners. The current user boundary
+explicitly defers UI changes, so this does not claim Route 20 closure.
+20F-2 is complete in implementation/1699: the bundled Server artifact now has
+headless TLS acceptance for a Server-local Git root. The client supplies only
+an opaque rootId; Proposal review preserves the original file until approval,
+then applies on the Server machine. The CLI now validates process JSON once
+and starts from the parsed configuration, preserving strict unknown-field
+rejection. No UI change was made.
+20F-3 and 20F-4 are complete in implementation/1700 and implementation/1701:
+the failure/concurrency matrix is audited against executable tests, and the
+full non-UI local closure passes. Route 20's runtime boundary is ready for the
+next UI implementation stage; the UI must consume the existing semantic
+Surface and must not own paths, leases, attempts, or transaction state.
+The UI handoff for the next window is recorded in
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1702-ui-window-handoff.md`.
+Unified Proposal UI and Windows acceptance are not claimed by 2C completion.
+Do not retain the old top-level
+repository/isolation fields, dual-read code, aliases, or a schema migration.
+Preserve
+the 20B Git-free path as the default. Do not silently upgrade persisted authority,
+give model tools unrestricted helper-process authority, add a second Session or
+transaction owner, initialize repositories automatically, require Git for
+ordinary edits, or silently fall back to direct writes when explicit isolation
+fails. No new package, compatibility alias, or UI redesign is authorized by
+20B completion.
+
+The permission and interface correction is recorded in implementation/1649.
+Selected projects, cwd, Host file authority, and project-code trust are distinct.
+Already-authorized paths must work without a mandatory folder picker or project
+registration. Missing authority uses durable scoped grants at tool boundaries;
+the initial Turn binding stays immutable. Grants must be fenced, revocable,
+recoverable, and constrained by Host policy. Do not silently widen permissions
+through a prompt, context selection, retry, or parent-to-child inheritance.
+20E includes the reference-guided new-conversation, ongoing-conversation, and
+conversation-with-files layouts, not merely relabeling the old dual surfaces.
+Keep stage numbers/order; do not introduce a mode classifier or new packages.
+
+Preserve 20A's real App/Host/Storage acceptance. Keep root sets explicit,
+per-Turn bindings immutable, same-Session admission
+fenced, and context/authority changes explicit. Navigation to another Host
+does not stop or migrate existing work. Do not add a package or Kernel mode.
+Replace old Coding-specific Session/admission ownership and remove unused
+private APIs after callers move, without compatibility aliases or data deletion.
+Do not copy a user request through regeneration to continue after scope setup.
+Git and worktree are optional execution-Host capabilities, not prerequisites
+for conversation or safe file editing. Do not bundle/install Git by default,
+initialize user folders as repositories, or silently downgrade a requested
+worktree to direct writes when isolation fails. Worktree is not a sandbox.
+
+### Completed Route Chronology
+
+The records below document prior stages. Earlier next-step or scope statements
+do not override the Route 20 plan above.
+
+Route 13E is complete. The post-route architecture and product-gap review is
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1613-post-route-13e-architecture-and-product-gap-review.md`
+
+Route 14A: Remote Assistant Surface Contract is complete. Its semantic Surface
+replacement, exhaustive remote capability policy, bounded Host idempotency,
+complete controller acceptance, real TLS Server evidence, and architecture
+review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1614-route-14a-remote-assistant-surface-completion.md`
+
+Route 14B: Desktop Server Connection Ownership Reset is complete. Its server
+profile replacement, independently leased Assistant/Coding compositions,
+trusted credential ownership, profile-only Renderer bridge, removed legacy
+contracts, verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1616-route-14b-desktop-server-connection-ownership-completion.md`
+
+Route 14C: Desktop Remote Assistant Journey is complete. Its frozen plan,
+generation-fenced location switching, trusted main-process UI controller,
+bounded Preload event relay, descriptor-based capability projection, product
+selector, verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1617-route-14c-desktop-remote-assistant-journey-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1618-route-14c-desktop-remote-assistant-journey-completion.md`
+
+Route 14D and Route 14 are complete locally. The packaged Server composition,
+installed Remote Assistant journey, authentication failure preservation,
+streaming/switch-away/reconciliation behavior, relaunch recovery, shared
+Assistant/Coding Server profile, privacy checks, deterministic cleanup, and
+full verification evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1620-route-14d-packaged-remote-assistant-acceptance-completion.md`
+
+The post-Route-14 architecture review selects **Route 15A: Remote Resource
+Delivery** and freezes its boundaries in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1621-post-route-14-architecture-review-and-route-15a-plan.md`
+
+Route 15A must reuse the existing Resource authority, Assistant Host delivery
+policy, Agent Host connection, Server TLS listener, and Desktop profile owner.
+Keep binary bytes outside Agent Host JSON, SSE, canonical snapshots, receipts,
+and Renderer state. Desktop main owns authenticated remote transport and issues
+only per-launch, generation-bound local delivery capabilities to the Renderer.
+Do not add a Gateway, package, Store schema, blob service, loopback listener,
+Session location field, history sync, compatibility alias, or remote upload in
+15A. Remote attachment upload is a separate Route 15B candidate after delivery
+is proven.
+
+Route 15A.1 Host Resource Delivery Contract is complete locally. Its direct
+location-neutral rename, idempotent Agent Host commands, authenticated-subject
+audience binding, strict typed client validation, endpoint/Host grant cleanup,
+focused verification, and best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1623-route-15a-1-host-resource-delivery-contract-completion.md`
+
+The next subphase is Route 15A.2: Server Resource Byte Route, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1624-route-15a-2-server-resource-byte-route-plan.md`
+
+Route 15A.2 must use the existing Server TLS listener and Assistant Host
+Resource-delivery port. Authenticate the existing bearer before opening a
+grant, bind the audience to authenticated `subjectId`, carry the opaque grant
+in a bounded header rather than a URL, and stream GET/HEAD/Range responses with
+backpressure and abort. Do not add another listener, package, schema, Gateway,
+blob service, Renderer contract, upload route, configurable arbitrary path, or
+compatibility alias.
+
+Route 15A.2 Server Resource Byte Route is complete locally. Its same-listener
+HTTPS route, authenticated-subject audience binding, header-only opaque grant,
+bounded streaming/backpressure/abort behavior, Server-close cancellation,
+strict endpoint projection, verification, and best-practice review are
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1625-route-15a-2-server-resource-byte-route-completion.md`
+
+Route 15A.3 followed as the Desktop Main Resource Relay. Keep remote
+grant and bearer material in Electron main, issue only per-launch and
+location-generation-bound local capability URLs to Renderer, use a custom
+protocol rather than another loopback listener, forward Range/HEAD with abort,
+and revoke on release, switch, window/profile retirement, and shutdown. Do not
+give Renderer the remote URL, bearer, grant, profile endpoint, fetch authority,
+or direct Agent Host client.
+
+Route 15A.3 Desktop Main Resource Relay is frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1626-route-15a-3-desktop-resource-relay-plan.md`
+
+Route 15A.3 Desktop Main Resource Relay is complete locally. Its Electron main
+transport, privileged capability protocol, strict Renderer projection, abort
+and response-evidence checks, generation/profile/expiry cleanup, focused
+verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1627-route-15a-3-desktop-resource-relay-completion.md`
+
+Route 15A.4 installed Desktop remote image/media acceptance is complete
+locally. Its frozen plan and completion evidence are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1628-route-15a-4-remote-desktop-media-acceptance-plan.md`
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1629-route-15a-4-remote-desktop-media-acceptance-completion.md`
+
+The real packaged Desktop and packaged Server now prove remote image
+generation, canonical Resource projection, local capability rendering, secret
+isolation, and post-switch capability retirement. Route 15A is complete
+locally. The next work must begin with a post-15A architecture and product-value
+review; remote upload, broader media acceptance, and hosted platform evidence
+are candidates to rank, not automatically authorized continuations.
+
+The post-Route-15A architecture and product-value review selects **Route 15B:
+Remote Attachment Upload** and freezes its trust boundary and implementation
+order in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1630-post-route-15a-architecture-review-and-route-15b-plan.md`
+
+Route 15B must use the existing 25 MiB bounded whole-object attachment
+contract. Electron main owns remote URL, bearer, TLS transport, and location
+generation; Renderer owns only file selection and ephemeral bytes. Assistant
+Host remains authoritative for Provider modality admission, canonical Resource
+ingestion, and attachment binding. Implement only in 15B.1 Host/Server binary
+contract, 15B.2 Desktop main semantic IPC, and 15B.3 installed acceptance
+order. Do not add Agent Host JSON/base64 bytes, Renderer-to-Server fetch, CORS,
+a Gateway, second listener, generic proxy, MessagePort upload protocol,
+streaming Storage API, Resource-deletion rollback, Store schema, compatibility
+path, or test-only audio/video Provider adapter.
+
+Route 15B.1 Host And Server Upload Contract is complete locally. Its shared
+bounded attachment decoder, authenticated same-listener POST route, narrow
+canonical response, response-lost retry convergence, interrupted-body
+behavior, focused verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1631-route-15b-1-host-and-server-upload-completion.md`
+
+The next subphase is Route 15B.2 Desktop Main Upload Bridge. Add one semantic,
+generation-bound upload request; validate its exact byte/metadata shape in
+Preload and main; let main resolve the active Server profile and credential;
+and refresh the canonical remote snapshot after success. Do not expose Server
+URL, bearer, fetch, Agent Host client, CORS, or a generic raw-byte bridge to
+Renderer. Do not change Runtime/Storage ingestion or add MessagePort chunking
+unless measured requirements first invalidate the frozen 25 MiB whole-object
+contract.
+
+Route 15B.2 Desktop Main Upload Bridge is complete locally. Its strict semantic
+IPC, main-owned authenticated transport, generation-bound cancellation,
+canonical refresh, out-of-band UI capability, dependency-direction correction,
+bundle-side-effect correction, verification, and architecture review are
+recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1632-route-15b-2-desktop-main-upload-bridge-completion.md`
+
+The next subphase is Route 15B.3 Installed Remote Multimodal Acceptance, frozen
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1633-route-15b-3-installed-remote-multimodal-acceptance-plan.md`
+
+Route 15B.3 must extend the existing installed remote-media proof to exercise
+the visible file picker through Preload, Electron main, packaged Server,
+Assistant Host, canonical preview, conversation submission, and Provider image
+projection. It must prove relaunch recovery, unsupported-modality draft
+retention with no Resource ingest, stale-generation rejection, redaction, and
+deterministic cleanup. Do not add a parallel proof framework, live Provider,
+fake production adapter, Gateway, CORS, direct Renderer networking, upload
+streaming, Store schema, compatibility path, or unrelated UI redesign.
+
+Route 15B.3 and Route 15B are complete locally. The installed Desktop now
+proves visible remote image selection, semantic Preload IPC, main-owned
+authenticated upload, packaged Server and Assistant Host ingestion, canonical
+preview and transcript, Provider image projection, image generation, relaunch
+recovery without Provider replay, unsupported-modality draft retention,
+stale-generation rejection, capability retirement, redaction, and deterministic
+cleanup. Completion evidence and the best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1634-route-15b-3-installed-remote-multimodal-acceptance-completion.md`
+
+Do not automatically continue into broader media, chunked upload, hosted sync,
+or Resource garbage collection. The next work must begin with a post-Route-15B
+architecture and product-value review that ranks concrete user journeys and
+remaining risks before freezing another implementation route.
+
+The post-Route-15B review selects **Route 16: Desktop Product-Owned Server
+Management**, frozen in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1635-post-route-15b-architecture-review-and-route-16-plan.md`
+
+Route 16 is complete locally. `ProductRenderer` now owns one Server profile
+list and one Connections workflow shared by Chat and Coding. The Coding picker
+only selects saved Servers and projects; Chat creates and repairs the profile;
+Coding reuses it after relaunch; and removal is driven through the visible
+product owner. The real installed Desktop plus packaged Server proof passes
+with credential/path redaction and deterministic cleanup. Completion evidence
+is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1636-route-16-desktop-product-owned-server-management-completion.md`
+
+Do not automatically add polling, background connection, account sync,
+Gateway, package, schema, compatibility alias, duplicate profile API, or broad
+visual redesign. The next route requires a fresh architecture and product-value
+review.
+
+The post-Route-16 review selects **Route 17: Desktop Coding Product Readiness**
+and freezes its ownership and two-stage implementation order in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1637-post-route-16-review-and-route-17-plan.md`
+
+Implement Route 17A first: one local/remote project chooser and an explicit
+ephemeral new-Session intent that creates no durable Session before the first
+accepted Turn. Then implement Route 17B: product-owned, location-correct model
+readiness and per-Turn model selection using the existing `modelEndpointId`
+contract. Do not add a package, schema, Gateway, polling, duplicate Provider
+settings, empty Session command, compatibility alias, Session rename/archive,
+or broad visual redesign.
+
+Route 17A is complete locally. Its unified project chooser, direct bridge
+rename, generation-fenced Server project reads, lazy new-Session intent,
+verification, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1638-route-17a-project-and-session-intent-completion.md`
+
+Route 17B and Route 17 are complete locally. Desktop owns one narrow,
+credential-free, execution-location-correct Coding model catalog. Local models
+come from the local Assistant authority; remote models come from the selected
+Server's Assistant Surface. Coding forwards the chosen endpoint per Turn and
+routes setup to the existing settings owner. Focused contracts and the real
+installed Desktop proof pass. Completion evidence and the architecture review
+are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1639-route-17b-model-readiness-and-route-17-completion.md`
+
+Do not automatically add Session management, recent projects, multi-project
+tabs, PTY/LSP, broader media, account sync, polling, a Gateway, another package
+or schema, compatibility paths, duplicate Provider settings, or broad visual
+redesign. The next route requires a fresh architecture and product-value
+review.
+
+The post-Route-17 review selects **Route 18: Coding Session Lifecycle** and
+freezes its repository/application, Desktop interaction, and acceptance order
+in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1640-post-route-17-review-and-route-18-coding-session-lifecycle-plan.md`
+
+Implement project-scoped rename/archive/restore by reusing Storage's existing
+revision-CAS state machine. Active and archived lists must be explicit;
+archived Sessions remain readable and cannot receive new Turns. Do not add hard
+delete, retention, recent-project persistence, multi-project tabs, Session
+sync, package, schema, Gateway, polling, compatibility paths, or broad visual
+redesign in Route 18.
+
+Route 18 is complete locally. Coding now exposes project-scoped, revision-CAS
+rename/archive/restore across Repository, Application, transport, Agent Host,
+and authenticated remote HTTP. Desktop presents explicit active and archived
+collections, readable but read-only archived transcripts, deterministic
+archive fallback, and canonical recovery after stale mutations. The real
+installed Desktop proves archive and independent relaunch/restore against the
+same Store and project, with privacy, packaging, `EPERM`, and process-cleanup
+checks. Completion evidence and the architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1641-route-18-coding-session-lifecycle-completion.md`
+
+Do not automatically add deletion/retention, recent-project persistence,
+multi-project tabs, Session sync, pinning/folders/search, PTY/LSP, broad visual
+redesign, package, schema, Gateway, polling, or compatibility paths. The next
+route requires a fresh architecture and product-value review of the current
+integrated product before Route 19 is frozen.
+
+That review is complete. It selects **Route 19: Coding Project Continuity** and
+freezes its trusted catalog, product resume, and installed acceptance order in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1642-post-route-18-review-and-route-19-coding-project-continuity-plan.md`
+
+Implement Route 19A first. Recent projects are Desktop navigation state: local
+paths remain only in trusted Desktop configuration, remote entries retain only
+the Desktop Server profile ID and Server-owned opaque project ID, and the
+Renderer receives safe semantic projections. Resume must revalidate through
+the existing project-open route and remain demand-driven. Do not add startup
+background connection, automatic task execution, multi-project workbenches,
+multi-root Turns, Session fields, Store schema, another package, Gateway,
+polling, compatibility aliases, or broad visual redesign.
+
+Route 19A Trusted Catalog And Semantic Bridge is complete locally. Its bounded
+CAS catalog, opaque IDs, local-path privacy, remote-project revalidation,
+strict IPC/Preload contract, Server-profile cleanup, verification, and
+architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1643-route-19a-trusted-recent-project-catalog-completion.md`
+
+Route 19B Product Resume Experience is now the only authorized continuation.
+Use the semantic recent-project operations in the existing Coding empty state
+and chooser. Resume remains explicit and demand-driven. Do not expose paths,
+auto-connect at Desktop startup, create a Session/Turn, add another catalog or
+package, or broaden 19B into multi-project execution or visual redesign.
+
+Route 19B Product Resume Experience is complete locally. Its demand-driven
+recent read, compact empty-state/chooser interaction, explicit resume/forget,
+generation fencing, failure preservation, full Desktop regression, build
+evidence, and best-practice review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1644-route-19b-coding-project-resume-experience-completion.md`
+
+Route 19C Acceptance And Review is complete locally. Its independent installed
+relaunch, visible Recent projects resume, persisted Route 18 Session recovery,
+zero-Provider assertion, privacy checks, packaging checks, focused tests, full
+Desktop regression, and architecture review are recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1645-route-19c-coding-project-continuity-completion.md`
+
+Route 19 is complete locally. Stop implementation here for a fresh
+architecture and product-value review before selecting Route 20. Do not
+automatically add Session search, multi-project execution, PTY/LSP, broad
+media, hosted sync, package extraction, or visual redesign. Existing structure
+warnings are monitoring signals, not authorization for a refactor route.
+
+The post-Route-19 reference refresh and product surface review is recorded in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1646-post-route-19-reference-refresh-and-product-surface-review.md`
+
+The review freezes these rules for the next route: General Assistant is the
+default product entry, Coding is a contextual project workspace rather than a
+mandatory top-level mode, and local/remote are explicit execution locations
+bound to Project/Workspace/Session context. A running turn must not move
+between hosts, automatic cross-host fallback is forbidden, and session
+warp/migration is not authorized until its transfer contract is specified and
+tested. The follow-up audit is complete in:
+
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1647-client-connections-and-explicit-project-entry-review.md`
+
+Client connection navigation may occur while a Turn continues on its original
+Host. Route 14D already proves this behavior. Do not add a stop-before-switch
+gate or treat the absence of such a gate as a runtime defect. Navigation,
+explicit cancellation, Host shutdown, and task migration are distinct. Keep
+an explicit project entry alongside the default conversation entry; do not
+silently convert Sessions or expand authority based on inferred coding intent.
+This review does not authorize a package refactor or runtime redesign.
+
+The route records below are historical chronology. Their earlier "next route"
+sentences do not override the current Route 20 plan above.
 
 Route 8A Desktop Connection And First-Run Functional Completion is complete
 at the source and Remote Host contract boundary. Its evidence is recorded in:
@@ -3068,6 +3654,11 @@ ports; do not grow another inheritance-based mega client.
   - corrections needed if the result is not best practice
 - Continue iterating autonomously until the current phase goal is genuinely complete.
 - A phase is complete only when it is executable and all relevant tests/checks pass.
+- For Rust changes, run `cargo fmt -- --check` and
+  `cargo clippy --all-targets -- -D warnings` before the final full verification,
+  along with affected TypeScript checks and focused tests. Freeze production
+  code and tests for that final run; a correction requires fresh affected gates
+  and a new complete run, not a combined claim from different source revisions.
 - Phase completion must immediately trigger the next planning cycle in the same
   working turn:
   - review the current installed-product or shortest real-consumer journey from
@@ -3140,6 +3731,10 @@ explicit, auditable course corrections rather than silent patching.
 - An admitted turn has one immutable, secret-free execution binding. Mutable
   provider profiles, instructions, skills, tools, permissions, or environment
   must not silently change it.
+- Route 20 plans explicit additional authorization as separate durable grants,
+  not mutation of that binding. Each tool attempt must retain the effective
+  authority evidence; revocation, scope, Host restrictions, and stale-owner
+  fencing still apply. This is a planned extension, not implemented capability.
 - Durable conversation resource parts store immutable identity, digest, size,
   kind, and media-type evidence only. They must never persist raw bytes or
   base64 payloads.
@@ -5008,14 +5603,19 @@ compiled SDK/external consumer proofs passed. Keep this low-concurrency gate
 for expensive consolidated verification; do not repeatedly launch it for
 focused edits or use CI as a debugger.
 
-The next active route is Route 3B Event-Driven Coding Workbench. It is the
-first actual Coding product surface in the unified Desktop. Before editing,
-re-audit ownership between the current Assistant Web renderer, Desktop's
-trusted bridge, and the Coding application. Then implement the workbench in
-the existing unified Desktop renderer. It must consume only safe Coding
-client/read models, use invalidation-driven canonical rereads, and keep
-project paths, credentials, execution scopes, process handles, and internal
-job/attempt/claim/lease identities out of ordinary UI. Do not create a
-`coding-web` or `coding-desktop` package, add Coding routes to Assistant Host,
-move Coding semantics into Assistant, add polling, or retain compatibility
-aliases.
+The Route 3B instructions above are retained only as historical design
+evidence. Route 3B, Route 3C, and the later Desktop/Server/distribution routes
+are complete. They are not active implementation instructions. Route 16 is
+complete as declared at the top of this file; select the next route only after
+a fresh architecture and product-value review.
+
+The first Route 20E UI-1 pass was superseded by the focused immersive redesign
+recorded in
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1679-route-20e-ui-1-immersive-desktop-redesign-plan.md`.
+Its completion evidence is in
+`/Users/asuna/workspace/study/agent-runtime-kernel-design/implementation/1680-route-20e-ui-1-immersive-desktop-redesign-completion.md`.
+The default Assistant surface is immersive and does not render a permanent
+workspace rail. Coding keeps its own rail only while the Coding surface is
+active; the Assistant surface reaches it through a contextual topbar action.
+Do not restore the floating rail, add a Chat/Work/Coding mode selector to the
+main navigation, or introduce a new UI package for this redesign.

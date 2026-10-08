@@ -474,7 +474,7 @@ interface BeginWorkspaceTaskRunWire {
     // (undocumented)
     id: string;
     // (undocumented)
-    isolation_id: string;
+    isolation_identity: WorkspaceTaskIsolationIdentityWire;
     // (undocumented)
     job_id: NullableString;
     // (undocumented)
@@ -484,7 +484,9 @@ interface BeginWorkspaceTaskRunWire {
     // (undocumented)
     principal_id: string;
     // (undocumented)
-    repository_id: string;
+    root_identity: WorkspaceTaskRootIdentityWire;
+    // (undocumented)
+    strategy: WorkspaceTaskStrategyWire;
     // (undocumented)
     workspace_id: string;
 }
@@ -3119,11 +3121,15 @@ interface ListWorkspaceTaskRunsWire {
     // (undocumented)
     limit: NullableInteger;
     // (undocumented)
-    repository_id: NullableString;
+    root_id: NullableString;
+    // (undocumented)
+    root_identity: WorkspaceTaskRootIdentityWire | null;
     // (undocumented)
     run_ids: [string, ...string[]] | null;
     // (undocumented)
     state: NullableWorkspaceTaskRunStateWire;
+    // (undocumented)
+    strategy: WorkspaceTaskStrategyWire | null;
     // (undocumented)
     workspace_id: NullableString;
 }
@@ -3223,13 +3229,11 @@ interface MarkWorkspaceTaskActiveWire {
     // (undocumented)
     attempt_id: string;
     // (undocumented)
-    base_revision: NullableString;
-    // (undocumented)
     claim_token: string;
     // (undocumented)
-    run_id: string;
+    prepared_isolation: NullableWorkspaceTaskPreparedIsolationWire;
     // (undocumented)
-    runtime_ref: NullableString;
+    run_id: string;
 }
 
 // @public (undocumented)
@@ -3751,6 +3755,9 @@ type NullableWorkspaceChangeTransactionProposalBindingWire = WorkspaceChangeTran
 
 // @public (undocumented)
 type NullableWorkspaceChangeTransactionStateWire = WorkspaceChangeTransactionStateWire | null;
+
+// @public (undocumented)
+type NullableWorkspaceTaskPreparedIsolationWire = WorkspaceTaskPreparedIsolationWire | null;
 
 // @public (undocumented)
 type NullableWorkspaceTaskRunStateWire = WorkspaceTaskRunStateWire | null;
@@ -5190,6 +5197,15 @@ interface SessionStateTransitionWire {
 type SessionStatusWire = "active" | "archived";
 
 // @public (undocumented)
+interface SessionTurnAdmissionCondition {
+    // (undocumented)
+    readonly expectedRevision: number | null;
+    readonly expectedValueDigest: string | null;
+    // (undocumented)
+    readonly key: string;
+}
+
+// @public (undocumented)
 interface SessionTurnCompletionBinding {
     // (undocumented)
     readonly maxOutputTokens: number;
@@ -5223,6 +5239,8 @@ type SessionTurnControlStatusWire = "pending" | "applied" | "rejected" | "cancel
 
 // @public (undocumented)
 interface SessionTurnExecutionBinding {
+    // (undocumented)
+    readonly admissionConditions?: readonly SessionTurnAdmissionCondition[];
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
     // (undocumented)
@@ -6302,6 +6320,31 @@ type WorkspaceTaskAccessWire = "read_only" | "writable";
 type WorkspaceTaskExecutionOutcomeWire = "completed" | "failed" | "cancelled";
 
 // @public (undocumented)
+interface WorkspaceTaskIsolationIdentityWire {
+    // (undocumented)
+    base_revision: NullableString;
+    // (undocumented)
+    id: string;
+    // (undocumented)
+    kind: WorkspaceTaskIsolationKindWire;
+    // (undocumented)
+    repository_id: NullableString;
+    // (undocumented)
+    runtime_ref: NullableString;
+}
+
+// @public (undocumented)
+type WorkspaceTaskIsolationKindWire = "fixed" | "git_worktree";
+
+// @public (undocumented)
+interface WorkspaceTaskPreparedIsolationWire {
+    // (undocumented)
+    base_revision: string;
+    // (undocumented)
+    runtime_ref: string;
+}
+
+// @public (undocumented)
 interface WorkspaceTaskProjectionTarget {
     // (undocumented)
     readonly access: WorkspaceTaskAccess;
@@ -6330,9 +6373,25 @@ interface WorkspaceTaskProjectionTarget {
     // (undocumented)
     readonly scheduledAt?: number;
     // (undocumented)
+    readonly strategy: WorkspaceTaskStrategy;
+    // (undocumented)
     readonly taskId?: string;
     // (undocumented)
     readonly workspaceId?: string;
+}
+
+// @public (undocumented)
+interface WorkspaceTaskRootIdentityWire {
+    // (undocumented)
+    device: string;
+    // (undocumented)
+    generation_key: string;
+    // (undocumented)
+    host_id: string;
+    // (undocumented)
+    inode: string;
+    // (undocumented)
+    root_id: string;
 }
 
 // @public (undocumented)
@@ -6350,6 +6409,12 @@ type WorkspaceTaskRunOutcomeWire = "read_only_completed" | "no_changes" | "propo
 
 // @public (undocumented)
 type WorkspaceTaskRunStateWire = "preparing" | "active" | "collecting" | "proposed" | "releasing" | "released" | "attention";
+
+// @public (undocumented)
+type WorkspaceTaskStrategy = "direct" | "git_worktree";
+
+// @public (undocumented)
+type WorkspaceTaskStrategyWire = "direct" | "git_worktree";
 
 // @public (undocumented)
 interface WriteAtomicFileCommand {

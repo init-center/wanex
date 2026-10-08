@@ -7,9 +7,9 @@ import {
   Trash2,
   X,
 } from "lucide-react"
+import { Select } from "../primitives/select.js"
 import {
   useMemo,
-  useEffect,
   useRef,
   useState,
   type FormEvent,
@@ -36,6 +36,7 @@ import type {
 import type { DispatchActionResult } from "../shared/action.js"
 import { classes } from "../classes.js"
 import { ScheduleRemoveDialog } from "./schedule-dialogs.js"
+import { useSettingsOperation } from "./use-operation.js"
 
 type TriggerKind = ScheduleTrigger["kind"]
 type IntervalUnit = "seconds" | "minutes" | "hours" | "days"
@@ -73,12 +74,13 @@ export function SchedulesSection({
   readonly dispatch: DispatchActionResult
 }): ReactNode {
   const [form, setForm] = useState<ScheduleFormState>()
-  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
   const [status, setStatus] = useState<string>()
   const [removeTarget, setRemoveTarget] = useState<ScheduleDefinitionSummary>()
   const removeTrigger = useRef<HTMLButtonElement | null>(null)
   const removeFocus = useRef<HTMLButtonElement | null>(null)
+  const addButton = useRef<HTMLButtonElement | null>(null)
+  const { busy, isBusy, run } = useSettingsOperation(clearFeedback, setError)
   const endpoints = useMemo(
     () => snapshot.view.settings.profile.endpoints.filter(
       (endpoint) => endpoint.model.operations.includes("conversation"),
@@ -87,13 +89,8 @@ export function SchedulesSection({
   )
   const currentSessionId = snapshot.conversation.sessionId
 
-  useEffect(() => {
-    if (removeTarget === undefined) return
-    const frame = requestAnimationFrame(() => removeFocus.current?.focus())
-    return () => cancelAnimationFrame(frame)
-  }, [removeTarget])
-
   function beginCreate(): void {
+    if (isBusy()) return
     clearFeedback()
     setForm(createForm({
       currentSessionId,
@@ -102,59 +99,51 @@ export function SchedulesSection({
   }
 
   async function beginEdit(scheduleId: string): Promise<void> {
-    if (busy) return
-    setBusy(true)
-    clearFeedback()
-    const result = await dispatch({
+    await run(() => dispatch({
       type: "read-schedule",
       input: { scheduleId },
+    }), (result) => {
+      const value = scheduleOutput(result, "read-schedule")
+      if (value?.kind === "assistant.schedule.found") {
+        setForm(formFromDefinition(value.definition))
+        return
+      }
+      setError(result?.ok === false ? result.message : scheduleReadMessage(value))
     })
-    setBusy(false)
-    const value = scheduleOutput(result, "read-schedule")
-    if (value?.kind === "assistant.schedule.found") {
-      setForm(formFromDefinition(value.definition))
-      return
-    }
-    setError(result?.ok === false ? result.message : scheduleReadMessage(value))
   }
 
   async function save(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault()
-    if (form === undefined || busy) return
-    setBusy(true)
-    clearFeedback()
-    try {
+    if (form === undefined) return
+    await run(async () => {
       const definition = definitionFromForm(form)
-      const result = form.scheduleId === undefined
+      return form.scheduleId === undefined
         ? await dispatch({
-            type: "create-schedule",
-            input: {
-              definition,
-              idempotencyKey: requiredCreateIdempotencyKey(form),
-            },
-          })
+          type: "create-schedule",
+          input: {
+            definition,
+            idempotencyKey: requiredCreateIdempotencyKey(form),
+          },
+        })
         : await dispatch({
-            type: "replace-schedule",
-            input: {
-              scheduleId: form.scheduleId,
-              expectedRevision: requiredRevision(form),
-              definition: {
-                ...definition,
-                enabled: form.enabled,
-              },
+          type: "replace-schedule",
+          input: {
+            scheduleId: form.scheduleId,
+            expectedRevision: requiredRevision(form),
+            definition: {
+              ...definition,
+              enabled: form.enabled,
             },
-          })
+          },
+        })
+    }, (result) => {
       if (result?.ok !== true) {
         setError(result?.message ?? "Schedule could not be saved")
         return
       }
       setForm(undefined)
       setStatus(form.scheduleId === undefined ? "Schedule created" : "Schedule updated")
-    } catch (reason) {
-      setError(errorMessage(reason))
-    } finally {
-      setBusy(false)
-    }
+    })
   }
 
   async function setEnabled(
@@ -162,54 +151,49 @@ export function SchedulesSection({
     revision: number,
     enabled: boolean,
   ): Promise<void> {
-    if (busy) return
-    setBusy(true)
-    clearFeedback()
-    const result = await dispatch({
+    await run(() => dispatch({
       type: "set-schedule-enabled",
       input: { scheduleId, expectedRevision: revision, enabled },
+    }), (result) => {
+      if (result?.ok === true) {
+        setStatus(enabled ? "Schedule enabled" : "Schedule disabled")
+      } else {
+        setError(result?.message ?? "Schedule state could not be changed")
+      }
     })
-    setBusy(false)
-    if (result?.ok === true) {
-      setStatus(enabled ? "Schedule enabled" : "Schedule disabled")
-    } else {
-      setError(result?.message ?? "Schedule state could not be changed")
-    }
   }
 
   async function remove(
     scheduleId: string,
     revision: number,
   ): Promise<void> {
-    if (busy) return
-    setBusy(true)
-    clearFeedback()
-    const result = await dispatch({
+    await run(() => dispatch({
       type: "remove-schedule",
       input: { scheduleId, expectedRevision: revision },
+    }), (result) => {
+      if (result?.ok === true) {
+        if (form?.scheduleId === scheduleId) setForm(undefined)
+        setRemoveTarget(undefined)
+        setStatus("Schedule removed")
+      } else {
+        setError(result?.message ?? "Schedule could not be removed")
+      }
     })
-    setBusy(false)
-    if (result?.ok === true) {
-      if (form?.scheduleId === scheduleId) setForm(undefined)
-      setRemoveTarget(undefined)
-      setStatus("Schedule removed")
-    } else {
-      setError(result?.message ?? "Schedule could not be removed")
-    }
   }
 
   function beginRemove(
     schedule: ScheduleDefinitionSummary,
     trigger: HTMLButtonElement,
   ): void {
+    if (isBusy()) return
     removeTrigger.current = trigger
     setRemoveTarget(schedule)
     clearFeedback()
   }
 
   function cancelRemove(): void {
+    if (isBusy()) return
     setRemoveTarget(undefined)
-    requestAnimationFrame(() => removeTrigger.current?.focus())
   }
 
   function clearFeedback(): void {
@@ -222,8 +206,9 @@ export function SchedulesSection({
       <div className={classes("settings-heading schedule-heading")}>
         <div><CalendarClock size={15} /><strong>Schedules</strong></div>
         {scheduleSettings.state === "ready" &&
-        scheduleSettings.availability?.capabilities.canCreate ? (
+          scheduleSettings.availability?.capabilities.canCreate ? (
           <button
+            ref={addButton}
             type="button"
             className={classes("schedule-add")}
             disabled={busy || form !== undefined}
@@ -328,8 +313,11 @@ export function SchedulesSection({
         <ScheduleRemoveDialog
           schedule={removeTarget}
           busy={busy}
+          isBusy={isBusy}
           error={error}
           initialFocus={removeFocus}
+          returnFocus={removeTrigger}
+          fallbackFocus={addButton}
           confirm={() => remove(removeTarget.scheduleId, removeTarget.revision)}
           cancel={cancelRemove}
         />
@@ -377,18 +365,16 @@ function ScheduleForm({
       </label>
       <label>
         <span>Trigger</span>
-        <select name="triggerKind" value={form.triggerKind} onChange={(event) => update("triggerKind", event.target.value as TriggerKind)}>
-          <option value="once">Once</option>
-          <option value="interval">Interval</option>
-          <option value="cron">Cron</option>
-        </select>
+        <Select name="triggerKind" label="Trigger" value={form.triggerKind}
+          onValueChange={(value) => update("triggerKind", value as TriggerKind)}
+          options={[{ value: "once", label: "Once" }, { value: "interval", label: "Interval" }, { value: "cron", label: "Cron" }]} />
       </label>
       {form.triggerKind === "once" ? (
         <label><span>Run at</span><input name="onceAt" type="datetime-local" required value={form.onceAt} onChange={(event) => update("onceAt", event.target.value)} /></label>
       ) : form.triggerKind === "interval" ? (
         <>
           <label><span>Start at</span><input name="intervalAnchorAt" type="datetime-local" required value={form.intervalAnchorAt} onChange={(event) => update("intervalAnchorAt", event.target.value)} /></label>
-          <label><span>Repeat</span><span className={classes("schedule-inline-field")}><input name="intervalValue" type="number" min={1} required value={form.intervalValue} onChange={(event) => update("intervalValue", event.target.value)} /><select name="intervalUnit" value={form.intervalUnit} onChange={(event) => update("intervalUnit", event.target.value as IntervalUnit)}><option value="seconds">seconds</option><option value="minutes">minutes</option><option value="hours">hours</option><option value="days">days</option></select></span></label>
+          <label><span>Repeat</span><span className={classes("schedule-inline-field")}><input name="intervalValue" type="number" min={1} required value={form.intervalValue} onChange={(event) => update("intervalValue", event.target.value)} /><Select name="intervalUnit" label="Repeat unit" value={form.intervalUnit} onValueChange={(value) => update("intervalUnit", value as IntervalUnit)} options={["seconds", "minutes", "hours", "days"].map((value) => ({ value, label: value }))} /></span></label>
         </>
       ) : (
         <>
@@ -398,8 +384,8 @@ function ScheduleForm({
       )}
       <label>
         <span>Session</span>
-        <select name="sessionMode" value={form.sessionMode} onChange={(event) => {
-          const mode = event.target.value as SessionMode
+        <Select name="sessionMode" label="Session" value={form.sessionMode} onValueChange={(value) => {
+          const mode = value as SessionMode
           setForm({
             ...form,
             sessionMode: mode,
@@ -407,36 +393,32 @@ function ScheduleForm({
               ? { reuseSessionId: currentSessionId }
               : {}),
           })
-        }}>
-          <option value="isolated">New session</option>
-          {currentSessionId !== undefined || form.reuseSessionId.length > 0 ? (
-            <option value="reuse">
-              {form.scheduleId === undefined ? "Current conversation" : "Linked conversation"}
-            </option>
-          ) : null}
-        </select>
+        }} options={[
+          { value: "isolated", label: "New session" },
+          ...(currentSessionId !== undefined || form.reuseSessionId.length > 0
+            ? [{ value: "reuse", label: form.scheduleId === undefined ? "Current conversation" : "Linked conversation" }]
+            : []),
+        ]} />
       </label>
       <div />
       <label>
         <span>Model</span>
-        <select name="modelMode" value={form.modelMode === "active" ? "active" : `pinned:${form.pinnedEndpointId}`} onChange={(event) => {
-          const value = event.target.value
+        <Select name="modelMode" label="Model" value={form.modelMode === "active" ? "active" : `pinned:${form.pinnedEndpointId}`} onValueChange={(value) => {
           if (value === "active") setForm({ ...form, modelMode: "active" })
           else setForm({ ...form, modelMode: "pinned", pinnedEndpointId: value.slice("pinned:".length) })
-        }}>
-          <option value="active">Active model</option>
-          {form.modelMode === "pinned" && !endpoints.some(
+        }} options={[
+          { value: "active", label: "Active model" },
+          ...(form.modelMode === "pinned" && !endpoints.some(
             (endpoint) => endpoint.id === form.pinnedEndpointId,
-          ) ? <option value={`pinned:${form.pinnedEndpointId}`}>Configured model (unavailable)</option> : null}
-          {endpoints.map((endpoint) => <option key={endpoint.id} value={`pinned:${endpoint.id}`}>{endpoint.model.id}</option>)}
-        </select>
+          ) ? [{ value: `pinned:${form.pinnedEndpointId}`, label: "Configured model (unavailable)" }] : []),
+          ...endpoints.map((endpoint) => ({ value: `pinned:${endpoint.id}`, label: endpoint.model.id })),
+        ]} />
       </label>
       <label>
         <span>If missed</span>
-        <select name="misfirePolicy" value={form.misfirePolicy} onChange={(event) => update("misfirePolicy", event.target.value as ScheduleFormState["misfirePolicy"])}>
-          <option value="fire_once">Run once after reconnect</option>
-          <option value="skip">Skip missed run</option>
-        </select>
+        <Select name="misfirePolicy" label="If missed" value={form.misfirePolicy}
+          onValueChange={(value) => update("misfirePolicy", value as ScheduleFormState["misfirePolicy"])}
+          options={[{ value: "fire_once", label: "Run once after reconnect" }, { value: "skip", label: "Skip missed run" }]} />
       </label>
       <label className={classes("checkbox schedule-form-wide")}><input name="enabled" type="checkbox" checked={form.enabled} onChange={(event) => update("enabled", event.target.checked)} /><span>Enabled</span></label>
       <div className={classes("inline-actions schedule-form-wide")}>
@@ -589,8 +571,4 @@ function createRequestId(): string {
   const randomUuid = globalThis.crypto?.randomUUID
   if (randomUuid === undefined) throw new Error("The browser client requires crypto.randomUUID")
   return randomUuid.call(globalThis.crypto)
-}
-
-function errorMessage(reason: unknown): string {
-  return reason instanceof Error ? reason.message : "Schedule request failed"
 }

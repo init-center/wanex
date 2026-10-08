@@ -4,7 +4,7 @@ import type {
   RetryPolicy,
   SchedulerJobRecord
 } from "./scheduler.js"
-import type { WorkspaceTaskAccess } from "./workspace-task.js"
+import type { WorkspaceTaskAccess, WorkspaceTaskStrategy } from "./workspace-task.js"
 
 export type ChannelBindingState = "active" | "revoked"
 
@@ -226,6 +226,7 @@ export interface WorkspaceTaskProjectionTarget {
   readonly handlerId: string
   readonly principalId: PrincipalId
   readonly access: WorkspaceTaskAccess
+  readonly strategy: WorkspaceTaskStrategy
   readonly input: JsonValue
   readonly taskId?: string
   readonly workspaceId?: string

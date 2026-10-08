@@ -21,10 +21,11 @@ import {
   createAssistantAgentHostEndpoint,
 } from "./endpoint.js";
 import type { AssistantAgentHostEndpointOptions } from "./model.js";
+import type { ResourceDeliveryPort } from "../resources/model.js";
 
 export interface RemoteAssistantHostResolution {
   readonly surface: SurfaceAdapter;
-  readonly commands: AssistantAgentHostEndpointOptions["commands"];
+  readonly resourceDeliveries?: ResourceDeliveryPort;
   readonly host: AgentHostDescriptor;
   readonly grant: RemoteHostGrant;
 }
@@ -56,9 +57,14 @@ export function createRemoteAssistantAgentHostHandler(
         createEndpoint: (accessToken) =>
           createAssistantAgentHostEndpoint({
             surface: resolved.surface,
-            commands: resolved.commands,
             host: resolved.host,
             accessToken,
+            ...(resolved.resourceDeliveries === undefined
+              ? {}
+              : {
+                  resourceDeliveries: resolved.resourceDeliveries,
+                  resourceDeliveryAudience: subject.subjectId,
+                }),
           }),
       };
     },

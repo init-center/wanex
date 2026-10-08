@@ -28,6 +28,25 @@ afterEach(async () => {
 });
 
 describe("Web Plugin management projection", () => {
+  it.each(["approve-local-plugin-review", "set-plugin-install-state"] as const)("preserves acknowledged %s across failed aggregate readback and retries reads only", async (type) => {
+    const port = new FakePluginManagementPort();
+    port.failReadbackAfterMutation = true;
+    await withSurface(port, async ({ surface }) => {
+      const result = await surface.dispatchAction(type === "approve-local-plugin-review"
+        ? { type, input: { reviewId: "review_plugin_example", reason: "Reviewed" } }
+        : { type, input: { pluginId: "plugin.example", version: "1.0.0", expectedState: "installed", state: "removed" } });
+      expect(result).toMatchObject({
+        ok: true,
+        output: { kind: "web.plugin-management-action", action: type, result: { kind: "plugin.management.applied" } },
+        snapshotRefresh: { state: "failed", message: "Aggregate readback interrupted" },
+      });
+      expect(port.mutationCount).toBe(1);
+      await expect(surface.refresh()).rejects.toThrow("Aggregate readback interrupted");
+      port.failReadback = false;
+      await surface.refresh();
+      expect(port.mutationCount).toBe(1);
+    });
+  });
   it("rereads canonical management only after its revision invalidates", async () => {
     const port = new FakePluginManagementPort();
     await withSurface(port, async ({ surface, observed }) => {
@@ -155,13 +174,20 @@ async function withSurface(
   const assistantSurface = createSurfaceAdapter(shell, { now: () => 7_000 });
   const observed: SurfaceTransportRequest[] = [];
   try {
-    const surface = await createSurface({
-      client: createHostSurfaceClient({
+    const client = createHostSurfaceClient({
         surface: assistantSurface,
         observeRequest(request) {
           observed.push(request);
         },
-      }),
+      });
+    const surface = await createSurface({
+      client: {
+        ...client,
+        async descriptor() {
+          if (port instanceof FakePluginManagementPort && port.failReadback) throw new Error("Aggregate readback interrupted");
+          return await client.descriptor();
+        },
+      },
       now: () => 7_001,
     });
     await run({ surface, observed });
@@ -172,6 +198,9 @@ async function withSurface(
 }
 
 class FakePluginManagementPort implements PluginManagementPort {
+  failReadbackAfterMutation = false;
+  failReadback = false;
+  mutationCount = 0;
   readonly snapshot: PluginManagementSnapshot = {
     kind: "plugin.management.snapshot",
     revision: `plugin-management:sha256:${"a".repeat(64)}`,
@@ -226,6 +255,8 @@ class FakePluginManagementPort implements PluginManagementPort {
   }
 
   async approveLocalReview(): Promise<PluginManagementMutationResult> {
+    this.mutationCount++;
+    this.failReadback = this.failReadbackAfterMutation;
     return applied("install", this.snapshot);
   }
 
@@ -234,6 +265,8 @@ class FakePluginManagementPort implements PluginManagementPort {
   }
 
   async setInstallState(): Promise<PluginManagementMutationResult> {
+    this.mutationCount++;
+    this.failReadback = this.failReadbackAfterMutation;
     return applied("set_state", this.snapshot);
   }
 

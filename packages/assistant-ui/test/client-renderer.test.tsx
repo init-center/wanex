@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 
-import { act } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, createElement } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createHttpClient,
+  App,
   mountClient,
   type Client,
   type ClientEvent,
@@ -17,8 +18,11 @@ import type {
 } from "../src/application/model.js";
 import type { ScheduleDefinition } from "@wanex/assistant";
 import { STYLESHEET } from "../src/generated/stylesheet.js";
+import { chooseOption } from "./support/select.js";
 
 const mounted: Array<{ unmount(): void }> = [];
+
+beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
 
 afterEach(async () => {
   await act(async () => {
@@ -30,14 +34,105 @@ afterEach(async () => {
 });
 
 describe("Web client", () => {
+  it("reports only canonical theme changes to an enclosing shell", async () => {
+    let current = baseSnapshot();
+    const onThemeChange = vi.fn();
+    await mount({
+      async readSnapshot() { return current; },
+      async dispatchAction(action) {
+        if (action.type === "update-preferences") {
+          current = { ...current, view: {
+            ...current.view,
+            theme: action.input.preferences.theme ?? current.view.theme,
+            density: action.input.preferences.density ?? current.view.density,
+          } };
+        }
+        return { ok: true, action: action.type, snapshot: current };
+      },
+    }, undefined, undefined, onThemeChange);
+    expect(onThemeChange.mock.calls).toEqual([["system"]]);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(
+      '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
+    ).click());
+    await act(async () => requiredElement<HTMLButtonElement>(
+      '[data-ui-preference="density"][data-ui-preference-value="compact"]',
+    ).click());
+    expect(onThemeChange.mock.calls).toEqual([["system"], ["dark"]]);
+  });
+
+  it("does not report an unconfirmed theme after a rejected update", async () => {
+    const snapshot = baseSnapshot();
+    const onThemeChange = vi.fn();
+    await mount(createClient(snapshot, async (action) => ({
+      ok: false, action: action.type, message: "Preference update rejected", snapshot,
+    })), snapshot, undefined, onThemeChange);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(
+      '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
+    ).click());
+    expect(onThemeChange.mock.calls).toEqual([["system"]]);
+  });
+
+  it("delivers the current snapshot theme to a replacement callback", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    const snapshot = baseSnapshot();
+    const client = createClient(snapshot);
+    const first = vi.fn();
+    const second = vi.fn();
+    let instance!: ReturnType<typeof mountClient>;
+    await act(async () => {
+      instance = mountClient({ root, client, initialSnapshot: snapshot, onThemeChange: first });
+      mounted.push(instance);
+    });
+    await act(async () => instance.root.render(createElement(App, {
+      client, initialSnapshot: snapshot, onThemeChange: second,
+    })));
+    expect(first.mock.calls).toEqual([["system"]]);
+    expect(second.mock.calls).toEqual([["system"]]);
+  });
+
+  it("waits for a snapshot and ignores a late initial theme after unmount", async () => {
+    const pending = deferred<Snapshot>();
+    const onThemeChange = vi.fn();
+    await mount({
+      ...createClient(baseSnapshot()),
+      readSnapshot: () => pending.promise,
+    }, undefined, undefined, onThemeChange);
+    expect(onThemeChange).not.toHaveBeenCalled();
+    const loading = requiredElement<HTMLElement>('[data-ui-availability-state="loading"]');
+    expect(loading.tagName).toBe("MAIN");
+    expect(loading.hasAttribute("role")).toBe(false);
+    expect(loading.querySelector('[role="status"]')?.textContent).toBe("Loading conversation");
+    await act(async () => mounted.pop()?.unmount());
+    await act(async () => pending.resolve({ ...baseSnapshot(), view: {
+      ...baseSnapshot().view, theme: "dark",
+    } }));
+    expect(onThemeChange).not.toHaveBeenCalled();
+  });
+
+  it("opens the existing settings owner for an external product request", async () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    await act(async () => {
+      mounted.push(mountClient({
+        root,
+        client: createClient(baseSnapshot()),
+        initialSnapshot: baseSnapshot(),
+        openSettingsRequest: 1,
+      }));
+    });
+
+    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+  });
+
   it("renders the chat-first timeline without exposing lower execution identities", async () => {
     const client = createClient(baseSnapshot());
     await mount(client);
 
     expect(document.querySelector("[data-renderer=assistant]")).not.toBeNull();
-    expect(document.querySelector("[data-ui-session-drawer]")?.textContent).toContain(
-      "Conversations",
-    );
+    expect(document.querySelector("[data-ui-recents] [data-ui-recency-group]")).not.toBeNull();
     const userRow = requiredElement<HTMLElement>("[data-ui-conversation-row=row_user]");
     const assistantRow = requiredElement<HTMLElement>("[data-ui-conversation-row=row_assistant]");
     expect(userRow.textContent).toContain("What changed?");
@@ -347,7 +442,7 @@ describe("Web client", () => {
     await waitFor(() => document.activeElement === requiredButton("Keep schedule"));
     await act(async () => requiredButton("Keep schedule").click());
     expect(document.querySelector("[data-ui-schedule-remove-dialog]")).toBeNull();
-    expect(document.activeElement).toBe(remove);
+    await waitFor(() => document.activeElement === remove);
 
     await act(async () => remove.click());
     await act(async () => requiredElement<HTMLButtonElement>(
@@ -502,10 +597,10 @@ describe("Web client", () => {
     expect(activities[0]?.textContent).toContain("Used 2 tools");
     expect(activities[1]).toBeInstanceOf(HTMLDetailsElement);
     expect((activities[1] as HTMLDetailsElement).open).toBe(true);
-    expect(activities[1]?.textContent).toContain("2 tool steps failed");
+    expect(activities[1]?.textContent).toContain("Using 2 tools");
     expect(activities[2]).not.toBeInstanceOf(HTMLDetailsElement);
     expect(activities[2]?.textContent).toContain("Workspace updated");
-    expect(activities[2]?.textContent).toContain("workspace.finalize");
+    expect(activities[2]?.textContent).not.toContain("workspace.finalize");
     const detailDisclosure = activities[2]?.querySelector<HTMLDetailsElement>(
       "[data-ui-tool-details]",
     );
@@ -1236,6 +1331,57 @@ describe("Web client", () => {
     expect(drawer.getAttribute("data-ui-drawer-open")).toBe("false");
   });
 
+  it("adds, reuses and removes conversation folders through typed actions without paths", async () => {
+    const initial = baseSnapshot();
+    const snapshot: Snapshot = {
+      ...initial,
+      view: {
+        ...initial.view,
+        workspaceFolders: {
+          available: true,
+          canPick: true,
+          folders: [{ grantId: "wgrant_notes", name: "notes", access: "read" }],
+          recent: [{ recentRef: "wgrant_old", name: "website", access: "read_write" }],
+        },
+      },
+    };
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      return { ok: true, action: action.type, snapshot };
+    }));
+
+    const chip = requiredElement<HTMLElement>('[data-ui-workspace-folder="read"]');
+    expect(chip.textContent).toContain("notes");
+    expect(chip.textContent).toContain("Read only");
+
+    await act(async () => openMenu(requiredButton("Add")));
+    expect(document.querySelector("[data-ui-add-menu]")).not.toBeNull();
+    await act(async () => requiredElement<HTMLElement>('[data-ui-action="grant-workspace-folder"]').click());
+    expect(document.querySelector("[data-ui-add-menu]")).toBeNull();
+
+    await act(async () => openMenu(requiredButton("Add")));
+    await act(async () => requiredElement<HTMLElement>('[data-ui-action="regrant-workspace-folder"]').click());
+    await act(async () => requiredButton("Remove folder notes").click());
+    await waitFor(() => actions.length === 3);
+
+    expect(actions.map((action) => action.type)).toEqual([
+      "grant-workspace-folder",
+      "regrant-workspace-folder",
+      "revoke-workspace-folder",
+    ]);
+    expect(actions[0]).toMatchObject({ input: { sessionId: "session_react", access: "read_write" } });
+    expect(actions[1]).toMatchObject({ input: { recentRef: "wgrant_old" } });
+    expect(actions[2]).toMatchObject({ input: { grantId: "wgrant_notes" } });
+  });
+
+  it("hides the folder entry when the Host cannot add folders", async () => {
+    await mount(createClient(baseSnapshot()));
+    openMenu(requiredButton("Add"));
+    expect(document.querySelector('[data-ui-action="grant-workspace-folder"]')).toBeNull();
+    expect(document.querySelector("[data-ui-workspace-folders]")).toBeNull();
+  });
+
   it("turns a quick start into a focused composer draft", async () => {
     const initial = baseSnapshot();
     const empty: Snapshot = {
@@ -1369,7 +1515,7 @@ describe("Web client", () => {
     })));
     await waitFor(() => document.querySelector("[data-ui-extension-review]") === null);
     expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
-    expect(document.activeElement).toBe(add);
+    await waitFor(() => document.activeElement === add);
     expect(actions).toEqual([
       { type: "request-local-plugin-review" },
       {
@@ -1377,6 +1523,227 @@ describe("Web client", () => {
         input: { reviewId: "review_example" },
       },
     ]);
+  });
+
+  it.each(["extension", "schedule"] as const)("keeps %s removal pending across duplicate activation and nested Escape", async (kind) => {
+    const snapshot = kind === "extension" ? extensionSnapshot(baseSnapshot()) : scheduleSnapshot();
+    const pending = deferred<ActionResult>();
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      return pending.promise;
+    }), snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
+    const confirm = requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`);
+    await act(async () => {
+      confirm.click();
+      confirm.click();
+      requiredElement<HTMLElement>("[data-ui-settings-subdialog]").dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }),
+      );
+    });
+    expect(actions).toHaveLength(1);
+    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+    expect(document.querySelector(`[data-ui-${kind}-remove-dialog]`)).not.toBeNull();
+    await act(async () => pending.resolve({ ok: false, action: actions[0]!.type, message: "Removal rejected", snapshot }));
+    expect(requiredElement<HTMLElement>(`[data-ui-${kind}-remove-dialog]`).textContent).toContain("Removal rejected");
+    expect(confirm.disabled).toBe(false);
+  });
+
+  it("retains rejected extension approval feedback inside its active review", async () => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    await mount(createClient(snapshot, async (action) => action.type === "request-local-plugin-review"
+      ? { ok: true, action: action.type, output: { kind: "web.plugin-management-action", action: action.type, result: localExtensionReview() }, snapshot }
+      : { ok: false, action: action.type, message: "Installation rejected", snapshot }), snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-add]").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-approve]").click());
+    expect(requiredElement<HTMLElement>("[data-ui-extension-review]").textContent).toContain("Installation rejected");
+  });
+
+  it.each(["extension", "schedule"] as const)("shows a thrown %s removal failure inside the still-open confirmation", async (kind) => {
+    const snapshot = kind === "extension" ? extensionSnapshot(baseSnapshot()) : scheduleSnapshot();
+    await mount(createClient(snapshot, async () => { throw new Error("Connection interrupted"); }), snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
+    await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`).click());
+    expect(requiredElement<HTMLElement>(`[data-ui-${kind}-remove-dialog]`).textContent).toContain("Connection interrupted");
+    expect(requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`).disabled).toBe(false);
+  });
+
+  it.each(["approve-local-plugin-review", "set-plugin-install-state"] as const)("does not repeat applied %s when catalog refresh needs attention", async (mutation) => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    const actions: Action[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      if (action.type === "request-local-plugin-review") return {
+        ok: true, action: action.type, snapshot,
+        output: { kind: "web.plugin-management-action", action: action.type, result: localExtensionReview() },
+      };
+      if (action.type !== mutation) return { ok: true, action: action.type, snapshot };
+      return {
+        ok: true, action: action.type, snapshot,
+        output: { kind: "web.plugin-management-action", action: action.type, result: {
+          kind: "plugin.management.attention-required", operation: mutation === "approve-local-plugin-review" ? "install" : "set_state",
+          snapshot: { kind: "plugin.management.snapshot", revision: "revision-applied", installs: [] }, catalogRevision: "catalog-applied",
+          diagnostic: { code: "catalog_refresh_failed", message: "Saved; catalog refresh failed" },
+        } },
+      };
+    }), snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(mutation === "approve-local-plugin-review" ? "[data-ui-extension-add]" : "[data-ui-extension-remove]").click());
+    await act(async () => requiredElement<HTMLButtonElement>(mutation === "approve-local-plugin-review" ? "[data-ui-extension-approve]" : "[data-ui-extension-remove-confirm]").click());
+    expect(document.querySelector("[data-ui-settings-subdialog]")).toBeNull();
+    expect(requiredElement<HTMLElement>("[data-ui-extension-error]").textContent).toContain("Saved; catalog refresh failed");
+    expect(actions.filter(action => action.type === mutation)).toHaveLength(1);
+    expect(actions.some(action => action.type === "retry-plugin-refresh")).toBe(false);
+  });
+
+  it.each(["extension", "schedule"] as const)("recovers acknowledged %s removal through read-only retry after aggregate readback fails", async (kind) => {
+    const snapshot = kind === "extension" ? extensionSnapshot(baseSnapshot()) : scheduleSnapshot();
+    let reads = 0;
+    const actions: Action[] = [];
+    const client: Client = {
+      async readSnapshot() {
+        reads++;
+        if (reads === 1) throw new Error("Readback still offline");
+        return snapshot;
+      },
+      async dispatchAction(action) {
+        actions.push(action);
+        return { ...(kind === "extension" ? pluginMutationAction("set-plugin-install-state", snapshot) : { ok: true as const, action: action.type, snapshot }),
+          snapshotRefresh: { state: "failed", message: "Aggregate readback interrupted" },
+        };
+      },
+    };
+    await mount(client, snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
+    await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`).click());
+    expect(document.querySelector("[data-ui-settings-subdialog]")).toBeNull();
+    const panel = requiredElement<HTMLElement>("[data-ui-settings-panel]");
+    expect(panel.textContent).toContain("Aggregate readback interrupted");
+    const retry = (): HTMLButtonElement => panel.querySelector<HTMLButtonElement>('[data-ui-availability-state="degraded"] button')!;
+    await act(async () => { retry().click(); retry().click(); });
+    expect(reads).toBe(1);
+    expect(panel.textContent).toContain("Readback still offline");
+    await act(async () => retry().click());
+    expect(reads).toBe(2);
+    expect(panel.querySelector('[data-ui-availability-state="degraded"]')).toBeNull();
+    expect(actions).toHaveLength(1);
+  });
+
+  it("does not overwrite a newer completed action with obsolete readback failure", async () => {
+    const ready = extensionSnapshot(baseSnapshot());
+    const snapshot = { ...ready, view: { ...ready.view, settings: { ...ready.view.settings,
+      plugins: { state: "failed" as const, installs: [], message: "Read extensions first" },
+    } } };
+    const fresh = { ...snapshot, generatedAt: 300, view: { ...snapshot.view, theme: "dark" as const } };
+    const pending = deferred<ActionResult>();
+    const client: Client = {
+      async readSnapshot() { return fresh; },
+      async dispatchAction(action) {
+        return action.type === "read-plugin-management" ? await pending.promise
+          : { ok: true, action: action.type, snapshot: fresh };
+      },
+    };
+    await mount(client, snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-read-retry]").click());
+    await act(async () => requiredElement<HTMLButtonElement>('[data-ui-preference="theme"][data-ui-preference-value="dark"]').click());
+    await act(async () => pending.resolve({ ok: true, action: "read-plugin-management", snapshot,
+      snapshotRefresh: { state: "failed", message: "Obsolete readback failure" },
+    }));
+    expect(document.querySelector('[data-ui-assistant-shell][data-theme="dark"]')).not.toBeNull();
+    expect(document.body.textContent).not.toContain("Obsolete readback failure");
+  });
+
+  it("retains a review across same-Client App rerenders without dispatching again", async () => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    const dispatchAction = vi.fn<Client["dispatchAction"]>(async action => ({
+      ok: true, action: action.type, snapshot,
+      ...(action.type === "request-local-plugin-review" ? { output: {
+        kind: "web.plugin-management-action" as const, action: action.type, result: localExtensionReview(),
+      } } : {}),
+    }));
+    const client = createClient(snapshot, dispatchAction);
+    const { createRoot } = await import("react-dom/client");
+    const node = document.createElement("div"); document.body.append(node);
+    const root = createRoot(node); mounted.push({ unmount: () => root.unmount() });
+    await act(async () => root.render(createElement(App, { client, initialSnapshot: snapshot })));
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-add]").click());
+    await act(async () => root.render(createElement(App, { client, initialSnapshot: snapshot, openSettingsRequest: 2 })));
+    expect(document.querySelector("[data-ui-extension-review]")).not.toBeNull();
+    expect(dispatchAction).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards a late local review after Settings closes and is reopened", async () => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    const pending = deferred<ActionResult>();
+    const dispatchAction = vi.fn<Client["dispatchAction"]>(() => pending.promise);
+    await mount(createClient(snapshot, dispatchAction), snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => {
+      const add = requiredElement<HTMLButtonElement>("[data-ui-extension-add]");
+      add.click(); add.click();
+    });
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector("[data-ui-settings-overlay]")).toBeNull();
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => pending.resolve({ ok: true, action: "request-local-plugin-review", snapshot, output: {
+      kind: "web.plugin-management-action", action: "request-local-plugin-review", result: localExtensionReview(),
+    } }));
+    expect(document.querySelector("[data-ui-extension-review]")).toBeNull();
+    expect(requiredElement<HTMLButtonElement>("[data-ui-extension-add]").disabled).toBe(false);
+    expect(dispatchAction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["result", "throw"] as const)("does not settle an unmounted Settings mutation by replaying or cancelling it (%s)", async (outcome) => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    const pending = deferred<ActionResult>();
+    const dispatchAction = vi.fn<Client["dispatchAction"]>(() => pending.promise);
+    const client = { ...createClient(snapshot, dispatchAction), dispose: vi.fn() };
+    await mount(client, snapshot);
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove-confirm]").click());
+    await act(async () => mounted.pop()!.unmount());
+    await act(async () => {
+      if (outcome === "throw") pending.reject(new Error("Late transport error"));
+      else pending.resolve(pluginMutationAction("set-plugin-install-state", snapshot));
+    });
+    expect(document.querySelector("[data-ui-assistant-shell]")).toBeNull();
+    expect(dispatchAction).toHaveBeenCalledTimes(1);
+    expect(client.dispose).not.toHaveBeenCalled();
+  });
+
+  it.each(["result", "throw"] as const)("does not publish obsolete Client %s after replacement during Settings removal", async (outcome) => {
+    const snapshot = extensionSnapshot(baseSnapshot());
+    const pending = deferred<ActionResult>();
+    const oldClient = createClient(snapshot, () => pending.promise);
+    const nextSnapshot = { ...snapshot, generatedAt: 900, view: { ...snapshot.view, theme: "dark" as const } };
+    const nextClient = createClient(nextSnapshot);
+    const { createRoot } = await import("react-dom/client");
+    const node = document.createElement("div");
+    document.body.append(node);
+    const root = createRoot(node);
+    mounted.push({ unmount: () => root.unmount() });
+    await act(async () => root.render(createElement(App, { client: oldClient, initialSnapshot: snapshot })));
+    await act(async () => requiredButton("Open settings").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove-confirm]").click());
+    await act(async () => root.render(createElement(App, { client: nextClient, initialSnapshot: nextSnapshot })));
+    await act(async () => {
+      if (outcome === "throw") pending.reject(new Error("Obsolete Client error"));
+      else pending.resolve({ ok: false, action: "set-plugin-install-state", message: "Obsolete Client error", snapshot });
+    });
+    expect(document.querySelector('[data-ui-assistant-shell][data-theme="dark"]')).not.toBeNull();
+    expect(document.body.textContent).not.toContain("Obsolete Client error");
+    expect(document.querySelector("[data-ui-extension-remove-dialog]")).toBeNull();
+    await act(async () => requiredButton("Open settings").click());
+    expect(requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").disabled).toBe(false);
   });
 
   it("uses exact state changes, explicit removal confirmation, and retry recovery", async () => {
@@ -1432,7 +1799,7 @@ describe("Web client", () => {
     await waitFor(() => document.activeElement === requiredButton("Keep extension"));
     await act(async () => requiredButton("Keep extension").click());
     expect(actions).toHaveLength(2);
-    expect(document.activeElement).toBe(remove);
+    await waitFor(() => document.activeElement === remove);
 
     await act(async () => remove.click());
     await act(async () => requiredElement<HTMLButtonElement>(
@@ -1709,11 +2076,11 @@ describe("Web client", () => {
     const snapshot = commandPaletteSnapshot();
     await mount(createClient(snapshot), snapshot);
     const textarea = requiredElement<HTMLTextAreaElement>("textarea[aria-label=Message]");
-    const opener = requiredElement<HTMLButtonElement>('[data-ui-action="open-commands"]');
+    const opener = requiredElement<HTMLButtonElement>('[data-ui-action="open-add-menu"]');
 
     await setTextarea(textarea, "Keep this composer draft");
     opener.focus();
-    await act(async () => opener.click());
+    await chooseFromAddMenu("Commands");
     expect(document.querySelector("[data-ui-command-palette]")).not.toBeNull();
     expect(textarea.value).toBe("Keep this composer draft");
 
@@ -1764,9 +2131,14 @@ describe("Web client", () => {
     await mount(client, initial);
     const textarea = requiredElement<HTMLTextAreaElement>("textarea[aria-label=Message]");
     await setTextarea(textarea, "Composer text stays independent");
-    await act(async () => requiredButton("Commands").click());
+    await chooseFromAddMenu("Commands");
 
     const search = requiredElement<HTMLInputElement>("[data-ui-command-search]");
+    expect(search.getAttribute("role")).toBe("combobox");
+    const commandList = requiredElement<HTMLElement>('[role="listbox"][aria-label="Available commands"]');
+    expect(search.getAttribute("aria-controls")).toBe(commandList.id);
+    expect(commandList.querySelector("li")?.getAttribute("role")).toBe("presentation");
+    expect(document.getElementById(search.getAttribute("aria-activedescendant") ?? "")?.getAttribute("aria-selected")).toBe("true");
     await setInput(search, "memory");
     expect(document.querySelector('[data-ui-command="assistant.status"]')).toBeNull();
     const enter = new KeyboardEvent("keydown", {
@@ -1845,7 +2217,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot: initial };
     }), initial);
 
-    await act(async () => requiredButton("Commands").click());
+    await chooseFromAddMenu("Commands");
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-command="assistant.memory.inspect"]',
     ).click());
@@ -1892,7 +2264,7 @@ describe("Web client", () => {
       );
       return { ok: true, action: action.type, snapshot };
     }), initial);
-    await act(async () => requiredButton("Commands").click());
+    await chooseFromAddMenu("Commands");
 
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-command="assistant.unsupported"]',
@@ -1962,7 +2334,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot: initial };
     });
     await mount(client, initial);
-    await act(async () => requiredButton("Commands").click());
+    await chooseFromAddMenu("Commands");
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-command="assistant.memory.inspect"]',
     ).click());
@@ -2087,6 +2459,121 @@ describe("Web client", () => {
       type: "remove-conversation-attachment",
       input: { resourceId: "resource_react", sessionId: "session_react" },
     }]);
+  });
+
+  it("does not upload twice when file selection repeats before React commits", async () => {
+    const initial = baseSnapshot();
+    const uploaded = attachmentSnapshot(initial);
+    const pending = deferred<Awaited<ReturnType<NonNullable<Client["uploadAttachment"]>>>>();
+    const upload = vi.fn(async () => pending.promise);
+    await mount({ ...createClient(initial), uploadAttachment: upload }, initial);
+    const input = requiredElement<HTMLInputElement>("[data-ui-attachment-input]");
+    const file = new File([new Uint8Array([1])], "diagram.png", { type: "image/png" });
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    const callsBeforeSettlement = upload.mock.calls.length;
+    await act(async () => pending.resolve(attachmentUploadResult(uploaded)));
+    expect(callsBeforeSettlement).toBe(1);
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["paste", "drop"])("rejects pasted or dropped files when the model attachment gate is disabled (%s)", async (kind) => {
+    const initial = baseSnapshot();
+    const blocked: Snapshot = { ...initial, view: {
+      ...initial.view,
+      conversationAttachmentCanUpload: false,
+      conversationAttachmentAccept: "",
+      conversationAttachmentMessage: "This model does not accept images",
+    } };
+    const upload = vi.fn(async () => attachmentUploadResult(attachmentSnapshot(blocked)));
+    await mount({ ...createClient(blocked), uploadAttachment: upload }, blocked);
+    const textarea = requiredElement<HTMLTextAreaElement>("textarea[aria-label=Message]");
+    await setTextarea(textarea, "Keep this text");
+    const file = new File([new Uint8Array([1])], "diagram.png", { type: "image/png" });
+    const read = vi.spyOn(file, "arrayBuffer");
+    const event = new Event(kind, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, kind === "paste" ? "clipboardData" : "dataTransfer", { value: { files: [file] } });
+    await act(async () => textarea.dispatchEvent(event));
+    expect(read).not.toHaveBeenCalled();
+    expect(upload).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("Keep this text");
+    expect(document.body.textContent).toContain("This model does not accept images");
+  });
+
+  it("stops attachment reading before upload when its session changes", async () => {
+    const initial = baseSnapshot();
+    let current = initial;
+    let listener: ((event: ClientEvent) => void) | undefined;
+    const upload = vi.fn(async () => attachmentUploadResult(attachmentSnapshot(initial)));
+    const client: Client = {
+      ...createClient(initial),
+      readSnapshot: async () => current,
+      uploadAttachment: upload,
+      subscribe(next) { listener = next; return () => {}; },
+    };
+    await mount(client, initial);
+    const bytes = deferred<ArrayBuffer>();
+    const file = new File([new Uint8Array([1])], "diagram.png", { type: "image/png" });
+    vi.spyOn(file, "arrayBuffer").mockReturnValue(bytes.promise);
+    const input = requiredElement<HTMLInputElement>("[data-ui-attachment-input]");
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    current = { ...initial, conversation: { ...initial.conversation, sessionId: "session_next" }, view: {
+      ...initial.view, title: "Next session", selection: { kind: "session", sessionId: "session_next" }, selectedSessionTitle: "Next session",
+    } };
+    await act(async () => listener?.({ kind: "snapshot-invalidated" }));
+    await act(async () => bytes.resolve(new Uint8Array([1]).buffer));
+    expect(upload).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-ui-conversation-timeline]")?.getAttribute("data-ui-session-id")).toBe("session_next");
+    expect(document.querySelector("[data-ui-selected-session-title]")?.textContent).toBe("Next session");
+  });
+
+  it("does not submit before an attachment read commits its busy state", async () => {
+    const initial = baseSnapshot();
+    const actions = vi.fn<Client["dispatchAction"]>().mockImplementation(async (action) => ({ ok: true, action: action.type, snapshot: initial }));
+    await mount({ ...createClient(initial, actions), uploadAttachment: async () => attachmentUploadResult(attachmentSnapshot(initial)) }, initial);
+    const textarea = requiredElement<HTMLTextAreaElement>("textarea[aria-label=Message]");
+    await setTextarea(textarea, "Wait for the attachment");
+    const file = new File([new Uint8Array([1])], "diagram.png", { type: "image/png" });
+    const bytes = deferred<ArrayBuffer>();
+    vi.spyOn(file, "arrayBuffer").mockReturnValue(bytes.promise);
+    const input = requiredElement<HTMLInputElement>("[data-ui-attachment-input]");
+    Object.defineProperty(input, "files", { configurable: true, value: [file] });
+    await act(async () => {
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      textarea.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    await act(async () => bytes.resolve(new Uint8Array([1]).buffer));
+    expect(actions).not.toHaveBeenCalled();
+    expect(textarea.value).toBe("Wait for the attachment");
+    expect(document.querySelector('[data-ui-attachment="resource_react"]')).not.toBeNull();
+  });
+
+  it("retains successful attachments and the text draft when a later file fails", async () => {
+    const initial = baseSnapshot();
+    const uploaded = attachmentSnapshot(initial);
+    const upload = vi.fn<NonNullable<Client["uploadAttachment"]>>()
+      .mockResolvedValueOnce(attachmentUploadResult(uploaded))
+      .mockRejectedValueOnce(new Error("Second file rejected"));
+    await mount({ ...createClient(initial), uploadAttachment: upload }, initial);
+    const textarea = requiredElement<HTMLTextAreaElement>("textarea[aria-label=Message]");
+    await setTextarea(textarea, "Keep the first file and this text");
+    const files = ["diagram.png", "second.png", "third.png"].map((name) =>
+      new File([new Uint8Array([1])], name, { type: "image/png" }),
+    );
+    const readThird = vi.spyOn(files[2]!, "arrayBuffer");
+    const input = requiredElement<HTMLInputElement>("[data-ui-attachment-input]");
+    Object.defineProperty(input, "files", { configurable: true, value: files });
+    await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(document.querySelector('[data-ui-attachment="resource_react"]')).not.toBeNull();
+    expect(textarea.value).toBe("Keep the first file and this text");
+    expect(document.body.textContent).toContain("Second file rejected");
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(readThird).not.toHaveBeenCalled();
+    expect(input.disabled).toBe(false);
   });
 
   it("shows attachment preview failure and retries the same resource without losing state", async () => {
@@ -2460,7 +2947,7 @@ describe("Web client", () => {
       credential: "secret-provider-key",
       makeConversationActive: true,
     }]);
-    expect(document.body.textContent).toContain("openai");
+    expect(document.body.textContent).toContain("OpenAI");
     expect(document.body.textContent).not.toContain("secret-provider-key");
     expect(requiredElement<HTMLInputElement>('input[name="credential"]').value).toBe("");
   });
@@ -2493,11 +2980,7 @@ describe("Web client", () => {
     await mount(client);
     await act(async () => requiredButton("Open settings").click());
 
-    const preset = requiredElement<HTMLSelectElement>('select[name="presetId"]');
-    await act(async () => {
-      preset.value = "openai-compatible";
-      preset.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    await chooseOption(requiredElement<HTMLButtonElement>('[data-ui-select="presetId"]'), "openai-compatible");
     const advanced = requiredElement<HTMLDetailsElement>("[data-ui-provider-advanced]");
     expect(advanced.open).toBe(false);
     expect(advanced.textContent).toContain("Accept image input");
@@ -2607,6 +3090,73 @@ describe("Web client", () => {
     expect(dialog.textContent).not.toContain("Loading providers");
   });
 
+  it("removes a Provider only after in-dialog confirmation", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const confirm = vi.fn(() => true);
+    vi.stubGlobal("confirm", confirm);
+    const snapshot = baseSnapshot();
+    const configured = {
+      kind: "assistant-host.configured-provider-list" as const,
+      providers: [{
+        connectionId: "openai",
+        providerId: "openai",
+        presetId: "openai" as const,
+        credentialConfigured: true,
+        active: true,
+        endpoints: [{
+          id: "openai",
+          protocol: { id: "openai-chat-completions" },
+          model: {
+            id: "gpt-5.4",
+            operations: ["conversation"],
+            inputModalities: ["text"],
+            outputModalities: ["text"],
+            features: [],
+          },
+          active: true,
+        }],
+      }],
+    };
+    const removals: unknown[] = [];
+    const client: Client = {
+      async readSnapshot() {
+        return snapshot;
+      },
+      async dispatchAction(action) {
+        return { ok: true, action: action.type, snapshot };
+      },
+      async listProviders() {
+        return configured;
+      },
+      async saveProvider() {
+        throw new Error("not used");
+      },
+      async removeProvider(request) {
+        removals.push(request);
+        return {
+          kind: "web.provider-mutated",
+          providers: { kind: "assistant-host.configured-provider-list", providers: [] },
+          snapshot,
+        };
+      },
+    };
+    await mount(client);
+    await act(async () => requiredButton("Open settings").click());
+    await waitFor(() => document.querySelector('[data-ui-provider="openai"]') !== null);
+
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-provider-remove]").click());
+    expect(removals).toEqual([]);
+    await act(async () => requiredButton("Keep").click());
+    expect(document.querySelector("[data-ui-provider-remove-confirm]")).toBeNull();
+
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-provider-remove]").click());
+    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-provider-remove-confirm]").click());
+    await waitFor(() => document.body.textContent?.includes("Provider removed") === true);
+    expect(removals).toEqual([{ connectionId: "openai" }]);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(document.querySelector("[data-ui-provider-empty]")).not.toBeNull();
+  });
+
   it("keeps Plan, Goal, and Side Query behind one contextual workflow panel", async () => {
     const snapshot = {
       ...baseSnapshot(),
@@ -2618,7 +3168,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }));
 
-    await act(async () => requiredButton("Workflows").click());
+    await chooseFromAddMenu("Workflows");
     const planForm = requiredElement<HTMLFormElement>("[data-ui-plan-form]");
     planForm.querySelector<HTMLTextAreaElement>('textarea[name="text"]')!.value = "Plan the renderer cutover";
     await submitForm(planForm);
@@ -2762,11 +3312,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot: baseSnapshot() };
     }));
     const form = requiredElement<HTMLFormElement>("[data-ui-recovery-item] form");
-    const decision = requiredElement<HTMLSelectElement>("[data-ui-recovery-item] select");
-    await act(async () => {
-      decision.value = "retry";
-      decision.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    await chooseOption(requiredElement<HTMLButtonElement>('[data-ui-recovery-item] [role="combobox"]'), "retry");
     await submitForm(form);
 
     expect(actions).toEqual([{
@@ -2887,7 +3433,9 @@ describe("Web client", () => {
     await waitFor(() => document.querySelector("[data-ui-transient-assistant]") !== null);
     expect(requiredButton("Stop").disabled).toBe(false);
 
-    await act(async () => requiredButton("Queue after current").click());
+    // No explicit choice: Enter must default to queueing instead of doing nothing.
+    expect(requiredButton("Queue after current").classList.length).toBeGreaterThan(0);
+    expect(document.querySelector('[data-ui-composer-mode="queue"]')).not.toBeNull();
     await setTextarea(textarea, "Check the release notes next");
     await submitComposer();
     await waitFor(() => resolveQueue !== undefined);
@@ -3481,9 +4029,9 @@ describe("Web client", () => {
         done: false as const,
         value: encoder.encode(
           [
-            'data: {"kind":"assistant.surface-stream.event","streamId":"react_stream","event":{"type":"assistant.surface.conversation.assistant-text-delta","sequence":3,"conversation":{"operationId":"operation_react","sessionId":"session_react","text":"covered"}}}',
+            `data: ${JSON.stringify(surfaceDeltaStreamEvent(3, "covered"))}`,
             "",
-            'data: {"kind":"assistant.surface-stream.event","streamId":"react_stream","event":{"type":"assistant.surface.conversation.assistant-text-delta","sequence":4,"conversation":{"operationId":"operation_react","sessionId":"session_react","text":"next"}}}',
+            `data: ${JSON.stringify(surfaceDeltaStreamEvent(4, "next"))}`,
             "",
             "",
           ].join("\n"),
@@ -3590,10 +4138,7 @@ describe("Web client", () => {
         value: encoder.encode(
           [4, 5, 6, 7, 8, 9]
             .map((sequence) => {
-              const conversation = sequence === 9
-                ? ',"conversation":{"operationId":"operation_external","sessionId":"session_external"}'
-                : "";
-              return `data: {"kind":"assistant.surface-stream.event","streamId":"react_stream","event":{"type":"${sequence === 9 ? "assistant.surface.conversation.operation-invalidated" : sequence === 8 ? "assistant.surface.team.invalidated" : "assistant.surface.state_changed"}","sequence":${sequence}${conversation}}}\n`;
+              return `data: ${JSON.stringify(surfaceInvalidationStreamEvent(sequence))}\n`;
             })
             .join("\n") + "\n",
         ),
@@ -3657,7 +4202,11 @@ describe("Web client", () => {
     expect(new Headers(requests[2]?.init?.headers).get("last-event-id"))
       .toBe("react_stream:7");
     expect(events).toEqual([
-      { kind: "snapshot-invalidated" },
+      {
+        kind: "snapshot-invalidated",
+        operationId: "operation_external",
+        sessionId: "session_external",
+      },
       {
         kind: "snapshot-invalidated",
         operationId: "operation_external",
@@ -4030,13 +4579,7 @@ describe("Web client", () => {
     }), snapshot);
 
     await act(async () => requiredButton("Toggle context panel").click());
-    const select = requiredElement<HTMLSelectElement>(
-      'select[name="agentSessionId"]',
-    );
-    await act(async () => {
-      select.value = "session_react";
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-    });
+    await chooseOption(requiredElement<HTMLButtonElement>('[data-ui-select="agentSessionId"]'), "session_react");
     await submitForm(requiredButton("Add").closest("form")!);
 
     expect(actions).toContainEqual({
@@ -4143,10 +4686,25 @@ describe("Web client", () => {
   });
 });
 
+/** Opens the composer Add menu and activates one item by its visible title. */
+async function chooseFromAddMenu(title: string): Promise<void> {
+  await act(async () => openMenu(requiredButton("Add")));
+  const item = [...document.querySelectorAll<HTMLElement>('[data-ui-add-menu] [role="menuitem"]')]
+    .find((candidate) => candidate.textContent?.startsWith(title));
+  if (item === undefined) throw new Error(`Add menu item not found: ${title}`);
+  await act(async () => item.click());
+}
+
+/** Radix menus open on pointer down, like a native menu button. */
+function openMenu(trigger: HTMLElement): void {
+  trigger.dispatchEvent(new MouseEvent("pointerdown", { button: 0, bubbles: true, cancelable: true }));
+}
+
 async function mount(
   client: Client,
   initialSnapshot?: Snapshot,
   onModalStateChange?: (state: AppModalState) => void,
+  onThemeChange?: (theme: Snapshot["view"]["theme"]) => void,
 ): Promise<void> {
   const root = document.createElement("div");
   document.body.append(root);
@@ -4156,6 +4714,7 @@ async function mount(
       client,
       ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
       ...(onModalStateChange === undefined ? {} : { onModalStateChange }),
+      ...(onThemeChange === undefined ? {} : { onThemeChange }),
     }));
   });
 }
@@ -4321,6 +4880,7 @@ function baseSnapshot(): Snapshot {
       conversations: [],
     },
     attachments: { ok: true },
+    workspaceFolders: { ok: true },
     workbench: { kind: "web.workbench", state: "idle" },
     diagnostics: [],
     view: {
@@ -4443,6 +5003,7 @@ function baseSnapshot(): Snapshot {
         conversations: [],
       },
       conversationAttachments: [],
+      workspaceFolders: { available: false, canPick: false, folders: [], recent: [] },
       conversationAttachmentCanUpload: true,
       conversationAttachmentAccept: "image/*",
       conversationAttachmentMessage: "Images and documents",
@@ -5042,12 +5603,15 @@ function submittedCommandExecutionSnapshot(
 function deferred<T>(): {
   readonly promise: Promise<T>;
   readonly resolve: (value: T) => void;
+  readonly reject: (reason: unknown) => void;
 } {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((next) => {
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((next, fail) => {
     resolve = next;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 function sessionLibrarySnapshot(): Snapshot {
@@ -5438,6 +6002,20 @@ function approvalSnapshot(
   } as Snapshot;
 }
 
+function attachmentUploadResult(snapshot: Snapshot): Awaited<ReturnType<NonNullable<Client["uploadAttachment"]>>> {
+  return {
+    kind: "web.attachment-uploaded",
+    attachment: snapshot.view.conversationAttachments[0]!,
+    attachments: {
+      kind: "assistant.conversation-attachments",
+      draftKey: snapshot.conversation.sessionId ?? "new",
+      ...(snapshot.conversation.sessionId === undefined ? {} : { sessionId: snapshot.conversation.sessionId }),
+      attachments: snapshot.view.conversationAttachments,
+    },
+    snapshot,
+  };
+}
+
 function attachmentSnapshot(snapshot: Snapshot): Snapshot {
   const attachment = {
     kind: "assistant.attachment" as const,
@@ -5791,6 +6369,52 @@ function requiredElement<T extends Element>(selector: string): T {
   return element as T;
 }
 
+function surfaceDeltaStreamEvent(sequence: number, text: string): unknown {
+  return {
+    kind: "assistant.surface-stream.event",
+    streamId: "react_stream",
+    event: {
+      id: `surface_delta_${sequence}`,
+      sequence,
+      type: "assistant.surface.conversation.assistant-text-delta",
+      command: "submitConversationOperation",
+      at: sequence,
+      conversation: {
+        kind: "assistant.conversation.assistant-text-delta",
+        sequence,
+        at: sequence,
+        operationId: "operation_react",
+        sessionId: "session_react",
+        partId: "part_react",
+        text,
+        truncated: false,
+      },
+    },
+  };
+}
+
+function surfaceInvalidationStreamEvent(sequence: number): unknown {
+  return {
+    kind: "assistant.surface-stream.event",
+    streamId: "react_stream",
+    event: {
+      id: `surface_invalidation_${sequence}`,
+      sequence,
+      type: "assistant.surface.conversation.operation-invalidated",
+      command: "submitConversationOperation",
+      at: sequence,
+      conversation: {
+        kind: "assistant.conversation.operation-invalidated",
+        sequence,
+        at: sequence,
+        operationId: "operation_external",
+        sessionId: "session_external",
+        cause: "execution_settled",
+      },
+    },
+  };
+}
+
 async function waitFor(predicate: () => boolean): Promise<void> {
   for (let attempt = 0; attempt < 50; attempt += 1) {
     if (predicate()) return;
@@ -5798,3 +6422,147 @@ async function waitFor(predicate: () => boolean): Promise<void> {
   }
   throw new Error("condition was not reached");
 }
+
+function proposalSnapshot(snapshot: Snapshot): Snapshot {
+  const rows = snapshot.conversation.historyRows;
+  const last = rows.at(-1)!;
+  return {
+    ...snapshot,
+    conversation: {
+      ...snapshot.conversation,
+      historyRows: [
+        ...rows.slice(0, -1),
+        {
+          ...last,
+          workspaceChanges: [{
+            kind: "assistant.workspace-change",
+            changeRef: "change_ref_1",
+            changeKind: "proposal",
+            folder: "web-app",
+            title: "Fix email validation",
+            status: "proposed",
+            available: true,
+            actions: ["approve", "reject"],
+            totalFileCount: 1,
+            files: [{ path: "src/schema.ts", kind: "update" }],
+          }],
+        },
+      ],
+    },
+  } as Snapshot;
+}
+
+describe("Workspace change review", () => {
+  it("reviews a proposal as a diff, approves it with exact identity, and shows conflicts without paths outside the folder", async () => {
+    const base = proposalSnapshot(baseSnapshot());
+    const actions: Action[] = [];
+    await mount(createClient(base, async (action) => {
+      actions.push(action);
+      if (action.type === "read-workspace-change") {
+        return {
+          ok: true,
+          action: action.type,
+          snapshot: base,
+          output: {
+            kind: "web.workspace-change-action",
+            action: action.type,
+            result: {
+              kind: "assistant.workspace-change",
+              changeRef: "change_ref_1",
+              changeKind: "proposal",
+              folder: "web-app",
+              title: "Fix email validation",
+              status: "proposed",
+              available: true,
+              actions: ["approve", "reject"],
+              totalFileCount: 1,
+              files: [{
+                path: "src/schema.ts",
+                kind: "update",
+                before: { text: "const a = 1;\nemail: z.string()\n", truncated: false },
+                after: { text: "const a = 1;\nemail: z.string().email()\n", truncated: false },
+              }],
+            },
+          },
+        } as ActionResult;
+      }
+      return {
+        ok: true,
+        action: action.type,
+        snapshot: base,
+        output: {
+          kind: "web.workspace-change-action",
+          action: action.type,
+          result: {
+            kind: "assistant.workspace-change",
+            changeRef: "change_ref_1",
+            changeKind: "proposal",
+            folder: "web-app",
+            title: "Fix email validation",
+            status: "approved",
+            available: true,
+            actions: ["apply"],
+            totalFileCount: 1,
+            files: [{ path: "src/schema.ts", kind: "update" }],
+          },
+        },
+      } as ActionResult;
+    }));
+
+    const card = requiredElement<HTMLElement>('[data-ui-workspace-change="proposal"]');
+    expect(card.textContent).toContain("Fix email validation");
+    expect(card.textContent).toContain("Awaiting review");
+    expect(card.textContent).toContain("web-app · 1 file");
+    expect(card.querySelector("[data-ui-diff-file]")).toBeNull();
+
+    await act(async () => requiredButton("Review changes").click());
+    const diff = requiredElement<HTMLElement>('[data-ui-diff-file="src/schema.ts"]');
+    expect(diff.querySelectorAll('[role="row"]').length).toBeGreaterThan(1);
+    expect(diff.textContent).toContain("email: z.string().email()");
+
+    await act(async () => requiredButton("Approve").click());
+    expect(actions.map((action) => action.type)).toEqual(["read-workspace-change", "decide-workspace-change"]);
+    expect(actions[1]).toMatchObject({ input: { sessionId: "session_react", changeRef: "change_ref_1", decision: "approve" } });
+    expect(card.textContent).toContain("Approved");
+    expect(card.textContent).toContain("Apply changes");
+    expect(card.textContent).not.toContain("Approve ");
+  });
+
+  it("reports a conflict and keeps the change available for another decision", async () => {
+    const base = proposalSnapshot(baseSnapshot());
+    const row = base.conversation.historyRows.at(-1)!;
+    const applying: Snapshot = {
+      ...base,
+      conversation: {
+        ...base.conversation,
+        historyRows: [
+          ...base.conversation.historyRows.slice(0, -1),
+          { ...row, workspaceChanges: [{ ...row.workspaceChanges![0]!, status: "approved", actions: ["apply"] }] },
+        ],
+      },
+    } as Snapshot;
+    await mount(createClient(applying, async (action) => ({
+      ok: true,
+      action: action.type,
+      snapshot: applying,
+      output: {
+        kind: "web.workspace-change-action",
+        action: action.type,
+        result: {
+          kind: "assistant.workspace-change-mutation",
+          outcome: "conflicted",
+          change: { ...applying.conversation.historyRows.at(-1)!.workspaceChanges![0]!, status: "conflicted", actions: ["reapply"] },
+          conflicts: [{ path: "src/schema.ts", reason: "target_changed" }],
+          totalConflictCount: 1,
+        },
+      },
+    } as ActionResult)));
+
+    await act(async () => requiredButton("Apply changes").click());
+    const alert = requiredElement<HTMLElement>("[data-ui-workspace-conflicts]");
+    expect(alert.textContent).toContain("src/schema.ts");
+    expect(alert.textContent).toContain("target changed");
+    expect(requiredElement<HTMLElement>('[data-ui-workspace-change="proposal"]').textContent).toContain("Conflict");
+    expect(requiredButton("Reapply").disabled).toBe(false);
+  });
+});

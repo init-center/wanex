@@ -29,6 +29,10 @@ describe("Wanex Server process config", () => {
       dataRoot: resolve("target/server-process-data"),
       profileId: "process",
       listener: { hostname: "127.0.0.1", port: 9443 },
+      modelEndpoints: {
+        endpoints: [fakeModelEndpoint()],
+        activeEndpointId: "process-model"
+      },
       tls: {
         keyFile: resolve("target/server-process.key"),
         certFile: resolve("target/server-process.crt")
@@ -42,6 +46,10 @@ describe("Wanex Server process config", () => {
         hostId: "wanex-server:process",
         listener: { hostname: "127.0.0.1", port: 9443 }
       },
+      modelEndpoints: {
+        endpoints: [fakeModelEndpoint()],
+        activeEndpointId: "process-model"
+      },
       tls: {
         keyFile: resolve("target/server-process.key"),
         certFile: resolve("target/server-process.crt")
@@ -49,7 +57,60 @@ describe("Wanex Server process config", () => {
     })
     expect(Object.isFrozen(config)).toBe(true)
     expect(Object.isFrozen(config.server)).toBe(true)
+    expect(Object.isFrozen(config.modelEndpoints)).toBe(true)
     expect(Object.isFrozen(config.tls)).toBe(true)
+  })
+
+  it("parses startup capability routes alongside model endpoints", () => {
+    const image = imageModelEndpoint()
+    const config = parseWanexServerProcessConfig({
+      dataRoot: resolve("target/server-process-data"),
+      profileId: "process",
+      listener: { hostname: "127.0.0.1", port: 9443 },
+      modelEndpoints: {
+        endpoints: [fakeModelEndpoint(), image],
+        activeEndpointId: "process-model",
+        capabilityRoutes: { "image.generate": image.id }
+      },
+      tls: {
+        keyFile: resolve("target/server-process.key"),
+        certFile: resolve("target/server-process.crt")
+      }
+    })
+
+    expect(config.modelEndpoints?.capabilityRoutes).toEqual({
+      "image.generate": image.id
+    })
+  })
+
+  it("parses Server-owned Workspace authority separately from the client", () => {
+    const config = parseWanexServerProcessConfig({
+      dataRoot: resolve("target/server-process-data"),
+      profileId: "process",
+      listener: { hostname: "127.0.0.1", port: 9443 },
+      workspace: {
+        initialRoots: [{
+          id: "repo",
+          path: resolve("target/server-repository"),
+          effects: ["read", "write", "create", "remove"]
+        }]
+      },
+      tls: {
+        keyFile: resolve("target/server-process.key"),
+        certFile: resolve("target/server-process.crt")
+      }
+    })
+
+    expect(config.server.workspace).toEqual({
+      hostId: "wanex-server:process",
+      initialRoots: [{
+        id: "repo",
+        path: resolve("target/server-repository"),
+        effects: ["read", "write", "create", "remove"]
+      }]
+    })
+    expect(Object.isFrozen(config.server.workspace)).toBe(true)
+    expect(Object.isFrozen(config.server.workspace?.initialRoots)).toBe(true)
   })
 
   it.each([
@@ -57,7 +118,14 @@ describe("Wanex Server process config", () => {
     [{ dataRoot: resolve("target/server-process-data"), tls: {} }, "requires keyFile and certFile"],
     [{ dataRoot: resolve("target/server-process-data"), tls: { keyFile: "relative", certFile: "/tmp/cert" } }, "tls.keyFile must be absolute"],
     [{ dataRoot: resolve("target/server-process-data"), tls: { keyFile: "/tmp/key", certFile: "/tmp/cert", extra: true } }, "requires keyFile and certFile"],
-    [{ dataRoot: resolve("target/server-process-data"), tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" }, extra: true }, "field is not allowed: extra"]
+    [{ dataRoot: resolve("target/server-process-data"), tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" }, extra: true }, "field is not allowed: extra"],
+    [{ dataRoot: resolve("target/server-process-data"), modelEndpoints: [], tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "modelEndpoints must be an object"],
+    [{ dataRoot: resolve("target/server-process-data"), modelEndpoints: { endpoints: [], extra: true }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "modelEndpoints field is not allowed: extra"],
+    [{ dataRoot: resolve("target/server-process-data"), modelEndpoints: { endpoints: [{ ...fakeModelEndpoint(), credential: "raw-secret" }] }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "must reference credentials with connection.secretRef"],
+    [{ dataRoot: resolve("target/server-process-data"), modelEndpoints: { endpoints: [fakeModelEndpoint()], activeEndpointId: "missing" }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "active model endpoint must be included"],
+    [{ dataRoot: resolve("target/server-process-data"), modelEndpoints: { endpoints: [fakeModelEndpoint()], capabilityRoutes: { "image.generate": "missing" } }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "model capability route endpoint not found"],
+    [{ dataRoot: resolve("target/server-process-data"), listener: { hostname: "127.0.0.1", port: 0 }, workspace: { initialRoots: [{ id: "repo", path: "relative" }] }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "path must be absolute"],
+    [{ dataRoot: resolve("target/server-process-data"), listener: { hostname: "127.0.0.1", port: 0 }, workspace: { initialRoots: [{ id: "repo", path: "/tmp/repo", effects: ["write"] }] }, tls: { keyFile: "/tmp/key", certFile: "/tmp/cert" } }, "including read"]
   ])("rejects invalid process config %#", (value, message) => {
     expect(() => parseWanexServerProcessConfig(value)).toThrow(message)
   })
@@ -128,6 +196,54 @@ describe("Wanex Server process config", () => {
     }
   }, 20_000)
 })
+
+function fakeModelEndpoint() {
+  return {
+    id: "process-model",
+    connection: {
+      id: "process-provider",
+      providerId: "fake"
+    },
+    protocol: { id: "fake" },
+    model: {
+      id: "process-model",
+      operations: ["conversation"],
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      features: [],
+      catalog: {
+        source: "custom",
+        catalogId: "wanex.server.process-test",
+        revision: "1"
+      }
+    }
+  }
+}
+
+function imageModelEndpoint() {
+  return {
+    id: "process-image-model",
+    connection: {
+      id: "process-provider",
+      providerId: "openai-compatible",
+      baseUrl: "http://127.0.0.1:4100",
+      secretRef: "env://PROCESS_PROVIDER_TOKEN"
+    },
+    protocol: { id: "openai-images" },
+    model: {
+      id: "process-image-model",
+      operations: ["image.generate"],
+      inputModalities: ["text"],
+      outputModalities: ["image"],
+      features: [],
+      catalog: {
+        source: "custom",
+        catalogId: "wanex.server.process-image-test",
+        revision: "1"
+      }
+    }
+  }
+}
 
 async function waitForOutput(
   child: ReturnType<typeof fork>,

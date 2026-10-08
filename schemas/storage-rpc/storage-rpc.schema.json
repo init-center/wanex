@@ -3102,6 +3102,53 @@
       "type": "string",
       "enum": ["read_only", "writable"]
     },
+    "WorkspaceTaskStrategyWire": {
+      "type": "string",
+      "enum": ["direct", "git_worktree"]
+    },
+    "WorkspaceTaskIsolationKindWire": {
+      "type": "string",
+      "enum": ["fixed", "git_worktree"]
+    },
+    "WorkspaceTaskRootIdentityWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host_id", "generation_key", "root_id", "device", "inode"],
+      "properties": {
+        "host_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "generation_key": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "root_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "device": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "inode": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "WorkspaceTaskIsolationIdentityWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "repository_id", "base_revision", "runtime_ref"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "kind": { "$ref": "#/$defs/WorkspaceTaskIsolationKindWire" },
+        "repository_id": { "$ref": "#/$defs/NullableString" },
+        "base_revision": { "$ref": "#/$defs/NullableString" },
+        "runtime_ref": { "$ref": "#/$defs/NullableString" }
+      }
+    },
+    "WorkspaceTaskPreparedIsolationWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_revision", "runtime_ref"],
+      "properties": {
+        "base_revision": { "type": "string", "minLength": 1 },
+        "runtime_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "NullableWorkspaceTaskPreparedIsolationWire": {
+      "oneOf": [
+        { "$ref": "#/$defs/WorkspaceTaskPreparedIsolationWire" },
+        { "type": "null" }
+      ]
+    },
     "WorkspaceTaskExecutionOutcomeWire": {
       "type": "string",
       "enum": ["completed", "failed", "cancelled"]
@@ -3124,8 +3171,9 @@
         "workspace_id",
         "principal_id",
         "access",
-        "repository_id",
-        "isolation_id",
+        "strategy",
+        "root_identity",
+        "isolation_identity",
         "execution_environment",
         "job_id",
         "agent_id",
@@ -3139,8 +3187,9 @@
         "workspace_id": { "type": "string", "minLength": 1 },
         "principal_id": { "type": "string", "minLength": 1 },
         "access": { "$ref": "#/$defs/WorkspaceTaskAccessWire" },
-        "repository_id": { "type": "string", "minLength": 1 },
-        "isolation_id": { "type": "string", "minLength": 1 },
+        "strategy": { "$ref": "#/$defs/WorkspaceTaskStrategyWire" },
+        "root_identity": { "$ref": "#/$defs/WorkspaceTaskRootIdentityWire" },
+        "isolation_identity": { "$ref": "#/$defs/WorkspaceTaskIsolationIdentityWire" },
         "execution_environment": { "$ref": "#/$defs/JsonValue" },
         "job_id": { "$ref": "#/$defs/NullableString" },
         "agent_id": { "$ref": "#/$defs/NullableString" },
@@ -3215,13 +3264,12 @@
     "MarkWorkspaceTaskActiveWire": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["run_id", "attempt_id", "claim_token", "base_revision", "runtime_ref"],
+      "required": ["run_id", "attempt_id", "claim_token", "prepared_isolation"],
       "properties": {
         "run_id": { "type": "string", "minLength": 1 },
         "attempt_id": { "type": "string", "minLength": 1 },
         "claim_token": { "type": "string", "minLength": 32, "maxLength": 512 },
-        "base_revision": { "$ref": "#/$defs/NullableString" },
-        "runtime_ref": { "$ref": "#/$defs/NullableString" }
+        "prepared_isolation": { "$ref": "#/$defs/NullableWorkspaceTaskPreparedIsolationWire" }
       }
     },
     "BeginWorkspaceTaskCollectionWire": {
@@ -3290,14 +3338,19 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "root_identity",
         "run_ids",
         "workspace_id",
-        "repository_id",
+        "root_id",
+        "strategy",
         "state",
         "lease_expires_before",
         "limit"
       ],
       "properties": {
+        "root_identity": { "oneOf": [
+          { "$ref": "#/$defs/WorkspaceTaskRootIdentityWire" }, { "type": "null" }
+        ] },
         "run_ids": {
           "oneOf": [
             {
@@ -3311,7 +3364,13 @@
           ]
         },
         "workspace_id": { "$ref": "#/$defs/NullableString" },
-        "repository_id": { "$ref": "#/$defs/NullableString" },
+        "root_id": { "$ref": "#/$defs/NullableString" },
+        "strategy": {
+          "oneOf": [
+            { "$ref": "#/$defs/WorkspaceTaskStrategyWire" },
+            { "type": "null" }
+          ]
+        },
         "state": { "$ref": "#/$defs/NullableWorkspaceTaskRunStateWire" },
         "lease_expires_before": { "$ref": "#/$defs/NullableInteger" },
         "limit": { "$ref": "#/$defs/NullableInteger" }

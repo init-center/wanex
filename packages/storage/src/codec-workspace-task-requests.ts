@@ -39,8 +39,21 @@ export function toRpcBeginWorkspaceTaskRunRequest(
     workspace_id: request.workspaceId,
     principal_id: request.principalId,
     access: request.access,
-    repository_id: request.repositoryId,
-    isolation_id: request.isolationId,
+    strategy: request.strategy,
+    root_identity: {
+      host_id: request.rootIdentity.hostId,
+      generation_key: request.rootIdentity.generationKey,
+      root_id: request.rootIdentity.rootId,
+      device: request.rootIdentity.device,
+      inode: request.rootIdentity.inode,
+    },
+    isolation_identity: {
+      id: request.isolationIdentity.id,
+      kind: request.isolationIdentity.kind,
+      repository_id: request.isolationIdentity.repositoryId ?? null,
+      base_revision: request.isolationIdentity.baseRevision ?? null,
+      runtime_ref: request.isolationIdentity.runtimeRef ?? null,
+    },
     execution_environment: toRpcJsonValueFromUnknown(request.executionEnvironment),
     job_id: request.jobId ?? null,
     agent_id: request.agentId ?? null,
@@ -94,8 +107,13 @@ export function toRpcMarkWorkspaceTaskActiveRequest(
     run_id: request.runId,
     attempt_id: request.attemptId,
     claim_token: request.claimToken,
-    base_revision: request.baseRevision ?? null,
-    runtime_ref: request.runtimeRef ?? null,
+    prepared_isolation:
+      request.preparedIsolation === undefined
+        ? null
+        : {
+            base_revision: request.preparedIsolation.baseRevision,
+            runtime_ref: request.preparedIsolation.runtimeRef,
+          },
   };
 }
 
@@ -164,9 +182,17 @@ export function toRpcListWorkspaceTaskRunsRequest(
   request: ListWorkspaceTaskRunsRequest,
 ): ListWorkspaceTaskRunsWire {
   return {
+    root_identity: request.rootIdentity === undefined ? null : {
+      host_id: request.rootIdentity.hostId,
+      generation_key: request.rootIdentity.generationKey,
+      root_id: request.rootIdentity.rootId,
+      device: request.rootIdentity.device,
+      inode: request.rootIdentity.inode,
+    },
     run_ids: toRpcWorkspaceTaskRunIds(request.runIds),
     workspace_id: request.workspaceId ?? null,
-    repository_id: request.repositoryId ?? null,
+    root_id: request.rootId ?? null,
+    strategy: request.strategy ?? null,
     state: request.state ?? null,
     lease_expires_before: request.leaseExpiresBefore ?? null,
     limit: request.limit ?? null,

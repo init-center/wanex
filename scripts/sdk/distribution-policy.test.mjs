@@ -1,4 +1,10 @@
 import { describe, expect, it } from "vitest"
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
+import { createRequire } from "node:module"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { build } from "esbuild"
+import { ConsoleMessageId, Extractor, ExtractorConfig } from "@microsoft/api-extractor"
 import {
   artifactBareImportIsExternal,
   createStagingManifest,
@@ -8,6 +14,83 @@ import {
 } from "./distribution-policy.mjs"
 
 describe("SDK distribution policy", () => {
+  it("keeps the programmatic API extractor independent of its retired CLI dependencies", async () => {
+    const require = createRequire(import.meta.url)
+    const engine = createRequire(require.resolve("@microsoft/api-extractor/package.json"))
+    for (const name of ["@rushstack/ts-command-line", "sprintf-js"]) {
+      expect(() => engine.resolve(name)).toThrow(expect.objectContaining({ code: "MODULE_NOT_FOUND" }))
+    }
+    const result = await build({
+      entryPoints: [require.resolve("@microsoft/api-extractor")],
+      bundle: true,
+      platform: "node",
+      format: "cjs",
+      write: false,
+      metafile: true,
+      logLevel: "silent"
+    })
+    const inputs = Object.keys(result.metafile.inputs).map((path) => path.replaceAll("\\", "/"))
+    expect(inputs.some((path) => /(?:ts-command-line|argparse|sprintf-js|api-extractor\/lib[^/]*\/cli)\//.test(path))).toBe(false)
+  })
+
+  it("still rejects changed public signatures and compiler errors through the real library API", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wanex-sdk-api-"))
+    try {
+      await mkdir(join(root, "reports"))
+      await mkdir(join(root, "temp"))
+      await writeFile(join(root, "package.json"), JSON.stringify({ name: "sdk-pruning-fixture", version: "1.0.0" }))
+      const entry = join(root, "index.d.ts")
+      const original = "/** @public */\nexport declare function sample(input: string): string;\n"
+      await writeFile(entry, original)
+      const invoke = (localBuild) => {
+        const messages = []
+        const config = ExtractorConfig.prepare({
+          configObject: {
+            projectFolder: root,
+            mainEntryPointFilePath: entry,
+            newlineKind: "lf",
+            compiler: {
+              overrideTsconfig: { compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", strict: true, types: [] } },
+              skipLibCheck: false
+            },
+            apiReport: { enabled: true, reportFileName: "fixture", reportFolder: join(root, "reports"), reportTempFolder: join(root, "temp"), includeForgottenExports: true },
+            docModel: { enabled: false },
+            dtsRollup: { enabled: false },
+            tsdocMetadata: { enabled: false }
+          },
+          configObjectFullPath: join(root, "api-extractor.json"),
+          packageJsonFullPath: join(root, "package.json")
+        })
+        const result = Extractor.invoke(config, {
+          localBuild,
+          showVerboseMessages: false,
+          printApiReportDiff: false,
+          messageCallback(message) {
+            messages.push({ id: message.messageId, text: message.text })
+            message.handled = true
+          }
+        })
+        return { result, messages }
+      }
+      expect(invoke(true).result.succeeded).toBe(true)
+      const baselinePath = join(root, "reports/fixture.api.md")
+      const baseline = await readFile(baselinePath, "utf8")
+      expect(invoke(false).result.succeeded).toBe(true)
+      await writeFile(entry, original.replace("input: string", "input: number"))
+      const changed = invoke(false)
+      expect(changed.result.succeeded).toBe(false)
+      expect(changed.messages.map((message) => message.id)).toContain(ConsoleMessageId.ApiReportNotCopied)
+      expect(await readFile(baselinePath, "utf8")).toBe(baseline)
+      await writeFile(entry, "interface Base { value: string; }\n/** @public */\nexport interface Broken extends Base { value: number; }\n")
+      const invalid = invoke(false)
+      expect(invalid.result.succeeded).toBe(false)
+      expect(invalid.messages.map((message) => message.id)).toContain("TS2430")
+      expect(await readFile(baselinePath, "utf8")).toBe(baseline)
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("freezes the four-package first-RC surface and source previews", async () => {
     const policy = await loadSdkDistributionPolicy()
     expect(policy.packages.map((item) => item.name)).toEqual([
@@ -74,7 +157,7 @@ describe("SDK distribution policy", () => {
     expect(storage.entries.map((item) => item.exportPath)).not.toContain("./testing")
   })
 
-  it("projects compiled conditional exports and exact dependencies", async () => {
+  it("preserves third-party ranges and pins matching Wanex release dependencies", async () => {
     const policy = await loadSdkDistributionPolicy()
     const runtime = policy.packages.find((item) => item.name === "@wanex/runtime")
     expect(runtime).toBeDefined()
@@ -100,8 +183,8 @@ describe("SDK distribution policy", () => {
       },
       dependencies: {
         "@wanex/storage": "0.0.0",
-        ajv: "8.20.0",
-        yaml: "2.9.0"
+        ajv: "^8.20.0",
+        yaml: "^2.9.0"
       },
       optionalDependencies: {
         "@wanex/system-service-darwin-arm64": "0.0.0",

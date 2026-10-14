@@ -32,9 +32,9 @@
     "@wanex/team": "workspace:*",
     "@wanex/workspace": "workspace:*",
     "@wanex/assistant-ui": "workspace:*",
-    "croner": "10.0.1"
+    "croner": "^10.0.1"
   },
   "devDependencies": {
-    "happy-dom": "20.11.1"
+    "happy-dom": "^20.11.1"
   }
 }

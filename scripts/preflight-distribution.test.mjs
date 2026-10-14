@@ -10,6 +10,10 @@ describe("distribution preflight", () => {
     const steps = createDistributionPreflightSteps()
 
     const indexOfArg = (arg) => steps.findIndex((step) => step.args.includes(arg))
+    const dependencyAudit = indexOfArg("security:js")
+    expect(dependencyAudit).toBeGreaterThan(-1)
+    expect(steps.slice(0, dependencyAudit).every((step) => step.command === "git")).toBe(true)
+    expect(dependencyAudit).toBeLessThan(indexOfArg("apps/desktop/scripts/preflight.mjs"))
     expect(indexOfArg("apps/desktop/scripts/preflight.mjs")).toBeGreaterThan(-1)
     expect(indexOfArg("test/distribution.test.mjs")).toBeGreaterThan(-1)
     expect(steps.every((step) => !step.args.includes("verify"))).toBe(true)
@@ -49,5 +53,15 @@ describe("distribution preflight", () => {
     vi.mocked(runProcessStep).mockRejectedValueOnce(new Error("check failed"))
     await expect(runDistributionPreflight()).rejects.toThrow("check failed")
     expect(runProcessStep).toHaveBeenCalledTimes(1)
+  })
+
+  it("stops at a dependency audit failure before building or running installed proofs", async () => {
+    vi.mocked(runProcessStep)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error("dependency advisory found"))
+    await expect(runDistributionPreflight()).rejects.toThrow("dependency advisory found")
+    expect(runProcessStep).toHaveBeenCalledTimes(3)
+    expect(vi.mocked(runProcessStep).mock.calls.at(-1)[0].args).toEqual(["security:js"])
   })
 })

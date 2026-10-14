@@ -1258,6 +1258,16 @@ describe("Desktop packaging policy", () => {
     expect(verifyBlock).toContain("run: cargo build -p wanex-system-service\n");
     expect(verifyBlock.indexOf("run: cargo build -p wanex-system-service\n"))
       .toBeLessThan(verifyBlock.indexOf("run: node ./scripts/run-linux-keyring-session.mjs pnpm verify"));
+    const sourceGateOrder = [
+      "run: pnpm install --frozen-lockfile",
+      "run: pnpm security:js",
+      "run: cargo install cargo-audit --version 0.22.2 --locked",
+      "run: pnpm security:rust",
+      "run: cargo build -p wanex-system-service\n",
+      "run: node ./scripts/run-linux-keyring-session.mjs pnpm verify",
+    ].map((command) => verifyBlock.indexOf(command));
+    expect(sourceGateOrder.every((index) => index >= 0)).toBe(true);
+    expect(sourceGateOrder).toEqual([...sourceGateOrder].sort((a, b) => a - b));
     expect(workflow).toContain("run: pnpm proof:desktop");
     expect(workflow).toContain(
       "- if: matrix.desktop\n        run: pnpm --filter @wanex/desktop test:installed\n",

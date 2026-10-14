@@ -42,14 +42,14 @@ jobs:
           components: rustfmt, clippy
 
       - run: pnpm install --frozen-lockfile
+      - run: pnpm security:js
       - run: sudo apt-get update && sudo apt-get install --yes expect gnome-keyring dbus dbus-x11
+      - run: cargo install cargo-audit --version 0.22.2 --locked
+      - run: pnpm security:rust
       - run: cargo build -p wanex-system-service
       - run: node ./scripts/run-linux-keyring-session.mjs pnpm verify
         env:
           WANEX_TEST_CONCURRENCY: 2
-      - run: cargo install cargo-audit --version 0.22.2 --locked
-      - run: pnpm security:js
-      - run: pnpm security:rust
 
   packed-core-node24:
     name: Packed Core Node 24

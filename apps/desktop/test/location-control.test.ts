@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AssistantLocationControl } from "../src/renderer/product.js";
+import { openLocationMenu } from "../src/remote-assistant-proof.js";
 
 let root: Root | undefined;
 beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
@@ -16,6 +17,31 @@ afterEach(async () => {
 });
 
 describe("Desktop execution location control", () => {
+  it("keeps the proof menu open when an open menu is requested again", async () => {
+    const onManageServers = vi.fn();
+    const host = document.createElement("div");
+    document.body.append(host);
+    root = createRoot(host);
+    await act(async () => root?.render(createElement(AssistantLocationControl, {
+      location: { kind: "local" },
+      profiles: [{ profileId: "office", name: "Office" }],
+      pending: false,
+      disabled: false,
+      onSelect: vi.fn(),
+      onManageServers,
+    })));
+    const trigger = document.querySelector<HTMLButtonElement>("[data-ui-assistant-location-control]")!;
+    const open = new Function(`return (${openLocationMenu.toString()})`)() as typeof openLocationMenu;
+    await act(async () => open(trigger));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    await act(async () => open(trigger));
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    const manage = document.querySelector<HTMLElement>('[data-ui-action="manage-server-connections"]');
+    expect(manage).not.toBeNull();
+    await act(async () => manage?.click());
+    expect(onManageServers).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ type: "menu.itemSelect" }));
+  });
+
   it("uses platform-neutral local copy in both the chip and opened menu", async () => {
     const onSelect = vi.fn();
     const host = document.createElement("div");

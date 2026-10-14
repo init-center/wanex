@@ -39,24 +39,34 @@ export interface WanexDesktopRemoteAssistantAdmission {
 export function wanexDesktopRemoteAssistantAdmissionProofScript(
   expected: WanexDesktopRemoteAssistantProofExpectations,
 ): string {
-  return `(${runWanexDesktopRemoteAssistantAdmissionProof.toString()})(${JSON.stringify(expected)})`;
+  return `(${runWanexDesktopRemoteAssistantAdmissionProof.toString()})(${JSON.stringify(expected)}, ${openLocationMenu.toString()})`;
 }
 
 export function wanexDesktopRemoteAssistantSettlementProofScript(
   expected: WanexDesktopRemoteAssistantProofExpectations,
   admission: WanexDesktopRemoteAssistantAdmission,
 ): string {
-  return `(${runWanexDesktopRemoteAssistantSettlementProof.toString()})(${JSON.stringify(expected)}, ${JSON.stringify(admission)})`;
+  return `(${runWanexDesktopRemoteAssistantSettlementProof.toString()})(${JSON.stringify(expected)}, ${JSON.stringify(admission)}, ${openLocationMenu.toString()})`;
 }
 
 export function wanexDesktopRemoteAssistantRestoreProofScript(
   expected: WanexDesktopRemoteAssistantProofExpectations,
 ): string {
-  return `(${runWanexDesktopRemoteAssistantRestoreProof.toString()})(${JSON.stringify(expected)})`;
+  return `(${runWanexDesktopRemoteAssistantRestoreProof.toString()})(${JSON.stringify(expected)}, ${openLocationMenu.toString()})`;
+}
+
+export function openLocationMenu(control: HTMLElement): void {
+  // ArrowDown opens the menu explicitly; pointerdown would toggle an open menu closed.
+  control.dispatchEvent(new KeyboardEvent("keydown", {
+    key: "ArrowDown",
+    bubbles: true,
+    cancelable: true,
+  }));
 }
 
 export async function runWanexDesktopRemoteAssistantAdmissionProof(
   expected: WanexDesktopRemoteAssistantProofExpectations,
+  openMenu: (control: HTMLElement) => void = openLocationMenu,
 ): Promise<WanexDesktopRemoteAssistantAdmission> {
   const startedAt = performance.now();
 
@@ -95,18 +105,14 @@ export async function runWanexDesktopRemoteAssistantAdmissionProof(
   }
 
   async function select(control: HTMLElement, value: string): Promise<void> {
-    // The location control is a menu: open it as a pointer would, then choose the item.
-    control.dispatchEvent(new PointerEvent("pointerdown", {
-      button: 0,
-      bubbles: true,
-      cancelable: true,
-      pointerType: "mouse",
-    }));
+    openMenu(control);
     const deadline = performance.now() + 5_000;
     let item: Element | null = null;
     while (performance.now() < deadline) {
-      item = [...document.querySelectorAll("[data-ui-location]")]
-        .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null;
+      item = control.getAttribute("aria-expanded") === "true"
+        ? [...document.querySelectorAll('[role="menu"][data-state="open"] [data-ui-location]')]
+          .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null
+        : null;
       if (item !== null) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
@@ -122,15 +128,13 @@ export async function runWanexDesktopRemoteAssistantAdmissionProof(
 
   async function openConnections(): Promise<HTMLElement> {
     const control = await locationControl(false);
-    control.dispatchEvent(new PointerEvent("pointerdown", {
-      button: 0,
-      bubbles: true,
-      cancelable: true,
-      pointerType: "mouse",
-    }));
+    openMenu(control);
     const manage = await waitFor(() => {
       const item = document.querySelector('[data-ui-action="manage-server-connections"]');
-      return item instanceof HTMLElement ? item : undefined;
+      return control.getAttribute("aria-expanded") === "true" &&
+        item instanceof HTMLElement && item.closest('[role="menu"][data-state="open"]') !== null
+        ? item
+        : undefined;
     }, 10_000, "connections menu item");
     manage.click();
     return await waitFor(() => {
@@ -353,6 +357,7 @@ export async function runWanexDesktopRemoteAssistantAdmissionProof(
 export async function runWanexDesktopRemoteAssistantSettlementProof(
   expected: WanexDesktopRemoteAssistantProofExpectations,
   admission: WanexDesktopRemoteAssistantAdmission,
+  openMenu: (control: HTMLElement) => void = openLocationMenu,
 ): Promise<WanexDesktopRemoteAssistantProofResult> {
   async function waitFor<T>(read: () => T | undefined, label: string): Promise<T> {
     const deadline = performance.now() + 20_000;
@@ -366,18 +371,14 @@ export async function runWanexDesktopRemoteAssistantSettlementProof(
     }
   }
   async function select(control: HTMLElement, value: string): Promise<void> {
-    // The location control is a menu: open it as a pointer would, then choose the item.
-    control.dispatchEvent(new PointerEvent("pointerdown", {
-      button: 0,
-      bubbles: true,
-      cancelable: true,
-      pointerType: "mouse",
-    }));
+    openMenu(control);
     const deadline = performance.now() + 5_000;
     let item: Element | null = null;
     while (performance.now() < deadline) {
-      item = [...document.querySelectorAll("[data-ui-location]")]
-        .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null;
+      item = control.getAttribute("aria-expanded") === "true"
+        ? [...document.querySelectorAll('[role="menu"][data-state="open"] [data-ui-location]')]
+          .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null
+        : null;
       if (item !== null) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }
@@ -501,6 +502,7 @@ export async function runWanexDesktopRemoteAssistantSettlementProof(
 
 export async function runWanexDesktopRemoteAssistantRestoreProof(
   expected: WanexDesktopRemoteAssistantProofExpectations,
+  openMenu: (control: HTMLElement) => void = openLocationMenu,
 ): Promise<WanexDesktopRemoteAssistantProofResult> {
   const startedAt = performance.now();
   async function waitFor<T>(read: () => T | undefined, label: string): Promise<T> {
@@ -515,18 +517,14 @@ export async function runWanexDesktopRemoteAssistantRestoreProof(
     }
   }
   async function select(control: HTMLElement, value: string): Promise<void> {
-    // The location control is a menu: open it as a pointer would, then choose the item.
-    control.dispatchEvent(new PointerEvent("pointerdown", {
-      button: 0,
-      bubbles: true,
-      cancelable: true,
-      pointerType: "mouse",
-    }));
+    openMenu(control);
     const deadline = performance.now() + 5_000;
     let item: Element | null = null;
     while (performance.now() < deadline) {
-      item = [...document.querySelectorAll("[data-ui-location]")]
-        .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null;
+      item = control.getAttribute("aria-expanded") === "true"
+        ? [...document.querySelectorAll('[role="menu"][data-state="open"] [data-ui-location]')]
+          .find((candidate) => candidate.getAttribute("data-ui-location") === value) ?? null
+        : null;
       if (item !== null) break;
       await new Promise((resolve) => setTimeout(resolve, 25));
     }

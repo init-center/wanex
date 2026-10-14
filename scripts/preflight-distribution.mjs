@@ -48,6 +48,11 @@ export function createDistributionPreflightSteps() {
       args: ["diff", "--cached", "--check"]
     },
     {
+      name: "JavaScript dependency audit",
+      command: "pnpm",
+      args: ["security:js"]
+    },
+    {
       name: "Distribution preflight tests",
       command: "pnpm",
       args: ["test:preflight-distribution"]

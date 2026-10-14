@@ -31,6 +31,28 @@ different kinds of checks, not stronger guarantees by themselves.
 The default local gate does not replace target-platform acceptance or security
 audits. A local Provider fixture proves Wanex integration, not live cloud availability.
 
+Before synchronizing a snapshot for paid target-platform acceptance, run both
+`pnpm security:js` and `pnpm security:rust` locally. Distribution preflight runs
+the JavaScript audit before builds or installed proofs. The remote source gate
+also runs both security scans before the full verify suite. Security failures
+remain blocking; a source-test pass is not a security pass.
+
+### SDK Report Tool Scope
+
+Wanex uses API Extractor's programmatic library through `pnpm api:sdk` and
+`pnpm release:sdk`. Its bundled `api-extractor init/run` CLI is not supported in
+this workspace. The version-scoped pnpm override removes only that unused CLI
+dependency and its vulnerable dependency chain; the extraction engine and all
+31 checked-in API reports remain unchanged. Do not add an audit exception or an
+argparse compatibility patch. Reassess the override when upgrading API Extractor;
+SDK policy tests check the installed library closure, report drift and compiler
+diagnostics. Wanex's own CLI and TUI are unaffected.
+
+Dependency ranges, retained toolchain pins and the update/revalidation procedure
+are defined in [Dependency Maintenance](dependency-maintenance.md). The current
+Extractor exception is scoped to 7.59.4; ordinary dependency updates must also
+review and remove obsolete overrides.
+
 ## Coverage-Preserving Moves
 
 The packaged Server scenario moved from

@@ -26,7 +26,83 @@ Do not pull upper-layer concerns into lower-layer packages.
 
 ## Authoritative Current Route (Revised 2026-10-14)
 
-Implementation/1772 and 1773 prepare consolidated Linux/Windows acceptance.
+Implementation/1781 resumes final snapshot acceptance after 1780. The user now
+explicitly authorizes review, commit/push with [skip ci], and exactly one manual
+desktop.yml run with targets=linux-windows. Preserve source/security/Node24 and
+all selected-platform installation checks. Record the exact SHA/run/results;
+no automatic reruns or retries of failed jobs. Exclude the protected CSS backup.
+The functional source passed full verify in 1779; default-age frozen install
+passed after the user's clarification. Recheck security/workflow/diff before
+staging the final versions. Prior no-Actions constraints below are historical.
+
+Implementation/1779 temporarily precedes the 1777 platform closure route. Upgrade
+API Extractor to 7.59.4, review dependency ranges and remove redundant overrides
+using actual upstream constraints and security evidence. Preserve lockfiles and
+frozen installs, version-specific CLI pruning until upstream fixes it, documented
+native/compiler/toolchain pins, and exact installed-consumer fixture identities.
+Revalidate the changed dependency graph, all 31 reports and existing acceptance;
+record results in 1780. The latest user instruction forbids Actions this stage.
+Do not commit/push the previously staged snapshot while this review is active.
+
+Implementation/1780 completes the local dependency update: Extractor 7.59.4 and
+six related development packages, 36 compatible-range declarations, 11 redundant
+transitive overrides removed, and four obsolete release-age exclusions removed.
+All 31 API reports are unchanged; full verify, SDK consumers, JS/Rust audits and
+frozen install pass. Follow pnpm's default release-age policy (one day in pnpm 11),
+with no workspace age override or exclusions. The temporary seven-day setting
+and Playwright exceptions were removed following the user's clarification.
+No production dependency
+version, Store, UI, package boundary or test deadline changed. No Actions run.
+
+Implementation/1777 is the current platform/product closure route. The user asks
+to complete the four discussed stages before stopping, including the snapshot
+commit/push and one consolidated linux-windows Actions run; use [skip ci] to
+avoid duplicate push CI. No paid live Provider calls or automatic failed-run
+retries are authorized. Before freezing, extend only the existing installed
+Server workspace scenario to prove undo/reapply and conflict non-clobber through
+the real remote client. Keep its 120-second deadline and all prior assertions.
+Reuse installed Desktop acceptance for product journeys without UI redesign or
+new proof infrastructure. Record exact SHA/run/results and coverage limits;
+only passing target evidence closes the platform stage. Preserve the CSS backup.
+
+The frozen functional source passed the corrected full local distribution
+preflight and complete verify; see 1778 and 1777-verify-final.log. Installed
+Desktop exercised 41 authorized fixture requests. Existing remote workspace
+acceptance now verifies undo/reapply and external-conflict non-clobber. A real
+Radix regression exposes pointerdown toggling an already-open proof menu closed;
+the driver now explicitly opens with ArrowDown through one serialized helper.
+The first failed run lacked expanded-state evidence, so unique historical cause
+is not claimed. No product UI, public SDK report, deadline or assertion removed.
+Target-platform evidence remains pending until the authorized single run finishes.
+
+Implementation/1775 and 1776 complete the user-authorized SDK tool CLI pruning route locally. Use the
+existing version-scoped pnpm override to remove only API Extractor 7.58.12's
+unused ts-command-line dependency; its third-party init/run CLI is explicitly
+unsupported, not silently treated as a working full CLI installation. Keep the
+library engine, all 31 API report baselines and existing SDK checks unchanged.
+The five CLI-only packages are removed; no advisory ignore, replacement parser,
+compatibility patch or production dependency is added. Complete local verify,
+both JavaScript audits, Rust audit and frozen install pass. Evidence: 1775-verify.log,
+31 unchanged API reports, four SDK packages/consumers, Rust 196, Runtime 520 plus
+one existing platform skip and Eval 64/64. Existing SDK policy tests verify real
+library closure, public-signature drift rejection and compiler diagnostics.
+This clears the local SDK safety blocker; it does not turn the historical
+1773 remote failure into a pass or provide new Windows acceptance evidence.
+No commit, push or Actions is authorized for this stage. Preserve the CSS backup.
+
+Historical 1772/1773 remote evidence and 1774's rejected parser trial follow:
+The authorized snapshot 77d037d was pushed and run 38495613618 completed:
+Linux full verify passed, including Rust 196 and real zombie/live-member tests;
+security:js then failed on dev-only sprintf-js@1.0.3 (GHSA-hp3w-g68c-fv3c).
+Production JS audit passed; remote Rust audit, Node24 and distribution did not
+run. Do not claim Windows or cross-platform acceptance. The one-run authorization
+is exhausted. Implementation/1774 rejects the scoped argparse2 override after
+real API Extractor CLI help fails; override, lockfile and trial test are restored.
+No advisory ignore or compatibility patch is permitted. Local fail-fast changes
+move existing security gates before expensive verification and add JS audit to
+distribution preflight. Focused constraints and workflow lint pass; real preflight
+correctly blocks at the unchanged vulnerable dev dependency. Resolve that tooling
+chain before requesting another snapshot/run. Local Rust audit passed separately.
 Manual targets=linux-windows retains full Linux source/security and Node24 SDK
 gates; default/push/PR keep the four-platform release matrix. Both existing
 Windows entry points explicitly build the debug service, run Rust tests and
@@ -34,7 +110,7 @@ the Runtime execution-environment suite before release staging and installation.
 Local workflow lint, 40 packaging constraints, three preflight tests, 36 Runtime
 tests (one existing Windows conditional skip) and 12 native focused tests pass.
 No product UI, process policy, deadline, dependency or schema changed here.
-The user explicitly authorizes this snapshot commit/push and exactly one manual
+The user explicitly authorized that snapshot commit/push and exactly one manual
 consolidated run, using [skip ci] to avoid a duplicate automatic run. Preserve
 styles.module.css-E locally and exclude it from the commit. Record actual SHA,
 run and target results in 1773; preparation is not cross-platform acceptance.
@@ -3948,6 +4024,16 @@ explicit, auditable course corrections rather than silent patching.
 
 ## Dependency Policy
 
+- Follow `docs/dependency-maintenance.md`: ordinary JS dependencies use compatible
+  ranges, committed lockfiles and frozen CI installs. Review root/workspace
+  outdated dependencies during dependency work and regular maintenance; exact
+  toolchain/native pins are documented exceptions, not an excuse to defer updates.
+- Use pnpm's default minimum release age (one day in pnpm 11).
+  Age does not prove compatibility or schedule updates; urgent verified security
+  fixes may use a reviewed, version-specific temporary exception.
+- Remove transitive overrides when upstream ranges already admit the safe
+  resolution. Reassess version-specific pruning on every owner upgrade; never
+  broaden it blindly. Preserve security checks and review API/artifact diffs.
 - Use recent stable dependency versions whenever practical.
 - If the local toolchain is too old for current dependencies, update or select a compatible modern baseline explicitly and document the decision.
 - Do not pin old versions unless there is a documented compatibility reason.

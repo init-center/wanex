@@ -1063,7 +1063,7 @@ describe("@wanex/runtime/execution", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const execution = (await supervisedExecutionProcess(cwd)).execute({
       program: process.execPath,
-      args: ["-e", processTreeFixture, pidFile],
+      args: ["-e", processTreeFixture, pidFile, "hold-after-ready"],
       cwd,
       timeoutMs: 300,
       signal: controller.signal,
@@ -1252,8 +1252,10 @@ const processTreeFixture = [
   "const {renameSync,writeFileSync}=require('node:fs')",
   "const grandchild=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true})",
   "const pids={root:process.pid,grandchild:grandchild.pid}",
+  "writeFileSync(1,JSON.stringify(pids)+'\\n')",
   "if(process.argv[1]){writeFileSync(process.argv[1]+'.tmp',JSON.stringify(pids));renameSync(process.argv[1]+'.tmp',process.argv[1])}",
-  "process.stdout.write(JSON.stringify(pids)+'\\n')",
+  // Publication must be sufficient even if the fixture never runs another JS statement.
+  "if(process.argv[2]==='hold-after-ready'){Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)}",
   "setInterval(()=>{},1000)",
 ].join(";");
 

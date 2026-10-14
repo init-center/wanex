@@ -26,6 +26,17 @@ Do not pull upper-layer concerns into lower-layer packages.
 
 ## Authoritative Current Route (Revised 2026-10-14)
 
+Implementation/1784 run 38517716568 at 27e07ac failed in a test readiness race,
+after security passed: PID-file publication preceded stdout, so timeout cleanup
+could win before the expected output. Implementation/1785 reproduces it with a
+real fixture blocked immediately after readiness, then synchronously writes PID
+output before atomic readiness publication. Keep 299+1ms, real process/descendant
+checks and exact output assertions; do not change production cleanup or deadlines.
+The entire execution-environment file and full local verify pass (1785-verify.log).
+The user explicitly authorizes
+commit/push with [skip ci] after full verify and exactly one further Linux/Windows
+acceptance run. Record that new SHA/run separately; preserve earlier failures.
+
 The user clarified that the verified 1782/1783 snapshot must be committed and
 pushed with [skip ci]. Do not conflate avoiding extra Actions runs with withholding
 an authorized push. Synchronize this snapshot, exclude the protected CSS backup,

@@ -11,11 +11,13 @@ import {
   readActiveAbortReason
 } from "../jobs/active-abort.js"
 import { workerAcknowledged } from "../jobs/acknowledged.js"
+import { readExactResourceBytes } from "../resources/input.js"
 import { WanexJobRuntime } from "../jobs/job-runtime.js"
 import type { WorkerHandlerReturn } from "../jobs/types.js"
 import type {
   MediaGenerationAdapter,
   MediaGenerationAdapterRequest,
+  MediaGenerationInput,
   MediaGenerationMaterializedOutput,
   MediaGenerationProviderOutput,
   MediaGenerationRuntimeOptions,
@@ -32,7 +34,7 @@ import {
 import {
   MediaGenerationAdapterRegistry,
   prepareMediaGenerationOperationBinding
-} from "./binding.js"
+} from "../provider/media-binding.js"
 
 const DEFAULT_MAX_OUTPUT_BYTES = 100 * 1024 * 1024
 const DEFAULT_POLL_INITIAL_DELAY_MS = 1_000
@@ -318,8 +320,14 @@ export class WanexMediaGenerationRuntime {
   }
 
   private async submitToProvider(adapter: MediaGenerationAdapter, request: MediaGenerationAdapterRequest) {
+    // Reading inputs happens before the provider is contacted, so a failure
+    // here is an ordinary failure, never an ambiguous submission.
+    const inputs: MediaGenerationInput[] = []
+    for (const resource of request.binding.request.inputResources) {
+      inputs.push({ resource, bytes: await readExactResourceBytes(this.storage, resource) })
+    }
     try {
-      return await adapter.submit(request)
+      return await adapter.submit({ ...request, inputs })
     } catch (error) {
       throw new MediaGenerationAmbiguousSubmissionError(
         error instanceof Error ? error.message : String(error)
@@ -660,13 +668,18 @@ export class WanexMediaGenerationRuntime {
       if (resource === null || resource.state !== "available") {
         throw new Error(`media generation resource is not available: ${resourceId}`)
       }
-      resources.push({
+      const evidence: ResourceInputEvidence = {
         resourceId: resource.id,
         sha256: resource.sha256,
         sizeBytes: resource.sizeBytes,
         kind: resource.kind,
         ...(resource.mediaType === undefined ? {} : { mediaType: resource.mediaType })
-      })
+      }
+      const prepared = resource.kind === "image"
+        ? (await this.storage.prepareImageResource({ resource: evidence, mode: "normalize" })).resource
+        : resource
+      resources.push({ resourceId: prepared.id, sha256: prepared.sha256, sizeBytes: prepared.sizeBytes,
+        kind: prepared.kind, ...(prepared.mediaType === undefined ? {} : { mediaType: prepared.mediaType }) })
     }
     return prepareMediaGenerationOperationBinding({
       operation: request.operation,

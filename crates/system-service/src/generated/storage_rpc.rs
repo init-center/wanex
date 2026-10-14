@@ -2237,6 +2237,7 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginProviderInvocationC
 #[doc = "    \"attempt_id\","]
 #[doc = "    \"id\","]
 #[doc = "    \"input_id\","]
+#[doc = "    \"input_resources\","]
 #[doc = "    \"invocation_number\","]
 #[doc = "    \"job_id\","]
 #[doc = "    \"lease_token\","]
@@ -2255,6 +2256,13 @@ impl ::std::convert::TryFrom<::std::string::String> for BeginProviderInvocationC
 #[doc = "    },"]
 #[doc = "    \"input_id\": {"]
 #[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"input_resources\": {"]
+#[doc = "      \"type\": \"array\","]
+#[doc = "      \"items\": {"]
+#[doc = "        \"$ref\": \"#/$defs/ResourceInputEvidenceWire\""]
+#[doc = "      },"]
+#[doc = "      \"maxItems\": 64"]
 #[doc = "    },"]
 #[doc = "    \"invocation_number\": {"]
 #[doc = "      \"type\": \"integer\""]
@@ -2291,6 +2299,7 @@ pub struct BeginProviderInvocationWire {
     pub attempt_id: ::std::string::String,
     pub id: NullableString,
     pub input_id: ::std::string::String,
+    pub input_resources: ::std::vec::Vec<ResourceInputEvidenceWire>,
     pub invocation_number: i64,
     pub job_id: ::std::string::String,
     pub lease_token: ::std::string::String,
@@ -5482,6 +5491,181 @@ impl ::std::convert::From<ListChannelProjectionsCommand> for ChannelStorageRpcCo
     fn from(value: ListChannelProjectionsCommand) -> Self {
         Self::ListChannelProjectionsCommand(value)
     }
+}
+#[doc = "`CheckpointProviderInvocationCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"checkpoint-provider-invocation\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/CheckpointProviderInvocationWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CheckpointProviderInvocationCommand {
+    pub command: CheckpointProviderInvocationCommandCommand,
+    pub request: CheckpointProviderInvocationWire,
+}
+#[doc = "`CheckpointProviderInvocationCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"checkpoint-provider-invocation\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum CheckpointProviderInvocationCommandCommand {
+    #[serde(rename = "checkpoint-provider-invocation")]
+    CheckpointProviderInvocation,
+}
+impl ::std::fmt::Display for CheckpointProviderInvocationCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::CheckpointProviderInvocation => f.write_str("checkpoint-provider-invocation"),
+        }
+    }
+}
+impl ::std::str::FromStr for CheckpointProviderInvocationCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "checkpoint-provider-invocation" => Ok(Self::CheckpointProviderInvocation),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for CheckpointProviderInvocationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for CheckpointProviderInvocationCommandCommand
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for CheckpointProviderInvocationCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`CheckpointProviderInvocationWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"attempt_id\","]
+#[doc = "    \"input_id\","]
+#[doc = "    \"invocation_id\","]
+#[doc = "    \"job_id\","]
+#[doc = "    \"lease_token\","]
+#[doc = "    \"provider_request_id\","]
+#[doc = "    \"response\","]
+#[doc = "    \"response_digest\","]
+#[doc = "    \"session_id\","]
+#[doc = "    \"turn_id\","]
+#[doc = "    \"worker_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"attempt_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"input_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"invocation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"job_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"lease_token\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"provider_request_id\": {"]
+#[doc = "      \"$ref\": \"#/$defs/NullableString\""]
+#[doc = "    },"]
+#[doc = "    \"response\": {"]
+#[doc = "      \"$ref\": \"#/$defs/JsonValue\""]
+#[doc = "    },"]
+#[doc = "    \"response_digest\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"session_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"turn_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"worker_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct CheckpointProviderInvocationWire {
+    pub attempt_id: ::std::string::String,
+    pub input_id: ::std::string::String,
+    pub invocation_id: ::std::string::String,
+    pub job_id: ::std::string::String,
+    pub lease_token: ::std::string::String,
+    pub provider_request_id: NullableString,
+    pub response: ::serde_json::Value,
+    pub response_digest: ::std::string::String,
+    pub session_id: ::std::string::String,
+    pub turn_id: ::std::string::String,
+    pub worker_id: ::std::string::String,
 }
 #[doc = "`ClaimJobCommand`"]
 #[doc = r""]
@@ -19150,6 +19334,621 @@ pub struct HeartbeatJobWire {
     pub lease_ms: i64,
     pub lease_token: ::std::string::String,
     pub worker_id: ::std::string::String,
+}
+#[doc = "`ImageDescriptionResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"description_key\","]
+#[doc = "    \"endpoint_digest\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"prompt_version\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"description_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"endpoint_digest\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"image_description\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"prompt_version\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ImageDescriptionResourceProvenanceCauseWire {
+    pub description_key: ImageDescriptionResourceProvenanceCauseWireDescriptionKey,
+    pub endpoint_digest: ImageDescriptionResourceProvenanceCauseWireEndpointDigest,
+    pub kind: ImageDescriptionResourceProvenanceCauseWireKind,
+    pub prompt_version: ImageDescriptionResourceProvenanceCauseWirePromptVersion,
+}
+#[doc = "`ImageDescriptionResourceProvenanceCauseWireDescriptionKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ImageDescriptionResourceProvenanceCauseWireDescriptionKey(::std::string::String);
+impl ::std::ops::Deref for ImageDescriptionResourceProvenanceCauseWireDescriptionKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ImageDescriptionResourceProvenanceCauseWireDescriptionKey>
+    for ::std::string::String
+{
+    fn from(value: ImageDescriptionResourceProvenanceCauseWireDescriptionKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ImageDescriptionResourceProvenanceCauseWireDescriptionKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageDescriptionResourceProvenanceCauseWireDescriptionKey {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireDescriptionKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireDescriptionKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ImageDescriptionResourceProvenanceCauseWireDescriptionKey {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ImageDescriptionResourceProvenanceCauseWireEndpointDigest`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ImageDescriptionResourceProvenanceCauseWireEndpointDigest(::std::string::String);
+impl ::std::ops::Deref for ImageDescriptionResourceProvenanceCauseWireEndpointDigest {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ImageDescriptionResourceProvenanceCauseWireEndpointDigest>
+    for ::std::string::String
+{
+    fn from(value: ImageDescriptionResourceProvenanceCauseWireEndpointDigest) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ImageDescriptionResourceProvenanceCauseWireEndpointDigest {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageDescriptionResourceProvenanceCauseWireEndpointDigest {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireEndpointDigest
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireEndpointDigest
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ImageDescriptionResourceProvenanceCauseWireEndpointDigest {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ImageDescriptionResourceProvenanceCauseWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"image_description\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ImageDescriptionResourceProvenanceCauseWireKind {
+    #[serde(rename = "image_description")]
+    ImageDescription,
+}
+impl ::std::fmt::Display for ImageDescriptionResourceProvenanceCauseWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ImageDescription => f.write_str("image_description"),
+        }
+    }
+}
+impl ::std::str::FromStr for ImageDescriptionResourceProvenanceCauseWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "image_description" => Ok(Self::ImageDescription),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageDescriptionResourceProvenanceCauseWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ImageDescriptionResourceProvenanceCauseWirePromptVersion`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ImageDescriptionResourceProvenanceCauseWirePromptVersion(::std::string::String);
+impl ::std::ops::Deref for ImageDescriptionResourceProvenanceCauseWirePromptVersion {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ImageDescriptionResourceProvenanceCauseWirePromptVersion>
+    for ::std::string::String
+{
+    fn from(value: ImageDescriptionResourceProvenanceCauseWirePromptVersion) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ImageDescriptionResourceProvenanceCauseWirePromptVersion {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageDescriptionResourceProvenanceCauseWirePromptVersion {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWirePromptVersion
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageDescriptionResourceProvenanceCauseWirePromptVersion
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ImageDescriptionResourceProvenanceCauseWirePromptVersion {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ImageNormalizationResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"kind\","]
+#[doc = "    \"normalization_key\","]
+#[doc = "    \"policy\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"image_normalization\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"normalization_key\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"maxLength\": 64,"]
+#[doc = "      \"minLength\": 64"]
+#[doc = "    },"]
+#[doc = "    \"policy\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"minLength\": 1"]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ImageNormalizationResourceProvenanceCauseWire {
+    pub kind: ImageNormalizationResourceProvenanceCauseWireKind,
+    pub normalization_key: ImageNormalizationResourceProvenanceCauseWireNormalizationKey,
+    pub policy: ImageNormalizationResourceProvenanceCauseWirePolicy,
+}
+#[doc = "`ImageNormalizationResourceProvenanceCauseWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"image_normalization\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ImageNormalizationResourceProvenanceCauseWireKind {
+    #[serde(rename = "image_normalization")]
+    ImageNormalization,
+}
+impl ::std::fmt::Display for ImageNormalizationResourceProvenanceCauseWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ImageNormalization => f.write_str("image_normalization"),
+        }
+    }
+}
+impl ::std::str::FromStr for ImageNormalizationResourceProvenanceCauseWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "image_normalization" => Ok(Self::ImageNormalization),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageNormalizationResourceProvenanceCauseWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ImageNormalizationResourceProvenanceCauseWireNormalizationKey`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"maxLength\": 64,"]
+#[doc = "  \"minLength\": 64"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ImageNormalizationResourceProvenanceCauseWireNormalizationKey(::std::string::String);
+impl ::std::ops::Deref for ImageNormalizationResourceProvenanceCauseWireNormalizationKey {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ImageNormalizationResourceProvenanceCauseWireNormalizationKey>
+    for ::std::string::String
+{
+    fn from(value: ImageNormalizationResourceProvenanceCauseWireNormalizationKey) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ImageNormalizationResourceProvenanceCauseWireNormalizationKey {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() > 64usize {
+            return Err("longer than 64 characters".into());
+        }
+        if value.chars().count() < 64usize {
+            return Err("shorter than 64 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str>
+    for ImageNormalizationResourceProvenanceCauseWireNormalizationKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWireNormalizationKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWireNormalizationKey
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de>
+    for ImageNormalizationResourceProvenanceCauseWireNormalizationKey
+{
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
+}
+#[doc = "`ImageNormalizationResourceProvenanceCauseWirePolicy`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"minLength\": 1"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Serialize, Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[serde(transparent)]
+pub struct ImageNormalizationResourceProvenanceCauseWirePolicy(::std::string::String);
+impl ::std::ops::Deref for ImageNormalizationResourceProvenanceCauseWirePolicy {
+    type Target = ::std::string::String;
+    fn deref(&self) -> &::std::string::String {
+        &self.0
+    }
+}
+impl ::std::convert::From<ImageNormalizationResourceProvenanceCauseWirePolicy>
+    for ::std::string::String
+{
+    fn from(value: ImageNormalizationResourceProvenanceCauseWirePolicy) -> Self {
+        value.0
+    }
+}
+impl ::std::str::FromStr for ImageNormalizationResourceProvenanceCauseWirePolicy {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        if value.chars().count() < 1usize {
+            return Err("shorter than 1 characters".into());
+        }
+        Ok(Self(value.to_string()))
+    }
+}
+impl ::std::convert::TryFrom<&str> for ImageNormalizationResourceProvenanceCauseWirePolicy {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWirePolicy
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ImageNormalizationResourceProvenanceCauseWirePolicy
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl<'de> ::serde::Deserialize<'de> for ImageNormalizationResourceProvenanceCauseWirePolicy {
+    fn deserialize<D>(deserializer: D) -> ::std::result::Result<Self, D::Error>
+    where
+        D: ::serde::Deserializer<'de>,
+    {
+        ::std::string::String::deserialize(deserializer)?
+            .parse()
+            .map_err(|e: self::error::ConversionError| {
+                <D::Error as ::serde::de::Error>::custom(e.to_string())
+            })
+    }
 }
 #[doc = "`IngestChannelInboundEventCommand`"]
 #[doc = r""]
@@ -35008,6 +35807,210 @@ impl ::std::convert::From<SubmitPluginActionCommand> for PluginStorageRpcCommand
         Self::SubmitPluginActionCommand(value)
     }
 }
+#[doc = "`PrepareImageResourceCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"command\","]
+#[doc = "    \"request\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"command\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"prepare-image-resource\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"request\": {"]
+#[doc = "      \"$ref\": \"#/$defs/PrepareImageResourceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareImageResourceCommand {
+    pub command: PrepareImageResourceCommandCommand,
+    pub request: PrepareImageResourceWire,
+}
+#[doc = "`PrepareImageResourceCommandCommand`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"prepare-image-resource\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum PrepareImageResourceCommandCommand {
+    #[serde(rename = "prepare-image-resource")]
+    PrepareImageResource,
+}
+impl ::std::fmt::Display for PrepareImageResourceCommandCommand {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::PrepareImageResource => f.write_str("prepare-image-resource"),
+        }
+    }
+}
+impl ::std::str::FromStr for PrepareImageResourceCommandCommand {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "prepare-image-resource" => Ok(Self::PrepareImageResource),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for PrepareImageResourceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PrepareImageResourceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PrepareImageResourceCommandCommand {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`PrepareImageResourceWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"mode\","]
+#[doc = "    \"resource\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"mode\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"normalize\","]
+#[doc = "        \"preserve\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"resource\": {"]
+#[doc = "      \"$ref\": \"#/$defs/ResourceInputEvidenceWire\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct PrepareImageResourceWire {
+    pub mode: PrepareImageResourceWireMode,
+    pub resource: ResourceInputEvidenceWire,
+}
+#[doc = "`PrepareImageResourceWireMode`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"normalize\","]
+#[doc = "    \"preserve\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum PrepareImageResourceWireMode {
+    #[serde(rename = "normalize")]
+    Normalize,
+    #[serde(rename = "preserve")]
+    Preserve,
+}
+impl ::std::fmt::Display for PrepareImageResourceWireMode {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::Normalize => f.write_str("normalize"),
+            Self::Preserve => f.write_str("preserve"),
+        }
+    }
+}
+impl ::std::str::FromStr for PrepareImageResourceWireMode {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "normalize" => Ok(Self::Normalize),
+            "preserve" => Ok(Self::Preserve),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for PrepareImageResourceWireMode {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String> for PrepareImageResourceWireMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String> for PrepareImageResourceWireMode {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
 #[doc = "`ProjectChannelInboundEventCommand`"]
 #[doc = r""]
 #[doc = r" <details><summary>JSON schema</summary>"]
@@ -35299,6 +36302,7 @@ pub struct ProjectTeamDeliveryOutcomeWire {
 #[doc = "  \"enum\": ["]
 #[doc = "    \"dispatched\","]
 #[doc = "    \"output_observed\","]
+#[doc = "    \"output_ready\","]
 #[doc = "    \"succeeded\","]
 #[doc = "    \"failed_before_output\","]
 #[doc = "    \"ambiguous\""]
@@ -35323,6 +36327,8 @@ pub enum ProviderInvocationStateWire {
     Dispatched,
     #[serde(rename = "output_observed")]
     OutputObserved,
+    #[serde(rename = "output_ready")]
+    OutputReady,
     #[serde(rename = "succeeded")]
     Succeeded,
     #[serde(rename = "failed_before_output")]
@@ -35335,6 +36341,7 @@ impl ::std::fmt::Display for ProviderInvocationStateWire {
         match *self {
             Self::Dispatched => f.write_str("dispatched"),
             Self::OutputObserved => f.write_str("output_observed"),
+            Self::OutputReady => f.write_str("output_ready"),
             Self::Succeeded => f.write_str("succeeded"),
             Self::FailedBeforeOutput => f.write_str("failed_before_output"),
             Self::Ambiguous => f.write_str("ambiguous"),
@@ -35347,6 +36354,7 @@ impl ::std::str::FromStr for ProviderInvocationStateWire {
         match value {
             "dispatched" => Ok(Self::Dispatched),
             "output_observed" => Ok(Self::OutputObserved),
+            "output_ready" => Ok(Self::OutputReady),
             "succeeded" => Ok(Self::Succeeded),
             "failed_before_output" => Ok(Self::FailedBeforeOutput),
             "ambiguous" => Ok(Self::Ambiguous),
@@ -35369,6 +36377,114 @@ impl ::std::convert::TryFrom<&::std::string::String> for ProviderInvocationState
     }
 }
 impl ::std::convert::TryFrom<::std::string::String> for ProviderInvocationStateWire {
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: ::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+#[doc = "`ProviderOutputResourceProvenanceCauseWire`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"object\","]
+#[doc = "  \"required\": ["]
+#[doc = "    \"invocation_id\","]
+#[doc = "    \"kind\","]
+#[doc = "    \"part_id\""]
+#[doc = "  ],"]
+#[doc = "  \"properties\": {"]
+#[doc = "    \"invocation_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    },"]
+#[doc = "    \"kind\": {"]
+#[doc = "      \"type\": \"string\","]
+#[doc = "      \"enum\": ["]
+#[doc = "        \"provider_output\""]
+#[doc = "      ]"]
+#[doc = "    },"]
+#[doc = "    \"part_id\": {"]
+#[doc = "      \"type\": \"string\""]
+#[doc = "    }"]
+#[doc = "  },"]
+#[doc = "  \"additionalProperties\": false"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderOutputResourceProvenanceCauseWire {
+    pub invocation_id: ::std::string::String,
+    pub kind: ProviderOutputResourceProvenanceCauseWireKind,
+    pub part_id: ::std::string::String,
+}
+#[doc = "`ProviderOutputResourceProvenanceCauseWireKind`"]
+#[doc = r""]
+#[doc = r" <details><summary>JSON schema</summary>"]
+#[doc = r""]
+#[doc = r" ```json"]
+#[doc = "{"]
+#[doc = "  \"type\": \"string\","]
+#[doc = "  \"enum\": ["]
+#[doc = "    \"provider_output\""]
+#[doc = "  ]"]
+#[doc = "}"]
+#[doc = r" ```"]
+#[doc = r" </details>"]
+#[derive(
+    :: serde :: Deserialize,
+    :: serde :: Serialize,
+    Clone,
+    Copy,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+)]
+pub enum ProviderOutputResourceProvenanceCauseWireKind {
+    #[serde(rename = "provider_output")]
+    ProviderOutput,
+}
+impl ::std::fmt::Display for ProviderOutputResourceProvenanceCauseWireKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        match *self {
+            Self::ProviderOutput => f.write_str("provider_output"),
+        }
+    }
+}
+impl ::std::str::FromStr for ProviderOutputResourceProvenanceCauseWireKind {
+    type Err = self::error::ConversionError;
+    fn from_str(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        match value {
+            "provider_output" => Ok(Self::ProviderOutput),
+            _ => Err("invalid value".into()),
+        }
+    }
+}
+impl ::std::convert::TryFrom<&str> for ProviderOutputResourceProvenanceCauseWireKind {
+    type Error = self::error::ConversionError;
+    fn try_from(value: &str) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<&::std::string::String>
+    for ProviderOutputResourceProvenanceCauseWireKind
+{
+    type Error = self::error::ConversionError;
+    fn try_from(
+        value: &::std::string::String,
+    ) -> ::std::result::Result<Self, self::error::ConversionError> {
+        value.parse()
+    }
+}
+impl ::std::convert::TryFrom<::std::string::String>
+    for ProviderOutputResourceProvenanceCauseWireKind
+{
     type Error = self::error::ConversionError;
     fn try_from(
         value: ::std::string::String,
@@ -43006,7 +44122,10 @@ impl ::std::convert::TryFrom<::std::string::String> for ResourceOriginWire {
 #[doc = "  \"type\": \"string\","]
 #[doc = "  \"enum\": ["]
 #[doc = "    \"tool_execution\","]
-#[doc = "    \"media_generation\""]
+#[doc = "    \"media_generation\","]
+#[doc = "    \"image_description\","]
+#[doc = "    \"provider_output\","]
+#[doc = "    \"image_normalization\""]
 #[doc = "  ]"]
 #[doc = "}"]
 #[doc = r" ```"]
@@ -43028,12 +44147,21 @@ pub enum ResourceProvenanceCauseKindWire {
     ToolExecution,
     #[serde(rename = "media_generation")]
     MediaGeneration,
+    #[serde(rename = "image_description")]
+    ImageDescription,
+    #[serde(rename = "provider_output")]
+    ProviderOutput,
+    #[serde(rename = "image_normalization")]
+    ImageNormalization,
 }
 impl ::std::fmt::Display for ResourceProvenanceCauseKindWire {
     fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
         match *self {
             Self::ToolExecution => f.write_str("tool_execution"),
             Self::MediaGeneration => f.write_str("media_generation"),
+            Self::ImageDescription => f.write_str("image_description"),
+            Self::ProviderOutput => f.write_str("provider_output"),
+            Self::ImageNormalization => f.write_str("image_normalization"),
         }
     }
 }
@@ -43043,6 +44171,9 @@ impl ::std::str::FromStr for ResourceProvenanceCauseKindWire {
         match value {
             "tool_execution" => Ok(Self::ToolExecution),
             "media_generation" => Ok(Self::MediaGeneration),
+            "image_description" => Ok(Self::ImageDescription),
+            "provider_output" => Ok(Self::ProviderOutput),
+            "image_normalization" => Ok(Self::ImageNormalization),
             _ => Err("invalid value".into()),
         }
     }
@@ -43077,10 +44208,19 @@ impl ::std::convert::TryFrom<::std::string::String> for ResourceProvenanceCauseK
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ImageNormalizationResourceProvenanceCauseWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ProviderOutputResourceProvenanceCauseWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/ToolExecutionResourceProvenanceCauseWire\""]
 #[doc = "    },"]
 #[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/MediaGenerationResourceProvenanceCauseWire\""]
+#[doc = "    },"]
+#[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/ImageDescriptionResourceProvenanceCauseWire\""]
 #[doc = "    }"]
 #[doc = "  ]"]
 #[doc = "}"]
@@ -43089,8 +44229,25 @@ impl ::std::convert::TryFrom<::std::string::String> for ResourceProvenanceCauseK
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum ResourceProvenanceCauseWire {
+    ImageNormalizationResourceProvenanceCauseWire(ImageNormalizationResourceProvenanceCauseWire),
+    ProviderOutputResourceProvenanceCauseWire(ProviderOutputResourceProvenanceCauseWire),
     ToolExecutionResourceProvenanceCauseWire(ToolExecutionResourceProvenanceCauseWire),
     MediaGenerationResourceProvenanceCauseWire(MediaGenerationResourceProvenanceCauseWire),
+    ImageDescriptionResourceProvenanceCauseWire(ImageDescriptionResourceProvenanceCauseWire),
+}
+impl ::std::convert::From<ImageNormalizationResourceProvenanceCauseWire>
+    for ResourceProvenanceCauseWire
+{
+    fn from(value: ImageNormalizationResourceProvenanceCauseWire) -> Self {
+        Self::ImageNormalizationResourceProvenanceCauseWire(value)
+    }
+}
+impl ::std::convert::From<ProviderOutputResourceProvenanceCauseWire>
+    for ResourceProvenanceCauseWire
+{
+    fn from(value: ProviderOutputResourceProvenanceCauseWire) -> Self {
+        Self::ProviderOutputResourceProvenanceCauseWire(value)
+    }
 }
 impl ::std::convert::From<ToolExecutionResourceProvenanceCauseWire>
     for ResourceProvenanceCauseWire
@@ -43104,6 +44261,13 @@ impl ::std::convert::From<MediaGenerationResourceProvenanceCauseWire>
 {
     fn from(value: MediaGenerationResourceProvenanceCauseWire) -> Self {
         Self::MediaGenerationResourceProvenanceCauseWire(value)
+    }
+}
+impl ::std::convert::From<ImageDescriptionResourceProvenanceCauseWire>
+    for ResourceProvenanceCauseWire
+{
+    fn from(value: ImageDescriptionResourceProvenanceCauseWire) -> Self {
+        Self::ImageDescriptionResourceProvenanceCauseWire(value)
     }
 }
 #[doc = "`ResourceSourceWire`"]
@@ -44400,6 +45564,9 @@ pub struct RuntimeEventScopeWire {
 #[doc = "{"]
 #[doc = "  \"oneOf\": ["]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/PrepareImageResourceCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/AppendEventCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
@@ -44463,6 +45630,7 @@ pub struct RuntimeEventScopeWire {
 #[derive(:: serde :: Deserialize, :: serde :: Serialize, Clone, Debug)]
 #[serde(untagged)]
 pub enum RuntimeStorageRpcCommand {
+    PrepareImageResourceCommand(PrepareImageResourceCommand),
     AppendEventCommand(AppendEventCommand),
     QueryEventsCommand(QueryEventsCommand),
     PutConfigCommand(PutConfigCommand),
@@ -44482,6 +45650,11 @@ pub enum RuntimeStorageRpcCommand {
     RecordResourceProvenanceCommand(RecordResourceProvenanceCommand),
     ListResourceProvenanceCommand(ListResourceProvenanceCommand),
     DoctorCommand(DoctorCommand),
+}
+impl ::std::convert::From<PrepareImageResourceCommand> for RuntimeStorageRpcCommand {
+    fn from(value: PrepareImageResourceCommand) -> Self {
+        Self::PrepareImageResourceCommand(value)
+    }
 }
 impl ::std::convert::From<AppendEventCommand> for RuntimeStorageRpcCommand {
     fn from(value: AppendEventCommand) -> Self {
@@ -46213,6 +47386,9 @@ impl ::std::convert::TryFrom<::std::string::String> for SessionTurnStateWire {
 #[doc = "      \"$ref\": \"#/$defs/BeginProviderInvocationCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
+#[doc = "      \"$ref\": \"#/$defs/CheckpointProviderInvocationCommand\""]
+#[doc = "    },"]
+#[doc = "    {"]
 #[doc = "      \"$ref\": \"#/$defs/MarkProviderInvocationOutputCommand\""]
 #[doc = "    },"]
 #[doc = "    {"]
@@ -46272,6 +47448,7 @@ pub enum SessionsStorageRpcCommand {
     StartSessionTurnAttemptCommand(StartSessionTurnAttemptCommand),
     SettleSessionTurnCommand(SettleSessionTurnCommand),
     BeginProviderInvocationCommand(BeginProviderInvocationCommand),
+    CheckpointProviderInvocationCommand(CheckpointProviderInvocationCommand),
     MarkProviderInvocationOutputCommand(MarkProviderInvocationOutputCommand),
     FinishProviderInvocationCommand(FinishProviderInvocationCommand),
     ListProviderInvocationsCommand(ListProviderInvocationsCommand),
@@ -46340,6 +47517,11 @@ impl ::std::convert::From<SettleSessionTurnCommand> for SessionsStorageRpcComman
 impl ::std::convert::From<BeginProviderInvocationCommand> for SessionsStorageRpcCommand {
     fn from(value: BeginProviderInvocationCommand) -> Self {
         Self::BeginProviderInvocationCommand(value)
+    }
+}
+impl ::std::convert::From<CheckpointProviderInvocationCommand> for SessionsStorageRpcCommand {
+    fn from(value: CheckpointProviderInvocationCommand) -> Self {
+        Self::CheckpointProviderInvocationCommand(value)
     }
 }
 impl ::std::convert::From<MarkProviderInvocationOutputCommand> for SessionsStorageRpcCommand {
@@ -57814,4 +58996,4 @@ impl ::std::convert::TryFrom<::std::string::String> for WriteAtomicFileCommandCo
 }
 
 pub const STORAGE_RPC_SCHEMA_SHA256: &str =
-    "650d399547a218792188e9e20e047ea06d0f11ec004fb6bac3084f02ff9f9dea";
+    "beb1c08b8a3ea9760f28fe3ed4d6060607d288cc7fe72b375642fe0a392be927";

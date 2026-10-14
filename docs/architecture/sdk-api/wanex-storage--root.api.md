@@ -493,6 +493,8 @@ interface BeginProviderInvocationRequest {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -518,6 +520,7 @@ export interface BeginProviderInvocationWire {
     id: NullableString;
     // (undocumented)
     input_id: string;
+    input_resources: ResourceInputEvidenceWire[];
     // (undocumented)
     invocation_number: number;
     // (undocumented)
@@ -930,6 +933,48 @@ export type ChannelProjectionTargetKindWire = "session.turn" | "team.message" | 
 
 // @public (undocumented)
 export type ChannelStorageRpcCommand = PutChannelBindingCommand | ListChannelBindingsCommand | RevokeChannelBindingCommand | IngestChannelInboundEventCommand | ListChannelInboundEventsCommand | UpdateChannelInboundEventStateCommand | SubmitChannelDeliveryCommand | CompleteChannelDeliveryCommand | FailChannelDeliveryCommand | ProjectChannelInboundEventCommand | ListChannelProjectionsCommand;
+
+// @public (undocumented)
+export interface CheckpointProviderInvocationCommand {
+    // (undocumented)
+    command: "checkpoint-provider-invocation";
+    // (undocumented)
+    request: CheckpointProviderInvocationWire;
+}
+
+// @public (undocumented)
+interface CheckpointProviderInvocationRequest extends MarkProviderInvocationOutputRequest {
+    // (undocumented)
+    readonly response: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest: string;
+}
+
+// @public (undocumented)
+export interface CheckpointProviderInvocationWire {
+    // (undocumented)
+    attempt_id: string;
+    // (undocumented)
+    input_id: string;
+    // (undocumented)
+    invocation_id: string;
+    // (undocumented)
+    job_id: string;
+    // (undocumented)
+    lease_token: string;
+    // (undocumented)
+    provider_request_id: NullableString;
+    // (undocumented)
+    response: JsonValue;
+    // (undocumented)
+    response_digest: string;
+    // (undocumented)
+    session_id: string;
+    // (undocumented)
+    turn_id: string;
+    // (undocumented)
+    worker_id: string;
+}
 
 // @public (undocumented)
 export interface ClaimJobCommand {
@@ -2939,6 +2984,50 @@ export interface HttpStorageWireTransportOptions {
     readonly token: string;
 }
 
+// @public
+interface ImageDescriptionResourceProvenanceCause {
+    // (undocumented)
+    readonly descriptionKey: string;
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly kind: "image_description";
+    // (undocumented)
+    readonly promptVersion: string;
+}
+
+// @public (undocumented)
+export interface ImageDescriptionResourceProvenanceCauseWire {
+    // (undocumented)
+    description_key: string;
+    // (undocumented)
+    endpoint_digest: string;
+    // (undocumented)
+    kind: "image_description";
+    // (undocumented)
+    prompt_version: string;
+}
+
+// @public (undocumented)
+interface ImageNormalizationResourceProvenanceCause {
+    // (undocumented)
+    readonly kind: "image_normalization";
+    // (undocumented)
+    readonly normalizationKey: string;
+    // (undocumented)
+    readonly policy: string;
+}
+
+// @public (undocumented)
+export interface ImageNormalizationResourceProvenanceCauseWire {
+    // (undocumented)
+    kind: "image_normalization";
+    // (undocumented)
+    normalization_key: string;
+    // (undocumented)
+    policy: string;
+}
+
 // @public (undocumented)
 export interface IngestChannelInboundEventCommand {
     // (undocumented)
@@ -4567,7 +4656,7 @@ export interface MediaGenerationListWire {
 }
 
 // @public (undocumented)
-type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
 
 // @public (undocumented)
 interface MediaGenerationOperationBinding {
@@ -4936,6 +5025,8 @@ interface ModelDescriptor {
     // (undocumented)
     readonly features: readonly ModelFeature[];
     // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly inputModalities: readonly ModelInputModality[];
@@ -4992,7 +5083,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -5377,6 +5488,42 @@ export type PluginManifestStateWire = "registered" | "disabled";
 export type PluginStorageRpcCommand = PutPluginManifestCommand | GetPluginManifestCommand | ListPluginManifestsCommand | PutPluginInstallCommand | ActivatePluginInstallCommand | GetPluginInstallCommand | ListPluginInstallsCommand | UpdatePluginInstallStateCommand | UpdatePluginManifestStateCommand | GetPluginActionExecutionAdmissionCommand | SubmitPluginActionCommand;
 
 // @public (undocumented)
+interface PreparedImageResource {
+    // (undocumented)
+    readonly height: number;
+    // (undocumented)
+    readonly resource: ResourceRecord;
+    // (undocumented)
+    readonly transformed: boolean;
+    // (undocumented)
+    readonly width: number;
+}
+
+// @public (undocumented)
+export interface PrepareImageResourceCommand {
+    // (undocumented)
+    command: "prepare-image-resource";
+    // (undocumented)
+    request: PrepareImageResourceWire;
+}
+
+// @public (undocumented)
+interface PrepareImageResourceRequest {
+    // (undocumented)
+    readonly mode: "normalize" | "preserve";
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
+}
+
+// @public (undocumented)
+export interface PrepareImageResourceWire {
+    // (undocumented)
+    mode: "normalize" | "preserve";
+    // (undocumented)
+    resource: ResourceInputEvidenceWire;
+}
+
+// @public (undocumented)
 type PrincipalId = string;
 
 // @public (undocumented)
@@ -5462,6 +5609,8 @@ interface ProviderInvocationRecord {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -5471,6 +5620,10 @@ interface ProviderInvocationRecord {
     readonly providerRequestId?: string;
     // (undocumented)
     readonly requestDigest: string;
+    // (undocumented)
+    readonly responseCheckpoint?: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest?: string;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
@@ -5486,7 +5639,27 @@ interface ProviderInvocationRecord {
 }
 
 // @public (undocumented)
-type ProviderInvocationState = "dispatched" | "output_observed" | "succeeded" | "failed_before_output" | "ambiguous";
+type ProviderInvocationState = "dispatched" | "output_observed" | "output_ready" | "succeeded" | "failed_before_output" | "ambiguous";
+
+// @public (undocumented)
+interface ProviderOutputResourceProvenanceCause {
+    // (undocumented)
+    readonly invocationId: string;
+    // (undocumented)
+    readonly kind: "provider_output";
+    // (undocumented)
+    readonly partId: string;
+}
+
+// @public (undocumented)
+export interface ProviderOutputResourceProvenanceCauseWire {
+    // (undocumented)
+    invocation_id: string;
+    // (undocumented)
+    kind: "provider_output";
+    // (undocumented)
+    part_id: string;
+}
 
 // @public (undocumented)
 interface ProviderProtocolDescriptor {
@@ -5494,6 +5667,31 @@ interface ProviderProtocolDescriptor {
     readonly id: string;
     // (undocumented)
     readonly version?: string;
+}
+
+// @public (undocumented)
+interface ProviderResponseCheckpoint {
+    // (undocumented)
+    readonly finish: {
+        readonly type: "finish";
+        readonly reason: "stop" | "length" | "tool_calls" | "content_filter" | "other";
+        readonly rawReason?: string;
+    };
+    // (undocumented)
+    readonly parts: readonly Extract<MessagePart, {
+        readonly type: "text" | "reasoning" | "tool_call" | "resource";
+    }>[];
+    // (undocumented)
+    readonly providerState: readonly ProviderState[];
+    // (undocumented)
+    readonly usage?: {
+        readonly inputTokens?: number;
+        readonly outputTokens?: number;
+        readonly reasoningTokens?: number;
+        readonly cacheReadTokens?: number;
+        readonly cacheWriteTokens?: number;
+        readonly metadata?: Readonly<Record<string, JsonValue_2>>;
+    };
 }
 
 // @public (undocumented)
@@ -6681,13 +6879,13 @@ type ResourceOrigin = "user_upload" | "model_output" | "tool_output" | "provider
 export type ResourceOriginWire = "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
 
 // @public (undocumented)
-type ResourceProvenanceCause = ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause;
+type ResourceProvenanceCause = ProviderOutputResourceProvenanceCause | ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause | ImageDescriptionResourceProvenanceCause | ImageNormalizationResourceProvenanceCause;
 
 // @public (undocumented)
-export type ResourceProvenanceCauseKindWire = "tool_execution" | "media_generation";
+export type ResourceProvenanceCauseKindWire = "tool_execution" | "media_generation" | "image_description" | "provider_output" | "image_normalization";
 
 // @public (undocumented)
-export type ResourceProvenanceCauseWire = ToolExecutionResourceProvenanceCauseWire | MediaGenerationResourceProvenanceCauseWire;
+export type ResourceProvenanceCauseWire = ImageNormalizationResourceProvenanceCauseWire | ProviderOutputResourceProvenanceCauseWire | ToolExecutionResourceProvenanceCauseWire | MediaGenerationResourceProvenanceCauseWire | ImageDescriptionResourceProvenanceCauseWire;
 
 // @public (undocumented)
 type ResourceProvenanceId = string;
@@ -7053,7 +7251,7 @@ export interface RuntimeEventScopeWire {
 type RuntimeEventType = KnownRuntimeEventType | (string & {});
 
 // @public (undocumented)
-export type RuntimeStorageRpcCommand = AppendEventCommand | QueryEventsCommand | PutConfigCommand | ApplyConfigMutationsCommand | CompareAndApplyConfigMutationsCommand | HasLiveSecretReferenceCommand | GetConfigCommand | GetConfigEntryCommand | ListConfigEntriesCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ReadResourceContentCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | RecordResourceProvenanceCommand | ListResourceProvenanceCommand | DoctorCommand;
+export type RuntimeStorageRpcCommand = PrepareImageResourceCommand | AppendEventCommand | QueryEventsCommand | PutConfigCommand | ApplyConfigMutationsCommand | CompareAndApplyConfigMutationsCommand | HasLiveSecretReferenceCommand | GetConfigCommand | GetConfigEntryCommand | ListConfigEntriesCommand | WriteAtomicFileCommand | IngestResourceCommand | GetResourceCommand | ReadResourceContentCommand | ListResourcesCommand | CreateResourceTicketCommand | CleanupExpiredResourceTicketsCommand | RecordResourceProvenanceCommand | ListResourceProvenanceCommand | DoctorCommand;
 
 // @public (undocumented)
 export interface RuntimeStore {
@@ -7085,6 +7283,8 @@ export interface RuntimeStore {
     listResourceProvenance(request: ListResourceProvenanceRequest): Promise<ResourceProvenanceRecord[]>;
     // (undocumented)
     listResources(request: ListResourcesRequest): Promise<ResourceRecord[]>;
+    // (undocumented)
+    prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource>;
     // (undocumented)
     putConfig(key: string, value: JsonValue_2): Promise<void>;
     // (undocumented)
@@ -7407,7 +7607,7 @@ export interface SessionScopeWire {
 }
 
 // @public (undocumented)
-export type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | GetSessionTurnCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
+export type SessionsStorageRpcCommand = CreateSessionCommand | GetSessionCommand | ListSessionsCommand | RenameSessionCommand | ArchiveSessionCommand | RestoreSessionCommand | AdmitSessionInputCommand | SubmitSessionTurnCommand | StartSessionTurnAttemptCommand | SettleSessionTurnCommand | BeginProviderInvocationCommand | CheckpointProviderInvocationCommand | MarkProviderInvocationOutputCommand | FinishProviderInvocationCommand | ListProviderInvocationsCommand | RequestSessionTurnCancelCommand | InterruptSessionTurnCommand | SteerSessionTurnCommand | ListSessionTurnControlsCommand | ApplySessionTurnControlCommand | ListSessionInputsCommand | ListSessionMessagesCommand | ListSessionTurnsCommand | GetSessionTurnCommand | ListSessionAttemptsCommand | AppendSessionMessageCommand;
 
 // @public (undocumented)
 export interface SessionStateTransitionWire {
@@ -7435,6 +7635,8 @@ export interface SessionStore {
     archiveSession(request: ArchiveSessionRequest): Promise<SessionRecord>;
     // (undocumented)
     beginProviderInvocation(request: BeginProviderInvocationRequest): Promise<ProviderInvocationRecord>;
+    // (undocumented)
+    checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null>;
     // (undocumented)
     createSession(request: CreateSessionRequest): Promise<SessionRecord>;
     // (undocumented)
@@ -7963,7 +8165,7 @@ export interface SteerSessionTurnWire {
 }
 
 // @public (undocumented)
-export const STORAGE_RPC_SCHEMA_SHA256: "650d399547a218792188e9e20e047ea06d0f11ec004fb6bac3084f02ff9f9dea";
+export const STORAGE_RPC_SCHEMA_SHA256: "beb1c08b8a3ea9760f28fe3ed4d6060607d288cc7fe72b375642fe0a392be927";
 
 // @public (undocumented)
 export interface StorageHandle {

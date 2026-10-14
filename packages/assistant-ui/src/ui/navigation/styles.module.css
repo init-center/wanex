@@ -32,14 +32,12 @@ html[data-window-chrome="integrated-macos"] .layout.is-sidebar-collapsed .topbar
 .icon-button { width: 32px; height: 32px; flex: 0 0 auto; display: inline-grid; place-items: center; padding: 0; color: var(--color-text-muted); background: transparent; border: 0; border-radius: 9px; transition: color 140ms ease, background 140ms ease; }
 .icon-button:hover:not(:disabled) { color: var(--color-text); background: var(--color-control-hover); }
 .icon-button:disabled { opacity: .42; }
-.readiness, .stream-state { min-height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--color-text-muted); background: transparent; border: 1px solid transparent; border-radius: 999px; font-size: var(--font-size-2xs); white-space: nowrap; }
-.readiness-ready { display: none; }
+.icon-button.is-active { color: var(--color-text); background: var(--color-control-hover); }
+.stream-state { min-height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; color: var(--color-text-muted); background: transparent; border: 1px solid transparent; border-radius: 999px; font-size: var(--font-size-2xs); white-space: nowrap; }
 .stream-state { transition: color 140ms ease, background 140ms ease, border-color 140ms ease; }
 .stream-state:hover:not(:disabled) { color: var(--color-warning); background: var(--color-warning-soft); border-color: var(--color-warning-line); }
 .stream-state:disabled { opacity: .65; }
-.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-success); }
-.readiness-blocked, .readiness-unconfigured, .stream-state { color: var(--color-warning); background: var(--color-warning-soft); border-color: var(--color-warning-line); }
-.readiness-blocked .status-dot, .readiness-unconfigured .status-dot { background: var(--color-warning); }
+.stream-state { color: var(--color-warning); background: var(--color-warning-soft); border-color: var(--color-warning-line); }
 
 /* Sidebar: action rows, then groups and recents, then host footer and Settings. */
 .sidebar {

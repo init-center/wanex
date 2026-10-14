@@ -8,6 +8,8 @@ export interface WanexDesktopProviderImageGenerationProofExpected {
   readonly imageGenerationText: string
   readonly imageGenerationResponse: string
   readonly modelId: string
+  readonly pngBase64: string
+  readonly multimodalImageLabel: string
 }
 
 export async function runWanexDesktopProviderImageGenerationProof(
@@ -24,7 +26,7 @@ export async function runWanexDesktopProviderImageGenerationProof(
     )
     const sessionId = selectedSessionId()
     if (
-      context.configuredProviderCount() !== 1 ||
+      context.configuredProviderCount() !== 2 ||
       !context.providerReady() ||
       !(surface instanceof Element) ||
       !(textarea instanceof HTMLTextAreaElement) ||
@@ -37,6 +39,22 @@ export async function runWanexDesktopProviderImageGenerationProof(
     return { textarea, sessionId }
   }, 10_000, "image_generation_ready")
 
+  const newConversation = document.querySelector(
+    '[data-ui-session-drawer] button[data-ui-initial-focus]'
+  )
+  if (!(newConversation instanceof HTMLButtonElement)) {
+    throw new Error("Provider image generation new conversation action is unavailable")
+  }
+  newConversation.click()
+  await context.waitFor(() =>
+    document.querySelectorAll('[data-ui-conversation-row]').length === 0
+      ? true
+      : undefined
+  , 10_000, "image_generation_new_conversation")
+  const freshSessionId = selectedSessionId()
+
+  const inputResourceId = await uploadImage()
+
   const initialUserRowIds = new Set(
     [...document.querySelectorAll(
       '[data-ui-conversation-row][data-ui-role="user"]'
@@ -47,7 +65,14 @@ export async function runWanexDesktopProviderImageGenerationProof(
       resource.getAttribute("data-ui-resource") ?? ""
     )
   )
-  context.setControlValue(ready.textarea, expected.imageGenerationText)
+  initialImageResourceIds.add(inputResourceId)
+  const freshTextarea = document.querySelector(
+    '[data-ui-assistant-shell] [data-ui-composer] textarea[name="text"]'
+  )
+  if (!(freshTextarea instanceof HTMLTextAreaElement)) {
+    throw new Error("Provider image generation fresh composer is unavailable")
+  }
+  context.setControlValue(freshTextarea, expected.imageGenerationText)
   await context.waitFor(() => {
     const button = document.querySelector(
       '[data-ui-composer] button[type="submit"]'
@@ -62,7 +87,7 @@ export async function runWanexDesktopProviderImageGenerationProof(
     bubbles: true,
     cancelable: true
   })
-  ready.textarea.dispatchEvent(enter)
+  freshTextarea.dispatchEvent(enter)
   if (!enter.defaultPrevented) {
     throw new Error("Provider image generation conversation was not submitted")
   }
@@ -99,7 +124,8 @@ export async function runWanexDesktopProviderImageGenerationProof(
       Number.isSafeInteger(sizeBytes) &&
       sizeBytes > 0
     return (
-      currentSessionId === ready.sessionId &&
+      currentSessionId !== undefined &&
+      (freshSessionId === undefined || currentSessionId === freshSessionId) &&
       userVisible &&
       responseVisible &&
       tools.length === 1 &&
@@ -115,16 +141,18 @@ export async function runWanexDesktopProviderImageGenerationProof(
         }
       : undefined
   }, 20_000, "image_generation_settlement", settlementDiagnostic)
+  const completedSessionId = selectedSessionId() ?? freshSessionId ?? ""
+  await restoreSession(ready.sessionId)
   const settledAt = performance.now()
   return context.result({
     ok: settled.userVisible && settled.responseVisible && context.redacted(),
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: context.redacted(),
     modelId: expected.modelId,
-    sessionId: ready.sessionId,
+    sessionId: completedSessionId,
     conversationSubmitted: true,
     userVisible: true,
     assistantVisible: true,
@@ -181,11 +209,55 @@ export async function runWanexDesktopProviderImageGenerationProof(
   }
 
   function generatedImageResources(): Element[] {
-    return imageResources().filter((resource) =>
-      !initialImageResourceIds.has(
-        resource.getAttribute("data-ui-resource") ?? ""
-      )
-    )
+    const seen = new Set<string>()
+    return imageResources().filter((resource) => {
+      const resourceId = resource.getAttribute("data-ui-resource") ?? ""
+      if (initialImageResourceIds.has(resourceId) || seen.has(resourceId)) {
+        return false
+      }
+      seen.add(resourceId)
+      return true
+    })
+  }
+
+  async function uploadImage(): Promise<string> {
+    const input = await context.waitFor(() => {
+      const candidate = document.querySelector("[data-ui-attachment-input]")
+      return candidate instanceof HTMLInputElement && !candidate.disabled
+        ? candidate
+        : undefined
+    }, 10_000, "image_generation_attachment_input")
+    const transfer = new DataTransfer()
+    const bytes = decodeBase64(expected.pngBase64)
+    const content = new ArrayBuffer(bytes.byteLength)
+    new Uint8Array(content).set(bytes)
+    transfer.items.add(new File(
+      [content],
+      expected.multimodalImageLabel,
+      { type: "image/png" },
+    ))
+    input.files = transfer.files
+    input.dispatchEvent(new Event("change", { bubbles: true }))
+    return context.waitFor(() => {
+      const id = document.querySelector("[data-ui-attachment]")
+        ?.getAttribute("data-ui-resource-id") ?? ""
+      return id.length > 0 ? id : undefined
+    }, 10_000, "image_generation_attachment_preview")
+  }
+
+  function decodeBase64(value: string): Uint8Array {
+    return Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
+  }
+
+  async function restoreSession(sessionId: string): Promise<void> {
+    const button = [...document.querySelectorAll('[data-ui-session-select]')]
+      .find((candidate) => candidate.getAttribute("data-ui-session-select") === sessionId)
+    if (!(button instanceof HTMLButtonElement)) {
+      throw new Error("Provider image generation previous session is unavailable")
+    }
+    button.click()
+    await context.waitFor(() => selectedSessionId() === sessionId ? true : undefined,
+      10_000, "image_generation_restore_session")
   }
 
   function imageResources(): Element[] {

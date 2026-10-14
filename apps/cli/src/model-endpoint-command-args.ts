@@ -17,7 +17,6 @@ import type { GlobalOptions, ParsedCommand } from "./types.js"
 const operations = [
   "conversation",
   "image.generate",
-  "image.edit",
   "video.generate",
   "audio.transcribe",
   "audio.synthesize"

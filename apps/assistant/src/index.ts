@@ -1,5 +1,6 @@
 export * from "./shell.js"
 export * from "./provider/setup.js"
+export * from "./provider/media-setup.js"
 export * from "./state/store.js"
 export * from "./surface/runtime.js"
 export * from "./surface/host.js"

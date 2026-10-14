@@ -452,7 +452,7 @@ describe("@wanex/assistant-ui", () => {
         descriptor: {
           ok: true,
           value: {
-            commandCount: 82,
+            commandCount: 83,
           },
         },
         view: {
@@ -510,7 +510,7 @@ describe("@wanex/assistant-ui", () => {
               rendererMayReceiveServiceBinaryPath: false,
             },
           },
-          commandCount: 82,
+          commandCount: 83,
           commandPaletteCount: 1,
           commandPalette: {
             kind: "web.command-palette",

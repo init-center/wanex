@@ -1,3 +1,4 @@
+import type { ImageDescriber } from "../../resources/image-description.js"
 import type { ContextCompiler } from "../../context/memory/index.js"
 import type { ContextCapacityCompactor } from "../../context/capacity/index.js"
 import type {
@@ -25,6 +26,8 @@ export interface WanexAgentRunnerOptions {
   readonly toolMaxConcurrency?: number
   readonly contextCompiler?: ContextCompiler
   readonly compactContext?: ContextCapacityCompactor
+  /** Describes images the conversation model cannot see, from the frozen image-understanding route. */
+  readonly describeImages?: ImageDescriber
   readonly timeoutMs?: number
   readonly observeProviderEvent?: ProviderEventObserver
   readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver

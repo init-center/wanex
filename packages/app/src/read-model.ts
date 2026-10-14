@@ -395,7 +395,6 @@ function routableOperation(
   value: unknown,
 ): WanexAppSessionTranscriptCapabilityRequestPart["operation"] | undefined {
   return value === "image.generate" ||
-    value === "image.edit" ||
     value === "video.generate" ||
     value === "audio.transcribe" ||
     value === "audio.synthesize"

@@ -29,6 +29,13 @@ export function projectSettings(
           : {
               activeModelEndpointId: settings.profile.activeModelEndpointId
             }),
+        ...(snapshot.modelEndpoints.ok &&
+        snapshot.modelEndpoints.value.imageUnderstandingEndpointId !== undefined
+          ? {
+              imageUnderstandingEndpointId:
+                snapshot.modelEndpoints.value.imageUnderstandingEndpointId
+            }
+          : {}),
         agentContextConfigured: settings.profile.agentContextConfigured,
         agentContextRevision: settings.profile.agentContextRevision,
         readiness: projectProviderReadiness(snapshot),
@@ -165,6 +172,7 @@ export function projectAttachmentInput(settings: SettingsViewModel): {
   readonly canUpload: boolean
   readonly accept: string
   readonly message: string
+  readonly imagesDescribedBy?: string
 } {
   const activeEndpointId = settings.profile.activeModelEndpointId
   const active = settings.profile.endpoints.find(
@@ -178,7 +186,10 @@ export function projectAttachmentInput(settings: SettingsViewModel): {
     }
   }
   const accepted: string[] = []
-  if (active.model.inputModalities.includes("image")) accepted.push("image/*")
+  const seesImages = active.model.inputModalities.includes("image")
+  const imagesDescribed =
+    !seesImages && settings.profile.imageUnderstandingEndpointId !== undefined
+  if (seesImages || imagesDescribed) accepted.push("image/*")
   if (active.model.inputModalities.includes("audio")) accepted.push("audio/*")
   if (active.model.inputModalities.includes("video")) accepted.push("video/*")
   if (active.model.inputModalities.includes("document")) {
@@ -200,11 +211,24 @@ export function projectAttachmentInput(settings: SettingsViewModel): {
     ? {
         canUpload: false,
         accept: "",
-        message: "The active provider accepts text input only"
+        message: settings.profile.endpoints.some((endpoint) =>
+          endpoint.model.operations.includes("conversation") &&
+          endpoint.model.inputModalities.includes("image")
+        )
+          ? "This model reads text only. To attach images, choose a model to describe them in Settings → Models"
+          : "The active provider accepts text input only"
       }
     : {
         canUpload: true,
         accept: accepted.join(","),
-        message: "Attachments ready"
+        message: "Attachments ready",
+        ...(imagesDescribed
+          ? {
+              imagesDescribedBy:
+                settings.profile.endpoints.find((endpoint) =>
+                  endpoint.id === settings.profile.imageUnderstandingEndpointId
+                )?.model.id ?? "another model"
+            }
+          : {})
       }
 }

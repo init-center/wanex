@@ -1,4 +1,6 @@
 import type {
+  PrepareImageResourceRequest,
+  PreparedImageResource,
   AtomicWriteRequest,
   CleanupExpiredResourceTicketsRequest,
   DoctorReport,
@@ -34,6 +36,7 @@ export interface RuntimeStore {
   listConfigEntries(request: ListConfigEntriesRequest): Promise<ConfigEntryRecord[]>
   writeAtomicFile(request: AtomicWriteRequest): Promise<FileRecord>
   ingestResource(request: IngestResourceRequest): Promise<ResourceRecord>
+  prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource>
   getResource(request: GetResourceRequest): Promise<ResourceRecord | null>
   readResourceContent(
     request: ReadResourceContentRequest

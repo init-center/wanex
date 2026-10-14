@@ -8,12 +8,13 @@ import type {
   ModelEndpointExecutionBinding,
   ResourceInputEvidence
 } from "@wanex/protocol"
+import { validateModelOptionValues } from "@wanex/protocol"
 import { resourceInputModality } from "../resources/input.js"
 import {
   modelEndpointDigest,
   modelEndpointFromExecutionBinding
-} from "../provider/index.js"
-import type { MediaGenerationAdapter } from "./types.js"
+} from "./model-endpoint.js"
+import type { MediaGenerationAdapter } from "../media-generation/types.js"
 
 export interface PrepareMediaGenerationOperationBindingRequest {
   readonly operation: MediaGenerationOperation
@@ -61,14 +62,6 @@ export function prepareMediaGenerationOperationBinding(
       )
     }
   }
-  if (
-    request.operation === "image.edit" &&
-    !resources.some(
-      (resource) => resourceInputModality(resource) === "image"
-    )
-  ) {
-    throw new Error("image.edit requires an image input resource")
-  }
   const maxInputResources = endpoint.model.limits?.maxInputResources
   if (
     maxInputResources !== undefined &&
@@ -77,6 +70,9 @@ export function prepareMediaGenerationOperationBinding(
     throw new Error(
       `media generation endpoint accepts at most ${maxInputResources} input resources`
     )
+  }
+  if (request.operation === "image.generate") {
+    validateModelOptionValues(endpoint.model.generationOptions, request.options ?? null)
   }
   const requestBinding = {
     operation: request.operation,

@@ -17,6 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import { createRequire } from "node:module";
 import {
   auditPackagedDesktop,
   distributionRoot,
@@ -31,7 +32,7 @@ import {
   DESKTOP_PROOF_SAMPLE_COUNT,
   summarizeDesktopSamples,
 } from "./metrics.mjs";
-import { listenDesktopProofProvider } from "./provider-fixture.mjs";
+import { listenDesktopProofProvider, seedDesktopDirectImage } from "./provider-fixture.mjs";
 import { createDesktopPluginProofFixtures } from "./plugin-fixture.mjs";
 import { createPackagedServer } from "./packaged-server.mjs";
 import { writeDesktopFailureReport } from "./proof/failure-report.mjs";
@@ -42,6 +43,9 @@ import {
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID,
   WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
   WANEX_DESKTOP_PROOF_GOAL_CRITERION,
   WANEX_DESKTOP_PROOF_GOAL_FINAL_RESPONSE,
@@ -85,8 +89,11 @@ import {
 } from "../src/proof-contract.ts";
 
 const execFileAsync = promisify(execFile);
+const require = createRequire(import.meta.url);
 
 const DESKTOP_PROOF_ENVIRONMENT_KEYS = [
+  "WANEX_DESKTOP_E2E_EXECUTABLE",
+  "WANEX_DESKTOP_E2E_OUTPUT",
   "WANEX_DESKTOP_PROOF_RECEIPT",
   "WANEX_DESKTOP_PROOF_NORMAL_SCREENSHOT",
   "WANEX_DESKTOP_PROOF_NARROW_SCREENSHOT",
@@ -219,6 +226,7 @@ export async function proveDesktop() {
     }
     activeProviderRequestOffset = provider.requests.length;
     const relaunch = await proveDesktopRelaunchJourneys({
+      packageDir: installed.packageDir,
       executable,
       proofRoot,
       userDataDir,
@@ -464,6 +472,13 @@ export async function proveDesktopRelaunchJourneys(options) {
       WANEX_DESKTOP_PROOF_PROVIDER_BASE_URL: options.provider.baseUrl,
       WANEX_DESKTOP_PROOF_PROVIDER_CREDENTIAL: options.credential,
     });
+    const nativeDir = join(desktopResourcesDir(options.packageDir), "native");
+    const manifest = JSON.parse(await readFile(join(nativeDir, "runtime-artifacts.json"), "utf8"));
+    const target = manifest.targets.find((item) => item.platform === process.platform && item.arch === process.arch);
+    if (!target) throw new Error("Direct image fixture packaged native target is missing");
+    const directImage = await seedDesktopDirectImage({ userDataDir: options.userDataDir, profileId,
+      serviceBin: join(nativeDir, ...target.systemService.path.split("/")) });
+    await writeFile(join(options.proofRoot, "direct-image-fixture.json"), JSON.stringify(directImage));
     await runRelaunchStep("relaunch-chat");
     await runRelaunchStep("relaunch-remote-assistant", {
       WANEX_DESKTOP_PROOF_REMOTE_SERVER_URL: options.packagedServer.serverUrl,
@@ -501,6 +516,7 @@ export async function proveDesktopRelaunchJourneys(options) {
     await runRelaunchStep("relaunch-guided-follow-up");
     await runRelaunchStep("relaunch-side-query");
     await runRelaunchStep("relaunch-multimodal");
+    await runRelaunchStep("relaunch-image-understanding");
     await runRelaunchStep("relaunch-image-generation");
     await runRelaunchStep("relaunch-plan");
     await runRelaunchStep("relaunch-goal");
@@ -638,11 +654,18 @@ export async function proveDesktopRelaunchJourneys(options) {
       measured = await measureDesktopSample(
         () =>
           run(
-            options.executable,
-            environment,
+            step === "relaunch-chat" ? process.execPath : options.executable,
+            step === "relaunch-chat" ? {
+              ...environment,
+              WANEX_DESKTOP_E2E_EXECUTABLE: options.executable,
+              WANEX_DESKTOP_E2E_OUTPUT: join(options.proofRoot, "external-chat-results"),
+            } : environment,
             step.startsWith("relaunch-schedule-") ? 90_000 : 60_000,
             receiptPath,
-            { onStdout },
+            step === "relaunch-chat" ? {
+              args: [require.resolve("@playwright/test/cli"), "test", "--config",
+                join(workspaceRoot, "apps/desktop/acceptance/desktop.config.mjs")],
+            } : { onStdout },
           ),
         () => assertNoOwnedProcess(options.userDataDir),
       );
@@ -907,6 +930,10 @@ export function assertRelaunchJourneyFixtureRequests(requests, step) {
     assertImageGenerationFixtureRequests(requests);
     return;
   }
+  if (step === "relaunch-image-understanding") {
+    assertImageUnderstandingFixtureRequests(requests);
+    return;
+  }
   if (step === "relaunch-plan") {
     assertPlanFixtureRequests(requests);
     return;
@@ -1144,6 +1171,48 @@ function assertCancelRegenerateFixtureRequests(requests) {
   }
 }
 
+function assertImageUnderstandingFixtureRequests(requests) {
+  const [reader, described, editTool, editMedia, editFinal] = requests;
+  const retained = JSON.stringify(requests);
+  if (
+    requests.length !== 5 ||
+    reader?.authorized !== true ||
+    !reader.path.endsWith("/vision/chat/completions") ||
+    reader.model !== WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID ||
+    reader.mediaRoutingPhase !== "reader" ||
+    reader.imageInputCount !== 1 ||
+    reader.imageBytes !== 68 ||
+    described?.authorized !== true ||
+    !described.path.endsWith("/relaunch/chat/completions") ||
+    described.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    described.mediaRoutingPhase !== "primary_description" ||
+    described.imageInputCount !== 0 ||
+    described.imageBytes !== 0 ||
+    editTool?.authorized !== true ||
+    !editTool.path.endsWith("/relaunch/chat/completions") ||
+    editTool.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    editTool.mediaRoutingPhase !== "image_reference_tool_call" ||
+    editTool.imageInputCount !== 0 ||
+    editMedia?.authorized !== true ||
+    !editMedia.path.endsWith("/relaunch/images/edits") ||
+    editMedia.mediaRoutingPhase !== "image_reference_media" ||
+    editMedia.inputImageCount !== 1 ||
+    editMedia.inputImageBytes <= 0 ||
+    editFinal?.authorized !== true ||
+    !editFinal.path.endsWith("/relaunch/chat/completions") ||
+    editFinal.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+    editFinal.mediaRoutingPhase !== "image_reference_final" ||
+    editFinal.imageInputCount !== 0 ||
+    editFinal.imageBytes !== 0 ||
+    retained.includes(WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION) ||
+    retained.includes(WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT)
+  ) {
+    throw new Error(
+      `Desktop image understanding Provider requests are invalid: ${retained}`,
+    );
+  }
+}
+
 function assertImageGenerationFixtureRequests(requests) {
   const [toolCall, media, final] = requests;
   const retained = JSON.stringify(requests);
@@ -1169,8 +1238,8 @@ function assertImageGenerationFixtureRequests(requests) {
     !final.path.endsWith("/chat/completions") ||
     final.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
     final.imageGenerationPhase !== "final" ||
-    final.imageInputCount !== 1 ||
-    final.imageBytes !== 68 ||
+    final.imageInputCount !== 2 ||
+    final.imageBytes !== 136 ||
     JSON.stringify(final.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
     retained.includes(WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT) ||
     retained.includes(WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT) ||
@@ -1216,8 +1285,8 @@ function assertRemoteMediaFixtureRequests(requests) {
     !final.path.endsWith("/chat/completions") ||
     final.model !== WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID ||
     final.imageGenerationPhase !== "final" ||
-    final.imageInputCount !== 1 ||
-    final.imageBytes <= 0 ||
+    final.imageInputCount !== 2 ||
+    final.imageBytes !== 136 ||
     JSON.stringify(final.imageMediaTypes) !== JSON.stringify(["image/png"]) ||
     retained.includes(WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT) ||
     retained.includes(WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE) ||
@@ -1329,7 +1398,7 @@ export function assertRelaunchJourneyRuntimeReceipt(
   if (step === "relaunch-configure") {
     stepInvalid =
       renderer.initialConfiguredProviderCount !== 0 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.imageGenerationEndpointReady !== true ||
@@ -1341,8 +1410,15 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.conversationSubmitted !== true;
   } else if (step === "relaunch-chat") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      runtime.driver !== "playwright-cdp" ||
+      runtime.security?.packaged !== true ||
+      runtime.security?.sandbox !== true ||
+      runtime.security?.contextIsolation !== true ||
+      runtime.security?.nodeIntegration !== false ||
+      runtime.security?.webSecurity !== true ||
+      renderer.appearanceRestored !== true ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.modelId !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
@@ -1355,7 +1431,9 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.assistantVisible !== true ||
       renderer.responseVisible !== true ||
       renderer.followUpSessionPreserved !== true ||
-      renderer.followUpResponseVisible !== true;
+      renderer.followUpResponseVisible !== true ||
+      renderer.directImageRestored !== true ||
+      renderer.directImagePreviewVisible !== true;
   } else if (
     step === "relaunch-remote-media" ||
     step === "relaunch-remote-media-restore"
@@ -1507,8 +1585,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
           renderer.credentialResolvedAfterRelaunch !== true);
   } else if (step === "relaunch-cancel-regenerate") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1531,8 +1609,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.regenerationResponseVisible !== true;
   } else if (step === "relaunch-guided-follow-up") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1558,8 +1636,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.guidedParentCompletedWithoutCancellation !== true;
   } else if (step === "relaunch-side-query") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1583,8 +1661,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.sideQueryParentCompletedWithoutCancellation !== true;
   } else if (step === "relaunch-multimodal") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.modelId !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
@@ -1605,10 +1683,32 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.userVisible !== true ||
       renderer.assistantVisible !== true ||
       renderer.responseVisible !== true;
+  } else if (step === "relaunch-image-understanding") {
+    stepInvalid =
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
+      renderer.providerConfigured !== true ||
+      renderer.providerReady !== true ||
+      renderer.providerEvidenceRedacted !== true ||
+      renderer.modelId !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID ||
+      typeof renderer.sessionId !== "string" ||
+      renderer.sessionId.length === 0 ||
+      renderer.imageUnderstandingRouteSelected !== true ||
+      renderer.imageUnderstandingDescriptionUsed !== true ||
+      renderer.imageUnderstandingPrimaryNoImage !== true ||
+      renderer.imageUnderstandingConversationSubmitted !== true ||
+      renderer.imageEditConversationSubmitted !== true ||
+      renderer.imageEditToolSucceeded !== true ||
+      renderer.imageEditResourceEvidenceValid !== true ||
+      renderer.imageEditResourcePreviewVisible !== true ||
+      renderer.conversationSubmitted !== true ||
+      renderer.userVisible !== true ||
+      renderer.assistantVisible !== true ||
+      renderer.responseVisible !== true;
   } else if (step === "relaunch-image-generation") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1627,8 +1727,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.generatedResourcePreviewVisible !== true;
   } else if (step === "relaunch-plan") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1649,8 +1749,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
       renderer.planProposalRevision !== 2;
   } else if (step === "relaunch-goal") {
     stepInvalid =
-      renderer.initialConfiguredProviderCount !== 1 ||
-      renderer.configuredProviderCount !== 1 ||
+      renderer.initialConfiguredProviderCount !== 2 ||
+      renderer.configuredProviderCount !== 2 ||
       renderer.providerConfigured !== true ||
       renderer.providerReady !== true ||
       renderer.providerEvidenceRedacted !== true ||
@@ -1927,8 +2027,8 @@ export function assertRelaunchJourneyRuntimeReceipt(
   } else if (step === "relaunch-cleanup") {
     stepInvalid =
       (options.allowAlreadyClean === true
-        ? ![0, 1].includes(renderer.initialConfiguredProviderCount)
-        : renderer.initialConfiguredProviderCount !== 1) ||
+        ? ![0, 2].includes(renderer.initialConfiguredProviderCount)
+        : renderer.initialConfiguredProviderCount !== 2) ||
       renderer.configuredProviderCount !== 0 ||
       renderer.cleanupCompleted !== true ||
       renderer.credentialCleanupPending !== false ||
@@ -2012,7 +2112,7 @@ function run(command, environment, timeoutMs, receiptPath, behavior = {}) {
     let settled = false;
     let stdout = "";
     let stderr = "";
-    const child = spawn(command, [], {
+    const child = spawn(command, behavior.args ?? [], {
       env: createDesktopProofProcessEnvironment(process.env, environment),
       stdio: ["ignore", "pipe", "pipe"],
       detached: process.platform !== "win32",

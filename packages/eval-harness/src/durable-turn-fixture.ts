@@ -101,6 +101,7 @@ export async function settleEvalTurn(
   assistantMessage: readonly MessagePart[]
 ): Promise<void> {
   const invocation = await session.beginProviderInvocation({
+      inputResources: [],
     ...turn.identity,
     step: 1,
     invocationNumber: 1,

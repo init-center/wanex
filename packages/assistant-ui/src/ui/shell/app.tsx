@@ -16,7 +16,6 @@ import {
   type ClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { conversationModelEndpoints } from "../../application/conversation/endpoints.js";
 import type {
@@ -27,7 +26,7 @@ import type {
   AppProps,
   Client,
 } from "../../client/contracts.js";
-import { SettingsPanel } from "../settings/panel.js";
+import { SettingsPage } from "../settings/page.js";
 import { WorkflowsPanel } from "../workflows/panel.js";
 import { CommandPalette } from "../commands/palette.js";
 import { useFocusBoundary } from "../shared/focus-boundary.js";
@@ -48,7 +47,7 @@ import {
   placeholder as composerPlaceholder,
   type ComposerMode,
 } from "../composer/model.js";
-import { ContextPanel } from "../context/panel.js";
+import { TeamContext } from "../team/context.js";
 import {
   ConversationTimeline,
   EmptyGreeting,
@@ -81,7 +80,6 @@ function AppView({
   client,
   initialSnapshot,
   openSettingsRequest,
-  onModalStateChange,
   onThemeChange,
   headerActions,
   navigationFooter,
@@ -123,7 +121,7 @@ function AppView({
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
   const sessionDrawerRef = useRef<HTMLElement | null>(null);
   const sessionReturnFocusRef = useRef<HTMLElement | null>(null);
-  const settingsOverlayRef = useRef<HTMLElement | null>(null);
+  const settingsPageRef = useRef<HTMLElement | null>(null);
   const settingsReturnFocusRef = useRef<HTMLElement | null>(null);
   const commandReturnFocusRef = useRef<HTMLElement | null>(null);
 
@@ -175,9 +173,11 @@ function AppView({
   useEffect(() => {
     if (!showSessions && !showSettings) return;
     function closeTopLayer(event: KeyboardEvent): void {
-      if (event.key !== "Escape") return;
+      if (event.key !== "Escape" || event.defaultPrevented) return;
       if (showSettings) {
-        if (settingsOverlayRef.current?.parentElement?.querySelector("[data-ui-settings-subdialog]")) return;
+        // Escape belongs to whatever layered control is open inside Settings first.
+        if (hasOpenSettingsLayer(settingsPageRef.current?.parentElement)) return;
+        if (event.target instanceof Element && event.target.closest(LAYERED_CONTROL) !== null) return;
         setShowSettings(false);
         return;
       }
@@ -187,14 +187,6 @@ function AppView({
     return () => document.removeEventListener("keydown", closeTopLayer);
   }, [showSessions, showSettings]);
 
-  useEffect(() => {
-    onModalStateChange?.(
-      showSettings
-        ? { active: true, kind: "settings" }
-        : { active: false },
-    );
-  }, [onModalStateChange, showSettings]);
-
   const sessionFocusBoundary = useFocusBoundary({
     active: showSessions,
     containerRef: sessionDrawerRef,
@@ -203,7 +195,7 @@ function AppView({
   });
   const settingsFocusBoundary = useFocusBoundary({
     active: showSettings,
-    containerRef: settingsOverlayRef,
+    containerRef: settingsPageRef,
     returnFocusRef: settingsReturnFocusRef,
     initialFocusSelector: "[data-ui-initial-focus]",
   });
@@ -415,7 +407,7 @@ function AppView({
   }
 
   function closeSettingsPanel(): void {
-    if (shellElement?.querySelector("[data-ui-settings-subdialog]")) return;
+    if (hasOpenSettingsLayer(shellElement)) return;
     setShowSettings(false);
   }
 
@@ -581,7 +573,7 @@ function AppView({
         : { "data-ui-operation-id": conversation.operationId })}
     >
       <div
-        className={classes(`layout ${showSessions ? "is-sidebar-open" : ""} ${sidebarCollapsed ? "is-sidebar-collapsed" : ""}`)}
+        className={classes(`layout ${showSessions ? "is-sidebar-open" : ""} ${sidebarCollapsed ? "is-sidebar-collapsed" : ""} ${showSettings ? "is-behind-settings" : ""}`)}
         data-ui-layout
         data-ui-sidebar-open={showSessions ? "true" : "false"}
         data-ui-sidebar-collapsed={sidebarCollapsed ? "true" : "false"}
@@ -633,10 +625,13 @@ function AppView({
             openSessions={openSessionNavigation}
             toggleSidebar={() => setSidebarCollapsed((current) => !current)}
             reconnectStream={retrySnapshot}
-            toggleContext={() => {
-              setShowWorkflows(false);
-              setShowContext((current) => !current);
-            }}
+            {...(teamSelected ? {
+              groupDetailsOpen: showContext,
+              toggleGroupDetails: () => {
+                setShowWorkflows(false);
+                setShowContext((current) => !current);
+              },
+            } : {})}
             actions={headerActions}
           />
           {snapshotError === undefined ? null : (
@@ -676,7 +671,6 @@ function AppView({
                     snapshot={snapshot}
                     dispatch={dispatch}
                     onSelectPrompt={selectQuickStart}
-                    onOpenSettings={() => openSettingsPanel()}
                   />
                 </div>
               ) : composerDock}
@@ -690,8 +684,8 @@ function AppView({
             dispatch={dispatch}
             onClose={() => setShowWorkflows(false)}
           />
-        ) : showContext ? (
-          <ContextPanel
+        ) : showContext && teamSelected ? (
+          <TeamContext
             snapshot={snapshot}
             dispatch={dispatch}
             pendingActionTypes={pendingActionTypes}
@@ -700,38 +694,31 @@ function AppView({
         ) : null}
       </div>
       {showSettings ? (
-        <div
-          ref={settingsOverlayRef as RefObject<HTMLDivElement>}
-          className={classes("overlay")}
-          data-ui-settings-overlay
+        <SettingsPage
+          pageRef={settingsPageRef}
+          client={client}
+          snapshot={snapshot}
+          dispatch={dispatch}
+          dispatchResult={dispatchResult}
+          refreshError={snapshotError}
+          refreshing={snapshotRetrying}
+          retryRefresh={retrySnapshot}
+          onboarding={snapshot.view.providerRunGate.attentionRequired}
+          onSnapshot={adoptArrivedSnapshot}
+          onError={setError}
+          onClose={closeSettingsPanel}
           onKeyDown={settingsFocusBoundary.handleKeyDown}
-        >
-          <button
-            type="button"
-            className={classes("overlay-backdrop")}
-            data-ui-settings-dismiss
-            aria-label="Close settings"
-            tabIndex={-1}
-            onClick={closeSettingsPanel}
-          />
-          <SettingsPanel
-            client={client}
-            snapshot={snapshot}
-            dispatch={dispatch}
-            dispatchResult={dispatchResult}
-            refreshError={snapshotError}
-            refreshing={snapshotRetrying}
-            retryRefresh={retrySnapshot}
-            onboarding={snapshot.view.providerRunGate.attentionRequired}
-            onSnapshot={adoptArrivedSnapshot}
-            onError={setError}
-            onClose={closeSettingsPanel}
-          />
-        </div>
+        />
       ) : null}
     </main>
     </PortalContainerProvider>
   );
+}
+
+const LAYERED_CONTROL = '[role="listbox"], [role="menu"], [role="dialog"], [role="alertdialog"]';
+
+function hasOpenSettingsLayer(root: ParentNode | null | undefined): boolean {
+  return root?.querySelector('[data-ui-settings-subdialog], [role="alertdialog"]') != null;
 }
 
 function isWorkflowActionType(type: Action["type"]): boolean {

@@ -295,17 +295,24 @@ export async function runWanexDesktopPluginInstallProof(
     opener: HTMLButtonElement,
   ): Promise<HTMLElement> {
     opener.click();
+    const nav = await waitForDom(() => {
+      const candidate = surface.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="extensions"]',
+      );
+      return candidate instanceof HTMLButtonElement ? candidate : undefined;
+    }, 10_000, "settings_open");
+    nav.click();
     return await waitForDom(() => {
       const panel = surface.querySelector("[data-ui-settings-panel]");
       const extensions = panel?.querySelector("[data-ui-extension-settings]");
       return panel instanceof HTMLElement && extensions instanceof HTMLElement
         ? panel
         : undefined;
-    }, 10_000, "settings_open");
+    }, 10_000, "settings_extensions");
   }
 
   function closeSettings(settings: HTMLElement): void {
-    const close = settings.querySelector('button[aria-label="Close settings"]');
+    const close = settings.querySelector('[data-ui-action="close-settings"]');
     if (!(close instanceof HTMLButtonElement)) {
       throw new Error("Plugin proof settings close control is unavailable");
     }
@@ -586,6 +593,13 @@ export async function runWanexDesktopPluginRestoreProof(
   }, 10_000, "restore_assistant_ready");
   const journeyPreparation = performance.now() - startedAt;
   surface.settings.click();
+  const restoreNav = await waitForDom(() => {
+    const candidate = surface.candidate.querySelector(
+      '[data-ui-settings-panel] [data-ui-settings-nav="extensions"]',
+    );
+    return candidate instanceof HTMLButtonElement ? candidate : undefined;
+  }, 10_000, "restore_settings_nav");
+  restoreNav.click();
   let settings = await waitForDom(() => {
     const panel = surface.candidate.querySelector("[data-ui-settings-panel]");
     return panel instanceof HTMLElement &&
@@ -663,6 +677,13 @@ export async function runWanexDesktopPluginRestoreProof(
 
   async function openSettings(): Promise<HTMLElement> {
     surface.settings.click();
+    const nav = await waitForDom(() => {
+      const candidate = surface.candidate.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="extensions"]',
+      );
+      return candidate instanceof HTMLButtonElement ? candidate : undefined;
+    }, 10_000, "restore_settings_reopen_nav");
+    nav.click();
     return await waitForDom(
       () => {
         const panel = surface.candidate.querySelector("[data-ui-settings-panel]");
@@ -677,7 +698,7 @@ export async function runWanexDesktopPluginRestoreProof(
   }
 
   function closeSettings(): void {
-    const close = settings.querySelector('button[aria-label="Close settings"]');
+    const close = settings.querySelector('[data-ui-action="close-settings"]');
     if (!(close instanceof HTMLButtonElement)) {
       throw new Error("Plugin restore settings close control is unavailable");
     }

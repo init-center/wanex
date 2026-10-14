@@ -2340,6 +2340,9 @@ pub struct ProviderInvocationRecord {
     pub invocation_number: i64,
     pub execution_binding_digest: String,
     pub request_digest: String,
+    pub input_resources: Vec<ResourceInputEvidence>,
+    pub response_checkpoint: Option<Value>,
+    pub response_digest: Option<String>,
     pub state: String,
     pub output_observed: bool,
     pub provider_request_id: Option<String>,
@@ -2584,6 +2587,22 @@ pub struct BeginProviderInvocation {
     pub step: i64,
     pub invocation_number: i64,
     pub request_digest: String,
+    pub input_resources: Vec<ResourceInputEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CheckpointProviderInvocation {
+    pub session_id: String,
+    pub turn_id: String,
+    pub attempt_id: String,
+    pub input_id: String,
+    pub job_id: String,
+    pub worker_id: String,
+    pub lease_token: String,
+    pub invocation_id: String,
+    pub provider_request_id: Option<String>,
+    pub response: Value,
+    pub response_digest: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -3221,6 +3240,17 @@ pub struct ResourceInputEvidence {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ResourceProvenanceCause {
+    ImageNormalization {
+        #[serde(alias = "normalizationKey")]
+        normalization_key: String,
+        policy: String,
+    },
+    ProviderOutput {
+        #[serde(alias = "invocationId")]
+        invocation_id: String,
+        #[serde(alias = "partId")]
+        part_id: String,
+    },
     ToolExecution {
         #[serde(alias = "executionId")]
         execution_id: String,
@@ -3236,6 +3266,16 @@ pub enum ResourceProvenanceCause {
     MediaGeneration {
         #[serde(alias = "operationId")]
         operation_id: String,
+    },
+    /// A cached text description of one image, produced by an
+    /// image-understanding endpoint for a model that cannot see images.
+    ImageDescription {
+        #[serde(alias = "descriptionKey")]
+        description_key: String,
+        #[serde(alias = "endpointDigest")]
+        endpoint_digest: String,
+        #[serde(alias = "promptVersion")]
+        prompt_version: String,
     },
 }
 
@@ -3262,6 +3302,27 @@ pub struct ListResourceProvenance {
     pub cause_kind: Option<String>,
     pub cause_id: Option<String>,
     pub limit: Option<i64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImagePreparationMode {
+    Normalize,
+    Preserve,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PrepareImageResource {
+    pub resource: ResourceInputEvidence,
+    pub mode: ImagePreparationMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PreparedImageResource {
+    pub resource: ResourceRecord,
+    pub width: u32,
+    pub height: u32,
+    pub transformed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

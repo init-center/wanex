@@ -1,3 +1,4 @@
+import { validateModelOptionValues } from "@wanex/protocol"
 import type {
   AcceptMediaGenerationOperationRequest,
   BeginMediaGenerationOperationRequest,
@@ -321,6 +322,9 @@ function expectBinding(value: JsonValue): MediaGenerationOperationBinding {
     "media generation.binding.request"
   )
   const operation = expectMediaGenerationOperation(requestRecord.operation)
+  if (operation === "image.generate") {
+    validateModelOptionValues(modelEndpoint.model.generationOptions, requestRecord.options!)
+  }
   const outputModality = expectMediaGenerationOutputModality(
     requestRecord.outputModality
   )
@@ -350,12 +354,6 @@ function expectBinding(value: JsonValue): MediaGenerationOperationBinding {
     },
     "media generation.binding.modelEndpoint"
   )
-  if (
-    operation === "image.edit" &&
-    !inputModalities.includes("image")
-  ) {
-    throw new Error("image.edit requires an image input resource")
-  }
   const maxInputResources = modelEndpoint.model.limits?.maxInputResources
   if (
     maxInputResources !== undefined &&
@@ -405,7 +403,6 @@ function expectMediaGenerationOperation(
   )
   if (
     operation !== "image.generate" &&
-    operation !== "image.edit" &&
     operation !== "video.generate" &&
     operation !== "audio.synthesize"
   ) {

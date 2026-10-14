@@ -1,7 +1,7 @@
 import {
   MissingRequiredProviderStateError,
   OpenAICompatibleAdapter,
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderFetch
 } from "@wanex/runtime/provider"
 import { createEvalScenario } from "./runner.js"
@@ -73,7 +73,7 @@ export const providerDeepSeekThinkingFidelityScenario = createEvalScenario({
       apiKey: "secret",
       fetch: deepSeekFixtureFetch()
     })
-    const normalized = await consumeProviderStream({
+    const normalized = await consumeTextProviderStream({
       provider: adapter,
       request: { messages: [] }
     })

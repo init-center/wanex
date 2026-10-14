@@ -72,6 +72,18 @@ export function normalizeModelCapabilityRouteExecutionBindings(
   )
 }
 
+/**
+ * The auxiliary endpoint that describes images for a conversation model that
+ * cannot see them. It is the only `conversation` capability route a Turn may
+ * carry, and it is always an explicit user choice.
+ */
+export const IMAGE_UNDERSTANDING_REQUIREMENT = {
+  operation: "conversation",
+  inputModalities: ["text", "image"],
+  outputModalities: ["text"],
+  features: []
+} as const satisfies ModelCapabilityRequirement
+
 export function findModelCapabilityRouteExecutionBinding(
   bindings: readonly ModelCapabilityRouteExecutionBinding[],
   requirement: ModelCapabilityRequirement

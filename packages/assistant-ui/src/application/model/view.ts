@@ -154,6 +154,8 @@ export interface ViewModel {
   readonly conversationAttachmentCanUpload: boolean
   readonly conversationAttachmentAccept: string
   readonly conversationAttachmentMessage: string
+  /** The model that describes attached images for a text-only active model. */
+  readonly conversationImagesDescribedBy?: string
   readonly transientAssistantText?: string
   readonly latestAssistantText?: string
   readonly latestUserText?: string
@@ -196,6 +198,8 @@ export interface PluginSettingsViewModel {
 
 export interface ProfileSettingsViewModel {
   readonly activeModelEndpointId?: string
+  /** The endpoint that reads images for models that cannot see them. */
+  readonly imageUnderstandingEndpointId?: string
   readonly agentContextConfigured: boolean
   readonly agentContextRevision: number
   readonly readiness: ProviderReadinessViewModel

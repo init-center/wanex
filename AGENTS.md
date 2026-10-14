@@ -24,12 +24,251 @@ The implementation must proceed from the bottom of the architecture upward:
 
 Do not pull upper-layer concerns into lower-layer packages.
 
-## Authoritative Current Route (Revised 2026-10-08)
+## Authoritative Current Route (Revised 2026-10-14)
+
+Implementation/1772 and 1773 prepare consolidated Linux/Windows acceptance.
+Manual targets=linux-windows retains full Linux source/security and Node24 SDK
+gates; default/push/PR keep the four-platform release matrix. Both existing
+Windows entry points explicitly build the debug service, run Rust tests and
+the Runtime execution-environment suite before release staging and installation.
+Local workflow lint, 40 packaging constraints, three preflight tests, 36 Runtime
+tests (one existing Windows conditional skip) and 12 native focused tests pass.
+No product UI, process policy, deadline, dependency or schema changed here.
+The user explicitly authorizes this snapshot commit/push and exactly one manual
+consolidated run, using [skip ci] to avoid a duplicate automatic run. Preserve
+styles.module.css-E locally and exclude it from the commit. Record actual SHA,
+run and target results in 1773; preparation is not cross-platform acceptance.
+Do not retry failures or dispatch another workflow without new authorization.
+
+Implementation/1770 and 1771 complete footprint-report cleanup and the verified
+native zombie-membership correction locally. Facade bytes/input counts now report deltas;
+dependency boundary failures remain enforced. Refreshing measurements cannot
+authorize dependencies. Functional/security/installed-product gates remain.
+The native supervisor now distinguishes exited/unreaped members from live or
+stopped members, keeps probe failures conservative, and enumerates only after
+the root exits. A controlled real-process regression failed before and passed
+after at the same 30ms grace. The old 1767 event lacks cleanupError, so its unique
+cause remains unproven; do not equate passing reruns with historical attribution.
+The remote-media installed driver now requires successful settlement and submit
+mode before the next ordinary message, plus a render boundary after controlled
+input. Product UI behavior and acceptance deadlines are unchanged.
+Final frozen-source verify and installed Desktop passed: Rust 196, Runtime 520
+plus one existing platform skip, Eval 64/64, 31 SDK entries/four consumers and
+41 authorized Desktop fixture requests. Evidence is in 1771. No new package,
+dependency, schema, retry, timeout increase, commit/push or Actions dispatch.
+
+Implementation/1766 and 1767 freeze M5 measurement and image preparation policy.
+The native Rust implementation was selected by same-code native/WASM benchmarks,
+not by assumption. M5 implementation is complete locally: resource-owned preparation,
+bounded image worker lane, exact signed replay, original tool reference identity
+and derived provider evidence. Store baseline is now 26; preserve all older Stores
+and require an explicit new profile. No migration or automatic reset.
+The user approved measured M5 facade budgets of Runtime 563259 and App 1519187
+bytes, with all other constraints unchanged. Subsequent full-suite testing found
+FIFO response pairing incompatible with the image worker lane. Pair persistent
+responses by request_id; never serialize away or retry this correctness failure.
+The user subsequently approved the measured transport fix: Runtime 563919 and
+App 1519847 bytes. Normal feature-related footprint updates no longer require
+per-change owner approval: inspect the dependency closure, measure and document
+the exact change. Do not conflate byte-budget policy with functional, security,
+dependency-boundary or installed-artifact acceptance. A follow-up review should
+replace byte-exact facade gating with useful growth reporting, not disable tests.
+The frozen M5 snapshot passed full pnpm verify and native Desktop installed
+acceptance; see 1768. Runtime 520 tests plus one existing platform skip, Rust 193,
+Eval 64/64, SDK 31 entries/four consumers and 41 authorized Desktop fixture
+requests passed. No Windows or paid live-provider acceptance is implied.
+The earlier native process cleanup failure lacks unique historical attribution;
+1770/1771 supersede its investigation status with a verified zombie-membership
+fix, not a claim that every possible cleanup failure is resolved. The 1769
+verification-policy plan is implemented; functional and security checks remain.
+
+Implementation/1757 is the authorized testing consolidation route. T1 is complete
+locally; see 1758. The full default verify gate passes with explicit source/artifact
+suites. The packaged Server workspace scenario and its release-build preparation
+now live in Desktop installed acceptance. All business assertions, deadlines and
+platform workflow obligations are preserved; Desktop has 152 package tests plus
+1 installed scenario. Source-only success is not full acceptance.
+Do not build another test framework or add packages. T2 maps one Desktop UI
+journey to an external driver; see 1759 and 1760. Playwright 1.64.0 is a Desktop
+dev dependency. Packaged Electron 43.7.8 and a hidden delayed-navigation sample
+reproduce early target attachment failure, not a demonstrated product renderer
+crash. Observe real navigation, then attach once through public connectOverCDP;
+do not import Playwright's private loader or patch product startup/security.
+The first full external installed proof passed before the old relaunch-chat
+renderer driver was removed. Post-removal full verify and installed Desktop
+proof both passed locally: Desktop 159 package tests, 1 installed Server
+scenario, all original gates and 41 authorized Desktop Provider requests.
+No additional skip, relaxed baseline/deadline or retry was introduced.
+Default verify remains background/non-GUI; explicit native Desktop acceptance
+may show windows. Hidden windows cannot replace native focus/OS evidence.
+T2 is limited to this one scenario; T3/T4 are value-gated, not automatic M4 blockers.
+No UI edits, baseline relaxation, retries, commit/push or Actions dispatch.
+Implementation/1761 freezes M4's Protocol proposal; 1762 closes its design stage.
+Implementation/1764 supersedes the historical 1763 progress below: M4's durable
+implementation, Gemini conversation adapter, replay projection, real-process
+crash tests and installed acceptance are implemented. Store baseline is 25;
+preserve older Stores and require an explicitly selected new profile. Native
+fixture failures were startup/readiness and non-atomic PID publication races,
+not a reason to extend deadlines or add retries. M4 uses the existing invocation
+journal, resources and ToolBatch; no new table, package, scheduler or UI surface.
+Implementation/1765 records the final dependency review and explicit user approval
+of only these measured facade budgets: Runtime 560185 bytes, App 1516129 bytes
+and 489 inputs. No extra headroom; all other audit constraints remain unchanged.
+M4 is complete locally: consolidated full verify passed, with final stream-fix
+Runtime checks and 515 passing tests (one existing Windows-only conditional skip),
+the approved facade audit, 176 Rust tests, 64 Eval scenarios, 31 SDK API entries,
+four external consumers, installed Server/TUI and Desktop acceptance evidence.
+See 1764 for exact snapshot timing and retained failure logs. No current-source
+Windows acceptance or paid provider request has been run. M5 is next and remains
+separately measurement-gated: image decode/pixel bounds, normalization semantics,
+signed replay preservation and Rust/WASM artifact cost before dependencies.
+The 1763 paragraphs below are historical failure evidence, not current blockers:
+Implementation/1763 implements the bounded stream portion of M4-B, not M4 completion:
+typed inline candidates, separate sanitized observations, explicit adapter output
+modalities, text-only auxiliary consumers, strict image/SSE limits and observed-output
+cancellation evidence. The generic stream returns transient candidates; the main
+Turn remains text-only until durable publication exists. All current adapters
+declare text output only. No schema change yet. The full verify command stops at
+the unchanged App facade budget: 1494813 bytes versus 1488099 (6714 over); Runtime
+539934/273 and App 487 inputs retain the same workspace package closure. Do not
+change that budget without a separate decision or claim the whole gate passed.
+The user permits a separate budget decision after M4 implementation and final
+dependency-closure review. This is not approval for a new byte limit or advance
+baseline relaxation. Continue implementation under the existing checks, retain
+growth evidence, and present the final measured budget for explicit review.
+The last 1763 Runtime run also has an unresolved native process-tree timeout
+fixture failure: timeout/cleanup assertions passed but PID stdout JSON was absent.
+Keep 1763-runtime-acceptance.log; do not overwrite this with the earlier 484-pass
+run, extend 300ms, add retries or claim descendant cleanup was proven in that run.
+Next finish M4-B's durable portion, then M4-C/D within that bounded route:
+an output_ready checkpoint in the
+existing provider invocation journal, exact provider_output provenance and
+lease-fenced atomic publication/recovery. No new table, scheduler, package or
+compatibility reader. Ephemeral/compaction/description calls remain text-only;
+raw media and signatures must not leak through public observers. First real
+wire adapter is Gemini GenerateContent, not a guessed OpenAI image extension.
+Remote output URL/file materialization and M5 normalization are out of scope.
+Advance baseline 24 to 25 only with the actual durable contract implementation;
+preserve old Stores and require an explicitly chosen new profile.
+T2 acceptance is macOS arm64 evidence; current-source Windows was not run.
+
+Implementation/1755 supersedes the pending M3-C acceptance investigation below.
+The user authorized root-cause correction and corrected acceptance runs, not
+baseline changes, timeout increases or unchanged flaky retries. Optional media
+workers are now explicitly composed through `createMediaGenerationCapability`;
+default Runtime/App depend on pure bindings, not concrete media workers or
+provider adapters. Model descriptor contract validation is shared in Protocol,
+with canonical durable evidence still checked by Storage. Desktop installed
+acceptance (moved out of package tests by T1) prepares and audits a current-source
+release Server artifact before Vitest;
+the original 120-second workspace scenario is unchanged. A measured release
+build took 142.46 seconds, while the corrected packaged scenario passed in
+6.98 seconds. Artifact preparation uses a unique owned target directory,
+which is preserved on failure. The first full run passed both original gates,
+Desktop 153/153 and external SDK consumers, then exposed a TUI proof-driver
+selection defect: fixed Down navigation selected image-understanding settings
+when hashed fixture endpoint ordering put the secondary model above the primary.
+The driver now uses the fixture's exact sorted identity to choose Up or Down;
+both orders have regressions. Product TUI and deadlines are unchanged.
+Corrected full verification passed with exit 0: all package tests, unchanged
+audits, 31 SDK entries, 4 external consumers, installed TUI proof, SDK
+determinism, 176 Rust tests plus formatting/Clippy, and 64/64 Eval scenarios.
+See 1755 plan and 1756 completion. This bounded correction is closed locally;
+M4 still requires its separately frozen Protocol proposal before implementation.
+No UI change, migration, additional SDK entry or package is authorized here.
+
+Implementation/1740–1745 complete the current settings, media-generation and
+visual-understanding work locally; all related focused tests pass and the
+changes remain uncommitted. Implementation/1746 is the handoff and records the
+remaining P0/P1/P2 work. Implementation/1747 made side queries and the TUI
+model picker reuse the explicitly configured image-understanding route when the
+selected model cannot read images. Implementation/1748 completes installed
+Desktop proof for explicit image understanding and reference-image generation,
+while preserving the existing multimodal, image-generation, remote-media,
+Plan/Goal and plugin proofs. Implementation/1750 is complete locally:
+`image.generate` and `image_generate` are the single image generation contract;
+reference images are optional inputs selected by the frozen model's
+`inputModalities`. The Store baseline advanced from 22 to 23. Existing Stores
+remain preserved and are rejected at startup; a new explicit Desktop profile
+creates a fresh Store. No migration, dual-read, alias or automatic reset was
+added. Completion details are in
+`implementation/1750-unify-image-generation-completion.md`.
+Implementation/1751-A adds independent Gemini, Volcengine Seedream and
+OpenRouter image adapters to the runtime and registers them in Assistant Host.
+Implementation/1752 completes independent media provider profiles and explicit
+`image.generate` route setup through the trusted Host transport. Media-only
+profiles are excluded from the conversation-provider route; saving a media
+profile does not auto-select it. Do not extend the conversation-provider form
+with provider-specific image flags, add fallback/probing/polling, or modify
+the UI in this route. Implementation/1754 (M3-C) now persists bounded scalar
+`generationOptions` in the model descriptor and endpoint digest, projects the
+frozen route into `image_generate`, and validates options before credentials
+or provider dispatch. Unknown models and OpenRouter without a pinned serving
+endpoint expose no optional parameters. Store baseline is now 24; preserve
+and reject older Stores and explicitly start a fresh profile. No migration,
+dual reader or automatic reset. Details and the independent verification
+results are in `implementation/1754-media-model-option-catalog-completion.md`.
+The three redundant M3-A SDK subpaths are removed; use the existing
+`@wanex/runtime/media-generation` entry. SDK surface remains 31 entries.
+Implementation/1753 Step 1 has completed the source inventory only. Before
+any M4 code change, freeze the bounded provider-output event, materialization checkpoint,
+provenance and replay proposal. Do not bypass either route by adding
+provider-specific image fields directly to Session.
+Media proof conversations are isolated and restore the prior session so
+resource projection cannot contaminate later proof stages.
+Resolve that route once at side-query start; never auto-select another model,
+poll for configuration, or move media ownership into UI. Do not modify the
+facade footprint baseline or audit policy without an explicit budget decision.
+Do not automatically commit, push or dispatch Actions. Keep the untracked
+`packages/assistant-ui/src/ui/primitives/styles.module.css-E` backup unchanged.
+
+Historical 1754 evidence (superseded by 1755/1756 root-cause corrections):
+the facade audit remained strict and reported
+only reviewed-closure growth: runtime `572333` bytes/287 inputs versus the
+baseline `556601`/279, and app `1523366` bytes/497 inputs versus
+`1488099`/487. The workspace package closure is unchanged. Record this as a
+an unresolved blocker then. The corrected default closures now pass the same
+baseline; do not rewrite it or weaken input/byte checks. Independent passing
+tests never waive a failing complete gate.
+The M3-C full package run also reproduced the known packaged Server test
+timeout: Desktop 152 passed, 1 failed. Retained evidence places that failure in
+pre-start artifact/native staging. 1755 measured release compilation at 142.46s
+and removed it from the 120s behavioral clock without skipping it. The exact
+timing of that historical run remains unconfirmed. Do not retry unchanged
+failures, increase deadlines or replace failure evidence with later passes.
+SDK artifact build/proof workflows share `target/sdk` and must run serially.
+
+P1 after 1748 is complete for installed Desktop image understanding/image edit.
+The former 1749 per-model image-edit capability route is stopped and replaced
+by implementation/1750: unify image generation, express reference-image input
+through `inputModalities`, and remove `image.edit`/`image_edit` without a
+compatibility path. M4 native image outputs and M5 image normalization each
+require a separate plan and budget measurement before implementation.
+
+Historical route entries below remain evidence records and are not renewed
+authorizations.
+
+Implementation/1736 completes the authorized snapshot push and exactly one
+successful Windows run at fdcee29. That authorization is consumed. The current
+bounded follow-up implementation/1737 is complete locally in implementation/1738:
+platform-neutral Desktop local copy, proper React act test environment and
+maintained fixed pnpm setup Action. Current-source full verify, installed
+Desktop/native and unchanged distribution budgets pass. Preserve the original
+failed verify and diagnostic samples; one RPC timeout is directly correlated
+with system sleep, not a confirmed production scheduler defect. No timeout,
+retry or success-count relaxation was made. Full JS security still fails on
+the known moderate SDK-tooling advisory. Native-frame evidence remains partial.
+The sole next bounded correction is implementation/1739: isolate rejected
+handlers/invalid JSON in the existing Eval HTTP fixture. Do not introduce a new
+production backend route or claim all historical intermittency explained.
+Do not automatically commit, push or dispatch another Actions run. New source
+does not inherit the preceding SHA's Windows acceptance. Keep the CSS backup
+untouched, existing security failures visible and all acceptance budgets intact.
 
 Implementation/1733 and implementation/1734 record partial native macOS window
 observations, not completed traffic-light or dark-frame visual acceptance.
 Implementation/1735 freezes exactly one manual Windows installed acceptance.
-The user explicitly authorized committing and pushing the verified complete
+The user explicitly authorized, for that completed phase, committing and pushing the verified complete
 source snapshot and dispatching that one run. Use an automatic-CI skip marker
 on the snapshot commit, preserve the existing release/security workflow, and
 dispatch only windows-installed.yml. Do not automatically rerun a failed or

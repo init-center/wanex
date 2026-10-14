@@ -814,7 +814,7 @@ interface MediaGenerationConversationRelation {
 }
 
 // @public (undocumented)
-type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
 
 // @public (undocumented)
 interface MediaGenerationOperationBinding {
@@ -1028,6 +1028,8 @@ interface ModelDescriptor {
     // (undocumented)
     readonly features: readonly ModelFeature[];
     // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly inputModalities: readonly ModelInputModality[];
@@ -1084,7 +1086,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -1203,6 +1225,8 @@ interface PreparedProviderReplayMessage {
     // (undocumented)
     readonly content: readonly PreparedProviderReplayPart[];
     // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
+    // (undocumented)
     readonly role: ProviderReplayMessage["role"];
 }
 
@@ -1213,6 +1237,8 @@ type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart | Too
 interface PreparedProviderResourcePart extends ResourceMessagePart {
     // (undocumented)
     readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -1228,6 +1254,8 @@ interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePart, "co
 interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
     // (undocumented)
     readonly bytes?: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -1263,6 +1291,8 @@ interface ProviderProtocolDescriptor {
 interface ProviderReplayMessage {
     // (undocumented)
     readonly content: readonly MessagePart[];
+    // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
     // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
 }

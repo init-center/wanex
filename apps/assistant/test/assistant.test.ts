@@ -1370,6 +1370,7 @@ describe("@wanex/assistant", () => {
       })
 
       const invocation = await storage.beginProviderInvocation({
+      inputResources: [],
         sessionId,
         turnId: submitted.turn.id,
         attemptId: started.attempt.id,
@@ -1831,6 +1832,7 @@ describe("@wanex/assistant", () => {
         "listModelEndpoints",
         "readAssistantCommands",
         "setActiveModelEndpoint",
+        "setImageUnderstandingEndpoint",
         "dispatchAssistantCommand",
         "dispatchAssistantCommandJson",
         "previewAssistantCommandInvocation",
@@ -2727,7 +2729,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 82
+          commandCount: 83
         }
       })
       const commandCatalog = await client.readAssistantCommands({
@@ -2964,7 +2966,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 82
+          commandCount: 83
         }
       })
 
@@ -3107,7 +3109,7 @@ describe("@wanex/assistant", () => {
         ok: true,
         value: {
           kind: "assistant.surface-descriptor",
-          commandCount: 82
+          commandCount: 83
         }
       })
       expect(selected).toMatchObject({

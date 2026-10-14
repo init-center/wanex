@@ -25,6 +25,24 @@ afterEach(async () => {
 })
 
 describe("installed TUI proof receipt", () => {
+  it.each([
+    ["1", "A"],
+    ["2", "B"]
+  ])("selects the secondary model in provider order %s without entering image settings", (choice, direction) => {
+    const steps = installedTuiProviderJourneySteps(choice)
+    const picker = steps.indexOf('expect -exact "Models"')
+    expect(steps.slice(picker, picker + 4)).toEqual([
+      'expect -exact "Models"',
+      `send -- "\\033\\[${direction}"`,
+      'send -- "\\r"',
+      'expect -exact "Model selected | installed-secondary-model"'
+    ])
+  })
+
+  it("rejects a provider position outside the proof's two-provider fixture", () => {
+    expect(() => installedTuiProviderJourneySteps("3")).toThrow("exactly two")
+  })
+
   it("waits for semantic Team interaction readiness and stable agent identity", () => {
     expect(installedTuiTeamAgentSetupReadySteps()).toEqual([
       "expect -re {Add an agent before sending \\|[^\\r\\n]*Enter send}",
@@ -55,7 +73,7 @@ describe("installed TUI proof receipt", () => {
       "team",
       "final-provider-removal"
     ])
-    const provider = installedTuiProviderJourneySteps()
+    const provider = installedTuiProviderJourneySteps("2")
     expect(provider[0]).toBe('expect -exact "Wanex Provider Setup"')
     expect(provider).toContain('expect -exact "Provider added."')
     expect(provider).toContain('expect -exact "Credential rotated."')

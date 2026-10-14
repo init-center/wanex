@@ -1,10 +1,7 @@
-import {
-  createMemoryCompactionWorker,
-  planMemoryCompaction,
-  submitMemoryCompactionJob,
-  type MemoryCompactionPlan,
-  type MemoryCompactionRetentionPolicy
-} from "../memory/index.js"
+import { createMemoryCompactionWorker } from "../memory/worker.js"
+import { planMemoryCompaction } from "../memory/planner.js"
+import { submitMemoryCompactionJob } from "../memory/submit.js"
+import type { MemoryCompactionPlan, MemoryCompactionRetentionPolicy } from "../memory/types.js"
 import type {
   ModelEndpointExecutionBinding,
   SchedulerJobRecord,

@@ -4,7 +4,7 @@
 .card-heading { justify-content: flex-start; align-items: flex-start; }
 .card-heading > .card-icon { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; color: var(--color-accent); background: var(--color-accent-soft); border-radius: 10px; }
 .card-heading > svg { flex: 0 0 auto; color: var(--color-accent); }
-.card-heading h2, .context-panel h2, .settings-panel h2 { margin: 2px 0 0; color: var(--color-text); font-size: var(--font-size-lg); line-height: 22px; font-weight: 620; }
+.card-heading h2, .context-panel h2 { margin: 2px 0 0; color: var(--color-text); font-size: var(--font-size-lg); line-height: 22px; font-weight: 620; }
 .eyebrow { color: var(--color-text-muted); font-size: var(--font-size-2xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
 .inline-actions { flex-wrap: wrap; gap: 8px; }
 .inline-actions button { min-height: 34px; padding: 0 14px; font-size: var(--font-size-sm); font-weight: 560; }

@@ -286,6 +286,8 @@ export async function createShell(
       upsertSiblingModelEndpoint: backend.commands.upsertSiblingModelEndpoint,
       readModelEndpoint: backend.commands.readModelEndpoint,
       listModelEndpoints: backend.commands.listModelEndpoints,
+      setImageUnderstandingEndpoint:
+        backend.commands.setImageUnderstandingEndpoint,
     },
     modelCapabilities: {
       listModelCapabilityRoutes: backend.commands.listModelCapabilityRoutes,

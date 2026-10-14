@@ -28,6 +28,7 @@ const REMOTE_COMMAND_POLICY = {
   [SURFACE_COMMANDS.listModelEndpoints]: "read",
   [SURFACE_COMMANDS.readAssistantCommands]: "read",
   [SURFACE_COMMANDS.setActiveModelEndpoint]: "command",
+  [SURFACE_COMMANDS.setImageUnderstandingEndpoint]: "command",
   [SURFACE_COMMANDS.dispatchAssistantCommand]: "command",
   [SURFACE_COMMANDS.dispatchAssistantCommandJson]: "command",
   [SURFACE_COMMANDS.previewAssistantCommandInvocation]: "command",

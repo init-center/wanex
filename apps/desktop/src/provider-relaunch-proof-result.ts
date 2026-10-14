@@ -108,6 +108,20 @@ export function createWanexDesktopProviderRelaunchProofResult(
       value.generatedResourceEvidenceValid ?? false,
     generatedResourcePreviewVisible:
       value.generatedResourcePreviewVisible ?? false,
+    imageUnderstandingRouteSelected:
+      value.imageUnderstandingRouteSelected ?? false,
+    imageUnderstandingDescriptionUsed:
+      value.imageUnderstandingDescriptionUsed ?? false,
+    imageUnderstandingPrimaryNoImage:
+      value.imageUnderstandingPrimaryNoImage ?? false,
+    imageUnderstandingConversationSubmitted:
+      value.imageUnderstandingConversationSubmitted ?? false,
+    imageEditConversationSubmitted: value.imageEditConversationSubmitted ?? false,
+    imageEditToolSucceeded: value.imageEditToolSucceeded ?? false,
+    imageEditResourceEvidenceValid:
+      value.imageEditResourceEvidenceValid ?? false,
+    imageEditResourcePreviewVisible:
+      value.imageEditResourcePreviewVisible ?? false,
     planGenerated: value.planGenerated ?? false,
     planOpenBeforeApproval: value.planOpenBeforeApproval ?? false,
     planExecutionAbsentBeforeApproval:

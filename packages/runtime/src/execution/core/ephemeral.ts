@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto"
 import type { ContextCompiler } from "../../context/memory/index.js"
 import {
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderAdapter
 } from "../../provider/index.js"
 import type {
@@ -14,14 +14,17 @@ import type { WanexSessionCore } from "../../sessions/index.js"
 import { runCancellable, throwIfAborted } from "./cancellable.js"
 import { isToolCall } from "./replay.js"
 import { buildSessionReplayMessages } from "./session-replay.js"
-import { prepareProviderReplayResources } from "../../resources/index.js"
+import { prepareProviderReplayResources } from "../../resources/input.js"
 import { modelEndpointDigest } from "../../provider/index.js"
+import type { ImageDescriber } from "../../resources/image-description.js"
 
 export interface EphemeralSideQueryRuntimeOptions {
   readonly session: WanexSessionCore
   readonly provider: ProviderAdapter
   readonly modelEndpoint: ModelEndpoint
   readonly contextCompiler?: ContextCompiler
+  /** A route frozen by the caller for models that cannot read images. */
+  readonly describeImages?: ImageDescriber
   readonly timeoutMs?: number
 }
 
@@ -54,7 +57,7 @@ export async function runEphemeralSideQuery(
             : { contextCompiler: options.contextCompiler })
         })
 
-  const preparedMessages = await prepareProviderReplayResources(
+  const prepared = await prepareProviderReplayResources(
     options.session,
     {
       protocol: options.provider.protocol,
@@ -66,18 +69,23 @@ export async function runEphemeralSideQuery(
         role: "user",
         content: request.question
       }
-    ]
+    ],
+    { describedImages: options.describeImages !== undefined }
   )
+  const preparedMessages = options.describeImages === undefined
+    ? prepared
+    : await options.describeImages.describe(prepared, request.signal)
 
   const providerRequest = {
     messages: preparedMessages,
+    outputModalities: ["text"] as const,
     ...(request.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: request.maxOutputTokens })
   }
   const response = await runCancellable(
     (signal) =>
-      consumeProviderStream({
+      consumeTextProviderStream({
         provider: options.provider,
         request: {
           ...providerRequest,

@@ -1,4 +1,8 @@
-import type { Shell } from "@wanex/assistant";
+import { imageGenerationOptionCatalog } from "@wanex/runtime/media-generation";
+import {
+  resolveImageGenerationInputModalities,
+  type Shell,
+} from "@wanex/assistant";
 import type {
   LocalCapabilitySetupCommands,
   LocalConfigureImageGenerationCapabilityResult,
@@ -113,7 +117,11 @@ export async function configureLocalImageGenerationCapability(
         model: {
           id: modelId,
           operations: ["image.generate"],
-          inputModalities: ["text"],
+          generationOptions: imageGenerationOptionCatalog("openai-images", modelId),
+          inputModalities: resolveImageGenerationInputModalities({
+            providerId: active.connection.providerId,
+            modelId,
+          }),
           outputModalities: ["image"],
           features: [],
           catalog:

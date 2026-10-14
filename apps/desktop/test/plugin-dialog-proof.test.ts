@@ -147,13 +147,14 @@ function fixture() {
   const shell = document.querySelector<HTMLElement>("main")!;
   const settings = document.createElement("section");
   settings.dataset.uiSettingsPanel = "";
-  settings.innerHTML = `<div data-ui-extension-settings></div>
+  settings.innerHTML = `<button data-ui-settings-nav="extensions">Extensions</button>
+    <div data-ui-extension-settings></div>
     <p data-ui-extension-empty></p><button data-ui-extension-add>Add extension</button>
-    <button aria-label="Close settings">Close</button>`;
+    <button data-ui-action="close-settings">Close</button>`;
   shell.querySelector('[data-ui-action="open-settings"]')?.addEventListener("click", () => {
     shell.append(settings);
   });
-  settings.querySelector('[aria-label="Close settings"]')?.addEventListener("click", () => settings.remove());
+  settings.querySelector('[data-ui-action="close-settings"]')?.addEventListener("click", () => settings.remove());
   return { shell, settings, add: settings.querySelector<HTMLButtonElement>("[data-ui-extension-add]")! };
 }
 

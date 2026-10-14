@@ -14,6 +14,7 @@ export interface WanexDesktopProviderJourneyProofContext {
   readonly configuredProviderCount: () => number
   readonly providerReady: () => boolean
   readonly redacted: () => boolean
+  readonly openProviderSettings: () => Promise<void>
   /** Opens the composer Add menu and returns one of its items. */
   readonly openAddMenuItem: (trigger: Element | null, action: string) => Promise<HTMLElement>
   readonly setControlValue: (
@@ -57,7 +58,7 @@ export async function runWanexDesktopProviderMultimodalProof(
       '[data-ui-composer] textarea[name="text"]'
     )
     if (
-      context.configuredProviderCount() !== 1 ||
+      context.configuredProviderCount() !== 2 ||
       !context.providerReady() ||
       !(surface instanceof Element) ||
       !(input instanceof HTMLInputElement) ||
@@ -162,8 +163,8 @@ export async function runWanexDesktopProviderMultimodalProof(
         "image/png" &&
       isAssistantResourceDeliveryUrl(canonical.preview.src) &&
       context.redacted(),
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: context.redacted(),

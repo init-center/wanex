@@ -68,7 +68,7 @@ function startProof(executeInitiallyEnabled = false) {
   vi.stubGlobal("fetch", vi.fn(async () => ({ status: 404 })));
   document.body.innerHTML = `
     <main data-ui-assistant-shell>
-      <section data-ui-settings-panel><button aria-label="Close settings">Close</button></section>
+      <section data-ui-settings-panel><button data-ui-action="close-settings">Close</button></section>
       <span data-ui-provider-state="ready"></span>
       <nav data-ui-session-drawer aria-label="Conversation navigation"><div data-ui-session-list></div></nav>
       <section data-ui-conversation-main aria-label="Conversation">
@@ -86,7 +86,7 @@ function startProof(executeInitiallyEnabled = false) {
   let closures = 0;
   let executeClick: ReturnType<typeof vi.spyOn> | undefined;
   let doneClick: ReturnType<typeof vi.spyOn> | undefined;
-  required('[aria-label="Close settings"]').addEventListener("click", () => {
+  required('[data-ui-action="close-settings"]').addEventListener("click", () => {
     required('[data-ui-settings-panel]').remove();
   });
   const model = required<HTMLButtonElement>('[data-ui-model-selector]');

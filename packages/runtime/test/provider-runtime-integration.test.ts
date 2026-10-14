@@ -33,6 +33,33 @@ afterEach(async () => {
 })
 
 describe("provider runtime integration", () => {
+  it("journals unexpected image output as ambiguous without publishing or retrying it", async () => {
+    const storage = await createStore()
+    let calls = 0
+    const observe = vi.fn()
+    const provider = new TextProvider("unused")
+    provider.stream = async function* (): AsyncIterable<ProviderEvent> {
+      calls += 1
+      yield { type: "image_output", partId: "unexpected-image", mimeType: "image/svg+xml",
+        bytes: Buffer.from("private-payload-must-not-be-published") }
+      yield { type: "finish", reason: "stop" }
+    }
+    const runtime = new WanexAgentRuntime({ storage, provider, observeProviderEvent: observe })
+    const result = await runtime.submitAndRunUserTurn({
+      sessionId: "ses_unexpected_image", inputId: "inp_unexpected_image",
+      turnId: "turn_unexpected_image", jobId: "job_unexpected_image",
+      principalId: "principal_unexpected_image", content: [{ type: "text", text: "hello" }]
+    })
+    expect(calls).toBe(1)
+    const [invocation] = await storage.listProviderInvocations({ turnId: result.receipt.turn.id })
+    expect(invocation).toMatchObject({ state: "ambiguous", outputObserved: true })
+    const [turn] = await runtime.session.listTurns({ sessionId: result.session.id })
+    expect(turn?.state).toBe("recovery_required")
+    expect(result.messages.filter((message) => message.role === "assistant" && message.status === "completed")).toEqual([])
+    expect(await storage.listResources({})).toEqual([])
+    expect(JSON.stringify([observe.mock.calls, result.messages, invocation])).not.toContain("private-payload")
+  })
+
   it("submits and executes one bounded durable turn", async () => {
     const storage = await createStore()
     const runtime = new WanexAgentRuntime({
@@ -127,6 +154,7 @@ async function createStore() {
 }
 
 class TextProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "text-provider"
   readonly model = testConversationModel("text-model")
@@ -144,6 +172,7 @@ class TextProvider implements ProviderAdapter {
 }
 
 class RequestErrorProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "request-error"
   readonly model = testConversationModel("request-error-model")

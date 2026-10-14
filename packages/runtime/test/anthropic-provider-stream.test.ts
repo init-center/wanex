@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   AnthropicAdapter,
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
 import { testConversationModel } from "./model-endpoint-fixture.js"
@@ -31,7 +31,7 @@ describe("Anthropic streaming provider", () => {
       ], requests)
     })
 
-    const result = await consumeProviderStream({ provider: adapter, request: { messages: [] } })
+    const result = await consumeTextProviderStream({ provider: adapter, request: { messages: [] } })
     expect(result.parts).toMatchObject([
       { type: "reasoning", text: "consider", providerState: { replayPolicy: "required" } },
       { type: "text", text: "I will check" },
@@ -61,7 +61,7 @@ describe("Anthropic streaming provider", () => {
         { type: "message_stop" }
       ], requests)
     })
-    await consumeProviderStream({ provider: adapter, request: { messages: [
+    await consumeTextProviderStream({ provider: adapter, request: { messages: [
       { role: "system", content: [{ type: "text", id: "sys", text: "system policy" }] },
       { role: "user", content: [{ type: "text", id: "user", text: "hello" }] }
     ] } })

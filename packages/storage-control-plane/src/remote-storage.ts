@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto"
 import type { JsonValue } from "@wanex/protocol"
+import { StorageTransportError } from "@wanex/storage"
 import type {
   StorageRpcRequestEnvelope,
   StorageWireTransport
@@ -103,8 +105,17 @@ export function createRemoteStorageControlPlane<
       }
 
       const transport = await options.resolveStorageWireTransport(subject)
-      const envelope = await transport.exchange(parsed.request)
-      return jsonResponse(200, envelope as JsonValue)
+      // Independent HTTP clients share a downstream wire, not a request-ID namespace.
+      const requestId = randomUUID()
+      const envelope = await transport.exchange({ ...parsed.request, request_id: requestId })
+      if (!isRecord(envelope) || envelope.request_id !== requestId) {
+        throw new StorageTransportError("remote storage response ID mismatch", {
+          code: "storage_rpc_request_id_mismatch"
+        })
+      }
+      return jsonResponse(200, {
+        ...envelope, request_id: parsed.request.request_id
+      } as JsonValue)
     }
   }
 }
@@ -163,9 +174,17 @@ function parseRemoteStorageBody(
     }
   }
 
+  if (!isRecord(body.request) || typeof body.request.request_id !== "string" ||
+      body.request.request_id.length === 0) {
+    return {
+      ok: false, status: 400, code: "invalid_request_id",
+      message: "remote storage request requires a nonempty request ID"
+    }
+  }
+
   return {
     ok: true,
-    request: body.request as StorageRpcRequestEnvelope
+    request: body.request as unknown as StorageRpcRequestEnvelope
   }
 }
 

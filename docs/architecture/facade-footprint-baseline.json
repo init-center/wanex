@@ -8,7 +8,8 @@
     "target": "node24",
     "treeShaking": true,
     "minify": false,
-    "sourcemap": false
+    "sourcemap": false,
+    "legalComments": "none"
   },
   "forbiddenWorkspacePackages": [
     "@wanex/connector",
@@ -24,8 +25,8 @@
   "facades": {
     "runtime": {
       "entry": "packages/runtime/src/index.ts",
-      "maxOutputBytes": 556601,
-      "maxInputCount": 279,
+      "outputBytes": 563919,
+      "inputCount": 275,
       "allowedWorkspacePackages": [
         "@wanex/protocol",
         "@wanex/runtime",
@@ -34,8 +35,8 @@
     },
     "app": {
       "entry": "packages/app/src/index.ts",
-      "maxOutputBytes": 1488099,
-      "maxInputCount": 487,
+      "outputBytes": 1519847,
+      "inputCount": 489,
       "allowedWorkspacePackages": [
         "@wanex/app",
         "@wanex/protocol",

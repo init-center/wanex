@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   AnthropicAdapter,
   OpenAICompatibleAdapter,
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderFetch,
   type ProviderToolDefinition
 } from "../src/provider/index.js"
@@ -31,7 +31,7 @@ describe("provider tool projection", () => {
       apiKey: "secret",
       fetch: openAIFetch(bodies)
     })
-    await consumeProviderStream({
+    await consumeTextProviderStream({
       provider: adapter,
       request: {
         messages: [],
@@ -63,7 +63,7 @@ describe("provider tool projection", () => {
       apiKey: "secret",
       fetch: anthropicFetch(bodies)
     })
-    await consumeProviderStream({
+    await consumeTextProviderStream({
       provider: adapter,
       request: {
         messages: [],

@@ -92,7 +92,10 @@ async function assertActiveProviderSupportsAttachment(
     )
   }
   const modality = attachmentModality(kind)
-  if (!active.model.inputModalities.includes(modality)) {
+  const imagesDescribed =
+    modality === "image" &&
+    endpointList.imageUnderstandingEndpointId !== undefined
+  if (!imagesDescribed && !active.model.inputModalities.includes(modality)) {
     throw new LocalAttachmentUploadError(
       415,
       "unsupported_attachment",

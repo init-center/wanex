@@ -50,7 +50,6 @@ export function normalizeWanexAppRoutableOperation(
 ): WanexAppRoutableModelOperation {
   if (
     operation !== "image.generate" &&
-    operation !== "image.edit" &&
     operation !== "video.generate" &&
     operation !== "audio.transcribe" &&
     operation !== "audio.synthesize"

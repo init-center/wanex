@@ -132,6 +132,9 @@ export function buildViewModel(
       )),
     conversationAttachmentAccept: attachmentInput.accept,
     conversationAttachmentMessage: attachmentInput.message,
+    ...(attachmentInput.imagesDescribedBy === undefined
+      ? {}
+      : { conversationImagesDescribedBy: attachmentInput.imagesDescribedBy }),
     ...(snapshot.conversation.transientAssistantText === undefined
       ? {}
       : {

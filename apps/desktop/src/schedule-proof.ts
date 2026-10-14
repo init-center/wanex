@@ -160,13 +160,20 @@ export async function runWanexDesktopScheduleCreateAdmissionProof(
       return candidate instanceof HTMLButtonElement ? candidate : undefined
     }, 10_000, "settings_trigger")
     trigger.click()
-    await waitFor(() => document.querySelector("[data-ui-settings-panel]") ?? undefined,
-      10_000, "settings_panel")
+    const nav = await waitFor(() => {
+      const candidate = document.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="schedules"]',
+      )
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_panel")
+    nav.click()
+    await waitFor(() => document.querySelector("[data-ui-schedule-settings]") ?? undefined,
+      10_000, "settings_schedules")
   }
 
   function closeSettings(): void {
     const close = document.querySelector(
-      '[data-ui-settings-panel] button[aria-label="Close settings"]',
+      '[data-ui-settings-panel] [data-ui-action="close-settings"]',
     )
     if (!(close instanceof HTMLButtonElement)) {
       throw new Error("Desktop Schedule proof Settings close control is unavailable")
@@ -354,8 +361,15 @@ export async function runWanexDesktopScheduleCreateSettlementProof(
       return candidate instanceof HTMLButtonElement ? candidate : undefined
     }, 10_000, "settings_trigger")
     trigger.click()
-    await waitFor(() => document.querySelector("[data-ui-settings-panel]") ?? undefined,
-      10_000, "settings_panel")
+    const nav = await waitFor(() => {
+      const candidate = document.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="schedules"]',
+      )
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_panel")
+    nav.click()
+    await waitFor(() => document.querySelector("[data-ui-schedule-settings]") ?? undefined,
+      10_000, "settings_schedules")
   }
 
   function scheduleRow(scheduleId: string): HTMLElement | undefined {
@@ -438,16 +452,23 @@ export async function runWanexDesktopScheduleDisableBeforeReleaseProof(
       return candidate instanceof HTMLButtonElement ? candidate : undefined
     }, 10_000, "settings_trigger")
     trigger.click()
+    const nav = await waitFor(() => {
+      const candidate = document.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="schedules"]',
+      )
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_panel")
+    nav.click()
     await waitFor(
-      () => document.querySelector("[data-ui-settings-panel]") ?? undefined,
+      () => document.querySelector("[data-ui-schedule-settings]") ?? undefined,
       10_000,
-      "settings_panel",
+      "settings_schedules",
     )
   }
 
   function closeSettings(): void {
     const close = document.querySelector(
-      '[data-ui-settings-panel] button[aria-label="Close settings"]',
+      '[data-ui-settings-panel] [data-ui-action="close-settings"]',
     )
     if (!(close instanceof HTMLButtonElement)) {
       throw new Error("Desktop Schedule proof Settings close control is unavailable")
@@ -610,13 +631,20 @@ export async function runWanexDesktopScheduleRestoreProof(
       return candidate instanceof HTMLButtonElement ? candidate : undefined
     }, 10_000, "settings_trigger")
     trigger.click()
-    await waitFor(() => document.querySelector("[data-ui-settings-panel]") ?? undefined,
-      10_000, "settings_panel")
+    const nav = await waitFor(() => {
+      const candidate = document.querySelector(
+        '[data-ui-settings-panel] [data-ui-settings-nav="schedules"]',
+      )
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_panel")
+    nav.click()
+    await waitFor(() => document.querySelector("[data-ui-schedule-settings]") ?? undefined,
+      10_000, "settings_schedules")
   }
 
   function closeSettings(): void {
     const close = document.querySelector(
-      '[data-ui-settings-panel] button[aria-label="Close settings"]',
+      '[data-ui-settings-panel] [data-ui-action="close-settings"]',
     )
     if (!(close instanceof HTMLButtonElement)) {
       throw new Error("Desktop Schedule proof Settings close control is unavailable")

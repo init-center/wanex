@@ -7,6 +7,7 @@ import type {
   MediaGenerationOperation,
   ModelEndpoint,
   ModelEndpointExecutionBinding,
+  ResourceInputEvidence,
   ResourceKind
 } from "@wanex/protocol"
 
@@ -59,6 +60,20 @@ export interface MediaGenerationAdapterRequest {
   readonly signal: AbortSignal
 }
 
+/** An input resource whose bytes the runtime read and verified against its digest. */
+export interface MediaGenerationInput {
+  readonly resource: ResourceInputEvidence
+  readonly bytes: Uint8Array
+}
+
+/**
+ * Only submission carries input bytes: adapters never read Storage, and polls
+ * and materialization do not need the inputs again.
+ */
+export interface MediaGenerationSubmitRequest extends MediaGenerationAdapterRequest {
+  readonly inputs: readonly MediaGenerationInput[]
+}
+
 export type MediaGenerationSubmitResult =
   | { readonly status: "rejected"; readonly error: JsonValue }
   | {
@@ -99,7 +114,7 @@ export interface MediaGenerationMaterializedOutput {
 export interface MediaGenerationAdapter {
   readonly protocolId: string
   canExecute(modelEndpoint: ModelEndpoint): boolean
-  submit(request: MediaGenerationAdapterRequest): Promise<MediaGenerationSubmitResult>
+  submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>
   poll(
     request: MediaGenerationAdapterRequest & {
       readonly externalOperationId: string
@@ -148,3 +163,20 @@ export interface MediaGenerationRunResult {
   readonly operation?: MediaGenerationOperationRecord
   readonly error?: Error
 }
+
+/** Optional execution implementation supplied by the trusted composition root. */
+export interface MediaGenerationCapability {
+  supports(modelEndpoint: ModelEndpoint): boolean
+  createWorkers(options: {
+    readonly storage: import("@wanex/storage").CoreStore
+    readonly activeAbortRegistry: import("../jobs/active-abort.js").ActiveExecutionAbortRegistry
+    readonly leaseMs?: number
+    readonly heartbeatIntervalMs?: number
+    readonly timeoutMs?: number
+  }): readonly MediaGenerationWorker[]
+}
+
+export type MediaGenerationWorker = Pick<
+  import("./runtime.js").WanexMediaGenerationRuntime,
+  "submit" | "cancel" | "runOnce" | "start"
+>

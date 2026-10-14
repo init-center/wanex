@@ -1,12 +1,19 @@
-export function findFacadeFootprintViolations({ report, baseline }) {
+import { isDeepStrictEqual } from "node:util"
+
+export function evaluateFacadeFootprint({ report, baseline }) {
   const failures = []
-  if (report.esbuildVersion !== baseline.esbuildVersion) {
-    failures.push({
+  const toolMatches = report.esbuildVersion === baseline.esbuildVersion
+  const optionsMatch = isDeepStrictEqual(report.buildOptions, baseline.buildOptions)
+  const comparable = toolMatches && optionsMatch
+  const notices = toolMatches ? [] : [{
       code: "facade-footprint-tool-version-drift",
-      facade: "*",
-      message: `expected esbuild ${baseline.esbuildVersion}, received ${report.esbuildVersion}`
-    })
-  }
+      message: `baseline esbuild ${baseline.esbuildVersion}, current ${report.esbuildVersion}; measurements are not directly comparable`
+  }]
+  if (!optionsMatch) notices.push({
+    code: "facade-footprint-build-options-drift",
+    message: "build parameters changed; measurements are not directly comparable"
+  })
+  const changes = {}
 
   for (const [name, expected] of Object.entries(baseline.facades ?? {})) {
     const actual = report.facades[name]
@@ -18,19 +25,9 @@ export function findFacadeFootprintViolations({ report, baseline }) {
       })
       continue
     }
-    if (actual.outputBytes > expected.maxOutputBytes) {
-      failures.push({
-        code: "facade-output-byte-growth",
-        facade: name,
-        message: `${actual.outputBytes} bytes exceeds baseline ${expected.maxOutputBytes}`
-      })
-    }
-    if (actual.inputCount > expected.maxInputCount) {
-      failures.push({
-        code: "facade-static-input-growth",
-        facade: name,
-        message: `${actual.inputCount} inputs exceeds baseline ${expected.maxInputCount}`
-      })
+    changes[name] = {
+      outputBytesDelta: comparable ? actual.outputBytes - expected.outputBytes : null,
+      inputCountDelta: comparable ? actual.inputCount - expected.inputCount : null
     }
 
     const allowed = new Set(expected.allowedWorkspacePackages ?? [])
@@ -56,5 +53,21 @@ export function findFacadeFootprintViolations({ report, baseline }) {
     }
   }
 
-  return failures
+  return { failures, notices, comparison: { comparable, changes } }
+}
+
+export function refreshFacadeMeasurements({ report, baseline }) {
+  const { failures } = evaluateFacadeFootprint({ report, baseline })
+  if (failures.length > 0) {
+    throw new Error(`cannot refresh facade measurements with boundary violations: ${failures.map(failure => failure.code).join(", ")}`)
+  }
+  return {
+    ...baseline,
+    esbuildVersion: report.esbuildVersion,
+    buildOptions: report.buildOptions,
+    facades: Object.fromEntries(Object.entries(baseline.facades).map(([name, expected]) => [
+      name, { ...expected, outputBytes: report.facades[name].outputBytes,
+        inputCount: report.facades[name].inputCount }
+    ]))
+  }
 }

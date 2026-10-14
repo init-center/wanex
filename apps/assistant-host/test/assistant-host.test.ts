@@ -1037,6 +1037,54 @@ describe("@wanex/assistant-host", () => {
     }
   })
 
+  it("accepts images for a text-only model once another model describes them", async () => {
+    const storeDir = await tempDir("wanex-assistant-host-described-images-")
+    const vision = fakeEndpoint("vision", "vision-model")
+    const app = await startAssistantWebApp({
+      browserAssets,
+      storage: { kind: "store-dir", storeDir },
+      serviceBin,
+      modelEndpoints: {
+        activeEndpointId: "text-only",
+        endpoints: [
+          fakeEndpoint("text-only", "text-only-model"),
+          { ...vision, model: { ...vision.model, inputModalities: ["text", "image"] } }
+        ]
+      },
+      web: { hostname: "127.0.0.1" }
+    })
+    apps.push(app)
+
+    await expect(app.shell.modelEndpoints.setImageUnderstandingEndpoint({
+      endpointId: "vision"
+    })).resolves.toMatchObject({ imageUnderstandingEndpointId: "vision" })
+    expect((await app.controller.refresh()).view).toMatchObject({
+      conversationAttachmentCanUpload: true,
+      conversationAttachmentAccept: "image/*",
+      conversationImagesDescribedBy: "vision-model"
+    })
+    const response = await fetch(`${app.url}/wanex/assistant/attachment`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-wanex-host-session": await readHostSessionToken(app.url),
+        "x-wanex-media-type": encodeURIComponent("image/png"),
+        "x-wanex-attachment-label": encodeURIComponent("described.png")
+      },
+      body: new Uint8Array([137, 80, 78, 71])
+    })
+    expect(response.status).toBe(201)
+
+    // Turning it off restores the text-only behaviour.
+    await app.shell.modelEndpoints.setImageUnderstandingEndpoint({ endpointId: null })
+    const view = (await app.controller.refresh()).view
+    expect(view).toMatchObject({
+      conversationAttachmentAccept: "",
+      conversationAttachmentMessage: expect.stringContaining("Settings → Models")
+    })
+    expect(view.conversationImagesDescribedBy).toBeUndefined()
+  })
+
   it("converges a response-lost attachment retry on one Resource and draft", async () => {
     const storeDir = await tempDir("wanex-assistant-host-attachment-retry-")
     const endpoint = fakeEndpoint("image-input", "image-input-model")

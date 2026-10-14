@@ -520,9 +520,10 @@ function unsupportedAttachment(
   attachments: readonly AttachmentDraft[],
   readiness: Awaited<ReturnType<typeof readProviderReadiness>>,
 ): string | undefined {
-  const supported = new Set(
+  const supported = new Set<string>(
     readiness.activeEndpoint?.model.inputModalities ?? [],
   );
+  if (readiness.imagesDescribed === true) supported.add("image");
   return attachments
     .map(attachmentModality)
     .find((modality) => !supported.has(modality));

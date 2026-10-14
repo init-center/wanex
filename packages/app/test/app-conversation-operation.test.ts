@@ -630,7 +630,7 @@ describe("@wanex/app durable conversation operations", () => {
       serviceBin
     })
     const resource = await seed.core.ingestResource({
-      content: Uint8Array.from([137, 80, 78, 71]),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
       mediaType: "image/png",
       kind: "image",
       origin: "user_upload"
@@ -1054,7 +1054,7 @@ describe("@wanex/app durable conversation operations", () => {
     try {
       await app.dispose()
       await expect(storage.core.doctor()).resolves.toMatchObject({
-        schemaVersion: 22
+        schemaVersion: 26
       })
     } finally {
       await app.dispose()

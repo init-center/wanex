@@ -14,6 +14,7 @@ import type {
   StartAssistantWebAppOptions,
 } from "../model.js"
 import { createLocalProviderCommands } from "../provider/management.js"
+import { createLocalMediaProviderCommands } from "../provider/media-management.js"
 import { projectLocalModelEndpoints } from "../provider/model-read-model.js"
 import { createLocalCapabilitySetupCommands } from "../provider/capability.js"
 import { createLocalModelCatalogService } from "../provider/catalog/index.js"
@@ -60,6 +61,10 @@ export async function startAssistantWebApp(
     const capabilitySetup = createLocalCapabilitySetupCommands({
       shell: assistant.shell,
     })
+    const mediaProviders = createLocalMediaProviderCommands({
+      shell: assistant.shell,
+      mutationCoordinator: providerMutation
+    })
     const client = createHostSurfaceClient({ surface: assistant.surface })
     controller = await createController({ client })
     host = await listenWebNodeHost({
@@ -68,6 +73,7 @@ export async function startAssistantWebApp(
       attachments: assistant.attachments,
       resourceDeliveries: assistant.resourceDeliveries,
       providers,
+      mediaProviders,
       modelCatalog,
       capabilitySetup,
       mcpSettings: assistant.mcpSettings,
@@ -80,6 +86,7 @@ export async function startAssistantWebApp(
       controller,
       host,
       providers,
+      mediaProviders,
       modelCatalog,
       capabilitySetup,
     })
@@ -98,6 +105,7 @@ function createAssistantWebAppHandle(request: {
   readonly controller: Controller
   readonly host: WebNodeHostServer
   readonly providers: ReturnType<typeof createLocalProviderCommands>
+  readonly mediaProviders: ReturnType<typeof createLocalMediaProviderCommands>
   readonly modelCatalog: Awaited<ReturnType<typeof createLocalModelCatalogService>>
   readonly capabilitySetup: ReturnType<typeof createLocalCapabilitySetupCommands>
 }): AssistantWebApp {
@@ -109,6 +117,7 @@ function createAssistantWebAppHandle(request: {
     modelEndpoints: request.assistant.shell.modelEndpoints,
     mcpSettings: request.assistant.mcpSettings,
     providers: request.providers,
+    mediaProviders: request.mediaProviders,
     modelCatalog: request.modelCatalog,
     capabilitySetup: request.capabilitySetup,
     settings: createLocalSettingsCommands(request.assistant.shell),

@@ -423,7 +423,9 @@ describe("Assistant Host hot image generation", () => {
       authorization: "Bearer one-connection-secret",
       body: {
         model: "gpt-5.2",
-        tools: [{ type: "function", function: { name: "image_generate" } }],
+        tools: [
+          { type: "function", function: { name: "image_generate" } },
+        ],
       },
     });
     expect(provider.conversationRequests[1]).toMatchObject({

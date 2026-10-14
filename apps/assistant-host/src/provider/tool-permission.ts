@@ -10,11 +10,12 @@ export class LocalToolPermissionPolicy
   snapshot() {
     return createToolRuntimeBinding({
       implementationId: "wanex.assistant-host.tool-policy",
-      implementationRevision: "1",
+      implementationRevision: "3",
       configuration: {
         readOnly: "allow",
         workspaceChanges: "allow_exact_builtin_contract",
         imageGenerate: "allow_exact_builtin_contract",
+        imageAnalyze: "allow_exact_builtin_contract",
         other: "deny"
       }
     })
@@ -71,6 +72,20 @@ export class LocalToolPermissionPolicy
       return {
         status: "allow",
         reason: "assistant_local_image_generation_tool"
+      }
+    }
+    // Registered only while the person has chosen an image-understanding
+    // endpoint, and limited to images already in the conversation.
+    if (
+      request.descriptor.name === "image_analyze" &&
+      request.descriptor.risk === "external" &&
+      request.descriptor.idempotent === true &&
+      request.descriptor.concurrency === "parallel_safe" &&
+      request.descriptor.resultMode === "immediate"
+    ) {
+      return {
+        status: "allow",
+        reason: "assistant_local_image_analyze_tool"
       }
     }
     return {

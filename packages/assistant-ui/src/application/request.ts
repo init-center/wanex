@@ -307,6 +307,7 @@ const ACTION_TYPES = {
   "set-mode": true,
   "update-preferences": true,
   "set-active-model-endpoint": true,
+  "set-image-understanding-endpoint": true,
   "preview-command": true,
   "execute-command": true,
   "read-schedule": true,

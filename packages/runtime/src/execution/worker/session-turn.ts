@@ -14,6 +14,15 @@ import type {
 } from "./types.js"
 import { assertTurnResourcesMatchBinding } from "../../resources/index.js"
 import { createInlineContextCapacityCompactor } from "../../context/capacity/index.js"
+import { createImageDescriber } from "../../resources/image-description.js"
+import {
+  findModelCapabilityRouteExecutionBinding,
+  IMAGE_UNDERSTANDING_REQUIREMENT
+} from "../../provider/capability-route.js"
+import {
+  modelEndpointFromExecutionBinding,
+  providerFromModelEndpoint
+} from "../../provider/model-endpoint.js"
 import { SemanticContextCompiler } from "../../context/memory/index.js"
 import { TurnControlEventObserver } from "./turn-control-observer.js"
 import {
@@ -104,7 +113,26 @@ export function createSessionTurnHandler(
       }
     )
     observeStage("provider_resolved", started.attempt.id)
+    // Only a model that cannot see images uses the frozen image-understanding
+    // route; the route's presence was proven at admission.
+    const imageRoute = started.turn.executionBinding.modelEndpoint.model.inputModalities.includes("image")
+      ? undefined
+      : findModelCapabilityRouteExecutionBinding(
+          started.turn.executionBinding.capabilityRoutes,
+          IMAGE_UNDERSTANDING_REQUIREMENT
+        )
+    const describeImages = imageRoute === undefined
+      ? undefined
+      : createImageDescriber({
+          storage: options.storage,
+          route: imageRoute,
+          provider: await providerFromModelEndpoint(
+            modelEndpointFromExecutionBinding(imageRoute.modelEndpoint),
+            options.secretResolver
+          )
+        })
     const runner = new WanexAgentRunner({
+      ...(describeImages === undefined ? {} : { describeImages }),
       session: options.session,
       provider,
       ...(agentContext?.tools === undefined ? {} : { tools: agentContext.tools }),

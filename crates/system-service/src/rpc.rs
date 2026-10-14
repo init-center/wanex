@@ -280,99 +280,184 @@ pub fn run_once(store_dir: PathBuf) -> RpcOutput {
 pub fn run_serve(store_dir: PathBuf) -> Result<(), SystemServiceError> {
     let service = SystemService::open(store_dir)?;
     let stdin = io::stdin();
-    let mut stdout = io::stdout().lock();
-    for line in stdin.lock().lines() {
-        let line = line?;
-        if line.trim().is_empty() {
-            continue;
-        }
-        let response = match parse_request_envelope(line) {
-            Ok(ParsedRequest::Describe { request_id }) => {
-                success_response(request_id, protocol_descriptor())
+    let stdout = std::sync::Mutex::new(io::stdout());
+    std::thread::scope(|scope| {
+        let (sender, receiver) =
+            std::sync::mpsc::sync_channel::<(String, RuntimeStorageRpcCommand)>(2);
+        let worker = scope.spawn(|| {
+            run_image_worker(receiver, &stdout, |request| {
+                handle_runtime_request(&service, request)
+            })
+        });
+        let result = (|| -> Result<(), SystemServiceError> {
+            for line in stdin.lock().lines() {
+                let line = line?;
+                if line.trim().is_empty() {
+                    continue;
+                }
+                let response = match parse_request_envelope(line) {
+                    Ok(ParsedRequest::Describe { request_id }) => {
+                        success_response(request_id, protocol_descriptor())
+                    }
+                    Ok(ParsedRequest::Runtime {
+                        request_id,
+                        request,
+                    }) if matches!(
+                        &request,
+                        RuntimeStorageRpcCommand::PrepareImageResourceCommand(_)
+                    ) =>
+                    {
+                        match sender.try_send((request_id, request)) {
+                            Ok(()) => continue,
+                            Err(std::sync::mpsc::TrySendError::Full((request_id, _))) => {
+                                response_for_result(
+                                    Some(request_id),
+                                    Err(SystemServiceError::Conflict(
+                                        "image processing capacity exhausted".into(),
+                                    )),
+                                )
+                            }
+                            Err(std::sync::mpsc::TrySendError::Disconnected(_)) => {
+                                return Err(SystemServiceError::Invariant(
+                                    "image processing worker stopped".into(),
+                                ))
+                            }
+                        }
+                    }
+                    Ok(ParsedRequest::Runtime {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_runtime_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Sessions {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_sessions_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Context {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_context_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Scheduler {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_scheduler_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Tools {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_tools_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Workspace {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_workspace_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Plan {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_plan_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Objective {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_objective_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Delegation {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_delegation_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Team {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_team_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Plugin {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_plugin_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Connector {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_connector_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::Channel {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_channel_request(&service, request),
+                    ),
+                    Ok(ParsedRequest::MediaGeneration {
+                        request_id,
+                        request,
+                    }) => response_for_result(
+                        Some(request_id),
+                        handle_media_generation_request(&service, request),
+                    ),
+                    Err(error) => protocol_error_response(error),
+                };
+                write_response(&stdout, response)?;
             }
-            Ok(ParsedRequest::Runtime {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_runtime_request(&service, request)),
-            Ok(ParsedRequest::Sessions {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_sessions_request(&service, request)),
-            Ok(ParsedRequest::Context {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_context_request(&service, request)),
-            Ok(ParsedRequest::Scheduler {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_scheduler_request(&service, request),
-            ),
-            Ok(ParsedRequest::Tools {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_tools_request(&service, request)),
-            Ok(ParsedRequest::Workspace {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_workspace_request(&service, request),
-            ),
-            Ok(ParsedRequest::Plan {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_plan_request(&service, request)),
-            Ok(ParsedRequest::Objective {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_objective_request(&service, request),
-            ),
-            Ok(ParsedRequest::Delegation {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_delegation_request(&service, request),
-            ),
-            Ok(ParsedRequest::Team {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_team_request(&service, request)),
-            Ok(ParsedRequest::Plugin {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_plugin_request(&service, request)),
-            Ok(ParsedRequest::Connector {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_connector_request(&service, request),
-            ),
-            Ok(ParsedRequest::Channel {
-                request_id,
-                request,
-            }) => response_for_result(Some(request_id), handle_channel_request(&service, request)),
-            Ok(ParsedRequest::MediaGeneration {
-                request_id,
-                request,
-            }) => response_for_result(
-                Some(request_id),
-                handle_media_generation_request(&service, request),
-            ),
-            Err(error) => protocol_error_response(error),
-        };
-        writeln!(
-            stdout,
-            "{}",
-            serde_json::to_string(&response.response).expect("response should serialize")
-        )?;
-        stdout.flush()?;
+            Ok(())
+        })();
+        drop(sender);
+        let worker_result = worker.join().map_err(|_| {
+            SystemServiceError::Invariant("image processing worker panicked".into())
+        })?;
+        result.and(worker_result)
+    })
+}
+
+fn run_image_worker<W: Write>(
+    receiver: std::sync::mpsc::Receiver<(String, RuntimeStorageRpcCommand)>,
+    stdout: &std::sync::Mutex<W>,
+    mut prepare: impl FnMut(RuntimeStorageRpcCommand) -> Result<Value, SystemServiceError>,
+) -> Result<(), SystemServiceError> {
+    for (request_id, request) in receiver {
+        let response = response_for_result(Some(request_id), prepare(request));
+        write_response(stdout, response)?;
     }
+    Ok(())
+}
+
+fn write_response<W: Write>(
+    stdout: &std::sync::Mutex<W>,
+    response: RpcOutput,
+) -> Result<(), SystemServiceError> {
+    let json = serde_json::to_string(&response.response)?;
+    let mut writer = stdout
+        .lock()
+        .map_err(|_| SystemServiceError::Invariant("RPC output lock poisoned".into()))?;
+    writeln!(writer, "{json}")?;
+    writer.flush()?;
     Ok(())
 }
 
@@ -457,6 +542,11 @@ fn handle_runtime_request(
     request: RuntimeStorageRpcCommand,
 ) -> Result<Value, SystemServiceError> {
     match request {
+        RuntimeStorageRpcCommand::PrepareImageResourceCommand(command) => {
+            let request: wanex_system_service::PrepareImageResource =
+                project_wire(command.request)?;
+            serde_json::to_value(service.prepare_image_resource(&request)?).map_err(Into::into)
+        }
         RuntimeStorageRpcCommand::AppendEventCommand(command) => {
             let event = command.event;
             let runtime_event = RuntimeEvent {
@@ -762,6 +852,12 @@ fn handle_sessions_request(
         SessionsStorageRpcCommand::BeginProviderInvocationCommand(command) => {
             let request: BeginProviderInvocation = project_wire(command.request)?;
             serde_json::to_value(service.begin_provider_invocation(&request)?).map_err(Into::into)
+        }
+        SessionsStorageRpcCommand::CheckpointProviderInvocationCommand(command) => {
+            let request: wanex_system_service::CheckpointProviderInvocation =
+                project_wire(command.request)?;
+            serde_json::to_value(service.checkpoint_provider_invocation(&request)?)
+                .map_err(Into::into)
         }
         SessionsStorageRpcCommand::MarkProviderInvocationOutputCommand(command) => {
             let request: MarkProviderInvocationOutput = project_wire(command.request)?;
@@ -2014,4 +2110,68 @@ fn optional_positive_i64(
             })
         })
         .transpose()
+}
+
+#[cfg(test)]
+mod image_lane_tests {
+    use super::*;
+    use std::sync::{mpsc, Mutex};
+
+    #[test]
+    fn image_lane_is_bounded_and_does_not_hold_response_lock_while_processing() {
+        let output = Mutex::new(Vec::<u8>::new());
+        let (sender, receiver) = mpsc::sync_channel(2);
+        let (started, wait_started) = mpsc::sync_channel(0);
+        let (resume, wait_resume) = mpsc::sync_channel(0);
+        let request = || {
+            serde_json::from_value::<RuntimeStorageRpcCommand>(
+                serde_json::json!({ "command": "doctor" }),
+            )
+            .unwrap()
+        };
+        std::thread::scope(|scope| {
+            let output = &output;
+            let worker = scope.spawn(move || {
+                let mut first = true;
+                run_image_worker(receiver, output, |_| {
+                    if first {
+                        first = false;
+                        started.send(()).unwrap();
+                        wait_resume.recv().unwrap();
+                    }
+                    Ok(Value::Null)
+                })
+            });
+            sender.send(("running".into(), request())).unwrap();
+            wait_started.recv().unwrap();
+            sender.try_send(("queued_1".into(), request())).unwrap();
+            sender.try_send(("queued_2".into(), request())).unwrap();
+            assert!(matches!(
+                sender.try_send(("overflow".into(), request())),
+                Err(mpsc::TrySendError::Full(_))
+            ));
+            write_response(
+                output,
+                response_for_result(Some("ordinary".into()), Ok(Value::Null)),
+            )
+            .unwrap();
+            assert!(String::from_utf8(output.lock().unwrap().clone())
+                .unwrap()
+                .contains("ordinary"));
+            resume.send(()).unwrap();
+            drop(sender);
+            worker.join().unwrap().unwrap();
+        });
+        let bytes = output.into_inner().unwrap();
+        let responses: Vec<Value> = String::from_utf8(bytes)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        let ids: Vec<_> = responses
+            .iter()
+            .map(|v| v["request_id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, ["ordinary", "running", "queued_1", "queued_2"]);
+    }
 }

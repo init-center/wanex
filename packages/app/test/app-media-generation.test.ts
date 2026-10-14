@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type {
   MediaGenerationModelEndpoint,
+  ModelOptionDescriptor,
   ModelEndpoint
 } from "@wanex/protocol"
 import type {
@@ -8,6 +9,7 @@ import type {
   MediaGenerationPollResult,
   MediaGenerationSubmitResult
 } from "@wanex/runtime/media-generation"
+import { createMediaGenerationCapability } from "@wanex/runtime/media-generation"
 import {
   AllowAllToolsPolicy,
   createToolRuntimeBinding,
@@ -23,7 +25,9 @@ import { createModelCapabilityRouteExecutionBinding } from "@wanex/runtime/provi
 import { createStorageTestStore } from "@wanex/storage/testing"
 import { createWanexApp } from "../src/index.js"
 import { createWanexAppCapabilityRequestTool } from "../src/capability-request-tool.js"
-import { createWanexAppImageGenerationTool } from "../src/image-generation-tool.js"
+import {
+  createWanexAppImageGenerationTool
+} from "../src/image-generation-tool.js"
 import { createStoreDir, serviceBin } from "./helpers.js"
 import { appTestModelEndpoint } from "./model-endpoint-fixture.js"
 
@@ -33,7 +37,8 @@ afterEach(() => {
 
 describe("@wanex/app media generation facade", () => {
   it("prepares a bounded deferred image request from the frozen capability route", async () => {
-    const adapter = new ImmediateImageAdapter("image-standard-tool")
+    const generationOptions = [{ name: "quality", description: "Test image quality", type: "string", enum: ["high", "low"] }] as const
+    const adapter = new ImmediateImageAdapter("image-standard-tool", "app-image-protocol", false, generationOptions)
     const route = createModelCapabilityRouteExecutionBinding({
       requirement: {
         operation: "image.generate",
@@ -44,7 +49,7 @@ describe("@wanex/app media generation facade", () => {
       source: "single_candidate",
       modelEndpoint: adapter.modelEndpoint
     })
-    const tool = createWanexAppImageGenerationTool()
+    const tool = createWanexAppImageGenerationTool({ generationOptions })
     const result = await tool.invoke({
       principalId: "principal",
       sessionId: "session",
@@ -69,6 +74,13 @@ describe("@wanex/app media generation facade", () => {
       concurrency: "exclusive",
       resultMode: "deferred"
     })
+    expect(tool.inputSchema).toMatchObject({
+      properties: { prompt: expect.anything(), options: {
+        properties: { quality: { type: "string", enum: ["high", "low"] } },
+        additionalProperties: false
+      } }
+    })
+    expect(tool.inputSchema).not.toHaveProperty("properties.images")
     expect(result).toMatchObject({
       outcome: "deferred",
       toolCallId: "call-image",
@@ -88,6 +100,19 @@ describe("@wanex/app media generation facade", () => {
         }
       }
     })
+    for (const invalidOptions of [{ quality: "auto" }, { unknown: true }, { quality: 1 }]) {
+      await expect(tool.invoke({
+        principalId: "principal", sessionId: "session", inputId: "input", turnId: "turn", attemptId: "attempt",
+        toolCallId: "invalid-option", toolName: tool.name, input: { prompt: "draw", options: invalidOptions },
+        idempotencyKey: "invalid-option", capabilityRoutes: [route], resources: unavailableToolResources
+      })).rejects.toThrow("model option")
+    }
+    expect(createWanexAppImageGenerationTool().inputSchema).not.toHaveProperty("properties.options")
+    await expect(createWanexAppImageGenerationTool().invoke({
+      principalId: "principal", sessionId: "session", inputId: "input", turnId: "turn", attemptId: "attempt",
+      toolCallId: "mismatched-options", toolName: tool.name, input: { prompt: "draw" },
+      idempotencyKey: "mismatched-options", capabilityRoutes: [route], resources: unavailableToolResources
+    })).rejects.toThrow("do not match the frozen route")
     await expect(tool.invoke({
       principalId: "principal",
       sessionId: "session",
@@ -113,6 +138,80 @@ describe("@wanex/app media generation facade", () => {
       capabilityRoutes: [route],
       resources: unavailableToolResources
     })).rejects.toThrow("options exceed")
+  })
+
+  it("prepares reference image generation only from exact image resources on the generation route", async () => {
+    const base = new ImmediateImageAdapter("image-edit-tool").modelEndpoint
+    const modelEndpoint = {
+      ...base,
+      model: { ...base.model, operations: ["image.generate"], inputModalities: ["text", "image"] }
+    } as typeof base
+    const route = createModelCapabilityRouteExecutionBinding({
+      requirement: {
+        operation: "image.generate",
+        inputModalities: ["text"],
+        outputModalities: ["image"],
+        features: []
+      },
+      source: "single_candidate",
+      modelEndpoint
+    })
+    const evidence = {
+      res_photo: { resourceId: "res_photo", sha256: "a".repeat(64), sizeBytes: 9, kind: "image" as const, mediaType: "image/png" },
+      res_notes: { resourceId: "res_notes", sha256: "b".repeat(64), sizeBytes: 4, kind: "document" as const, mediaType: "application/pdf" }
+    }
+    const resources = {
+      async publish(): Promise<never> {
+        throw new Error("image_generate must not publish resources")
+      },
+      async reference(resourceId: string) {
+        const found = evidence[resourceId as keyof typeof evidence]
+        if (found === undefined) throw new Error(`tool resource not found: ${resourceId}`)
+        return { type: "resource" as const, ...found }
+      }
+    }
+    const tool = createWanexAppImageGenerationTool({ acceptsReferenceImages: true })
+    const invoke = (input: Record<string, unknown>, capabilityRoutes = [route]) => tool.invoke({
+      principalId: "principal",
+      sessionId: "session",
+      inputId: "input",
+      turnId: "turn",
+      attemptId: "attempt",
+      toolCallId: "call-edit",
+      toolName: tool.name,
+      input: input as never,
+      idempotencyKey: "tool:call-edit",
+      capabilityRoutes,
+      resources
+    })
+
+    expect(tool).toMatchObject({
+      name: "image_generate",
+      resultMode: "deferred",
+      requiredCapabilities: [{ operation: "image.generate", inputModalities: ["text"] }]
+    })
+    expect(tool.inputSchema).toHaveProperty("properties.images")
+    await expect(invoke({ prompt: " make it blue ", images: ["res_photo"] })).resolves.toMatchObject({
+      outcome: "deferred",
+      operation: {
+        kind: "media_generation",
+        binding: {
+          request: {
+            operation: "image.generate",
+            prompt: "make it blue",
+            inputResources: [evidence.res_photo]
+          }
+        }
+      }
+    })
+    await expect(invoke({ prompt: "x", images: ["res_notes"] })).rejects.toThrow("not an image")
+    await expect(invoke({ prompt: "x", images: [] })).rejects.toThrow("distinct resource ids")
+    await expect(invoke({ prompt: "x", images: ["res_photo", "res_photo"] })).rejects.toThrow("distinct resource ids")
+    await expect(invoke({ prompt: "x", images: ["res_missing"] })).rejects.toThrow("not found")
+    await expect(invoke({ prompt: "x", images: ["res_photo"] }, [])).rejects.toThrow("no frozen image generation route")
+    await expect(invoke({ prompt: "x" })).resolves.toMatchObject({
+      operation: { binding: { request: { inputResources: [] } } }
+    })
   })
 
   it("returns only bounded redacted evidence from capability_request", async () => {
@@ -190,7 +289,7 @@ describe("@wanex/app media generation facade", () => {
         storeDir: await createStoreDir()
       },
       artifacts: { explicitPath: serviceBin },
-      mediaGenerationAdapters: [adapter]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [adapter] })
     })
 
     try {
@@ -284,7 +383,7 @@ describe("@wanex/app media generation facade", () => {
       runtimeContext: {
         toolPermissionPolicy: new AllowAllToolsPolicy()
       },
-      mediaGenerationAdapters: [adapter]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [adapter] })
     })
     const storage = createStorageTestStore({
       kind: "local-system-service",
@@ -372,10 +471,9 @@ describe("@wanex/app media generation facade", () => {
       expect(adapter.submitCount).toBe(1)
       expect(providerRequests).toHaveLength(2)
       expect(providerRequests[0]).toMatchObject({
-        tools: [{
-          type: "function",
-          function: { name: "image_generate" }
-        }]
+        tools: [
+          { type: "function", function: { name: "image_generate" } }
+        ]
       })
       expect(providerRequests[1]).toMatchObject({
         messages: expect.arrayContaining([
@@ -385,6 +483,89 @@ describe("@wanex/app media generation facade", () => {
           })
         ])
       })
+    } finally {
+      await storage.dispose()
+      await app.dispose()
+    }
+  })
+
+  it("generates from a user attachment through the routed image_generate Tool", async () => {
+    const storeDir = await createStoreDir()
+    const adapter = new ImmediateImageAdapter("image-chat-edit", "app-image-protocol", true)
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
+    })
+    const providerRequests: Record<string, unknown>[] = []
+    let attachedId = ""
+    vi.stubGlobal("fetch", async (_input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+      providerRequests.push(body)
+      const messages = Array.isArray(body.messages) ? body.messages : []
+      return messages.some((message) => (message as { role?: unknown }).role === "tool")
+        ? openAITextResponse("The edited image is ready.")
+        : openAIImageToolResponse("image_generate", { prompt: "make it blue", images: [attachedId] })
+    })
+    const secretRef = "static://app-image-edit"
+    const app = await createWanexApp({
+      storage: { kind: "local-system-service", storeDir },
+      artifacts: { explicitPath: serviceBin },
+      modelEndpoint: appTestModelEndpoint({
+        endpointId: "app-image-edit-provider",
+        protocolId: "openai-chat-completions",
+        providerId: "openai-compatible",
+        modelId: "app-image-edit-model",
+        baseUrl: "https://image-edit.example.test/v1",
+        secretRef,
+        inputModalities: ["text", "image"]
+      }),
+      secretResolver: new SecretResolver([
+        new StaticSecretProvider({ values: { [secretRef]: "test-key" } })
+      ]),
+      runtimeContext: { toolPermissionPolicy: new AllowAllToolsPolicy() },
+      mediaGeneration: createMediaGenerationCapability({ adapters: [adapter] })
+    })
+
+    try {
+      await app.commands.upsertModelEndpoint({ modelEndpoint: adapter.modelEndpoint, makeActive: false })
+      const attached = await storage.ingestResource({
+        content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+        kind: "image",
+        mediaType: "image/png",
+        origin: "user_upload"
+      })
+      attachedId = attached.id
+      const submitted = await app.commands.submitConversationOperation({
+        sessionId: "session-image-edit",
+        content: [
+          { type: "text", text: "Make this blue." },
+          { type: "resource", resourceId: attached.id }
+        ]
+      })
+      await eventually(async () => {
+        await expect(app.commands.readConversationOperation(submitted)).resolves.toMatchObject({
+          kind: "found",
+          operation: { state: "succeeded" }
+        })
+      })
+
+      expect(providerRequests[0]).toMatchObject({
+        tools: [
+          { type: "function", function: { name: "image_generate" } }
+        ]
+      })
+      // The model sees the attachment's id next to its pixels.
+      expect(JSON.stringify(providerRequests[0])).toContain(`[image ${attached.id}]`)
+      expect(adapter.submittedInputs).toEqual([[{ resourceId: attached.id, bytes: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" }]])
+      const operations = await storage.listMediaGenerationOperations({ principalId: "wanex-app-user" })
+      expect(operations[0]).toMatchObject({
+        state: "succeeded",
+        binding: { request: { operation: "image.generate", inputResources: [{ resourceId: attached.id }] } }
+      })
+      // The edited image reaches the model after the tool result.
+      expect(JSON.stringify(providerRequests[1])).toContain("Images returned by the tool calls above:")
     } finally {
       await storage.dispose()
       await app.dispose()
@@ -401,7 +582,7 @@ describe("@wanex/app media generation facade", () => {
         storeDir: await createStoreDir()
       },
       artifacts: { explicitPath: serviceBin },
-      mediaGenerationAdapters: [adapter]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [adapter] })
     })
 
     try {
@@ -487,7 +668,7 @@ describe("@wanex/app media generation facade", () => {
     const first = await createWanexApp({
       storage: { kind: "local-system-service", storeDir },
       artifacts: { explicitPath: serviceBin },
-      mediaGenerationAdapters: [configured]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [configured] })
     })
     await first.commands.upsertModelEndpoint({
       modelEndpoint: configured.modelEndpoint,
@@ -506,7 +687,7 @@ describe("@wanex/app media generation facade", () => {
     const restarted = await createWanexApp({
       storage: { kind: "local-system-service", storeDir },
       artifacts: { explicitPath: serviceBin },
-      mediaGenerationAdapters: [fallback]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [fallback] })
     })
     try {
       await restarted.commands.upsertModelEndpoint({
@@ -544,14 +725,16 @@ describe("@wanex/app media generation facade", () => {
     const tools = new ToolRegistry()
     tools.register(imageCapabilityTool())
     const adapter = new ImmediateImageAdapter("image-turn-protocol-adapter")
-    const firstEndpoint = new ImmediateImageAdapter("image-turn-a").modelEndpoint
-    const secondEndpoint = new ImmediateImageAdapter("image-turn-b").modelEndpoint
+    const firstOptions = [{ name: "quality", description: "First route quality", type: "string", enum: ["high", "low"] }] as const
+    const secondOptions = [{ name: "n", description: "Second route count", type: "integer", minimum: 1, maximum: 2 }] as const
+    const firstEndpoint = new ImmediateImageAdapter("image-turn-a", "app-image-protocol", false, firstOptions).modelEndpoint
+    const secondEndpoint = new ImmediateImageAdapter("image-turn-b", "app-image-protocol", false, secondOptions).modelEndpoint
     const app = await createWanexApp({
       storage: { kind: "local-system-service", storeDir },
       artifacts: { explicitPath: serviceBin },
       modelEndpoint: appTestModelEndpoint(),
       runtimeContext: { tools },
-      mediaGenerationAdapters: [adapter]
+      mediaGeneration: createMediaGenerationCapability({ adapters: [adapter] })
     })
     const storage = createStorageTestStore({
       kind: "local-system-service",
@@ -598,6 +781,8 @@ describe("@wanex/app media generation facade", () => {
       expect(
         secondTurn?.executionBinding.capabilityRoutes[0]?.modelEndpoint.endpointId
       ).toBe("image-turn-b")
+      expect(firstTurn?.executionBinding.capabilityRoutes[0]?.modelEndpoint.model.generationOptions).toEqual(firstOptions)
+      expect(secondTurn?.executionBinding.capabilityRoutes[0]?.modelEndpoint.model.generationOptions).toEqual(secondOptions)
       const standardImageTool = (
         firstTurn?.executionBinding.toolSnapshot as {
           readonly tools?: readonly {
@@ -610,8 +795,11 @@ describe("@wanex/app media generation facade", () => {
       )?.tools?.find((tool) => tool.descriptor?.name === "image_generate")
       expect(standardImageTool?.descriptor).toMatchObject({
         name: "image_generate",
-        resultMode: "deferred"
+        resultMode: "deferred",
+        inputSchema: { properties: { options: { properties: { quality: { enum: ["high", "low"] } }, additionalProperties: false } } }
       })
+      const secondSnapshot = secondTurn?.executionBinding.toolSnapshot as { tools?: { descriptor?: { name?: string; inputSchema?: unknown } }[] }
+      expect(secondSnapshot.tools?.find((tool) => tool.descriptor?.name === "image_generate")?.descriptor?.inputSchema).toMatchObject({ properties: { options: { properties: { n: { minimum: 1, maximum: 2 } } } } })
     } finally {
       await storage.dispose()
       await app.dispose()
@@ -623,10 +811,13 @@ class ImmediateImageAdapter implements MediaGenerationAdapter {
   readonly modelEndpoint: MediaGenerationModelEndpoint
   submitCount = 0
   readonly submittedEndpointIds: string[] = []
+  readonly submittedInputs: Array<readonly { readonly resourceId: string; readonly bytes: string }[]> = []
 
   constructor(
     endpointId = "app-image-profile",
-    protocolId = "app-image-protocol"
+    protocolId = "app-image-protocol",
+    edits = false,
+    generationOptions?: readonly ModelOptionDescriptor[]
   ) {
     this.modelEndpoint = {
       id: endpointId,
@@ -637,8 +828,9 @@ class ImmediateImageAdapter implements MediaGenerationAdapter {
       protocol: { id: protocolId },
       model: {
         id: `${endpointId}-model`,
+        ...(generationOptions === undefined ? {} : { generationOptions }),
         operations: ["image.generate"],
-        inputModalities: ["text"],
+        inputModalities: edits ? ["text", "image"] : ["text"],
         outputModalities: ["image"],
         features: [],
         catalog: {
@@ -663,12 +855,16 @@ class ImmediateImageAdapter implements MediaGenerationAdapter {
   ): Promise<MediaGenerationSubmitResult> {
     this.submitCount += 1
     this.submittedEndpointIds.push(request.binding.endpointId)
+    this.submittedInputs.push(request.inputs.map((input) => ({
+      resourceId: input.resource.resourceId,
+      bytes: Buffer.from(input.bytes).toString("base64")
+    })))
     return {
       status: "completed",
       outputs: [
         {
           kindOfOutput: "inline_bytes",
-          bytes: Buffer.from("app-generated-image"),
+          bytes: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
           mediaType: "image/png",
           kind: "image"
         }
@@ -735,7 +931,10 @@ async function eventually(assertion: () => Promise<void>): Promise<void> {
   throw lastError
 }
 
-function openAIImageToolResponse() {
+function openAIImageToolResponse(
+  name = "image_generate",
+  input: Record<string, unknown> = { prompt: "a durable red triangle" }
+) {
   return {
     ok: true,
     status: 200,
@@ -746,10 +945,10 @@ function openAIImageToolResponse() {
           delta: {
             tool_calls: [{
               index: 0,
-              id: "call_image_generate",
+              id: `call_${name}`,
               function: {
-                name: "image_generate",
-                arguments: JSON.stringify({ prompt: "a durable red triangle" })
+                name,
+                arguments: JSON.stringify(input)
               }
             }]
           },

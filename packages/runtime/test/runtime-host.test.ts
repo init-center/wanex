@@ -48,7 +48,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`
 )
-const expectedSchemaVersion = 22
+const expectedSchemaVersion = 26
 
 const tempDirs: string[] = []
 let testStorageHandle: StorageHandle | undefined
@@ -1387,6 +1387,7 @@ describe("@wanex/runtime/host", () => {
 })
 
 class ConcurrentProbeProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "probe"
   readonly model = testConversationModel("probe-model")

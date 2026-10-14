@@ -26,6 +26,20 @@ describe("LocalToolPermissionPolicy", () => {
     })
   })
 
+  it("allows the exact image analysis contract", async () => {
+    await expect(policy.authorize(permissionRequest({
+      ...descriptor("image_analyze", "external"),
+      idempotent: true,
+      concurrency: "parallel_safe",
+      resultMode: "immediate"
+    }))).resolves.toEqual({ status: "allow", reason: "assistant_local_image_analyze_tool" })
+    await expect(policy.authorize(permissionRequest({
+      ...descriptor("image_analyze", "external"),
+      idempotent: true,
+      resultMode: "deferred"
+    }))).resolves.toMatchObject({ status: "deny" })
+  })
+
   it("allows only the durable workspace mutation contracts", async () => {
     for (const name of ["workspace_apply_changeset", "workspace_undo_changeset", "workspace_reapply_changeset", "workspace_prepare_isolated_changes"]) {
       await expect(policy.authorize(permissionRequest({

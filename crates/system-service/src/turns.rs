@@ -391,6 +391,30 @@ pub(crate) fn settle_session_turn_tx(
         let job = crate::scheduler::get_job_tx(tx, &request.job_id)?;
         let assistant_message =
             get_terminal_assistant_message_tx(tx, &request.session_id, &request.turn_id)?;
+        if request.outcome == "succeeded" {
+            let invocation_id = request.provider_invocation_id.as_deref().ok_or_else(|| {
+                SystemServiceError::InvalidInput(
+                    "repeated success requires provider invocation".to_string(),
+                )
+            })?;
+            let invocation =
+                crate::provider_invocations::get_provider_invocation_tx(tx, invocation_id)?;
+            if invocation.turn_id != turn.id
+                || invocation.session_id != turn.session_id
+                || invocation.assistant_message_id.as_deref()
+                    != assistant_message
+                        .as_ref()
+                        .map(|message| message.id.as_str())
+                || assistant_message.as_ref().is_none_or(|message| {
+                    Some(&message.content) != request.assistant_message.as_ref()
+                        || message.provider_state.as_ref() != request.provider_state.as_ref()
+                })
+            {
+                return Err(SystemServiceError::Invariant(
+                    "conflicting repeated provider publication".to_string(),
+                ));
+            }
+        }
         return Ok(SettleSessionTurnReceipt {
             turn,
             attempt,
@@ -455,6 +479,9 @@ pub(crate) fn settle_session_turn_tx(
         .assistant_message
         .as_ref()
         .map(|content| {
+            if request.outcome != "succeeded" {
+                crate::provider_invocations::reject_uncheckpointed_images_tx(tx, content)?;
+            }
             insert_session_message_tx(
                 tx,
                 NewSessionMessage {
@@ -1148,7 +1175,7 @@ fn classify_recovery_tx(
     let provider_problem: Option<String> = {
         let mut stmt = tx.prepare(
             "SELECT state, output_observed, invocation_number, assistant_message_id,
-                    error_json
+                    error_json, response_checkpoint_json, response_digest
              FROM provider_invocation WHERE turn_id = ?
              ORDER BY step ASC, invocation_number ASC, id ASC",
         )?;
@@ -1159,12 +1186,21 @@ fn classify_recovery_tx(
                 row.get::<_, i64>(2)?,
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<String>>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         })?;
         let mut problem = None;
         for row in rows {
-            let (state, output_observed, invocation_number, assistant_message_id, error_json) =
-                row?;
+            let (
+                state,
+                output_observed,
+                invocation_number,
+                assistant_message_id,
+                error_json,
+                checkpoint,
+                digest,
+            ) = row?;
             let retryable = error_json
                 .as_deref()
                 .map(serde_json::from_str::<serde_json::Value>)
@@ -1174,6 +1210,21 @@ fn classify_recovery_tx(
                 .and_then(serde_json::Value::as_bool)
                 == Some(true);
             let reason = match state.as_str() {
+                "output_ready" => {
+                    let checkpoint = checkpoint
+                        .as_deref()
+                        .map(serde_json::from_str::<serde_json::Value>)
+                        .transpose()?;
+                    if output_observed
+                        && checkpoint.as_ref().is_some_and(|value| {
+                            digest.as_deref() == Some(crate::util::digest_json(value).as_str())
+                        })
+                    {
+                        None
+                    } else {
+                        Some("provider_ready_evidence_incomplete")
+                    }
+                }
                 "dispatched" | "output_observed" | "ambiguous" => {
                     Some("provider_invocation_ambiguous")
                 }

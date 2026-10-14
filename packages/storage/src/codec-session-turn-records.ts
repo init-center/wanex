@@ -429,7 +429,17 @@ function readCapabilityRoutes(
       entry.requirement,
       `${label}.requirement`
     )
-    if (requirement.operation === "conversation") {
+    // The only `conversation` route is the auxiliary image-understanding
+    // endpoint (text and image in, text out); the System Service enforces the same shape.
+    if (
+      requirement.operation === "conversation" &&
+      JSON.stringify(requirement) !== JSON.stringify({
+        operation: "conversation",
+        inputModalities: ["text", "image"],
+        outputModalities: ["text"],
+        features: []
+      })
+    ) {
       throw new Error(`${label}.requirement.operation must not be conversation`)
     }
     const source = expectString(entry.source, `${label}.source`)

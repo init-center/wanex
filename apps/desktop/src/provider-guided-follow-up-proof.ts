@@ -346,8 +346,8 @@ export async function runWanexDesktopProviderGuidedFollowUpSettlementProof(
       redacted &&
       settled.parentResponseVisible &&
       settled.childResponseVisible,
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: redacted,

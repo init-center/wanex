@@ -1,4 +1,6 @@
 import {
+  type PrepareImageResourceRequest,
+  type PreparedImageResource,
   type CleanupExpiredResourceTicketsRequest,
   type DoctorReport,
   type FileRecord,
@@ -16,6 +18,7 @@ import {
 
 import {
   assertArray,
+  expectBoolean,
   expectNumber,
   expectResourceKind,
   expectResourceOrigin,
@@ -29,6 +32,7 @@ import {
   withOptionalFields
 } from "./codec-helpers.js"
 import type {
+  PrepareImageResourceWire,
   CleanupExpiredResourceTicketsWire,
   IngestResourceWire,
   ListResourceProvenanceWire,
@@ -38,6 +42,22 @@ import type {
   ResourceProvenanceCauseWire
 } from "./generated/storage-rpc.js"
 import { digestCanonicalJson } from "./codec-canonical.js"
+
+export function toRpcPrepareImageResourceRequest(request: PrepareImageResourceRequest): PrepareImageResourceWire {
+  if (request.mode !== "normalize" && request.mode !== "preserve") throw new Error("invalid image preparation mode")
+  return { resource: toRpcResourceInputEvidence(request.resource), mode: request.mode }
+}
+
+export function fromRpcPreparedImageResource(value: JsonValue): PreparedImageResource {
+  if (!isRecord(value)) throw new Error("prepared image must be an object")
+  const width = expectNumber(value.width, "prepared image.width")
+  const height = expectNumber(value.height, "prepared image.height")
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) {
+    throw new Error("prepared image dimensions must be positive integers")
+  }
+  return { resource: fromRpcResourceRecord(value.resource ?? null), width, height,
+    transformed: expectBoolean(value.transformed, "prepared image.transformed") }
+}
 
 export function fromRpcFileRecord(value: JsonValue): FileRecord {
   if (!isRecord(value)) {
@@ -212,8 +232,20 @@ export function fromRpcResourceProvenanceRecord(
 function toRpcResourceProvenanceCause(
   cause: ResourceProvenanceCause
 ): ResourceProvenanceCauseWire {
+  if (cause.kind === "image_normalization") return { kind: cause.kind,
+    normalization_key: requireNonEmpty(cause.normalizationKey, "normalizationKey"), policy: requireNonEmpty(cause.policy, "policy") }
+  if (cause.kind === "provider_output") return { kind: cause.kind,
+    invocation_id: requireNonEmpty(cause.invocationId, "invocationId"), part_id: requireNonEmpty(cause.partId, "partId") }
   if (cause.kind === "media_generation") {
     return { kind: cause.kind, operation_id: requireNonEmpty(cause.operationId, "operationId") }
+  }
+  if (cause.kind === "image_description") {
+    return {
+      kind: cause.kind,
+      description_key: requireNonEmpty(cause.descriptionKey, "descriptionKey"),
+      endpoint_digest: requireNonEmpty(cause.endpointDigest, "endpointDigest"),
+      prompt_version: requireNonEmpty(cause.promptVersion, "promptVersion")
+    }
   }
   return {
     kind: cause.kind,
@@ -227,6 +259,12 @@ function toRpcResourceProvenanceCause(
 
 function fromRpcResourceProvenanceCause(value: JsonValue): ResourceProvenanceCause {
   if (!isRecord(value)) throw new Error("resource provenance cause must be an object")
+  if (value.kind === "image_normalization") return { kind: value.kind,
+    normalizationKey: requireNonEmpty(expectString(value.normalization_key, "cause.normalization_key"), "normalization_key"),
+    policy: requireNonEmpty(expectString(value.policy, "cause.policy"), "policy") }
+  if (value.kind === "provider_output") return { kind: value.kind,
+    invocationId: requireNonEmpty(expectString(value.invocation_id, "cause.invocation_id"), "invocation_id"),
+    partId: requireNonEmpty(expectString(value.part_id, "cause.part_id"), "part_id") }
   if (value.kind === "media_generation") {
     return {
       kind: value.kind,
@@ -234,6 +272,14 @@ function fromRpcResourceProvenanceCause(value: JsonValue): ResourceProvenanceCau
         expectString(value.operation_id, "resource provenance cause.operation_id"),
         "operation_id"
       )
+    }
+  }
+  if (value.kind === "image_description") {
+    return {
+      kind: value.kind,
+      descriptionKey: requireNonEmpty(expectString(value.description_key, "cause.description_key"), "description_key"),
+      endpointDigest: requireNonEmpty(expectString(value.endpoint_digest, "cause.endpoint_digest"), "endpoint_digest"),
+      promptVersion: requireNonEmpty(expectString(value.prompt_version, "cause.prompt_version"), "prompt_version")
     }
   }
   if (value.kind !== "tool_execution") {
@@ -276,6 +322,16 @@ export function resourceInputEvidenceJson(
 function resourceProvenanceCauseJson(
   cause: ResourceProvenanceCause
 ): Readonly<Record<string, JsonValue>> {
+  if (cause.kind === "image_normalization") return { kind: cause.kind, normalizationKey: cause.normalizationKey, policy: cause.policy }
+  if (cause.kind === "provider_output") return { kind: cause.kind, invocationId: cause.invocationId, partId: cause.partId }
+  if (cause.kind === "image_description") {
+    return {
+      kind: cause.kind,
+      descriptionKey: cause.descriptionKey,
+      endpointDigest: cause.endpointDigest,
+      promptVersion: cause.promptVersion
+    }
+  }
   return cause.kind === "media_generation"
     ? { kind: cause.kind, operationId: cause.operationId }
     : {

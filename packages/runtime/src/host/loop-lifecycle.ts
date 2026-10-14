@@ -3,7 +3,7 @@ import type { WorkerLoop, WorkerRunOnceResult } from "../jobs/index.js"
 import { RuntimeHostLoopHealthTracker } from "./loop-health.js"
 import type { RuntimeHostMemoryWorker } from "./memory-compaction.js"
 import type { RuntimeHostLoopHealth } from "./types.js"
-import type { WanexMediaGenerationRuntime } from "../media-generation/index.js"
+import type { MediaGenerationWorker } from "../media-generation/types.js"
 
 type AgentHostLoop = ReturnType<WanexAgentRuntime["start"]>
 
@@ -26,7 +26,7 @@ export class RuntimeHostLoopLifecycle {
   start(request: {
     readonly workers: readonly WanexAgentRuntime[]
     readonly memoryWorkers: readonly RuntimeHostMemoryWorker[]
-    readonly mediaGenerationWorkers: readonly WanexMediaGenerationRuntime[]
+    readonly mediaGenerationWorkers: readonly MediaGenerationWorker[]
     readonly startedAt: number
   }): void {
     this.agentLoops.length = 0

@@ -3,6 +3,7 @@ import type {
   PreparedProviderReplayMessage,
   ProviderAdapter,
   ProviderEvent,
+  ProviderObservedEvent,
   ProviderRequest
 } from "../../provider/index.js"
 import { ProviderStreamError } from "../../provider/index.js"
@@ -18,10 +19,11 @@ import {
   type ToolRegistry
 } from "../../tools/index.js"
 import { runProviderCompletion } from "./completion.js"
+import { persistProviderResponse, providerInputResources } from "./provider-response.js"
 import { drainTurnControls } from "./run-control.js"
 import { buildSessionReplayMessages } from "./session-replay.js"
 import { runToolBatch } from "./tool-execution.js"
-import { prepareProviderReplayResources } from "../../resources/index.js"
+import { prepareProviderReplayResources } from "../../resources/input.js"
 import {
   ContextCapacityError,
   estimateContextCapacity,
@@ -54,6 +56,7 @@ export class AgentRunnerExecutionContext {
   private readonly observeExecutionStage: AgentRuntimeExecutionStageObserver | undefined
   private readonly contextCompiler: WanexAgentRunnerOptions["contextCompiler"]
   private readonly compactContext: ContextCapacityCompactor | undefined
+  private readonly describeImages: WanexAgentRunnerOptions["describeImages"]
 
   constructor(options: WanexAgentRunnerOptions) {
     this.session = options.session
@@ -61,6 +64,7 @@ export class AgentRunnerExecutionContext {
     this.tools = options.tools
     this.contextCompiler = options.contextCompiler
     this.compactContext = options.compactContext
+    this.describeImages = options.describeImages
     this.timeoutMs = options.timeoutMs
     this.toolPermissionPolicy = options.toolPermissionPolicy
     this.toolMaxConcurrency = options.toolMaxConcurrency ?? 4
@@ -94,14 +98,20 @@ export class AgentRunnerExecutionContext {
         ? {}
         : { contextCompiler: this.contextCompiler })
     })
-    return await prepareProviderReplayResources(
+    const prepared = await prepareProviderReplayResources(
       this.session,
       {
         protocol: this.provider.protocol,
+        providerId: this.provider.providerId,
+        modelId: this.provider.model.id,
         inputModalities: this.provider.model.inputModalities
       },
-      messages
+      messages,
+      { describedImages: this.describeImages !== undefined }
     )
+    return this.describeImages === undefined
+      ? prepared
+      : await this.describeImages.describe(prepared)
   }
 
   async drainTurnControls(
@@ -115,15 +125,21 @@ export class AgentRunnerExecutionContext {
   }
 
   async runProviderCompletion(
-    initialMessages: RunnerReplayMessages,
+    loadMessages: () => Promise<RunnerReplayMessages>,
     signal: RuntimeAbortSignal | undefined,
     execution: ActiveTurnAttempt,
     step: number,
     heartbeat: () => Promise<void>
   ) {
+    const previous = await this.session.listProviderInvocations({ turnId: execution.turnId })
+    const latestForStep = previous.filter((invocation) => invocation.step === step).at(-1)
+    if (latestForStep?.state === "output_ready") {
+      if (latestForStep.responseCheckpoint === undefined) throw new RecoveryEvidenceError("provider ready checkpoint is missing")
+      return { invocationId: latestForStep.id, response: latestForStep.responseCheckpoint }
+    }
     const providerTools = this.providerTools()
     const messages = await this.ensureProviderCapacity(
-      initialMessages,
+      await loadMessages(),
       providerTools,
       signal,
       execution,
@@ -135,6 +151,7 @@ export class AgentRunnerExecutionContext {
       signal,
       timeoutMs: this.timeoutMs,
       maxOutputTokens: execution.maxOutputTokens,
+      outputModalities: this.provider.model.outputModalities,
       ...(providerTools.length === 0 || !toolsSupported
         ? {}
         : {
@@ -147,7 +164,7 @@ export class AgentRunnerExecutionContext {
       ...(this.observeProviderEvent === undefined
         ? {}
         : {
-            observe: (event: ProviderEvent) => this.observeProviderEvent?.({
+            observe: (event: ProviderObservedEvent) => this.observeProviderEvent?.({
               sessionId: execution.sessionId,
               inputId: execution.inputId,
               turnId: execution.turnId,
@@ -161,12 +178,6 @@ export class AgentRunnerExecutionContext {
     } satisfies Parameters<typeof runProviderCompletion>[1]
     const requestDigest = providerRequestDigest(providerRequest)
     this.observeStage("provider_request_prepared", execution, { step })
-    const previous = await this.session.listProviderInvocations({
-      turnId: execution.turnId
-    })
-    const latestForStep = previous
-      .filter((invocation) => invocation.step === step)
-      .at(-1)
     if (
       latestForStep?.state === "failed_before_output" &&
       latestForStep.requestDigest !== requestDigest
@@ -183,12 +194,13 @@ export class AgentRunnerExecutionContext {
         ...executionIdentity(execution),
         step,
         invocationNumber,
-        requestDigest
+        requestDigest,
+        inputResources: providerInputResources(messages)
       })
       this.observeStage("provider_invocation_started", execution, { step })
       let outputMarked = invocation.outputObserved
       try {
-        const response = await runProviderCompletion(this.provider, {
+        const candidate = await runProviderCompletion(this.provider, {
           ...providerRequest,
           checkpoint: async (event) => {
             if (outputMarked || !isProviderOutput(event)) return
@@ -202,8 +214,9 @@ export class AgentRunnerExecutionContext {
             outputMarked = true
           }
         })
+        await this.recordProviderUsage(candidate, execution, invocation.id)
+        const response = await persistProviderResponse(this.session, candidate, execution, invocation.id, signal)
         this.observeStage("provider_invocation_succeeded", execution, { step })
-        await this.recordProviderUsage(response, execution, invocation.id)
         return { invocationId: invocation.id, response }
       } catch (error) {
         if (!(error instanceof ProviderStreamError)) throw error
@@ -370,6 +383,9 @@ function providerRequestDigest(
 }
 
 function stableJson(value: unknown): string {
+  if (value instanceof Uint8Array) {
+    return JSON.stringify({ type: "bytes", sha256: createHash("sha256").update(value).digest("hex"), sizeBytes: value.byteLength })
+  }
   if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`
   if (value !== null && typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>)
@@ -383,7 +399,8 @@ function stableJson(value: unknown): string {
 function isProviderOutput(event: ProviderEvent): boolean {
   return event.type === "text_delta" ||
     event.type === "reasoning_delta" ||
-    event.type === "tool_call_start"
+    event.type === "tool_call_start" ||
+    event.type === "image_output"
 }
 
 function providerTokenUsage(

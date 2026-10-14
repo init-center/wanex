@@ -17,6 +17,12 @@ export function projectLocalModelEndpoints(
     ...(endpointList.activeEndpointId === undefined
       ? {}
       : { activeEndpointId: endpointList.activeEndpointId }),
+    ...(endpointList.imageUnderstandingEndpointId === undefined
+      ? {}
+      : {
+          imageUnderstandingEndpointId:
+            endpointList.imageUnderstandingEndpointId
+        }),
     endpoints: endpointList.endpoints.map(projectLocalModelEndpoint)
   }
 }

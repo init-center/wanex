@@ -175,6 +175,81 @@ describe("@wanex/app workflow commands", () => {
     }
   })
 
+  it("uses the explicit image-understanding route for text-only side queries", async () => {
+    const storeDir = await createStoreDir()
+    const app = await createWanexApp({
+      storage: {
+        kind: "local-system-service",
+        storeDir
+      },
+      artifacts: {
+        explicitPath: serviceBin
+      },
+      modelEndpoint: fakeModelEndpoint
+    })
+    const storage = createStorageTestStore({
+      kind: "local-system-service",
+      mode: "oneshot",
+      storeDir,
+      serviceBin
+    })
+
+    try {
+      const image = await storage.ingestResource({
+        content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+        mediaType: "image/png",
+        kind: "image",
+        origin: "user_upload",
+        label: "side-query image"
+      })
+      await app.commands.upsertModelEndpoint({
+        modelEndpoint: appTestModelEndpoint({
+          endpointId: "side-query-image-understanding",
+          modelId: "side-query-image-model",
+          inputModalities: ["text", "image"]
+        }),
+        makeActive: false
+      })
+      await app.commands.setImageUnderstandingEndpoint({
+        endpointId: "side-query-image-understanding"
+      })
+      await app.commands.runAgentTurn({
+        sessionId: "ses_wanex_app_side_query_image",
+        content: [
+          { type: "text", text: "keep this image in the conversation" },
+          { type: "resource", resourceId: image.id }
+        ]
+      })
+
+      await expect(
+        app.commands.askSideQuery({
+          sessionId: "ses_wanex_app_side_query_image",
+          question: "what is in the image?"
+        })
+      ).resolves.toMatchObject({
+        answerText: "Fake response from wanex-app-model",
+        persisted: false,
+        modelEndpointId: "wanex-app-fake"
+      })
+      await expect(
+        storage.listResourceProvenance({
+          causeKind: "image_description",
+          limit: 10
+        })
+      ).resolves.toEqual([
+        expect.objectContaining({
+          cause: expect.objectContaining({
+            endpointDigest: expect.any(String)
+          }),
+          inputResources: [expect.objectContaining({ resourceId: image.id })]
+        })
+      ])
+    } finally {
+      await storage.dispose()
+      await app.dispose()
+    }
+  })
+
   it("aborts side queries without creating durable execution or context records", async () => {
     const storeDir = await createStoreDir()
     const provider = await createBlockingOpenAIProvider()

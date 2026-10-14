@@ -8,7 +8,6 @@ import {
   mountClient,
   type Client,
   type ClientEvent,
-  type AppModalState,
   type PreparedResourceDelivery,
 } from "../src/client/index.js";
 import type {
@@ -49,9 +48,9 @@ describe("Web client", () => {
         }
         return { ok: true, action: action.type, snapshot: current };
       },
-    }, undefined, undefined, onThemeChange);
+    }, undefined, onThemeChange);
     expect(onThemeChange.mock.calls).toEqual([["system"]]);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("appearance");
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
     ).click());
@@ -61,13 +60,59 @@ describe("Web client", () => {
     expect(onThemeChange.mock.calls).toEqual([["system"], ["dark"]]);
   });
 
+  it("chooses the model that describes images for a text-only model", async () => {
+    const initial = baseSnapshot();
+    const profile = initial.view.settings.profile;
+    const vision = {
+      ...profile.endpoints[0]!,
+      id: "endpoint_vision",
+      active: false,
+      model: { ...profile.endpoints[0]!.model, id: "vision-react", inputModalities: ["text", "image"] as const },
+    };
+    const snapshot: Snapshot = { ...initial, view: { ...initial.view, settings: {
+      ...initial.view.settings,
+      profile: { ...profile, endpointCount: 2, endpoints: [...profile.endpoints, vision] },
+    } } };
+    const actions: unknown[] = [];
+    await mount(createClient(snapshot, async (action) => {
+      actions.push(action);
+      return { ok: true, action: action.type, snapshot };
+    }), snapshot);
+    await openSettings("models");
+    const select = requiredElement<HTMLElement>('[data-ui-select="imageUnderstandingEndpointId"]');
+    expect(select.textContent).toContain("Off");
+    expect(document.querySelector("[data-ui-image-understanding-settings]")?.textContent)
+      .toContain("Images are sent to its provider");
+    await act(async () => {
+      select.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }));
+    });
+    const option = [...document.querySelectorAll<HTMLElement>("[role=option]")]
+      .find((item) => item.textContent === "vision-react");
+    await act(async () => option?.click());
+    expect(actions).toEqual([{
+      type: "set-image-understanding-endpoint",
+      input: { endpointId: "endpoint_vision" },
+    }]);
+  });
+
+  it("marks attached images that another model will describe", async () => {
+    const initial = attachmentSnapshot(baseSnapshot());
+    const snapshot: Snapshot = { ...initial, view: {
+      ...initial.view,
+      conversationImagesDescribedBy: "vision-react",
+    } };
+    await mount(createClient(snapshot), snapshot);
+    expect(requiredElement<HTMLElement>("[data-ui-attachment-described]").textContent)
+      .toContain("described by vision-react");
+  });
+
   it("does not report an unconfirmed theme after a rejected update", async () => {
     const snapshot = baseSnapshot();
     const onThemeChange = vi.fn();
     await mount(createClient(snapshot, async (action) => ({
       ok: false, action: action.type, message: "Preference update rejected", snapshot,
-    })), snapshot, undefined, onThemeChange);
-    await act(async () => requiredButton("Open settings").click());
+    })), snapshot, onThemeChange);
+    await openSettings("appearance");
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
     ).click());
@@ -99,7 +144,7 @@ describe("Web client", () => {
     await mount({
       ...createClient(baseSnapshot()),
       readSnapshot: () => pending.promise,
-    }, undefined, undefined, onThemeChange);
+    }, undefined, onThemeChange);
     expect(onThemeChange).not.toHaveBeenCalled();
     const loading = requiredElement<HTMLElement>('[data-ui-availability-state="loading"]');
     expect(loading.tagName).toBe("MAIN");
@@ -124,7 +169,7 @@ describe("Web client", () => {
       }));
     });
 
-    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+    expect(document.querySelector("[data-ui-settings-panel]")).not.toBeNull();
   });
 
   it("renders the chat-first timeline without exposing lower execution identities", async () => {
@@ -161,7 +206,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }));
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("schedules");
     await act(async () => requiredButton("Add schedule").click());
     const form = requiredElement<HTMLFormElement>("[data-ui-schedule-form]");
     await setTextarea(requiredElement<HTMLTextAreaElement>("[data-ui-schedule-form] textarea"), "Summarize the latest work.");
@@ -263,7 +308,7 @@ describe("Web client", () => {
     };
     await mount(client, snapshot);
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("tool-servers");
     await waitFor(() => document.querySelector("[data-ui-mcp-settings]") !== null);
     expect(document.body.textContent).toContain("Tool servers");
     expect(document.body.textContent).toContain("Connect a tool server");
@@ -352,7 +397,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }), snapshot);
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("schedules");
     await act(async () => requiredButton("Edit Daily review").click());
     await waitFor(() => document.querySelector("[data-ui-schedule-form]") !== null);
     await submitForm(requiredElement<HTMLFormElement>("[data-ui-schedule-form]"));
@@ -392,7 +437,7 @@ describe("Web client", () => {
         : { ok: true, action: action.type, snapshot };
     }), snapshot);
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("schedules");
     await act(async () => requiredButton("Add schedule").click());
     await setTextarea(
       requiredElement<HTMLTextAreaElement>("[data-ui-schedule-form] textarea"),
@@ -434,7 +479,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }), snapshot);
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("schedules");
     const remove = requiredButton("Remove Daily review");
     await act(async () => remove.click());
     await waitFor(() => document.querySelector("[data-ui-schedule-remove-dialog]") !== null);
@@ -468,13 +513,13 @@ describe("Web client", () => {
     expect(document.querySelector("[data-ui-schedule-remove-dialog]")).toBeNull();
   });
 
-  it("shows unavailable schedules without offering a fake create action", async () => {
+  it("omits Schedules from Settings when the host does not provide them", async () => {
     const snapshot = baseSnapshot();
     await mount(createClient(snapshot), snapshot);
 
-    await act(async () => requiredButton("Open settings").click());
-    expect(document.querySelector("[data-ui-schedule-unavailable]")?.textContent)
-      .toContain("not configured");
+    await openSettings();
+    expect(document.querySelector('[data-ui-settings-nav="schedules"]')).toBeNull();
+    expect(document.querySelector("[data-ui-schedule-settings]")).toBeNull();
     expect(document.querySelector("[data-ui-schedule-create]")).toBeNull();
   });
 
@@ -1404,50 +1449,39 @@ describe("Web client", () => {
     expect(document.body.textContent).not.toContain("Wanex");
   });
 
-  it("opens Provider settings as a focused overlay instead of a layout column", async () => {
-    const modalStates: AppModalState[] = [];
-    await mount(
-      createClient(baseSnapshot()),
-      undefined,
-      (state) => modalStates.push(state),
-    );
-
-    expect(modalStates.at(-1)).toEqual({ active: false });
+  it("opens Settings as a page with section navigation and returns to the conversation", async () => {
+    await mount(createClient(baseSnapshot()));
 
     const opener = requiredButton("Open settings");
     opener.focus();
     await act(async () => opener.click());
 
-    expect(modalStates.at(-1)).toEqual({ active: true, kind: "settings" });
-    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
-    const dialog = requiredElement<HTMLElement>('[role="dialog"][aria-label="Settings"]');
-    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Settings");
-    expect(dialog.textContent).toContain("Appearance");
-    expect(dialog.textContent).toContain("Models & providers");
-    expect(dialog.textContent).not.toMatch(/Assistant setup|trusted host|renderer|redacted/u);
-    expect(document.querySelector("[data-ui-layout] > [data-ui-settings-panel]")).toBeNull();
-    const close = requiredElement<HTMLButtonElement>(
-      '[role="dialog"] button[aria-label="Close settings"]',
-    );
-    await waitFor(() => document.activeElement === close);
+    const page = requiredElement<HTMLElement>('[data-ui-settings-panel][aria-label="Settings"]');
+    expect(page.getAttribute("role")).toBeNull();
+    expect(page.getAttribute("data-ui-settings-section")).toBe("models");
+    expect(page.querySelector("[data-ui-provider-settings] strong")?.textContent).toBe("Models");
+    expect(page.textContent).not.toMatch(/Assistant setup|trusted host|renderer|redacted/u);
+    expect(document.querySelector("[data-ui-layout] [data-ui-settings-panel]")).toBeNull();
+    const current = requiredElement<HTMLButtonElement>('[data-ui-settings-nav="models"]');
+    expect(current.getAttribute("aria-current")).toBe("page");
+    await waitFor(() => document.activeElement === current);
     expect(requiredElement<HTMLElement>("[data-ui-layout]").inert).toBe(true);
-    expect(requiredElement<HTMLElement>("[data-ui-topbar]").inert).toBe(true);
-    await act(async () => close.dispatchEvent(new KeyboardEvent("keydown", {
-      key: "Tab",
-      bubbles: true,
-      cancelable: true,
-    })));
-    expect(document.activeElement).toBe(close);
-    expect(dialog.contains(document.activeElement)).toBe(true);
+    expect(requiredElement<HTMLElement>("[data-ui-layout]").className).toMatch(/behind-settings/u);
 
-    await act(async () => requiredElement<HTMLButtonElement>("[data-ui-settings-dismiss]").click());
-    expect(document.querySelector("[data-ui-settings-overlay]")).toBeNull();
-    expect(modalStates.at(-1)).toEqual({ active: false });
+    await act(async () => requiredElement<HTMLButtonElement>('[data-ui-settings-nav="appearance"]').click());
+    expect(page.getAttribute("data-ui-settings-section")).toBe("appearance");
+    expect(page.querySelector("[data-ui-appearance-settings]")).not.toBeNull();
+    expect(page.querySelector("[data-ui-provider-settings]")).toBeNull();
+
+    const back = requiredElement<HTMLButtonElement>('[data-ui-action="close-settings"]');
+    expect(back.textContent).toContain("Back to app");
+    await act(async () => back.click());
+    expect(document.querySelector("[data-ui-settings-panel]")).toBeNull();
     expect(document.activeElement).toBe(opener);
 
     await act(async () => opener.click());
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })));
-    expect(document.querySelector("[data-ui-settings-overlay]")).toBeNull();
+    expect(document.querySelector("[data-ui-settings-panel]")).toBeNull();
     expect(document.activeElement).toBe(opener);
   });
 
@@ -1484,7 +1518,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }));
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     expect(document.querySelector("[data-ui-extension-settings]")).not.toBeNull();
     const add = requiredElement<HTMLButtonElement>("[data-ui-extension-add]");
     await act(async () => add.click());
@@ -1502,7 +1536,7 @@ describe("Web client", () => {
     ));
 
     await act(async () => requiredElement<HTMLButtonElement>(
-      "[data-ui-settings-dismiss]",
+      '[data-ui-action="close-settings"]',
     ).click());
     expect(document.querySelector("[data-ui-extension-review]")).not.toBeNull();
 
@@ -1514,7 +1548,7 @@ describe("Web client", () => {
       cancelable: true,
     })));
     await waitFor(() => document.querySelector("[data-ui-extension-review]") === null);
-    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+    expect(document.querySelector("[data-ui-settings-panel]")).not.toBeNull();
     await waitFor(() => document.activeElement === add);
     expect(actions).toEqual([
       { type: "request-local-plugin-review" },
@@ -1533,7 +1567,7 @@ describe("Web client", () => {
       actions.push(action);
       return pending.promise;
     }), snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings(kind === "extension" ? "extensions" : "schedules");
     await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
     const confirm = requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`);
     await act(async () => {
@@ -1544,7 +1578,7 @@ describe("Web client", () => {
       );
     });
     expect(actions).toHaveLength(1);
-    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+    expect(document.querySelector("[data-ui-settings-panel]")).not.toBeNull();
     expect(document.querySelector(`[data-ui-${kind}-remove-dialog]`)).not.toBeNull();
     await act(async () => pending.resolve({ ok: false, action: actions[0]!.type, message: "Removal rejected", snapshot }));
     expect(requiredElement<HTMLElement>(`[data-ui-${kind}-remove-dialog]`).textContent).toContain("Removal rejected");
@@ -1556,7 +1590,7 @@ describe("Web client", () => {
     await mount(createClient(snapshot, async (action) => action.type === "request-local-plugin-review"
       ? { ok: true, action: action.type, output: { kind: "web.plugin-management-action", action: action.type, result: localExtensionReview() }, snapshot }
       : { ok: false, action: action.type, message: "Installation rejected", snapshot }), snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-add]").click());
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-approve]").click());
     expect(requiredElement<HTMLElement>("[data-ui-extension-review]").textContent).toContain("Installation rejected");
@@ -1565,7 +1599,7 @@ describe("Web client", () => {
   it.each(["extension", "schedule"] as const)("shows a thrown %s removal failure inside the still-open confirmation", async (kind) => {
     const snapshot = kind === "extension" ? extensionSnapshot(baseSnapshot()) : scheduleSnapshot();
     await mount(createClient(snapshot, async () => { throw new Error("Connection interrupted"); }), snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings(kind === "extension" ? "extensions" : "schedules");
     await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
     await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`).click());
     expect(requiredElement<HTMLElement>(`[data-ui-${kind}-remove-dialog]`).textContent).toContain("Connection interrupted");
@@ -1591,7 +1625,7 @@ describe("Web client", () => {
         } },
       };
     }), snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>(mutation === "approve-local-plugin-review" ? "[data-ui-extension-add]" : "[data-ui-extension-remove]").click());
     await act(async () => requiredElement<HTMLButtonElement>(mutation === "approve-local-plugin-review" ? "[data-ui-extension-approve]" : "[data-ui-extension-remove-confirm]").click());
     expect(document.querySelector("[data-ui-settings-subdialog]")).toBeNull();
@@ -1618,7 +1652,7 @@ describe("Web client", () => {
       },
     };
     await mount(client, snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings(kind === "extension" ? "extensions" : "schedules");
     await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove]`).click());
     await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-${kind}-remove-confirm]`).click());
     expect(document.querySelector("[data-ui-settings-subdialog]")).toBeNull();
@@ -1649,8 +1683,9 @@ describe("Web client", () => {
       },
     };
     await mount(client, snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-read-retry]").click());
+    await showSettingsSection("appearance");
     await act(async () => requiredElement<HTMLButtonElement>('[data-ui-preference="theme"][data-ui-preference-value="dark"]').click());
     await act(async () => pending.resolve({ ok: true, action: "read-plugin-management", snapshot,
       snapshotRefresh: { state: "failed", message: "Obsolete readback failure" },
@@ -1672,7 +1707,7 @@ describe("Web client", () => {
     const node = document.createElement("div"); document.body.append(node);
     const root = createRoot(node); mounted.push({ unmount: () => root.unmount() });
     await act(async () => root.render(createElement(App, { client, initialSnapshot: snapshot })));
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-add]").click());
     await act(async () => root.render(createElement(App, { client, initialSnapshot: snapshot, openSettingsRequest: 2 })));
     expect(document.querySelector("[data-ui-extension-review]")).not.toBeNull();
@@ -1684,14 +1719,14 @@ describe("Web client", () => {
     const pending = deferred<ActionResult>();
     const dispatchAction = vi.fn<Client["dispatchAction"]>(() => pending.promise);
     await mount(createClient(snapshot, dispatchAction), snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => {
       const add = requiredElement<HTMLButtonElement>("[data-ui-extension-add]");
       add.click(); add.click();
     });
     await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
-    expect(document.querySelector("[data-ui-settings-overlay]")).toBeNull();
-    await act(async () => requiredButton("Open settings").click());
+    expect(document.querySelector("[data-ui-settings-panel]")).toBeNull();
+    await openSettings("extensions");
     await act(async () => pending.resolve({ ok: true, action: "request-local-plugin-review", snapshot, output: {
       kind: "web.plugin-management-action", action: "request-local-plugin-review", result: localExtensionReview(),
     } }));
@@ -1706,7 +1741,7 @@ describe("Web client", () => {
     const dispatchAction = vi.fn<Client["dispatchAction"]>(() => pending.promise);
     const client = { ...createClient(snapshot, dispatchAction), dispose: vi.fn() };
     await mount(client, snapshot);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").click());
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove-confirm]").click());
     await act(async () => mounted.pop()!.unmount());
@@ -1731,7 +1766,7 @@ describe("Web client", () => {
     const root = createRoot(node);
     mounted.push({ unmount: () => root.unmount() });
     await act(async () => root.render(createElement(App, { client: oldClient, initialSnapshot: snapshot })));
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").click());
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-extension-remove-confirm]").click());
     await act(async () => root.render(createElement(App, { client: nextClient, initialSnapshot: nextSnapshot })));
@@ -1742,7 +1777,7 @@ describe("Web client", () => {
     expect(document.querySelector('[data-ui-assistant-shell][data-theme="dark"]')).not.toBeNull();
     expect(document.body.textContent).not.toContain("Obsolete Client error");
     expect(document.querySelector("[data-ui-extension-remove-dialog]")).toBeNull();
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     expect(requiredElement<HTMLButtonElement>("[data-ui-extension-remove]").disabled).toBe(false);
   });
 
@@ -1772,7 +1807,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot: current };
     });
     await mount(client, current);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
 
     const retry = requiredElement<HTMLButtonElement>("[data-ui-extension-retry]");
     await act(async () => retry.click());
@@ -1877,7 +1912,7 @@ describe("Web client", () => {
       };
     }), failed);
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("extensions");
     expect(document.body.textContent).toContain(
       "Extension service is temporarily unavailable",
     );
@@ -1917,7 +1952,7 @@ describe("Web client", () => {
     expect(shell.dataset.theme).toBe("system");
     expect(shell.dataset.density).toBe("comfortable");
 
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("appearance");
     const dark = requiredElement<HTMLButtonElement>(
       '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
     );
@@ -1942,9 +1977,6 @@ describe("Web client", () => {
     ]);
     expect(dark.disabled).toBe(true);
     expect(compact.disabled).toBe(true);
-    expect(document.querySelector("[data-ui-appearance-status]")?.textContent).toBe(
-      "Appearance updated",
-    );
   });
 
   it("keeps canonical appearance after a rejected preference update", async () => {
@@ -1961,7 +1993,7 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings("appearance");
     await act(async () => requiredElement<HTMLButtonElement>(
       '[data-ui-preference="theme"][data-ui-preference-value="dark"]',
     ).click());
@@ -2924,13 +2956,17 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await waitFor(() => document.querySelector("[aria-label=Settings]") !== null);
+    await waitFor(() => document.querySelector("[data-ui-settings-panel]") !== null);
 
     const form = requiredElement<HTMLFormElement>("[data-ui-provider-form]");
     const modelInput = requiredElement<HTMLInputElement>('input[name="conversationModelId"]');
+    const credentialInput = requiredElement<HTMLInputElement>('input[name="credential"]');
     const advanced = requiredElement<HTMLDetailsElement>("[data-ui-provider-advanced]");
-    expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("Connect a model");
-    expect(document.activeElement).toBe(modelInput);
+    expect(document.querySelector("[data-ui-settings-panel] h1")?.textContent).toBe("Connect a model");
+    expect(document.querySelector("[data-ui-settings-nav]")).toBeNull();
+    expect(form.querySelector('input[type="checkbox"][name="makeConversationActive"]')).toBeNull();
+    await act(async () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    expect(document.activeElement).toBe(credentialInput);
     expect(advanced.open).toBe(false);
     expect(advanced.textContent).toContain("Image generation model");
     expect(document.body.textContent).not.toMatch(/trusted host|renderer|redacted|Theme|Density/u);
@@ -2978,13 +3014,13 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings();
 
     await chooseOption(requiredElement<HTMLButtonElement>('[data-ui-select="presetId"]'), "openai-compatible");
     const advanced = requiredElement<HTMLDetailsElement>("[data-ui-provider-advanced]");
     expect(advanced.open).toBe(false);
-    expect(advanced.textContent).toContain("Accept image input");
-    expect(advanced.textContent).toContain("Support tool calling");
+    expect(advanced.textContent).toContain("Accepts images");
+    expect(advanced.textContent).toContain("Supports tool calling");
     advanced.open = true;
 
     await setInput(requiredElement<HTMLInputElement>('input[name="conversationModelId"]'), "custom-chat");
@@ -3003,6 +3039,7 @@ describe("Web client", () => {
       conversationInputModalities: ["text", "image"],
       conversationFeatures: ["tool_calling"],
       imageGenerationModelId: "custom-image",
+      imageGenerationAcceptsImages: false,
       baseUrl: "https://provider.example.test/v1",
       credential: "custom-secret",
       makeConversationActive: true,
@@ -3037,9 +3074,9 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings();
 
-    const dialog = requiredElement<HTMLElement>('[role="dialog"][aria-label="Settings"]');
+    const dialog = requiredElement<HTMLElement>('[data-ui-settings-panel][aria-label="Settings"]');
     expect(dialog.querySelector("[role=status]")?.textContent).toContain("Loading providers");
     expect(dialog.querySelector("[data-ui-provider-loading]")).not.toBeNull();
 
@@ -3047,7 +3084,8 @@ describe("Web client", () => {
     await waitFor(() => dialog.textContent?.includes("Add a provider") === true);
     expect(dialog.textContent).not.toContain("Loading providers");
     expect(dialog.querySelector("[data-ui-provider-loading]")).toBeNull();
-    expect(dialog.querySelector("[data-ui-provider-empty]")).not.toBeNull();
+    expect(dialog.querySelector("[data-ui-provider-settings]")?.getAttribute("data-ui-provider-count")).toBe("0");
+    expect(dialog.querySelector("[data-ui-provider-list]")).toBeNull();
 
     requiredElement<HTMLInputElement>('input[name="conversationModelId"]').value = "gpt-test";
     requiredElement<HTMLInputElement>('input[name="credential"]').value = "rejected-secret";
@@ -3057,7 +3095,7 @@ describe("Web client", () => {
     expect(dialog.querySelector("[role=alert]")?.textContent)
       .toContain("Provider credential was rejected");
     expect(document.querySelector("[data-ui-error]")).toBeNull();
-    expect(document.querySelector("[data-ui-settings-overlay]")).not.toBeNull();
+    expect(document.querySelector("[data-ui-settings-panel]")).not.toBeNull();
   });
 
   it("replaces Provider loading with an inline read failure", async () => {
@@ -3080,9 +3118,9 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings();
 
-    const dialog = requiredElement<HTMLElement>('[role="dialog"][aria-label="Settings"]');
+    const dialog = requiredElement<HTMLElement>('[data-ui-settings-panel][aria-label="Settings"]');
     await waitFor(() => dialog.querySelector("[role=alert]") !== null);
 
     expect(dialog.querySelector("[role=alert]")?.textContent)
@@ -3141,7 +3179,7 @@ describe("Web client", () => {
       },
     };
     await mount(client);
-    await act(async () => requiredButton("Open settings").click());
+    await openSettings();
     await waitFor(() => document.querySelector('[data-ui-provider="openai"]') !== null);
 
     await act(async () => requiredElement<HTMLButtonElement>("[data-ui-provider-remove]").click());
@@ -3154,7 +3192,7 @@ describe("Web client", () => {
     await waitFor(() => document.body.textContent?.includes("Provider removed") === true);
     expect(removals).toEqual([{ connectionId: "openai" }]);
     expect(confirm).not.toHaveBeenCalled();
-    expect(document.querySelector("[data-ui-provider-empty]")).not.toBeNull();
+    expect(document.querySelector("[data-ui-provider-settings]")?.getAttribute("data-ui-provider-count")).toBe("0");
   });
 
   it("keeps Plan, Goal, and Side Query behind one contextual workflow panel", async () => {
@@ -4514,7 +4552,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }), snapshot);
 
-    await act(async () => requiredButton("Toggle context panel").click());
+    await act(async () => requiredButton("Group details").click());
     expect(document.querySelector("[data-ui-team-context]")).not.toBeNull();
     expect(document.querySelector('button[aria-label^="Make "][aria-label$=" coordinator"]'))
       .toBeNull();
@@ -4578,7 +4616,7 @@ describe("Web client", () => {
       return { ok: true, action: action.type, snapshot };
     }), snapshot);
 
-    await act(async () => requiredButton("Toggle context panel").click());
+    await act(async () => requiredButton("Group details").click());
     await chooseOption(requiredElement<HTMLButtonElement>('[data-ui-select="agentSessionId"]'), "session_react");
     await submitForm(requiredButton("Add").closest("form")!);
 
@@ -4600,7 +4638,7 @@ describe("Web client", () => {
       initialActions.push(action);
       return { ok: true, action: action.type, snapshot: initial };
     }), initial);
-    await act(async () => requiredButton("Toggle context panel").click());
+    await act(async () => requiredButton("Group details").click());
     await act(async () => requiredButton("Make Reviewer coordinator").click());
     expect(initialActions).toContainEqual({
       type: "set-team-coordinator",
@@ -4622,7 +4660,7 @@ describe("Web client", () => {
       reassignmentActions.push(action);
       return { ok: true, action: action.type, snapshot: assigned };
     }), assigned);
-    await act(async () => requiredButton("Toggle context panel").click());
+    await act(async () => requiredButton("Group details").click());
     expect(requiredElement<HTMLButtonElement>(
       'button[aria-label="Reassign the coordinator before muting Reviewer"]',
     ).disabled).toBe(true);
@@ -4651,7 +4689,7 @@ describe("Web client", () => {
         }
       : { ok: true, action: action.type, snapshot }), snapshot);
 
-    await act(async () => requiredButton("Toggle context panel").click());
+    await act(async () => requiredButton("Group details").click());
     await act(async () => requiredButton("Make Reviewer coordinator").click());
     await waitFor(() => document.body.textContent?.includes(
       "Coordinator changed elsewhere. Review the current group and try again.",
@@ -4700,10 +4738,18 @@ function openMenu(trigger: HTMLElement): void {
   trigger.dispatchEvent(new MouseEvent("pointerdown", { button: 0, bubbles: true, cancelable: true }));
 }
 
+async function openSettings(section?: string): Promise<void> {
+  await act(async () => requiredButton("Open settings").click());
+  if (section !== undefined) await showSettingsSection(section);
+}
+
+async function showSettingsSection(section: string): Promise<void> {
+  await act(async () => requiredElement<HTMLButtonElement>(`[data-ui-settings-nav="${section}"]`).click());
+}
+
 async function mount(
   client: Client,
   initialSnapshot?: Snapshot,
-  onModalStateChange?: (state: AppModalState) => void,
   onThemeChange?: (theme: Snapshot["view"]["theme"]) => void,
 ): Promise<void> {
   const root = document.createElement("div");
@@ -4713,7 +4759,6 @@ async function mount(
       root,
       client,
       ...(initialSnapshot === undefined ? {} : { initialSnapshot }),
-      ...(onModalStateChange === undefined ? {} : { onModalStateChange }),
       ...(onThemeChange === undefined ? {} : { onThemeChange }),
     }));
   });

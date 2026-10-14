@@ -83,8 +83,35 @@ export interface ResourceInputEvidence {
 }
 
 export type ResourceProvenanceCause =
+  | ProviderOutputResourceProvenanceCause
   | ToolExecutionResourceProvenanceCause
   | MediaGenerationResourceProvenanceCause
+  | ImageDescriptionResourceProvenanceCause
+  | ImageNormalizationResourceProvenanceCause
+
+export interface ImageNormalizationResourceProvenanceCause {
+  readonly kind: "image_normalization"
+  readonly normalizationKey: string
+  readonly policy: string
+}
+
+export interface PrepareImageResourceRequest {
+  readonly resource: ResourceInputEvidence
+  readonly mode: "normalize" | "preserve"
+}
+
+export interface PreparedImageResource {
+  readonly resource: ResourceRecord
+  readonly width: number
+  readonly height: number
+  readonly transformed: boolean
+}
+
+export interface ProviderOutputResourceProvenanceCause {
+  readonly kind: "provider_output"
+  readonly invocationId: string
+  readonly partId: string
+}
 
 export interface ToolExecutionResourceProvenanceCause {
   readonly kind: "tool_execution"
@@ -98,6 +125,18 @@ export interface ToolExecutionResourceProvenanceCause {
 export interface MediaGenerationResourceProvenanceCause {
   readonly kind: "media_generation"
   readonly operationId: string
+}
+
+/**
+ * A cached text description of one image made by an image-understanding
+ * endpoint. `descriptionKey` is sha256 of
+ * `sourceSha256 \n endpointDigest \n promptVersion`.
+ */
+export interface ImageDescriptionResourceProvenanceCause {
+  readonly kind: "image_description"
+  readonly descriptionKey: string
+  readonly endpointDigest: string
+  readonly promptVersion: string
 }
 
 export interface ResourceProvenanceRecord {

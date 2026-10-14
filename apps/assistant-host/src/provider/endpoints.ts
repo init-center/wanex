@@ -136,7 +136,6 @@ function normalizeCapabilityRoutes(
 
 function isCapabilityOperation(value: string): value is LocalModelCapabilityOperation {
   return value === "image.generate" ||
-    value === "image.edit" ||
     value === "video.generate" ||
     value === "audio.transcribe" ||
     value === "audio.synthesize"

@@ -164,6 +164,8 @@ interface BeginProviderInvocationRequest {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -342,6 +344,14 @@ interface CancelJobRequest {
 type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
+interface CheckpointProviderInvocationRequest extends MarkProviderInvocationOutputRequest {
+    // (undocumented)
+    readonly response: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest: string;
+}
+
+// @public (undocumented)
 interface ClaimJobRequest {
     // (undocumented)
     readonly kinds?: readonly SchedulerJobKind[];
@@ -395,6 +405,11 @@ interface ConfigWatcher {
 
 // @public (undocumented)
 type ContextEventType = "context.compaction.planned" | "context.compaction.applied" | "context.compaction.skipped" | "context.epoch.created" | "context.epoch.activated" | "context.epoch.superseded";
+
+// @public (undocumented)
+export function createMediaGenerationCapability(options: Pick<MediaGenerationRuntimeOptions, "adapters" | "maxOutputBytes" | "pollInitialDelayMs" | "pollMaxDelayMs" | "maxConsecutivePollFailures"> & {
+    readonly workerCount?: number;
+}): MediaGenerationCapability;
 
 // @public (undocumented)
 interface CreateSessionRequest {
@@ -846,6 +861,33 @@ interface FinishToolExecutionRequest {
 }
 
 // @public (undocumented)
+export class GeminiImageAdapter implements MediaGenerationAdapter {
+    constructor(options: GeminiImageAdapterOptions);
+    // (undocumented)
+    canExecute(modelEndpoint: ModelEndpoint): boolean;
+    // (undocumented)
+    materialize(reference: MediaGenerationProviderOutputReference, request: MediaGenerationAdapterRequest): Promise<MediaGenerationMaterializedOutput>;
+    // (undocumented)
+    poll(): Promise<MediaGenerationPollResult>;
+    // (undocumented)
+    readonly protocolId = "gemini-image";
+    // (undocumented)
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
+}
+
+// @public (undocumented)
+interface GeminiImageAdapterOptions {
+    // (undocumented)
+    readonly fetch?: ImageAdapterFetch;
+    // (undocumented)
+    readonly maxMaterializedBytes?: number;
+    // (undocumented)
+    readonly maxResponseBytes?: number;
+    // (undocumented)
+    readonly secretResolver: SecretResolverPort;
+}
+
+// @public (undocumented)
 interface GetResourceRequest {
     // (undocumented)
     readonly resourceId: ResourceId;
@@ -871,6 +913,34 @@ interface HeartbeatJobRequest {
     readonly leaseToken: string;
     // (undocumented)
     readonly workerId: string;
+}
+
+// @public (undocumented)
+type ImageAdapterFetch = (input: string, init?: RequestInit) => Promise<Response>;
+
+// @public
+interface ImageDescriptionResourceProvenanceCause {
+    // (undocumented)
+    readonly descriptionKey: string;
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly kind: "image_description";
+    // (undocumented)
+    readonly promptVersion: string;
+}
+
+// @public
+export function imageGenerationOptionCatalog(protocolId: string, modelId: string): readonly ModelOptionDescriptor[];
+
+// @public (undocumented)
+interface ImageNormalizationResourceProvenanceCause {
+    // (undocumented)
+    readonly kind: "image_normalization";
+    // (undocumented)
+    readonly normalizationKey: string;
+    // (undocumented)
+    readonly policy: string;
 }
 
 // @public (undocumented)
@@ -1108,7 +1178,7 @@ export interface MediaGenerationAdapter {
     // (undocumented)
     readonly protocolId: string;
     // (undocumented)
-    submit(request: MediaGenerationAdapterRequest): Promise<MediaGenerationSubmitResult>;
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
 }
 
 // @public (undocumented)
@@ -1144,6 +1214,20 @@ export interface MediaGenerationBase64Output extends MediaGenerationProviderOutp
     readonly kindOfOutput: "base64";
 }
 
+// @public
+export interface MediaGenerationCapability {
+    // (undocumented)
+    createWorkers(options: {
+        readonly storage: _wanex_storage.CoreStore;
+        readonly activeAbortRegistry: ActiveExecutionAbortRegistry;
+        readonly leaseMs?: number;
+        readonly heartbeatIntervalMs?: number;
+        readonly timeoutMs?: number;
+    }): readonly MediaGenerationWorker[];
+    // (undocumented)
+    supports(modelEndpoint: ModelEndpoint): boolean;
+}
+
 // @public (undocumented)
 interface MediaGenerationConversationRelation {
     // (undocumented)
@@ -1164,6 +1248,14 @@ export interface MediaGenerationInlineBytesOutput extends MediaGenerationProvide
     readonly bytes: Uint8Array;
     // (undocumented)
     readonly kindOfOutput: "inline_bytes";
+}
+
+// @public
+export interface MediaGenerationInput {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -1187,7 +1279,7 @@ export interface MediaGenerationMaterializedOutput {
 }
 
 // @public (undocumented)
-type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
 
 // @public (undocumented)
 interface MediaGenerationOperationBinding {
@@ -1441,6 +1533,12 @@ export interface MediaGenerationRuntimeOptions {
     readonly workerId?: string;
 }
 
+// @public
+export interface MediaGenerationSubmitRequest extends MediaGenerationAdapterRequest {
+    // (undocumented)
+    readonly inputs: readonly MediaGenerationInput[];
+}
+
 // @public (undocumented)
 export type MediaGenerationSubmitResult = {
     readonly status: "rejected";
@@ -1454,6 +1552,9 @@ export type MediaGenerationSubmitResult = {
     readonly status: "completed";
     readonly outputs: readonly MediaGenerationProviderOutput[];
 };
+
+// @public (undocumented)
+export type MediaGenerationWorker = Pick<WanexMediaGenerationRuntime, "submit" | "cancel" | "runOnce" | "start">;
 
 // @public (undocumented)
 type MessageId = string;
@@ -1524,6 +1625,8 @@ interface ModelDescriptor {
     // (undocumented)
     readonly features: readonly ModelFeature[];
     // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly inputModalities: readonly ModelInputModality[];
@@ -1580,7 +1683,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -1590,6 +1713,33 @@ type ObjectiveEventType = "objective.created" | "objective.state_changed" | "obj
 
 // @public (undocumented)
 type ObjectiveId = string;
+
+// @public (undocumented)
+export class OpenRouterImagesAdapter implements MediaGenerationAdapter {
+    constructor(options: OpenRouterImagesAdapterOptions);
+    // (undocumented)
+    canExecute(modelEndpoint: ModelEndpoint): boolean;
+    // (undocumented)
+    materialize(reference: MediaGenerationProviderOutputReference, request: MediaGenerationAdapterRequest): Promise<MediaGenerationMaterializedOutput>;
+    // (undocumented)
+    poll(): Promise<MediaGenerationPollResult>;
+    // (undocumented)
+    readonly protocolId = "openrouter-images";
+    // (undocumented)
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
+}
+
+// @public (undocumented)
+interface OpenRouterImagesAdapterOptions {
+    // (undocumented)
+    readonly fetch?: ImageAdapterFetch;
+    // (undocumented)
+    readonly maxMaterializedBytes?: number;
+    // (undocumented)
+    readonly maxResponseBytes?: number;
+    // (undocumented)
+    readonly secretResolver: SecretResolverPort;
+}
 
 // @public (undocumented)
 type PlanEventType = "plan.proposal.created" | "plan.proposal.operation_recorded" | "plan.proposal.execution_bound";
@@ -1613,6 +1763,26 @@ interface PollConfigInvalidationsResult {
     readonly events: readonly RuntimeEvent[];
     // (undocumented)
     readonly invalidatedKeys: readonly string[];
+}
+
+// @public (undocumented)
+interface PreparedImageResource {
+    // (undocumented)
+    readonly height: number;
+    // (undocumented)
+    readonly resource: ResourceRecord;
+    // (undocumented)
+    readonly transformed: boolean;
+    // (undocumented)
+    readonly width: number;
+}
+
+// @public (undocumented)
+interface PrepareImageResourceRequest {
+    // (undocumented)
+    readonly mode: "normalize" | "preserve";
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -1669,6 +1839,8 @@ interface ProviderInvocationRecord {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -1678,6 +1850,10 @@ interface ProviderInvocationRecord {
     readonly providerRequestId?: string;
     // (undocumented)
     readonly requestDigest: string;
+    // (undocumented)
+    readonly responseCheckpoint?: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest?: string;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
@@ -1693,7 +1869,17 @@ interface ProviderInvocationRecord {
 }
 
 // @public (undocumented)
-type ProviderInvocationState = "dispatched" | "output_observed" | "succeeded" | "failed_before_output" | "ambiguous";
+type ProviderInvocationState = "dispatched" | "output_observed" | "output_ready" | "succeeded" | "failed_before_output" | "ambiguous";
+
+// @public (undocumented)
+interface ProviderOutputResourceProvenanceCause {
+    // (undocumented)
+    readonly invocationId: string;
+    // (undocumented)
+    readonly kind: "provider_output";
+    // (undocumented)
+    readonly partId: string;
+}
 
 // @public (undocumented)
 interface ProviderProtocolDescriptor {
@@ -1701,6 +1887,31 @@ interface ProviderProtocolDescriptor {
     readonly id: string;
     // (undocumented)
     readonly version?: string;
+}
+
+// @public (undocumented)
+interface ProviderResponseCheckpoint {
+    // (undocumented)
+    readonly finish: {
+        readonly type: "finish";
+        readonly reason: "stop" | "length" | "tool_calls" | "content_filter" | "other";
+        readonly rawReason?: string;
+    };
+    // (undocumented)
+    readonly parts: readonly Extract<MessagePart, {
+        readonly type: "text" | "reasoning" | "tool_call" | "resource";
+    }>[];
+    // (undocumented)
+    readonly providerState: readonly ProviderState[];
+    // (undocumented)
+    readonly usage?: {
+        readonly inputTokens?: number;
+        readonly outputTokens?: number;
+        readonly reasoningTokens?: number;
+        readonly cacheReadTokens?: number;
+        readonly cacheWriteTokens?: number;
+        readonly metadata?: Readonly<Record<string, JsonValue>>;
+    };
 }
 
 // @public (undocumented)
@@ -1886,6 +2097,22 @@ interface ReserveBudgetRequest {
 }
 
 // @public (undocumented)
+interface ResolvedSecret {
+    // (undocumented)
+    dispose(): void;
+    // (undocumented)
+    readonly disposed: boolean;
+    // (undocumented)
+    readonly provider: string;
+    // (undocumented)
+    readonly ref: string;
+    // (undocumented)
+    reveal(): string;
+    // (undocumented)
+    toJSON(): never;
+}
+
+// @public (undocumented)
 interface ResolveToolExecutionApprovalReceipt {
     // (undocumented)
     readonly approvalDecision: ToolExecutionApprovalDecisionRecord;
@@ -1992,7 +2219,7 @@ interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
 type ResourceOrigin = "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
 
 // @public (undocumented)
-type ResourceProvenanceCause = ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause;
+type ResourceProvenanceCause = ProviderOutputResourceProvenanceCause | ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause | ImageDescriptionResourceProvenanceCause | ImageNormalizationResourceProvenanceCause;
 
 // @public (undocumented)
 type ResourceProvenanceId = string;
@@ -2206,6 +2433,26 @@ interface SchedulerJobRecord {
 
 // @public (undocumented)
 type SchedulerJobState = "pending" | "ready" | "running" | "waiting" | "succeeded" | "retry_scheduled" | "failed" | "cancelled";
+
+// @public (undocumented)
+interface SecretResolveContext {
+    // (undocumented)
+    readonly connectorId?: string;
+    // (undocumented)
+    readonly credentialId?: string;
+    // (undocumented)
+    readonly modelEndpointId?: string;
+    // (undocumented)
+    readonly principalId?: string;
+    // (undocumented)
+    readonly signal?: AbortSignal;
+}
+
+// @public (undocumented)
+interface SecretResolverPort {
+    // (undocumented)
+    resolve(ref: string, context?: SecretResolveContext): Promise<ResolvedSecret>;
+}
 
 // @public (undocumented)
 type SessionAttemptId = string;
@@ -3110,6 +3357,33 @@ interface ToolResultTextContentPart {
 }
 
 // @public (undocumented)
+export class VolcengineSeedreamAdapter implements MediaGenerationAdapter {
+    constructor(options: VolcengineSeedreamAdapterOptions);
+    // (undocumented)
+    canExecute(modelEndpoint: ModelEndpoint): boolean;
+    // (undocumented)
+    materialize(reference: MediaGenerationProviderOutputReference, request: MediaGenerationAdapterRequest): Promise<MediaGenerationMaterializedOutput>;
+    // (undocumented)
+    poll(): Promise<MediaGenerationPollResult>;
+    // (undocumented)
+    readonly protocolId = "volcengine-seedream";
+    // (undocumented)
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
+}
+
+// @public (undocumented)
+interface VolcengineSeedreamAdapterOptions {
+    // (undocumented)
+    readonly fetch?: ImageAdapterFetch;
+    // (undocumented)
+    readonly maxMaterializedBytes?: number;
+    // (undocumented)
+    readonly maxResponseBytes?: number;
+    // (undocumented)
+    readonly secretResolver: SecretResolverPort;
+}
+
+// @public (undocumented)
 const WANEX_PROTOCOL_VERSION: 1;
 
 // @public (undocumented)
@@ -3240,6 +3514,8 @@ class WanexSessionCore {
     // (undocumented)
     cancelJob(request: CancelJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
+    checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null>;
+    // (undocumented)
     claimJob(request: ClaimJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
     cleanupExpiredResourceTickets(request: CleanupExpiredResourceTicketsRequest): Promise<ResourceTicketCleanupReceipt>;
@@ -3301,6 +3577,8 @@ class WanexSessionCore {
     listTurns(request: ListSessionTurnsRequest): Promise<SessionTurnRecord[]>;
     // (undocumented)
     markProviderInvocationOutput(request: MarkProviderInvocationOutputRequest): Promise<ProviderInvocationRecord | null>;
+    // (undocumented)
+    prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource>;
     // (undocumented)
     readResourceContent(request: ReadResourceContentRequest): Promise<ResourceContentChunk | null>;
     // (undocumented)

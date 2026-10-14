@@ -2,6 +2,7 @@ import type {
   JsonValue,
   MessagePart,
   ModelDescriptor,
+  ModelOutputModality,
   ProviderProtocolDescriptor,
   ProviderState,
   ResourceMessagePart,
@@ -13,6 +14,7 @@ import type {
 
 export interface ProviderAdapter {
   readonly protocol: ProviderProtocolDescriptor
+  readonly outputModalities: readonly ModelOutputModality[]
   readonly providerId: string
   readonly model: ModelDescriptor
   stream(request: ProviderRequest): AsyncIterable<ProviderEvent>
@@ -23,6 +25,7 @@ export interface ProviderAdapter {
 
 export interface ProviderRequest {
   readonly messages: readonly PreparedProviderReplayMessage[]
+  readonly outputModalities?: readonly ModelOutputModality[]
   readonly signal?: RuntimeAbortSignal
   readonly maxOutputTokens?: number
   readonly tools?: readonly ProviderToolDefinition[]
@@ -45,11 +48,13 @@ export type ProviderToolChoice =
 export interface ProviderReplayMessage {
   readonly role: "user" | "assistant" | "tool" | "system"
   readonly content: readonly MessagePart[]
+  readonly providerState?: readonly ProviderState[] | undefined
 }
 
 export interface PreparedProviderReplayMessage {
   readonly role: ProviderReplayMessage["role"]
   readonly content: readonly PreparedProviderReplayPart[]
+  readonly providerState?: readonly ProviderState[] | undefined
 }
 
 export type PreparedProviderReplayPart =
@@ -59,6 +64,7 @@ export type PreparedProviderReplayPart =
 
 export interface PreparedProviderResourcePart extends ResourceMessagePart {
   readonly bytes: Uint8Array
+  readonly originalResource?: import("@wanex/protocol").ResourceInputEvidence
 }
 
 export interface PreparedProviderToolResultPart
@@ -73,10 +79,12 @@ export type PreparedProviderToolResultContentPart =
 export interface PreparedProviderToolResultResourcePart
   extends ToolResultResourceContentPart {
   readonly bytes?: Uint8Array
+  readonly originalResource?: import("@wanex/protocol").ResourceInputEvidence
 }
 
 export type ProviderEvent =
   | ProviderTextDeltaEvent
+  | ProviderImageOutputEvent
   | ProviderReasoningDeltaEvent
   | ProviderToolCallStartEvent
   | ProviderToolCallDeltaEvent
@@ -85,6 +93,34 @@ export type ProviderEvent =
   | ProviderUsageEvent
   | ProviderFinishEvent
   | ProviderErrorEvent
+
+/** Transient wire output, never a durable MessagePart or public observation. */
+export interface ProviderImageOutputEvent {
+  readonly type: "image_output"
+  readonly partId: string
+  readonly mimeType: string
+  readonly bytes: Uint8Array
+}
+
+export type ProviderObservedEvent =
+  | Exclude<ProviderEvent, ProviderImageOutputEvent | ProviderStateEvent>
+  | {
+      readonly type: "image_output"
+      readonly partId: string
+      readonly mimeType: string
+      readonly sizeBytes: number
+    }
+
+export interface ProviderImageCandidate {
+  readonly type: "image_candidate"
+  readonly id: string
+  readonly mimeType: string
+  readonly bytes: Uint8Array
+}
+
+export interface ProviderResponseCandidate extends Omit<ProviderTurnResult, "parts"> {
+  readonly parts: readonly (Exclude<ProviderOutputMessagePart, ResourceMessagePart> | ProviderImageCandidate)[]
+}
 
 export interface ProviderTextDeltaEvent {
   readonly type: "text_delta"
@@ -187,7 +223,7 @@ export interface ProviderTurnResult {
 
 export type ProviderOutputMessagePart = Extract<
   MessagePart,
-  { readonly type: "text" | "reasoning" | "tool_call" }
+  { readonly type: "text" | "reasoning" | "tool_call" | "resource" }
 >
 
 export interface ProviderRunEvent {
@@ -198,7 +234,7 @@ export interface ProviderRunEvent {
   readonly attemptId: string
   readonly providerId: string
   readonly modelId: string
-  readonly event: ProviderEvent
+  readonly event: ProviderObservedEvent
 }
 
 export type ProviderEventObserver = (event: ProviderRunEvent) => void

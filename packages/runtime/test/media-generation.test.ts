@@ -14,6 +14,7 @@ import {
 } from "@wanex/storage/testing"
 import {
   WanexMediaGenerationRuntime,
+  createMediaGenerationCapability,
   type MediaGenerationAdapter,
   type MediaGenerationAdapterRequest,
   type MediaGenerationPollResult,
@@ -43,6 +44,18 @@ afterEach(async () => {
 })
 
 describe("@wanex/runtime/media-generation", () => {
+  it("validates explicit capability composition and snapshots the adapter list", () => {
+    const adapters = [new AsyncImageAdapter()]
+    const endpoint = adapters[0]!.modelEndpoint
+    const capability = createMediaGenerationCapability({ adapters })
+    adapters.length = 0
+    expect(capability.supports(endpoint)).toBe(true)
+    expect(createMediaGenerationCapability({ adapters: [] }).supports(endpoint)).toBe(false)
+    for (const workerCount of [0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+      expect(() => createMediaGenerationCapability({ adapters, workerCount })).toThrow("positive safe integer")
+    }
+  })
+
   it("persists provider acceptance, polls, materializes bytes, and is idempotent", async () => {
     const storage = await createStore("media-accepted")
     const adapter = new AsyncImageAdapter()
@@ -303,7 +316,7 @@ describe("@wanex/runtime/media-generation", () => {
     const adapter = new AsyncImageAdapter({ input: ["text", "image"] })
     const source = await storage.ingestResource({
       logicalPath: "inputs/source.png",
-      content: Buffer.from("source-image"),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
       kind: "image",
       mediaType: "image/png",
       origin: "user_upload"
@@ -463,10 +476,10 @@ describe("@wanex/runtime/media-generation", () => {
     const adapter = new AsyncImageAdapter()
     const host = new WanexRuntimeHost({
       storage,
-      mediaGenerationAdapters: [adapter],
+      mediaGeneration: createMediaGenerationCapability({
+        adapters: [adapter], pollInitialDelayMs: 50, pollMaxDelayMs: 50
+      }),
       idleIntervalMs: 10,
-      mediaGenerationPollInitialDelayMs: 50,
-      mediaGenerationPollMaxDelayMs: 50
     })
 
     expect(host.status()).toMatchObject({
@@ -744,6 +757,7 @@ function mediaModelEndpoint(request: {
     protocol: { id: request.protocolId },
     model: {
       id: request.modelId,
+      generationOptions: [{ name: "size", description: "Test output size", type: "string", enum: ["small"] }],
       operations: ["image.generate"],
       inputModalities: request.input,
       outputModalities: ["image"],

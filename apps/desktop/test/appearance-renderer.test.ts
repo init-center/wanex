@@ -2,7 +2,7 @@
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppProps, Client } from "@wanex/assistant-ui/client";
 import { ProductRenderer } from "../src/renderer/product.js";
 
@@ -20,14 +20,18 @@ vi.mock("@wanex/assistant-ui/client", async (original) => ({
 }));
 
 let root: Root | undefined;
+beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
 afterEach(async () => {
   await act(async () => root?.unmount());
   root = undefined;
   document.body.replaceChildren();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("Desktop appearance composition", () => {
   it("defaults to system then consumes each canonical App notification on the outer root", async () => {
+    const consoleError = vi.spyOn(console, "error");
     const host = document.createElement("div");
     document.body.append(host);
     root = createRoot(host);
@@ -42,5 +46,8 @@ describe("Desktop appearance composition", () => {
       await act(async () => document.querySelector<HTMLButtonElement>(`[data-test-theme="${theme}"]`)!.click());
       expect(renderer.dataset.theme).toBe(theme);
     }
+    await act(async () => root?.unmount());
+    root = undefined;
+    expect(consoleError).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,4 @@
-import { WanexConfigCore } from "../config/index.js"
+import { WanexConfigCore } from "../config/core.js"
 import { WanexEventCore } from "../events/index.js"
 import type { SchedulerJobKind } from "@wanex/protocol"
 import { WanexSessionCore } from "../sessions/index.js"

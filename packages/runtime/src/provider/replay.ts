@@ -2,6 +2,7 @@ import type {
   JsonValue,
   MessagePart,
   ResourceMessagePart,
+  ResourceInputEvidence,
   TextMessagePart,
   ToolCallMessagePart,
   ToolResultContentPart,
@@ -61,8 +62,9 @@ export function projectedToolResultText(
 }
 
 export function toolResultResourceDescriptor(
-  part: ToolResultResourceContentPart
+  prepared: ToolResultResourceContentPart & { readonly originalResource?: ResourceInputEvidence }
 ) {
+  const part = prepared.originalResource ?? prepared
   return {
     type: "resource" as const,
     resourceId: part.resourceId,
@@ -71,6 +73,14 @@ export function toolResultResourceDescriptor(
     sizeBytes: part.sizeBytes,
     sha256: part.sha256
   }
+}
+
+/**
+ * Text placed immediately before each image or document a model sees, so the
+ * model can name that exact resource (for example as a reference image input).
+ */
+export function resourceLabel(part: { readonly resourceId: string; readonly kind: string; readonly originalResource?: ResourceInputEvidence }): string {
+  return `[${part.kind} ${part.originalResource?.resourceId ?? part.resourceId}]`
 }
 
 export function canonicalJson(value: unknown): string {

@@ -1,15 +1,23 @@
 import type {
   ModelCapabilityRequirement,
+  ModelOptionDescriptor,
   SessionTurnExecutionBinding
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type { PreparedAgentContext } from "@wanex/runtime/context"
 import { materializeToolRegistryForCapabilityRoutes } from "@wanex/runtime/tools"
 import { ToolRegistry } from "@wanex/runtime/tools"
-import { modelCapabilityRequirementKey } from "@wanex/runtime/provider"
+import {
+  findModelCapabilityRouteExecutionBinding,
+  IMAGE_UNDERSTANDING_REQUIREMENT,
+  modelCapabilityRequirementKey
+} from "@wanex/runtime/provider"
+import type { SecretResolverPort } from "@wanex/runtime/secrets"
+import { createWanexAppImageAnalyzeTool } from "./image-analyze-tool.js"
 import { createWanexAppCapabilityRequestTool } from "./capability-request-tool.js"
 import { createWanexAppImageGenerationTool } from "./image-generation-tool.js"
 import { resolveWanexAppModelCapability } from "./model-capability.js"
+import { resolveWanexAppImageUnderstandingRoute } from "./image-understanding.js"
 import type {
   WanexAppModelEndpointExecutionPredicate
 } from "./model-capability.js"
@@ -19,8 +27,9 @@ export async function prepareWanexAppModelCapabilityContext(options: {
   readonly base?: PreparedAgentContext
   readonly executionBinding?: SessionTurnExecutionBinding
   readonly isModelEndpointExecutable: WanexAppModelEndpointExecutionPredicate
+  readonly secretResolver?: SecretResolverPort
 }): Promise<PreparedAgentContext | undefined> {
-  const declaredTools = declareWanexAppCapabilityTools(options.base?.tools)
+  const declaredTools = declareWanexAppCapabilityTools(options.base?.tools, false)
   const requirements = uniqueRequirements(
     declaredTools.list().flatMap(
       (descriptor) => descriptor.requiredCapabilities ?? []
@@ -41,11 +50,49 @@ export async function prepareWanexAppModelCapabilityContext(options: {
         resolution.kind === "resolved" ? [resolution.binding] : []
       )
     : options.executionBinding.capabilityRoutes
+  const imageGenerationRoute = findModelCapabilityRouteExecutionBinding(
+    capabilityRoutes,
+    {
+      operation: "image.generate",
+      inputModalities: ["text"],
+      outputModalities: ["image"],
+      features: []
+    }
+  )
   const materialized = materializeToolRegistryForCapabilityRoutes({
-    tools: declaredTools,
+    tools: declareWanexAppCapabilityTools(
+      options.base?.tools,
+      imageGenerationRoute?.modelEndpoint.model.inputModalities.includes("image") === true,
+      imageGenerationRoute?.modelEndpoint.model.generationOptions
+    ),
     capabilityRoutes
   })
+  // Admission freezes the explicitly chosen image-understanding endpoint as an
+  // extra route; execution reuses whatever the Turn binding froze.
+  const imageUnderstanding = options.executionBinding === undefined
+    ? await resolveWanexAppImageUnderstandingRoute({ storage: options.storage })
+    : undefined
+  const frozenRoutes = imageUnderstanding === undefined
+    ? capabilityRoutes
+    : [...capabilityRoutes, imageUnderstanding]
   const tools = materialized.tools
+  // The question-driven tool exists exactly when the Turn carries the route, so
+  // the admitted and executed tool sets agree.
+  const imageUnderstandingRoute = options.executionBinding === undefined
+    ? imageUnderstanding
+    : findModelCapabilityRouteExecutionBinding(
+        options.executionBinding.capabilityRoutes,
+        IMAGE_UNDERSTANDING_REQUIREMENT
+      )
+  if (imageUnderstandingRoute !== undefined) {
+    tools.register(createWanexAppImageAnalyzeTool({
+      storage: options.storage,
+      route: imageUnderstandingRoute,
+      ...(options.secretResolver === undefined
+        ? {}
+        : { secretResolver: options.secretResolver })
+    }))
+  }
   if (materialized.unresolvedRequirements.length > 0) {
     tools.register(createWanexAppCapabilityRequestTool({
       requirements: materialized.unresolvedRequirements,
@@ -63,13 +110,17 @@ export async function prepareWanexAppModelCapabilityContext(options: {
   return {
     ...options.base,
     tools,
-    capabilityRoutes
+    capabilityRoutes: frozenRoutes
   }
 }
 
-function declareWanexAppCapabilityTools(base: ToolRegistry | undefined): ToolRegistry {
+function declareWanexAppCapabilityTools(
+  base: ToolRegistry | undefined,
+  acceptsReferenceImages: boolean,
+  generationOptions?: readonly ModelOptionDescriptor[]
+): ToolRegistry {
   const declared = new ToolRegistry()
-  declared.register(createWanexAppImageGenerationTool())
+  declared.register(createWanexAppImageGenerationTool({ acceptsReferenceImages, ...(generationOptions === undefined ? {} : { generationOptions }) }))
   if (base === undefined) return declared
   for (const descriptor of base.list()) {
     const definition = base.get(descriptor.name)

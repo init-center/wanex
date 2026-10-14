@@ -125,6 +125,7 @@ export async function createBackendApp(
     upsertSiblingModelEndpoint: app.commands.upsertSiblingModelEndpoint,
     readModelEndpoint: app.commands.readModelEndpoint,
     listModelEndpoints: app.commands.listModelEndpoints,
+    setImageUnderstandingEndpoint: app.commands.setImageUnderstandingEndpoint,
     listModelCapabilityRoutes: app.commands.listModelCapabilityRoutes,
     setModelCapabilityRoute: app.commands.setModelCapabilityRoute,
     clearModelCapabilityRoute: app.commands.clearModelCapabilityRoute,

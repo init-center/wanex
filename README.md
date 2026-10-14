@@ -279,6 +279,33 @@ workspace checks, tests, Rust checks, audits, and eval smoke scenarios. For
 normal local iteration, run focused package checks first and reserve the full
 gate for deliberate release or CI validation.
 
+The same gate has two explicit suites for local diagnosis:
+
+```bash
+pnpm verify --suite source
+pnpm verify --suite artifacts
+```
+
+`source` runs all workspace audits, type checks, package tests, Rust checks and
+Eval scenarios. It includes real component integration and bundle policy tests;
+it is not a unit-only or instant check. `artifacts` runs the packaged Server
+workspace scenario, SDK release/consumer proofs, installed TUI and SDK
+determinism. Both run sequentially in the default `pnpm verify`; a partial suite
+does not constitute full verification. Target-platform Desktop/native/Server
+acceptance remains in the existing distribution workflows and preflight.
+
+Desktop package tests use the normal workspace runner. Its installed Server
+scenario has a separate, self-contained preparation and invocation:
+
+```bash
+pnpm --filter @wanex/desktop test:installed
+```
+
+This builds current debug/release binaries and audits the Server artifact before
+the original 120-second business scenario. It is mandatory in full verification
+and the existing Desktop platform workflows. See
+[testing ownership](docs/testing.md) for coverage and execution boundaries.
+
 Workspace package tests build the Rust `wanex-system-service` binary once before
 running package-local Vitest suites. Direct package tests remain self-contained:
 when you run a single package's `test` script, that package prepares the

@@ -12,7 +12,7 @@ import { AppExtensionSourceKind } from '@wanex/extension';
 import { AppExtensionSourceScope } from '@wanex/extension';
 import { AppExtensionTrustLevel } from '@wanex/extension';
 import { BootstrapWanexStorageOptions } from '@wanex/runtime/bootstrap';
-import { MediaGenerationAdapter } from '@wanex/runtime/media-generation';
+import { MediaGenerationCapability } from '@wanex/runtime/media-generation';
 import { ModelEndpointSummary } from '@wanex/runtime/provider';
 import { PreparedAgentContext } from '@wanex/runtime/context';
 import { ResolveSessionTurnAgentContextRequest } from '@wanex/runtime/execution';
@@ -397,7 +397,7 @@ interface MediaGenerationConversationRelation {
 }
 
 // @public (undocumented)
-type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
 
 // @public (undocumented)
 interface MediaGenerationOperationBinding {
@@ -611,6 +611,8 @@ interface ModelDescriptor {
     // (undocumented)
     readonly features: readonly ModelFeature[];
     // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly inputModalities: readonly ModelInputModality[];
@@ -670,7 +672,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -2879,6 +2901,7 @@ export interface WanexAppModelEndpointCommands {
     replaceConnectedModelEndpoints(request: WanexAppReplaceConnectedModelEndpointsRequest): Promise<readonly WanexAppModelEndpointReadModel[]>;
     // (undocumented)
     setActiveModelEndpoint(request: WanexAppSetActiveModelEndpointRequest): Promise<WanexAppModelEndpointReadModel>;
+    setImageUnderstandingEndpoint(request: WanexAppSetImageUnderstandingEndpointRequest): Promise<WanexAppModelEndpointListReadModel>;
     // (undocumented)
     upsertModelEndpoint(request: WanexAppUpsertModelEndpointRequest): Promise<WanexAppModelEndpointReadModel>;
     // (undocumented)
@@ -2891,6 +2914,7 @@ export interface WanexAppModelEndpointListReadModel {
     readonly activeEndpointId?: string;
     // (undocumented)
     readonly endpoints: readonly WanexAppModelEndpointReadModel[];
+    readonly imageUnderstandingEndpointId?: string;
 }
 
 // @public (undocumented)
@@ -2943,17 +2967,7 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
     // (undocumented)
     readonly extensions?: WanexAppExtensionOptions;
     // (undocumented)
-    readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[];
-    // (undocumented)
-    readonly mediaGenerationMaxConsecutivePollFailures?: number;
-    // (undocumented)
-    readonly mediaGenerationMaxOutputBytes?: number;
-    // (undocumented)
-    readonly mediaGenerationPollInitialDelayMs?: number;
-    // (undocumented)
-    readonly mediaGenerationPollMaxDelayMs?: number;
-    // (undocumented)
-    readonly mediaGenerationWorkerCount?: number;
+    readonly mediaGeneration?: MediaGenerationCapability;
     // (undocumented)
     readonly modelEndpoint?: WanexAppModelEndpointOptions;
     // (undocumented)
@@ -3807,6 +3821,12 @@ export interface WanexAppSessionTranscriptToolResultPart extends WanexAppSession
 export interface WanexAppSetActiveModelEndpointRequest {
     // (undocumented)
     readonly endpointId: string;
+}
+
+// @public (undocumented)
+export interface WanexAppSetImageUnderstandingEndpointRequest {
+    // (undocumented)
+    readonly endpointId: string | null;
 }
 
 // @public (undocumented)

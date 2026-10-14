@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { join } from "node:path"
 import { createWanexApp } from "@wanex/app"
+import { createMediaGenerationCapability } from "@wanex/runtime/media-generation"
 
 const fixtureRoot = required("WANEX_FIXTURE_ROOT")
 const imageEndpoint = externalImageEndpoint()
@@ -27,7 +28,7 @@ const app = await createWanexApp({
       }
     }
   },
-  mediaGenerationAdapters: [externalImageAdapter(imageEndpoint)]
+  mediaGeneration: createMediaGenerationCapability({ adapters: [externalImageAdapter(imageEndpoint)] })
 })
 
 try {
@@ -114,7 +115,7 @@ function externalImageAdapter(imageEndpoint) {
         outputs: [
           {
             kindOfOutput: "inline_bytes",
-            bytes: Buffer.from("external-generated-image"),
+            bytes: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
             mediaType: "image/png",
             kind: "image"
           }

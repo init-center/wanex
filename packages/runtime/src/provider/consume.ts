@@ -5,10 +5,14 @@ import type {
   ToolCallMessagePart
 } from "@wanex/protocol"
 import { ProviderStreamError, protocolProviderError } from "./errors.js"
+import { IMAGE_OUTPUT_LIMITS, validateImageOutput } from "./image-output.js"
 import type {
   ProviderAdapter,
   ProviderError,
   ProviderEvent,
+  ProviderObservedEvent,
+  ProviderImageCandidate,
+  ProviderResponseCandidate,
   ProviderRequest,
   ProviderOutputMessagePart,
   ProviderTurnResult,
@@ -23,27 +27,69 @@ interface ToolAssembly {
   ended: boolean
 }
 
-export async function consumeProviderStream(options: {
+interface ConsumeOptions {
   readonly provider: ProviderAdapter
   readonly request: ProviderRequest
-  readonly observe?: (event: ProviderEvent) => void
+  readonly observe?: (event: ProviderObservedEvent) => void
   readonly checkpoint?: (event: ProviderEvent) => Promise<void>
-}): Promise<ProviderTurnResult> {
+}
+
+/** Text-only callers cannot accidentally persist or silently discard inline images. */
+export async function consumeTextProviderStream(options: ConsumeOptions): Promise<Omit<ProviderTurnResult, "parts"> & {
+  readonly parts: readonly Exclude<ProviderOutputMessagePart, { readonly type: "resource" }>[]
+}> {
+  if (options.request.outputModalities?.some((modality) => modality !== "text")) {
+    throw new ProviderStreamError(protocolProviderError({
+      providerId: options.provider.providerId, modelId: options.provider.model.id,
+      message: "text-only consumer cannot request image output"
+    }), false)
+  }
+  const response = await consumeProviderStream({
+    ...options,
+    request: { ...options.request, outputModalities: ["text"] }
+  })
+  const parts: Exclude<ProviderOutputMessagePart, { readonly type: "resource" }>[] = []
+  for (const part of response.parts) {
+    if (part.type === "image_candidate") {
+      throw new Error("text-only provider response contains an image candidate")
+    }
+    parts.push(part)
+  }
+  return { ...response, parts }
+}
+
+export async function consumeProviderStream(options: ConsumeOptions): Promise<ProviderResponseCandidate> {
+  const output = options.request.outputModalities ?? ["text"]
   const assembler = new ProviderTurnAssembler(
     options.provider.providerId,
-    options.provider.model.id
+    options.provider.model.id,
+    output.includes("image"),
+    output.includes("text")
   )
+  if (output.length === 0 || new Set(output).size !== output.length ||
+      output.some((modality) => !options.provider.model.outputModalities.includes(modality)) ||
+      output.some((modality) => !options.provider.outputModalities.includes(modality)) ||
+      output.some((modality) => modality !== "text" && modality !== "image")) {
+    assembler.fail("requested output modalities are not supported by the selected model and adapter")
+  }
   let terminal: ProviderEvent | undefined
 
   try {
     for await (const event of options.provider.stream(options.request)) {
+      assembler.observeOutput(event)
       if (terminal !== undefined) {
         assembler.fail("provider emitted an event after its terminal event")
       }
-      assembler.accept(event)
+      // Observe even malformed media before validation so a rejected paid output is not retried.
       await options.checkpoint?.(event)
+      assembler.accept(event)
       try {
-        options.observe?.(event)
+        if (event.type === "image_output") {
+          options.observe?.({ type: "image_output", partId: event.partId,
+            mimeType: event.mimeType, sizeBytes: event.bytes.byteLength })
+        } else if (event.type !== "provider_state") {
+          options.observe?.(event)
+        }
       } catch {
         // Observation is auxiliary; a UI or diagnostic subscriber cannot fail a run.
       }
@@ -53,13 +99,16 @@ export async function consumeProviderStream(options: {
     }
   } catch (error) {
     if (error instanceof ProviderStreamError) {
-      throw error
+      if (!assembler.outputObserved || error.detail.outputObserved) throw error
+      throw new ProviderStreamError(error.detail, true)
     }
     throw new ProviderStreamError(
       protocolProviderError({
         providerId: options.provider.providerId,
         modelId: options.provider.model.id,
-        message: `provider stream threw instead of emitting an error event: ${errorMessage(error)}`
+        message: output.includes("image")
+          ? "provider image stream failed before a complete response"
+          : `provider stream threw instead of emitting an error event: ${errorMessage(error)}`
       }),
       assembler.outputObserved
     )
@@ -79,6 +128,9 @@ class ProviderTurnAssembler {
   >()
   private readonly tools = new Map<string, ToolAssembly>()
   private readonly toolIndexes = new Set<number>()
+  private readonly images = new Map<string, ProviderImageCandidate>()
+  private readonly partKinds = new Map<string, string>()
+  private imageBytes = 0
   private readonly states: ProviderState[] = []
   private readonly stateByPart = new Map<string, ProviderState>()
   private usage: ProviderUsage | undefined
@@ -86,22 +138,51 @@ class ProviderTurnAssembler {
   private error: ProviderError | undefined
   outputObserved = false
 
-  constructor(providerId: string, modelId: string) {
+  constructor(
+    providerId: string,
+    modelId: string,
+    private readonly allowImages: boolean,
+    private readonly allowText: boolean
+  ) {
     this.providerId = providerId
     this.modelId = modelId
   }
 
+  observeOutput(event: ProviderEvent): void {
+    if (event.type === "text_delta" || event.type === "reasoning_delta" ||
+        event.type === "tool_call_start" || event.type === "image_output") {
+      this.outputObserved = true
+    }
+  }
+
   accept(event: ProviderEvent): void {
     switch (event.type) {
+      case "image_output": {
+        if (!this.allowImages) this.fail("this provider request does not accept image output")
+        try { validateImageOutput(event) } catch (error) {
+          this.fail(errorMessage(error))
+        }
+        if (this.images.has(event.partId)) this.fail("provider emitted a duplicate image part")
+        this.imageBytes += event.bytes.byteLength
+        if (this.images.size >= IMAGE_OUTPUT_LIMITS.count ||
+            this.imageBytes > IMAGE_OUTPUT_LIMITS.totalBytes) {
+          this.fail("provider image output exceeds the response limit")
+        }
+        this.addPart(event.partId, "image")
+        this.images.set(event.partId, { type: "image_candidate", id: event.partId,
+          mimeType: event.mimeType, bytes: Uint8Array.from(event.bytes) })
+        return
+      }
       case "text_delta":
+        if (!this.allowText) this.fail("this provider request does not accept text output")
         this.requireNonEmpty(event.delta, "text delta")
-        this.addPart(event.partId)
+        this.addPart(event.partId, "text")
         this.text.set(event.partId, (this.text.get(event.partId) ?? "") + event.delta)
         this.outputObserved = true
         return
       case "reasoning_delta": {
         this.requireNonEmpty(event.delta, "reasoning delta")
-        this.addPart(event.partId)
+        this.addPart(event.partId, "reasoning")
         const prior = this.reasoning.get(event.partId)
         this.reasoning.set(event.partId, {
           text: (prior?.text ?? "") + event.delta,
@@ -122,7 +203,7 @@ class ProviderTurnAssembler {
           inputJson: "",
           ended: false
         })
-        this.addPart(`tool:${event.toolCallId}`)
+        this.addPart(`tool_call_${event.index}`, "tool")
         this.outputObserved = true
         return
       case "tool_call_delta": {
@@ -159,7 +240,7 @@ class ProviderTurnAssembler {
     }
   }
 
-  complete(): ProviderTurnResult {
+  complete(): ProviderResponseCandidate {
     if (this.error !== undefined) {
       throw new ProviderStreamError(this.error, this.outputObserved)
     }
@@ -167,9 +248,14 @@ class ProviderTurnAssembler {
       this.fail("provider stream ended without a terminal event")
     }
 
-    const parts = this.partOrder.map((partId): ProviderOutputMessagePart => {
-      if (partId.startsWith("tool:")) {
-        const tool = this.tools.get(partId.slice(5))
+    if (this.images.size > 0 && this.finish.reason !== "stop" && this.finish.reason !== "tool_calls") {
+      this.fail("incomplete image response cannot be published")
+    }
+    const parts = this.partOrder.map((partId): ProviderResponseCandidate["parts"][number] => {
+      const image = this.images.get(partId)
+      if (image !== undefined) return image
+      if (this.partKinds.get(partId) === "tool") {
+        const tool = [...this.tools.values()].find((item) => `tool_call_${item.index}` === partId)
         if (tool === undefined || !tool.ended) {
           this.fail("provider stream finished with an incomplete tool call")
         }
@@ -230,8 +316,17 @@ class ProviderTurnAssembler {
     )
   }
 
-  private addPart(partId: string): void {
-    if (!this.partOrder.includes(partId)) {
+  private addPart(partId: string, kind: string): void {
+    if (partId.length === 0) this.fail("provider emitted an empty part identity")
+    const prior = this.partKinds.get(partId)
+    if (prior !== undefined && prior !== kind) {
+      this.fail("provider reused a part identity across output kinds")
+    }
+    if (prior !== undefined && this.images.size > 0 && this.partOrder.at(-1) !== partId) {
+      this.fail("provider resumed a closed part across image output")
+    }
+    if (prior === undefined) {
+      this.partKinds.set(partId, kind)
       this.partOrder.push(partId)
     }
   }

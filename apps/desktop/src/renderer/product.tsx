@@ -284,7 +284,7 @@ export function AssistantLocationControl({
   readonly onSelect: (value: string) => void;
   readonly onManageServers?: (() => void) | undefined;
 }): ReactNode {
-  const label = location.kind === "local" ? "This Mac" : location.name;
+  const label = location.kind === "local" ? "This computer" : location.name;
   return (
     <Menu>
       <MenuTrigger asChild>
@@ -307,7 +307,7 @@ export function AssistantLocationControl({
       <MenuContent label="Where this conversation runs" side="top" align="start">
         <MenuLabel>Runs on</MenuLabel>
         <MenuRadioGroup value={locationValue(location)} onValueChange={onSelect}>
-          <MenuRadioItem value="local" title="This Mac" description="Files and tools stay on this computer" data-ui-location="local" />
+          <MenuRadioItem value="local" title="This computer" description="Files and tools stay on this computer" data-ui-location="local" />
           {profiles.map((profile) => (
             <MenuRadioItem
               key={profile.profileId}

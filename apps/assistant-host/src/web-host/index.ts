@@ -19,6 +19,7 @@ const DEFAULT_RESOURCE_DELIVERY_PREPARE_PATH =
   "/wanex/assistant/resource-delivery/prepare"
 const DEFAULT_RESOURCE_DELIVERY_PATH = "/wanex/assistant/resource-delivery"
 const DEFAULT_PROVIDER_MANAGEMENT_PATH = "/wanex/assistant/providers"
+const DEFAULT_MEDIA_PROVIDER_MANAGEMENT_PATH = "/wanex/assistant/media-providers"
 const DEFAULT_MODEL_CATALOG_REFRESH_PATH = "/wanex/assistant/model-catalog-refresh"
 const DEFAULT_CAPABILITY_SETUP_PATH = "/wanex/assistant/capability-setup"
 const DEFAULT_MCP_SETTINGS_PATH = "/wanex/assistant/mcp-settings"
@@ -38,6 +39,10 @@ export function createWebNodeRequestHandler(
   const eventStreamPath = options.eventStreamPath ?? DEFAULT_EVENT_STREAM_PATH
   const providerManagementPath =
     options.providers === undefined ? undefined : DEFAULT_PROVIDER_MANAGEMENT_PATH
+  const mediaProviderManagementPath =
+    options.mediaProviders === undefined
+      ? undefined
+      : DEFAULT_MEDIA_PROVIDER_MANAGEMENT_PATH
   const modelCatalogRefreshPath =
     options.modelCatalog === undefined
       ? undefined
@@ -72,6 +77,9 @@ export function createWebNodeRequestHandler(
       attachments: options.attachments,
       resourceDeliveries: options.resourceDeliveries,
       ...(options.providers === undefined ? {} : { providers: options.providers }),
+      ...(options.mediaProviders === undefined
+        ? {}
+        : { mediaProviders: options.mediaProviders }),
       ...(options.modelCatalog === undefined
         ? {}
         : { modelCatalog: options.modelCatalog }),
@@ -92,6 +100,9 @@ export function createWebNodeRequestHandler(
       ...(providerManagementPath === undefined
         ? {}
         : { providerManagementPath }),
+      ...(mediaProviderManagementPath === undefined
+        ? {}
+        : { mediaProviderManagementPath }),
       ...(modelCatalogRefreshPath === undefined
         ? {}
         : { modelCatalogRefreshPath }),

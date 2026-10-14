@@ -220,6 +220,8 @@ describe("@wanex/storage-control-plane", () => {
 
       expect(first.status).toBe(200)
       expect(second.status).toBe(200)
+      expect(first.body).toMatchObject({ request_id: "rpc_control_plane_test", ok: true })
+      expect(second.body).toMatchObject({ request_id: "rpc_control_plane_test", ok: true })
       expect(createCalls).toBe(1)
 
       const getFirst = await controlPlane.handle({
@@ -244,6 +246,33 @@ describe("@wanex/storage-control-plane", () => {
     } finally {
       await pool.close()
     }
+  })
+
+  it("rejects invalid request IDs before resolving storage", async () => {
+    const context = await createControlPlaneFixture()
+    for (const request of [null, {}, { request_id: "" }, { request_id: 7 }]) {
+      const response = await context.controlPlane.handle({
+        method: "POST", headers: { authorization: "Bearer alpha-token" }, body: { request }
+      })
+      expect(response).toMatchObject({ status: 400, body: { error: { code: "invalid_request_id" } } })
+    }
+    expect(context.resolvedSubjects).toEqual([])
+  })
+
+  it("does not relabel a mismatched downstream response as the client's response", async () => {
+    const controlPlane = createRemoteStorageControlPlane({
+      async authenticateBearerToken() { return { subjectId: "alpha" } },
+      async resolveStorageWireTransport() {
+        return { async exchange(request) {
+          expect(request.request_id).not.toBe("rpc_control_plane_test")
+          return { storage_rpc_version: 1, request_id: "rpc_control_plane_test", ok: true, value: null }
+        } }
+      }
+    })
+    await expect(controlPlane.handle({
+      method: "POST", headers: { authorization: "Bearer alpha-token" },
+      body: remoteRequest({ command: "doctor" })
+    })).rejects.toMatchObject({ code: "storage_rpc_request_id_mismatch" })
   })
 })
 

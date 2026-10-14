@@ -6,6 +6,7 @@ import type {
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
   BeginProviderInvocationRequest,
+  CheckpointProviderInvocationRequest,
   CreateSessionRequest,
   InterruptSessionTurnReceipt,
   InterruptSessionTurnRequest,
@@ -41,6 +42,7 @@ import type {
 } from "@wanex/protocol"
 
 export interface SessionStore {
+  checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null>
   createSession(request: CreateSessionRequest): Promise<SessionRecord>
   getSession(id: string): Promise<SessionRecord | null>
   listSessions(request: ListSessionsRequest): Promise<SessionRecord[]>

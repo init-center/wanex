@@ -147,6 +147,12 @@ export const surfaceCommandDescriptors: readonly SurfaceCommandDescriptor[] =
       mutatesState: false
     },
     {
+      command: SURFACE_COMMANDS.setImageUnderstandingEndpoint,
+      title: "Choose the model that reads images for text-only models",
+      input: "image-understanding-endpoint",
+      mutatesState: false
+    },
+    {
       command: SURFACE_COMMANDS.dispatchAssistantCommand,
       title: "Dispatch assistant command",
       input: "assistant-command-request",

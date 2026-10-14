@@ -13,6 +13,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{ErrorKind, Read, Seek, SeekFrom, Write};
 use uuid::Uuid;
 
+mod image;
+mod image_resource;
+
 const MAX_RESOURCE_CONTENT_CHUNK_BYTES: u64 = 1024 * 1024;
 
 const RESOURCE_SELECT: &str = "SELECT
@@ -538,59 +541,21 @@ impl SystemService {
         &self,
         request: &RecordResourceProvenance,
     ) -> Result<ResourceProvenanceRecord> {
+        if matches!(
+            request.cause,
+            ResourceProvenanceCause::ProviderOutput { .. }
+                | ResourceProvenanceCause::ImageNormalization { .. }
+        ) {
+            return Err(SystemServiceError::InvalidInput(
+                "provider output or image normalization provenance requires its owning operation"
+                    .to_string(),
+            ));
+        }
         validate_provenance_request(request)?;
         let now = crate::util::now_ms();
         let mut conn = self.connect()?;
         let tx = crate::db::begin_immediate_write_transaction(&mut conn)?;
-        let output = validate_resource_input_evidence_tx(&tx, &request.resource)?;
-        validate_provenance_cause_tx(&tx, &request.cause, &request.input_resources, &output)?;
-        for input in &request.input_resources {
-            validate_resource_input_evidence_tx(&tx, input)?;
-        }
-
-        let canonical = serde_json::json!({
-            "resource": resource_input_evidence_json(&request.resource),
-            "cause": resource_provenance_cause_json(&request.cause),
-            "inputResources": request
-                .input_resources
-                .iter()
-                .map(resource_input_evidence_json)
-                .collect::<Vec<_>>()
-        });
-        let digest = crate::util::digest_json(&canonical);
-        let id = format!("rprov_{digest}");
-        let (cause_kind, cause_id) = provenance_cause_identity(&request.cause);
-        tx.execute(
-            "INSERT OR IGNORE INTO resource_provenance (
-                id, resource_id, resource_sha256, resource_size_bytes,
-                resource_kind, resource_media_type, cause_kind, cause_id,
-                cause_json, input_resources_json, digest, created_at
-             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            params![
-                id,
-                request.resource.resource_id,
-                request.resource.sha256,
-                request.resource.size_bytes,
-                request.resource.kind,
-                request.resource.media_type,
-                cause_kind,
-                cause_id,
-                serde_json::to_string(&request.cause)?,
-                serde_json::to_string(&request.input_resources)?,
-                digest,
-                now
-            ],
-        )?;
-        let record = get_resource_provenance_tx(&tx, &id)?;
-        if record.resource != request.resource
-            || record.cause != request.cause
-            || record.input_resources != request.input_resources
-            || record.digest != digest
-        {
-            return Err(SystemServiceError::Invariant(
-                "resource provenance digest is bound to different evidence".to_string(),
-            ));
-        }
+        let record = record_resource_provenance_tx(&tx, request, now)?;
         tx.commit()?;
         Ok(record)
     }
@@ -611,11 +576,16 @@ impl SystemService {
                 "resource provenance cause_id requires cause_kind".to_string(),
             ));
         }
-        if request
-            .cause_kind
-            .as_deref()
-            .is_some_and(|kind| !matches!(kind, "tool_execution" | "media_generation"))
-        {
+        if request.cause_kind.as_deref().is_some_and(|kind| {
+            !matches!(
+                kind,
+                "tool_execution"
+                    | "media_generation"
+                    | "image_description"
+                    | "provider_output"
+                    | "image_normalization"
+            )
+        }) {
             return Err(SystemServiceError::InvalidInput(
                 "invalid resource provenance cause_kind".to_string(),
             ));
@@ -729,6 +699,58 @@ pub(crate) fn require_media_output_provenance_tx(
     Ok(())
 }
 
+pub(crate) fn record_resource_provenance_tx(
+    tx: &rusqlite::Transaction<'_>,
+    request: &RecordResourceProvenance,
+    now: i64,
+) -> Result<ResourceProvenanceRecord> {
+    validate_provenance_request(request)?;
+    let output = validate_resource_input_evidence_tx(tx, &request.resource)?;
+    validate_provenance_cause_tx(tx, &request.cause, &request.input_resources, &output)?;
+    for input in &request.input_resources {
+        validate_resource_input_evidence_tx(tx, input)?;
+    }
+    let canonical = serde_json::json!({
+        "resource": resource_input_evidence_json(&request.resource),
+        "cause": resource_provenance_cause_json(&request.cause),
+        "inputResources": request.input_resources.iter().map(resource_input_evidence_json).collect::<Vec<_>>()
+    });
+    let digest = crate::util::digest_json(&canonical);
+    let id = format!("rprov_{digest}");
+    let (kind, cause_id) = provenance_cause_identity(&request.cause);
+    tx.execute(
+        "INSERT OR IGNORE INTO resource_provenance (
+        id, resource_id, resource_sha256, resource_size_bytes, resource_kind, resource_media_type,
+        cause_kind, cause_id, cause_json, input_resources_json, digest, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        params![
+            id,
+            request.resource.resource_id,
+            request.resource.sha256,
+            request.resource.size_bytes,
+            request.resource.kind,
+            request.resource.media_type,
+            kind,
+            cause_id,
+            serde_json::to_string(&request.cause)?,
+            serde_json::to_string(&request.input_resources)?,
+            digest,
+            now
+        ],
+    )?;
+    let record = get_resource_provenance_tx(tx, &id)?;
+    if record.resource != request.resource
+        || record.cause != request.cause
+        || record.input_resources != request.input_resources
+        || record.digest != digest
+    {
+        return Err(SystemServiceError::Invariant(
+            "resource provenance digest is bound to different evidence".to_string(),
+        ));
+    }
+    Ok(record)
+}
+
 fn validate_provenance_request(request: &RecordResourceProvenance) -> Result<()> {
     if request.input_resources.len() > MAX_PROVENANCE_INPUT_RESOURCES {
         return Err(SystemServiceError::InvalidInput(format!(
@@ -774,6 +796,61 @@ fn validate_provenance_cause_tx(
     output: &ResourceRecord,
 ) -> Result<()> {
     match cause {
+        ResourceProvenanceCause::ImageNormalization {
+            normalization_key,
+            policy,
+        } => {
+            let [source] = input_resources else {
+                return Err(SystemServiceError::InvalidInput(
+                    "image normalization requires one source".into(),
+                ));
+            };
+            if source.kind != "image"
+                || output.kind != "image"
+                || output.origin != "system"
+                || policy != image_resource::POLICY
+                || *normalization_key != image_resource::normalization_key(source)
+            {
+                return Err(SystemServiceError::Invariant(
+                    "image normalization evidence does not match policy".into(),
+                ));
+            }
+        }
+        ResourceProvenanceCause::ProviderOutput {
+            invocation_id,
+            part_id,
+        } => {
+            let invocation =
+                crate::provider_invocations::get_provider_invocation_tx(tx, invocation_id)?;
+            let checkpoint = invocation.response_checkpoint.as_ref();
+            let part = checkpoint
+                .and_then(|value| value.get("parts"))
+                .and_then(Value::as_array)
+                .and_then(|parts| {
+                    parts
+                        .iter()
+                        .find(|part| part.get("id").and_then(Value::as_str) == Some(part_id))
+                });
+            let evidence = part
+                .map(|part| serde_json::from_value::<ResourceInputEvidence>(part.clone()))
+                .transpose()?;
+            if invocation.state != "output_ready"
+                || invocation.input_resources != input_resources
+                || output.origin != "model_output"
+                || output.kind != "image"
+                || evidence.as_ref().is_none_or(|evidence| {
+                    evidence.resource_id != output.id
+                        || evidence.sha256 != output.sha256
+                        || evidence.size_bytes != output.size_bytes
+                        || evidence.media_type != output.media_type
+                })
+            {
+                return Err(SystemServiceError::Invariant(
+                    "provider provenance does not match its complete invocation checkpoint"
+                        .to_string(),
+                ));
+            }
+        }
         ResourceProvenanceCause::ToolExecution {
             execution_id,
             session_id,
@@ -859,23 +936,90 @@ fn validate_provenance_cause_tx(
                 ));
             }
         }
+        ResourceProvenanceCause::ImageDescription {
+            description_key,
+            endpoint_digest,
+            prompt_version,
+        } => {
+            if output.origin != "model_output"
+                || output.kind != "document"
+                || output.media_type.as_deref() != Some("text/plain")
+            {
+                return Err(SystemServiceError::Invariant(
+                    "image description provenance requires a model_output text/plain document"
+                        .to_string(),
+                ));
+            }
+            crate::sessions::validate_sha256(endpoint_digest, "image description endpoint digest")?;
+            if prompt_version.is_empty() {
+                return Err(SystemServiceError::InvalidInput(
+                    "image description prompt version must not be empty".to_string(),
+                ));
+            }
+            let [source] = input_resources else {
+                return Err(SystemServiceError::Invariant(
+                    "image description provenance requires exactly one image input".to_string(),
+                ));
+            };
+            if source.kind != "image"
+                || *description_key
+                    != image_description_key(&source.sha256, endpoint_digest, prompt_version)
+            {
+                return Err(SystemServiceError::Invariant(
+                    "image description provenance key does not match its image input".to_string(),
+                ));
+            }
+        }
     }
     Ok(())
 }
 
 fn provenance_cause_identity(cause: &ResourceProvenanceCause) -> (&'static str, &str) {
     match cause {
+        ResourceProvenanceCause::ImageNormalization {
+            normalization_key, ..
+        } => ("image_normalization", normalization_key),
+        ResourceProvenanceCause::ProviderOutput { invocation_id, .. } => {
+            ("provider_output", invocation_id)
+        }
         ResourceProvenanceCause::ToolExecution { execution_id, .. } => {
             ("tool_execution", execution_id)
         }
         ResourceProvenanceCause::MediaGeneration { operation_id } => {
             ("media_generation", operation_id)
         }
+        ResourceProvenanceCause::ImageDescription {
+            description_key, ..
+        } => ("image_description", description_key),
     }
+}
+
+/// The cache key of an image description: the exact source image, the exact
+/// describing endpoint and the description prompt version.
+pub(crate) fn image_description_key(
+    source_sha256: &str,
+    endpoint_digest: &str,
+    prompt_version: &str,
+) -> String {
+    crate::util::hex_sha256(
+        format!("{source_sha256}\n{endpoint_digest}\n{prompt_version}").as_bytes(),
+    )
 }
 
 fn resource_provenance_cause_json(cause: &ResourceProvenanceCause) -> Value {
     match cause {
+        ResourceProvenanceCause::ImageNormalization {
+            normalization_key,
+            policy,
+        } => serde_json::json!({
+            "kind": "image_normalization", "normalizationKey": normalization_key, "policy": policy
+        }),
+        ResourceProvenanceCause::ProviderOutput {
+            invocation_id,
+            part_id,
+        } => serde_json::json!({
+            "kind": "provider_output", "invocationId": invocation_id, "partId": part_id
+        }),
         ResourceProvenanceCause::ToolExecution {
             execution_id,
             session_id,
@@ -893,6 +1037,16 @@ fn resource_provenance_cause_json(cause: &ResourceProvenanceCause) -> Value {
         ResourceProvenanceCause::MediaGeneration { operation_id } => serde_json::json!({
             "kind": "media_generation",
             "operationId": operation_id
+        }),
+        ResourceProvenanceCause::ImageDescription {
+            description_key,
+            endpoint_digest,
+            prompt_version,
+        } => serde_json::json!({
+            "kind": "image_description",
+            "descriptionKey": description_key,
+            "endpointDigest": endpoint_digest,
+            "promptVersion": prompt_version
         }),
     }
 }

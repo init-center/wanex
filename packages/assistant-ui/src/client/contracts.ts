@@ -17,7 +17,6 @@ export interface AttachmentUploadRequest {
   readonly sessionId?: string;
   readonly kind?: "file" | "image" | "video" | "audio" | "document";
 }
-
 export interface AttachmentUploadResult {
   readonly kind: "web.attachment-uploaded";
   readonly attachment: AttachmentDraft;
@@ -66,6 +65,7 @@ export interface SaveProviderRequest {
   readonly conversationInputModalities?: readonly ("text" | "image")[];
   readonly conversationFeatures?: readonly "tool_calling"[];
   readonly imageGenerationModelId?: string;
+  readonly imageGenerationAcceptsImages?: boolean;
   readonly baseUrl?: string;
   readonly credential?: string;
   readonly makeConversationActive?: boolean;
@@ -278,11 +278,6 @@ export interface AppProps {
   readonly client: Client;
   readonly initialSnapshot?: Snapshot;
   readonly openSettingsRequest?: number;
-  readonly onModalStateChange?: (state: AppModalState) => void;
   /** Reports canonical appearance to an enclosing product shell; does not persist preferences. */
   readonly onThemeChange?: (theme: Snapshot["view"]["theme"]) => void;
 }
-
-export type AppModalState =
-  | { readonly active: false }
-  | { readonly active: true; readonly kind: "settings" };

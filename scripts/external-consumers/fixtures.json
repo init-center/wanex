@@ -18,7 +18,7 @@
     },
     "trusted-app": {
       "path": "trusted-app",
-      "dependencies": ["@wanex/app"],
+      "dependencies": ["@wanex/app", "@wanex/runtime"],
       "systemServiceResolution": "automatic"
     }
   }

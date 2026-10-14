@@ -6,6 +6,7 @@ import type {
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
   BeginProviderInvocationRequest,
+  CheckpointProviderInvocationRequest,
   CreateSessionRequest,
   InterruptSessionTurnReceipt,
   InterruptSessionTurnRequest,
@@ -63,6 +64,7 @@ import {
   toRpcApplySessionTurnControlRequest,
   toRpcArchiveSessionRequest,
   toRpcBeginProviderInvocationRequest,
+  toRpcCheckpointProviderInvocationRequest,
   toRpcFinishProviderInvocationRequest,
   toRpcInterruptSessionTurnRequest,
   toRpcListProviderInvocationsRequest,
@@ -82,6 +84,10 @@ import { RpcStoreFacetBase } from "./rpc-store-base.js"
 import type { SessionsStorageRpcCommand } from "./generated/storage-rpc.js"
 
 export class SessionStoreMethods extends RpcStoreFacetBase {
+  async checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null> {
+    const value = await this.callSession({ command: "checkpoint-provider-invocation", request: toRpcCheckpointProviderInvocationRequest(request) })
+    return value === null ? null : fromRpcProviderInvocationRecord(value)
+  }
   async createSession(request: CreateSessionRequest): Promise<SessionRecord> {
     const value = await this.callSession({
       command: "create-session",

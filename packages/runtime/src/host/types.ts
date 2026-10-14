@@ -25,7 +25,7 @@ import type {
 import type { SecretResolverPort } from "../secrets/index.js"
 import type { SessionTurnAgentContextResolver } from "../execution/worker/index.js"
 import type {
-  MediaGenerationAdapter,
+  MediaGenerationCapability,
   MediaGenerationRunResult,
   SubmitMediaGenerationRequest
 } from "../media-generation/index.js"
@@ -81,12 +81,7 @@ export interface WanexRuntimeHostBehaviorOptions {
   readonly observeExecutionStage?: AgentRuntimeExecutionStageObserver
   readonly observeSessionTurnLifecycle?: RuntimeHostSessionTurnLifecycleObserver
   readonly resolveAgentContext?: SessionTurnAgentContextResolver
-  readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
-  readonly mediaGenerationWorkerCount?: number
-  readonly mediaGenerationMaxOutputBytes?: number
-  readonly mediaGenerationPollInitialDelayMs?: number
-  readonly mediaGenerationPollMaxDelayMs?: number
-  readonly mediaGenerationMaxConsecutivePollFailures?: number
+  readonly mediaGeneration?: MediaGenerationCapability
 }
 
 /** @public */

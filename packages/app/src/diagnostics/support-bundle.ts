@@ -12,7 +12,7 @@ import type { CoreStore } from "@wanex/storage"
 import type { PluginStore } from "@wanex/storage/plugin"
 import {
   buildAppDiagnosticsSnapshot
-} from "./diagnostics.js"
+} from "./diagnostics-builder.js"
 import type {
   AppDiagnosticsSnapshot,
   BuildAppDiagnosticsSnapshotInput

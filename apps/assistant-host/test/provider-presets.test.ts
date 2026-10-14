@@ -91,7 +91,7 @@ describe("Assistant Host provider presets", () => {
         model: expect.objectContaining({
           id: "gpt-image-test",
           operations: ["image.generate"],
-          inputModalities: ["text"],
+          inputModalities: ["text", "image"],
           outputModalities: ["image"]
         })
       })
@@ -110,6 +110,7 @@ describe("Assistant Host provider presets", () => {
       presetId: "openai-compatible",
       conversationModelId: "custom-model",
       imageGenerationModelId: "custom-image-model",
+      imageGenerationAcceptsImages: true,
       baseUrl: "https://models.example.test/v1/",
       credential: "unused"
     })
@@ -140,9 +141,19 @@ describe("Assistant Host provider presets", () => {
           baseUrl: "https://models.example.test/v1"
         },
         protocol: { id: "openai-images" },
-        model: { id: "custom-image-model" }
+        model: {
+          id: "custom-image-model",
+          inputModalities: ["text", "image"]
+        }
       }
     })
+    expect(resolveCredentialEndpoints({
+      presetId: "openai-compatible",
+      conversationModelId: "custom-model",
+      imageGenerationModelId: "custom-image-model",
+      baseUrl: "https://models.example.test/v1",
+      credential: "unused"
+    }).imageGenerationEndpoint?.model.inputModalities).toEqual(["text"])
     expect(second.connectionId).toBe(first.connectionId)
     expect(first.conversationEndpoint.id).toBe(first.connectionId)
     expect(first.imageGenerationEndpoint?.id).toBe(

@@ -22,7 +22,13 @@ export function createLocalProviderCommands(options: {
   readonly modelResolver: ConversationModelResolver
   readonly mutationCoordinator: WanexAppProviderMutationCoordinator
 }): LocalProviderCommands {
-  const listProviders = async () => await readConfiguredProviders(options.shell)
+  const listProviders = async () => {
+    const configured = await readConfiguredProviders(options.shell)
+    return {
+      ...configured,
+      providers: configured.providers.filter((provider) => !isMediaProvider(provider))
+    }
+  }
   return {
     listProviders,
     async saveProvider(request) {
@@ -30,7 +36,7 @@ export function createLocalProviderCommands(options: {
         request,
         options.modelResolver
       )
-      const configured = await listProviders()
+      const configured = await readConfiguredProviders(options.shell)
       const existing = configured.providers.find(
         (provider) => provider.connectionId === resolved.connectionId
       )
@@ -87,6 +93,13 @@ export function createLocalProviderCommands(options: {
     },
     async removeProvider(request) {
       const connectionId = normalizeConnectionId(request.connectionId)
+      const configured = await readConfiguredProviders(options.shell)
+      const existing = configured.providers.find(
+        (provider) => provider.connectionId === connectionId
+      )
+      if (existing !== undefined && isMediaProvider(existing)) {
+        throw new Error("media provider connections must use media provider management")
+      }
       const removed = await options.mutationCoordinator.remove({ connectionId })
       return {
         kind: "assistant-host.provider.removed",
@@ -118,6 +131,22 @@ export async function readConfiguredProviders(
       ))
       .sort((left, right) => left.connectionId.localeCompare(right.connectionId))
   }
+}
+
+export function isMediaProvider(
+  provider: LocalConfiguredProviderReadModel
+): boolean {
+  const mediaProtocols = new Set([
+    "openai-images",
+    "gemini-image",
+    "volcengine-seedream",
+    "openrouter-images"
+  ])
+  return provider.endpoints.length > 0 && provider.endpoints.every(
+    (endpoint) => mediaProtocols.has(endpoint.protocol.id) &&
+      endpoint.model.operations.length === 1 &&
+      endpoint.model.operations[0] === "image.generate"
+  )
 }
 
 function projectConfiguredProvider(

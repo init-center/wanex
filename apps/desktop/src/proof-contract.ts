@@ -18,7 +18,7 @@ export const WANEX_DESKTOP_PROOF_REMOTE_PROFILE_NAME = "Packaged Remote Host";
 export const WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID =
   "desktop-proof-remote-assistant-model";
 export const WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MESSAGE =
-  "WANEX_REMOTE_ASSISTANT_V1 Continue while the Desktop shows This Mac";
+  "WANEX_REMOTE_ASSISTANT_V1 Continue while the Desktop shows This computer";
 export const WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_PARTIAL_RESPONSE =
   "The packaged remote Assistant response started";
 export const WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_FINAL_DELTA =
@@ -101,6 +101,20 @@ export const WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT =
   "Describe the attached Wanex proof image";
 export const WANEX_DESKTOP_PROOF_MULTIMODAL_IMAGE_LABEL =
   "wanex-proof-image.png";
+export const WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID =
+  "desktop-proof-vision-model";
+export const WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_TEXT =
+  "Describe this Wanex routing proof image through the selected reader";
+export const WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION =
+  "The proof image is a one-pixel PNG selected for explicit image understanding.";
+export const WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_RESPONSE =
+  "The selected reader described the proof image before the text model replied.";
+export const WANEX_DESKTOP_PROOF_IMAGE_EDIT_TEXT =
+  "Edit the attached Wanex proof image through the selected image editor";
+export const WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT =
+  "make the Wanex proof image blue";
+export const WANEX_DESKTOP_PROOF_IMAGE_EDIT_RESPONSE =
+  "The selected image editor returned the edited proof image.";
 export const WANEX_DESKTOP_PROOF_UNSUPPORTED_DRAFT =
   "Keep this draft after rejecting an unsupported attachment";
 export const WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID =
@@ -238,6 +252,7 @@ export type WanexDesktopProviderRelaunchProofStep =
   | "relaunch-guided-follow-up"
   | "relaunch-side-query"
   | "relaunch-multimodal"
+  | "relaunch-image-understanding"
   | "relaunch-image-generation"
   | "relaunch-plan"
   | "relaunch-goal"
@@ -490,6 +505,14 @@ export interface WanexDesktopProviderRelaunchProofResult {
   readonly imageGenerationToolSucceeded: boolean;
   readonly generatedResourceEvidenceValid: boolean;
   readonly generatedResourcePreviewVisible: boolean;
+  readonly imageUnderstandingRouteSelected: boolean;
+  readonly imageUnderstandingDescriptionUsed: boolean;
+  readonly imageUnderstandingPrimaryNoImage: boolean;
+  readonly imageUnderstandingConversationSubmitted: boolean;
+  readonly imageEditConversationSubmitted: boolean;
+  readonly imageEditToolSucceeded: boolean;
+  readonly imageEditResourceEvidenceValid: boolean;
+  readonly imageEditResourcePreviewVisible: boolean;
   readonly planGenerated: boolean;
   readonly planOpenBeforeApproval: boolean;
   readonly planExecutionAbsentBeforeApproval: boolean;

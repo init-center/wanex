@@ -63,7 +63,7 @@ import type {
 } from "./types-workflow-envelope.js"
 import type { WanexAppMediaGenerationCommands } from "./types-media-generation.js"
 import type { WanexAppSessionLifecycleCommands } from "./types-session-lifecycle.js"
-import type { MediaGenerationAdapter } from "@wanex/runtime/media-generation"
+import type { MediaGenerationCapability } from "@wanex/runtime/media-generation"
 import type { WanexAppPlanCommands } from "./types-plan.js"
 import type { WanexAppGoalCommands } from "./types-goal.js"
 import type {
@@ -101,12 +101,7 @@ export interface WanexAppOptions extends BootstrapWanexStorageOptions {
   readonly workerCount?: number
   readonly secretResolver?: SecretResolverPort
   readonly trustedProviderHost?: WanexAppTrustedProviderHostOptions
-  readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[]
-  readonly mediaGenerationWorkerCount?: number
-  readonly mediaGenerationMaxOutputBytes?: number
-  readonly mediaGenerationPollInitialDelayMs?: number
-  readonly mediaGenerationPollMaxDelayMs?: number
-  readonly mediaGenerationMaxConsecutivePollFailures?: number
+  readonly mediaGeneration?: MediaGenerationCapability
 }
 
 export interface WanexApp {

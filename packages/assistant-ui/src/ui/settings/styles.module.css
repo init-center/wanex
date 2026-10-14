@@ -1,15 +1,47 @@
-/* Settings is one focused sheet; sections are separated by rhythm, not boxes. */
-.overlay { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px; }
-.overlay-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; background: var(--color-backdrop); border: 0; backdrop-filter: blur(10px) saturate(115%); -webkit-backdrop-filter: blur(10px) saturate(115%); }
-.settings-panel { position: relative; z-index: 1; width: min(660px, calc(100vw - 48px)); max-height: min(780px, calc(100vh - 48px)); padding: 0 28px 28px; overflow-y: auto; background: var(--color-overlay-solid); border: 1px solid var(--color-line); border-radius: var(--radius-dialog); box-shadow: var(--shadow-float); scrollbar-width: thin; }
-.settings-panel .context-panel-header { position: sticky; top: 0; z-index: 2; margin: 0 -28px 8px; padding: 22px 28px 16px; background: var(--color-overlay-solid); border-bottom: 1px solid var(--color-line-muted); }
-.settings-panel h2 { font-size: var(--font-size-2xl); line-height: 26px; }
-.settings-section { padding: 16px 0 4px; }
-.settings-section + .settings-section { margin-top: 12px; padding-top: 22px; border-top: 1px solid var(--color-line-muted); }
-.settings-heading, .settings-heading > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.settings-heading { margin-bottom: 12px; }
-.settings-heading > div > svg { color: var(--color-text-muted); }
-.settings-heading strong { color: var(--color-text); font-size: var(--font-size-lg); font-weight: 620; }
+/* Settings is a page: section navigation on the left, one section at a time on the right. */
+.layout.is-behind-settings { visibility: hidden; }
+.settings-page { position: absolute; inset: 0; z-index: 70; min-height: 0; display: grid; grid-template-columns: var(--size-sidebar) minmax(0, 1fr); color: var(--color-text); background: var(--color-canvas); }
+html[data-window-chrome="integrated-macos"] .settings-page::before { content: ""; position: absolute; inset: 0 0 auto; height: 44px; -webkit-app-region: drag; }
+.settings-page button { -webkit-app-region: no-drag; }
+
+.settings-nav { min-height: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px 10px 10px; overflow-y: auto; background: var(--color-sidebar); border-right: 1px solid var(--color-line-muted); }
+html[data-window-chrome="integrated-macos"] .settings-nav { padding-top: 48px; }
+.settings-nav ul { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.settings-nav-title { margin: 18px 10px 8px; color: var(--color-text-muted); font-size: var(--font-size-xs); font-weight: 600; line-height: 16px; }
+.settings-back, .settings-nav-item { width: 100%; min-height: 36px; display: flex; align-items: center; gap: 11px; padding: 0 10px; color: var(--color-text); text-align: left; white-space: nowrap; background: transparent; border: 0; border-radius: 9px; font-size: var(--font-size-sm); transition: background var(--motion-fast) ease, color var(--motion-fast) ease; }
+.settings-back { color: var(--color-text-secondary); }
+.settings-back:hover, .settings-nav-item:hover { color: var(--color-text); background: var(--color-control-hover); }
+.settings-back svg, .settings-nav-item svg { flex: 0 0 auto; color: var(--color-text-muted); }
+.settings-nav-item[aria-current="page"] { background: var(--color-control-hover); font-weight: 600; }
+.settings-nav-item[aria-current="page"] svg { color: var(--color-text); }
+
+.settings-content { min-width: 0; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; scrollbar-width: thin; }
+.settings-content-inner { width: min(720px, 100%); margin: 0 auto; padding: 44px 32px 72px; }
+html[data-window-chrome="integrated-macos"] .settings-content-inner { padding-top: 56px; }
+
+/* A section's own heading is the page title; its icon only helps in the navigation. */
+.settings-heading, .settings-heading > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-heading { margin-bottom: 22px; }
+.settings-heading > div > svg { display: none; }
+.settings-heading strong { color: var(--color-text); font-size: var(--font-size-3xl); font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; }
+.settings-subheading { margin: 28px 0 12px; color: var(--color-text); font-size: var(--font-size-md); font-weight: 600; }
+.settings-quiet-action { min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--color-text-secondary); background: transparent; border: 1px solid var(--color-line-strong); border-radius: 999px; font-size: var(--font-size-sm); white-space: nowrap; }
+.settings-quiet-action:hover:not(:disabled) { color: var(--color-text); background: var(--color-control-hover); }
+
+/* Preferences are rows in one card: title and explanation on the left, the control on the right. */
+.settings-group { background: var(--color-surface); border: 1px solid var(--color-line-muted); border-radius: var(--radius-card); box-shadow: var(--shadow-control); }
+.settings-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px; padding: 14px 16px; }
+.settings-row + .settings-row { border-top: 1px solid var(--color-line-muted); }
+.settings-row-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.settings-row-copy strong { color: var(--color-text); font-size: var(--font-size-md); font-weight: 560; }
+.settings-row-copy small { color: var(--color-text-muted); font-size: var(--font-size-xs); line-height: 16px; }
+
+/* First run: only the model step, centred, with a way to look around first. */
+.settings-page.is-onboarding { grid-template-columns: minmax(0, 1fr); }
+.is-onboarding .settings-content-inner, html[data-window-chrome="integrated-macos"] .is-onboarding .settings-content-inner { width: min(460px, 100%); padding: max(48px, 12vh) 24px 48px; }
+.settings-onboarding-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.settings-onboarding-header h1 { margin: 0; font-size: var(--font-size-3xl); font-weight: 650; line-height: 1.2; letter-spacing: -0.01em; }
+.settings-onboarding-header p { margin: 8px 0 0; color: var(--color-text-secondary); font-size: var(--font-size-md); }
 
 /* Shared quiet button used across settings sections. */
 .mcp-add, .extension-add, .schedule-add { min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: 999px; font-size: var(--font-size-sm); font-weight: 560; transition: background 140ms ease, border-color 140ms ease; }
@@ -18,8 +50,6 @@
 /* List rows share one shape. */
 .provider-list li, .mcp-list > li, .extension-row, .schedule-row { padding: 12px 14px; background: var(--color-surface); border: 1px solid var(--color-line-muted); border-radius: var(--radius-card); box-shadow: var(--shadow-control); }
 
-.appearance-section { display: flex; flex-direction: column; gap: 12px; }
-.preference-row { display: grid; grid-template-columns: 120px minmax(0, 1fr); align-items: center; gap: 16px; color: var(--color-text-secondary); font-size: var(--font-size-md); }
 .segmented-control { min-width: 0; display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 3px; background: var(--color-control-hover); border-radius: 11px; }
 .segmented-control button { min-height: 32px; flex: 1 1 auto; padding: 0 14px; color: var(--color-text-secondary); background: transparent; border: 1px solid transparent; border-radius: 8px; font-size: var(--font-size-sm); font-weight: 560; }
 .segmented-control button:hover:not(:disabled) { color: var(--color-text); }
@@ -41,8 +71,8 @@
 .provider-list .danger-action { color: var(--color-on-accent); background: var(--color-danger); border-color: var(--color-danger); }
 .provider-list .danger-action:hover:not(:disabled) { background: var(--color-danger); }
 
-.settings-subheading { margin: 0 0 12px; color: var(--color-text-secondary); font-size: var(--font-size-sm); font-weight: 600; }
-.settings-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.settings-form { max-width: 520px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.is-onboarding .settings-form { max-width: none; }
 .settings-form label:not(.checkbox), .schedule-form label:not(.checkbox) { min-width: 0; display: flex; flex-direction: column; gap: 6px; color: var(--color-text-secondary); font-size: var(--font-size-xs); font-weight: 560; }
 .settings-form input, .settings-form select, .schedule-form input, .schedule-form select, .schedule-form textarea, .mcp-form textarea { width: 100%; min-height: 40px; padding: 0 12px; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-line-strong); border-radius: var(--radius-control); font: inherit; font-size: var(--font-size-md); transition: border-color 140ms ease, box-shadow 140ms ease; }
 .settings-form input:focus, .settings-form select:focus, .schedule-form input:focus, .schedule-form select:focus, .schedule-form textarea:focus, .mcp-form textarea:focus { border-color: var(--color-line-accent); box-shadow: 0 0 0 3px var(--color-accent-soft); outline: 0; }
@@ -148,11 +178,7 @@
 .schedule-form .inline-actions button { display: inline-flex; align-items: center; gap: 6px; }
 
 @media (max-width: 560px) {
-  .overlay { padding: 12px; }
-  .settings-panel { width: calc(100vw - 24px); max-height: calc(100vh - 24px); padding: 0 18px 20px; }
-  .settings-panel .context-panel-header { margin: 0 -18px 8px; padding: 18px 18px 14px; }
-  .settings-form, .advanced-fields { grid-template-columns: minmax(0, 1fr); }
-  .preference-row { grid-template-columns: 1fr; align-items: stretch; gap: 6px; }
+  .settings-row { grid-template-columns: 1fr; align-items: stretch; gap: 10px; }
   .segmented-control { width: 100%; }
   .mcp-list > li, .schedule-row, .extension-row { grid-template-columns: minmax(0, 1fr); }
   .mcp-states, .mcp-controls, .schedule-controls, .extension-controls { justify-content: flex-end; }

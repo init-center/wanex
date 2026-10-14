@@ -640,6 +640,7 @@ async function seedSettledGoalAttempt(
     leaseToken: job.leaseToken
   })
   const invocation = await storage.beginProviderInvocation({
+      inputResources: [],
     sessionId: session.id,
     turnId: admitted.attempt.turnId,
     attemptId: started.attempt.id,

@@ -21,7 +21,6 @@ import type { WanexAppCommandContext } from "./command-context.js"
 import { PlanWorkflow } from "./workflows/plan/runtime.js"
 import { WanexAppGoalCoordinator } from "./goal-coordinator.js"
 import { prepareWanexAppModelCapabilityContext } from "./model-capability-context.js"
-import { MediaGenerationAdapterRegistry } from "@wanex/runtime/media-generation"
 
 export async function createWanexApp(
   options: WanexAppOptions
@@ -46,13 +45,9 @@ export async function createWanexApp(
     options.extensions?.source
   )
   const events = new WanexAppConversationEventHub()
-  const mediaGenerationAdapters = options.mediaGenerationAdapters ?? []
-  const mediaGenerationAdapterRegistry = new MediaGenerationAdapterRegistry(
-    mediaGenerationAdapters
-  )
-  const isModelEndpointExecutable = mediaGenerationAdapterRegistry.supports.bind(
-    mediaGenerationAdapterRegistry
-  )
+  const isModelEndpointExecutable = options.mediaGeneration === undefined
+    ? () => false
+    : options.mediaGeneration.supports.bind(options.mediaGeneration)
   let goalCoordinator: WanexAppGoalCoordinator | undefined
   let activeModelEndpointId: string | undefined
   let releaseTrustedProviderHost: (() => void) | undefined
@@ -67,30 +62,7 @@ export async function createWanexApp(
         goalCoordinator?.observeSessionTurnLifecycle(signal)
         options.observeSessionTurnLifecycle?.(signal)
       },
-    ...(mediaGenerationAdapters.length === 0
-      ? {}
-      : { mediaGenerationAdapters }),
-    ...(options.mediaGenerationWorkerCount === undefined
-      ? {}
-      : { mediaGenerationWorkerCount: options.mediaGenerationWorkerCount }),
-    ...(options.mediaGenerationMaxOutputBytes === undefined
-      ? {}
-      : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
-    ...(options.mediaGenerationPollInitialDelayMs === undefined
-      ? {}
-      : {
-          mediaGenerationPollInitialDelayMs:
-            options.mediaGenerationPollInitialDelayMs
-        }),
-    ...(options.mediaGenerationPollMaxDelayMs === undefined
-      ? {}
-      : { mediaGenerationPollMaxDelayMs: options.mediaGenerationPollMaxDelayMs }),
-    ...(options.mediaGenerationMaxConsecutivePollFailures === undefined
-      ? {}
-      : {
-          mediaGenerationMaxConsecutivePollFailures:
-            options.mediaGenerationMaxConsecutivePollFailures
-        }),
+    ...(options.mediaGeneration === undefined ? {} : { mediaGeneration: options.mediaGeneration }),
     async resolveAgentContext(request) {
       const discovered = agentContext.current()
       const configured = composeWanexAppAgentContext({
@@ -110,6 +82,9 @@ export async function createWanexApp(
         const context = await prepareWanexAppModelCapabilityContext({
           storage: runtime.storage,
           isModelEndpointExecutable,
+          ...(options.secretResolver === undefined
+            ? {}
+            : { secretResolver: options.secretResolver }),
           ...(base === undefined ? {} : { base }),
           ...(request.executionBinding === undefined
             ? {}

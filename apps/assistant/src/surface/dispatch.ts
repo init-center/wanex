@@ -25,6 +25,7 @@ import {
   parseSurfaceRemoveConversationAttachmentRequest,
   parseSurfacePreferencesPatch,
   parseSurfaceModelEndpointSelector,
+  parseSurfaceImageUnderstandingEndpoint,
   parseSurfaceAssistantCommandRequest,
   parseSurfaceSessionSelector,
   parseSurfaceRenameSessionRequest,
@@ -135,6 +136,12 @@ export async function runSurfaceCommand(
       return projectModelEndpoint(
         await app.modelEndpoints.setActiveModelEndpoint(
           parseSurfaceModelEndpointSelector(request.input)
+        )
+      )
+    case "setImageUnderstandingEndpoint":
+      return projectModelEndpoints(
+        await app.modelEndpoints.setImageUnderstandingEndpoint(
+          parseSurfaceImageUnderstandingEndpoint(request.input)
         )
       )
     case "dispatchAssistantCommand":

@@ -8,12 +8,15 @@ use crate::{
 };
 use rusqlite::{params, OptionalExtension};
 use uuid::Uuid;
+mod checkpoint;
+pub(crate) use checkpoint::{reject_uncheckpointed_images_tx, validate_publication_tx};
 
 const PROVIDER_INVOCATION_SELECT: &str = "SELECT id, session_id, turn_id,
     attempt_id, input_id, job_id, step, invocation_number,
     execution_binding_digest, request_digest, state, output_observed,
     provider_request_id, assistant_message_id, error_json, started_at,
-    updated_at, finished_at FROM provider_invocation";
+    updated_at, finished_at, input_resources_json, response_checkpoint_json,
+    response_digest FROM provider_invocation";
 
 impl SystemService {
     pub fn begin_provider_invocation(
@@ -115,6 +118,20 @@ pub(crate) fn begin_provider_invocation_tx(
         ));
     };
     let turn = crate::sessions::get_turn_tx(tx, &request.turn_id)?;
+    if request.input_resources.len() > 64 {
+        return Err(SystemServiceError::InvalidInput(
+            "provider inputs exceed 64 resources".to_string(),
+        ));
+    }
+    let mut seen = std::collections::HashSet::new();
+    for evidence in &request.input_resources {
+        if !seen.insert(&evidence.resource_id) {
+            return Err(SystemServiceError::InvalidInput(
+                "provider input resource is duplicated".to_string(),
+            ));
+        }
+        crate::resources::validate_resource_input_evidence_tx(tx, evidence)?;
+    }
     let (provider_max_attempts, _) = crate::turns::recovery_bounds(&turn.execution_binding)?;
     if request.invocation_number > provider_max_attempts {
         return Err(SystemServiceError::Invariant(
@@ -144,6 +161,7 @@ pub(crate) fn begin_provider_invocation_tx(
             || previous.output_observed
             || !retryable
             || previous.request_digest != request.request_digest
+            || previous.input_resources != request.input_resources
             || previous.execution_binding_digest != binding_digest
         {
             return Err(SystemServiceError::Invariant(
@@ -164,9 +182,9 @@ pub(crate) fn begin_provider_invocation_tx(
             id, session_id, turn_id, attempt_id, input_id, job_id, step,
             invocation_number, execution_binding_digest, request_digest, state,
             output_observed, provider_request_id, assistant_message_id,
-            error_json, started_at, updated_at, finished_at
+            error_json, started_at, updated_at, finished_at, input_resources_json
          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'dispatched', 0,
-                   NULL, NULL, NULL, ?, ?, NULL)",
+                   NULL, NULL, NULL, ?, ?, NULL, ?)",
         params![
             id,
             request.session_id,
@@ -179,7 +197,8 @@ pub(crate) fn begin_provider_invocation_tx(
             binding_digest,
             request.request_digest,
             now,
-            now
+            now,
+            serde_json::to_string(&request.input_resources)?
         ],
     )?;
     let invocation = get_provider_invocation_tx(tx, &id)?;
@@ -209,7 +228,7 @@ pub(crate) fn finish_provider_invocation_tx(
         ));
     };
     let existing = get_provider_invocation_tx(tx, &request.invocation_id)?;
-    ensure_invocation_identity(&existing, request_identity(request))?;
+    ensure_publication_identity(&existing, request_identity(request))?;
     if existing.execution_binding_digest != binding_digest {
         return Err(SystemServiceError::Invariant(
             "provider invocation binding digest changed".to_string(),
@@ -217,6 +236,22 @@ pub(crate) fn finish_provider_invocation_tx(
     }
     if is_terminal(&existing.state) {
         return repeated_finish_receipt(tx, &existing, request);
+    }
+    if existing.state == "output_ready" && request.outcome != "succeeded" {
+        return Err(SystemServiceError::InvalidInput(
+            "a complete response checkpoint cannot become a failed provider invocation".to_string(),
+        ));
+    }
+    if request.outcome == "succeeded" {
+        if let Some(content) = &request.assistant_message {
+            validate_publication_tx(tx, &existing, content, request.provider_state.as_ref())?;
+        }
+        let turn = crate::sessions::get_turn_tx(tx, &request.turn_id)?;
+        if turn.state != "running" {
+            return Err(SystemServiceError::Invariant(
+                "provider publication cannot override cancellation".to_string(),
+            ));
+        }
     }
     if request.outcome == "succeeded"
         && request
@@ -274,7 +309,7 @@ pub(crate) fn finish_provider_invocation_tx(
          SET state = ?, output_observed = ?,
              provider_request_id = COALESCE(?, provider_request_id),
              assistant_message_id = ?, error_json = ?, updated_at = ?, finished_at = ?
-         WHERE id = ? AND state IN ('dispatched', 'output_observed')",
+         WHERE id = ? AND state IN ('dispatched', 'output_observed', 'output_ready')",
         params![
             request.outcome,
             output_observed,
@@ -324,7 +359,7 @@ pub(crate) fn finish_final_provider_invocation_tx(
     let invocation = get_provider_invocation_tx(tx, invocation_id)?;
     if invocation.session_id != request.session_id
         || invocation.turn_id != request.turn_id
-        || invocation.attempt_id != request.attempt_id
+        || (invocation.attempt_id != request.attempt_id && invocation.state != "output_ready")
         || invocation.input_id != request.input_id
         || invocation.job_id != request.job_id
         || invocation.execution_binding_digest != binding_digest
@@ -333,16 +368,27 @@ pub(crate) fn finish_final_provider_invocation_tx(
             "final provider invocation identity does not match turn settlement".to_string(),
         ));
     }
-    if !matches!(invocation.state.as_str(), "dispatched" | "output_observed") {
+    if !matches!(
+        invocation.state.as_str(),
+        "dispatched" | "output_observed" | "output_ready"
+    ) {
         return Err(SystemServiceError::Invariant(
             "final provider invocation is not open for settlement".to_string(),
         ));
     }
+    validate_publication_tx(
+        tx,
+        &invocation,
+        request.assistant_message.as_ref().ok_or_else(|| {
+            SystemServiceError::InvalidInput("provider settlement requires content".to_string())
+        })?,
+        request.provider_state.as_ref(),
+    )?;
     let updated = tx.execute(
         "UPDATE provider_invocation
          SET state = 'succeeded', output_observed = 1, assistant_message_id = ?,
              error_json = NULL, updated_at = ?, finished_at = ?
-         WHERE id = ? AND state IN ('dispatched', 'output_observed')",
+         WHERE id = ? AND state IN ('dispatched', 'output_observed', 'output_ready')",
         params![assistant_message_id, now, now, invocation_id],
     )?;
     if updated != 1 {
@@ -546,6 +592,7 @@ macro_rules! impl_invocation_identity {
 impl_invocation_identity!(BeginProviderInvocation);
 impl_invocation_identity!(MarkProviderInvocationOutput);
 impl_invocation_identity!(FinishProviderInvocation);
+impl_invocation_identity!(crate::CheckpointProviderInvocation);
 
 fn validate_lease(
     tx: &rusqlite::Transaction<'_>,
@@ -584,6 +631,25 @@ fn ensure_invocation_identity(
     Ok(())
 }
 
+fn ensure_publication_identity(
+    invocation: &ProviderInvocationRecord,
+    identity: InvocationIdentity<'_>,
+) -> Result<()> {
+    if invocation.state == "output_ready" && invocation.response_checkpoint.is_some() {
+        if invocation.session_id == identity.session_id
+            && invocation.turn_id == identity.turn_id
+            && invocation.input_id == identity.input_id
+            && invocation.job_id == identity.job_id
+        {
+            return Ok(());
+        }
+        return Err(SystemServiceError::Invariant(
+            "checkpoint takeover must remain in the same turn".to_string(),
+        ));
+    }
+    ensure_invocation_identity(invocation, identity)
+}
+
 fn ensure_same_begin(
     existing: &ProviderInvocationRecord,
     request: &BeginProviderInvocation,
@@ -591,6 +657,7 @@ fn ensure_same_begin(
 ) -> Result<()> {
     ensure_invocation_identity(existing, request_identity(request))?;
     if existing.request_digest != request.request_digest
+        || existing.input_resources != request.input_resources
         || existing.execution_binding_digest != binding_digest
     {
         return Err(SystemServiceError::Invariant(
@@ -618,6 +685,17 @@ fn repeated_finish_receipt(
         .as_deref()
         .map(|message_id| crate::messages::get_message_tx(tx, message_id))
         .transpose()?;
+    if assistant_message.as_ref().map(|message| &message.content)
+        != request.assistant_message.as_ref()
+        || assistant_message
+            .as_ref()
+            .and_then(|message| message.provider_state.as_ref())
+            != request.provider_state.as_ref()
+    {
+        return Err(SystemServiceError::Invariant(
+            "conflicting repeated provider assistant content".to_string(),
+        ));
+    }
     Ok(FinishProviderInvocationReceipt {
         invocation: existing.clone(),
         assistant_message,

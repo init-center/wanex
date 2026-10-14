@@ -57,7 +57,11 @@ export function projectProviderReadiness(
     attentionRequired: false,
     requiresCredential,
     credentialConfigured: activeEndpoint.credentialConfigured,
-    activeEndpoint: projectModelEndpoint(activeEndpoint)
+    activeEndpoint: projectModelEndpoint(activeEndpoint),
+    ...(endpointList.imageUnderstandingEndpointId !== undefined &&
+    !activeEndpoint.model.inputModalities.includes("image")
+      ? { imagesDescribed: true as const }
+      : {})
   }
 }
 
@@ -114,6 +118,12 @@ export function projectModelEndpoints(
     ...(endpointList.activeEndpointId === undefined
       ? {}
       : { activeEndpointId: endpointList.activeEndpointId }),
+    ...(endpointList.imageUnderstandingEndpointId === undefined
+      ? {}
+      : {
+          imageUnderstandingEndpointId:
+            endpointList.imageUnderstandingEndpointId
+        }),
     endpoints: endpointList.endpoints.map(projectModelEndpoint)
   }
 }

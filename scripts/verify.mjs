@@ -5,18 +5,28 @@ import { runProcessStep } from "./process-step.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 if (import.meta.main) {
-  parseVerifyArgs(process.argv.slice(2))
-  await runVerify()
-  console.log("\nwanex verify passed")
+  const suite = parseVerifyArgs(process.argv.slice(2))
+  await runVerify(suite)
+  console.log(suite === "all"
+    ? "\nwanex verify passed"
+    : `\nwanex verify ${suite} suite passed (partial verification)`)
 }
 
 export function parseVerifyArgs(args) {
-  for (const arg of args) {
-    throw new Error(`unknown verify argument: ${arg}`)
-  }
+  if (args.length === 0) return "all"
+  if (args.length === 2 && args[0] === "--suite") return requireSuite(args[1])
+  throw new Error(`invalid verify arguments: ${args.join(" ")}; use --suite source|artifacts|all`)
 }
 
-export function createVerifySteps() {
+export function createVerifySteps(suite = "all") {
+  requireSuite(suite)
+  return [
+    ...(suite === "artifacts" ? [] : createSourceSteps()),
+    ...(suite === "source" ? [] : createArtifactSteps())
+  ]
+}
+
+function createSourceSteps() {
   return [
     {
       name: "Toolchain doctor",
@@ -204,26 +214,6 @@ export function createVerifySteps() {
       args: ["test:tui-script"]
     },
     {
-      name: "Compiled SDK release proof",
-      command: "pnpm",
-      args: ["release:sdk"]
-    },
-    {
-      name: "Packed SDK runtime consumer proofs",
-      command: "pnpm",
-      args: ["proof:sdk-consumers"]
-    },
-    {
-      name: "Installed TUI proof",
-      command: "pnpm",
-      args: ["proof:tui"]
-    },
-    {
-      name: "Compiled SDK determinism audit",
-      command: "pnpm",
-      args: ["audit:sdk-determinism"]
-    },
-    {
       name: "Rust formatting",
       command: "cargo",
       args: ["fmt", "--", "--check"]
@@ -246,8 +236,45 @@ export function createVerifySteps() {
   ]
 }
 
-export async function runVerify() {
-  for (const step of createVerifySteps()) {
+function createArtifactSteps() {
+  return [
+    {
+      name: "Desktop packaged Server workspace acceptance",
+      command: "pnpm",
+      args: ["--filter", "@wanex/desktop", "test:installed"]
+    },
+    {
+      name: "Compiled SDK release proof",
+      command: "pnpm",
+      args: ["release:sdk"]
+    },
+    {
+      name: "Packed SDK runtime consumer proofs",
+      command: "pnpm",
+      args: ["proof:sdk-consumers"]
+    },
+    {
+      name: "Installed TUI proof",
+      command: "pnpm",
+      args: ["proof:tui"]
+    },
+    {
+      name: "Compiled SDK determinism audit",
+      command: "pnpm",
+      args: ["audit:sdk-determinism"]
+    }
+  ]
+}
+
+function requireSuite(suite) {
+  if (suite !== "all" && suite !== "source" && suite !== "artifacts") {
+    throw new Error(`unknown verify suite: ${String(suite)}`)
+  }
+  return suite
+}
+
+export async function runVerify(suite = "all") {
+  for (const step of createVerifySteps(suite)) {
     await runProcessStep(step, { cwd: rootDir })
   }
 }

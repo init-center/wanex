@@ -78,6 +78,7 @@ function parseProviderSaveInput(input: unknown): {
   readonly conversationInputModalities?: readonly ("text" | "image")[]
   readonly conversationFeatures?: readonly "tool_calling"[]
   readonly imageGenerationModelId?: string
+  readonly imageGenerationAcceptsImages?: boolean
   readonly baseUrl?: string
   readonly credential?: string
   readonly makeConversationActive?: boolean
@@ -136,6 +137,15 @@ function parseProviderSaveInput(input: unknown): {
     )
   }
   const credential = optionalProviderMutationString(input, "credential", 16_384)
+  const imageGenerationAcceptsImages = optionalProviderMutationBoolean(
+    input,
+    "imageGenerationAcceptsImages"
+  )
+  if (imageGenerationAcceptsImages !== undefined && (
+    presetId !== "openai-compatible" || imageGenerationModelId === undefined
+  )) {
+    throw invalidProviderMutation("imageGenerationAcceptsImages requires a custom image generation model")
+  }
   const makeConversationActive = optionalProviderMutationBoolean(
     input,
     "makeConversationActive"
@@ -153,6 +163,9 @@ function parseProviderSaveInput(input: unknown): {
       : { conversationInputModalities }),
     ...(conversationFeatures === undefined ? {} : { conversationFeatures }),
     ...(imageGenerationModelId === undefined ? {} : { imageGenerationModelId }),
+    ...(imageGenerationAcceptsImages === undefined
+      ? {}
+      : { imageGenerationAcceptsImages }),
     ...(baseUrl === undefined ? {} : { baseUrl }),
     ...(credential === undefined ? {} : { credential }),
     ...(makeConversationActive === undefined ? {} : { makeConversationActive })

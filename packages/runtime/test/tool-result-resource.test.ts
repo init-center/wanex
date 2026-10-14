@@ -167,7 +167,7 @@ describe("resource-bearing Tool results", () => {
   it("lowers ordered Tool resources per provider and rejects changed native bytes", async () => {
     const { storage, storeDir } = await createStore("wanex-tool-replay-")
     const resource = await storage.ingestResource({
-      content: Uint8Array.from([1, 2, 3]),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
       kind: "image",
       mediaType: "image/png",
       origin: "tool_output"
@@ -208,13 +208,51 @@ describe("resource-bearing Tool results", () => {
       [message]
     )
     const openAIWire = openAI.buildReplayMessages(openAIPrepared)
-    expect(openAIWire).toHaveLength(1)
+    expect(openAIWire).toHaveLength(2)
     expect(openAIWire[0]).toMatchObject({
       role: "tool",
       tool_call_id: "call_media"
     })
-    expect(JSON.stringify(openAIWire)).not.toContain("AQID")
-    expect(JSON.stringify(openAIWire)).toContain(resource.sha256)
+    expect(JSON.stringify(openAIWire[0])).not.toContain(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64").toString("base64"))
+    expect(JSON.stringify(openAIWire[0])).toContain(resource.sha256)
+    // Chat Completions tool messages cannot hold images; the pixels follow.
+    expect(openAIWire[1]).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "Images returned by the tool calls above:" },
+        { type: "text", text: `Tool call call_media returned [image ${resource.id}]` },
+        { type: "image_url", image_url: { url: `data:image/png;base64,${Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64").toString("base64")}` } }
+      ]
+    })
+
+    const textOnly = new OpenAICompatibleAdapter({
+      providerId: "openai",
+      model: testConversationModel("openai-text-only-tool-resource", {
+        inputModalities: ["text"]
+      }),
+      baseUrl: "https://api.example/v1",
+      apiKey: "secret"
+    })
+    const textOnlyWire = textOnly.buildReplayMessages(await prepareProviderReplayResources(
+      storage,
+      { protocol: textOnly.protocol, inputModalities: textOnly.model.inputModalities },
+      [message]
+    ))
+    expect(textOnlyWire).toHaveLength(1)
+    expect(JSON.stringify(textOnlyWire)).not.toContain(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64").toString("base64"))
+
+    const secondMessage = {
+      role: "tool" as const,
+      content: [toolResultPart("call_media_second", resultContent, false)]
+    }
+    const blockWire = openAI.buildReplayMessages(await prepareProviderReplayResources(
+      storage,
+      { protocol: openAI.protocol, inputModalities: openAI.model.inputModalities },
+      [message, secondMessage, { role: "assistant" as const, content: [{ type: "text" as const, id: "answer", text: "done" }] }]
+    ))
+    expect(blockWire.map((entry) => (entry as { role: string }).role))
+      .toEqual(["tool", "tool", "user", "assistant"])
+    expect(JSON.stringify(blockWire[2]).match(/"type":"image_url"/gu)).toHaveLength(2)
 
     const anthropic = new AnthropicAdapter({
       providerId: "anthropic",
@@ -240,9 +278,10 @@ describe("resource-bearing Tool results", () => {
         content: [
           { type: "text", text: "created" },
           { type: "text", text: '{"ok":true}' },
+          { type: "text", text: `[image ${resource.id}]` },
           {
             type: "image",
-            source: { media_type: "image/png", data: "AQID" }
+            source: { media_type: "image/png", data: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64").toString("base64") }
           }
         ]
       }]
@@ -250,7 +289,7 @@ describe("resource-bearing Tool results", () => {
 
     await writeFile(
       join(storeDir, "files", resource.logicalPath),
-      Uint8Array.from([3, 2, 1])
+      new Uint8Array(resource.sizeBytes)
     )
     await expect(prepareProviderReplayResources(
       storage,
@@ -259,7 +298,7 @@ describe("resource-bearing Tool results", () => {
         inputModalities: anthropic.model.inputModalities
       },
       [message]
-    )).rejects.toThrow("resource bytes changed")
+    )).rejects.toThrow("image content hash changed")
   })
 
   it("projects each OpenAI Tool result as its own message and rejects digest drift", async () => {
@@ -302,7 +341,7 @@ describe("resource-bearing Tool results", () => {
   it("uses metadata fallback for unsupported Anthropic Tool resources", async () => {
     const { storage } = await createStore("wanex-tool-anthropic-fallback-")
     const audio = await storage.ingestResource({
-      content: Uint8Array.from([1, 2, 3]),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
       kind: "audio",
       mediaType: "audio/mpeg",
       origin: "tool_output"
@@ -336,7 +375,7 @@ describe("resource-bearing Tool results", () => {
         content: [{ type: "text", text: expect.stringContaining(audio.sha256) }]
       }]
     }])
-    expect(JSON.stringify(wire)).not.toContain("AQID")
+    expect(JSON.stringify(wire)).not.toContain(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64").toString("base64"))
   })
 
   it("rejects aggregate Tool resource replay above 50 MiB before byte reads", async () => {
@@ -354,6 +393,9 @@ describe("resource-bearing Tool results", () => {
       async readResourceContent() {
         byteReads += 1
         throw new Error("metadata-only replay must not read bytes")
+      },
+      async prepareImageResource() {
+        throw new Error("metadata-only replay must not prepare images")
       }
     }
     const adapter = new OpenAICompatibleAdapter({

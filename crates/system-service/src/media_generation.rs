@@ -134,6 +134,7 @@ impl SystemService {
             &owner.tool_execution.descriptor,
             binding,
         )?;
+        require_session_visible_media_inputs_tx(&tx, &request.session_id, binding)?;
 
         let operation_id = format!("mgen_{}", Uuid::now_v7());
         let media_job_id = format!("job_{}", Uuid::now_v7());
@@ -870,6 +871,69 @@ fn validate_submit(request: &SubmitMediaGenerationOperation) -> Result<()> {
     Ok(())
 }
 
+/// A model can only name resources it has already seen. Every input resource of a
+/// conversation-linked media operation must be the exact available Resource and
+/// must appear in a canonical message of the same Session (a user attachment, a
+/// tool result, or an earlier generation), so a forged or foreign resourceId
+/// cannot be sent to a media provider.
+fn require_session_visible_media_inputs_tx(
+    tx: &rusqlite::Transaction<'_>,
+    session_id: &str,
+    binding: &Value,
+) -> Result<()> {
+    let resources = binding
+        .get("request")
+        .and_then(|request| request.get("inputResources"))
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            SystemServiceError::Invariant(
+                "deferred media request has no inputResources".to_string(),
+            )
+        })?;
+    for evidence in resources {
+        let resource_id = evidence
+            .get("resourceId")
+            .and_then(Value::as_str)
+            .ok_or_else(|| {
+                SystemServiceError::Invariant("media input resource has no resourceId".to_string())
+            })?;
+        let record = crate::resources::get_resource_tx(tx, resource_id).map_err(|_| {
+            SystemServiceError::InvalidInput(format!(
+                "media input resource is not available: {resource_id}"
+            ))
+        })?;
+        let expected =
+            crate::resources::resource_input_evidence_json(&crate::ResourceInputEvidence {
+                resource_id: record.id.clone(),
+                sha256: record.sha256.clone(),
+                size_bytes: record.size_bytes,
+                kind: record.kind.clone(),
+                media_type: record.media_type.clone(),
+            });
+        if record.state != "available" || &expected != evidence {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "media input resource does not match its available record: {resource_id}"
+            )));
+        }
+        let visible: bool = tx.query_row(
+            "SELECT EXISTS(
+                SELECT 1 FROM session_message AS message, json_tree(message.content_json) AS part
+                 WHERE message.session_id = ?1
+                   AND part.key = 'resourceId'
+                   AND part.atom = ?2
+             )",
+            params![session_id, resource_id],
+            |row| row.get(0),
+        )?;
+        if !visible {
+            return Err(SystemServiceError::InvalidInput(format!(
+                "media input resource is not part of this conversation: {resource_id}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn validate_frozen_media_route(
     execution_binding: &Value,
     descriptor: &Value,
@@ -976,13 +1040,13 @@ fn validate_frozen_media_route(
                 "tool capability input modalities are invalid".to_string(),
             )
         })?;
-    if required_inputs.len() != actual_inputs.len()
-        || actual_inputs.iter().any(|input| {
-            !required_inputs
-                .iter()
-                .any(|required| required.as_str() == Some(input))
-        })
-    {
+    // The tool declares minimum inputs. Optional reference inputs have already
+    // been checked against this exact frozen endpoint during binding validation.
+    if required_inputs.iter().any(|required| {
+        required
+            .as_str()
+            .is_none_or(|input| !actual_inputs.contains(&input))
+    }) {
         return Err(SystemServiceError::Invariant(
             "deferred media inputs do not match the frozen capability requirement".to_string(),
         ));
@@ -1134,9 +1198,17 @@ fn validate_media_generation_binding(binding: &Value) -> Result<()> {
         "media generation binding request",
     )?;
     let operation = required_media_string(request, "operation")?;
+    if operation == "image.generate" {
+        crate::model_options::validate_values(
+            endpoint
+                .get("model")
+                .and_then(|model| model.get("generationOptions")),
+            request.get("options").expect("required media options"),
+        )?;
+    }
     if !matches!(
         operation,
-        "image.generate" | "image.edit" | "video.generate" | "audio.synthesize"
+        "image.generate" | "video.generate" | "audio.synthesize"
     ) {
         return Err(SystemServiceError::InvalidInput(
             "media generation operation is invalid".to_string(),
@@ -1177,11 +1249,6 @@ fn validate_media_generation_binding(binding: &Value) -> Result<()> {
         if !inputs.iter().any(|value| value == modality) {
             inputs.push(modality.to_string());
         }
-    }
-    if operation == "image.edit" && !inputs.iter().any(|value| value == "image") {
-        return Err(SystemServiceError::InvalidInput(
-            "image.edit requires an image input resource".to_string(),
-        ));
     }
     crate::sessions::validate_endpoint_supports_requirement(
         &endpoint,

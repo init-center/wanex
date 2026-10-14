@@ -10,6 +10,7 @@ import {
   type SurfaceAdapter,
 } from "@wanex/assistant"
 import { OpenAIImagesAdapter } from "@wanex/runtime/media-generation/openai-images"
+import { createMediaGenerationCapability, GeminiImageAdapter, OpenRouterImagesAdapter, VolcengineSeedreamAdapter } from "@wanex/runtime/media-generation"
 import { wanexLocalCredentialPolicy } from "@wanex/local-credential-store"
 import {
   NativeChildSupervisor,
@@ -249,9 +250,12 @@ export async function startAssistantHostInternal(
         },
       },
       secretResolver: secrets.secretResolver,
-      mediaGenerationAdapters: [
+      mediaGeneration: createMediaGenerationCapability({ adapters: [
         new OpenAIImagesAdapter({ secretResolver: secrets.secretResolver }),
-      ],
+        new GeminiImageAdapter({ secretResolver: secrets.secretResolver }),
+        new OpenRouterImagesAdapter({ secretResolver: secrets.secretResolver }),
+        new VolcengineSeedreamAdapter({ secretResolver: secrets.secretResolver }),
+      ] }),
       ...(workspace === undefined
         ? {}
         : { toolApprovalContinuation: workspace.toolApprovalContinuation }),

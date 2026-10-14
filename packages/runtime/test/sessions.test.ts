@@ -119,6 +119,7 @@ describe("WanexSessionCore durable turn contract", () => {
     })
     expect(appended?.sequence).toBe(3)
     const invocation = await fixture.session.beginProviderInvocation({
+      inputResources: [],
       ...fixture.execution,
       step: 1,
       invocationNumber: 1,

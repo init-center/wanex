@@ -9,10 +9,13 @@ import { promisify } from "node:util"
 import { expect, it } from "vitest"
 import { createRemoteAssistantAgentHostComposition } from "@wanex/assistant-host"
 import { createPackagedServer } from "../scripts/packaged-server.mjs"
+import { packagedServerArtifactEnvironmentName } from "../scripts/test-installed.mjs"
 
 const execFileAsync = promisify(execFile)
 
 it("continues disconnected work on a packaged Server and applies independent remote roots", async () => {
+  const artifactRoot = process.env[packagedServerArtifactEnvironmentName]
+  if (!artifactRoot) throw new Error("packaged Server test requires prepared artifacts; run pnpm --filter @wanex/desktop test:installed")
   const directory = await mkdtemp(join(tmpdir(), "wanex-packaged-workspace-"))
   const roots = [join(directory, "remote-a"), join(directory, "remote-b")]
   const localRoot = join(directory, "client-local")
@@ -32,6 +35,7 @@ it("continues disconnected work on a packaged Server and applies independent rem
       }
     }
     packaged = await createPackagedServer({
+      artifactRoot,
       provider: { baseUrl: provider.baseUrl, credential: "packaged-proof-provider" },
       workspace: {
         initialRoots: roots.map((path, index) => ({

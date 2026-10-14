@@ -282,6 +282,8 @@ export interface ProviderReadinessReadModel {
   readonly requiresCredential: boolean;
   readonly credentialConfigured: boolean;
   readonly activeEndpoint?: ModelEndpointReadModel;
+  /** Set when another endpoint reads images for a text-only active model. */
+  readonly imagesDescribed?: true;
 }
 
 export interface SettingsReadModel {
@@ -506,6 +508,8 @@ export interface ModelEndpointReadModel {
 }
 export interface ModelEndpointListReadModel {
   readonly activeEndpointId?: string;
+  /** The endpoint that reads images for models that cannot see them. */
+  readonly imageUnderstandingEndpointId?: string;
   readonly endpoints: readonly ModelEndpointReadModel[];
 }
 export type CommandCatalogReadModel =

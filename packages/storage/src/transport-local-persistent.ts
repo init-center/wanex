@@ -2,9 +2,9 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process"
 import type { StorageRpcRequestEnvelope } from "./generated/storage-rpc.js"
 import { StorageTransportError } from "./errors.js"
 import {
-  PendingTransportCallQueue,
+  PendingTransportCalls,
   type PendingTransportCall
-} from "./transport-pending-queue.js"
+} from "./transport-pending-calls.js"
 import { createStorageProcessTreeTerminator } from "./transport-process-tree.js"
 import {
   defaultTransportRestartSleep,
@@ -44,7 +44,7 @@ export class PersistentSystemServiceStorageWireTransport
   private stdoutBuffer = ""
   private closed = false
   private lastChildFailure: Error | null = null
-  private readonly pending = new PendingTransportCallQueue()
+  private readonly pending = new PendingTransportCalls()
   private epoch = 0
 
   constructor(options: PersistentSystemServiceTransportOptions) {
@@ -105,6 +105,12 @@ export class PersistentSystemServiceStorageWireTransport
     const child = await this.ensureChild()
     this.assertOpen()
     return await new Promise((resolve, reject) => {
+      if (this.pending.has(request.request_id)) {
+        reject(new StorageTransportError("duplicate pending storage request ID", {
+          code: "local_persistent_duplicate_request_id"
+        }))
+        return
+      }
       let settled = false
       const timeout = setTimeout(() => {
         if (settled) return
@@ -118,6 +124,7 @@ export class PersistentSystemServiceStorageWireTransport
         this.failCurrentChild(error)
       }, this.requestTimeoutMs)
       const pending: PendingTransportCall = {
+        requestId: request.request_id,
         resolve: (value) => {
           if (settled) return
           settled = true
@@ -260,22 +267,27 @@ export class PersistentSystemServiceStorageWireTransport
         this.failCurrentChild(startupFailure)
         continue
       }
-      const pending = this.pending.shift()
-      if (pending === undefined) {
-        this.failCurrentChild(unmatchedResponseError(line))
-        continue
-      }
+      let response: unknown
       try {
-        pending.resolve(JSON.parse(line) as unknown)
+        response = JSON.parse(line) as unknown
       } catch (error) {
         const failure = storageTransportError(
           "local_persistent_invalid_json",
           "system-service persistent returned invalid JSON",
           error
         )
-        pending.reject(failure)
         this.failCurrentChild(failure)
+        return
       }
+      const requestId = typeof response === "object" && response !== null &&
+        "request_id" in response ? response.request_id : undefined
+      const pending = typeof requestId === "string"
+        ? this.pending.take(requestId) : undefined
+      if (pending === undefined) {
+        this.failCurrentChild(unmatchedResponseError(line))
+        return
+      }
+      pending.resolve(response)
     }
   }
 

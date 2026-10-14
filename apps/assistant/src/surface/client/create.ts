@@ -127,6 +127,7 @@ export function createSurfaceClient(
     listModelEndpoints: (options) => send<ModelEndpointListReadModel>(SURFACE_COMMANDS.listModelEndpoints, undefined, options),
     readAssistantCommands: (options) => send<CommandCatalogReadModel>(SURFACE_COMMANDS.readAssistantCommands, undefined, options),
     setActiveModelEndpoint: (input, options) => send<ModelEndpointReadModel>(SURFACE_COMMANDS.setActiveModelEndpoint, input, options),
+    setImageUnderstandingEndpoint: (input, options) => send<ModelEndpointListReadModel>(SURFACE_COMMANDS.setImageUnderstandingEndpoint, input, options),
     dispatchAssistantCommand: (input, options) => send<CommandPortEnvelope>(SURFACE_COMMANDS.dispatchAssistantCommand, input, options),
     dispatchAssistantCommandJson: (input, options) => send<CommandPortJsonResult>(SURFACE_COMMANDS.dispatchAssistantCommandJson, input, options),
     previewAssistantCommandInvocation: (input, options) => send<CommandInvocationPreview>(SURFACE_COMMANDS.previewAssistantCommandInvocation, input, options),

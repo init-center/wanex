@@ -532,6 +532,7 @@ async function appendCompletedTurns(
       leaseToken: job.leaseToken
     })
     const invocation = await session.beginProviderInvocation({
+      inputResources: [],
       sessionId,
       turnId: submitted.turn.id,
       attemptId: started.attempt.id,
@@ -724,6 +725,7 @@ type SummaryOutcome =
   | { readonly kind: "partial_error" }
 
 class SummaryProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "fake"
   readonly model: ReturnType<typeof summaryEndpoint>["model"]

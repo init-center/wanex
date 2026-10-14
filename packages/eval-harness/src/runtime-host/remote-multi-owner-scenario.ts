@@ -112,7 +112,7 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
         const running = runs.track(
           Promise.all([hostA.runOnce(), hostB.runOnce()])
         )
-        await withDeadline(gate.ready, `parallel wave ${wave} did not fill all workers`)
+        await waitForParallelWave(coordinator, gate.ready, running, wave)
         assert(
           coordinator.active === combinedWorkerCount,
           `parallel wave should have ${combinedWorkerCount} active providers`
@@ -284,6 +284,29 @@ export const runtimeHostRemoteMultiOwnerScenario = createEvalScenario({
   }
 })
 
+export async function waitForParallelWave(
+  coordinator: RemoteMultiOwnerCoordinator,
+  ready: Promise<void>,
+  running: Promise<readonly Awaited<ReturnType<WanexRuntimeHost["runOnce"]>>[]>,
+  wave: number
+): Promise<void> {
+  try {
+    await withDeadline(ready, `parallel wave ${wave} did not fill all workers`)
+  } catch (error) {
+    const activeAtFailure = coordinator.active
+    coordinator.abortGate()
+    const outcomes = await Promise.allSettled([running])
+    const evidence = outcomes.map((outcome) => outcome.status === "fulfilled"
+      ? workerEvidence(outcome.value)
+      : { error: String(outcome.reason) })
+    throw new Error(
+      `${error instanceof Error ? error.message : String(error)}; ` +
+      `active=${activeAtFailure}; workers=${JSON.stringify(evidence)}`,
+      { cause: error }
+    )
+  }
+}
+
 async function submitAndRunReusable(
   host: WanexRuntimeHost,
   runs: ScenarioRunScope,
@@ -341,13 +364,7 @@ function assertStatuses(
     result.results.map((item) => item.worker.status)
   )
   const count = (status: string) => statuses.filter((item) => item === status).length
-  const evidence = results.flatMap((result) => result.results).map((item) => ({
-    status: item.worker.status,
-    ...(item.worker.status === "failed"
-      ? { error: item.worker.error.message, jobState: item.worker.job?.state ?? null }
-      : {})
-  }))
-  const detail = JSON.stringify(evidence)
+  const detail = JSON.stringify(workerEvidence(results))
   assert(
     count("completed") === completed,
     `${label} completed worker count differs: ${detail}`
@@ -356,7 +373,19 @@ function assertStatuses(
   assert(count("failed") === failed, `${label} failed worker count differs: ${detail}`)
 }
 
+function workerEvidence(
+  results: readonly Awaited<ReturnType<WanexRuntimeHost["runOnce"]>>[]
+) {
+  return results.flatMap((result) => result.results).map((item) => ({
+    status: item.worker.status,
+    ...(item.worker.status === "failed"
+      ? { error: item.worker.error.message, jobState: item.worker.job?.state ?? null }
+      : {})
+  }))
+}
+
 class MultiOwnerProbeProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "remote-multi-owner-probe"
   readonly model = {

@@ -55,6 +55,35 @@ import {
 
 const tempDirs = [];
 
+it("requires external installed-chat evidence without weakening window security", () => {
+  const runtime = {
+    kind: "wanex.desktop.runtime-receipt", ok: true, proofStep: "relaunch-chat",
+    driver: "playwright-cdp",
+    security: { packaged: true, sandbox: true, contextIsolation: true,
+      nodeIntegration: false, webSecurity: true },
+    renderer: { ok: true, step: "relaunch-chat", providerEvidenceRedacted: true,
+      appearanceRestored: true, initialConfiguredProviderCount: 2, configuredProviderCount: 2,
+      providerConfigured: true, providerReady: true, modelId: "desktop-proof-relaunch-model",
+      sessionId: "session", initialTranscriptVisible: true, initialResponseVisible: true,
+      conversationSubmitted: true, userVisible: true, assistantVisible: true,
+      responseVisible: true, followUpSessionPreserved: true, followUpResponseVisible: true,
+      directImageRestored: true, directImagePreviewVisible: true },
+    privacy: { exposesStorePath: false, exposesServiceBinaryPath: false,
+      exposesSecrets: false, exposesRawStorageClient: false, exposesElectronApi: false },
+  };
+  expect(() => assertRelaunchJourneyRuntimeReceipt(runtime, "relaunch-chat")).not.toThrow();
+  for (const [field, value] of Object.entries(runtime.security)) {
+    expect(() => assertRelaunchJourneyRuntimeReceipt({ ...runtime,
+      security: { ...runtime.security, [field]: !value } }, "relaunch-chat")).toThrow();
+  }
+  for (const field of ["initialTranscriptVisible", "followUpSessionPreserved", "responseVisible", "directImageRestored", "directImagePreviewVisible"]) {
+    expect(() => assertRelaunchJourneyRuntimeReceipt({ ...runtime,
+      renderer: { ...runtime.renderer, [field]: false } }, "relaunch-chat")).toThrow();
+  }
+  expect(() => assertRelaunchJourneyRuntimeReceipt({ ...runtime, driver: undefined }, "relaunch-chat")).toThrow();
+  expect(() => requiredWanexDesktopPackagedProofStep("relaunch-chat")).toThrow();
+});
+
 afterEach(async () => {
   await Promise.all(
     tempDirs
@@ -80,7 +109,7 @@ describe("Desktop packaging policy", () => {
   });
 
   it("explains unsupported internal Stores without suggesting an automatic reset", () => {
-    const error = new Error("local_persistent_startup: unsupported pre-release store schema: expected [(22, baseline)], found [(8, baseline)]; recreate the store");
+    const error = new Error("local_persistent_startup: unsupported pre-release store schema: expected [(23, baseline)], found [(22, baseline)]; recreate the store");
     const message = formatWanexDesktopError(error);
     expect(message).toContain("unsupported pre-release store schema");
     expect(message).toContain("WANEX_DESKTOP_PROFILE_ID");
@@ -836,9 +865,9 @@ describe("Desktop packaging policy", () => {
             path: "/v1/relaunch/chat/completions",
             model: "desktop-proof-relaunch-model",
             authorized: true,
-            imageInputCount: 1,
+            imageInputCount: 2,
             imageMediaTypes: ["image/png"],
-            imageBytes: 68,
+            imageBytes: 136,
             imageGenerationPhase: "final",
           },
         ],
@@ -1131,8 +1160,12 @@ describe("Desktop packaging policy", () => {
     expect(workflow).toContain("pnpm stage:native -- --target win32-x64");
     expect(workflow).toContain("WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/win32-x64/wanex-system-service.exe");
     for (const command of [
+      "cargo build -p wanex-system-service --locked",
+      "cargo test -p wanex-system-service --locked",
+      "pnpm --filter @wanex/runtime exec vitest run test/execution-environment.test.ts --maxWorkers=1",
       "pnpm check:desktop",
       "pnpm test:desktop",
+      "pnpm --filter @wanex/desktop test:installed",
       "pnpm --filter @wanex/desktop prepare:electron",
       "pnpm proof:desktop",
       "pnpm proof:native-runtime -- --artifact-dir target/distribution/native",
@@ -1140,6 +1173,13 @@ describe("Desktop packaging policy", () => {
       "pnpm proof:desktop-distribution -- --target win32-x64",
       "pnpm audit:host-distribution -- --target win32-x64",
     ]) expect(workflow).toContain(`run: ${command}\n`);
+    const sourceBuild = workflow.indexOf("run: cargo build -p wanex-system-service --locked");
+    const sourceTests = workflow.indexOf("run: cargo test -p wanex-system-service --locked");
+    const executionTests = workflow.indexOf("run: pnpm --filter @wanex/runtime exec vitest run");
+    expect(sourceBuild).toBeLessThan(sourceTests);
+    expect(sourceTests).toBeLessThan(executionTests);
+    expect(executionTests).toBeLessThan(workflow.indexOf("run: pnpm stage:native"));
+    expect(workflow).toContain("timeout-minutes: 60");
     expect(workflow.indexOf("run: pnpm stage:native"))
       .toBeLessThan(workflow.indexOf("run: pnpm test:desktop"));
     expect(workflow.indexOf("run: pnpm --filter @wanex/desktop prepare:electron"))
@@ -1154,6 +1194,19 @@ describe("Desktop packaging policy", () => {
     const refs = [...workflow.matchAll(/uses: [^@\s]+@([^\s]+)/g)].map((match) => match[1]);
     expect(refs.length).toBeGreaterThan(0);
     expect(refs.every((ref) => /^[a-f0-9]{40}$/.test(ref))).toBe(true);
+  });
+
+  it("uses the maintained fixed pnpm setup action without changing the project pnpm selection", async () => {
+    const { packageManager } = JSON.parse(await readFile(join(workspaceRoot, "package.json"), "utf8"));
+    const version = packageManager.slice("pnpm@".length);
+    for (const file of ["desktop.yml", "windows-installed.yml", "agent-host-windows.yml"]) {
+      const workflow = await readFile(join(workspaceRoot, ".github/workflows", file), "utf8");
+      const refs = [...workflow.matchAll(/uses: pnpm\/action-setup@([^\s]+)/g)].map((match) => match[1]);
+      expect(refs.length).toBeGreaterThan(0);
+      expect(refs.every((ref) => ref === "ea17c68df8912ef543352723c149a84f56e3d413")).toBe(true);
+      expect(workflow.match(new RegExp(`version: ${version.replaceAll(".", "\\.")}`, "g")))
+        .toHaveLength(refs.length);
+    }
   });
 
   it("freezes the native and Desktop release matrix", async () => {
@@ -1172,16 +1225,43 @@ describe("Desktop packaging policy", () => {
     expect(verifyBlock).toContain("runs-on: ubuntu-24.04");
     expect(verifyBlock).not.toContain("matrix.target");
     expect(workflow).toContain("needs: verify");
-    expect(workflow).toContain(
-      "os: ubuntu-24.04\n            target: linux-x64",
-    );
-    expect(workflow).toContain(
-      "os: macos-15-intel\n            target: darwin-x64",
-    );
-    expect(workflow).toContain(
-      "os: windows-2025\n            target: win32-x64",
-    );
+    expect(workflow).toContain("type: choice\n        default: all\n        options:\n          - all\n          - linux-windows");
+    expect(workflow).toContain("fromJSON(github.event_name == 'workflow_dispatch' && inputs.targets == 'linux-windows'");
+    const matrices = [...workflow.matchAll(/'([\[]\{"os":.*?\])'/g)]
+      .map((match) => JSON.parse(match[1]));
+    expect(matrices).toEqual([
+      [
+        { os: "ubuntu-24.04", target: "linux-x64", desktop: false },
+        { os: "windows-2025", target: "win32-x64", desktop: true },
+      ],
+      [
+        { os: "ubuntu-24.04", target: "linux-x64", desktop: false },
+        { os: "macos-15", target: "darwin-arm64", desktop: true },
+        { os: "macos-15-intel", target: "darwin-x64", desktop: true },
+        { os: "windows-2025", target: "win32-x64", desktop: true },
+      ],
+    ]);
+    const distributionBlock = workflow.slice(workflow.indexOf("  distribution:"));
+    const windowsCommands = [
+      "cargo build -p wanex-system-service --locked",
+      "cargo test -p wanex-system-service --locked",
+      "pnpm --filter @wanex/runtime exec vitest run test/execution-environment.test.ts --maxWorkers=1",
+    ];
+    for (const command of windowsCommands) {
+      expect(distributionBlock).toContain(`- if: matrix.target == 'win32-x64'\n        run: ${command}\n`);
+    }
+    const commandOrder = windowsCommands.map((command) => distributionBlock.indexOf(`run: ${command}`));
+    expect(commandOrder).toEqual([...commandOrder].sort((a, b) => a - b));
+    expect(commandOrder.at(-1)).toBeLessThan(distributionBlock.indexOf("run: pnpm stage:native"));
+    expect(distributionBlock).toContain("timeout-minutes: 60");
+    expect(verifyBlock).toContain("timeout-minutes: 90");
+    expect(verifyBlock).toContain("run: cargo build -p wanex-system-service\n");
+    expect(verifyBlock.indexOf("run: cargo build -p wanex-system-service\n"))
+      .toBeLessThan(verifyBlock.indexOf("run: node ./scripts/run-linux-keyring-session.mjs pnpm verify"));
     expect(workflow).toContain("run: pnpm proof:desktop");
+    expect(workflow).toContain(
+      "- if: matrix.desktop\n        run: pnpm --filter @wanex/desktop test:installed\n",
+    );
     expect(workflow).toContain(
       "run: pnpm proof:desktop-distribution -- --target ${{ matrix.target }}",
     );
@@ -1592,6 +1672,8 @@ function remoteMediaProviderRequests() {
   }, {
     ...conversation,
     imageGenerationPhase: "final",
+    imageInputCount: 2,
+    imageBytes: 136,
   }];
 }
 

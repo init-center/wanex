@@ -17,7 +17,6 @@ import type {
 const modelOperations = [
   "conversation",
   "image.generate",
-  "image.edit",
   "video.generate",
   "audio.transcribe",
   "audio.synthesize"

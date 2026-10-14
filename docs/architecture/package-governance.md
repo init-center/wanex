@@ -39,39 +39,41 @@ dependency direction and the package disposition first.
 ## Facade Footprint
 
 `facade-footprint-baseline.json` records deterministic esbuild static bundles
-for `@wanex/runtime` and `@wanex/app`. The gate allows closures to shrink but
-rejects:
+for `@wanex/runtime` and `@wanex/app`. Output bytes and static input counts are
+measurements: the audit reports their signed deltas, including ordinary growth.
+Different esbuild versions or build parameters mark the comparison unavailable.
+The gate rejects:
 
-- output byte or static input count growth;
 - a new workspace package entering either facade without review;
 - plugin, connector, team, workspace, TUI, reference, or application packages
   entering a default facade.
 
-After an intentional and documented boundary change, regenerate with:
+After reviewing the measurements, refresh them with:
 
 ```bash
 node ./scripts/audit-facade-footprint.mjs --write-baseline --enforce
 ```
 
-For a security dependency patch with unchanged boundaries, first attribute byte
-growth using identical build parameters and input graphs, then approve only that
-measured delta. Do not blindly regenerate limits, add arbitrary headroom or
-change installed-product budgets to pass a failed gate.
+This command preserves the reviewed allowed/forbidden dependency lists and
+refuses to write when boundaries fail. Dependency changes require an explicit
+review of those lists; refreshing measurements cannot authorize dependencies.
+Normal byte/input growth does not require owner approval. Attribute meaningful
+growth and retain installed-product size, integrity, functional and security gates.
 
-The current reviewed Route 20/security-patch ceiling is:
+The current M5 measurement reference is:
 
 | Facade           |     Bytes | Static inputs | Workspace packages |
 | ---------------- | --------: | ------------: | -----------------: |
-| `@wanex/runtime` |   556,601 |           279 |                  3 |
-| `@wanex/app`     | 1,488,099 |           487 |                  4 |
+| `@wanex/runtime` |   563,919 |           275 |                  3 |
+| `@wanex/app`     | 1,519,847 |           489 |                  4 |
 
-Implementation/1720 attributes App's latest 442-byte increase solely to
+Historically, Implementation/1720 attributed App's 442-byte increase solely to
 fast-uri 3.1.6 -> 3.1.8 security fixes. Runtime bytes, input counts and workspace
 sets are unchanged from the preceding reviewed baseline. No extra headroom or
 distribution budget adjustment is included.
 
-These are the current reviewed ceilings, not performance targets. The historical
-notes below explain the reviewed changes that led to this current ceiling.
+The numbers above are measurement references, not hard limits or performance
+targets. The historical notes below explain earlier changes and ceiling policies.
 Phase 807 directly replaces placeholder compaction with model-derived semantic
 planning, bounded source serialization, durable Provider generation evidence,
 and active-epoch replay. Relative to the pre-Phase-807 ceiling, Runtime added

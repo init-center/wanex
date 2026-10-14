@@ -824,6 +824,36 @@ describe("assistant full-screen TUI", () => {
     }
   });
 
+  it("selects the explicit image-understanding model from the model picker", async () => {
+    const client = new FullScreenClientFixture();
+    const terminal = new TuiVirtualTerminal(90, 22);
+    const fullScreen = createTuiFullScreen({ client, terminal });
+
+    try {
+      await fullScreen.start();
+      terminal.sendInput("\u001bOQ");
+      await eventually(() => client.readCounts.models === 1);
+      await terminal.waitForRender();
+      expect(await terminal.text()).toContain("Image understanding");
+
+      terminal.sendInput("\u001b[B");
+      terminal.sendInput("\u001b[B");
+      terminal.sendInput("\u001b[B");
+      terminal.sendInput("\u001b[B");
+      terminal.sendInput("\r");
+      await eventually(() => client.imageUnderstandingSelections.length === 1);
+      await eventually(() => !fullScreen.state().busy);
+      expect(client.imageUnderstandingSelections).toEqual([
+        { endpointId: "endpoint_image" },
+      ]);
+      expect(fullScreen.state().statusMessage).toBe(
+        "Image understanding model selected",
+      );
+    } finally {
+      await fullScreen.stop();
+    }
+  });
+
   it("discovers and filters dynamic plugin commands before preview and execution", async () => {
     const client = new FullScreenClientFixture();
     client.commandCatalog = {
@@ -2870,6 +2900,7 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   readonly submissions: unknown[] = [];
   readonly sessionSelections: unknown[] = [];
   readonly modelSelections: unknown[] = [];
+  readonly imageUnderstandingSelections: unknown[] = [];
   readonly queued: unknown[] = [];
   readonly guided: unknown[] = [];
   readonly cancellations: unknown[] = [];
@@ -2938,7 +2969,9 @@ class FullScreenClientFixture implements TuiFullScreenClient {
   readonly modelEndpoints: ModelEndpointReadModel[] = [
     modelEndpoint("endpoint_assistant_tui", "deepseek", "deepseek-chat", true),
     modelEndpoint("endpoint_openai", "openai", "gpt-5.4", false),
+    modelEndpoint("endpoint_image", "openai", "gpt-vision", false, ["text", "image"]),
   ];
+  imageUnderstandingEndpointId: string | undefined = "endpoint_image";
 
   async readHome() {
     this.readCounts.home += 1;
@@ -3281,6 +3314,9 @@ class FullScreenClientFixture implements TuiFullScreenClient {
     const activeEndpointId = this.home.providerReadiness.activeEndpointId;
     return envelope("listModelEndpoints", {
       ...(activeEndpointId === undefined ? {} : { activeEndpointId }),
+      ...(this.imageUnderstandingEndpointId === undefined
+        ? {}
+        : { imageUnderstandingEndpointId: this.imageUnderstandingEndpointId }),
       endpoints: this.modelEndpoints,
     });
   }
@@ -3319,6 +3355,23 @@ class FullScreenClientFixture implements TuiFullScreenClient {
       },
     };
     return envelope("setActiveModelEndpoint", activeEndpoint);
+  }
+
+  async setImageUnderstandingEndpoint(input: { readonly endpointId: string | null }) {
+    if (input.endpointId !== null && input.endpointId !== "endpoint_image") {
+      return failureEnvelope(
+        "setImageUnderstandingEndpoint",
+        "image understanding selection rejected",
+      );
+    }
+    this.imageUnderstandingSelections.push(input);
+    this.imageUnderstandingEndpointId = input.endpointId ?? undefined;
+    return envelope("setImageUnderstandingEndpoint", {
+      ...(this.imageUnderstandingEndpointId === undefined
+        ? {}
+        : { imageUnderstandingEndpointId: this.imageUnderstandingEndpointId }),
+      endpoints: this.modelEndpoints,
+    });
   }
 
   async readAssistantCommands() {
@@ -4529,6 +4582,7 @@ function modelEndpoint(
   providerId: string,
   modelId: string,
   active: boolean,
+  inputModalities: readonly ("text" | "image")[] = ["text"],
 ): ModelEndpointReadModel {
   return {
     id,
@@ -4537,7 +4591,7 @@ function modelEndpoint(
     model: {
       id: modelId,
       operations: ["conversation"],
-      inputModalities: ["text"],
+      inputModalities,
       outputModalities: ["text"],
       features: [],
       catalog: { source: "custom", catalogId: id, revision: "1" },

@@ -6,6 +6,7 @@ import type { ResourceDeliveryPort } from "../resources/delivery.js";
 import type { LocalMcpSettingsPort } from "../mcp/settings/model.js";
 import type {
   LocalCapabilitySetupCommands,
+  LocalMediaProviderCommands,
   LocalModelCatalogCommands,
   LocalProviderCommands,
 } from "../model.js";
@@ -28,6 +29,8 @@ export interface WebNodeRequestHandlerOptions {
   readonly resourceDeliveries: ResourceDeliveryPort;
   /** Present only for the trusted local Assistant composition. */
   readonly providers?: LocalProviderCommands;
+  /** Separate trusted media-provider management; never merged into chat setup. */
+  readonly mediaProviders?: LocalMediaProviderCommands;
   /** Fixed-source metadata refresh, owned by the trusted local Host. */
   readonly modelCatalog?: LocalModelCatalogCommands;
   /** Present only for trusted local capability setup and linked continuation. */

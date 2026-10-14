@@ -38,7 +38,8 @@ export class SemanticContextCompiler implements ContextCompiler {
       ...inputMessages,
       ...messages.map((message) => ({
         role: message.role,
-        content: message.content
+        content: message.content,
+        providerState: message.providerState
       }))
     ]
     if (active === null) {
@@ -74,7 +75,7 @@ export class SemanticContextCompiler implements ContextCompiler {
       },
       ...messages
         .filter((message) => message.sequence > active.cutSequence)
-        .map((message) => ({ role: message.role, content: message.content }))
+        .map((message) => ({ role: message.role, content: message.content, providerState: message.providerState }))
     ]
     return {
       sessionId: input.sessionId,

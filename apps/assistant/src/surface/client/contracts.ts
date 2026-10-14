@@ -162,6 +162,7 @@ export interface SurfaceClient {
   listModelEndpoints(options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ModelEndpointListReadModel>>;
   readAssistantCommands(options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CommandCatalogReadModel>>;
   setActiveModelEndpoint(input: { readonly endpointId: string }, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ModelEndpointReadModel>>;
+  setImageUnderstandingEndpoint(input: { readonly endpointId: string | null }, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<ModelEndpointListReadModel>>;
   dispatchAssistantCommand(input: BackendCommandPortRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CommandPortEnvelope>>;
   dispatchAssistantCommandJson(body: string, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CommandPortJsonResult>>;
   previewAssistantCommandInvocation(input: PreviewCommandInvocationRequest, options?: SurfaceClientRequestOptions): Promise<SurfaceClientCommandEnvelope<CommandInvocationPreview>>;

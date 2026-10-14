@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
+import { watch } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   NativeChildSupervisor,
@@ -503,7 +504,7 @@ describe("@wanex/runtime/execution", () => {
       program: process.execPath,
       args: [
         "-e",
-        "require('node:fs').writeFileSync(process.argv[1],String(process.pid));setInterval(()=>{},1000)",
+        "const fs=require('node:fs');fs.writeFileSync(process.argv[1]+'.tmp',String(process.pid));fs.renameSync(process.argv[1]+'.tmp',process.argv[1]);setInterval(()=>{},1000)",
         pidFile,
       ],
       cwd,
@@ -911,7 +912,7 @@ describe("@wanex/runtime/execution", () => {
       program: process.execPath,
       args: [
         "-e",
-        "require('node:fs').writeFileSync(process.argv[1],String(process.pid));setInterval(()=>{},1000)",
+        "const fs=require('node:fs');fs.writeFileSync(process.argv[1]+'.tmp',String(process.pid));fs.renameSync(process.argv[1]+'.tmp',process.argv[1]);setInterval(()=>{},1000)",
         pidFile,
       ],
       cwd,
@@ -1043,23 +1044,48 @@ describe("@wanex/runtime/execution", () => {
 
   it("uses native process ownership to clean descendants on timeout", async () => {
     const cwd = await tempDir();
-    const result = await (
-      await supervisedExecutionProcess(cwd)
-    ).execute({
+    const pidFile = join(cwd, "native-timeout-process-tree.json");
+    const controller = new AbortController();
+    let ready!: (pids: { readonly root: number; readonly grandchild: number }) => void;
+    let failed!: (error: unknown) => void;
+    const published = new Promise<{ readonly root: number; readonly grandchild: number }>((resolve, reject) => {
+      ready = resolve;
+      failed = reject;
+    });
+    const watcher = watch(cwd, (_, name) => {
+      if (name === "native-timeout-process-tree.json") {
+        void readFile(pidFile, "utf8").then(processTreePids).then(ready, failed);
+      }
+    });
+    watcher.on("error", failed);
+    // Control deadline time independently of real OS/Node startup. The process
+    // tree and native termination remain real, including descendant liveness.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const execution = (await supervisedExecutionProcess(cwd)).execute({
       program: process.execPath,
-      args: ["-e", processTreeFixture],
+      args: ["-e", processTreeFixture, pidFile],
       cwd,
       timeoutMs: 300,
+      signal: controller.signal,
       output: { stdoutBytes: 256 },
     });
-
-    expect(result).toMatchObject({
-      termination: "timed_out",
-      cleanup: "completed",
-    });
-    const pids = processTreePids(result.stdout.text);
-    await expectProcessGone(pids.root);
-    await expectProcessGone(pids.grandchild);
+    try {
+      const pids = await published;
+      await vi.advanceTimersByTimeAsync(299);
+      expect(isProcessAlive(pids.root)).toBe(true);
+      expect(isProcessAlive(pids.grandchild)).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      const result = await execution;
+      expect(result).toMatchObject({ termination: "timed_out", cleanup: "completed" });
+      expect(processTreePids(result.stdout.text)).toEqual(pids);
+      await expectProcessGone(pids.root);
+      await expectProcessGone(pids.grandchild);
+    } finally {
+      watcher.close();
+      vi.useRealTimers();
+      controller.abort();
+      await execution.catch(() => {});
+    }
   });
 
   it("uses native process ownership to clean descendants on cancellation", async () => {
@@ -1208,11 +1234,12 @@ describe("@wanex/runtime/execution", () => {
     });
     setTimeout(() => firstController.abort(), 300);
 
-    await expect(first).resolves.toMatchObject({
+    const [firstResult, secondResult] = await Promise.all([first, second]);
+    expect(firstResult, JSON.stringify(firstResult)).toMatchObject({
       termination: "cancelled",
       cleanup: "completed",
     });
-    await expect(second).resolves.toMatchObject({
+    expect(secondResult, JSON.stringify(secondResult)).toMatchObject({
       termination: "exited",
       cleanup: "completed",
       stdout: { text: "second-complete" },

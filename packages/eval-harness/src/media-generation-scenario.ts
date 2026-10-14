@@ -13,6 +13,7 @@ import type {
   MediaGenerationPollResult,
   MediaGenerationSubmitResult
 } from "@wanex/runtime/media-generation"
+import { createMediaGenerationCapability } from "@wanex/runtime/media-generation"
 import { createStorageTestStore } from "@wanex/storage/testing"
 import { createEvalScenario } from "./runner.js"
 import {
@@ -34,9 +35,9 @@ export const mediaGenerationAppPathScenario = createEvalScenario({
         storeDir: join(context.storeDir, "media-generation-app")
       },
       artifacts: { explicitPath: context.serviceBin },
-      mediaGenerationAdapters: [adapter],
-      mediaGenerationPollInitialDelayMs: 20,
-      mediaGenerationPollMaxDelayMs: 20
+      mediaGeneration: createMediaGenerationCapability({
+        adapters: [adapter], pollInitialDelayMs: 20, pollMaxDelayMs: 20
+      })
     })
     try {
       await app.commands.upsertModelEndpoint({
@@ -130,9 +131,9 @@ export const imageGenerationConversationScenario = createEvalScenario({
       runtimeContext: {
         toolPermissionPolicy: new AllowAllToolsPolicy()
       },
-      mediaGenerationAdapters: [adapter],
-      mediaGenerationPollInitialDelayMs: 20,
-      mediaGenerationPollMaxDelayMs: 20
+      mediaGeneration: createMediaGenerationCapability({
+        adapters: [adapter], pollInitialDelayMs: 20, pollMaxDelayMs: 20
+      })
     })
     const storage = createStorageTestStore({
       kind: "local-system-service",

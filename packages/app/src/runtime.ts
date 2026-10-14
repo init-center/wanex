@@ -8,10 +8,8 @@ import {
   type WanexBootstrapLocalSystemServiceStorageConfig,
   type WanexBootstrapRemoteHttpStorageConfig
 } from "@wanex/runtime/bootstrap"
-import {
-  buildAppDiagnosticsSnapshot,
-  type AppDiagnosticsSnapshot
-} from "./diagnostics/index.js"
+import { buildAppDiagnosticsSnapshot } from "./diagnostics/diagnostics-builder.js"
+import type { AppDiagnosticsSnapshot } from "./diagnostics/diagnostics-types.js"
 import { WanexConfigCore } from "@wanex/runtime/config"
 import type {
   ContextCompiler,

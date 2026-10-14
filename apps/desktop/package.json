@@ -12,7 +12,8 @@
   "scripts": {
     "start": "node ./scripts/start.mjs",
     "check": "tsc --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run",
+    "test": "node ../../scripts/run-package-test.mjs",
+    "test:installed": "node ./scripts/test-installed.mjs",
     "build": "node ./scripts/build.mjs",
     "package": "node ./scripts/build.mjs --package",
     "proof": "tsx ./scripts/proof.mjs",
@@ -20,12 +21,12 @@
   },
   "dependencies": {
     "@radix-ui/react-dialog": "1.2.0",
-    "@wanex/local-credential-store": "workspace:*",
     "@wanex/assistant-host": "workspace:*",
-    "@wanex/assistant-ui": "workspace:*",
-    "@wanex/protocol": "workspace:*",
-    "@wanex/plugin": "workspace:*",
     "@wanex/assistant-plugin-host": "workspace:*",
+    "@wanex/assistant-ui": "workspace:*",
+    "@wanex/local-credential-store": "workspace:*",
+    "@wanex/plugin": "workspace:*",
+    "@wanex/protocol": "workspace:*",
     "@wanex/runtime": "workspace:*",
     "@wanex/workspace": "workspace:*",
     "lucide-react": "1.28.0",
@@ -33,11 +34,12 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.4",
     "@electron/asar": "^4.3.0",
     "@electron/get": "^5.1.0",
     "@electron/packager": "^20.3.0",
+    "@playwright/test": "1.64.0",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "electron": "43.7.8",
     "esbuild": "0.28.1"
   }

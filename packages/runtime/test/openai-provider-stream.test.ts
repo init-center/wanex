@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   OpenAICompatibleAdapter,
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
 import { testConversationModel } from "./model-endpoint-fixture.js"
@@ -23,7 +23,7 @@ describe("OpenAI-compatible streaming provider", () => {
       ], requests)
     })
 
-    const result = await consumeProviderStream({
+    const result = await consumeTextProviderStream({
       provider: adapter,
       request: { messages: [{ role: "user", content: [{ type: "text", id: "u", text: "hi" }] }] }
     })
@@ -57,7 +57,7 @@ describe("OpenAI-compatible streaming provider", () => {
         async text() { return "limited" }
       })
     })
-    await expect(consumeProviderStream({ provider: adapter, request: { messages: [] } }))
+    await expect(consumeTextProviderStream({ provider: adapter, request: { messages: [] } }))
       .rejects.toMatchObject({ detail: { category: "rate_limit", retryable: true, retryAfterMs: 2000 } })
   })
 
@@ -71,7 +71,7 @@ describe("OpenAI-compatible streaming provider", () => {
         'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":"stop"}]}\n\n'
       ])
     })
-    await expect(consumeProviderStream({ provider: eofAdapter, request: { messages: [] } }))
+    await expect(consumeTextProviderStream({ provider: eofAdapter, request: { messages: [] } }))
       .resolves.toMatchObject({ finish: { reason: "stop" } })
 
     const malformedAdapter = new OpenAICompatibleAdapter({
@@ -81,7 +81,7 @@ describe("OpenAI-compatible streaming provider", () => {
       apiKey: "secret",
       fetch: fixtureFetch(["data: {not-json}\n\n"])
     })
-    await expect(consumeProviderStream({ provider: malformedAdapter, request: { messages: [] } }))
+    await expect(consumeTextProviderStream({ provider: malformedAdapter, request: { messages: [] } }))
       .rejects.toMatchObject({ detail: { category: "protocol", retryable: false } })
   })
 
@@ -98,7 +98,7 @@ describe("OpenAI-compatible streaming provider", () => {
         'data: [DONE]\n\n'
       ])
     })
-    const result = await consumeProviderStream({ provider: adapter, request: { messages: [] } })
+    const result = await consumeTextProviderStream({ provider: adapter, request: { messages: [] } })
     expect(result.parts[0]).toMatchObject({
       type: "reasoning",
       providerState: { replayPolicy: "required", payload: { reasoning_content: "private" } }

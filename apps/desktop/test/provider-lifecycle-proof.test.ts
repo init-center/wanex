@@ -53,7 +53,7 @@ function start() {
   })
   const opened = vi.fn(() => {
     element("main").insertAdjacentHTML("beforeend", `<section data-ui-settings-panel>
-      <button aria-label="Close settings">Close</button>
+      <button data-ui-action="close-settings">Close</button>
       <div data-ui-provider="primary"></div>
       <div data-ui-provider="selected" data-ui-conversation-model-id="selected">
         <button data-ui-provider-remove="selected">Remove</button>
@@ -68,7 +68,7 @@ function start() {
         element('[data-ui-provider="selected"]').remove()
       })
     })
-    element('[aria-label="Close settings"]').addEventListener("click", () => {
+    element('[data-ui-action="close-settings"]').addEventListener("click", () => {
       element('[data-ui-settings-panel]').remove()
     })
   })

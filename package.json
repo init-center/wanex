@@ -89,7 +89,7 @@
     "test:host-distribution-budget": "vitest run ./scripts/audit-host-distribution.test.mjs",
     "test:desktop-distribution-receipt": "vitest run ./scripts/desktop-distribution-receipt.test.mjs",
     "test:runtime-consolidation-audit": "vitest run ./scripts/audit-runtime-consolidation.test.mjs",
-    "test:runner": "vitest run ./scripts/test-runner.test.mjs ./scripts/process-step.test.mjs"
+    "test:runner": "vitest run ./scripts/test-runner.test.mjs ./scripts/process-step.test.mjs ./scripts/desktop-test-runner.test.mjs"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "0.18.5",

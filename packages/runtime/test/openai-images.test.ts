@@ -5,7 +5,8 @@ import type {
 } from "@wanex/protocol"
 import {
   prepareMediaGenerationOperationBinding,
-  type MediaGenerationAdapterRequest
+  imageGenerationOptionCatalog,
+  type MediaGenerationSubmitRequest
 } from "../src/media-generation/index.js"
 import {
   OpenAIImagesAdapter,
@@ -90,6 +91,62 @@ describe("OpenAIImagesAdapter", () => {
     expect(resolver.secrets[0]?.disposed).toBe(true)
   })
 
+  it("edits input images through a multipart Images request", async () => {
+    const resolver = new TrackingSecretResolver("openai-test-key")
+    const requests: Array<{ readonly input: string; readonly init?: RequestInit }> = []
+    const adapter = new OpenAIImagesAdapter({
+      secretResolver: resolver,
+      async fetch(input, init) {
+        requests.push({ input, ...(init === undefined ? {} : { init }) })
+        return jsonResponse({ data: [{ b64_json: Buffer.from("edited").toString("base64") }] })
+      }
+    })
+    const endpoint = imageEndpoint()
+    const editEndpoint = {
+      ...endpoint,
+      model: { ...endpoint.model, operations: ["image.generate"], inputModalities: ["text", "image"] }
+    } as MediaGenerationModelEndpoint
+    const resource = {
+      resourceId: "res_source",
+      sha256: "a".repeat(64),
+      sizeBytes: 3,
+      kind: "image" as const,
+      mediaType: "image/png"
+    }
+    const request: MediaGenerationSubmitRequest = {
+      operationId: "media-edit",
+      binding: prepareMediaGenerationOperationBinding({
+        operation: "image.generate",
+        modelEndpoint: modelEndpointExecutionBinding(editEndpoint),
+        prompt: "make the triangle blue",
+        outputModality: "image",
+        inputResources: [resource],
+        options: { quality: "high", n: 1 }
+      }),
+      signal: new AbortController().signal,
+      inputs: [{ resource, bytes: Uint8Array.from([1, 2, 3]) }]
+    }
+
+    await expect(adapter.submit(request)).resolves.toMatchObject({ status: "completed" })
+    expect(requests[0]?.input).toBe("https://api.openai.test/v1/images/edits")
+    const headers = requests[0]?.init?.headers as Record<string, string>
+    expect(headers.authorization).toBe("Bearer openai-test-key")
+    expect(headers["content-type"]).toBeUndefined()
+    const form = requests[0]?.init?.body as FormData
+    expect(form.get("model")).toBe("gpt-image-test")
+    expect(form.get("prompt")).toBe("make the triangle blue")
+    expect(form.get("quality")).toBe("high")
+    expect(form.get("n")).toBe("1")
+    const image = form.get("image") as File
+    expect(image.type).toBe("image/png")
+    expect(new Uint8Array(await image.arrayBuffer())).toEqual(Uint8Array.from([1, 2, 3]))
+
+    await expect(adapter.submit({ ...request, inputs: [] })).resolves.toMatchObject({
+      status: "completed"
+    })
+    expect(requests[1]?.input).toBe("https://api.openai.test/v1/images/generations")
+  })
+
   it("rejects invalid requests before resolving credentials or dispatching", async () => {
     const resolver = new TrackingSecretResolver("unused")
     let fetchCount = 0
@@ -101,11 +158,10 @@ describe("OpenAIImagesAdapter", () => {
       }
     })
 
-    await expect(adapter.submit(adapterRequest({
-      options: { model: "attempted-override" }
-    }))).resolves.toMatchObject({
+    const invalid = adapterRequest()
+    await expect(adapter.submit({ ...invalid, binding: { ...invalid.binding, request: { ...invalid.binding.request, options: { model: "attempted-override" } } } })).resolves.toMatchObject({
       status: "rejected",
-      error: { type: "invalid_request", message: expect.stringContaining("reserved") }
+      error: { type: "invalid_request", message: expect.stringContaining("unsupported") }
     })
     await expect(adapter.submit(adapterRequest({
       endpoint: imageEndpoint({ protocolId: "other-images" })
@@ -362,7 +418,7 @@ function adapterRequest(options: {
   readonly endpoint?: MediaGenerationModelEndpoint
   readonly options?: Record<string, unknown>
   readonly signal?: AbortSignal
-} = {}): MediaGenerationAdapterRequest {
+} = {}): MediaGenerationSubmitRequest {
   const modelEndpoint = options.endpoint ?? imageEndpoint()
   return {
     operationId: "media-operation",
@@ -375,7 +431,8 @@ function adapterRequest(options: {
         ? {}
         : { options: options.options as never })
     }),
-    signal: options.signal ?? new AbortController().signal
+    signal: options.signal ?? new AbortController().signal,
+    inputs: []
   }
 }
 
@@ -393,6 +450,7 @@ function imageEndpoint(options: {
     protocol: { id: options.protocolId ?? "openai-images" },
     model: {
       id: "gpt-image-test",
+      generationOptions: imageGenerationOptionCatalog("openai-images", "gpt-image-1"),
       operations: ["image.generate"],
       inputModalities: ["text"],
       outputModalities: ["image"],

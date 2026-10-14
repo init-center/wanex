@@ -79,7 +79,8 @@ export async function executeAgentTurn(
     for (; step <= execution.maxSteps; step += 1) {
       await request.heartbeat()
       throwIfAborted(request.signal, "agent turn")
-      const preProviderControl = await context.drainTurnControls(execution, true)
+      const preProviderControl = await context.drainTurnControls(execution,
+        !(checkpoint.responseReady === true && step === checkpoint.nextStep))
       if (preProviderControl.status !== "continue") {
         return await settleControlRequest(
           context,
@@ -89,9 +90,8 @@ export async function executeAgentTurn(
         )
       }
 
-      const replayMessages = await context.buildReplayMessages(execution.sessionId)
       const completion = await context.runProviderCompletion(
-        replayMessages,
+        () => context.buildReplayMessages(execution.sessionId),
         request.signal,
         execution,
         step,
@@ -267,7 +267,7 @@ export async function executeAgentTurn(
       (invocation) =>
         invocation.attemptId === execution.attemptId &&
         (invocation.state === "dispatched" ||
-          invocation.state === "output_observed")
+          invocation.state === "output_observed" || invocation.state === "output_ready")
     )
     const outcome =
       error instanceof RecoveryEvidenceError ||
@@ -305,6 +305,7 @@ async function recoveryCheckpoint(
   execution: ExecuteTurnRequest["execution"]
 ): Promise<{
   readonly nextStep: number
+  readonly responseReady?: boolean
   readonly pendingToolBatch?: {
     readonly step: number
     readonly message: SessionMessageRecord
@@ -317,8 +318,8 @@ async function recoveryCheckpoint(
   ])
   const latest = invocations.at(-1)
   if (latest === undefined) return { nextStep: 1 }
-  if (latest.state === "failed_before_output") {
-    return { nextStep: latest.step }
+  if (latest.state === "failed_before_output" || latest.state === "output_ready") {
+    return { nextStep: latest.step, responseReady: latest.state === "output_ready" }
   }
   if (latest.state !== "succeeded" || latest.assistantMessageId === undefined) {
     throw new RecoveryEvidenceError(

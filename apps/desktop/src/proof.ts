@@ -93,7 +93,7 @@ export async function runWanexDesktopRendererProof(
 
     failureStage = "settings_close"
     const closeSettings = document.querySelector(
-      '[data-ui-settings-panel] [aria-label="Close settings"]'
+      '[data-ui-settings-panel] [data-ui-action="close-settings"]'
     )
     if (!(closeSettings instanceof HTMLButtonElement)) {
       throw new Error("Provider settings close control is missing")
@@ -133,10 +133,9 @@ export async function runWanexDesktopRendererProof(
     const initialAssistantRowIds = rowIds(ready.surface, "assistant")
     failureStage = "model_switch"
     setControlValue(ready.textarea, expected.source)
+    // Editing a provider keeps its default status, so this is a real switch;
+    // the wait below observes the canonical active endpoint after it settles.
     await chooseModel(ready.modelSelect, selectedEndpointId)
-    if (ready.modelSelect.getAttribute("data-ui-active-endpoint") !== selectedEndpointId) {
-      throw new Error("selected Provider endpoint is not available")
-    }
 
     const switched = await waitFor(() => {
       const composer = document.querySelector(

@@ -1,4 +1,6 @@
 import type {
+  PrepareImageResourceRequest,
+  PreparedImageResource,
   AdmissionReceipt,
   AdmitSessionInputRequest,
   ArchiveSessionRequest,
@@ -6,6 +8,7 @@ import type {
   ApplySessionTurnControlReceipt,
   ApplySessionTurnControlRequest,
   BeginProviderInvocationRequest,
+  CheckpointProviderInvocationRequest,
   BeginToolExecutionReceipt,
   BeginToolExecutionRequest,
   BudgetGrantRecord,
@@ -162,6 +165,10 @@ export class WanexSessionCore {
     return await this.session.beginProviderInvocation(request)
   }
 
+  async checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null> {
+    return await this.session.checkpointProviderInvocation(request)
+  }
+
   async markProviderInvocationOutput(
     request: MarkProviderInvocationOutputRequest
   ): Promise<ProviderInvocationRecord | null> {
@@ -312,6 +319,10 @@ export class WanexSessionCore {
 
   async ingestResource(request: IngestResourceRequest): Promise<ResourceRecord> {
     return await this.storage.ingestResource(request)
+  }
+
+  async prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource> {
+    return await this.storage.prepareImageResource(request)
   }
 
   async recordResourceProvenance(

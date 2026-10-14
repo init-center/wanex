@@ -1,4 +1,6 @@
 import type {
+  PrepareImageResourceRequest,
+  PreparedImageResource,
   AtomicWriteRequest,
   CleanupExpiredResourceTicketsRequest,
   DoctorReport,
@@ -21,6 +23,8 @@ import type {
 } from "@wanex/protocol"
 
 import {
+  toRpcPrepareImageResourceRequest,
+  fromRpcPreparedImageResource,
   assertArray,
   expectBoolean,
   fromRpcConfigCompareAndApplyResult,
@@ -52,6 +56,11 @@ import type {
 } from "./types-runtime-core.js"
 
 export class RuntimeStoreMethods extends RpcStoreFacetBase {
+  async prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource> {
+    return fromRpcPreparedImageResource(await this.callRuntime({
+      command: "prepare-image-resource", request: toRpcPrepareImageResourceRequest(request)
+    }))
+  }
   async appendEvent(event: RuntimeEvent): Promise<void> {
     await this.callRuntime({
       command: "append-event",

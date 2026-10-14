@@ -17,7 +17,6 @@ export type MediaGenerationOutputModality = Exclude<
 export type MediaGenerationOperation = Extract<
   ModelOperation,
   | "image.generate"
-  | "image.edit"
   | "video.generate"
   | "audio.synthesize"
 >

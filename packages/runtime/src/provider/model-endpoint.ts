@@ -1,25 +1,19 @@
 import { createHash } from "node:crypto"
 import type {
   JsonValue,
-  ModelBehavior,
-  ModelCatalogProvenance,
   ModelDescriptor,
   ModelEndpoint,
   ModelEndpointExecutionBinding,
-  ModelFeature,
-  ModelInputModality,
-  ModelLimits,
-  ModelOperation,
-  ModelOutputModality,
   ProviderConnection,
   ProviderProtocolDescriptor
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import type { SecretResolverPort } from "../secrets/index.js"
 import { AnthropicAdapter } from "./adapters/anthropic.js"
+import { GeminiAdapter } from "./adapters/gemini.js"
 import { FakeProviderAdapter } from "./adapters/fake.js"
 import { OpenAICompatibleAdapter } from "./adapters/openai-compatible.js"
-import { normalizeModelDescriptor } from "./model-descriptor.js"
+import { assertConversationModelSupported, normalizeModelDescriptor } from "./model-descriptor.js"
 import type { ProviderAdapter } from "./types.js"
 
 export interface ModelEndpointSummary {
@@ -151,6 +145,10 @@ export async function providerFromModelEndpoint(
     })
   }
   const baseUrl = requireConnectionField(normalized, "baseUrl")
+  assertConversationModelSupported(normalized.protocol.id, normalized.model)
+  if (normalized.protocol.id === "gemini-generate-content" && normalized.model.features.some((feature) => feature !== "reasoning")) {
+    throw new Error("Gemini conversation adapter does not implement tool calling")
+  }
   const secretRef = requireConnectionField(normalized, "secretRef")
   if (secretResolver === undefined) {
     throw new Error(`${normalized.protocol.id} model endpoint requires secret resolver`)
@@ -161,6 +159,8 @@ export async function providerFromModelEndpoint(
   try {
     const apiKey = secret.reveal()
     switch (normalized.protocol.id) {
+      case "gemini-generate-content":
+        return new GeminiAdapter({ providerId: normalized.connection.providerId, model: normalized.model, baseUrl, apiKey })
       case "openai-chat-completions":
         return new OpenAICompatibleAdapter({
           providerId: normalized.connection.providerId,
@@ -255,6 +255,11 @@ function modelDescriptorToJson(model: ModelDescriptor): JsonValue {
     inputModalities: [...model.inputModalities],
     outputModalities: [...model.outputModalities],
     features: [...model.features],
+    ...(model.generationOptions === undefined ? {} : {
+      generationOptions: model.generationOptions.map((option) => ({
+        ...option, ...(option.type === "string" ? { enum: [...option.enum] } : {})
+      }))
+    }),
     ...(model.limits === undefined ? {} : { limits: { ...model.limits } }),
     ...(model.behavior === undefined
       ? {}
@@ -262,30 +267,10 @@ function modelDescriptorToJson(model: ModelDescriptor): JsonValue {
     catalog: { ...model.catalog }
   }
 }
-
 function modelDescriptorFromJson(value: JsonValue | undefined): ModelDescriptor {
-  const model = expectRecord(value, "model descriptor")
-  return {
-    id: expectString(model.id, "model descriptor id"),
-    operations: expectStringArray(model.operations, "model operations") as ModelOperation[],
-    inputModalities: expectStringArray(
-      model.inputModalities,
-      "model input modalities"
-    ) as ModelInputModality[],
-    outputModalities: expectStringArray(
-      model.outputModalities,
-      "model output modalities"
-    ) as ModelOutputModality[],
-    features: expectStringArray(model.features, "model features") as ModelFeature[],
-    ...(model.limits === undefined
-      ? {}
-      : { limits: modelLimitsFromJson(model.limits) }),
-    ...(model.behavior === undefined
-      ? {}
-      : { behavior: modelBehaviorFromJson(model.behavior) }),
-    catalog: modelCatalogFromJson(model.catalog)
-  }
+  return normalizeModelDescriptor(value)
 }
+
 
 function providerConnectionFromJson(value: JsonValue | undefined): ProviderConnection {
   const connection = expectRecord(value, "provider connection")
@@ -316,57 +301,6 @@ function providerProtocolFromJson(
   }
 }
 
-function modelLimitsFromJson(value: JsonValue): ModelLimits {
-  const limits = expectRecord(value, "model limits")
-  return {
-    ...(limits.contextWindowTokens === undefined
-      ? {}
-      : {
-          contextWindowTokens: expectNumber(
-            limits.contextWindowTokens,
-            "contextWindowTokens"
-          )
-        }),
-    ...(limits.maxInputTokens === undefined
-      ? {}
-      : { maxInputTokens: expectNumber(limits.maxInputTokens, "maxInputTokens") }),
-    ...(limits.maxOutputTokens === undefined
-      ? {}
-      : { maxOutputTokens: expectNumber(limits.maxOutputTokens, "maxOutputTokens") }),
-    ...(limits.maxInputResources === undefined
-      ? {}
-      : {
-          maxInputResources: expectNumber(
-            limits.maxInputResources,
-            "maxInputResources"
-          )
-        })
-  }
-}
-
-function modelBehaviorFromJson(value: JsonValue): ModelBehavior {
-  const behavior = expectRecord(value, "model behavior")
-  return {
-    ...(behavior.reasoningReplay === undefined
-      ? {}
-      : {
-          reasoningReplay: expectString(
-            behavior.reasoningReplay,
-            "model reasoningReplay"
-          ) as NonNullable<ModelBehavior["reasoningReplay"]>
-        })
-  }
-}
-
-function modelCatalogFromJson(value: JsonValue | undefined): ModelCatalogProvenance {
-  const catalog = expectRecord(value, "model catalog")
-  return {
-    source: expectString(catalog.source, "model catalog source") as ModelCatalogProvenance["source"],
-    catalogId: expectString(catalog.catalogId, "model catalog id"),
-    revision: expectString(catalog.revision, "model catalog revision")
-  }
-}
-
 function requireConnectionField(
   endpoint: ModelEndpoint,
   field: "baseUrl" | "secretRef"
@@ -393,20 +327,6 @@ function expectString(value: JsonValue | undefined, label: string): string {
     throw new Error(`${label} must be a string`)
   }
   return value
-}
-
-function expectNumber(value: JsonValue, label: string): number {
-  if (typeof value !== "number") {
-    throw new Error(`${label} must be a number`)
-  }
-  return value
-}
-
-function expectStringArray(value: JsonValue | undefined, label: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new Error(`${label} must be an array`)
-  }
-  return value.map((item, index) => expectString(item, `${label}[${index}]`))
 }
 
 function normalizeSecretRef(ref: string): string {

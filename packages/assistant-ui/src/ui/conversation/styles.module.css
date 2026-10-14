@@ -25,12 +25,6 @@
 .quick-start { min-height: 38px; display: flex; align-items: center; gap: 12px; padding: 0 12px; color: var(--color-text-secondary); text-align: left; background: transparent; border: 0; border-radius: var(--radius-control); font-size: var(--font-size-md); transition: background 120ms ease, color 120ms ease; }
 .quick-start > svg { color: var(--color-text-muted); flex: 0 0 auto; }
 .quick-start:hover { color: var(--color-text); background: var(--color-control-hover); }
-.setup-callout { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-bottom: 8px; padding: 12px 16px; color: var(--color-accent-hover); text-align: left; background: var(--color-accent-soft); border: 1px solid var(--color-line-accent); border-radius: var(--radius-card); }
-.setup-callout > svg:first-child { justify-self: center; }
-.setup-callout > span { min-width: 0; display: grid; gap: 2px; }
-.setup-callout strong { font-size: var(--font-size-sm); font-weight: 600; }
-.setup-callout small { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
-.setup-callout:hover { border-color: var(--color-accent); }
 
 .message, .pending { position: relative; width: 100%; margin: 0 0 var(--space-message); }
 .message.is-assistant { padding: 0 2px; }

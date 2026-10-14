@@ -315,6 +315,7 @@ export interface SettleSessionTurnRequest {
 export type ProviderInvocationState =
   | "dispatched"
   | "output_observed"
+  | "output_ready"
   | "succeeded"
   | "failed_before_output"
   | "ambiguous"
@@ -330,6 +331,9 @@ export interface ProviderInvocationRecord {
   readonly invocationNumber: number
   readonly executionBindingDigest: string
   readonly requestDigest: string
+  readonly inputResources: readonly ResourceInputEvidence[]
+  readonly responseCheckpoint?: ProviderResponseCheckpoint
+  readonly responseDigest?: string
   readonly state: ProviderInvocationState
   readonly outputObserved: boolean
   readonly providerRequestId?: string
@@ -352,6 +356,30 @@ export interface BeginProviderInvocationRequest {
   readonly step: number
   readonly invocationNumber: number
   readonly requestDigest: string
+  readonly inputResources: readonly ResourceInputEvidence[]
+}
+
+export interface ProviderResponseCheckpoint {
+  readonly parts: readonly Extract<MessagePart, { readonly type: "text" | "reasoning" | "tool_call" | "resource" }>[]
+  readonly providerState: readonly ProviderState[]
+  readonly usage?: {
+    readonly inputTokens?: number
+    readonly outputTokens?: number
+    readonly reasoningTokens?: number
+    readonly cacheReadTokens?: number
+    readonly cacheWriteTokens?: number
+    readonly metadata?: Readonly<Record<string, JsonValue>>
+  }
+  readonly finish: {
+    readonly type: "finish"
+    readonly reason: "stop" | "length" | "tool_calls" | "content_filter" | "other"
+    readonly rawReason?: string
+  }
+}
+
+export interface CheckpointProviderInvocationRequest extends MarkProviderInvocationOutputRequest {
+  readonly response: ProviderResponseCheckpoint
+  readonly responseDigest: string
 }
 
 export interface MarkProviderInvocationOutputRequest {

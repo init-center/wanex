@@ -164,6 +164,25 @@ export function parseSurfaceModelEndpointSelector(input: unknown): {
   };
 }
 
+export function parseSurfaceImageUnderstandingEndpoint(input: unknown): {
+  readonly endpointId: string | null;
+} {
+  const record = parseRecord(input, "setImageUnderstandingEndpoint input");
+  const keys = Object.keys(record);
+  if (keys.length !== 1 || keys[0] !== "endpointId") {
+    throw new Error(
+      "setImageUnderstandingEndpoint input must contain only endpointId",
+    );
+  }
+  if (record.endpointId === null) return { endpointId: null };
+  return {
+    endpointId: parseString(
+      record.endpointId,
+      "setImageUnderstandingEndpoint input.endpointId",
+    ),
+  };
+}
+
 export function parseSurfaceAssistantCommandRequest(
   input: unknown,
 ): BackendCommandPortRequest {

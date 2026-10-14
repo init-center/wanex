@@ -7,6 +7,7 @@ import type {
   ResourceInputEvidence,
   ResourceMessagePart,
   ResourceRecord,
+  SessionTurnExecutionBinding,
   ToolResultContentPart,
   ToolResultMessagePart,
   UserMessageInputPart
@@ -20,6 +21,12 @@ import type {
   PreparedProviderToolResultPart,
   ProviderReplayMessage
 } from "../provider/types.js"
+import { toolResultResourceDelivery } from "../provider/tool-result-media.js"
+import { canonicalJson, toolResultResourceDescriptor } from "../provider/replay.js"
+import {
+  findModelCapabilityRouteExecutionBinding,
+  IMAGE_UNDERSTANDING_REQUIREMENT
+} from "../provider/capability-route.js"
 import {
   normalizeToolResultContent,
   toolResultContentDigest
@@ -76,10 +83,20 @@ export async function canonicalizeUserMessageInput(
   return { content, resources }
 }
 
+/**
+ * `describedImages` admits images for a model without image input; the caller
+ * must then prove with assertImagesReachModel that the Turn binding carries an
+ * image-understanding route that will describe them.
+ */
+export interface UserMessageAdmissionOptions {
+  readonly describedImages?: boolean
+}
+
 export async function admitUserMessage(
   storage: Pick<CoreStore, "getResource">,
   endpoint: ModelEndpoint,
-  input: readonly UserMessageInputPart[]
+  input: readonly UserMessageInputPart[],
+  options: UserMessageAdmissionOptions = {}
 ): Promise<AdmittedUserMessage> {
   const admitted = await canonicalizeUserMessageInput(storage, input)
   let totalResourceBytes = 0
@@ -92,7 +109,8 @@ export async function admitUserMessage(
       endpoint,
       resource,
       evidence,
-      totalResourceBytes
+      totalResourceBytes,
+      options.describedImages === true
     )
   }
   assertResourceCount(endpoint, admitted.resources.length)
@@ -102,7 +120,8 @@ export async function admitUserMessage(
 export async function validateCanonicalUserMessage(
   storage: Pick<CoreStore, "getResource">,
   endpoint: ModelEndpoint,
-  content: readonly MessagePart[]
+  content: readonly MessagePart[],
+  options: UserMessageAdmissionOptions = {}
 ): Promise<readonly ResourceInputEvidence[]> {
   if (content.length === 0) {
     throw new Error("canonical user message content must not be empty")
@@ -136,12 +155,32 @@ export async function validateCanonicalUserMessage(
       endpoint,
       resource,
       evidence,
-      totalResourceBytes
+      totalResourceBytes,
+      options.describedImages === true
     )
     resources.push(evidence)
   }
   assertResourceCount(endpoint, resources.length)
   return resources
+}
+
+/**
+ * A model without image input may only receive image resources when its Turn
+ * binding carries the image-understanding route that describes them.
+ */
+export function assertImagesReachModel(binding: SessionTurnExecutionBinding): void {
+  const model = binding.modelEndpoint.model
+  if (model.inputModalities.includes("image")) return
+  const image = binding.resources.find((resource) => resourceInputModality(resource) === "image")
+  if (image === undefined) return
+  if (findModelCapabilityRouteExecutionBinding(
+    binding.capabilityRoutes,
+    IMAGE_UNDERSTANDING_REQUIREMENT
+  ) === undefined) {
+    throw new Error(
+      `model endpoint ${binding.modelEndpoint.endpointId} does not support image input for resource ${image.resourceId}`
+    )
+  }
 }
 
 export function assertTurnResourcesMatchBinding(
@@ -173,12 +212,15 @@ function sameResourceEvidence(
 }
 
 export async function prepareProviderReplayResources(
-  storage: Pick<CoreStore, "getResource" | "readResourceContent">,
+  storage: Pick<CoreStore, "getResource" | "readResourceContent" | "prepareImageResource">,
   provider: {
     readonly protocol: ProviderProtocolDescriptor
     readonly inputModalities: readonly ModelInputModality[]
+    readonly providerId?: string
+    readonly modelId?: string
   },
-  messages: readonly ProviderReplayMessage[]
+  messages: readonly ProviderReplayMessage[],
+  options: { readonly describedImages?: boolean } = {}
 ): Promise<PreparedProviderReplayMessage[]> {
   let totalResourceBytes = 0
   const preparedMessages: PreparedProviderReplayMessage[] = []
@@ -186,13 +228,35 @@ export async function prepareProviderReplayResources(
     const content: PreparedProviderReplayPart[] = []
     for (const part of message.content) {
       if (part.type === "resource") {
+        if (message.role === "assistant") {
+          await assertExactResourceEvidence(storage, part)
+          const matchingState = message.providerState?.some((state) =>
+            state.providerId === provider.providerId && state.modelId === provider.modelId &&
+            typeof state.payload === "object" && state.payload !== null && !Array.isArray(state.payload) &&
+            "protocol" in state.payload && "partId" in state.payload &&
+            state.payload.protocol === provider.protocol.id && state.payload.partId === part.id)
+          if (provider.protocol.id !== "gemini-generate-content" || !provider.inputModalities.includes("image") || !matchingState) {
+            content.push({ type: "text", id: part.id, text: `[Assistant output ${canonicalJson(toolResultResourceDescriptor(part))}]` })
+            continue
+          }
+          totalResourceBytes = addReplayResourceBytes(totalResourceBytes, part)
+          content.push({ ...part, ...await prepareProviderImage(storage, part, "preserve") })
+          continue
+        }
         if (message.role !== "user") {
           throw new Error("provider resource input is only valid in user messages")
         }
-        assertProviderSupportsResource(provider.inputModalities, part)
+        // An image this model cannot see is kept (with verified bytes) for the
+        // image describer, which replaces it before the provider sees it.
+        if (!(options.describedImages === true && resourceInputModality(part) === "image")) {
+          assertProviderSupportsResource(provider.inputModalities, part)
+        }
         totalResourceBytes = addReplayResourceBytes(totalResourceBytes, part)
-        const bytes = await readExactResourceBytes(storage, part)
-        content.push({ ...part, bytes } satisfies PreparedProviderResourcePart)
+        const prepared = resourceInputModality(part) === "image"
+          ? await prepareProviderImage(storage, part, "normalize")
+          : { bytes: await readExactResourceBytes(storage, part) }
+        totalResourceBytes = addReplayResourceBytes(totalResourceBytes - part.sizeBytes, { ...part, ...prepared })
+        content.push({ ...part, ...prepared } satisfies PreparedProviderResourcePart)
         continue
       }
       if (part.type === "tool_result") {
@@ -211,13 +275,13 @@ export async function prepareProviderReplayResources(
       }
       content.push(part)
     }
-    preparedMessages.push({ role: message.role, content })
+    preparedMessages.push({ role: message.role, content, providerState: message.providerState })
   }
   return preparedMessages
 }
 
 async function prepareToolResult(
-  storage: Pick<CoreStore, "getResource" | "readResourceContent">,
+  storage: Pick<CoreStore, "getResource" | "readResourceContent" | "prepareImageResource">,
   provider: {
     readonly protocol: ProviderProtocolDescriptor
     readonly inputModalities: readonly ModelInputModality[]
@@ -241,12 +305,15 @@ async function prepareToolResult(
     }
     totalResourceBytes = addReplayResourceBytes(totalResourceBytes, item)
     await assertExactResourceEvidence(storage, item)
-    if (!usesNativeToolResultResource(provider, item)) {
+    if (toolResultResourceDelivery(provider, item) === "descriptor") {
       content.push(item)
       continue
     }
-    const bytes = await readExactResourceBytes(storage, item)
-    content.push({ ...item, bytes })
+    const prepared = resourceInputModality(item) === "image"
+      ? await prepareProviderImage(storage, item, "normalize")
+      : { bytes: await readExactResourceBytes(storage, item) }
+    totalResourceBytes = addReplayResourceBytes(totalResourceBytes - item.sizeBytes, { ...item, ...prepared })
+    content.push({ ...item, ...prepared })
   }
   return {
     part: { ...part, content },
@@ -285,29 +352,6 @@ function addReplayResourceBytes(
     )
   }
   return next
-}
-
-function usesNativeToolResultResource(
-  provider: {
-    readonly protocol: ProviderProtocolDescriptor
-    readonly inputModalities: readonly ModelInputModality[]
-  },
-  resource: ResourceInputEvidence
-): boolean {
-  if (provider.protocol.id !== "anthropic-messages") return false
-  const modality = resourceInputModality(resource)
-  if (!provider.inputModalities.includes(modality)) return false
-  return (
-    (resource.kind === "image" && isAnthropicImageType(resource.mediaType)) ||
-    (resource.kind === "document" && resource.mediaType === "application/pdf")
-  )
-}
-
-function isAnthropicImageType(mediaType: string | undefined): boolean {
-  return mediaType === "image/jpeg" ||
-    mediaType === "image/png" ||
-    mediaType === "image/gif" ||
-    mediaType === "image/webp"
 }
 
 async function assertExactResourceEvidence(
@@ -366,6 +410,21 @@ export async function readExactResourceBytes(
   return content
 }
 
+/** The canonical resource stays unchanged; evidence here identifies the actual wire bytes. */
+export async function prepareProviderImage(
+  storage: Pick<CoreStore, "getResource" | "readResourceContent" | "prepareImageResource">,
+  source: ResourceInputEvidence,
+  mode: "normalize" | "preserve"
+): Promise<ResourceInputEvidence & { readonly bytes: Uint8Array; readonly originalResource?: ResourceInputEvidence }> {
+  const prepared = await storage.prepareImageResource({ resource: resourcePartEvidence(source), mode })
+  const evidence = resourceEvidence(prepared.resource)
+  if (mode === "preserve" && (!sameResourceEvidence(source, evidence) || prepared.transformed)) {
+    throw new Error("signed image preparation must preserve its exact evidence")
+  }
+  return { ...evidence, bytes: await readExactResourceBytes(storage, evidence),
+    ...(sameResourceEvidence(source, evidence) ? {} : { originalResource: resourcePartEvidence(source) }) }
+}
+
 export function resourceInputModality(
   resource: Pick<ResourceRecord, "kind" | "mediaType"> | ResourceInputEvidence
 ): ModelInputModality {
@@ -416,11 +475,15 @@ function validateResourceForEndpoint(
   endpoint: ModelEndpoint,
   resource: ResourceRecord,
   evidence: ResourceInputEvidence,
-  totalResourceBytes: number
+  totalResourceBytes: number,
+  describedImages: boolean
 ): number {
   assertResourceMatchesEvidence(resource, evidence)
   const modality = resourceInputModality(resource)
-  if (!endpoint.model.inputModalities.includes(modality)) {
+  if (
+    !endpoint.model.inputModalities.includes(modality) &&
+    !(describedImages && modality === "image")
+  ) {
     throw new Error(
       `model endpoint ${endpoint.id} does not support ${modality} input for resource ${resource.id}`
     )
@@ -458,7 +521,7 @@ function resourceEvidence(resource: ResourceRecord): ResourceInputEvidence {
   }
 }
 
-function resourcePartEvidence(part: ResourceMessagePart): ResourceInputEvidence {
+function resourcePartEvidence(part: ResourceInputEvidence): ResourceInputEvidence {
   return {
     resourceId: part.resourceId,
     sha256: part.sha256,

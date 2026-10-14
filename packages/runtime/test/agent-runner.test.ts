@@ -131,6 +131,7 @@ describe("Runtime exact turn runner", () => {
     expect(steer.status).toBe("accepted")
 
     const invocation = await fixture.session.beginProviderInvocation({
+      inputResources: [],
       ...fixture.execution,
       step: 1,
       invocationNumber: 1,
@@ -1165,6 +1166,7 @@ async function seedToolCallCheckpoint(
     input: { text: "hello" }
   }
   const invocation = await fixture.session.beginProviderInvocation({
+      inputResources: [],
     ...fixture.execution,
     step: 1,
     invocationNumber: 1,
@@ -1273,6 +1275,7 @@ class ApprovalRequiredTestPolicy {
 }
 
 class ToolThenFinalProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "tool-final"
   readonly model = testConversationModel("tool-final-model")
@@ -1309,6 +1312,7 @@ class ToolThenFinalProvider implements ProviderAdapter {
 }
 
 class RequestCaptureProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "request-capture"
   request: ProviderRequest | undefined
@@ -1327,6 +1331,7 @@ class RequestCaptureProvider implements ProviderAdapter {
 }
 
 class DeferredImageThenFinalProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "deferred-image-conversation"
   readonly model = testConversationModel("deferred-image-conversation-model")
@@ -1415,6 +1420,7 @@ class DeferredTestImageAdapter implements MediaGenerationAdapter {
 }
 
 class MismatchedFinishProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "mismatched-finish"
   readonly model = testConversationModel("mismatched-finish-model")
@@ -1437,6 +1443,7 @@ class MismatchedFinishProvider implements ProviderAdapter {
 }
 
 class RetryThenFinalProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "retry-final"
   readonly model = testConversationModel("retry-final-model")
@@ -1472,6 +1479,7 @@ class RetryThenFinalProvider implements ProviderAdapter {
 }
 
 class PartialThenErrorProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "partial-error"
   readonly model = testConversationModel("partial-error-model")
@@ -1519,6 +1527,7 @@ class AlwaysToolProvider extends ToolThenFinalProvider {
 }
 
 class CountingProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "counting"
   readonly model = testConversationModel("counting-model")
@@ -1535,6 +1544,7 @@ class CountingProvider implements ProviderAdapter {
 }
 
 class RecoverySteeringProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "recovery-steering"
   readonly model = testConversationModel("recovery-steering-model")

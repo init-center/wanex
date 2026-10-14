@@ -4,6 +4,7 @@ import type {
   ArchiveSessionRequest,
   AppendSessionMessageRequest,
   BeginProviderInvocationRequest,
+  CheckpointProviderInvocationRequest,
   CreateSessionRequest,
   FinishProviderInvocationReceipt,
   FinishProviderInvocationRequest,
@@ -103,6 +104,10 @@ export class SessionCommands {
     request: BeginProviderInvocationRequest
   ): Promise<ProviderInvocationRecord> {
     return await this.storage.beginProviderInvocation(request)
+  }
+
+  async checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null> {
+    return await this.storage.checkpointProviderInvocation(request)
   }
 
   async markProviderInvocationOutput(

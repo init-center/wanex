@@ -163,7 +163,7 @@ function createWanexDesktopProviderLifecycleProof(
         document.querySelector('[data-ui-provider-state="ready"]') !== null
       )
       const closeSettings = document.querySelector(
-        '[data-ui-settings-panel] [aria-label="Close settings"]'
+        '[data-ui-settings-panel] [data-ui-action="close-settings"]'
       )
       if (!(closeSettings instanceof HTMLButtonElement)) {
         throw new Error("Provider settings close control is missing")

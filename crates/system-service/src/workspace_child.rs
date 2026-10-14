@@ -18,6 +18,12 @@ const MAX_OUTPUT_BYTES: u64 = 50 * 1024 * 1024;
 const OUTPUT_CHUNK_BYTES: usize = 16 * 1024;
 const DEFAULT_GRACE_MS: u64 = 250;
 
+#[cfg(unix)]
+mod process_group;
+
+#[cfg(all(test, unix))]
+mod tests;
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct StartFrame {
@@ -461,11 +467,15 @@ fn run_terminal_child_loop(
             termination_sent = true;
             termination_deadline = Some(Instant::now() + grace);
         }
-        let members_alive = match ownership.has_live_members(child) {
-            Ok(value) => value,
-            Err(_) => {
-                membership_probe_failed = true;
-                true
+        let mut members_alive = if status.is_none() {
+            true
+        } else {
+            match ownership.has_live_members(child) {
+                Ok(value) => value,
+                Err(_) => {
+                    membership_probe_failed = true;
+                    true
+                }
             }
         };
         if members_alive && termination_sent {
@@ -477,6 +487,18 @@ fn run_terminal_child_loop(
                     force_sent = true;
                     termination_deadline = Some(Instant::now() + grace);
                 } else if Instant::now() >= deadline && force_sent {
+                    status = child.try_wait()?.or(status);
+                    members_alive = match ownership.has_live_members(child) {
+                        Ok(value) => value,
+                        Err(_) => {
+                            membership_probe_failed = true;
+                            true
+                        }
+                    };
+                    if !members_alive {
+                        termination_deadline = None;
+                        continue;
+                    }
                     cleanup = "ambiguous";
                     cleanup_error = Some(if force_terminate_failed {
                         "force_terminate_failed"
@@ -653,11 +675,15 @@ fn run_child_loop(
             termination_sent = true;
             termination_deadline = Some(Instant::now() + grace);
         }
-        let members_alive = match ownership.has_live_members(child) {
-            Ok(value) => value,
-            Err(_) => {
-                membership_probe_failed = true;
-                true
+        let mut members_alive = if status.is_none() {
+            true
+        } else {
+            match ownership.has_live_members(child) {
+                Ok(value) => value,
+                Err(_) => {
+                    membership_probe_failed = true;
+                    true
+                }
             }
         };
         if members_alive && termination_sent {
@@ -669,6 +695,18 @@ fn run_child_loop(
                     force_sent = true;
                     termination_deadline = Some(Instant::now() + grace);
                 } else if Instant::now() >= deadline && force_sent {
+                    status = child.try_wait()?.or(status);
+                    members_alive = match ownership.has_live_members(child) {
+                        Ok(value) => value,
+                        Err(_) => {
+                            membership_probe_failed = true;
+                            true
+                        }
+                    };
+                    if !members_alive {
+                        termination_deadline = None;
+                        continue;
+                    }
                     cleanup = "ambiguous";
                     cleanup_error = Some(if force_terminate_failed {
                         "force_terminate_failed"
@@ -1214,17 +1252,8 @@ impl ChildOwnership {
         }
         #[cfg(unix)]
         {
-            let pid = child.id() as libc::pid_t;
-            let result = unsafe { libc::kill(-pid, 0) };
-            if result == 0 {
-                return Ok(true);
-            }
-            let error = io::Error::last_os_error();
-            if error.raw_os_error() == Some(libc::ESRCH) {
-                Ok(false)
-            } else {
-                Err(error)
-            }
+            let _ = child;
+            process_group::has_live_members(self.process_group)
         }
         #[cfg(not(any(windows, unix)))]
         {

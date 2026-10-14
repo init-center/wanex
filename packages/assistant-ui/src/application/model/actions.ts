@@ -96,6 +96,12 @@ export type Action =
       }
     }
   | {
+      readonly type: "set-image-understanding-endpoint"
+      readonly input: {
+        readonly endpointId: string | null
+      }
+    }
+  | {
       readonly type: "preview-command"
       readonly input: PreviewCommandInvocationRequest
     }

@@ -29,6 +29,7 @@ export type TuiFullScreenClient = Pick<
   | "startNewConversation"
   | "listModelEndpoints"
   | "setActiveModelEndpoint"
+  | "setImageUnderstandingEndpoint"
   | "readAssistantCommands"
   | "previewAssistantCommandInvocation"
   | "executeAssistantCommand"

@@ -9,7 +9,7 @@ import {
 import {
   MissingRequiredProviderStateError,
   OpenAICompatibleAdapter,
-  consumeProviderStream,
+  consumeTextProviderStream,
   type ProviderFetch
 } from "../src/provider/index.js"
 import { prepareProviderReplayResources } from "../src/resources/index.js"
@@ -65,7 +65,7 @@ describe("DeepSeek provider fidelity", () => {
     })
     clients.push(storage)
     const adapter = createAdapter()
-    const result = await consumeProviderStream({
+    const result = await consumeTextProviderStream({
       provider: adapter,
       request: { messages: [] }
     })

@@ -404,8 +404,8 @@ export async function runWanexDesktopProviderSideQuerySettlementProof(
       redacted &&
       settled.parentResponseVisible &&
       settled.sideContentAbsent,
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: redacted,

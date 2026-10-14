@@ -33,6 +33,8 @@ export async function dispatchAction(
       return await options.client.updatePreferences(action.input, requestOptions)
     case "set-active-model-endpoint":
       return await options.client.setActiveModelEndpoint(action.input, requestOptions)
+    case "set-image-understanding-endpoint":
+      return await options.client.setImageUnderstandingEndpoint(action.input, requestOptions)
     case "preview-command":
       return await options.client.previewAssistantCommandInvocation(
         action.input,

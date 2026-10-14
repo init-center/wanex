@@ -31,6 +31,16 @@ import {
   admitUserMessage,
   validateCanonicalUserMessage
 } from "../../resources/index.js"
+import { assertImagesReachModel } from "../../resources/input.js"
+import { createImageDescriber } from "../../resources/image-description.js"
+import {
+  findModelCapabilityRouteExecutionBinding,
+  IMAGE_UNDERSTANDING_REQUIREMENT
+} from "../../provider/capability-route.js"
+import {
+  modelEndpointFromExecutionBinding,
+  providerFromModelEndpoint
+} from "../../provider/model-endpoint.js"
 import {
   WanexJobRuntime,
   type RuntimeWorkerLoop,
@@ -155,11 +165,28 @@ export class WanexAgentRuntime {
     const { modelEndpoint, provider } = await this.resolveEphemeralExecution(
       request.modelEndpointId
     )
+    const imageRoute = modelEndpoint.model.inputModalities.includes("image")
+      ? undefined
+      : findModelCapabilityRouteExecutionBinding(
+          this.staticAgentContext?.capabilityRoutes ?? [],
+          IMAGE_UNDERSTANDING_REQUIREMENT
+        )
+    const describeImages = imageRoute === undefined
+      ? undefined
+      : createImageDescriber({
+          storage: this.storage,
+          route: imageRoute,
+          provider: await providerFromModelEndpoint(
+            modelEndpointFromExecutionBinding(imageRoute.modelEndpoint),
+            this.secretResolver
+          )
+        })
     return await runEphemeralSideQuery(
       {
         session: this.session,
         provider,
         modelEndpoint,
+        ...(describeImages === undefined ? {} : { describeImages }),
         ...(this.contextCompiler === undefined
           ? {}
           : { contextCompiler: this.contextCompiler }),
@@ -213,7 +240,8 @@ export class WanexAgentRuntime {
     const admitted = await admitUserMessage(
       this.storage,
       modelEndpoint,
-      request.content
+      request.content,
+      { describedImages: true }
     )
     const session = existingSession ?? await this.session.create({
       id: request.sessionId ?? `ses_${randomUUID()}`,
@@ -269,6 +297,7 @@ export class WanexAgentRuntime {
           : { applicationScope: request.applicationScope }),
         ...(agentContext === undefined ? {} : { agentContext })
       })
+      assertImagesReachModel(executionBinding)
     } catch (error) {
       resolved?.lease?.rollback()
       throw error
@@ -324,7 +353,8 @@ export class WanexAgentRuntime {
     const resources = await validateCanonicalUserMessage(
       this.storage,
       modelEndpoint,
-      request.content
+      request.content,
+      { describedImages: true }
     )
     const resolved = await this.resolveAgentContext?.({
         sessionId: request.sessionId,
@@ -389,6 +419,7 @@ export class WanexAgentRuntime {
           : { applicationScope: request.applicationScope }),
         ...(agentContext === undefined ? {} : { agentContext })
       })
+      assertImagesReachModel(binding)
     } catch (error) {
       resolved?.lease?.rollback()
       throw error

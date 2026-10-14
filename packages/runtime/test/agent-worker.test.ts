@@ -519,13 +519,13 @@ describe("session.turn worker handler", () => {
       responseText: "## Goal\nResource-aware summary or final answer"
     })
     const oldResource = await storage.ingestResource({
-      content: Uint8Array.from([1, 2, 3]),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"), label: "previous image",
       mediaType: "image/png",
       kind: "image",
       origin: "user_upload"
     })
     const currentResource = await storage.ingestResource({
-      content: Uint8Array.from([4, 5, 6]),
+      content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"), label: "current image",
       mediaType: "image/png",
       kind: "image",
       origin: "user_upload"
@@ -1053,6 +1053,7 @@ async function appendCompletedTurn(
     leaseToken: job.leaseToken
   })
   const invocation = await session.beginProviderInvocation({
+      inputResources: [],
     sessionId: request.sessionId,
     turnId: submitted.turn.id,
     attemptId: started.attempt.id,

@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@008330803749db0355799c700092d9a85fd074e9 # v6.0.9
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.17.0
           run_install: false
@@ -29,11 +29,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
 
       - run: pnpm install --frozen-lockfile
+      - run: cargo build -p wanex-system-service --locked
+      - run: cargo test -p wanex-system-service --locked
+      - run: pnpm --filter @wanex/runtime exec vitest run test/execution-environment.test.ts --maxWorkers=1
       - run: pnpm stage:native -- --target win32-x64
       - run: pnpm check:desktop
       - run: pnpm test:desktop
         env:
           WANEX_SYSTEM_SERVICE_BIN: ${{ github.workspace }}/target/distribution/native/win32-x64/wanex-system-service.exe
+      - run: pnpm --filter @wanex/desktop test:installed
       - run: pnpm --filter @wanex/desktop prepare:electron
       - run: pnpm proof:desktop
       - run: pnpm proof:native-runtime -- --artifact-dir target/distribution/native

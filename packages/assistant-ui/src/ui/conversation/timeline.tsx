@@ -1,7 +1,6 @@
 import {
   ArrowDown,
   ArrowUp,
-  ArrowUpRight,
   Bot,
   CircleAlert,
   Code2,
@@ -9,7 +8,6 @@ import {
   GitPullRequest,
   LoaderCircle,
   ListChecks,
-  SlidersHorizontal,
   UserRound,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
@@ -250,19 +248,18 @@ export function EmptyGreeting({ now = new Date() }: { readonly now?: Date }): Re
 }
 
 /**
- * Suggestions below the composer. They follow what is true right now: a missing
- * model comes first, then a folder the user already trusts, then generic starters.
+ * Suggestions below the composer. They follow what is true right now: a folder
+ * the user already trusts comes first, then generic starters. Without a model
+ * there are none; the composer's model control is the one place to fix that.
  */
 export function QuickStarts({
   snapshot,
   dispatch,
   onSelectPrompt,
-  onOpenSettings,
 }: {
   readonly snapshot: Snapshot;
   readonly dispatch: DispatchAction;
   readonly onSelectPrompt: (prompt: string) => void;
-  readonly onOpenSettings: () => void;
 }): ReactNode {
   const canRun = snapshot.view.providerRunGate.canRun;
   const suggestions = emptyStateSuggestions(snapshot);
@@ -285,16 +282,6 @@ export function QuickStarts({
   }
   return (
     <div className={classes("empty")}>
-      {canRun ? null : (
-        <button type="button" className={classes("setup-callout")} data-ui-action="open-settings" onClick={onOpenSettings}>
-          <SlidersHorizontal size={16} aria-hidden="true" />
-          <span>
-            <strong>Connect a model</strong>
-            <small>Add a provider key to start chatting.</small>
-          </span>
-          <ArrowUpRight size={16} aria-hidden="true" />
-        </button>
-      )}
       {canRun ? (
         <div className={classes("quick-starts")} data-ui-quick-starts aria-label="Suggestions">
           {suggestions.map((suggestion) => (

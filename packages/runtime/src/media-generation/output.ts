@@ -3,7 +3,7 @@ import type {
   MediaGenerationOutputReferenceRecord,
   ResourceKind
 } from "@wanex/protocol"
-import { sha256Bytes } from "../resources/index.js"
+import { sha256Bytes } from "../resources/path.js"
 import type {
   MediaGenerationMaterializedOutput,
   MediaGenerationProviderOutput,

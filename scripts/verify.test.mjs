@@ -1,18 +1,53 @@
-import { describe, expect, it } from "vitest"
-import { createVerifySteps, parseVerifyArgs } from "./verify.mjs"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { createVerifySteps, parseVerifyArgs, runVerify } from "./verify.mjs"
+import { runProcessStep } from "./process-step.mjs"
+
+vi.mock("./process-step.mjs", () => ({ runProcessStep: vi.fn() }))
+beforeEach(() => vi.resetAllMocks())
 
 describe("verify", () => {
-  it("rejects arguments because verify has a single release profile", () => {
-    expect(parseVerifyArgs([])).toBeUndefined()
-    expect(() => parseVerifyArgs(["--profile", "cool"])).toThrow(
-      "unknown verify argument: --profile"
-    )
-    expect(() => parseVerifyArgs(["--profile=full"])).toThrow(
-      "unknown verify argument: --profile=full"
-    )
-    expect(() => parseVerifyArgs(["--unknown"])).toThrow(
-      "unknown verify argument: --unknown"
-    )
+  it("defaults to the full gate and accepts only explicit suite selection", () => {
+    expect(parseVerifyArgs([])).toBe("all")
+    for (const suite of ["source", "artifacts", "all"]) {
+      expect(parseVerifyArgs(["--suite", suite])).toBe(suite)
+    }
+    for (const args of [["--profile", "cool"], ["--unknown"], ["--suite"], ["--suite", "source", "--skip"]]) {
+      expect(() => parseVerifyArgs(args)).toThrow("invalid verify arguments")
+    }
+    expect(() => parseVerifyArgs(["--suite", "fast"])).toThrow("unknown verify suite")
+    expect(() => createVerifySteps("fast")).toThrow("unknown verify suite")
+  })
+
+  it("retains every source and artifact step once in the default complete gate", () => {
+    const source = createVerifySteps("source")
+    const artifacts = createVerifySteps("artifacts")
+    const full = createVerifySteps()
+    expect(full).toEqual([...source, ...artifacts])
+    expect(new Set(full.map((step) => step.name)).size).toBe(full.length)
+    expect(artifacts.map((step) => step.name)).toEqual([
+      "Desktop packaged Server workspace acceptance",
+      "Compiled SDK release proof",
+      "Packed SDK runtime consumer proofs",
+      "Installed TUI proof",
+      "Compiled SDK determinism audit"
+    ])
+    expect(source.some((step) => step.name === "Rust tests")).toBe(true)
+    expect(source.some((step) => step.name === "Eval harness CLI smoke")).toBe(true)
+    expect(full.flatMap((step) => step.args)).not.toContain("proof:desktop")
+  })
+
+  it("stops before artifact execution if a source gate fails", async () => {
+    vi.mocked(runProcessStep).mockRejectedValueOnce(new Error("source failed"))
+    await expect(runVerify()).rejects.toThrow("source failed")
+    expect(runProcessStep).toHaveBeenCalledTimes(1)
+  })
+
+  it("propagates installed acceptance failure without continuing or retrying", async () => {
+    vi.mocked(runProcessStep).mockRejectedValueOnce(new Error("installed failed"))
+    await expect(runVerify("artifacts")).rejects.toThrow("installed failed")
+    expect(runProcessStep).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(runProcessStep).mock.calls[0][0].args)
+      .toEqual(["--filter", "@wanex/desktop", "test:installed"])
   })
 
   it("keeps the release gate broad and explicit", () => {

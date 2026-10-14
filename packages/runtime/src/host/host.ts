@@ -53,10 +53,8 @@ import type {
   RuntimeHostToolApprovalContinuation,
   WanexRuntimeHostOptions
 } from "./types.js"
-import {
-  createRuntimeHostAgentWorkers,
-  createRuntimeHostMediaGenerationWorkers
-} from "./worker-factory.js"
+import { createRuntimeHostAgentWorkers } from "./worker-factory.js"
+import type { MediaGenerationWorker } from "../media-generation/types.js"
 import {
   notifyRuntimeHostSessionTurnLifecycle,
   observeRuntimeHostSessionTurnLifecycle,
@@ -78,9 +76,7 @@ export class WanexRuntimeHost {
   readonly #turnControlObserver: TurnControlEventObserver
 
   private readonly workers: ReturnType<typeof createRuntimeHostAgentWorkers>
-  private readonly mediaGenerationWorkers: ReturnType<
-    typeof createRuntimeHostMediaGenerationWorkers
-  >
+  private readonly mediaGenerationWorkers: readonly MediaGenerationWorker[]
   private readonly memoryWorkers: RuntimeHostMemoryWorker[]
   private readonly loopLifecycle: RuntimeHostLoopLifecycle
   private readonly memoryCompaction: RuntimeHostMemoryCompactionConfig | undefined
@@ -171,42 +167,15 @@ export class WanexRuntimeHost {
         ? {}
         : { resolveAgentContext: options.resolveAgentContext })
     })
-    this.mediaGenerationWorkers = createRuntimeHostMediaGenerationWorkers({
+    this.mediaGenerationWorkers = options.mediaGeneration?.createWorkers({
       storage: this.storage,
       activeAbortRegistry: this.#activeAbortRegistry,
-      ...(options.mediaGenerationAdapters === undefined
-        ? {}
-        : { mediaGenerationAdapters: options.mediaGenerationAdapters }),
-      ...(options.mediaGenerationWorkerCount === undefined
-        ? {}
-        : { mediaGenerationWorkerCount: options.mediaGenerationWorkerCount }),
-      ...(options.mediaGenerationMaxOutputBytes === undefined
-        ? {}
-        : { mediaGenerationMaxOutputBytes: options.mediaGenerationMaxOutputBytes }),
-      ...(options.mediaGenerationPollInitialDelayMs === undefined
-        ? {}
-        : {
-            mediaGenerationPollInitialDelayMs:
-              options.mediaGenerationPollInitialDelayMs
-          }),
-      ...(options.mediaGenerationPollMaxDelayMs === undefined
-        ? {}
-        : {
-            mediaGenerationPollMaxDelayMs:
-              options.mediaGenerationPollMaxDelayMs
-          }),
-      ...(options.mediaGenerationMaxConsecutivePollFailures === undefined
-        ? {}
-        : {
-            mediaGenerationMaxConsecutivePollFailures:
-              options.mediaGenerationMaxConsecutivePollFailures
-          }),
       ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
       ...(options.heartbeatIntervalMs === undefined
         ? {}
         : { heartbeatIntervalMs: options.heartbeatIntervalMs }),
       ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs })
-    })
+    }) ?? []
     this.memoryWorkers = createRuntimeHostMemoryWorkers({
       storage: this.storage,
       config: this.memoryCompaction,

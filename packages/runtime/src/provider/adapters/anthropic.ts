@@ -19,6 +19,7 @@ import {
   canonicalJson,
   requirePreparedProviderResource,
   requirePreparedToolResultResource,
+  resourceLabel,
   textContent,
   toolResultResourceDescriptor
 } from "../replay.js"
@@ -59,6 +60,7 @@ interface AnthropicBlock {
 }
 
 export class AnthropicAdapter implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol: { readonly id: "anthropic-messages"; readonly version: string }
   readonly providerId: string
   readonly model: ModelDescriptor
@@ -348,10 +350,10 @@ export class AnthropicAdapter implements ProviderAdapter {
 function anthropicToolResultContent(
   content: readonly PreparedProviderToolResultContentPart[]
 ): JsonValue[] {
-  return content.map((part): JsonValue => {
-    if (part.type === "text") return { type: "text", text: part.text }
+  return content.flatMap((part): JsonValue[] => {
+    if (part.type === "text") return [{ type: "text", text: part.text }]
     if (part.type === "json") {
-      return { type: "text", text: canonicalJson(part.value) }
+      return [{ type: "text", text: canonicalJson(part.value) }]
     }
     if (
       part.kind === "image" &&
@@ -359,14 +361,14 @@ function anthropicToolResultContent(
       part.bytes instanceof Uint8Array
     ) {
       const prepared = requirePreparedToolResultResource(part)
-      return {
+      return [{ type: "text", text: resourceLabel(prepared) }, {
         type: "image",
         source: {
           type: "base64",
           media_type: prepared.mediaType!,
           data: Buffer.from(prepared.bytes).toString("base64")
         }
-      }
+      }]
     }
     if (
       part.kind === "document" &&
@@ -374,19 +376,19 @@ function anthropicToolResultContent(
       part.bytes instanceof Uint8Array
     ) {
       const prepared = requirePreparedToolResultResource(part)
-      return {
+      return [{ type: "text", text: resourceLabel(prepared) }, {
         type: "document",
         source: {
           type: "base64",
           media_type: "application/pdf",
           data: Buffer.from(prepared.bytes).toString("base64")
         }
-      }
+      }]
     }
-    return {
+    return [{
       type: "text",
       text: canonicalJson(toolResultResourceDescriptor(part))
-    }
+    }]
   })
 }
 
@@ -398,37 +400,38 @@ function anthropicUserContent(message: PreparedProviderReplayMessage): JsonValue
   if (message.role !== "user") {
     throw new Error("Anthropic resource input is only valid in user messages")
   }
-  return message.content.map((part): JsonValue => {
+  return message.content.flatMap((part): JsonValue[] => {
     if (part.type === "text") {
-      return { type: "text", text: part.text }
+      return [{ type: "text", text: part.text }]
     }
     if (part.type !== "resource") {
       throw new Error(`Anthropic user resource message contains invalid part: ${part.type}`)
     }
     const prepared = requirePreparedProviderResource(part)
     const data = Buffer.from(prepared.bytes).toString("base64")
+    const label = { type: "text", text: resourceLabel(prepared) }
     if (prepared.kind === "image" && isAnthropicImageType(prepared.mediaType)) {
-      return {
+      return [label, {
         type: "image",
         source: {
           type: "base64",
           media_type: prepared.mediaType!,
           data
         }
-      }
+      }]
     }
     if (
       prepared.kind === "document" &&
       prepared.mediaType === "application/pdf"
     ) {
-      return {
+      return [label, {
         type: "document",
         source: {
           type: "base64",
           media_type: "application/pdf",
           data
         }
-      }
+      }]
     }
     throw new Error(
       `Anthropic messages adapter does not support ${prepared.kind} resource input: ${prepared.resourceId}`

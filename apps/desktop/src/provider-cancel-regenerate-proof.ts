@@ -26,7 +26,7 @@ export async function runWanexDesktopProviderCancelRegenerateProof(
     )
     const sessionId = selectedSessionId()
     if (
-      context.configuredProviderCount() !== 1 ||
+      context.configuredProviderCount() !== 2 ||
       !context.providerReady() ||
       !(surface instanceof Element) ||
       !(textarea instanceof HTMLTextAreaElement) ||
@@ -159,8 +159,8 @@ export async function runWanexDesktopProviderCancelRegenerateProof(
       regenerated.operationId !== running.operationId &&
       regenerated.responseVisible &&
       selectedSessionId() === ready.sessionId,
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: redacted,

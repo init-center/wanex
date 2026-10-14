@@ -28,6 +28,7 @@ export async function buildSessionReplayMessages(
   }
   return messages.map((message) => ({
     role: message.role,
-    content: message.content
+    content: message.content,
+    providerState: message.providerState
   }))
 }

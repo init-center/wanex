@@ -2,12 +2,11 @@ import {
   CircleAlert,
   LoaderCircle,
   PanelLeft,
-  PanelRight,
+  Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Snapshot } from "../../application/model.js";
 import { classes } from "../classes.js";
-import { IconButton } from "../shared/icon-button.js";
 
 export function Topbar({
   snapshot,
@@ -19,7 +18,8 @@ export function Topbar({
   openSessions,
   toggleSidebar,
   reconnectStream,
-  toggleContext,
+  groupDetailsOpen,
+  toggleGroupDetails,
   actions,
 }: {
   readonly snapshot: Snapshot;
@@ -31,13 +31,21 @@ export function Topbar({
   readonly openSessions: () => void;
   readonly toggleSidebar: () => void;
   readonly reconnectStream: () => void;
-  readonly toggleContext: () => void;
+  readonly groupDetailsOpen?: boolean;
+  /** Present only for group conversations: their members and coordinator live in a drawer. */
+  readonly toggleGroupDetails?: () => void;
   readonly actions?: ReactNode;
 }): ReactNode {
   const state = snapshot.view;
-  const needsSetup = state.providerRunGate.state !== "ready";
+  // Model readiness is shown where it is fixed (the composer's model control);
+  // the header only exposes it as a machine-readable state.
   return (
-    <header className={classes("topbar")} data-ui-topbar inert={inactive ? true : undefined}>
+    <header
+      className={classes("topbar")}
+      data-ui-topbar
+      data-ui-provider-state={state.providerRunGate.state}
+      inert={inactive ? true : undefined}
+    >
       <div className={classes("topbar-title")}>
         <button
           type="button"
@@ -84,25 +92,21 @@ export function Topbar({
             <span className={classes("sr-only")}>Live updates paused</span>
           </button>
         )}
-        <span
-          className={classes(`readiness readiness-${state.providerRunGate.state}`)}
-          data-ui-provider-state={state.providerRunGate.state}
-          title={state.providerRunGate.message}
-        >
-          <span className={classes("status-dot")} aria-hidden="true" />
-          <span>{needsSetup ? statusLabel(state.providerRunGate.state) : "Ready"}</span>
-        </span>
         {actions}
-        <IconButton label="Toggle context panel" onClick={toggleContext}>
-          <PanelRight size={17} />
-        </IconButton>
+        {toggleGroupDetails === undefined ? null : (
+          <button
+            type="button"
+            className={classes(`icon-button ${groupDetailsOpen === true ? "is-active" : ""}`)}
+            data-ui-action="toggle-group-details"
+            aria-label="Group details"
+            title="Group details"
+            aria-pressed={groupDetailsOpen === true}
+            onClick={toggleGroupDetails}
+          >
+            <Users size={17} />
+          </button>
+        )}
       </div>
     </header>
   );
-}
-
-function statusLabel(value: string): string {
-  if (value === "ready") return "Ready";
-  if (value === "blocked" || value === "unconfigured") return "Setup needed";
-  return value.replaceAll("_", " ").replaceAll("-", " ");
 }

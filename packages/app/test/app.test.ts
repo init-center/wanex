@@ -570,6 +570,7 @@ describe("@wanex/app", () => {
         "worker_wanex_app_rich_transcript"
       )
       const checkpointInvocation = await storage.beginProviderInvocation({
+      inputResources: [],
         sessionId: active.submitted.turn.sessionId,
         turnId: active.submitted.turn.id,
         attemptId: active.started.attempt.id,
@@ -677,6 +678,7 @@ describe("@wanex/app", () => {
         content: [projectedToolResult]
       })
       const finalInvocation = await storage.beginProviderInvocation({
+        inputResources: [],
         sessionId: active.submitted.turn.sessionId,
         turnId: active.submitted.turn.id,
         attemptId: active.started.attempt.id,
@@ -687,6 +689,15 @@ describe("@wanex/app", () => {
         step: 2,
         invocationNumber: 1,
         requestDigest: "wanex-app-rich-final"
+      })
+      const preview = await storage.ingestResource({
+        id: "res_wanex_app_preview",
+        content: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"),
+        origin: "system", kind: "image", mediaType: "image/png"
+      })
+      const a2ui = await storage.ingestResource({
+        id: "res_wanex_app_a2ui", content: Buffer.from("{}"),
+        origin: "system", kind: "artifact", mediaType: "application/vnd.a2ui+json"
       })
       await storage.settleSessionTurn({
         sessionId: active.submitted.turn.sessionId,
@@ -714,8 +725,8 @@ describe("@wanex/app", () => {
             id: "preview_resource",
             type: "resource",
             resourceId: "res_wanex_app_preview",
-            sha256: "a".repeat(64),
-            sizeBytes: 128,
+            sha256: preview.sha256,
+            sizeBytes: preview.sizeBytes,
             kind: "image",
             mediaType: "image/png"
           },
@@ -723,8 +734,8 @@ describe("@wanex/app", () => {
             id: "a2ui_resource",
             type: "resource",
             resourceId: "res_wanex_app_a2ui",
-            sha256: "b".repeat(64),
-            sizeBytes: 256,
+            sha256: a2ui.sha256,
+            sizeBytes: a2ui.sizeBytes,
             kind: "artifact",
             mediaType: "application/vnd.a2ui+json"
           }

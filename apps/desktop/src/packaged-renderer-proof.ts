@@ -77,7 +77,7 @@ export type WanexDesktopPackagedProofStep =
   | "relaunch-schedule-restore"
   | WanexDesktopRemoteAssistantProofStep
   | WanexDesktopRemoteMediaProofStep
-  | WanexDesktopProviderRelaunchProofStep;
+  | Exclude<WanexDesktopProviderRelaunchProofStep, "relaunch-chat">;
 
 export class DesktopRendererProofError extends Error {
   readonly code = "desktop_renderer_proof_failed";
@@ -103,7 +103,6 @@ export function requiredWanexDesktopPackagedProofStep(
   if (
     value === "lifecycle" ||
     value === "relaunch-configure" ||
-    value === "relaunch-chat" ||
     value === "relaunch-remote-assistant" ||
     value === "relaunch-remote-assistant-restore" ||
     value === "relaunch-remote-media" ||
@@ -112,6 +111,7 @@ export function requiredWanexDesktopPackagedProofStep(
     value === "relaunch-guided-follow-up" ||
     value === "relaunch-side-query" ||
     value === "relaunch-multimodal" ||
+    value === "relaunch-image-understanding" ||
     value === "relaunch-image-generation" ||
     value === "relaunch-plan" ||
     value === "relaunch-goal" ||

@@ -21,9 +21,6 @@ export function mountClient(
       {...(options.initialSnapshot === undefined
         ? {}
         : { initialSnapshot: options.initialSnapshot })}
-      {...(options.onModalStateChange === undefined
-        ? {}
-        : { onModalStateChange: options.onModalStateChange })}
       {...(options.onThemeChange === undefined
         ? {}
         : { onThemeChange: options.onThemeChange })}

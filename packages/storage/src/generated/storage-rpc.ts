@@ -23,6 +23,7 @@ export type StorageRpcCommand =
   | ChannelStorageRpcCommand
   | MediaGenerationStorageRpcCommand;
 export type RuntimeStorageRpcCommand =
+  | PrepareImageResourceCommand
   | AppendEventCommand
   | QueryEventsCommand
   | PutConfigCommand
@@ -42,6 +43,7 @@ export type RuntimeStorageRpcCommand =
   | RecordResourceProvenanceCommand
   | ListResourceProvenanceCommand
   | DoctorCommand;
+export type ResourceKindWire = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 export type NullableString = string | null;
 export type JsonValue =
   | null
@@ -57,7 +59,6 @@ export type NullableUnsigned32 = Unsigned32 | null;
 export type Unsigned32 = number;
 export type ConfigExpectedRevisionWire = number | null;
 export type NullableResourceKindWire = ResourceKindWire | null;
-export type ResourceKindWire = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 export type NullableResourceOriginWire = ResourceOriginWire | null;
 export type ResourceOriginWire =
   "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
@@ -65,9 +66,14 @@ export type NullableResourceSourceWire = ResourceSourceWire | null;
 export type NullableResourceStateWire = ResourceStateWire | null;
 export type ResourceStateWire = "pending" | "fetching" | "available" | "failed" | "expired" | "deleted";
 export type ResourceProvenanceCauseWire =
-  ToolExecutionResourceProvenanceCauseWire | MediaGenerationResourceProvenanceCauseWire;
+  | ImageNormalizationResourceProvenanceCauseWire
+  | ProviderOutputResourceProvenanceCauseWire
+  | ToolExecutionResourceProvenanceCauseWire
+  | MediaGenerationResourceProvenanceCauseWire
+  | ImageDescriptionResourceProvenanceCauseWire;
 export type NullableResourceProvenanceCauseKindWire = ResourceProvenanceCauseKindWire | null;
-export type ResourceProvenanceCauseKindWire = "tool_execution" | "media_generation";
+export type ResourceProvenanceCauseKindWire =
+  "tool_execution" | "media_generation" | "image_description" | "provider_output" | "image_normalization";
 export type SessionsStorageRpcCommand =
   | CreateSessionCommand
   | GetSessionCommand
@@ -80,6 +86,7 @@ export type SessionsStorageRpcCommand =
   | StartSessionTurnAttemptCommand
   | SettleSessionTurnCommand
   | BeginProviderInvocationCommand
+  | CheckpointProviderInvocationCommand
   | MarkProviderInvocationOutputCommand
   | FinishProviderInvocationCommand
   | ListProviderInvocationsCommand
@@ -542,6 +549,21 @@ export interface StorageRpcRequestEnvelope {
 export interface StorageRpcDescribeCommand {
   command: "rpc-describe";
 }
+export interface PrepareImageResourceCommand {
+  command: "prepare-image-resource";
+  request: PrepareImageResourceWire;
+}
+export interface PrepareImageResourceWire {
+  resource: ResourceInputEvidenceWire;
+  mode: "normalize" | "preserve";
+}
+export interface ResourceInputEvidenceWire {
+  resource_id: string;
+  sha256: string;
+  size_bytes: number;
+  kind: ResourceKindWire;
+  media_type: NullableString;
+}
 export interface AppendEventCommand {
   command: "append-event";
   event: RuntimeEventInputWire;
@@ -713,12 +735,15 @@ export interface RecordResourceProvenanceWire {
    */
   input_resources: ResourceInputEvidenceWire[];
 }
-export interface ResourceInputEvidenceWire {
-  resource_id: string;
-  sha256: string;
-  size_bytes: number;
-  kind: ResourceKindWire;
-  media_type: NullableString;
+export interface ImageNormalizationResourceProvenanceCauseWire {
+  kind: "image_normalization";
+  normalization_key: string;
+  policy: string;
+}
+export interface ProviderOutputResourceProvenanceCauseWire {
+  kind: "provider_output";
+  invocation_id: string;
+  part_id: string;
 }
 export interface ToolExecutionResourceProvenanceCauseWire {
   kind: "tool_execution";
@@ -731,6 +756,12 @@ export interface ToolExecutionResourceProvenanceCauseWire {
 export interface MediaGenerationResourceProvenanceCauseWire {
   kind: "media_generation";
   operation_id: string;
+}
+export interface ImageDescriptionResourceProvenanceCauseWire {
+  kind: "image_description";
+  description_key: string;
+  endpoint_digest: string;
+  prompt_version: string;
 }
 export interface ListResourceProvenanceCommand {
   command: "list-resource-provenance";
@@ -893,6 +924,27 @@ export interface BeginProviderInvocationWire {
   step: number;
   invocation_number: number;
   request_digest: string;
+  /**
+   * @maxItems 64
+   */
+  input_resources: ResourceInputEvidenceWire[];
+}
+export interface CheckpointProviderInvocationCommand {
+  command: "checkpoint-provider-invocation";
+  request: CheckpointProviderInvocationWire;
+}
+export interface CheckpointProviderInvocationWire {
+  session_id: string;
+  turn_id: string;
+  attempt_id: string;
+  input_id: string;
+  job_id: string;
+  worker_id: string;
+  lease_token: string;
+  invocation_id: string;
+  provider_request_id: NullableString;
+  response: JsonValue;
+  response_digest: string;
 }
 export interface MarkProviderInvocationOutputCommand {
   command: "mark-provider-invocation-output";
@@ -3220,4 +3272,4 @@ export interface StorageRpcError {
   message: string;
 }
 
-export const STORAGE_RPC_SCHEMA_SHA256 = "650d399547a218792188e9e20e047ea06d0f11ec004fb6bac3084f02ff9f9dea" as const
+export const STORAGE_RPC_SCHEMA_SHA256 = "beb1c08b8a3ea9760f28fe3ed4d6060607d288cc7fe72b375642fe0a392be927" as const

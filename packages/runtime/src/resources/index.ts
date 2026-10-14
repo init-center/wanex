@@ -43,6 +43,7 @@ export {
   validateCanonicalUserMessage,
   prepareProviderReplayResources,
   readExactResourceBytes,
+  prepareProviderImage,
   resourceInputModality
 } from "./input.js"
 export {

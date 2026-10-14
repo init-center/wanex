@@ -93,6 +93,7 @@ export const SURFACE_COMMANDS = {
   listModelEndpoints: "listModelEndpoints",
   readAssistantCommands: "readAssistantCommands",
   setActiveModelEndpoint: "setActiveModelEndpoint",
+  setImageUnderstandingEndpoint: "setImageUnderstandingEndpoint",
   dispatchAssistantCommand: "dispatchAssistantCommand",
   dispatchAssistantCommandJson: "dispatchAssistantCommandJson",
   previewAssistantCommandInvocation: "previewAssistantCommandInvocation",
@@ -209,6 +210,7 @@ export type SurfaceCommandInputKind =
   | "mode-selector"
   | "preferences-patch"
   | "model-endpoint-selector"
+  | "image-understanding-endpoint"
   | "assistant-command-request"
   | "assistant-command-invocation-preview"
   | "assistant-command-execution"

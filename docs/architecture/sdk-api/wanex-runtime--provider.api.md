@@ -14,6 +14,8 @@ export class AnthropicAdapter implements ProviderAdapter {
     // (undocumented)
     readonly model: ModelDescriptor;
     // (undocumented)
+    readonly outputModalities: readonly ["text"];
+    // (undocumented)
     readonly protocol: {
         readonly id: "anthropic-messages";
         readonly version: string;
@@ -53,12 +55,26 @@ export function canonicalJson(value: unknown): string;
 type CapabilityRouteSource = "configured" | "single_candidate";
 
 // @public (undocumented)
-export function consumeProviderStream(options: {
-    readonly provider: ProviderAdapter;
-    readonly request: ProviderRequest;
-    readonly observe?: (event: ProviderEvent) => void;
+interface ConsumeOptions {
+    // (undocumented)
     readonly checkpoint?: (event: ProviderEvent) => Promise<void>;
-}): Promise<ProviderTurnResult>;
+    // (undocumented)
+    readonly observe?: (event: ProviderObservedEvent) => void;
+    // (undocumented)
+    readonly provider: ProviderAdapter;
+    // (undocumented)
+    readonly request: ProviderRequest;
+}
+
+// @public (undocumented)
+export function consumeProviderStream(options: ConsumeOptions): Promise<ProviderResponseCandidate>;
+
+// @public
+export function consumeTextProviderStream(options: ConsumeOptions): Promise<Omit<ProviderTurnResult, "parts"> & {
+    readonly parts: readonly Exclude<ProviderOutputMessagePart, {
+        readonly type: "resource";
+    }>[];
+}>;
 
 // @public (undocumented)
 export function createModelCapabilityRouteExecutionBinding(options: {
@@ -77,6 +93,8 @@ export class FakeProviderAdapter implements ProviderAdapter {
     buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
     readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly outputModalities: readonly ["text"];
     // (undocumented)
     readonly protocol: {
         readonly id: "fake";
@@ -109,6 +127,39 @@ export function fakeToolCallPart(toolName: string): ToolCallMessagePart;
 export function findModelCapabilityRouteExecutionBinding(bindings: readonly ModelCapabilityRouteExecutionBinding[], requirement: ModelCapabilityRequirement): ModelCapabilityRouteExecutionBinding | undefined;
 
 // @public (undocumented)
+export class GeminiAdapter implements ProviderAdapter {
+    constructor(options: GeminiAdapterOptions);
+    // (undocumented)
+    buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly outputModalities: readonly ["text", "image"];
+    // (undocumented)
+    readonly protocol: {
+        readonly id: "gemini-generate-content";
+    };
+    // (undocumented)
+    readonly providerId: string;
+    // (undocumented)
+    stream(request: ProviderRequest): AsyncIterable<ProviderEvent>;
+}
+
+// @public (undocumented)
+export interface GeminiAdapterOptions {
+    // (undocumented)
+    readonly apiKey: string;
+    // (undocumented)
+    readonly baseUrl: string;
+    // (undocumented)
+    readonly fetch?: ProviderFetch;
+    // (undocumented)
+    readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly providerId: string;
+}
+
+// @public (undocumented)
 export function globalProviderFetch(input: string, init: Parameters<ProviderFetch>[1]): Promise<ProviderFetchResponse>;
 
 // @public (undocumented)
@@ -118,6 +169,14 @@ export function httpProviderError(options: {
     readonly modelId: string;
 }): Promise<ProviderErrorEvent>;
 
+// @public
+export const IMAGE_UNDERSTANDING_REQUIREMENT: {
+    readonly operation: "conversation";
+    readonly inputModalities: readonly ["text", "image"];
+    readonly outputModalities: readonly ["text"];
+    readonly features: readonly [];
+};
+
 // @public (undocumented)
 type JsonPrimitive = string | number | boolean | null;
 
@@ -125,6 +184,252 @@ type JsonPrimitive = string | number | boolean | null;
 type JsonValue = JsonPrimitive | {
     readonly [key: string]: JsonValue;
 } | readonly JsonValue[];
+
+// @public (undocumented)
+interface MediaGenerationAdapter {
+    // (undocumented)
+    cancel?(request: MediaGenerationAdapterRequest & {
+        readonly externalOperationId?: string;
+    }): Promise<void>;
+    // (undocumented)
+    canExecute(modelEndpoint: ModelEndpoint): boolean;
+    // (undocumented)
+    materialize?(reference: MediaGenerationProviderOutputReference, request: MediaGenerationAdapterRequest): Promise<MediaGenerationMaterializedOutput>;
+    // (undocumented)
+    poll(request: MediaGenerationAdapterRequest & {
+        readonly externalOperationId: string;
+        readonly providerCheckpoint?: JsonValue;
+    }): Promise<MediaGenerationPollResult>;
+    // (undocumented)
+    readonly protocolId: string;
+    // (undocumented)
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
+}
+
+// @public (undocumented)
+export class MediaGenerationAdapterRegistry {
+    constructor(adapters: readonly MediaGenerationAdapter[]);
+    // (undocumented)
+    requireExecutionBinding(binding: ModelEndpointExecutionBinding): MediaGenerationAdapter;
+    // (undocumented)
+    requireModelEndpoint(modelEndpoint: ModelEndpoint): MediaGenerationAdapter;
+    // (undocumented)
+    requireOperationBinding(binding: MediaGenerationOperationBinding): MediaGenerationAdapter;
+    // (undocumented)
+    get size(): number;
+    // (undocumented)
+    supports(modelEndpoint: ModelEndpoint): boolean;
+}
+
+// @public (undocumented)
+interface MediaGenerationAdapterRequest {
+    // (undocumented)
+    readonly binding: MediaGenerationOperationBinding;
+    // (undocumented)
+    readonly operationId: string;
+    // (undocumented)
+    readonly signal: AbortSignal;
+}
+
+// @public (undocumented)
+interface MediaGenerationBase64Output extends MediaGenerationProviderOutputBase {
+    // (undocumented)
+    readonly data: string;
+    // (undocumented)
+    readonly kindOfOutput: "base64";
+}
+
+// @public (undocumented)
+interface MediaGenerationInlineBytesOutput extends MediaGenerationProviderOutputBase {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly kindOfOutput: "inline_bytes";
+}
+
+// @public
+interface MediaGenerationInput {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
+}
+
+// @public (undocumented)
+interface MediaGenerationMaterializedOutput {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
+
+// @public (undocumented)
+interface MediaGenerationOperationBinding {
+    // (undocumented)
+    readonly connection: ModelEndpoint["connection"];
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly endpointId: string;
+    // (undocumented)
+    readonly model: ModelEndpoint["model"];
+    // (undocumented)
+    readonly protocol: ModelEndpoint["protocol"];
+    // (undocumented)
+    readonly request: MediaGenerationRequestBinding;
+    // (undocumented)
+    readonly requestDigest: string;
+}
+
+// @public (undocumented)
+type MediaGenerationOutputModality = Exclude<ModelOutputModality, "text">;
+
+// @public (undocumented)
+type MediaGenerationPollResult = {
+    readonly status: "pending";
+    readonly providerCheckpoint?: JsonValue;
+    readonly progress?: JsonValue;
+    readonly pollAfterMs?: number;
+} | {
+    readonly status: "completed";
+    readonly outputs: readonly MediaGenerationProviderOutput[];
+} | {
+    readonly status: "failed";
+    readonly error: JsonValue;
+};
+
+// @public (undocumented)
+interface MediaGenerationProviderFileOutput extends MediaGenerationProviderOutputBase {
+    // (undocumented)
+    readonly fileId: string;
+    // (undocumented)
+    readonly kindOfOutput: "provider_file";
+    // (undocumented)
+    readonly provider: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationProviderFileReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly fileId: string;
+    // (undocumented)
+    readonly kindOfReference: "provider_file";
+    // (undocumented)
+    readonly provider: string;
+}
+
+// @public (undocumented)
+type MediaGenerationProviderOutput = MediaGenerationInlineBytesOutput | MediaGenerationBase64Output | MediaGenerationProviderFileOutput | MediaGenerationRemoteUrlOutput;
+
+// @public (undocumented)
+interface MediaGenerationProviderOutputBase {
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+type MediaGenerationProviderOutputReference = MediaGenerationProviderFileReference | MediaGenerationRemoteUrlReference;
+
+// @public (undocumented)
+interface MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly durationMs?: number;
+    // (undocumented)
+    readonly height?: number;
+    // (undocumented)
+    readonly kind?: ResourceKind;
+    // (undocumented)
+    readonly label?: string;
+    // (undocumented)
+    readonly mediaType?: string;
+    // (undocumented)
+    readonly metadata?: JsonValue;
+    // (undocumented)
+    readonly width?: number;
+}
+
+// @public (undocumented)
+interface MediaGenerationRemoteUrlOutput extends MediaGenerationProviderOutputBase {
+    // (undocumented)
+    readonly expiresAt?: number;
+    // (undocumented)
+    readonly kindOfOutput: "remote_url";
+    // (undocumented)
+    readonly provider?: string;
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationRemoteUrlReference extends MediaGenerationProviderOutputReferenceBase {
+    // (undocumented)
+    readonly expiresAt?: number;
+    // (undocumented)
+    readonly kindOfReference: "remote_url";
+    // (undocumented)
+    readonly url: string;
+}
+
+// @public (undocumented)
+interface MediaGenerationRequestBinding {
+    // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly operation: MediaGenerationOperation;
+    // (undocumented)
+    readonly options: JsonValue;
+    // (undocumented)
+    readonly outputModality: MediaGenerationOutputModality;
+    // (undocumented)
+    readonly prompt: string;
+}
+
+// @public
+interface MediaGenerationSubmitRequest extends MediaGenerationAdapterRequest {
+    // (undocumented)
+    readonly inputs: readonly MediaGenerationInput[];
+}
+
+// @public (undocumented)
+type MediaGenerationSubmitResult = {
+    readonly status: "rejected";
+    readonly error: JsonValue;
+} | {
+    readonly status: "accepted";
+    readonly externalOperationId: string;
+    readonly providerCheckpoint?: JsonValue;
+    readonly pollAfterMs?: number;
+} | {
+    readonly status: "completed";
+    readonly outputs: readonly MediaGenerationProviderOutput[];
+};
 
 // @public (undocumented)
 type MessagePart = TextMessagePart | ReasoningMessagePart | ToolCallMessagePart | ToolResultMessagePart | ResourceMessagePart;
@@ -199,6 +504,8 @@ interface ModelDescriptor {
     readonly catalog: ModelCatalogProvenance;
     // (undocumented)
     readonly features: readonly ModelFeature[];
+    // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
     // (undocumented)
     readonly id: string;
     // (undocumented)
@@ -288,7 +595,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -305,8 +632,8 @@ export function normalizeModelCapabilityRouteExecutionBinding(binding: ModelCapa
 // @public (undocumented)
 export function normalizeModelCapabilityRouteExecutionBindings(bindings: readonly ModelCapabilityRouteExecutionBinding[]): readonly ModelCapabilityRouteExecutionBinding[];
 
-// @public (undocumented)
-export function normalizeModelDescriptor(descriptor: ModelDescriptor): ModelDescriptor;
+// @public
+export function normalizeModelDescriptor(value: unknown): ModelDescriptor;
 
 // @public (undocumented)
 export function normalizeModelEndpoint(endpoint: ModelEndpoint): ModelEndpoint;
@@ -318,6 +645,8 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
     buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
     readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly outputModalities: readonly ["text"];
     // (undocumented)
     readonly protocol: {
         readonly id: "openai-chat-completions";
@@ -349,6 +678,8 @@ export interface PreparedProviderReplayMessage {
     // (undocumented)
     readonly content: readonly PreparedProviderReplayPart[];
     // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
+    // (undocumented)
     readonly role: ProviderReplayMessage["role"];
 }
 
@@ -359,6 +690,8 @@ export type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePar
 export interface PreparedProviderResourcePart extends ResourceMessagePart {
     // (undocumented)
     readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -374,6 +707,27 @@ export interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePa
 export interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
     // (undocumented)
     readonly bytes?: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
+}
+
+// @public (undocumented)
+export function prepareMediaGenerationOperationBinding(request: PrepareMediaGenerationOperationBindingRequest): MediaGenerationOperationBinding;
+
+// @public (undocumented)
+export interface PrepareMediaGenerationOperationBindingRequest {
+    // (undocumented)
+    readonly inputResources?: readonly ResourceInputEvidence[];
+    // (undocumented)
+    readonly modelEndpoint: ModelEndpointExecutionBinding;
+    // (undocumented)
+    readonly operation: MediaGenerationOperation;
+    // (undocumented)
+    readonly options?: JsonValue;
+    // (undocumented)
+    readonly outputModality: MediaGenerationOutputModality;
+    // (undocumented)
+    readonly prompt: string;
 }
 
 // @public (undocumented)
@@ -392,6 +746,8 @@ export interface ProviderAdapter {
     buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
     readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
     // (undocumented)
     readonly protocol: ProviderProtocolDescriptor;
     // (undocumented)
@@ -454,7 +810,7 @@ export function providerErrorEvent(options: {
 }): ProviderErrorEvent;
 
 // @public (undocumented)
-export type ProviderEvent = ProviderTextDeltaEvent | ProviderReasoningDeltaEvent | ProviderToolCallStartEvent | ProviderToolCallDeltaEvent | ProviderToolCallEndEvent | ProviderStateEvent | ProviderUsageEvent | ProviderFinishEvent | ProviderErrorEvent;
+export type ProviderEvent = ProviderTextDeltaEvent | ProviderImageOutputEvent | ProviderReasoningDeltaEvent | ProviderToolCallStartEvent | ProviderToolCallDeltaEvent | ProviderToolCallEndEvent | ProviderStateEvent | ProviderUsageEvent | ProviderFinishEvent | ProviderErrorEvent;
 
 // @public (undocumented)
 export type ProviderEventObserver = (event: ProviderRunEvent) => void;
@@ -502,8 +858,40 @@ export interface ProviderFinishEvent {
 export function providerFromModelEndpoint(endpoint: ModelEndpoint, secretResolver?: SecretResolverPort): Promise<ProviderAdapter>;
 
 // @public (undocumented)
+export interface ProviderImageCandidate {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    readonly mimeType: string;
+    // (undocumented)
+    readonly type: "image_candidate";
+}
+
+// @public
+export interface ProviderImageOutputEvent {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly mimeType: string;
+    // (undocumented)
+    readonly partId: string;
+    // (undocumented)
+    readonly type: "image_output";
+}
+
+// @public (undocumented)
+export type ProviderObservedEvent = Exclude<ProviderEvent, ProviderImageOutputEvent | ProviderStateEvent> | {
+    readonly type: "image_output";
+    readonly partId: string;
+    readonly mimeType: string;
+    readonly sizeBytes: number;
+};
+
+// @public (undocumented)
 export type ProviderOutputMessagePart = Extract<MessagePart, {
-    readonly type: "text" | "reasoning" | "tool_call";
+    readonly type: "text" | "reasoning" | "tool_call" | "resource";
 }>;
 
 // @public (undocumented)
@@ -531,6 +919,8 @@ export interface ProviderReplayMessage {
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
+    // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
 }
 
@@ -540,6 +930,8 @@ export interface ProviderRequest {
     readonly maxOutputTokens?: number;
     // (undocumented)
     readonly messages: readonly PreparedProviderReplayMessage[];
+    // (undocumented)
+    readonly outputModalities?: readonly ModelOutputModality[];
     // (undocumented)
     readonly parallelToolCalls?: boolean;
     // (undocumented)
@@ -551,11 +943,17 @@ export interface ProviderRequest {
 }
 
 // @public (undocumented)
+export interface ProviderResponseCandidate extends Omit<ProviderTurnResult, "parts"> {
+    // (undocumented)
+    readonly parts: readonly (Exclude<ProviderOutputMessagePart, ResourceMessagePart> | ProviderImageCandidate)[];
+}
+
+// @public (undocumented)
 export interface ProviderRunEvent {
     // (undocumented)
     readonly attemptId: string;
     // (undocumented)
-    readonly event: ProviderEvent;
+    readonly event: ProviderObservedEvent;
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -768,6 +1166,13 @@ interface ResourceInputEvidence {
 // @public (undocumented)
 type ResourceKind = "file" | "image" | "video" | "audio" | "document" | "artifact" | "log" | "patch" | "url";
 
+// @public
+export function resourceLabel(part: {
+    readonly resourceId: string;
+    readonly kind: string;
+    readonly originalResource?: ResourceInputEvidence;
+}): string;
+
 // @public (undocumented)
 interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
     // (undocumented)
@@ -876,7 +1281,9 @@ interface ToolResultResourceContentPart extends ResourceInputEvidence {
 }
 
 // @public (undocumented)
-export function toolResultResourceDescriptor(part: ToolResultResourceContentPart): {
+export function toolResultResourceDescriptor(prepared: ToolResultResourceContentPart & {
+    readonly originalResource?: ResourceInputEvidence;
+}): {
     sizeBytes: number;
     sha256: string;
     mediaType?: string;

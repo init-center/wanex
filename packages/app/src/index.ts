@@ -186,6 +186,7 @@ export type {
   WanexAppSessionTranscriptToolCallPart,
   WanexAppSessionTranscriptToolResultPart,
   WanexAppSetActiveModelEndpointRequest,
+  WanexAppSetImageUnderstandingEndpointRequest,
   WanexAppShutdownResult,
   WanexAppSideQueryWorkflowEnvelope,
   WanexAppStatus,

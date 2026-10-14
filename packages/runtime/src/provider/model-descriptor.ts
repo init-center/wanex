@@ -1,19 +1,17 @@
 import type {
-  ModelBehavior,
   ModelCapabilityRequirement,
-  ModelCatalogProvenance,
   ModelDescriptor,
   ModelFeature,
   ModelInputModality,
-  ModelLimits,
   ModelOperation,
   ModelOutputModality
 } from "@wanex/protocol"
+import { normalizeModelDescriptor } from "@wanex/protocol"
+export { normalizeModelDescriptor } from "@wanex/protocol"
 
 const OPERATION_ORDER: readonly ModelOperation[] = [
   "conversation",
   "image.generate",
-  "image.edit",
   "video.generate",
   "audio.transcribe",
   "audio.synthesize"
@@ -51,52 +49,6 @@ export function fakeModelDescriptor(modelId = "fake-model"): ModelDescriptor {
       revision: "1"
     }
   })
-}
-
-export function normalizeModelDescriptor(
-  descriptor: ModelDescriptor
-): ModelDescriptor {
-  const id = requireNonEmpty(descriptor.id, "model descriptor id")
-  const operations = normalizeValues(
-    descriptor.operations,
-    OPERATION_ORDER,
-    "model operation"
-  )
-  const inputModalities = normalizeValues(
-    descriptor.inputModalities,
-    INPUT_ORDER,
-    "model input modality"
-  )
-  const outputModalities = normalizeValues(
-    descriptor.outputModalities,
-    OUTPUT_ORDER,
-    "model output modality"
-  )
-  const features = normalizeValues(
-    descriptor.features,
-    FEATURE_ORDER,
-    "model feature",
-    true
-  )
-  if (
-    features.includes("parallel_tool_calls") &&
-    !features.includes("tool_calling")
-  ) {
-    throw new Error("parallel_tool_calls requires tool_calling")
-  }
-  const behavior = normalizeBehavior(descriptor.behavior, features)
-  const limits = normalizeLimits(descriptor.limits)
-  const catalog = normalizeCatalog(descriptor.catalog)
-  return {
-    id,
-    operations,
-    inputModalities,
-    outputModalities,
-    features,
-    ...(limits === undefined ? {} : { limits }),
-    ...(behavior === undefined ? {} : { behavior }),
-    catalog
-  }
 }
 
 export function normalizeModelCapabilityRequirement(
@@ -215,68 +167,10 @@ function supportedModalitiesForProtocol(protocolId: string): {
       return { input: ["text", "image"], output: ["text"] }
     case "anthropic-messages":
       return { input: ["text", "image", "document"], output: ["text"] }
+    case "gemini-generate-content":
+      return { input: ["text", "image"], output: ["text", "image"] }
     default:
       throw new Error(`unsupported conversation provider protocol: ${protocolId}`)
-  }
-}
-
-function normalizeBehavior(
-  behavior: ModelBehavior | undefined,
-  features: readonly ModelFeature[]
-): ModelBehavior | undefined {
-  if (behavior?.reasoningReplay === undefined) {
-    return undefined
-  }
-  if (
-    behavior.reasoningReplay !== "optional" &&
-    behavior.reasoningReplay !== "required" &&
-    behavior.reasoningReplay !== "forbidden"
-  ) {
-    throw new Error(`invalid reasoning replay behavior: ${String(behavior.reasoningReplay)}`)
-  }
-  if (!features.includes("reasoning")) {
-    throw new Error("reasoning replay behavior requires the reasoning feature")
-  }
-  return { reasoningReplay: behavior.reasoningReplay }
-}
-
-function normalizeLimits(limits: ModelLimits | undefined): ModelLimits | undefined {
-  if (limits === undefined) {
-    return undefined
-  }
-  const normalized = {
-    ...positiveLimit(limits.contextWindowTokens, "contextWindowTokens"),
-    ...positiveLimit(limits.maxInputTokens, "maxInputTokens"),
-    ...positiveLimit(limits.maxOutputTokens, "maxOutputTokens"),
-    ...positiveLimit(limits.maxInputResources, "maxInputResources")
-  }
-  return Object.keys(normalized).length === 0 ? undefined : normalized
-}
-
-function positiveLimit(value: number | undefined, name: keyof ModelLimits) {
-  if (value === undefined) {
-    return {}
-  }
-  if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new Error(`model limit ${name} must be a positive safe integer`)
-  }
-  return { [name]: value }
-}
-
-function normalizeCatalog(
-  catalog: ModelCatalogProvenance
-): ModelCatalogProvenance {
-  if (
-    catalog.source !== "builtin" &&
-    catalog.source !== "provider" &&
-    catalog.source !== "custom"
-  ) {
-    throw new Error(`invalid model catalog source: ${String(catalog.source)}`)
-  }
-  return {
-    source: catalog.source,
-    catalogId: requireNonEmpty(catalog.catalogId, "model catalog id"),
-    revision: requireNonEmpty(catalog.revision, "model catalog revision")
   }
 }
 
@@ -314,11 +208,4 @@ function assertSubset<T extends string>(
   if (unsupported !== undefined) {
     throw new Error(`${label} modality is not supported by this adapter: ${unsupported}`)
   }
-}
-
-function requireNonEmpty(value: string, label: string): string {
-  if (typeof value !== "string" || value.trim().length === 0) {
-    throw new Error(`${label} must not be empty`)
-  }
-  return value.trim()
 }

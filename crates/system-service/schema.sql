@@ -261,6 +261,9 @@ CREATE TABLE IF NOT EXISTS provider_invocation (
   invocation_number INTEGER NOT NULL,
   execution_binding_digest TEXT NOT NULL,
   request_digest TEXT NOT NULL,
+  input_resources_json TEXT NOT NULL,
+  response_checkpoint_json TEXT,
+  response_digest TEXT,
   state TEXT NOT NULL,
   output_observed INTEGER NOT NULL,
   provider_request_id TEXT,
@@ -276,8 +279,8 @@ CREATE INDEX IF NOT EXISTS idx_provider_invocation_turn
   ON provider_invocation(turn_id, step, invocation_number, id);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_provider_invocation_active_attempt
-  ON provider_invocation(attempt_id)
-  WHERE state IN ('dispatched', 'output_observed');
+  ON provider_invocation(turn_id)
+  WHERE state IN ('dispatched', 'output_observed', 'output_ready');
 
 CREATE TABLE IF NOT EXISTS tool_execution (
   id TEXT PRIMARY KEY,
@@ -1371,4 +1374,4 @@ CREATE INDEX IF NOT EXISTS idx_media_generation_state_updated
   ON media_generation_operation(state, updated_at);
 
 INSERT INTO schema_metadata (version, name, applied_at)
-  VALUES (22, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);
+  VALUES (26, 'baseline', CAST(strftime('%s', 'now') AS INTEGER) * 1000);

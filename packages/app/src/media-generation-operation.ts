@@ -151,12 +151,6 @@ export class WanexAppMediaGenerationOperationController {
       }
       inputModalities.add(resourceInputModality(resource))
     }
-    if (
-      request.operation === "image.edit" &&
-      !inputModalities.has("image")
-    ) {
-      throw new Error("image.edit requires an image input resource")
-    }
     return {
       operation: request.operation,
       inputModalities: [...inputModalities],

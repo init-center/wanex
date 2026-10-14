@@ -33,7 +33,7 @@ describe("resource-bearing provider input", () => {
       storeDir,
       serviceBin
     })
-    const imageBytes = Uint8Array.from([137, 80, 78, 71, 1, 2, 3])
+    const imageBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64")
     const resource = await storage.ingestResource({
       content: imageBytes,
       mediaType: "image/png",
@@ -75,7 +75,7 @@ describe("resource-bearing provider input", () => {
           mediaType: "image/png"
         }
       ])
-      expect(provider.resourceBytes).toEqual(imageBytes)
+      expect(provider.resourceBytes).toEqual(new Uint8Array(imageBytes))
       expect(result.messages[0]?.content).toEqual([
         { type: "text", id: "user_text_0", text: "describe this image" },
         {
@@ -110,6 +110,7 @@ describe("resource-bearing provider input", () => {
           role: "user",
           content: [
             { type: "text", text: "inspect" },
+            { type: "text", text: "[image res_image]" },
             {
               type: "image_url",
               image_url: { url: "data:image/png;base64,AQID" }
@@ -214,7 +215,7 @@ describe("resource-bearing provider input", () => {
       if (run.worker.status !== "failed") {
         throw new Error("expected changed resource bytes to fail the turn")
       }
-      expect(run.worker.error.message).toContain("resource bytes changed")
+      expect(run.worker.error.message).toContain("image content hash changed")
       expect(provider.resourceBytes).toBeUndefined()
     } finally {
       await runtime.stop()
@@ -276,6 +277,7 @@ describe("resource-bearing provider input", () => {
         role: "user",
         content: [
           { type: "text", text: "inspect" },
+          { type: "text", text: "[image res_image]" },
           {
             type: "image",
             source: {
@@ -290,6 +292,7 @@ describe("resource-bearing provider input", () => {
         role: "user",
         content: [
           { type: "text", text: "inspect" },
+          { type: "text", text: "[document res_document]" },
           {
             type: "document",
             source: {
@@ -334,6 +337,7 @@ describe("resource-bearing provider input", () => {
 })
 
 class ResourceRecordingProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "openai-chat-completions" } as const
   readonly providerId = "recording-openai"
   readonly model = testConversationModel("recording-vision", {

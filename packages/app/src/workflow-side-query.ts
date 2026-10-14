@@ -1,5 +1,6 @@
 import type { MessagePart, TextMessagePart } from "@wanex/protocol"
 import type { BootstrappedWanexAppRuntime } from "./runtime.js"
+import { resolveWanexAppImageUnderstandingRoute } from "./image-understanding.js"
 import type {
   WanexAppAskSideQueryRequest,
   WanexAppAskSideQueryResult
@@ -18,9 +19,14 @@ export async function askWanexAppSideQuery(
   const question = normalizeQuestion(options.request.question)
   const sourceRef =
     normalizeOptionalRef(options.request.sourceRef) ?? defaultSideQuerySourceRef
+  const imageUnderstandingRoute =
+    await resolveWanexAppImageUnderstandingRoute({ storage: runtime.storage })
   const host = runtime.app.createRuntimeHost({
     workerCount: 1,
-    modelEndpointId: options.modelEndpointId
+    modelEndpointId: options.modelEndpointId,
+    ...(imageUnderstandingRoute === undefined
+      ? {}
+      : { agentContext: { capabilityRoutes: [imageUnderstandingRoute] } })
   })
 
   try {

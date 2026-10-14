@@ -1,4 +1,4 @@
-import { buildSupportBundle as buildColdSupportBundle } from "./diagnostics/index.js";
+import { buildSupportBundle as buildColdSupportBundle } from "./diagnostics/support-bundle.js";
 import { resolveRuntimeHostDiagnostics } from "@wanex/runtime/host";
 import {
   projectWanexAppRecentSessionsReadModel,

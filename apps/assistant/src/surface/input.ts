@@ -9,6 +9,7 @@ export {
   parseSurfaceMode,
   parseSurfacePreferencesPatch,
   parseSurfaceModelEndpointSelector,
+  parseSurfaceImageUnderstandingEndpoint,
   parseSurfaceAssistantCommandRequest,
   parseSurfaceCommandInvocationPreviewRequest,
   parseSurfaceCommandExecutionRequest,

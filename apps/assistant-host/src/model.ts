@@ -7,6 +7,7 @@ import type {
   ModelEndpointListReadModel,
   ProviderPresetId,
   ProviderSetupInput,
+  MediaProviderSetupInput,
   ProviderReadinessReadModel,
   SelectSessionRequest,
   SetLayoutRequest,
@@ -79,7 +80,6 @@ export type LocalModelEndpointOptions = ModelEndpoint;
 
 export type LocalModelCapabilityOperation =
   | "image.generate"
-  | "image.edit"
   | "video.generate"
   | "audio.transcribe"
   | "audio.synthesize";
@@ -220,6 +220,7 @@ export interface AssistantWebApp {
   readonly modelEndpoints: ModelEndpointCommands;
   readonly mcpSettings: LocalMcpSettingsPort;
   readonly providers: LocalProviderCommands;
+  readonly mediaProviders: LocalMediaProviderCommands;
   readonly modelCatalog: LocalModelCatalogCommands;
   readonly capabilitySetup: LocalCapabilitySetupCommands;
   readonly settings: LocalSettingsCommands;
@@ -309,6 +310,22 @@ export interface LocalProviderCommands {
   removeProvider(
     request: LocalRemoveProviderRequest,
   ): Promise<LocalRemoveProviderResult>;
+}
+
+export interface LocalMediaProviderCommands {
+  listProviders(): Promise<LocalConfiguredProviderListReadModel>;
+  saveMediaProvider(
+    request: MediaProviderSetupInput,
+  ): Promise<LocalSaveProviderResult>;
+  removeProvider(
+    request: LocalRemoveProviderRequest,
+  ): Promise<LocalRemoveProviderResult>;
+  readImageGenerationRoute(): ReturnType<
+    Shell["modelCapabilities"]["readModelCapabilityReadiness"]
+  >;
+  selectImageGenerationEndpoint(request: {
+    readonly modelEndpointId: string;
+  }): ReturnType<Shell["modelCapabilities"]["setModelCapabilityRoute"]>;
 }
 
 export interface LocalConfigureImageGenerationCapabilityRequest {

@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto"
+import {
+  normalizeModelDescriptor,
+  MODEL_OPERATIONS,
+  MODEL_INPUT_MODALITIES,
+  MODEL_OUTPUT_MODALITIES,
+  MODEL_FEATURES
+} from "@wanex/protocol"
 import type {
   JsonValue,
   ModelCapabilityRequirement,
   ModelDescriptor,
   ModelEndpointExecutionBinding,
-  ModelFeature,
-  ModelInputModality,
-  ModelOperation,
-  ModelOutputModality,
   ResourceInputEvidence
 } from "@wanex/protocol"
 import {
@@ -16,40 +19,9 @@ import {
   expectResourceKind,
   expectString,
   isRecord,
-  optionalNumber,
   optionalString,
   withOptionalFields
 } from "./codec-helpers.js"
-
-const MODEL_OPERATIONS = [
-  "conversation",
-  "image.generate",
-  "image.edit",
-  "video.generate",
-  "audio.transcribe",
-  "audio.synthesize"
-] as const satisfies readonly ModelOperation[]
-
-const MODEL_INPUT_MODALITIES = [
-  "text",
-  "image",
-  "audio",
-  "video",
-  "document"
-] as const satisfies readonly ModelInputModality[]
-
-const MODEL_OUTPUT_MODALITIES = [
-  "text",
-  "image",
-  "audio",
-  "video"
-] as const satisfies readonly ModelOutputModality[]
-
-const MODEL_FEATURES = [
-  "tool_calling",
-  "parallel_tool_calls",
-  "reasoning"
-] as const satisfies readonly ModelFeature[]
 
 export function readModelEndpointExecutionBinding(
   value: JsonValue | undefined,
@@ -240,147 +212,14 @@ export function requireAllowedKeys(
     throw new Error(`${label} contains missing or unknown fields`)
   }
 }
-
-function readModelDescriptor(
-  value: JsonValue | undefined,
-  label: string
-): ModelDescriptor {
-  if (!isRecord(value)) {
-    throw new Error(`${label} must be an object`)
+function readModelDescriptor(value: JsonValue | undefined, label: string): ModelDescriptor {
+  const model = normalizeModelDescriptor(value)
+  if (stableJson(model) !== stableJson(value)) {
+    throw new Error(`${label} must use canonical model descriptor values and order`)
   }
-  requireAllowedKeys(
-    value,
-    [
-      "id",
-      "operations",
-      "inputModalities",
-      "outputModalities",
-      "features",
-      "limits",
-      "behavior",
-      "catalog"
-    ],
-    6,
-    label
-  )
-  const catalog = value.catalog
-  if (!isRecord(catalog)) {
-    throw new Error(`${label}.catalog must be an object`)
-  }
-  requireExactKeys(catalog, ["source", "catalogId", "revision"], `${label}.catalog`)
-  const source = expectString(catalog.source, `${label}.catalog.source`)
-  if (source !== "builtin" && source !== "provider" && source !== "custom") {
-    throw new Error(`invalid model catalog source: ${source}`)
-  }
-  const limits = value.limits
-  const behavior = value.behavior
-  if (limits !== undefined && !isRecord(limits)) {
-    throw new Error(`${label}.limits must be an object`)
-  }
-  if (behavior !== undefined && !isRecord(behavior)) {
-    throw new Error(`${label}.behavior must be an object`)
-  }
-  if (limits !== undefined) {
-    requireAllowedKeys(
-      limits,
-      [
-        "contextWindowTokens",
-        "maxInputTokens",
-        "maxOutputTokens",
-        "maxInputResources"
-      ],
-      0,
-      `${label}.limits`
-    )
-  }
-  if (behavior !== undefined) {
-    requireAllowedKeys(behavior, ["reasoningReplay"], 0, `${label}.behavior`)
-  }
-  const features = readValues(
-    value.features,
-    MODEL_FEATURES,
-    `${label}.features`,
-    true,
-    true
-  )
-  if (
-    features.includes("parallel_tool_calls") &&
-    !features.includes("tool_calling")
-  ) {
-    throw new Error("parallel_tool_calls requires tool_calling")
-  }
-  const reasoningReplay =
-    behavior === undefined
-      ? undefined
-      : optionalString(behavior.reasoningReplay, `${label}.behavior.reasoningReplay`)
-  if (
-    reasoningReplay !== undefined &&
-    reasoningReplay !== "optional" &&
-    reasoningReplay !== "required" &&
-    reasoningReplay !== "forbidden"
-  ) {
-    throw new Error(`invalid model reasoning replay behavior: ${reasoningReplay}`)
-  }
-  if (reasoningReplay !== undefined && !features.includes("reasoning")) {
-    throw new Error("model reasoning replay behavior requires reasoning")
-  }
-  const readLimit = (key: string): number | undefined => {
-    if (limits === undefined) return undefined
-    const result = optionalNumber(limits[key], `${label}.limits.${key}`)
-    if (result !== undefined && (!Number.isSafeInteger(result) || result <= 0)) {
-      throw new Error(`${label}.limits.${key} must be a positive safe integer`)
-    }
-    return result
-  }
-  return withOptionalFields(
-    {
-      id: expectNonEmptyString(value.id, `${label}.id`),
-      operations: readValues(
-        value.operations,
-        MODEL_OPERATIONS,
-        `${label}.operations`,
-        false,
-        true
-      ),
-      inputModalities: readValues(
-        value.inputModalities,
-        MODEL_INPUT_MODALITIES,
-        `${label}.inputModalities`,
-        false,
-        true
-      ),
-      outputModalities: readValues(
-        value.outputModalities,
-        MODEL_OUTPUT_MODALITIES,
-        `${label}.outputModalities`,
-        false,
-        true
-      ),
-      features,
-      catalog: {
-        source,
-        catalogId: expectNonEmptyString(catalog.catalogId, `${label}.catalog.catalogId`),
-        revision: expectNonEmptyString(catalog.revision, `${label}.catalog.revision`)
-      }
-    },
-    {
-      limits:
-        limits === undefined
-          ? undefined
-          : withOptionalFields(
-              {},
-              {
-                contextWindowTokens: readLimit("contextWindowTokens"),
-                maxInputTokens: readLimit("maxInputTokens"),
-                maxOutputTokens: readLimit("maxOutputTokens"),
-                maxInputResources: readLimit("maxInputResources")
-              }
-            ),
-      behavior:
-        reasoningReplay === undefined ? undefined : { reasoningReplay }
-    }
-  )
+  return model
 }
+
 
 function readValues<T extends string>(
   value: JsonValue | undefined,

@@ -3,7 +3,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises"
 import { dirname, join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
 import { build, version as esbuildVersion } from "esbuild"
-import { findFacadeFootprintViolations } from "./audit/facade-footprint/facade-footprint-policy.mjs"
+import { evaluateFacadeFootprint, refreshFacadeMeasurements } from "./audit/facade-footprint/facade-footprint-policy.mjs"
 
 const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const baselinePath = join(rootDir, "docs/architecture/facade-footprint-baseline.json")
@@ -14,6 +14,10 @@ const entries = {
   runtime: "packages/runtime/src/index.ts",
   app: "packages/app/src/index.ts"
 }
+const buildOptions = {
+  bundle: true, format: "esm", platform: "node", target: "node24",
+  treeShaking: true, minify: false, sourcemap: false, legalComments: "none"
+}
 
 const workspacePackages = await readWorkspacePackagePaths(rootDir)
 const facades = {}
@@ -21,47 +25,16 @@ for (const [name, entry] of Object.entries(entries)) {
   facades[name] = await measureFacade({ entry, workspacePackages })
 }
 
-const report = { esbuildVersion, facades }
+const report = { esbuildVersion, buildOptions, facades }
+let baseline = JSON.parse(await readFile(baselinePath, "utf8"))
 if (writeBaseline) {
-  const baseline = {
-    schemaVersion: 1,
-    esbuildVersion,
-    buildOptions: {
-      bundle: true,
-      format: "esm",
-      platform: "node",
-      target: "node24",
-      treeShaking: true,
-      minify: false,
-      sourcemap: false
-    },
-    forbiddenWorkspacePackages: [
-      "@wanex/connector",
-      "@wanex/plugin",
-      "@wanex/team",
-      "@wanex/workspace",
-      "@wanex/assistant",
-      "@wanex/assistant-plugin-host",
-      "@wanex/assistant-host",
-      "@wanex/tui",
-      "@wanex/assistant-ui"
-    ],
-    facades: Object.fromEntries(Object.entries(facades).map(([name, facade]) => [
-      name,
-      {
-        entry: facade.entry,
-        maxOutputBytes: facade.outputBytes,
-        maxInputCount: facade.inputCount,
-        allowedWorkspacePackages: facade.workspacePackages
-      }
-    ]))
-  }
+  baseline = refreshFacadeMeasurements({ report, baseline })
   await writeFile(baselinePath, `${JSON.stringify(baseline, null, 2)}\n`, "utf8")
 }
 
-const baseline = JSON.parse(await readFile(baselinePath, "utf8"))
-const failures = findFacadeFootprintViolations({ report, baseline })
-const output = { ...report, failures }
+const evaluation = evaluateFacadeFootprint({ report, baseline })
+const { failures, notices, comparison } = evaluation
+const output = { ...report, ...evaluation }
 
 if (json) {
   console.log(JSON.stringify(output, null, 2))
@@ -69,13 +42,22 @@ if (json) {
   console.log("Wanex Facade Static Footprint Audit")
   console.log("")
   console.log(`esbuild: ${esbuildVersion}`)
+  for (const notice of notices) console.log(`Notice: ${notice.message}`)
   for (const [name, facade] of Object.entries(facades)) {
-    console.log(`${name}: ${facade.outputBytes} bytes, ${facade.inputCount} inputs, ${facade.workspacePackages.length} workspace packages`)
+    const change = comparison.changes[name]
+    const delta = comparison.comparable && change !== undefined
+      ? `; delta ${signed(change.outputBytesDelta)} bytes, ${signed(change.inputCountDelta)} inputs`
+      : "; delta unavailable"
+    console.log(`${name}: ${facade.outputBytes} bytes, ${facade.inputCount} inputs, ${facade.workspacePackages.length} workspace packages${delta}`)
   }
   console.log(`Failures: ${failures.length}`)
   for (const failure of failures) {
     console.log(`- [${failure.code}] ${failure.facade}: ${failure.message}`)
   }
+}
+
+function signed(value) {
+  return value >= 0 ? `+${value}` : String(value)
 }
 
 if (enforce && failures.length > 0) {
@@ -86,14 +68,7 @@ async function measureFacade({ entry, workspacePackages }) {
   const result = await build({
     absWorkingDir: rootDir,
     entryPoints: [entry],
-    bundle: true,
-    format: "esm",
-    platform: "node",
-    target: "node24",
-    treeShaking: true,
-    minify: false,
-    sourcemap: false,
-    legalComments: "none",
+    ...buildOptions,
     metafile: true,
     write: false,
     logLevel: "silent"

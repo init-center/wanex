@@ -96,7 +96,17 @@ export async function runWanexDesktopRemoteMediaProof(
       const value = read();
       if (value !== undefined) return value;
       if (performance.now() >= deadline) {
-        throw new Error(`Remote media proof timed out: ${label}`);
+        const shell = document.querySelector('[data-ui-assistant-location="server"] [data-ui-assistant-shell]');
+        const form = shell?.querySelector("[data-ui-composer]");
+        const send = form?.querySelector('button[type="submit"]');
+        throw new Error(`Remote media proof timed out: ${label}; state=${JSON.stringify({
+          conversation: shell?.getAttribute("data-ui-conversation-state") ?? "missing",
+          mode: form?.getAttribute("data-ui-composer-mode") ?? "missing",
+          sendDisabled: !(send instanceof HTMLButtonElement) || send.disabled,
+          userRows: shell?.querySelectorAll('[data-ui-conversation-row][data-ui-role="user"]').length ?? 0,
+          assistantRows: shell?.querySelectorAll('[data-ui-conversation-row][data-ui-role="assistant"]').length ?? 0,
+          transient: shell?.querySelector("[data-ui-transient-assistant]") != null,
+        })}`);
       }
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
@@ -196,8 +206,15 @@ export async function runWanexDesktopRemoteMediaProof(
       [...shell.querySelectorAll('[data-ui-conversation-row][data-ui-role="assistant"]')]
         .map((row) => row.getAttribute("data-ui-conversation-row") ?? ""),
     );
-    const composer = await waitFor(() => activeComposer(shell), 10_000, "composer");
+    const composer = await waitFor(() => {
+      const state = shell.getAttribute("data-ui-conversation-state");
+      const mode = shell.querySelector("[data-ui-composer]")?.getAttribute("data-ui-composer-mode");
+      return (state === "idle" || state === "succeeded") && mode === "submit"
+        ? activeComposer(shell)
+        : undefined;
+    }, 10_000, "settled submit composer");
     setInput(composer.textarea, text);
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     const send = await waitFor(() => {
       const current = activeComposer(shell)?.send;
       return current !== undefined && !current.disabled ? current : undefined;
@@ -218,7 +235,9 @@ export async function runWanexDesktopRemoteMediaProof(
         !initialAssistantIds.has(row.getAttribute("data-ui-conversation-row") ?? "") &&
         row.textContent?.includes(response)
       );
-      return sessionId.length > 0 && user !== undefined && assistant !== undefined
+      return sessionId.length > 0 && user !== undefined && assistant !== undefined &&
+        shell.getAttribute("data-ui-conversation-state") === "succeeded" &&
+        shell.querySelector("[data-ui-transient-assistant]") === null
         ? { sessionId }
         : undefined;
     }, 30_000, `response for ${text}`);

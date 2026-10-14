@@ -11,6 +11,7 @@ import { RuntimeStore } from '@wanex/storage';
 import { SchedulerStore } from '@wanex/storage';
 import { ServerResponse } from 'node:http';
 import { ToolExecutionStore } from '@wanex/storage';
+import * as _wanex_storage from '@wanex/storage';
 
 // @public (undocumented)
 type ActiveAbortKind = "cancel" | "interrupt" | "lease_lost" | "timeout" | "host_shutdown";
@@ -21,6 +22,28 @@ interface ActiveAbortReason {
     readonly kind: ActiveAbortKind;
     // (undocumented)
     readonly message: string;
+}
+
+// @public (undocumented)
+class ActiveExecutionAbortRegistry {
+    // (undocumented)
+    abort(identity: ActiveExecutionIdentity, reason: ActiveAbortReason): boolean;
+    // (undocumented)
+    abortAll(reason: ActiveAbortReason): number;
+    // (undocumented)
+    abortAttempt(attemptId: string, reason: ActiveAbortReason): boolean;
+    // (undocumented)
+    register(identity: ActiveExecutionIdentity, controller: AbortController): ActiveExecutionRegistration;
+    // (undocumented)
+    get size(): number;
+}
+
+// @public (undocumented)
+interface ActiveExecutionIdentity {
+    // (undocumented)
+    readonly attemptId?: string;
+    // (undocumented)
+    readonly jobId: SchedulerJobId;
 }
 
 // @public (undocumented)
@@ -443,6 +466,8 @@ interface BeginProviderInvocationRequest {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -626,6 +651,14 @@ interface CancelJobRequest {
 
 // @public (undocumented)
 type CapabilityRouteSource = "configured" | "single_candidate";
+
+// @public (undocumented)
+interface CheckpointProviderInvocationRequest extends MarkProviderInvocationOutputRequest {
+    // (undocumented)
+    readonly response: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest: string;
+}
 
 // @public (undocumented)
 interface ClaimJobRequest {
@@ -1442,6 +1475,28 @@ interface HeartbeatJobRequest {
     readonly workerId: string;
 }
 
+// @public
+interface ImageDescriptionResourceProvenanceCause {
+    // (undocumented)
+    readonly descriptionKey: string;
+    // (undocumented)
+    readonly endpointDigest: string;
+    // (undocumented)
+    readonly kind: "image_description";
+    // (undocumented)
+    readonly promptVersion: string;
+}
+
+// @public (undocumented)
+interface ImageNormalizationResourceProvenanceCause {
+    // (undocumented)
+    readonly kind: "image_normalization";
+    // (undocumented)
+    readonly normalizationKey: string;
+    // (undocumented)
+    readonly policy: string;
+}
+
 // @public (undocumented)
 interface IngestResourceRequest {
     // (undocumented)
@@ -1807,7 +1862,7 @@ interface MediaGenerationAdapter {
     // (undocumented)
     readonly protocolId: string;
     // (undocumented)
-    submit(request: MediaGenerationAdapterRequest): Promise<MediaGenerationSubmitResult>;
+    submit(request: MediaGenerationSubmitRequest): Promise<MediaGenerationSubmitResult>;
 }
 
 // @public (undocumented)
@@ -1826,6 +1881,20 @@ interface MediaGenerationBase64Output extends MediaGenerationProviderOutputBase 
     readonly data: string;
     // (undocumented)
     readonly kindOfOutput: "base64";
+}
+
+// @public
+interface MediaGenerationCapability {
+    // (undocumented)
+    createWorkers(options: {
+        readonly storage: _wanex_storage.CoreStore;
+        readonly activeAbortRegistry: ActiveExecutionAbortRegistry;
+        readonly leaseMs?: number;
+        readonly heartbeatIntervalMs?: number;
+        readonly timeoutMs?: number;
+    }): readonly MediaGenerationWorker[];
+    // (undocumented)
+    supports(modelEndpoint: ModelEndpoint): boolean;
 }
 
 // @public (undocumented)
@@ -1850,6 +1919,14 @@ interface MediaGenerationInlineBytesOutput extends MediaGenerationProviderOutput
     readonly kindOfOutput: "inline_bytes";
 }
 
+// @public
+interface MediaGenerationInput {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
+}
+
 // @public (undocumented)
 interface MediaGenerationMaterializedOutput {
     // (undocumented)
@@ -1871,7 +1948,7 @@ interface MediaGenerationMaterializedOutput {
 }
 
 // @public (undocumented)
-type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "image.edit" | "video.generate" | "audio.synthesize">;
+type MediaGenerationOperation = Extract<ModelOperation, "image.generate" | "video.generate" | "audio.synthesize">;
 
 // @public (undocumented)
 interface MediaGenerationOperationBinding {
@@ -2100,6 +2177,38 @@ interface MediaGenerationRunResult {
 }
 
 // @public (undocumented)
+interface MediaGenerationRuntimeOptions {
+    // (undocumented)
+    readonly activeAbortRegistry?: ActiveExecutionAbortRegistry;
+    // (undocumented)
+    readonly adapters: readonly MediaGenerationAdapter[];
+    // (undocumented)
+    readonly heartbeatIntervalMs?: number;
+    // (undocumented)
+    readonly leaseMs?: number;
+    // (undocumented)
+    readonly maxConsecutivePollFailures?: number;
+    // (undocumented)
+    readonly maxOutputBytes?: number;
+    // (undocumented)
+    readonly pollInitialDelayMs?: number;
+    // (undocumented)
+    readonly pollMaxDelayMs?: number;
+    // (undocumented)
+    readonly storage: _wanex_storage.CoreStore;
+    // (undocumented)
+    readonly timeoutMs?: number;
+    // (undocumented)
+    readonly workerId?: string;
+}
+
+// @public
+interface MediaGenerationSubmitRequest extends MediaGenerationAdapterRequest {
+    // (undocumented)
+    readonly inputs: readonly MediaGenerationInput[];
+}
+
+// @public (undocumented)
 type MediaGenerationSubmitResult = {
     readonly status: "rejected";
     readonly error: JsonValue;
@@ -2112,6 +2221,9 @@ type MediaGenerationSubmitResult = {
     readonly status: "completed";
     readonly outputs: readonly MediaGenerationProviderOutput[];
 };
+
+// @public (undocumented)
+type MediaGenerationWorker = Pick<WanexMediaGenerationRuntime, "submit" | "cancel" | "runOnce" | "start">;
 
 // @public (undocumented)
 interface MemoryCompactionPlan {
@@ -2210,6 +2322,8 @@ interface ModelDescriptor {
     // (undocumented)
     readonly features: readonly ModelFeature[];
     // (undocumented)
+    readonly generationOptions?: readonly ModelOptionDescriptor[];
+    // (undocumented)
     readonly id: string;
     // (undocumented)
     readonly inputModalities: readonly ModelInputModality[];
@@ -2266,7 +2380,27 @@ interface ModelLimits {
 }
 
 // @public (undocumented)
-type ModelOperation = "conversation" | "image.generate" | "image.edit" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+type ModelOperation = "conversation" | "image.generate" | "video.generate" | "audio.transcribe" | "audio.synthesize";
+
+// @public (undocumented)
+interface ModelOptionBase {
+    // (undocumented)
+    readonly description: string;
+    // (undocumented)
+    readonly name: string;
+}
+
+// @public (undocumented)
+type ModelOptionDescriptor = (ModelOptionBase & {
+    readonly type: "string";
+    readonly enum: readonly string[];
+}) | (ModelOptionBase & {
+    readonly type: "integer";
+    readonly minimum: number;
+    readonly maximum: number;
+}) | (ModelOptionBase & {
+    readonly type: "boolean";
+});
 
 // @public (undocumented)
 type ModelOutputModality = "text" | "image" | "audio" | "video";
@@ -2347,9 +2481,23 @@ interface PreparedAgentContext {
 }
 
 // @public (undocumented)
+interface PreparedImageResource {
+    // (undocumented)
+    readonly height: number;
+    // (undocumented)
+    readonly resource: ResourceRecord;
+    // (undocumented)
+    readonly transformed: boolean;
+    // (undocumented)
+    readonly width: number;
+}
+
+// @public (undocumented)
 interface PreparedProviderReplayMessage {
     // (undocumented)
     readonly content: readonly PreparedProviderReplayPart[];
+    // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
     // (undocumented)
     readonly role: ProviderReplayMessage["role"];
 }
@@ -2361,6 +2509,8 @@ type PreparedProviderReplayPart = Exclude<MessagePart, ResourceMessagePart | Too
 interface PreparedProviderResourcePart extends ResourceMessagePart {
     // (undocumented)
     readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -2376,6 +2526,8 @@ interface PreparedProviderToolResultPart extends Omit<ToolResultMessagePart, "co
 interface PreparedProviderToolResultResourcePart extends ToolResultResourceContentPart {
     // (undocumented)
     readonly bytes?: Uint8Array;
+    // (undocumented)
+    readonly originalResource?: ResourceInputEvidence;
 }
 
 // @public (undocumented)
@@ -2419,6 +2571,14 @@ export interface PreparedUserTurn {
 }
 
 // @public (undocumented)
+interface PrepareImageResourceRequest {
+    // (undocumented)
+    readonly mode: "normalize" | "preserve";
+    // (undocumented)
+    readonly resource: ResourceInputEvidence;
+}
+
+// @public (undocumented)
 export interface PrepareSessionTurnExecutionBindingRequest {
     // (undocumented)
     readonly applicationScope?: ApplicationScopeBinding;
@@ -2451,6 +2611,8 @@ interface ProviderAdapter {
     buildReplayMessages(messages: readonly PreparedProviderReplayMessage[]): JsonValue[];
     // (undocumented)
     readonly model: ModelDescriptor;
+    // (undocumented)
+    readonly outputModalities: readonly ModelOutputModality[];
     // (undocumented)
     readonly protocol: ProviderProtocolDescriptor;
     // (undocumented)
@@ -2504,7 +2666,7 @@ interface ProviderErrorEvent {
 }
 
 // @public (undocumented)
-type ProviderEvent = ProviderTextDeltaEvent | ProviderReasoningDeltaEvent | ProviderToolCallStartEvent | ProviderToolCallDeltaEvent | ProviderToolCallEndEvent | ProviderStateEvent | ProviderUsageEvent | ProviderFinishEvent | ProviderErrorEvent;
+type ProviderEvent = ProviderTextDeltaEvent | ProviderImageOutputEvent | ProviderReasoningDeltaEvent | ProviderToolCallStartEvent | ProviderToolCallDeltaEvent | ProviderToolCallEndEvent | ProviderStateEvent | ProviderUsageEvent | ProviderFinishEvent | ProviderErrorEvent;
 
 // @public (undocumented)
 type ProviderEventObserver = (event: ProviderRunEvent) => void;
@@ -2517,6 +2679,18 @@ interface ProviderFinishEvent {
     readonly reason: "stop" | "length" | "tool_calls" | "content_filter" | "other";
     // (undocumented)
     readonly type: "finish";
+}
+
+// @public
+interface ProviderImageOutputEvent {
+    // (undocumented)
+    readonly bytes: Uint8Array;
+    // (undocumented)
+    readonly mimeType: string;
+    // (undocumented)
+    readonly partId: string;
+    // (undocumented)
+    readonly type: "image_output";
 }
 
 // @public (undocumented)
@@ -2539,6 +2713,8 @@ interface ProviderInvocationRecord {
     // (undocumented)
     readonly inputId: SessionInputId;
     // (undocumented)
+    readonly inputResources: readonly ResourceInputEvidence[];
+    // (undocumented)
     readonly invocationNumber: number;
     // (undocumented)
     readonly jobId: string;
@@ -2548,6 +2724,10 @@ interface ProviderInvocationRecord {
     readonly providerRequestId?: string;
     // (undocumented)
     readonly requestDigest: string;
+    // (undocumented)
+    readonly responseCheckpoint?: ProviderResponseCheckpoint;
+    // (undocumented)
+    readonly responseDigest?: string;
     // (undocumented)
     readonly sessionId: SessionId;
     // (undocumented)
@@ -2563,7 +2743,25 @@ interface ProviderInvocationRecord {
 }
 
 // @public (undocumented)
-type ProviderInvocationState = "dispatched" | "output_observed" | "succeeded" | "failed_before_output" | "ambiguous";
+type ProviderInvocationState = "dispatched" | "output_observed" | "output_ready" | "succeeded" | "failed_before_output" | "ambiguous";
+
+// @public (undocumented)
+type ProviderObservedEvent = Exclude<ProviderEvent, ProviderImageOutputEvent | ProviderStateEvent> | {
+    readonly type: "image_output";
+    readonly partId: string;
+    readonly mimeType: string;
+    readonly sizeBytes: number;
+};
+
+// @public (undocumented)
+interface ProviderOutputResourceProvenanceCause {
+    // (undocumented)
+    readonly invocationId: string;
+    // (undocumented)
+    readonly kind: "provider_output";
+    // (undocumented)
+    readonly partId: string;
+}
 
 // @public (undocumented)
 interface ProviderProtocolDescriptor {
@@ -2590,6 +2788,8 @@ interface ProviderReplayMessage {
     // (undocumented)
     readonly content: readonly MessagePart[];
     // (undocumented)
+    readonly providerState?: readonly ProviderState[] | undefined;
+    // (undocumented)
     readonly role: "user" | "assistant" | "tool" | "system";
 }
 
@@ -2599,6 +2799,8 @@ interface ProviderRequest {
     readonly maxOutputTokens?: number;
     // (undocumented)
     readonly messages: readonly PreparedProviderReplayMessage[];
+    // (undocumented)
+    readonly outputModalities?: readonly ModelOutputModality[];
     // (undocumented)
     readonly parallelToolCalls?: boolean;
     // (undocumented)
@@ -2610,11 +2812,36 @@ interface ProviderRequest {
 }
 
 // @public (undocumented)
+interface ProviderResponseCheckpoint {
+    // (undocumented)
+    readonly finish: {
+        readonly type: "finish";
+        readonly reason: "stop" | "length" | "tool_calls" | "content_filter" | "other";
+        readonly rawReason?: string;
+    };
+    // (undocumented)
+    readonly parts: readonly Extract<MessagePart, {
+        readonly type: "text" | "reasoning" | "tool_call" | "resource";
+    }>[];
+    // (undocumented)
+    readonly providerState: readonly ProviderState[];
+    // (undocumented)
+    readonly usage?: {
+        readonly inputTokens?: number;
+        readonly outputTokens?: number;
+        readonly reasoningTokens?: number;
+        readonly cacheReadTokens?: number;
+        readonly cacheWriteTokens?: number;
+        readonly metadata?: Readonly<Record<string, JsonValue>>;
+    };
+}
+
+// @public (undocumented)
 interface ProviderRunEvent {
     // (undocumented)
     readonly attemptId: string;
     // (undocumented)
-    readonly event: ProviderEvent;
+    readonly event: ProviderObservedEvent;
     // (undocumented)
     readonly inputId: string;
     // (undocumented)
@@ -3517,7 +3744,7 @@ interface ResourceMessagePart extends MessagePartBase, ResourceInputEvidence {
 type ResourceOrigin = "user_upload" | "model_output" | "tool_output" | "provider_file" | "remote_url" | "system";
 
 // @public (undocumented)
-type ResourceProvenanceCause = ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause;
+type ResourceProvenanceCause = ProviderOutputResourceProvenanceCause | ToolExecutionResourceProvenanceCause | MediaGenerationResourceProvenanceCause | ImageDescriptionResourceProvenanceCause | ImageNormalizationResourceProvenanceCause;
 
 // @public (undocumented)
 type ResourceProvenanceId = string;
@@ -3964,6 +4191,9 @@ type RuntimeWorkerLoop = WorkerLoop;
 
 // @public (undocumented)
 type SchedulerEventType = "scheduler.job.enqueued" | "scheduler.job.claimed" | "scheduler.job.heartbeat" | "scheduler.job.succeeded" | "scheduler.job.retry_scheduled" | "scheduler.job.failed" | "scheduler.job.cancelled";
+
+// @public (undocumented)
+type SchedulerJobId = string;
 
 // @public (undocumented)
 type SchedulerJobKind = "session.turn" | "workspace.task" | "team.delivery" | "team.delivery.outcome" | "plugin.action" | "channel.delivery" | "gateway.delivery" | "memory.compaction" | "resource.cleanup" | "budget.grant_expire" | "provider.retry" | "config.sync" | "media.generate";
@@ -5585,6 +5815,27 @@ interface WanexJobRuntimeOptions {
 }
 
 // @public (undocumented)
+class WanexMediaGenerationRuntime {
+    constructor(options: MediaGenerationRuntimeOptions);
+    // (undocumented)
+    cancel(operationId: string, reason: string): Promise<MediaGenerationOperationRecord | null>;
+    // (undocumented)
+    get(operationId: string): Promise<MediaGenerationOperationRecord | null>;
+    // (undocumented)
+    runOnce(): Promise<MediaGenerationRunResult>;
+    // (undocumented)
+    readonly runtime: WanexJobRuntime;
+    // (undocumented)
+    start(options?: Parameters<WanexJobRuntime["startWorkerLoop"]>[0]): WorkerLoop;
+    // (undocumented)
+    stop(): Promise<void>;
+    // (undocumented)
+    readonly storage: CoreStore;
+    // (undocumented)
+    submit(request: SubmitMediaGenerationRequest): Promise<MediaGenerationOperationSubmission>;
+}
+
+// @public (undocumented)
 export class WanexRuntimeHost {
     constructor(options: WanexRuntimeHostOptions);
     // (undocumented)
@@ -5652,17 +5903,7 @@ export interface WanexRuntimeHostBehaviorOptions {
     // (undocumented)
     readonly leaseMs?: number;
     // (undocumented)
-    readonly mediaGenerationAdapters?: readonly MediaGenerationAdapter[];
-    // (undocumented)
-    readonly mediaGenerationMaxConsecutivePollFailures?: number;
-    // (undocumented)
-    readonly mediaGenerationMaxOutputBytes?: number;
-    // (undocumented)
-    readonly mediaGenerationPollInitialDelayMs?: number;
-    // (undocumented)
-    readonly mediaGenerationPollMaxDelayMs?: number;
-    // (undocumented)
-    readonly mediaGenerationWorkerCount?: number;
+    readonly mediaGeneration?: MediaGenerationCapability;
     // (undocumented)
     readonly memoryCompaction?: RuntimeHostMemoryCompactionOptions;
     // (undocumented)
@@ -5727,6 +5968,8 @@ class WanexSessionCore {
     // (undocumented)
     cancelJob(request: CancelJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
+    checkpointProviderInvocation(request: CheckpointProviderInvocationRequest): Promise<ProviderInvocationRecord | null>;
+    // (undocumented)
     claimJob(request: ClaimJobRequest): Promise<SchedulerJobRecord | null>;
     // (undocumented)
     cleanupExpiredResourceTickets(request: CleanupExpiredResourceTicketsRequest): Promise<ResourceTicketCleanupReceipt>;
@@ -5788,6 +6031,8 @@ class WanexSessionCore {
     listTurns(request: ListSessionTurnsRequest): Promise<SessionTurnRecord[]>;
     // (undocumented)
     markProviderInvocationOutput(request: MarkProviderInvocationOutputRequest): Promise<ProviderInvocationRecord | null>;
+    // (undocumented)
+    prepareImageResource(request: PrepareImageResourceRequest): Promise<PreparedImageResource>;
     // (undocumented)
     readResourceContent(request: ReadResourceContentRequest): Promise<ResourceContentChunk | null>;
     // (undocumented)

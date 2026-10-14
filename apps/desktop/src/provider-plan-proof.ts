@@ -21,7 +21,7 @@ export async function runWanexDesktopProviderPlanProof(
     const sessionId = selectedSessionId()
     const workflows = document.querySelector('[data-ui-action="open-add-menu"]')
     if (
-      context.configuredProviderCount() !== 1 ||
+      context.configuredProviderCount() !== 2 ||
       !context.providerReady() ||
       sessionId === undefined ||
       !(workflows instanceof HTMLButtonElement) ||
@@ -151,8 +151,8 @@ export async function runWanexDesktopProviderPlanProof(
       redacted &&
       openProposal.executionAbsent &&
       selectedSessionId() === ready.sessionId,
-    initialConfiguredProviderCount: 1,
-    configuredProviderCount: 1,
+    initialConfiguredProviderCount: 2,
+    configuredProviderCount: 2,
     providerConfigured: true,
     providerReady: true,
     providerEvidenceRedacted: redacted,

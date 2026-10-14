@@ -13,6 +13,13 @@ import {
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_RESPONSE,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_TEXT,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_RESPONSE,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_TEXT,
   WANEX_DESKTOP_PROOF_MULTIMODAL_IMAGE_LABEL,
   WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
   WANEX_DESKTOP_PROOF_PLAN_REQUEST,
@@ -23,7 +30,6 @@ import {
   WANEX_DESKTOP_PROOF_PLAN_TITLE,
   WANEX_DESKTOP_PROOF_REGENERATED_RESPONSE,
   WANEX_DESKTOP_PROOF_RELAUNCH_CODE,
-  WANEX_DESKTOP_PROOF_RELAUNCH_FOLLOW_UP,
   WANEX_DESKTOP_PROOF_RELAUNCH_HEADING,
   WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID,
   WANEX_DESKTOP_PROOF_RELAUNCH_RESPONSE,
@@ -50,6 +56,9 @@ import {
 import {
   runWanexDesktopProviderMultimodalProof
 } from "./provider-multimodal-proof.js"
+import {
+  runWanexDesktopProviderMediaRoutingProof
+} from "./provider-media-routing-proof.js"
 import { runWanexDesktopProviderPlanProof } from "./provider-plan-proof.js"
 import {
   runWanexDesktopProviderRelaunchProof
@@ -79,7 +88,6 @@ export function wanexDesktopProviderRelaunchProofScript(
       heading: WANEX_DESKTOP_PROOF_RELAUNCH_HEADING,
       code: WANEX_DESKTOP_PROOF_RELAUNCH_CODE,
       initialText: WANEX_DESKTOP_PROOF_RELAUNCH_TEXT,
-      followUpText: WANEX_DESKTOP_PROOF_RELAUNCH_FOLLOW_UP,
       cancelRegenerateText: WANEX_DESKTOP_PROOF_CANCEL_REGENERATE_TEXT,
       cancelPartialResponse: WANEX_DESKTOP_PROOF_CANCEL_PARTIAL_RESPONSE,
       regeneratedResponse: WANEX_DESKTOP_PROOF_REGENERATED_RESPONSE,
@@ -101,9 +109,17 @@ export function wanexDesktopProviderRelaunchProofScript(
       multimodalText: WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT,
       multimodalImageLabel: WANEX_DESKTOP_PROOF_MULTIMODAL_IMAGE_LABEL,
       unsupportedDraft: WANEX_DESKTOP_PROOF_UNSUPPORTED_DRAFT,
+      visionModelId: WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID,
+      imageUnderstandingText: WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_TEXT,
+      imageUnderstandingDescription:
+        WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION,
+      imageUnderstandingResponse: WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_RESPONSE,
+      imageEditText: WANEX_DESKTOP_PROOF_IMAGE_EDIT_TEXT,
+      imageEditPrompt: WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT,
+      imageEditResponse: WANEX_DESKTOP_PROOF_IMAGE_EDIT_RESPONSE,
       pngBase64: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
     }
-  )}, ${runWanexDesktopProviderMultimodalProof.toString()}, ${runWanexDesktopProviderImageGenerationProof.toString()}, ${runWanexDesktopProviderPlanProof.toString()}, ${runWanexDesktopProviderGoalProof.toString()}, ${runWanexDesktopProviderCancelRegenerateProof.toString()}, ${createWanexDesktopProviderRelaunchProofResult.toString()})`
+  )}, ${runWanexDesktopProviderMultimodalProof.toString()}, ${runWanexDesktopProviderMediaRoutingProof.toString()}, ${runWanexDesktopProviderImageGenerationProof.toString()}, ${runWanexDesktopProviderPlanProof.toString()}, ${runWanexDesktopProviderGoalProof.toString()}, ${runWanexDesktopProviderCancelRegenerateProof.toString()}, ${createWanexDesktopProviderRelaunchProofResult.toString()})`
 }
 
 export function wanexDesktopProviderGuidedFollowUpAdmissionProofScript(): string {

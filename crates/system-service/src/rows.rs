@@ -226,6 +226,12 @@ pub(crate) fn row_to_provider_invocation(
         invocation_number: row.get(7)?,
         execution_binding_digest: row.get(8)?,
         request_digest: row.get(9)?,
+        input_resources: json_from_column(&row.get::<_, String>(18)?, 18)?,
+        response_checkpoint: row
+            .get::<_, Option<String>>(19)?
+            .map(|raw| json_from_column(&raw, 19))
+            .transpose()?,
+        response_digest: row.get(20)?,
         state: row.get(10)?,
         output_observed: row.get(11)?,
         provider_request_id: row.get(12)?,

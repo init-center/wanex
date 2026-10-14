@@ -1125,6 +1125,7 @@ fn validate_model_descriptor(
             "features",
             "limits",
             "behavior",
+            "generationOptions",
             "catalog",
         ],
         6,
@@ -1137,7 +1138,6 @@ fn validate_model_descriptor(
         &[
             "conversation",
             "image.generate",
-            "image.edit",
             "video.generate",
             "audio.transcribe",
             "audio.synthesize",
@@ -1179,6 +1179,17 @@ fn validate_model_descriptor(
         ));
     }
     validate_model_limits(model.get("limits"))?;
+    if let Some(options) = model.get("generationOptions") {
+        if !operations
+            .iter()
+            .any(|operation| operation == "image.generate")
+        {
+            return Err(SystemServiceError::InvalidJobRequest(
+                "generationOptions requires image.generate".to_string(),
+            ));
+        }
+        crate::model_options::validate_descriptors(options)?;
+    }
     validate_model_behavior(model.get("behavior"), &features)?;
     let catalog = model
         .get("catalog")
@@ -1241,10 +1252,20 @@ fn validate_capability_route_bindings(routes: &[serde_json::Value]) -> Result<()
             "execution_binding.capabilityRoutes[].requirement",
         )?;
         let operation = binding_string(requirement, "operation")?;
-        if operation == "conversation"
-            || ![
+        // A `conversation` route is only the auxiliary image-understanding
+        // endpoint for a text-only conversation model; the Turn's own
+        // conversation endpoint is never a route.
+        let image_understanding = operation == "conversation"
+            && serde_json::Value::Object(requirement.clone())
+                == serde_json::json!({
+                    "operation": "conversation",
+                    "inputModalities": ["text", "image"],
+                    "outputModalities": ["text"],
+                    "features": []
+                });
+        if !image_understanding
+            && ![
                 "image.generate",
-                "image.edit",
                 "video.generate",
                 "audio.transcribe",
                 "audio.synthesize",

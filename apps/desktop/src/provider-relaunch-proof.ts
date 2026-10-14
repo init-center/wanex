@@ -12,6 +12,9 @@ import type {
   runWanexDesktopProviderMultimodalProof
 } from "./provider-multimodal-proof.js"
 import type {
+  runWanexDesktopProviderMediaRoutingProof
+} from "./provider-media-routing-proof.js"
+import type {
   runWanexDesktopProviderPlanProof
 } from "./provider-plan-proof.js"
 import type {
@@ -25,6 +28,7 @@ import type {
 export async function runWanexDesktopProviderRelaunchProof(
   expected: WanexDesktopProviderRelaunchProofExpected,
   runMultimodalProof: typeof runWanexDesktopProviderMultimodalProof,
+  runMediaRoutingProof: typeof runWanexDesktopProviderMediaRoutingProof,
   runImageGenerationProof: typeof runWanexDesktopProviderImageGenerationProof,
   runPlanProof: typeof runWanexDesktopProviderPlanProof,
   runGoalProof: typeof runWanexDesktopProviderGoalProof,
@@ -33,28 +37,41 @@ export async function runWanexDesktopProviderRelaunchProof(
   createProofResult: typeof createWanexDesktopProviderRelaunchProofResult
 ): Promise<WanexDesktopProviderRelaunchProofResult> {
   const startedAt = performance.now()
+  let lastKnownConfiguredProviderCount = 0
   const journeyContext = {
     startedAt,
     configuredProviderCount,
     providerReady,
     redacted,
+    openProviderSettings,
     openAddMenuItem,
     result,
     setControlValue,
     submitConversation,
     waitFor
   }
+  if (expected.step !== "relaunch-configure" &&
+      expected.step !== "relaunch-cleanup" &&
+      expected.step !== "relaunch-unconfigured") {
+    await openProviderSettings()
+    await waitFor(() => configuredProviderCount() === 2 ? true : undefined,
+      10_000, "persisted_provider_count", providerRemovalDiagnostic)
+    const close = document.querySelector('[data-ui-action="close-settings"]')
+    if (!(close instanceof HTMLButtonElement)) throw new Error("Provider settings close action is unavailable")
+    close.click()
+    await waitFor(() => document.querySelector("[data-ui-settings-panel]") === null)
+  }
   if (expected.step === "relaunch-configure") {
     return await configureProvider()
-  }
-  if (expected.step === "relaunch-chat") {
-    return await runConversation()
   }
   if (expected.step === "relaunch-cancel-regenerate") {
     return await runCancelRegenerateProof(expected, journeyContext)
   }
   if (expected.step === "relaunch-multimodal") {
     return await runMultimodalProof(expected, journeyContext)
+  }
+  if (expected.step === "relaunch-image-understanding") {
+    return await runMediaRoutingProof(expected, journeyContext)
   }
   if (expected.step === "relaunch-image-generation") {
     return await runImageGenerationProof(expected, journeyContext)
@@ -94,6 +111,11 @@ export async function runWanexDesktopProviderRelaunchProof(
     setField(form, "conversationModelId", expected.modelId)
     setField(form, "imageGenerationModelId", expected.imageGenerationModelId)
     setField(form, "credential", credentialValue)
+    const imageGenerationInput = form.elements.namedItem("imageGenerationAcceptsImages")
+    if (!(imageGenerationInput instanceof HTMLInputElement) || imageGenerationInput.disabled) {
+      throw new Error("Provider relaunch reference-image capability control is unavailable")
+    }
+    imageGenerationInput.checked = true
     const imageInput = form.elements.namedItem("conversationInputImage")
     if (!(imageInput instanceof HTMLInputElement) || imageInput.disabled) {
       throw new Error("Provider relaunch image capability control is unavailable")
@@ -114,6 +136,7 @@ export async function runWanexDesktopProviderRelaunchProof(
       imageGenerationModelVisible() &&
       providerStatus() === "Provider saved"
     )
+    await addReaderProvider(providerBaseUrl, credentialValue)
     const appearanceConfigured = await configureAppearance()
     const conversation = await submitConversation({
       source: expected.initialText,
@@ -130,7 +153,7 @@ export async function runWanexDesktopProviderRelaunchProof(
         conversation.assistantVisible &&
         conversation.responseVisible,
       initialConfiguredProviderCount,
-      configuredProviderCount: 1,
+      configuredProviderCount: 2,
       providerConfigured: true,
       providerReady: true,
       imageGenerationEndpointReady: true,
@@ -152,110 +175,6 @@ export async function runWanexDesktopProviderRelaunchProof(
     })
   }
 
-  async function runConversation(): Promise<WanexDesktopProviderRelaunchProofResult> {
-    const state = await waitFor(() => {
-      const surface = document.querySelector('[data-ui-assistant-shell]')
-      const textarea = surface?.querySelector(
-        '[data-ui-composer] textarea[name="text"]'
-      )
-      const button = surface?.querySelector(
-        '[data-ui-composer] button[type="submit"]'
-      )
-      const appearanceRestored =
-        surface?.getAttribute("data-theme") === "dark" &&
-        surface?.getAttribute("data-density") === "compact"
-      if (
-        configuredProviderCount() !== 1 ||
-        !providerReady() ||
-        !providerModelVisible() ||
-        !appearanceRestored ||
-        !(surface instanceof Element) ||
-        !(textarea instanceof HTMLTextAreaElement) ||
-        !(button instanceof HTMLButtonElement) ||
-        textarea.disabled
-      ) {
-        return undefined
-      }
-        return { appearanceRestored, surface, textarea }
-    }, 10_000, "chat_ready")
-    const resumed = await waitFor(() => {
-      const session = state.surface.querySelector(
-        '[data-ui-session-select][aria-current="true"]'
-      )
-      const sessionId = session?.getAttribute("data-ui-session-select") ?? ""
-      const selectedTitle = state.surface.querySelector(
-        "[data-ui-selected-session-title]"
-      )?.textContent?.trim()
-      const listedTitle = session?.querySelector(
-        "[data-ui-session-title]"
-      )?.textContent?.trim()
-      const userRows = [...state.surface.querySelectorAll(
-        '[data-ui-conversation-row][data-ui-role="user"]'
-      )]
-      const assistantRows = [...state.surface.querySelectorAll(
-        '[data-ui-conversation-row][data-ui-role="assistant"]'
-      )]
-      const initialUserVisible = userRows.some((row) =>
-        row.textContent?.includes(expected.heading) &&
-        row.textContent?.includes(expected.code)
-      )
-      const initialResponseVisible = assistantRows.some((row) =>
-        row.textContent?.includes(expected.response)
-      )
-      return (
-        sessionId.length > 0 &&
-        state.surface.querySelectorAll(
-          '[data-ui-session-list] [data-ui-session][data-ui-session-archived="false"]'
-        ).length === 1 &&
-        selectedTitle === expected.heading &&
-        listedTitle === expected.heading &&
-        initialUserVisible &&
-        initialResponseVisible
-      )
-        ? {
-            appearanceRestored: state.appearanceRestored,
-            sessionId,
-            initialUserVisible,
-            initialResponseVisible
-          }
-        : undefined
-    }, 10_000, "transcript_restore")
-    const visible = await submitConversation({
-      source: expected.followUpText,
-      expectedResponse: expected.response,
-      expectedSessionId: resumed.sessionId
-    })
-    const settledAt = performance.now()
-    const providerEvidenceRedacted = redacted()
-    return result({
-      ok:
-        providerEvidenceRedacted &&
-        visible.sessionId === resumed.sessionId &&
-        visible.userVisible &&
-        visible.assistantVisible &&
-        visible.responseVisible,
-      initialConfiguredProviderCount: 1,
-      configuredProviderCount: 1,
-      providerConfigured: true,
-        providerReady: true,
-        providerEvidenceRedacted,
-        appearanceConfigured: true,
-        appearanceRestored: resumed.appearanceRestored,
-      modelId: expected.modelId,
-      sessionId: resumed.sessionId,
-      initialTranscriptVisible: resumed.initialUserVisible,
-      initialResponseVisible: resumed.initialResponseVisible,
-      conversationSubmitted: true,
-      userVisible: visible.userVisible,
-      assistantVisible: visible.assistantVisible,
-      responseVisible: visible.responseVisible,
-      followUpSessionPreserved: visible.sessionId === resumed.sessionId,
-      followUpResponseVisible: visible.responseVisible,
-      journeyPreparation: visible.submittedAt - startedAt,
-      conversationSettlement: settledAt - visible.submittedAt,
-      rendererPostSettlement: performance.now() - settledAt
-    })
-  }
 
   async function removeProvider(): Promise<WanexDesktopProviderRelaunchProofResult> {
     await waitFor(() =>
@@ -264,18 +183,12 @@ export async function runWanexDesktopProviderRelaunchProof(
     const serverProfilesRemoved = await removeServerProfiles()
     await openProviderSettings()
     const initialConfiguredProviderCount = await waitFor(() => {
-      const rows = document.querySelectorAll("[data-ui-provider]")
-      if (document.querySelector("[data-ui-provider-list]") !== null) {
-        return rows.length
-      }
-      return document.querySelector("[data-ui-provider-empty]") === null
-        ? undefined
-        : 0
+      const count = document.querySelector("[data-ui-provider-settings]")
+        ?.getAttribute("data-ui-provider-count")
+      return count === null || count === undefined ? undefined : Number(count)
     }, 10_000, "provider_list")
-    if (initialConfiguredProviderCount > 1) {
-      return result({ initialConfiguredProviderCount })
-    }
-    if (initialConfiguredProviderCount === 1) {
+    while (configuredProviderCount() > 0) {
+      const previousCount = configuredProviderCount()
       const remove = document.querySelector("[data-ui-provider-remove]")
       if (!(remove instanceof HTMLButtonElement)) {
         return result({ initialConfiguredProviderCount })
@@ -289,7 +202,8 @@ export async function runWanexDesktopProviderRelaunchProof(
       }, 10_000, "provider_removal_confirmation", providerRemovalDiagnostic)
       confirmRemove.click()
       await waitFor(() =>
-        configuredProviderCount() === 0 && providerStatus().startsWith("Provider removed")
+        configuredProviderCount() === previousCount - 1 &&
+        providerStatus().startsWith("Provider removed")
       , 10_000, "provider_removal", providerRemovalDiagnostic)
     }
     const blocked = await waitFor(
@@ -352,7 +266,18 @@ export async function runWanexDesktopProviderRelaunchProof(
     return createProofResult(expected.step, value)
   }
 
+  async function showSettingsSection(section: string): Promise<void> {
+    const nav = await waitFor(() => {
+      const candidate = document.querySelector(
+        `[data-ui-settings-panel] [data-ui-settings-nav="${section}"]`
+      )
+      return candidate instanceof HTMLButtonElement ? candidate : undefined
+    }, 10_000, "settings_navigation")
+    nav.click()
+  }
+
   async function configureAppearance(): Promise<boolean> {
+    await showSettingsSection("appearance")
     const appearance = await waitFor(() =>
       document.querySelector("[data-ui-appearance-settings]") ?? undefined
     , 10_000, "appearance_settings")
@@ -377,15 +302,33 @@ export async function runWanexDesktopProviderRelaunchProof(
         document.querySelector('[data-ui-assistant-shell][data-density="compact"]') ?? undefined
       , 10_000, "appearance_density")
     }
-    return document.querySelector(
+    const configured = document.querySelector(
       '[data-ui-assistant-shell][data-theme="dark"][data-density="compact"]'
     ) !== null
+    await showSettingsSection("models")
+    return configured
   }
 
   function configuredProviderCount(): number {
+    const settingsCount = document.querySelector(
+      "[data-ui-provider-settings]"
+    )?.getAttribute("data-ui-provider-count")
+    if (settingsCount !== null && settingsCount !== undefined) {
+      const parsed = Number(settingsCount)
+      if (Number.isSafeInteger(parsed) && parsed >= 0) {
+        lastKnownConfiguredProviderCount = parsed
+        return parsed
+      }
+    }
     const rows = document.querySelectorAll("[data-ui-provider]").length
-    if (rows > 0) return rows
-    return providerReady() ? 1 : 0
+    if (rows > 0) {
+      lastKnownConfiguredProviderCount = rows
+      return rows
+    }
+    if (lastKnownConfiguredProviderCount > 0) {
+      return lastKnownConfiguredProviderCount
+    }
+    return 0
   }
 
   function providerReady(): boolean {
@@ -454,6 +397,7 @@ export async function runWanexDesktopProviderRelaunchProof(
 
   function chatBlockedDiagnostic(): string {
     const surface = document.querySelector('[data-ui-assistant-shell]')
+    const modelSelector = document.querySelector('[data-ui-model-selector]')
     const textarea = surface?.querySelector(
       '[data-ui-composer] textarea[name="text"], [data-ui-team-composer] textarea[name="team-message"]'
     )
@@ -464,6 +408,14 @@ export async function runWanexDesktopProviderRelaunchProof(
       `readiness_${diagnosticToken(providerReadinessState())}`,
       `textarea_${textarea instanceof HTMLTextAreaElement ? textarea.disabled ? "disabled" : "enabled" : "missing"}`,
       `submit_${button instanceof HTMLButtonElement ? button.disabled ? "disabled" : "enabled" : "missing"}`,
+      `active_${diagnosticToken(modelSelector?.getAttribute("data-ui-active-endpoint") ?? "missing")}`,
+      `model_${diagnosticToken(modelSelector?.textContent ?? "missing")}`,
+      `models_${diagnosticToken(modelSelector?.getAttribute("data-ui-model-endpoints") ?? "missing")}`,
+      `providers_${String(configuredProviderCount())}`,
+      `surface_${surface instanceof Element ? "yes" : "no"}`,
+      `theme_${diagnosticToken(surface?.getAttribute("data-theme") ?? "missing")}`,
+      `density_${diagnosticToken(surface?.getAttribute("data-density") ?? "missing")}`,
+      `modelmatch_${providerModelVisible() ? "yes" : "no"}`,
       `status_${diagnosticToken(providerStatus())}`,
       `error_${diagnosticToken(rendererError())}`
     ].join("_")
@@ -705,6 +657,51 @@ export async function runWanexDesktopProviderRelaunchProof(
       throw new Error(`Provider relaunch proof field is missing: ${name}`)
     }
     setControlValue(field, value)
+  }
+
+  async function addReaderProvider(
+    providerBaseUrl: string,
+    credentialValue: string
+  ): Promise<void> {
+    const form = await waitFor(() => {
+      const candidate = document.querySelector("[data-ui-provider-form]")
+      return candidate instanceof HTMLFormElement ? candidate : undefined
+    }, 10_000, "reader_provider_form")
+    const preset = form.querySelector('[data-ui-select="presetId"]')
+    if (!(preset instanceof HTMLButtonElement)) {
+      throw new Error("Provider relaunch reader preset control is missing")
+    }
+    preset.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }))
+    const option = await waitFor(() =>
+      [...document.querySelectorAll('[role="option"][data-ui-select-option]')]
+        .find((candidate) => candidate.getAttribute("data-ui-select-option") === "openai-compatible") as HTMLElement | undefined
+    , 5_000, "reader_provider_preset")
+    option.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }))
+    await waitFor(() => preset.getAttribute("aria-expanded") === "false" ? true : undefined, 5_000, "reader_provider_preset_closed")
+    setField(form, "baseUrl", `${providerBaseUrl}/vision`)
+    setField(form, "conversationModelId", expected.visionModelId)
+    setField(form, "credential", credentialValue)
+    const imageInput = form.elements.namedItem("conversationInputImage")
+    if (!(imageInput instanceof HTMLInputElement)) {
+      throw new Error("Provider relaunch reader image capability control is missing")
+    }
+    imageInput.checked = true
+    const toolCalling = form.elements.namedItem("conversationToolCalling")
+    if (toolCalling instanceof HTMLInputElement) toolCalling.checked = false
+    const active = form.elements.namedItem("makeConversationActive")
+    if (!(active instanceof HTMLInputElement)) {
+      throw new Error("Provider relaunch reader active control is missing")
+    }
+    active.checked = false
+    submit(form)
+    await waitFor(() =>
+      configuredProviderCount() === 2 &&
+      [...document.querySelectorAll("[data-ui-provider]")].some((candidate) =>
+        candidate.getAttribute("data-ui-conversation-model-id") === expected.visionModelId
+      )
+        ? true
+        : undefined
+    , 10_000, "reader_provider_saved")
   }
 
   async function openAddMenuItem(

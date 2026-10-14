@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { buildServerDistribution } from "../../../scripts/build-server-distribution.mjs"
+import { auditServerDistribution, buildServerDistribution } from "../../../scripts/build-server-distribution.mjs"
 import {
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID,
@@ -19,9 +19,10 @@ const imageEndpointId =
 export async function createPackagedServer(options) {
   const root = await mkdtemp(join(tmpdir(), "wanex-packaged-remote-server-"))
   const certificate = await createCertificate(root)
-  const artifact = await buildServerDistribution({
-    targetId: `${process.platform}-${process.arch}`
-  })
+  const artifact = options.artifactRoot === undefined
+    ? await buildServerDistribution({ targetId: `${process.platform}-${process.arch}` })
+    : { outputRoot: options.artifactRoot }
+  await auditServerDistribution(artifact.outputRoot)
   const workspace = options.workspace === undefined ? undefined : {
     ...(options.workspace.initialRoots === undefined ? {} : { initialRoots: options.workspace.initialRoots }),
     ...(options.workspace.worktreeDirectory === undefined ? {} : { worktreeDirectory: options.workspace.worktreeDirectory })
@@ -85,6 +86,8 @@ export async function createPackagedServer(options) {
     },
     ...(workspace === undefined ? {} : { workspace })
   })}\n`)
+  // An installed-artifact proof must not inherit a development binary override.
+  const { WANEX_SYSTEM_SERVICE_BIN: _developmentBinary, ...serverEnvironment } = process.env
   const child = spawn(process.execPath, [
     join(artifact.outputRoot, "server.mjs"),
     "--config",
@@ -92,7 +95,7 @@ export async function createPackagedServer(options) {
   ], {
     cwd: root,
     env: {
-      ...process.env,
+      ...serverEnvironment,
       WANEX_SERVER_BEARER_TOKEN: WANEX_DESKTOP_PROOF_REMOTE_CREDENTIAL,
       [providerCredentialEnvironmentName]: options.provider.credential
     },

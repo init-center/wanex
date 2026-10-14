@@ -13,7 +13,7 @@ import type {
 } from "@wanex/protocol"
 import type { CoreStore } from "@wanex/storage"
 import {
-  consumeProviderStream,
+  consumeTextProviderStream,
   ProviderStreamError,
   type ProviderAdapter,
   type ProviderTurnResult
@@ -131,10 +131,11 @@ export async function executeContextEpoch(
     })
     let outputObserved = false
     try {
-      const response = await consumeProviderStream({
+      const response = await consumeTextProviderStream({
         provider: request.provider,
         request: {
           messages: reconstructed.providerMessages,
+          outputModalities: ["text"],
           signal: request.signal,
           maxOutputTokens: evidence.policy.maxSummaryOutputTokens
         },
@@ -371,7 +372,7 @@ function jobIdentity(job: SchedulerJobRecord) {
 function isProviderOutput(type: string): boolean {
   return type === "text_delta" ||
     type === "reasoning_delta" ||
-    type === "tool_call_start"
+    type === "tool_call_start" || type === "image_output"
 }
 
 async function appendEvent(

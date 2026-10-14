@@ -18,6 +18,7 @@ import {
 import {
   requirePreparedProviderResource,
   projectedToolResultText,
+  resourceLabel,
   textContent,
   toolCallsToOpenAI
 } from "../replay.js"
@@ -53,6 +54,7 @@ interface OpenAIToolStreamState {
 }
 
 export class OpenAICompatibleAdapter implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "openai-chat-completions" } as const
   readonly providerId: string
   readonly model: ModelDescriptor
@@ -148,53 +150,83 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   buildReplayMessages(
     messages: readonly PreparedProviderReplayMessage[]
   ): JsonValue[] {
-    return messages.flatMap((message): JsonValue[] => {
-      const toolCalls = message.content.filter(
-        (part): part is ToolCallMessagePart => part.type === "tool_call"
-      )
-      const toolResults = message.content.filter(
-        (part) => part.type === "tool_result"
-      )
-      if (message.role === "tool") {
-        if (toolResults.length !== message.content.length) {
-          throw new Error("OpenAI tool replay message contains a non-tool result part")
-        }
-        return toolResults.map((part) => ({
+    // Tool messages cannot carry images, so images returned by a contiguous
+    // block of tool results follow it in one user message.
+    const wire: JsonValue[] = []
+    let toolImages: JsonValue[] = []
+    const flushToolImages = (): void => {
+      if (toolImages.length === 0) return
+      wire.push({
+        role: "user",
+        content: [
+          { type: "text", text: "Images returned by the tool calls above:" },
+          ...toolImages
+        ]
+      })
+      toolImages = []
+    }
+    for (const message of messages) {
+      if (message.role !== "tool") flushToolImages()
+      wire.push(...this.buildReplayMessage(message, (images) => {
+        toolImages = [...toolImages, ...images]
+      }))
+    }
+    flushToolImages()
+    return wire
+  }
+
+  private buildReplayMessage(
+    message: PreparedProviderReplayMessage,
+    collectToolImages: (images: readonly JsonValue[]) => void
+  ): JsonValue[] {
+    const toolCalls = message.content.filter(
+      (part): part is ToolCallMessagePart => part.type === "tool_call"
+    )
+    const toolResults = message.content.filter(
+      (part) => part.type === "tool_result"
+    )
+    if (message.role === "tool") {
+      if (toolResults.length !== message.content.length) {
+        throw new Error("OpenAI tool replay message contains a non-tool result part")
+      }
+      return toolResults.map((part) => {
+        collectToolImages(openAIToolResultImages(part))
+        return {
           role: "tool",
           tool_call_id: part.toolCallId,
           content: projectedToolResultText(part.content)
-        }))
-      }
-      const storedReasoningContent = findReasoningContent(
-        message.content,
-        this.providerId,
-        this.model.id
+        }
+      })
+    }
+    const storedReasoningContent = findReasoningContent(
+      message.content,
+      this.providerId,
+      this.model.id
+    )
+    if (
+      this.reasoningReplay === "required" &&
+      message.role === "assistant" &&
+      toolCalls.length > 0 &&
+      storedReasoningContent === undefined
+    ) {
+      throw new MissingRequiredProviderStateError(
+        `${this.providerId} assistant tool call requires reasoning state for same-model replay`
       )
-      if (
-        this.reasoningReplay === "required" &&
-        message.role === "assistant" &&
-        toolCalls.length > 0 &&
-        storedReasoningContent === undefined
-      ) {
-        throw new MissingRequiredProviderStateError(
-          `${this.providerId} assistant tool call requires reasoning state for same-model replay`
-        )
-      }
-      const reasoningContent =
-        message.role === "assistant" &&
-        toolCalls.length > 0 &&
-        this.reasoningReplay !== "forbidden"
-          ? storedReasoningContent
-          : undefined
-      return [{
-        role: message.role,
-        content: openAIMessageContent(message),
-        ...(reasoningContent === undefined
-          ? {}
-          : { reasoning_content: reasoningContent }),
-        ...(toolCalls.length === 0 ? {} : { tool_calls: toolCallsToOpenAI(toolCalls) })
-      }]
-    })
+    }
+    const reasoningContent =
+      message.role === "assistant" &&
+      toolCalls.length > 0 &&
+      this.reasoningReplay !== "forbidden"
+        ? storedReasoningContent
+        : undefined
+    return [{
+      role: message.role,
+      content: openAIMessageContent(message),
+      ...(reasoningContent === undefined
+        ? {}
+        : { reasoning_content: reasoningContent }),
+      ...(toolCalls.length === 0 ? {} : { tool_calls: toolCallsToOpenAI(toolCalls) })
+    }]
   }
 
   private async *translateSse(
@@ -307,6 +339,25 @@ export class OpenAICompatibleAdapter implements ProviderAdapter {
   }
 }
 
+function openAIToolResultImages(
+  part: Extract<PreparedProviderReplayMessage["content"][number], { type: "tool_result" }>
+): JsonValue[] {
+  return part.content.flatMap((item): JsonValue[] => {
+    if (item.type !== "resource" || !("bytes" in item) || !(item.bytes instanceof Uint8Array)) {
+      return []
+    }
+    return [
+      { type: "text", text: `Tool call ${part.toolCallId} returned ${resourceLabel(item)}` },
+      {
+        type: "image_url",
+        image_url: {
+          url: `data:${item.mediaType};base64,${Buffer.from(item.bytes).toString("base64")}`
+        }
+      }
+    ]
+  })
+}
+
 function openAIMessageContent(message: PreparedProviderReplayMessage): JsonValue {
   const resources = message.content.filter((part) => part.type === "resource")
   if (resources.length === 0) {
@@ -315,9 +366,9 @@ function openAIMessageContent(message: PreparedProviderReplayMessage): JsonValue
   if (message.role !== "user") {
     throw new Error("OpenAI resource input is only valid in user messages")
   }
-  return message.content.map((part): JsonValue => {
+  return message.content.flatMap((part): JsonValue[] => {
     if (part.type === "text") {
-      return { type: "text", text: part.text }
+      return [{ type: "text", text: part.text }]
     }
     if (part.type !== "resource") {
       throw new Error(`OpenAI user resource message contains invalid part: ${part.type}`)
@@ -331,12 +382,15 @@ function openAIMessageContent(message: PreparedProviderReplayMessage): JsonValue
         `OpenAI chat adapter does not support ${prepared.kind} resource input: ${prepared.resourceId}`
       )
     }
-    return {
-      type: "image_url",
-      image_url: {
-        url: `data:${prepared.mediaType};base64,${Buffer.from(prepared.bytes).toString("base64")}`
+    return [
+      { type: "text", text: resourceLabel(prepared) },
+      {
+        type: "image_url",
+        image_url: {
+          url: `data:${prepared.mediaType};base64,${Buffer.from(prepared.bytes).toString("base64")}`
+        }
       }
-    }
+    ]
   })
 }
 

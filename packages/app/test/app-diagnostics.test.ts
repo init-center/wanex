@@ -532,7 +532,7 @@ describe("@wanex/app/diagnostics", () => {
 
     expect(bundle.generatedAt).toBe(1_000)
     expect(bundle.doctor).toMatchObject({
-      schemaVersion: 22
+      schemaVersion: 26
     })
     expect(bundle.modelEndpoints).toEqual([
       expect.objectContaining({
@@ -705,6 +705,7 @@ async function seedActiveContextEpoch(
 }
 
 class DiagnosticsMemoryProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId = "fake"
   readonly model = {

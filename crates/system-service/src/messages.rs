@@ -120,6 +120,9 @@ impl SystemService {
             tx.commit()?;
             return Ok(None);
         };
+        if request.role == "assistant" {
+            crate::provider_invocations::reject_uncheckpointed_images_tx(&tx, &request.content)?;
+        }
         let message = insert_session_message_tx(
             &tx,
             NewSessionMessage {

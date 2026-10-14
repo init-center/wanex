@@ -309,11 +309,54 @@
         "operation_id": { "type": "string", "minLength": 1 }
       }
     },
+    "ImageDescriptionResourceProvenanceCauseWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "description_key", "endpoint_digest", "prompt_version"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["image_description"] },
+        "description_key": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "endpoint_digest": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "prompt_version": { "type": "string", "minLength": 1 }
+      }
+    },
     "ResourceProvenanceCauseWire": {
       "oneOf": [
+        { "$ref": "#/$defs/ImageNormalizationResourceProvenanceCauseWire" },
+        { "$ref": "#/$defs/ProviderOutputResourceProvenanceCauseWire" },
         { "$ref": "#/$defs/ToolExecutionResourceProvenanceCauseWire" },
-        { "$ref": "#/$defs/MediaGenerationResourceProvenanceCauseWire" }
+        { "$ref": "#/$defs/MediaGenerationResourceProvenanceCauseWire" },
+        { "$ref": "#/$defs/ImageDescriptionResourceProvenanceCauseWire" }
       ]
+    },
+    "ProviderOutputResourceProvenanceCauseWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "invocation_id", "part_id"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["provider_output"] },
+        "invocation_id": { "type": "string" },
+        "part_id": { "type": "string" }
+      }
+    },
+    "ImageNormalizationResourceProvenanceCauseWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "normalization_key", "policy"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["image_normalization"] },
+        "normalization_key": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "policy": { "type": "string", "minLength": 1 }
+      }
+    },
+    "PrepareImageResourceWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resource", "mode"],
+      "properties": {
+        "resource": { "$ref": "#/$defs/ResourceInputEvidenceWire" },
+        "mode": { "type": "string", "enum": ["normalize", "preserve"] }
+      }
     },
     "RecordResourceProvenanceWire": {
       "type": "object",
@@ -331,7 +374,7 @@
     },
     "ResourceProvenanceCauseKindWire": {
       "type": "string",
-      "enum": ["tool_execution", "media_generation"]
+      "enum": ["tool_execution", "media_generation", "image_description", "provider_output", "image_normalization"]
     },
     "NullableResourceProvenanceCauseKindWire": {
       "oneOf": [
@@ -609,6 +652,15 @@
         "request": { "$ref": "#/$defs/IngestResourceWire" }
       }
     },
+    "PrepareImageResourceCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["prepare-image-resource"] },
+        "request": { "$ref": "#/$defs/PrepareImageResourceWire" }
+      }
+    },
     "GetResourceCommand": {
       "type": "object",
       "additionalProperties": false,
@@ -707,6 +759,7 @@
     },
     "RuntimeStorageRpcCommand": {
       "oneOf": [
+        { "$ref": "#/$defs/PrepareImageResourceCommand" },
         { "$ref": "#/$defs/AppendEventCommand" },
         { "$ref": "#/$defs/QueryEventsCommand" },
         { "$ref": "#/$defs/PutConfigCommand" },
@@ -1375,6 +1428,7 @@
       "enum": [
         "dispatched",
         "output_observed",
+        "output_ready",
         "succeeded",
         "failed_before_output",
         "ambiguous"
@@ -1394,7 +1448,8 @@
         "lease_token",
         "step",
         "invocation_number",
-        "request_digest"
+        "request_digest",
+        "input_resources"
       ],
       "properties": {
         "id": { "$ref": "#/$defs/NullableString" },
@@ -1407,7 +1462,30 @@
         "lease_token": { "type": "string" },
         "step": { "type": "integer" },
         "invocation_number": { "type": "integer" },
-        "request_digest": { "type": "string" }
+        "request_digest": { "type": "string" },
+        "input_resources": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ResourceInputEvidenceWire" },
+          "maxItems": 64
+        }
+      }
+    },
+    "CheckpointProviderInvocationWire": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["session_id", "turn_id", "attempt_id", "input_id", "job_id", "worker_id", "lease_token", "invocation_id", "provider_request_id", "response", "response_digest"],
+      "properties": {
+        "session_id": { "type": "string" },
+        "turn_id": { "type": "string" },
+        "attempt_id": { "type": "string" },
+        "input_id": { "type": "string" },
+        "job_id": { "type": "string" },
+        "worker_id": { "type": "string" },
+        "lease_token": { "type": "string" },
+        "invocation_id": { "type": "string" },
+        "provider_request_id": { "$ref": "#/$defs/NullableString" },
+        "response": { "$ref": "#/$defs/JsonValue" },
+        "response_digest": { "type": "string" }
       }
     },
     "MarkProviderInvocationOutputWire": {
@@ -1700,6 +1778,15 @@
         "request": { "$ref": "#/$defs/BeginProviderInvocationWire" }
       }
     },
+    "CheckpointProviderInvocationCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "request"],
+      "properties": {
+        "command": { "type": "string", "enum": ["checkpoint-provider-invocation"] },
+        "request": { "$ref": "#/$defs/CheckpointProviderInvocationWire" }
+      }
+    },
     "MarkProviderInvocationOutputCommand": {
       "type": "object",
       "additionalProperties": false,
@@ -1929,6 +2016,7 @@
         { "$ref": "#/$defs/StartSessionTurnAttemptCommand" },
         { "$ref": "#/$defs/SettleSessionTurnCommand" },
         { "$ref": "#/$defs/BeginProviderInvocationCommand" },
+        { "$ref": "#/$defs/CheckpointProviderInvocationCommand" },
         { "$ref": "#/$defs/MarkProviderInvocationOutputCommand" },
         { "$ref": "#/$defs/FinishProviderInvocationCommand" },
         { "$ref": "#/$defs/ListProviderInvocationsCommand" },

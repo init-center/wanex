@@ -30,6 +30,7 @@ export function createTuiNavigation(options: {
     | "startNewConversation"
     | "listModelEndpoints"
     | "setActiveModelEndpoint"
+    | "setImageUnderstandingEndpoint"
     | "listTeamConversations"
     | "selectTeamConversation"
   >
@@ -74,24 +75,57 @@ export function createTuiNavigation(options: {
           return
         }
         const items: SelectItem[] = endpoints.endpoints.map((endpoint) => ({
-          value: endpoint.id,
+          value: `conversation:${endpoint.id}`,
           label: `${endpoint.id === endpoints.activeEndpointId ? "* " : ""}${endpoint.model.id}`,
           description: `${endpoint.connection.providerId} · ${endpoint.credentialConfigured ? "configured" : "credential required"}`,
         }))
+        const imageEndpoints = endpoints.endpoints.filter((endpoint) =>
+          endpoint.model.operations.includes("conversation") &&
+          endpoint.model.inputModalities.includes("image") &&
+          endpoint.model.outputModalities.includes("text")
+        )
+        items.push({
+          value: "image-understanding:none",
+          label: endpoints.imageUnderstandingEndpointId === undefined
+            ? "Image understanding: off"
+            : "Disable image understanding",
+          description: "Do not describe images for text-only models",
+        })
+        items.push(...imageEndpoints.map((endpoint) => ({
+          value: `image-understanding:${endpoint.id}`,
+          label: `${endpoint.id === endpoints.imageUnderstandingEndpointId ? "* " : "  "}${endpoint.model.id}`,
+          description: `Image understanding · ${endpoint.connection.providerId} · ${endpoint.credentialConfigured ? "configured" : "credential required"}`,
+        })))
         const selectedIndex = Math.max(
           0,
           endpoints.endpoints.findIndex(
             (endpoint) => endpoint.id === endpoints.activeEndpointId,
           ),
         )
-        showPicker("Models", items, selectedIndex, (item) => {
+        showPicker("Models & image understanding", items, selectedIndex, (item) => {
           close()
           void options.perform(async () => {
-            expectSurfaceValue(
-              await options.client.setActiveModelEndpoint({ endpointId: item.value }),
-              "setActiveModelEndpoint",
-            )
-            options.accepted("Model selected", false)
+            if (item.value.startsWith("conversation:")) {
+              expectSurfaceValue(
+                await options.client.setActiveModelEndpoint({ endpointId: item.value.slice("conversation:".length) }),
+                "setActiveModelEndpoint",
+              )
+              options.accepted("Model selected", false)
+            } else {
+              const endpointId = item.value === "image-understanding:none"
+                ? null
+                : item.value.slice("image-understanding:".length)
+              expectSurfaceValue(
+                await options.client.setImageUnderstandingEndpoint({ endpointId }),
+                "setImageUnderstandingEndpoint",
+              )
+              options.accepted(
+                endpointId === null
+                  ? "Image understanding disabled"
+                  : "Image understanding model selected",
+                false,
+              )
+            }
             await options.refreshCanonical()
           })
         })

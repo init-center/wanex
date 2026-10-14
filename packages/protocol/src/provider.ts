@@ -1,4 +1,5 @@
 import type { JsonValue } from "./json.js"
+import type { ModelOptionDescriptor } from "./model-options.js"
 
 export interface ProviderState {
   readonly providerId: string
@@ -28,7 +29,6 @@ export interface ProviderProtocolDescriptor {
 export type ModelOperation =
   | "conversation"
   | "image.generate"
-  | "image.edit"
   | "video.generate"
   | "audio.transcribe"
   | "audio.synthesize"
@@ -70,6 +70,7 @@ export interface ModelDescriptor {
   readonly inputModalities: readonly ModelInputModality[]
   readonly outputModalities: readonly ModelOutputModality[]
   readonly features: readonly ModelFeature[]
+  readonly generationOptions?: readonly ModelOptionDescriptor[]
   readonly limits?: ModelLimits
   readonly behavior?: ModelBehavior
   readonly catalog: ModelCatalogProvenance

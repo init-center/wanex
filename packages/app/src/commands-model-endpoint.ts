@@ -1,5 +1,4 @@
 import {
-  listWanexAppModelEndpoints,
   readWanexAppActiveModelEndpoint,
   readWanexAppModelEndpoint,
   setWanexAppActiveModelEndpoint,
@@ -8,6 +7,10 @@ import {
   removeWanexAppModelEndpointConnection,
   upsertWanexAppModelEndpoint,
 } from "./model-endpoint.js";
+import {
+  listWanexAppModelEndpointsWithImageUnderstanding,
+  setWanexAppImageUnderstandingEndpoint,
+} from "./image-understanding.js";
 import type { WanexAppCommandContext } from "./command-context.js";
 import type { WanexAppModelEndpointCommands } from "./types-model-endpoint.js";
 
@@ -103,11 +106,21 @@ export function createWanexAppModelEndpointCommands(
     },
     async listModelEndpoints() {
       context.assertActive();
-      const endpoints = await listWanexAppModelEndpoints(
+      const endpoints = await listWanexAppModelEndpointsWithImageUnderstanding(
         context.runtime.storage,
       );
       context.setActiveModelEndpointId(endpoints.activeEndpointId);
       return endpoints;
+    },
+    async setImageUnderstandingEndpoint(request) {
+      context.assertActive();
+      await setWanexAppImageUnderstandingEndpoint({
+        storage: context.runtime.storage,
+        modelEndpointId: request.endpointId,
+      });
+      return await listWanexAppModelEndpointsWithImageUnderstanding(
+        context.runtime.storage,
+      );
     },
   };
 }

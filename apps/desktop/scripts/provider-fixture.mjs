@@ -1,10 +1,19 @@
 import { createServer } from "node:http"
+import { WanexRuntimeHost } from "@wanex/runtime/host"
+import { GeminiAdapter } from "@wanex/runtime/provider"
 import {
   WANEX_DESKTOP_PROOF_INITIAL_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_PROMPT,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE,
   WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_RESPONSE,
+  WANEX_DESKTOP_PROOF_IMAGE_EDIT_TEXT,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_RESPONSE,
+  WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_TEXT,
   WANEX_DESKTOP_PROOF_CANCEL_PARTIAL_RESPONSE,
   WANEX_DESKTOP_PROOF_CANCEL_REGENERATE_TEXT,
   WANEX_DESKTOP_PROOF_REGENERATED_RESPONSE,
@@ -46,6 +55,7 @@ import {
 
 const MAX_REQUEST_BYTES = 1024 * 1024
 const IMAGE_GENERATION_TOOL_CALL_ID = "call_desktop_proof_image_generate"
+const IMAGE_EDIT_TOOL_CALL_ID = "call_desktop_proof_image_reference"
 const GENERATED_IMAGE_BYTES = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64"
@@ -68,8 +78,13 @@ export async function listenDesktopProofProvider(options) {
   let remoteAssistantParent
   const server = createServer(async (request, response) => {
     try {
-      const body = await readJsonBody(request)
       const path = request.url ?? ""
+      const rawBody = await readRequestBody(request)
+      if (path.endsWith("/images/edits")) {
+        await handleImageReferenceRequest(request, response, path, rawBody)
+        return
+      }
+      const body = JSON.parse(rawBody.toString("utf8"))
       const model =
         typeof body?.model === "string" && body.model.length > 0
           ? body.model
@@ -110,6 +125,7 @@ export async function listenDesktopProofProvider(options) {
       const teamPhase = readTeamProofPhase(body)
       const scheduleProof = readScheduleProof(body)
       const remoteAssistantProof = readRemoteAssistantProof(body)
+      const mediaRoutingPhase = readMediaRoutingPhase(body)
       const teamInputImages = teamPhase === undefined
         ? []
         : inspectLatestUserImageInputs(body)
@@ -206,6 +222,9 @@ export async function listenDesktopProofProvider(options) {
               remoteAssistantClientClosed: false
             }
           : {}),
+        ...(mediaRoutingPhase === undefined
+          ? {}
+          : { mediaRoutingPhase }),
       }
       requests.push(requestEvidence)
       observeProviderResponse(responses, response, { path, model })
@@ -398,12 +417,55 @@ export async function listenDesktopProofProvider(options) {
         response.end(JSON.stringify({ error: "required proof Tool is unavailable" }))
         return
       }
+      if (mediaRoutingPhase === "reader") {
+        writeTextEventStream(
+          response,
+          WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION
+        )
+        return
+      }
+      if (mediaRoutingPhase === "primary_description") {
+        writeTextEventStream(
+          response,
+          WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_RESPONSE
+        )
+        return
+      }
+      if (mediaRoutingPhase === "image_reference_tool_call") {
+        const resourceId = imageResourceId(body)
+        if (resourceId === undefined) {
+          throw new Error("Desktop proof image edit resource id is missing")
+        }
+        writeEventStream(response, {
+          choices: [{
+            delta: {
+              tool_calls: [{
+                index: 0,
+                id: IMAGE_EDIT_TOOL_CALL_ID,
+                function: {
+                  name: "image_generate",
+                  arguments: JSON.stringify({
+                    prompt: WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT,
+                    images: [resourceId]
+                  })
+                }
+              }]
+            },
+            finish_reason: "tool_calls"
+          }]
+        })
+        return
+      }
+      if (mediaRoutingPhase === "image_reference_final") {
+        writeTextEventStream(response, WANEX_DESKTOP_PROOF_IMAGE_EDIT_RESPONSE)
+        return
+      }
       writeTextEventStream(
         response,
         imageGenerationPhase === "final"
           ? WANEX_DESKTOP_PROOF_IMAGE_GENERATION_RESPONSE
           : model === WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MODEL_ID &&
-              messageText(body.messages?.at(-1)) === WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT
+              messageText(body.messages?.at(-1)).includes(WANEX_DESKTOP_PROOF_MULTIMODAL_TEXT)
             ? WANEX_DESKTOP_PROOF_REMOTE_MULTIMODAL_RESPONSE
           : desktopProofProviderResponse(model)
       )
@@ -487,6 +549,28 @@ export async function listenDesktopProofProvider(options) {
       await closeServer(server)
     }
   }
+
+  async function handleImageReferenceRequest(request, response, path, rawBody) {
+    const text = rawBody.toString("utf8")
+    if (!text.includes(WANEX_DESKTOP_PROOF_IMAGE_EDIT_PROMPT) ||
+        !text.includes('name="image"')) {
+      throw new Error("Desktop proof image edit request is invalid")
+    }
+    const evidence = {
+      path,
+      model: WANEX_DESKTOP_PROOF_IMAGE_GENERATION_MODEL_ID,
+      authorized: request.headers.authorization === `Bearer ${options.credential}`,
+      mediaRoutingPhase: "image_reference_media",
+      inputImageCount: 1,
+      inputImageBytes: rawBody.byteLength
+    }
+    requests.push(evidence)
+    observeProviderResponse(responses, response, { path, model: evidence.model })
+    response.writeHead(200, { "content-type": "application/json" })
+    response.end(JSON.stringify({
+      data: [{ b64_json: GENERATED_IMAGE_BYTES.toString("base64") }]
+    }))
+  }
 }
 
 function observeProviderResponse(responses, response, request) {
@@ -520,10 +604,7 @@ function providerModelClass(model) {
 
 function readImageGenerationPhase(body) {
   if (!Array.isArray(body?.messages)) return undefined
-  const latestUser = [...body.messages]
-    .reverse()
-    .find((message) => message?.role === "user")
-  if (messageText(latestUser) !== WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT) {
+  if (!messageText(latestConversationUser(body)).includes(WANEX_DESKTOP_PROOF_IMAGE_GENERATION_TEXT)) {
     return undefined
   }
   if (body.messages.some((message) =>
@@ -539,6 +620,37 @@ function readImageGenerationPhase(body) {
     return "tool_unavailable"
   }
   return "tool_call"
+}
+
+function readMediaRoutingPhase(body) {
+  if (!Array.isArray(body?.messages)) return undefined
+  const latestUser = latestConversationUser(body)
+  const text = messageText(latestUser)
+  if (body.model === WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_MODEL_ID &&
+      text.includes("Describe this image for an assistant that cannot see it.")) {
+    return "reader"
+  }
+  if (body.model !== WANEX_DESKTOP_PROOF_RELAUNCH_MODEL_ID) return undefined
+  if (text.includes(WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_TEXT) &&
+      JSON.stringify(body).includes(WANEX_DESKTOP_PROOF_IMAGE_UNDERSTANDING_DESCRIPTION)) {
+    return "primary_description"
+  }
+  if (!text.includes(WANEX_DESKTOP_PROOF_IMAGE_EDIT_TEXT)) return undefined
+  if (body.messages.some((message) =>
+    message?.role === "tool" && message.tool_call_id === IMAGE_EDIT_TOOL_CALL_ID
+  )) {
+    return "image_reference_final"
+  }
+  const hasTool = Array.isArray(body.tools) && body.tools.some((tool) =>
+    tool?.type === "function" && tool.function?.name === "image_generate"
+  )
+  return hasTool ? "image_reference_tool_call" : undefined
+}
+
+function imageResourceId(body) {
+  const latestUser = latestConversationUser(body)
+  const match = /\[image ([^,\]\s]+)/.exec(messageText(latestUser))
+  return match?.[1]
 }
 
 function readPlanPhase(body) {
@@ -639,7 +751,7 @@ function readRemoteAssistantProof(body) {
   const latestUser = [...body.messages]
     .reverse()
     .find((message) => message?.role === "user")
-  return messageText(latestUser) === WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MESSAGE
+  return messageText(latestUser).includes(WANEX_DESKTOP_PROOF_REMOTE_ASSISTANT_MESSAGE)
 }
 
 function messageText(message) {
@@ -649,6 +761,13 @@ function messageText(message) {
     .filter((part) => part?.type === "text" && typeof part.text === "string")
     .map((part) => part.text)
     .join("")
+}
+
+function latestConversationUser(body) {
+  return [...body.messages].reverse().find((message) =>
+    message?.role === "user" &&
+    !messageText(message).startsWith("Images returned by the tool calls above:")
+  )
 }
 
 function writeTextEventStream(response, value) {
@@ -769,7 +888,7 @@ export function desktopProofProviderResponse(model) {
   return `Proof response from ${model}`
 }
 
-async function readJsonBody(request) {
+async function readRequestBody(request) {
   const chunks = []
   let size = 0
   for await (const chunk of request) {
@@ -780,7 +899,11 @@ async function readJsonBody(request) {
     }
     chunks.push(bytes)
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"))
+  return Buffer.concat(chunks)
+}
+
+async function readJsonBody(request) {
+  return JSON.parse((await readRequestBody(request)).toString("utf8"))
 }
 
 async function closeServer(server) {
@@ -792,4 +915,38 @@ async function closeServer(server) {
     })
     server.closeAllConnections()
   })
+}
+
+export async function seedDesktopDirectImage({ userDataDir, profileId, serviceBin }) {
+  const runtime = new WanexRuntimeHost({
+    storageConfig: { kind: "local-profile", rootDir: userDataDir, profileId, mode: "persistent", serviceBin },
+    provider: new GeminiAdapter({ providerId: "desktop-direct-image", baseUrl: "https://fixture.invalid", apiKey: "fixture-only",
+      model: { id: "desktop-direct-image", operations: ["conversation"], inputModalities: ["text", "image"],
+        outputModalities: ["text", "image"], features: [], catalog: { source: "custom", catalogId: "desktop-proof", revision: "1" } },
+      async fetch() {
+        return { ok: true, status: 200, statusText: "OK", text: async () => "",
+          body: (async function* () {
+            yield `data: ${JSON.stringify({ candidates: [{ content: { role: "model", parts: [
+              { text: "Installed direct image before" },
+              { inlineData: { mimeType: "image/png", data: GENERATED_IMAGE_BYTES.toString("base64") }, thoughtSignature: "desktop-private-image-signature" },
+              { text: "Installed direct image after" }
+            ] }, finishReason: "STOP" }] })}\n\n`
+          })() }
+      }
+    })
+  })
+  try {
+    const sessions = await runtime.storage.listSessions({ status: "active" })
+    if (sessions.length !== 1) throw new Error("Direct image fixture requires the existing relaunch conversation")
+    const submitted = await runtime.submitUserTurn({ sessionId: sessions[0].id,
+      content: [{ type: "text", text: "Restore this direct image after restarting" }] })
+    const result = await runtime.runOnce()
+    if (result.results[0]?.worker.status !== "completed") throw new Error("Direct image fixture did not complete")
+    const invocations = await runtime.storage.listProviderInvocations({ turnId: submitted.turnId })
+    const image = invocations[0]?.responseCheckpoint?.parts.find((part) => part.type === "resource")
+    if (!image || invocations[0]?.state !== "succeeded") throw new Error("Direct image checkpoint is missing")
+    const provenance = await runtime.storage.listResourceProvenance({ causeKind: "provider_output", causeId: invocations[0].id })
+    if (provenance.length !== 1) throw new Error("Direct image provenance is missing")
+    return { sessionId: submitted.session.id, resourceId: image.resourceId, sha256: image.sha256, sizeBytes: image.sizeBytes }
+  } finally { await runtime.dispose() }
 }

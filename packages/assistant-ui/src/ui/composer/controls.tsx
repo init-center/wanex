@@ -66,7 +66,12 @@ export function AttachmentTray({
           )}
           <span className={classes("attachment-copy")}>
             <strong>{attachment.label ?? attachment.resourceKind}</strong>
-            <small>{attachment.mediaType ?? attachment.resourceKind} · {formatResourceSize(attachment.sizeBytes)}</small>
+            <small>
+              {attachment.mediaType ?? attachment.resourceKind} · {formatResourceSize(attachment.sizeBytes)}
+              {attachment.resourceKind === "image" && snapshot.view.conversationImagesDescribedBy !== undefined
+                ? <span data-ui-attachment-described> · described by {snapshot.view.conversationImagesDescribedBy}</span>
+                : null}
+            </small>
           </span>
           <IconButton
             label={`Remove ${attachment.label ?? "attachment"}`}
@@ -166,7 +171,11 @@ export function ComposerAddMenu({
           <MenuItem
             icon={<Paperclip size={16} />}
             title="Add photos or files"
-            description={canAttach ? "Attach them to your next message" : state.conversationAttachmentMessage}
+            description={!canAttach
+              ? state.conversationAttachmentMessage
+              : state.conversationImagesDescribedBy === undefined
+                ? "Attach them to your next message"
+                : `Images are described by ${state.conversationImagesDescribedBy} for this model`}
             disabled={!canAttach}
             data-ui-action="add-attachment"
             onSelect={() => fileInput.current?.click()}

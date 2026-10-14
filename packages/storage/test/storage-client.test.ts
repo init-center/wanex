@@ -39,7 +39,7 @@ const serviceBin = join(
   import.meta.dirname,
   `../../../target/debug/wanex-system-service${process.platform === "win32" ? ".exe" : ""}`,
 );
-const expectedSchemaVersion = 22;
+const expectedSchemaVersion = 26;
 
 const tempDirs: string[] = [];
 const servers: Server[] = [];
@@ -152,6 +152,7 @@ function testMediaGenerationBinding(label: string) {
         catalogId: `storage.media.${label}`,
         revision: "1",
       },
+      generationOptions: [{ name: "quality", description: "Test quality", type: "string" as const, enum: ["high", "low"] }],
     },
   };
   const request = {
@@ -159,7 +160,7 @@ function testMediaGenerationBinding(label: string) {
     prompt: `media prompt ${label}`,
     outputModality: "image" as const,
     inputResources: [],
-    options: null,
+    options: { quality: "high" },
   };
   return {
     endpointId: endpoint.id,
@@ -926,6 +927,7 @@ describe("@wanex/storage", () => {
         ?.status,
     ).toBe("admitted");
     const firstInvocation = await client.beginProviderInvocation({
+      inputResources: [],
       sessionId: first.turn.sessionId,
       turnId: first.turn.id,
       attemptId: firstStarted.attempt.id,
@@ -983,6 +985,7 @@ describe("@wanex/storage", () => {
       leaseToken: secondJob!.leaseToken!,
     });
     const secondInvocation = await client.beginProviderInvocation({
+      inputResources: [],
       sessionId: second.turn.sessionId,
       turnId: second.turn.id,
       attemptId: secondStarted.attempt.id,
@@ -2033,12 +2036,13 @@ try {
 } catch {}
 writeFileSync(stateFile, String(attempt + 1))
 process.stdin.setEncoding("utf8")
-process.stdin.on("data", () => {
+process.stdin.on("data", (input) => {
   if (attempt === 0) {
     process.stdout.write("not json\\n")
     return
   }
   process.stdout.write(JSON.stringify({
+    request_id: JSON.parse(input).request_id,
     ok: true,
     value: {
       store_path: join(storeDir, "state.db"),
@@ -2091,8 +2095,9 @@ if (attempt === 0) {
   process.exit(0)
 }
 process.stdin.setEncoding("utf8")
-process.stdin.on("data", () => {
+process.stdin.on("data", (input) => {
   process.stdout.write(JSON.stringify({
+    request_id: JSON.parse(input).request_id,
     ok: true,
     value: {
       store_path: join(storeDir, "state.db"),
@@ -3418,6 +3423,7 @@ setInterval(() => {}, 1000)
       leaseToken: job!.leaseToken!,
     });
     const invocation = await client.beginProviderInvocation({
+      inputResources: [],
       sessionId: admitted.submission.turn.sessionId,
       turnId: admitted.attempt.turnId,
       attemptId: started.attempt.id,
@@ -5114,6 +5120,7 @@ async function seedStorageContextTurns(
       leaseToken: job.leaseToken,
     });
     const invocation = await client.beginProviderInvocation({
+      inputResources: [],
       sessionId,
       turnId: submitted.turn.id,
       attemptId: started.attempt.id,

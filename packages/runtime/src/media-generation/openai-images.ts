@@ -1,3 +1,4 @@
+import { validateModelOptionValues } from "@wanex/protocol"
 import type {
   JsonValue,
   MediaGenerationProviderOutputReference,
@@ -9,9 +10,11 @@ import { modelEndpointFromExecutionBinding } from "../provider/index.js"
 import type {
   MediaGenerationAdapter,
   MediaGenerationAdapterRequest,
+  MediaGenerationInput,
   MediaGenerationMaterializedOutput,
   MediaGenerationPollResult,
   MediaGenerationProviderOutput,
+  MediaGenerationSubmitRequest,
   MediaGenerationSubmitResult
 } from "./types.js"
 
@@ -20,6 +23,12 @@ const DEFAULT_MAX_MATERIALIZED_BYTES = 100 * 1024 * 1024
 const MAX_OUTPUT_COUNT = 16
 const MAX_REMOTE_URL_LENGTH = 8_192
 const RESERVED_OPTION_KEYS = new Set(["model", "prompt"])
+const WIRE_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  quality: ["auto", "low", "medium", "high", "standard", "hd"],
+  size: ["auto", "256x256", "512x512", "1024x1024", "1024x1536", "1536x1024", "1024x1792", "1792x1024"],
+  output_format: ["png", "jpeg", "webp"],
+  style: ["vivid", "natural"]
+}
 
 export interface OpenAIImagesAdapterOptions {
   readonly secretResolver: SecretResolverPort
@@ -64,7 +73,7 @@ export class OpenAIImagesAdapter implements MediaGenerationAdapter {
   }
 
   async submit(
-    request: MediaGenerationAdapterRequest
+    request: MediaGenerationSubmitRequest
   ): Promise<MediaGenerationSubmitResult> {
     let prepared: PreparedOpenAIImagesRequest
     try {
@@ -90,15 +99,23 @@ export class OpenAIImagesAdapter implements MediaGenerationAdapter {
       } catch (error) {
         return rejected("credential_unavailable", error)
       }
+      // Text-only generation is JSON; reference-image generation uploads the
+      // input images as multipart, and fetch sets that content type with its
+      // boundary.
+      const hasReferenceImages = prepared.inputs.length > 0
       const response = await this.#fetch(
-        `${prepared.baseUrl}/images/generations`,
+        `${prepared.baseUrl}/images/${hasReferenceImages ? "edits" : "generations"}`,
         {
           method: "POST",
-          headers: {
-            authorization: `Bearer ${apiKey}`,
-            "content-type": "application/json"
-          },
-          body: JSON.stringify(prepared.body),
+          headers: hasReferenceImages
+            ? { authorization: `Bearer ${apiKey}` }
+            : {
+                authorization: `Bearer ${apiKey}`,
+                "content-type": "application/json"
+              },
+          body: hasReferenceImages
+            ? editForm(prepared)
+            : JSON.stringify(prepared.body),
           signal: request.signal,
           redirect: "error"
         }
@@ -177,11 +194,33 @@ interface PreparedOpenAIImagesRequest {
   readonly baseUrl: string
   readonly secretRef: string
   readonly body: Readonly<Record<string, JsonValue>>
+  readonly inputs: readonly MediaGenerationInput[]
   readonly outputMediaType: string
 }
 
+function editForm(prepared: PreparedOpenAIImagesRequest): FormData {
+  const form = new FormData()
+  for (const [key, value] of Object.entries(prepared.body)) {
+    form.append(key, typeof value === "string" ? value : JSON.stringify(value))
+  }
+  // A single image keeps the field every Images model accepts; several images
+  // use the array field of the GPT image models.
+  const field = prepared.inputs.length === 1 ? "image" : "image[]"
+  for (const [index, input] of prepared.inputs.entries()) {
+    const mediaType = input.resource.mediaType ?? "image/png"
+    form.append(
+      field,
+      new Blob([Buffer.from(input.bytes)], { type: mediaType }),
+      `image-${index + 1}.${mediaType.split("/")[1] ?? "png"}`
+    )
+  }
+  return form
+}
+
+const OPENAI_REFERENCE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"])
+
 function prepareRequest(
-  request: MediaGenerationAdapterRequest
+  request: MediaGenerationSubmitRequest
 ): PreparedOpenAIImagesRequest {
   if (request.signal.aborted) {
     throw new Error("OpenAI Images request is aborted")
@@ -190,14 +229,23 @@ function prepareRequest(
   if (endpoint.protocol.id !== "openai-images") {
     throw new Error(`unsupported media protocol: ${endpoint.protocol.id}`)
   }
+  const operation = request.binding.request.operation
   if (
-    request.binding.request.operation !== "image.generate" ||
+    operation !== "image.generate" ||
     request.binding.request.outputModality !== "image"
   ) {
     throw new Error("OpenAI Images supports only image.generate")
   }
-  if (request.binding.request.inputResources.length > 0) {
-    throw new Error("OpenAI Images generation does not accept input resources")
+  const inputs = request.inputs
+  if (inputs.length > 0) {
+    if (!endpoint.model.inputModalities.includes("image")) {
+      throw new Error("OpenAI Images model does not accept reference images")
+    }
+    for (const input of inputs) {
+      if (input.resource.kind !== "image" || !OPENAI_REFERENCE_IMAGE_TYPES.has(input.resource.mediaType ?? "")) {
+        throw new Error(`OpenAI Images cannot use ${input.resource.mediaType ?? input.resource.kind} as a reference image`)
+      }
+    }
   }
   const baseUrl = requiredConnectionField(endpoint.connection.baseUrl, "baseUrl")
   assertSafeBaseUrl(baseUrl)
@@ -205,7 +253,7 @@ function prepareRequest(
     endpoint.connection.secretRef,
     "secretRef"
   )
-  const options = normalizedOptions(request.binding.request.options)
+  const options = normalizedOptions(validateModelOptionValues(endpoint.model.generationOptions, request.binding.request.options))
   const outputFormat = options.output_format
   return {
     endpointId: endpoint.id,
@@ -218,6 +266,7 @@ function prepareRequest(
       ["prompt", request.binding.request.prompt],
       ...Object.entries(options)
     ]),
+    inputs,
     outputMediaType:
       outputFormat === "jpeg"
         ? "image/jpeg"
@@ -248,6 +297,13 @@ function normalizedOptions(value: JsonValue): Record<string, JsonValue> {
   for (const [key, option] of Object.entries(value)) {
     if (RESERVED_OPTION_KEYS.has(key)) {
       throw new Error(`OpenAI Images option is reserved: ${key}`)
+    }
+    if (key === "n") {
+      if (typeof option !== "number" || !Number.isInteger(option) || option < 1 || option > 10) {
+        throw new Error("OpenAI Images n must be an integer from 1 to 10")
+      }
+    } else if (!Object.hasOwn(WIRE_OPTIONS, key) || typeof option !== "string" || !WIRE_OPTIONS[key]!.includes(option)) {
+      throw new Error(`OpenAI Images option is unsupported: ${key}`)
     }
     options[key] = option
   }

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { imageGenerationOptionCatalog } from "@wanex/runtime/media-generation"
 import type {
   ModelDescriptor,
   ModelEndpoint,
@@ -21,6 +22,7 @@ export interface ProviderSetupInput {
   readonly conversationInputModalities?: readonly string[]
   readonly conversationFeatures?: readonly ModelFeature[]
   readonly imageGenerationModelId?: string
+  readonly imageGenerationAcceptsImages?: boolean
   readonly baseUrl?: string
   readonly credential?: string
   readonly makeConversationActive?: boolean
@@ -56,6 +58,17 @@ export interface ResolvedCredentialEndpoints {
   readonly imageGenerationEndpoint?: ModelEndpoint
 }
 
+export function resolveImageGenerationInputModalities(input: {
+  readonly providerId: string
+  readonly modelId: string
+  readonly acceptsReferenceImages?: boolean
+}): readonly ("text" | "image")[] {
+  return input.acceptsReferenceImages === true ||
+    (input.providerId === "openai" && input.modelId.startsWith("gpt-image-"))
+    ? ["text", "image"]
+    : ["text"]
+}
+
 const STANDARD_PROVIDER_CONNECTIONS = {
   openai: {
     id: "openai",
@@ -88,6 +101,15 @@ export function resolveCredentialEndpoints(
   const imageGenerationModelId = normalizeOptionalString(
     request.imageGenerationModelId
   )
+  if (request.imageGenerationAcceptsImages !== undefined && (
+    typeof request.imageGenerationAcceptsImages !== "boolean" ||
+    request.presetId !== "openai-compatible" ||
+    imageGenerationModelId === undefined
+  )) {
+    throw new ProviderPresetInputError(
+      "imageGenerationAcceptsImages requires a custom image generation model"
+    )
+  }
   if (
     imageGenerationModelId !== undefined &&
     request.presetId !== "openai" &&
@@ -146,6 +168,13 @@ export function resolveCredentialEndpoints(
               providerId: "openai-compatible",
               baseUrl,
               modelId: imageGenerationModelId,
+              acceptsImages: resolveImageGenerationInputModalities({
+                providerId: "openai-compatible",
+                modelId: imageGenerationModelId,
+                ...(request.imageGenerationAcceptsImages === undefined
+                  ? {}
+                  : { acceptsReferenceImages: request.imageGenerationAcceptsImages })
+              }).includes("image"),
               catalog: {
                 source: "custom",
                 catalogId: `${baseUrl}#images`,
@@ -196,6 +225,10 @@ export function resolveCredentialEndpoints(
             providerId: preset.providerId,
             baseUrl: preset.baseUrl,
             modelId: imageGenerationModelId,
+            acceptsImages: resolveImageGenerationInputModalities({
+              providerId: preset.providerId,
+              modelId: imageGenerationModelId
+            }).includes("image"),
             catalog: builtinCatalog("openai.images")
           })
         })
@@ -345,6 +378,7 @@ function imageGenerationEndpoint(options: {
   readonly providerId: string
   readonly baseUrl: string
   readonly modelId: string
+  readonly acceptsImages: boolean
   readonly catalog: ModelDescriptor["catalog"]
 }): ModelEndpoint {
   return {
@@ -358,7 +392,8 @@ function imageGenerationEndpoint(options: {
     model: {
       id: options.modelId,
       operations: ["image.generate"],
-      inputModalities: ["text"],
+      inputModalities: options.acceptsImages ? ["text", "image"] : ["text"],
+      generationOptions: imageGenerationOptionCatalog("openai-images", options.modelId),
       outputModalities: ["image"],
       features: [],
       catalog: options.catalog

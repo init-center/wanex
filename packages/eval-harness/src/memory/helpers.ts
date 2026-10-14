@@ -93,6 +93,7 @@ export async function seedReplaySession(session: WanexSessionCore): Promise<void
 }
 
 export class MemorySemanticProvider implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = MEMORY_MODEL_ENDPOINT.protocol
   readonly providerId = MEMORY_MODEL_ENDPOINT.connection.providerId
   readonly model = MEMORY_MODEL_ENDPOINT.model

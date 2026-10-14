@@ -636,6 +636,9 @@ function runtimeRequests() {
       }
     },
     { command: "get-resource", resource_id: "res_schema" },
+    { command: "prepare-image-resource", request: { mode: "normalize", resource: {
+      resource_id: "res_schema", sha256: "a".repeat(64), size_bytes: 12, kind: "image", media_type: "image/png"
+    } } },
     {
       command: "list-resources",
       request: { kind: null, origin: null, state: null, limit: 10 }
@@ -908,7 +911,8 @@ function sessionsRequests() {
         lease_token: "lease_schema",
         step: 1,
         invocation_number: 1,
-        request_digest: "request_digest_schema"
+        request_digest: "request_digest_schema",
+        input_resources: []
       }
     },
     {
@@ -923,6 +927,16 @@ function sessionsRequests() {
         lease_token: "lease_schema",
         invocation_id: "pinv_schema",
         provider_request_id: null
+      }
+    },
+    {
+      command: "checkpoint-provider-invocation",
+      request: {
+        session_id: "ses_schema", turn_id: "turn_schema", attempt_id: "attempt_schema",
+        input_id: "inp_schema", job_id: "job_schema", worker_id: "worker_schema",
+        lease_token: "lease_schema", invocation_id: "pinv_schema", provider_request_id: null,
+        response: { parts: [], providerState: [], finish: { type: "finish", reason: "stop" } },
+        response_digest: "a".repeat(64)
       }
     },
     {

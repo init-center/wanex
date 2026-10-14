@@ -428,7 +428,7 @@ export async function runWanexDesktopRemoteAssistantSettlementProof(
       : undefined;
   }, "remote Host-local administration policy");
   const closeSettings = document.querySelector(
-    '[data-ui-settings-panel] [aria-label="Close settings"]',
+    '[data-ui-settings-panel] [data-ui-action="close-settings"]',
   );
   if (closeSettings instanceof HTMLButtonElement) closeSettings.click();
   const sessionIdentityIsolated =

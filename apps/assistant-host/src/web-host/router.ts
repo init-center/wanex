@@ -26,6 +26,7 @@ import type { WebNodeRequestHandlerOptions } from "./types.js"
 import { handleAttachmentUpload } from "./routes/attachment.js"
 import { handleCapabilitySetup } from "./routes/capability.js"
 import { handleProviderManagement } from "./routes/providers.js"
+import { handleMediaProviderManagement } from "./routes/media-providers.js"
 import { handleMcpSettings } from "./routes/mcp.js"
 
 export interface WebRequestContext {
@@ -34,6 +35,7 @@ export interface WebRequestContext {
   readonly attachments: WebNodeRequestHandlerOptions["attachments"]
   readonly resourceDeliveries: WebNodeRequestHandlerOptions["resourceDeliveries"]
   readonly providers?: WebNodeRequestHandlerOptions["providers"]
+  readonly mediaProviders?: WebNodeRequestHandlerOptions["mediaProviders"]
   readonly modelCatalog?: WebNodeRequestHandlerOptions["modelCatalog"]
   readonly capabilitySetup?: WebNodeRequestHandlerOptions["capabilitySetup"]
   readonly mcpSettings?: WebNodeRequestHandlerOptions["mcpSettings"]
@@ -48,6 +50,7 @@ export interface WebRequestContext {
   readonly resourceDeliveryAudience: string
   readonly eventStreamPath: string
   readonly providerManagementPath?: string
+  readonly mediaProviderManagementPath?: string
   readonly modelCatalogRefreshPath?: string
   readonly capabilitySetupPath?: string
   readonly mcpSettingsPath?: string
@@ -156,6 +159,33 @@ export async function routeWebRequest(request: WebRequestContext): Promise<void>
       }
       requireHostSession(request)
       await handleProviderManagement(request)
+      return
+    }
+    if (
+      request.mediaProviderManagementPath !== undefined &&
+      path === request.mediaProviderManagementPath
+    ) {
+      const mediaProviders = request.mediaProviders
+      if (mediaProviders === undefined) {
+        throw new Error("media provider management route is not configured")
+      }
+      if (
+        request.request.method !== "GET" &&
+        request.request.method !== "POST" &&
+        request.request.method !== "PUT" &&
+        request.request.method !== "DELETE"
+      ) {
+        methodNotAllowed(
+          request.response,
+          "media provider management endpoint requires GET, POST, PUT, or DELETE"
+        )
+        return
+      }
+      requireHostSession(request)
+      await handleMediaProviderManagement({
+        ...request,
+        mediaProviders
+      })
       return
     }
     if (

@@ -55,7 +55,10 @@ export function installedTuiPtyJourneyIds() {
   return ["provider-lifecycle", "team", "final-provider-removal"]
 }
 
-export function installedTuiProviderJourneySteps() {
+export function installedTuiProviderJourneySteps(secondaryChoice) {
+  if (secondaryChoice !== "1" && secondaryChoice !== "2") {
+    throw new Error("installed TUI proof requires exactly two provider choices")
+  }
   return [
     "expect -exact \"Wanex Provider Setup\"",
     "expect -exact \"Provider \\[1-4\\]: \"",
@@ -89,7 +92,9 @@ export function installedTuiProviderJourneySteps() {
     "expect -exact \"Ready | installed-assistant-tui-model\"",
     "send -- \"\\033OQ\"",
     "expect -exact \"Models\"",
-    "send -- \"\\033\\\[B\"",
+    secondaryChoice === "1"
+      ? "send -- \"\\033\\\[A\""
+      : "send -- \"\\033\\\[B\"",
     "send -- \"\\r\"",
     "expect -exact \"Model selected | installed-secondary-model\"",
     "expect -re {Send \\|[^\\r\\n]*Enter submit}",
@@ -669,7 +674,7 @@ async function runInstalledFullScreenTui(options) {
           "close $channel",
           "log_file -noappend -a $transcript",
           "spawn -noecho $node $entry fullscreen",
-          ...installedTuiProviderJourneySteps()
+          ...installedTuiProviderJourneySteps(secondaryChoice)
         ].join("\n") + "\n",
         "utf8"
       ),

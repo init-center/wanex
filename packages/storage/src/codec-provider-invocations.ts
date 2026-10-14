@@ -1,12 +1,14 @@
 import type {
   BeginProviderInvocationRequest,
+  CheckpointProviderInvocationRequest,
   FinishProviderInvocationReceipt,
   FinishProviderInvocationRequest,
   JsonValue,
   ListProviderInvocationsRequest,
   MarkProviderInvocationOutputRequest,
   ProviderInvocationRecord,
-  ProviderInvocationState
+  ProviderInvocationState,
+  ProviderResponseCheckpoint
 } from "@wanex/protocol"
 import {
   expectBoolean,
@@ -19,10 +21,14 @@ import {
   withOptionalFields
 } from "./codec-helpers.js"
 import { messagePartsToJson } from "./codec-helpers.js"
+import { messagePartsFromJson, expectProviderState, assertArray } from "./codec-helpers.js"
+import { fromRpcResourceInputEvidence, toRpcResourceInputEvidence } from "./codec-resource.js"
+import { digestCanonicalJson } from "./codec-canonical.js"
 import { fromRpcSessionMessageRecord } from "./codec-session-message-records.js"
 import { toRpcJsonValue, toRpcJsonValueFromUnknown } from "./codec-common.js"
 import type {
   BeginProviderInvocationWire,
+  CheckpointProviderInvocationWire,
   FinishProviderInvocationWire,
   ListProviderInvocationsWire,
   MarkProviderInvocationOutputWire
@@ -33,6 +39,13 @@ export function fromRpcProviderInvocationRecord(
 ): ProviderInvocationRecord {
   if (!isRecord(value)) {
     throw new Error("provider invocation must be an object")
+  }
+  assertArray(value.input_resources, "provider invocation input resources")
+  const responseCheckpoint = value.response_checkpoint == null ? undefined : readCheckpoint(value.response_checkpoint)
+  const responseDigest = optionalString(value.response_digest, "provider invocation response digest")
+  if ((responseCheckpoint === undefined) !== (responseDigest === undefined) ||
+      (responseCheckpoint !== undefined && digestCanonicalJson(toRpcJsonValueFromUnknown(responseCheckpoint)) !== responseDigest)) {
+    throw new Error("provider invocation checkpoint digest is invalid")
   }
   return withOptionalFields(
     {
@@ -55,6 +68,7 @@ export function fromRpcProviderInvocationRecord(
         value.request_digest,
         "provider_invocation.request_digest"
       ),
+      inputResources: value.input_resources.map((value) => fromRpcResourceInputEvidence(value)),
       state: expectProviderInvocationState(value.state),
       outputObserved: expectBoolean(
         value.output_observed,
@@ -64,6 +78,8 @@ export function fromRpcProviderInvocationRecord(
       updatedAt: expectNumber(value.updated_at, "provider_invocation.updated_at")
     },
     {
+      responseCheckpoint,
+      responseDigest,
       providerRequestId: optionalString(
         value.provider_request_id,
         "provider_invocation.provider_request_id"
@@ -116,7 +132,46 @@ export function toRpcBeginProviderInvocationRequest(
     lease_token: request.leaseToken,
     step: request.step,
     invocation_number: request.invocationNumber,
-    request_digest: request.requestDigest
+    request_digest: request.requestDigest,
+    input_resources: request.inputResources.map(toRpcResourceInputEvidence)
+  }
+}
+
+export function toRpcCheckpointProviderInvocationRequest(request: CheckpointProviderInvocationRequest): CheckpointProviderInvocationWire {
+  const response = toRpcJsonValueFromUnknown(request.response)
+  readCheckpoint(response)
+  if (digestCanonicalJson(response) !== request.responseDigest) throw new Error("provider response digest does not match checkpoint")
+  return {
+    ...toRpcMarkProviderInvocationOutputRequest(request), response, response_digest: request.responseDigest
+  }
+}
+
+function readCheckpoint(value: JsonValue): ProviderResponseCheckpoint {
+  if (!isRecord(value) || !isRecord(value.finish) || value.finish.type !== "finish" ||
+      (value.finish.reason !== "stop" && value.finish.reason !== "tool_calls")) {
+    throw new Error("provider checkpoint requires a complete response")
+  }
+  assertArray(value.providerState, "provider checkpoint state")
+  const usage = value.usage
+  if (usage !== undefined) {
+    if (!isRecord(usage)) throw new Error("provider checkpoint usage must be an object")
+    for (const [key, count] of Object.entries(usage)) {
+      if (key !== "metadata" && (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0)) {
+        throw new Error("provider checkpoint usage must contain non-negative safe integers")
+      }
+    }
+  }
+  const parts = messagePartsFromJson(value.parts).map((part) => {
+    if (part.type !== "text" && part.type !== "reasoning" && part.type !== "tool_call" && part.type !== "resource") {
+      throw new Error("provider checkpoint contains a non-provider message part")
+    }
+    return part
+  })
+  return {
+    parts, providerState: value.providerState.map(expectProviderState),
+    finish: { type: "finish", reason: value.finish.reason,
+      ...(value.finish.rawReason === undefined ? {} : { rawReason: expectString(value.finish.rawReason, "provider finish raw reason") }) },
+    ...(usage === undefined ? {} : { usage: usage as NonNullable<ProviderResponseCheckpoint["usage"]> })
   }
 }
 
@@ -174,6 +229,7 @@ function expectProviderInvocationState(
   if (
     value !== "dispatched" &&
     value !== "output_observed" &&
+    value !== "output_ready" &&
     value !== "succeeded" &&
     value !== "failed_before_output" &&
     value !== "ambiguous"

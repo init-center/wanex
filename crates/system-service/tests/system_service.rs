@@ -332,6 +332,7 @@ fn begin_test_provider_invocation(
 ) -> wanex_system_service::ProviderInvocationRecord {
     service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: submitted.turn.session_id.clone(),
             turn_id: submitted.turn.id.clone(),
@@ -370,6 +371,7 @@ fn prepare_delegated_task_settlement(
         Some(
             service
                 .begin_provider_invocation(&BeginProviderInvocation {
+                    input_resources: vec![],
                     id: None,
                     session_id: task.target_session_id.clone(),
                     turn_id: task.child_turn_id.clone(),
@@ -708,6 +710,48 @@ fn rejects_unmarked_non_empty_store() {
         SystemServiceError::Invariant(message)
             if message.contains("current baseline marker is missing")
     ));
+}
+
+#[test]
+fn rejects_previous_baseline_without_changing_existing_data() {
+    let dir = tempdir().unwrap();
+    let old_root = dir.path().join("profiles/previous");
+    let service = SystemService::open(&old_root).unwrap();
+    service
+        .put_config("preserved", &json!({"value": "keep"}))
+        .unwrap();
+    let conn = rusqlite::Connection::open(service.db_path()).unwrap();
+    conn.execute("UPDATE schema_metadata SET version = 23", [])
+        .unwrap();
+    drop(service);
+
+    let error = SystemService::open(&old_root).unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("unsupported pre-release store schema"));
+    assert_eq!(schema_markers(&conn), vec![(23, "baseline".to_string())]);
+    let before: String = conn
+        .query_row(
+            "SELECT value_json FROM config_entry WHERE key = 'preserved'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let fresh = SystemService::open(dir.path().join("profiles/fresh")).unwrap();
+    assert_eq!(fresh.doctor().unwrap().schema_version, 26);
+    assert!(fresh.get_config("preserved").unwrap().is_none());
+    let after: String = conn
+        .query_row(
+            "SELECT value_json FROM config_entry WHERE key = 'preserved'",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(before, after);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&after).unwrap(),
+        json!({"value": "keep"})
+    );
 }
 
 #[test]
@@ -6237,6 +6281,7 @@ fn restart_requeues_retryable_provider_failure_without_duplicate_input() {
     let first_started = start_test_turn(&service, &submitted, &first_job, "worker_provider_old");
     let first_invocation = service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: submitted.turn.session_id.clone(),
             turn_id: submitted.turn.id.clone(),
@@ -6289,6 +6334,7 @@ fn restart_requeues_retryable_provider_failure_without_duplicate_input() {
     );
     let second_invocation = recovered_service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: submitted.turn.session_id.clone(),
             turn_id: submitted.turn.id.clone(),
@@ -6341,6 +6387,7 @@ fn restart_never_replays_a_dispatched_provider_invocation() {
     let started = start_test_turn(&service, &submitted, &job, "worker_provider_ambiguous");
     service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: submitted.turn.session_id.clone(),
             turn_id: submitted.turn.id.clone(),
@@ -10436,6 +10483,7 @@ fn atomically_admits_lead_delegation_without_expanding_public_team_delivery() {
     );
     let resumed_provider = service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: materialized.submission.turn.session_id.clone(),
             turn_id: materialized.submission.turn.id.clone(),
@@ -13623,6 +13671,7 @@ fn settle_team_child_with_pass_tools(
     }
     let final_provider = service
         .begin_provider_invocation(&BeginProviderInvocation {
+            input_resources: vec![],
             id: None,
             session_id: fixture.session_id.clone(),
             turn_id: materialized.submission.turn.id.clone(),
@@ -15345,6 +15394,74 @@ fn workspace_task_projection_rejects_incomplete_and_removed_policy_fields() {
 }
 
 #[test]
+fn media_generation_persists_and_validates_frozen_model_options() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let mut binding = media_generation_binding("model-options");
+    binding["model"]["generationOptions"] = json!([
+        {"name":"n","description":"Image count","type":"integer","minimum":1,"maximum":2},
+        {"name":"quality","description":"Image quality","type":"string","enum":["high","low"]}
+    ]);
+    binding["endpointDigest"] = json!(sha256_json(&json!({
+        "id": binding["endpointId"], "connection": binding["connection"],
+        "protocol": binding["protocol"], "model": binding["model"]
+    })));
+    for (index, options) in [
+        json!({"n":3}),
+        json!({"quality":"auto"}),
+        json!({"unknown":true}),
+    ]
+    .iter()
+    .enumerate()
+    {
+        let mut invalid = binding.clone();
+        invalid["request"]["options"] = options.clone();
+        invalid["requestDigest"] = json!(sha256_json(&invalid["request"]));
+        assert!(service
+            .submit_media_generation(&wanex_system_service::SubmitMediaGenerationOperation {
+                id: None,
+                job_id: None,
+                principal_id: "media-options-user".to_string(),
+                idempotency_key: format!("invalid-options-{index}"),
+                binding: invalid,
+                priority: None,
+            })
+            .is_err());
+    }
+    assert!(service
+        .list_media_generations(&wanex_system_service::ListMediaGenerationOperations {
+            principal_id: Some("media-options-user".to_string()),
+            state: None,
+            limit: None,
+        })
+        .unwrap()
+        .is_empty());
+    binding["request"]["options"] = json!({"n":2,"quality":"high"});
+    binding["requestDigest"] = json!(sha256_json(&binding["request"]));
+    service
+        .submit_media_generation(&wanex_system_service::SubmitMediaGenerationOperation {
+            id: None,
+            job_id: None,
+            principal_id: "media-options-user".to_string(),
+            idempotency_key: "valid-options".to_string(),
+            binding: binding.clone(),
+            priority: None,
+        })
+        .unwrap();
+    drop(service);
+    let reopened = SystemService::open(dir.path()).unwrap();
+    let records = reopened
+        .list_media_generations(&wanex_system_service::ListMediaGenerationOperations {
+            principal_id: Some("media-options-user".to_string()),
+            state: None,
+            limit: None,
+        })
+        .unwrap();
+    assert_eq!(records.len(), 1);
+    assert_eq!(records[0].binding, binding);
+}
+
+#[test]
 fn media_generation_rejects_altered_request_evidence_before_enqueue() {
     let dir = tempdir().unwrap();
     let service = SystemService::open(dir.path()).unwrap();
@@ -15419,6 +15536,48 @@ fn media_generation_submission_is_atomic_idempotent_and_lease_fenced() {
         .unwrap();
     assert_eq!(begun.action, "started");
     assert_eq!(begun.operation.state, "submitting");
+}
+
+#[test]
+fn media_generation_reference_inputs_require_model_image_support_before_enqueue() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let mut binding = media_generation_binding("text-only-reference");
+    binding["request"]["inputResources"] = json!([{
+        "resourceId": "res_reference", "sha256": "a".repeat(64),
+        "sizeBytes": 3, "kind": "image", "mediaType": "image/png"
+    }]);
+    binding["requestDigest"] = json!(sha256_json(&binding["request"]));
+    let error = service
+        .submit_media_generation(&wanex_system_service::SubmitMediaGenerationOperation {
+            id: Some("media-text-only-reference".to_string()),
+            job_id: Some("job-text-only-reference".to_string()),
+            principal_id: "media-user".to_string(),
+            idempotency_key: "media-text-only-reference".to_string(),
+            binding,
+            priority: None,
+        })
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("capability route endpoint does not satisfy its requirement"),
+        "{error}"
+    );
+    assert!(service
+        .list_media_generations(&wanex_system_service::ListMediaGenerationOperations {
+            principal_id: None,
+            state: None,
+            limit: None,
+        })
+        .unwrap()
+        .is_empty());
+    assert!(service
+        .get_job(&wanex_system_service::GetJob {
+            job_id: "job-text-only-reference".to_string(),
+        })
+        .unwrap()
+        .is_none());
 }
 
 #[test]
@@ -15679,6 +15838,211 @@ fn deferred_media_tool_handoff_is_atomic_lease_free_and_idempotent() {
         })
         .unwrap();
     assert_eq!(operations.len(), 1);
+}
+
+#[test]
+fn turn_binding_accepts_only_the_image_understanding_conversation_route() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let submit = |label: &str, requirement: serde_json::Value| {
+        let session_id = format!("ses_vision_route_{label}");
+        service
+            .create_session(Some(&session_id), None, Some("agent"), None)
+            .unwrap();
+        let input_id = format!("inp_vision_route_{label}");
+        let turn_id = format!("turn_vision_route_{label}");
+        let job_id = format!("job_vision_route_{label}");
+        let mut request = test_turn_request(TestTurn {
+            session_id: &session_id,
+            input_id: &input_id,
+            turn_id: &turn_id,
+            job_id: &job_id,
+            principal_id: "vision-route-user",
+            idempotency_key: &format!("vision-route-{label}"),
+            text: "describe",
+        });
+        let endpoint = json!({
+            "id": format!("vision-endpoint-{label}"),
+            "connection": { "id": format!("vision-connection-{label}"), "providerId": "fake" },
+            "protocol": { "id": "fake" },
+            "model": {
+                "id": format!("vision-model-{label}"),
+                "operations": ["conversation"],
+                "inputModalities": ["text", "image"],
+                "outputModalities": ["text"],
+                "features": [],
+                "catalog": { "source": "custom", "catalogId": format!("test.vision-{label}"), "revision": "1" }
+            }
+        });
+        request.execution_binding["capabilityRoutes"] = json!([{
+            "requirement": requirement,
+            "source": "configured",
+            "modelEndpoint": {
+                "endpointId": endpoint["id"],
+                "endpointDigest": sha256_json(&endpoint),
+                "connection": endpoint["connection"],
+                "protocol": endpoint["protocol"],
+                "model": endpoint["model"]
+            }
+        }]);
+        refresh_execution_binding_digest(&mut request.execution_binding);
+        service.submit_session_turn(&request)
+    };
+
+    submit(
+        "accepted",
+        json!({
+            "operation": "conversation",
+            "inputModalities": ["text", "image"],
+            "outputModalities": ["text"],
+            "features": []
+        }),
+    )
+    .unwrap();
+    let rejected = submit(
+        "rejected",
+        json!({
+            "operation": "conversation",
+            "inputModalities": ["text"],
+            "outputModalities": ["text"],
+            "features": []
+        }),
+    )
+    .unwrap_err();
+    assert!(
+        rejected
+            .to_string()
+            .contains("capability route operation is invalid"),
+        "{rejected}"
+    );
+}
+
+#[test]
+fn image_description_provenance_is_keyed_by_source_endpoint_and_prompt() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let ingest = |bytes: &[u8], kind: &str, media_type: &str, origin: &str| {
+        service
+            .ingest_resource(&IngestResource {
+                id: None,
+                logical_path: None,
+                content: bytes.to_vec(),
+                media_type: Some(media_type.to_string()),
+                kind: Some(kind.to_string()),
+                origin: Some(origin.to_string()),
+                label: None,
+                source: None,
+                metadata: None,
+                width: None,
+                height: None,
+                duration_ms: None,
+                expected_sha256: None,
+            })
+            .unwrap()
+    };
+    let evidence = |record: &wanex_system_service::ResourceRecord| {
+        wanex_system_service::ResourceInputEvidence {
+            resource_id: record.id.clone(),
+            sha256: record.sha256.clone(),
+            size_bytes: record.size_bytes,
+            kind: record.kind.clone(),
+            media_type: record.media_type.clone(),
+        }
+    };
+    let image = ingest(b"photo-bytes", "image", "image/png", "user_upload");
+    let description = ingest(b"A red triangle.", "document", "text/plain", "model_output");
+    let endpoint_digest = "e".repeat(64);
+    let key = sha256_hex(format!("{}\n{}\nv1", image.sha256, endpoint_digest).as_bytes());
+    let record = |description_key: String| wanex_system_service::RecordResourceProvenance {
+        resource: evidence(&description),
+        cause: wanex_system_service::ResourceProvenanceCause::ImageDescription {
+            description_key,
+            endpoint_digest: endpoint_digest.clone(),
+            prompt_version: "v1".to_string(),
+        },
+        input_resources: vec![evidence(&image)],
+    };
+
+    assert!(service
+        .record_resource_provenance(&record("0".repeat(64)))
+        .is_err());
+    service
+        .record_resource_provenance(&record(key.clone()))
+        .unwrap();
+    let found = service
+        .list_resource_provenance(&wanex_system_service::ListResourceProvenance {
+            resource_id: None,
+            cause_kind: Some("image_description".to_string()),
+            cause_id: Some(key),
+            limit: Some(1),
+        })
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].resource.resource_id, description.id);
+}
+
+#[test]
+fn deferred_media_generation_accepts_only_resources_visible_in_the_session() {
+    let dir = tempdir().unwrap();
+    let service = SystemService::open(dir.path()).unwrap();
+    let ingest = |id: &str, bytes: &[u8]| {
+        let record = service
+            .ingest_resource(&IngestResource {
+                id: Some(id.to_string()),
+                logical_path: None,
+                content: bytes.to_vec(),
+                media_type: Some("image/png".to_string()),
+                kind: Some("image".to_string()),
+                origin: Some("user_upload".to_string()),
+                label: None,
+                source: None,
+                metadata: None,
+                width: None,
+                height: None,
+                duration_ms: None,
+                expected_sha256: None,
+            })
+            .unwrap();
+        json!({
+            "resourceId": record.id,
+            "sha256": record.sha256,
+            "sizeBytes": record.size_bytes,
+            "kind": record.kind,
+            "mediaType": record.media_type
+        })
+    };
+    let attached = ingest("res_reference_attached", b"attached-image");
+    let foreign = ingest("res_reference_foreign", b"foreign-image");
+
+    let (_, _, accepted) = deferred_media_tool_request(
+        &service,
+        "reference_visible",
+        &DeferredMediaVariant::Reference {
+            attached: attached.clone(),
+            referenced: attached.clone(),
+        },
+    );
+    let receipt = service.defer_tool_execution(&accepted).unwrap();
+    assert!(matches!(
+        receipt.operation,
+        wanex_system_service::DeferredToolOperationReceipt::MediaGeneration { .. }
+    ));
+
+    let (_, _, rejected) = deferred_media_tool_request(
+        &service,
+        "reference_foreign",
+        &DeferredMediaVariant::Reference {
+            attached,
+            referenced: foreign,
+        },
+    );
+    let error = service.defer_tool_execution(&rejected).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("media input resource is not part of this conversation"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -16090,6 +16454,43 @@ struct DeferredMediaToolFixture {
 }
 
 fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> DeferredMediaToolFixture {
+    let (submitted, source_message_id, request) =
+        deferred_media_tool_request(service, label, &DeferredMediaVariant::Generate);
+    let receipt = service.defer_tool_execution(&request).unwrap();
+    let (media_operation, media_job) = match &receipt.operation {
+        wanex_system_service::DeferredToolOperationReceipt::MediaGeneration { record, job } => {
+            (record.as_ref().clone(), job.as_ref().clone())
+        }
+        _ => panic!("expected deferred media operation"),
+    };
+    DeferredMediaToolFixture {
+        submitted,
+        source_message_id,
+        request,
+        receipt,
+        media_operation,
+        media_job,
+    }
+}
+
+enum DeferredMediaVariant {
+    Generate,
+    /// The user turn attaches `attached`; the generation request references `referenced`.
+    Reference {
+        attached: serde_json::Value,
+        referenced: serde_json::Value,
+    },
+}
+
+fn deferred_media_tool_request(
+    service: &SystemService,
+    label: &str,
+    variant: &DeferredMediaVariant,
+) -> (
+    SubmitSessionTurnReceipt,
+    String,
+    wanex_system_service::DeferToolExecution,
+) {
     let session_id = format!("ses_deferred_media_{label}");
     let input_id = format!("inp_deferred_media_{label}");
     let turn_id = format!("turn_deferred_media_{label}");
@@ -16108,7 +16509,44 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
         idempotency_key: &format!("deferred-media-{label}"),
         text: "generate an image",
     });
-    submit.execution_binding = deferred_media_execution_binding(label);
+    let (tool_name, requirement, media_binding) = match variant {
+        DeferredMediaVariant::Generate => (
+            "image_generate",
+            image_generation_requirement(),
+            media_generation_binding(label),
+        ),
+        DeferredMediaVariant::Reference {
+            attached,
+            referenced,
+        } => {
+            let mut content = submit.content.as_array().unwrap().clone();
+            let mut part = attached.clone();
+            part["type"] = json!("resource");
+            part["id"] = json!(format!("part_attached_{label}"));
+            content.push(part);
+            submit.content = json!(content);
+            (
+                "image_generate",
+                image_generation_requirement(),
+                media_reference_binding(label, referenced),
+            )
+        }
+    };
+    submit.execution_binding =
+        deferred_media_execution_binding_for(label, &requirement, &media_binding);
+    if let DeferredMediaVariant::Reference { attached, .. } = variant {
+        submit.execution_binding["resources"] = json!([attached]);
+        submit.execution_binding["modelEndpoint"]["model"]["inputModalities"] =
+            json!(["text", "image"]);
+        let endpoint = json!({
+            "id": submit.execution_binding["modelEndpoint"]["endpointId"],
+            "connection": submit.execution_binding["modelEndpoint"]["connection"],
+            "protocol": submit.execution_binding["modelEndpoint"]["protocol"],
+            "model": submit.execution_binding["modelEndpoint"]["model"]
+        });
+        submit.execution_binding["modelEndpoint"]["endpointDigest"] = json!(sha256_json(&endpoint));
+        refresh_execution_binding_digest(&mut submit.execution_binding);
+    }
     let submitted = service.submit_session_turn(&submit).unwrap();
     let session_job = claim_session_turn_job(service, &worker_id, 60_000).unwrap();
     let started = start_test_turn(service, &submitted, &session_job, &worker_id);
@@ -16129,7 +16567,7 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
                 "type": "tool_call",
                 "id": format!("part_{tool_call_id}"),
                 "toolCallId": tool_call_id,
-                "toolName": "image_generate",
+                "toolName": tool_name,
                 "input": {"prompt": format!("deferred image {label}")}
             }])),
             provider_state: None,
@@ -16140,7 +16578,6 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
         .unwrap()
         .assistant_message
         .unwrap();
-    let requirement = image_generation_requirement();
     let begun_tool = service
         .begin_tool_execution(&BeginToolExecution {
             session_id: session_id.clone(),
@@ -16153,10 +16590,10 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
             lease_token: session_job.lease_token.clone().unwrap(),
             principal_id: "deferred-media-user".to_string(),
             tool_call_id: tool_call_id.clone(),
-            tool_name: "image_generate".to_string(),
+            tool_name: tool_name.to_string(),
             input: json!({"prompt": format!("deferred image {label}")}),
             descriptor: json!({
-                "name": "image_generate",
+                "name": tool_name,
                 "description": "Generate an image from a text prompt.",
                 "inputSchema": {"type": "object"},
                 "risk": "external",
@@ -16192,32 +16629,21 @@ fn prepare_deferred_media_tool(service: &SystemService, label: &str) -> Deferred
         tool_invocation_attempt_id: tool_attempt.id,
         tool_call_id,
         operation: wanex_system_service::DeferredToolOperation::MediaGeneration {
-            binding: media_generation_binding(label),
+            binding: media_binding,
             priority: None,
         },
     };
-    let receipt = service.defer_tool_execution(&request).unwrap();
-    let (media_operation, media_job) = match &receipt.operation {
-        wanex_system_service::DeferredToolOperationReceipt::MediaGeneration { record, job } => {
-            (record.as_ref().clone(), job.as_ref().clone())
-        }
-        _ => panic!("expected deferred media operation"),
-    };
-    DeferredMediaToolFixture {
-        submitted,
-        source_message_id: source_message.id,
-        request,
-        receipt,
-        media_operation,
-        media_job,
-    }
+    (submitted, source_message.id, request)
 }
 
-fn deferred_media_execution_binding(label: &str) -> serde_json::Value {
+fn deferred_media_execution_binding_for(
+    label: &str,
+    requirement: &serde_json::Value,
+    media: &serde_json::Value,
+) -> serde_json::Value {
     let mut binding = test_execution_binding(label);
-    let media = media_generation_binding(label);
     binding["capabilityRoutes"] = json!([{
-        "requirement": image_generation_requirement(),
+        "requirement": requirement,
         "source": "single_candidate",
         "modelEndpoint": {
             "endpointId": media["endpointId"],
@@ -16238,6 +16664,23 @@ fn image_generation_requirement() -> serde_json::Value {
         "outputModalities": ["image"],
         "features": []
     })
+}
+
+fn media_reference_binding(label: &str, input: &serde_json::Value) -> serde_json::Value {
+    let mut binding = media_generation_binding(label);
+    binding["model"]["operations"] = json!(["image.generate"]);
+    binding["model"]["inputModalities"] = json!(["text", "image"]);
+    binding["request"]["operation"] = json!("image.generate");
+    binding["request"]["inputResources"] = json!([input]);
+    binding["requestDigest"] = json!(sha256_json(&binding["request"]));
+    let endpoint = json!({
+        "id": binding["endpointId"],
+        "connection": binding["connection"],
+        "protocol": binding["protocol"],
+        "model": binding["model"]
+    });
+    binding["endpointDigest"] = json!(sha256_json(&endpoint));
+    binding
 }
 
 fn media_generation_binding(label: &str) -> serde_json::Value {

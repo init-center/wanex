@@ -4,12 +4,13 @@ import {
   protocolProviderError,
   type ProviderAdapter,
   type ProviderEvent,
+  type ProviderObservedEvent,
   type PreparedProviderReplayMessage,
   type ProviderToolChoice,
   type ProviderToolDefinition,
-  type ProviderTurnResult
+  type ProviderResponseCandidate
 } from "../../provider/index.js"
-import type { RuntimeAbortSignal } from "@wanex/protocol"
+import type { ModelOutputModality, RuntimeAbortSignal } from "@wanex/protocol"
 import { runCancellable } from "./cancellable.js"
 
 export async function runProviderCompletion(
@@ -19,13 +20,14 @@ export async function runProviderCompletion(
     readonly signal: RuntimeAbortSignal | undefined
     readonly timeoutMs: number | undefined
     readonly maxOutputTokens: number
-    readonly observe?: (event: ProviderEvent) => void
+    readonly outputModalities: readonly ModelOutputModality[]
+    readonly observe?: (event: ProviderObservedEvent) => void
     readonly checkpoint?: (event: ProviderEvent) => Promise<void>
     readonly tools?: readonly ProviderToolDefinition[]
     readonly toolChoice?: ProviderToolChoice
     readonly parallelToolCalls?: boolean
   }
-): Promise<ProviderTurnResult> {
+): Promise<ProviderResponseCandidate> {
   let outputObserved = false
   try {
     return await runCancellable(
@@ -34,6 +36,7 @@ export async function runProviderCompletion(
           provider,
           request: {
             messages: request.messages,
+            outputModalities: request.outputModalities,
             maxOutputTokens: request.maxOutputTokens,
             ...(signal === undefined ? {} : { signal }),
             ...(request.tools === undefined ? {} : { tools: request.tools }),
@@ -44,19 +47,14 @@ export async function runProviderCompletion(
               ? {}
               : { parallelToolCalls: request.parallelToolCalls })
           },
-          observe: (event) => {
-            if (
-              event.type === "text_delta" ||
-              event.type === "reasoning_delta" ||
-              event.type === "tool_call_start"
-            ) {
+          ...(request.observe === undefined ? {} : { observe: request.observe }),
+          checkpoint: async (event) => {
+            if (event.type === "text_delta" || event.type === "reasoning_delta" ||
+                event.type === "tool_call_start" || event.type === "image_output") {
               outputObserved = true
             }
-            request.observe?.(event)
-          },
-          ...(request.checkpoint === undefined
-            ? {}
-            : { checkpoint: request.checkpoint })
+            await request.checkpoint?.(event)
+          }
         }),
       {
         signal: request.signal,

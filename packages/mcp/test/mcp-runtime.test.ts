@@ -928,7 +928,7 @@ class MemoryToolExecutionStore implements TestToolExecutionStore {
       if (request.causeId === undefined) return true
       return record.cause.kind === "tool_execution"
         ? record.cause.executionId === request.causeId
-        : record.cause.operationId === request.causeId
+        : record.cause.kind === "media_generation" && record.cause.operationId === request.causeId
     })
   }
 

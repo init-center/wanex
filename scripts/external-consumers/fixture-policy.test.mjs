@@ -54,5 +54,12 @@ describe("external consumer fixture policy", () => {
     expect(source).toContain("protocolId: imageEndpoint.protocol.id")
     expect(source).toContain("canExecute(modelEndpoint)")
     expect(source).not.toContain("modelEndpointId")
+    const manifest = JSON.parse(await readFile(
+      new URL("./fixtures/trusted-app/package.json", import.meta.url), "utf8"
+    ))
+    expect(validateExternalFixtureManifest({
+      id: "trusted-app", dependencies: ["@wanex/app", "@wanex/runtime"]
+    }, manifest)).toEqual([])
+    expect(source).toContain("createMediaGenerationCapability")
   })
 })

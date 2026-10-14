@@ -28,6 +28,17 @@ export interface WanexAppModelEndpointCommands {
     request: WanexAppReadModelEndpointRequest,
   ): Promise<WanexAppModelEndpointReadModel | null>;
   listModelEndpoints(): Promise<WanexAppModelEndpointListReadModel>;
+  /**
+   * Chooses, or with `null` clears, the endpoint that reads images for
+   * conversation models that cannot see them.
+   */
+  setImageUnderstandingEndpoint(
+    request: WanexAppSetImageUnderstandingEndpointRequest,
+  ): Promise<WanexAppModelEndpointListReadModel>;
+}
+
+export interface WanexAppSetImageUnderstandingEndpointRequest {
+  readonly endpointId: string | null;
 }
 
 export interface WanexAppSetActiveModelEndpointRequest {
@@ -77,5 +88,7 @@ export interface WanexAppModelEndpointReadModel {
 
 export interface WanexAppModelEndpointListReadModel {
   readonly activeEndpointId?: string;
+  /** Present only while the chosen endpoint exists and accepts images. */
+  readonly imageUnderstandingEndpointId?: string;
   readonly endpoints: readonly WanexAppModelEndpointReadModel[];
 }

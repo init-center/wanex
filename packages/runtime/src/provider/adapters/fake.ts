@@ -22,6 +22,7 @@ export interface FakeProviderAdapterOptions {
 }
 
 export class FakeProviderAdapter implements ProviderAdapter {
+  readonly outputModalities = ["text"] as const
   readonly protocol = { id: "fake" } as const
   readonly providerId: string
   readonly model: ModelDescriptor

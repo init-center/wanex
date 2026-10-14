@@ -16,6 +16,9 @@ import type {
 import type {
   WanexDesktopProviderCancelRegenerateProofExpected
 } from "./provider-cancel-regenerate-proof.js"
+import type {
+  WanexDesktopProviderMediaRoutingProofExpected
+} from "./provider-media-routing-proof.js"
 
 export type WanexDesktopProviderRelaunchProofOptions =
   | {
@@ -27,6 +30,7 @@ export type WanexDesktopProviderRelaunchProofOptions =
       readonly step: Exclude<
         WanexDesktopProviderRelaunchProofStep,
         | "relaunch-configure"
+        | "relaunch-chat"
         | "relaunch-guided-follow-up"
         | "relaunch-side-query"
       >
@@ -37,12 +41,12 @@ export interface WanexDesktopProviderRelaunchProofExpected
     WanexDesktopProviderImageGenerationProofExpected,
     WanexDesktopProviderPlanProofExpected,
     WanexDesktopProviderGoalProofExpected,
-    WanexDesktopProviderCancelRegenerateProofExpected {
-  readonly step: WanexDesktopProviderRelaunchProofStep
+    WanexDesktopProviderCancelRegenerateProofExpected,
+    WanexDesktopProviderMediaRoutingProofExpected {
+  readonly step: Exclude<WanexDesktopProviderRelaunchProofStep, "relaunch-chat">
   readonly providerBaseUrl?: string
   readonly credential?: string
   readonly heading: string
   readonly code: string
   readonly initialText: string
-  readonly followUpText: string
 }

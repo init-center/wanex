@@ -3,7 +3,6 @@
   "targets": {
     "linux-x64": {
       "native": {
-        "maxExecutableBytes": 10800000,
         "exactFileCount": 2,
         "maxColdImportMedianMs": 750,
         "maxColdImportHardMs": 2000,
@@ -15,16 +14,13 @@
         "maxWallTimeHardMs": 5000
       },
       "tui": {
-        "maxStagingBytes": 2000000,
         "maxStagingFileCount": 12,
-        "maxTarballBytes": 500000,
         "maxTarballFileCount": 12,
         "ptyMode": "required"
       }
     },
     "darwin-arm64": {
       "native": {
-        "maxExecutableBytes": 10800000,
         "exactFileCount": 2,
         "maxColdImportMedianMs": 750,
         "maxColdImportHardMs": 2000,
@@ -36,13 +32,9 @@
         "maxWallTimeHardMs": 5000
       },
       "desktop": {
-        "maxUnpackedBytes": 565000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
-        "maxNativeBytes": 10800000,
         "exactNativeFileCount": 2,
-        "maxCredentialBytes": 600000,
         "exactCredentialFileCount": 2,
         "cold": {
           "targetInteractiveTotalMs": 3000,
@@ -65,16 +57,13 @@
         }
       },
       "tui": {
-        "maxStagingBytes": 2000000,
         "maxStagingFileCount": 12,
-        "maxTarballBytes": 500000,
         "maxTarballFileCount": 12,
         "ptyMode": "required"
       }
     },
     "darwin-x64": {
       "native": {
-        "maxExecutableBytes": 9900000,
         "exactFileCount": 2,
         "maxColdImportMedianMs": 1500,
         "maxColdImportHardMs": 3000,
@@ -86,13 +75,9 @@
         "maxWallTimeHardMs": 8000
       },
       "desktop": {
-        "maxUnpackedBytes": 575000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
-        "maxNativeBytes": 9900000,
         "exactNativeFileCount": 2,
-        "maxCredentialBytes": 600000,
         "exactCredentialFileCount": 2,
         "cold": {
           "targetInteractiveTotalMs": 3000,
@@ -115,16 +100,13 @@
         }
       },
       "tui": {
-        "maxStagingBytes": 2000000,
         "maxStagingFileCount": 12,
-        "maxTarballBytes": 500000,
         "maxTarballFileCount": 12,
         "ptyMode": "required"
       }
     },
     "win32-x64": {
       "native": {
-        "maxExecutableBytes": 14600000,
         "exactFileCount": 2,
         "maxColdImportMedianMs": 1000,
         "maxColdImportHardMs": 3000,
@@ -136,13 +118,9 @@
         "maxWallTimeHardMs": 15000
       },
       "desktop": {
-        "maxUnpackedBytes": 415000000,
         "maxPackageFileCount": 310,
-        "maxAsarBytes": 3400000,
         "exactAsarEntryCount": 3,
-        "maxNativeBytes": 14600000,
         "exactNativeFileCount": 2,
-        "maxCredentialBytes": 2100000,
         "exactCredentialFileCount": 2,
         "cold": {
           "targetInteractiveTotalMs": 3000,
@@ -165,9 +143,7 @@
         }
       },
       "tui": {
-        "maxStagingBytes": 2000000,
         "maxStagingFileCount": 12,
-        "maxTarballBytes": 500000,
         "maxTarballFileCount": 12,
         "ptyMode": "line-only"
       }

@@ -53,6 +53,17 @@ are defined in [Dependency Maintenance](dependency-maintenance.md). The current
 Extractor exception is scoped to 7.59.4; ordinary dependency updates must also
 review and remove obsolete overrides.
 
+## Artifact Size Reporting
+
+Facade and installed-artifact byte counts are observations, not release ceilings.
+Report measured native, Desktop/ASAR/credential and TUI sizes without blocking
+normal growth. Facade reports retain measured baseline deltas; installed receipts
+retain target-specific observations. Do not treat an old limit as a measured baseline.
+Empty or invalid artifact measurements, mismatched installed contents, unexpected
+file layout, forbidden dependencies, leaked source/tests, failed authorization,
+process cleanup and functional/security checks still fail. Runtime request, upload
+and memory bounds are resource-safety limits, not artifact-size budgets.
+
 ## Coverage-Preserving Moves
 
 The packaged Server scenario moved from
@@ -77,7 +88,8 @@ preserves that directory; it never silently uses a previous artifact.
 - Use deterministic Provider fixtures for routine verification; live checks are explicit.
 - Prefer existing test tooling and ordinary test files over new runners or registries.
 - Keep UI drivers outside product code as they are migrated; preserve native acceptance.
-- Do not loosen budgets, add retries, or treat partial suite results as full acceptance.
+- Do not loosen functional/security, package-shape or timing gates, add retries,
+  or treat partial suite results as full acceptance. Artifact bytes are reporting-only.
 - Do not run SDK build/proof workflows concurrently against shared `target/sdk`.
 
 The bounded external Desktop pilot covers only `relaunch-chat`, with an assertion

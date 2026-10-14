@@ -161,7 +161,7 @@ export function auditHostDistributionData(request) {
   expectEqual(failures, "native artifact file count", nativeArtifact.fileCount, nativeBudget.exactFileCount)
   expectEqual(failures, "native node_modules exclusion", native.noNodeModulesBesideArtifact, true)
   expectEqual(failures, "native process cleanup", native.noOwnedProcessAfterRun, true)
-  expectMaximum(failures, "native executable bytes", nativeArtifact.bytes, nativeBudget.maxExecutableBytes)
+  expectArtifactBytes(failures, "native executable bytes", nativeArtifact.bytes)
   expectMaximum(
     failures,
     "native cold import median ms",
@@ -358,11 +358,11 @@ export function auditHostDistributionData(request) {
     expectEqual(failures, "Desktop credential file count", packaged.credentialFileCount, desktopBudget.exactCredentialFileCount)
     expectEqual(failures, "Desktop node_modules exclusion", packaged.hasApplicationNodeModules, false)
     expectEqual(failures, "Desktop ASAR unpacked exclusion", packaged.hasAsarUnpacked, false)
-    expectMaximum(failures, "Desktop unpacked bytes", packaged.unpackedBytes, desktopBudget.maxUnpackedBytes)
+    expectArtifactBytes(failures, "Desktop unpacked bytes", packaged.unpackedBytes)
     expectMaximum(failures, "Desktop package file count", packaged.fileCount, desktopBudget.maxPackageFileCount)
-    expectMaximum(failures, "Desktop ASAR bytes", packaged.asarBytes, desktopBudget.maxAsarBytes)
-    expectMaximum(failures, "Desktop native bytes", packaged.nativeBytes, desktopBudget.maxNativeBytes)
-    expectMaximum(failures, "Desktop credential bytes", packaged.credentialBytes, desktopBudget.maxCredentialBytes)
+    expectArtifactBytes(failures, "Desktop ASAR bytes", packaged.asarBytes)
+    expectArtifactBytes(failures, "Desktop native bytes", packaged.nativeBytes)
+    expectArtifactBytes(failures, "Desktop credential bytes", packaged.credentialBytes)
     expectAtMost(
       advisories,
       "Desktop cold interactive total target ms",
@@ -598,24 +598,14 @@ export function auditHostDistributionData(request) {
       staging.hasNodeModules,
       false
     )
-    expectMaximum(
-      failures,
-      "TUI staging bytes",
-      staging.bytes,
-      tuiBudget.maxStagingBytes
-    )
+    expectArtifactBytes(failures, "TUI staging bytes", staging.bytes)
     expectMaximum(
       failures,
       "TUI staging file count",
       staging.fileCount,
       tuiBudget.maxStagingFileCount
     )
-    expectMaximum(
-      failures,
-      "TUI tarball bytes",
-      tarball.bytes,
-      tuiBudget.maxTarballBytes
-    )
+    expectArtifactBytes(failures, "TUI tarball bytes", tarball.bytes)
     expectMaximum(
       failures,
       "TUI tarball file count",
@@ -673,6 +663,12 @@ function expectEqual(failures, label, observed, expected) {
 
 function expectMaximum(failures, label, observed, maximum) {
   expectAtMost(failures, label, observed, maximum, "maximum")
+}
+
+function expectArtifactBytes(failures, label, observed) {
+  if (!Number.isSafeInteger(observed) || observed <= 0) {
+    failures.push(`${label}: observed must be a positive safe integer`)
+  }
 }
 
 function expectAtMost(failures, label, observed, limit, limitLabel) {

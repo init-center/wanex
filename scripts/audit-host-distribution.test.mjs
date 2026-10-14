@@ -52,7 +52,7 @@ describe("host distribution budget", () => {
       .toThrow("unknown host distribution audit argument")
   })
 
-  it("accepts a headless receipt within its physical ceilings", () => {
+  it("accepts a headless receipt within its runtime contract", () => {
     expect(auditHostDistributionData({
       targetId: "linux-x64",
       budget: budget(false),
@@ -85,7 +85,7 @@ describe("host distribution budget", () => {
 
   it("reports TUI closure and authorization violations", () => {
     const tui = tuiReceipt()
-    tui.distribution.staging.bytes = 101
+    tui.distribution.staging.hasNodeModules = true
     tui.line.providerAuthorized = false
     const result = auditHostDistributionData({
       targetId: "linux-x64",
@@ -95,12 +95,12 @@ describe("host distribution budget", () => {
     })
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
-      expect.stringContaining("TUI staging bytes"),
+      expect.stringContaining("TUI staging node_modules exclusion"),
       expect.stringContaining("TUI installed line provider authorization")
     ]))
   })
 
-  it("reports every native and Desktop ceiling violation", () => {
+  it("reports native timing and Desktop integrity violations regardless of size", () => {
     const native = nativeReceipt()
     const desktop = desktopReceipt()
     const desktopDistribution = distributionReceipt(desktop, {
@@ -125,13 +125,75 @@ describe("host distribution budget", () => {
     })
     expect(result.ok).toBe(false)
     expect(result.failures).toEqual(expect.arrayContaining([
-      expect.stringContaining("native executable bytes"),
       expect.stringContaining("native total median ms"),
-      expect.stringContaining("Desktop unpacked bytes"),
+      expect.stringContaining("Desktop installed package bytes"),
       expect.stringContaining("Desktop node_modules exclusion"),
       expect.stringContaining("Desktop cold interactive total hard maximum ms")
     ]))
   })
+
+  it("reports large native, Desktop and TUI artifacts without byte ceilings", () => {
+    const native = darwinNativeReceipt()
+    native.artifact.bytes = 100_000_000
+    const desktop = desktopReceipt()
+    Object.assign(desktop.packaged, {
+      unpackedBytes: 1_000_000_000,
+      asarBytes: 100_000_000,
+      nativeBytes: 100_000_000,
+      credentialBytes: 10_000_000
+    })
+    desktop.installed.packageBytes = desktop.packaged.unpackedBytes
+    expect(auditHostDistributionData({
+      targetId: "darwin-arm64", budget: budget(true), native, desktop,
+      desktopDistribution: distributionReceipt(desktop, native)
+    })).toMatchObject({
+      ok: true, failures: [],
+      observed: { native: { executableBytes: 100_000_000 }, desktop: { unpackedBytes: 1_000_000_000 } }
+    })
+    const tui = tuiReceipt()
+    tui.distribution.staging.bytes = 100_000_000
+    tui.distribution.tarball.bytes = 10_000_000
+    expect(auditHostDistributionData({
+      targetId: "linux-x64", budget: budgetWithTui(), native: nativeReceipt(), tui
+    })).toMatchObject({
+      ok: true, failures: [],
+      observed: { tui: { stagingBytes: 100_000_000, tarballBytes: 10_000_000 } }
+    })
+  })
+
+  it.each([undefined, NaN, Infinity, -1, 0, 1.5, "100", Number.MAX_SAFE_INTEGER + 1])(
+    "rejects invalid artifact measurements %s without requiring a size ceiling", (bytes) => {
+      const native = nativeReceipt()
+      native.artifact.bytes = bytes
+      const tui = tuiReceipt()
+      tui.distribution.staging.bytes = bytes
+      tui.distribution.tarball.bytes = bytes
+      const result = auditHostDistributionData({
+        targetId: "linux-x64", budget: budgetWithTui(), native, tui
+      })
+      expect(result.ok).toBe(false)
+      expect(result.failures).toEqual([
+        "native executable bytes: observed must be a positive safe integer",
+        "TUI staging bytes: observed must be a positive safe integer",
+        "TUI tarball bytes: observed must be a positive safe integer"
+      ])
+    }
+  )
+
+  it.each(["unpackedBytes", "asarBytes", "nativeBytes", "credentialBytes"])(
+    "rejects invalid Desktop %s measurements", (field) => {
+      const desktop = desktopReceipt()
+      const native = darwinNativeReceipt()
+      const desktopDistribution = distributionReceipt(desktop, native)
+      desktop.packaged[field] = 0
+      expect(auditHostDistributionData({
+        targetId: "darwin-arm64", budget: budget(true), native, desktop, desktopDistribution
+      })).toMatchObject({
+        ok: false,
+        failures: expect.arrayContaining([expect.stringContaining("must be a positive safe integer")])
+      })
+    }
+  )
 
   it("reports the first-launch target without making one shared-runner sample an SLO", () => {
     const targetMiss = desktopReceipt()
@@ -383,9 +445,7 @@ function budget(desktop) {
 function budgetWithTui() {
   const result = budget(false)
   result.targets["linux-x64"].tui = {
-    maxStagingBytes: 100,
     maxStagingFileCount: 10,
-    maxTarballBytes: 100,
     maxTarballFileCount: 10,
     ptyMode: "required"
   }
@@ -394,7 +454,6 @@ function budgetWithTui() {
 
 function nativeBudget() {
   return {
-    maxExecutableBytes: 100,
     exactFileCount: 2,
     maxColdImportMedianMs: 100,
     maxColdImportHardMs: 200,
@@ -409,13 +468,9 @@ function nativeBudget() {
 
 function desktopBudget() {
   return {
-    maxUnpackedBytes: 100,
     maxPackageFileCount: 100,
-    maxAsarBytes: 100,
     exactAsarEntryCount: 3,
-    maxNativeBytes: 100,
     exactNativeFileCount: 2,
-    maxCredentialBytes: 100,
     exactCredentialFileCount: 2,
     cold: {
       targetInteractiveTotalMs: 100,

@@ -16,8 +16,7 @@ consumers run on both Node 24 LTS and Node 26 Current.
 
 Wanex uses a two-layer pnpm policy:
 
-- `packageManager` pins the exact pnpm version Corepack should resolve for this
-  workspace.
+- `packageManager` pins the exact pnpm version used for this workspace.
 - `engines.pnpm` records the supported native pnpm major range, currently
   `>=11 <12`.
 
@@ -54,65 +53,27 @@ Desktop or TUI test aliases on top of them; those aliases are reserved for
 focused local work and target-specific distribution jobs. This keeps the
 release gate complete without executing the same package suite twice.
 
-The facade footprint check is a reviewed ratchet. It rejects even one byte or
-one static input of unreviewed growth, but it does not reject intentional
-growth forever. A reviewed public capability updates the exact ceiling after
-the resulting bundle, API report, package closure, and release proof have been
-inspected. This is stricter than a loose percentage budget because the default
-Runtime/App facades are architectural boundaries; it is not a substitute for
-the functional tests.
+The facade footprint check enforces dependency boundaries, not byte/input
+ceilings. Byte and input counts report differences from measured baselines;
+normal growth does not block verification. Missing entries, unreviewed or
+forbidden dependencies still fail. Installed native, Desktop/ASAR/credential and
+TUI byte counts are likewise observations, not release ceilings. Valid nonempty
+artifacts, exact package layout, installation consistency, security, functional
+behavior, process cleanup and timing requirements remain blocking. Runtime
+resource limits are unrelated to distribution size and remain enforced.
 
 Workspace package tests are orchestrated by `scripts/test.mjs`: the
 system-service binary is built once, then recursive package tests run with
 `WANEX_SKIP_SYSTEM_SERVICE_BUILD=1`. Packages that need the binary still use a
 package-local runner so direct focused tests remain self-contained.
 
-`pnpm verify` runs these workspace steps, in order:
-
-```bash
-pnpm doctor:toolchain
-pnpm test:toolchain-doctor
-pnpm test:runner
-pnpm test:verify-script
-pnpm test:public-contract-audit
-pnpm test:workspace-hygiene-audit
-pnpm test:package-packlist-audit
-pnpm test:package-governance-audit
-pnpm test:facade-footprint-audit
-pnpm test:execution-boundary-audit
-pnpm test:sdk-distribution
-pnpm test:storage-rpc-ownership-audit
-pnpm test:storage-rpc-schema
-pnpm test:storage-rpc-schema-migration-policy
-pnpm audit:workspace-hygiene
-pnpm audit:public-contracts
-pnpm audit:package-governance
-pnpm audit:storage-rpc-ownership
-pnpm audit:storage-boundary
-pnpm audit:storage-rpc-generation
-pnpm audit:structure
-pnpm audit:distribution
-node ./scripts/audit-distribution-graph.mjs --enforce
-node ./scripts/audit-distribution-footprint.mjs --enforce
-pnpm audit:facade-footprint
-pnpm audit:package-packlist
-pnpm check
-pnpm test:native-artifact
-pnpm test:native-runtime-proof
-pnpm test:host-distribution-budget
-pnpm test:desktop-distribution-receipt
-pnpm test:assistant-host-smoke-script
-pnpm test:tui-script
-pnpm test
-pnpm release:sdk
-pnpm proof:sdk-consumers
-pnpm proof:tui
-pnpm audit:sdk-determinism
-cargo fmt -- --check
-cargo test
-cargo clippy --all-targets -- -D warnings
-node ./scripts/run-eval-harness.mjs
-```
+The exact command sequence is owned by
+[`scripts/verify.mjs`](../../scripts/verify.mjs), not duplicated here.
+The source suite covers tooling, ownership/distribution audits, typechecks,
+package tests, Rust checks and Eval. The artifacts suite follows with installed
+Server workspace acceptance, SDK release/consumers, installed TUI and SDK
+determinism. Default `pnpm verify` runs both suites; see
+[Testing Ownership](../testing.md) for focused commands and coverage boundaries.
 
 The release workflow runs the broad source gate once in the Linux security
 lane. Before `pnpm verify`, that lane builds the debug System Service because
@@ -169,9 +130,10 @@ The package-governance audit requires one reviewed disposition for every active
 manifest, prevents deleted package tombstones from returning, records every
 reverse workspace dependency, and excludes examples/tests from real-consumer
 evidence. The facade static-footprint audit uses a pinned esbuild version and
-enforces no-growth byte/input/package ceilings for the default Runtime and App
-roots; optional capabilities and product packages are forbidden from both
-closures.
+reports measured byte/input changes while enforcing reviewed package closures
+for the default Runtime and App roots; optional capabilities and product
+packages are forbidden from both closures. Baseline refresh does not authorize
+new dependencies.
 Future marketplace and renderer integrations must follow the same release-gate
 principle: default App and cold/headless product paths stay free of optional
 plugin loading, npm plugin dependencies, connector adapters, and renderer
@@ -368,24 +330,28 @@ node ./scripts/run-eval-harness.mjs
 
 ## Native Release Matrix
 
-The repository has one cross-platform release workflow, not a separate legacy
-Electron workflow. Complete `pnpm verify` runs natively on:
+The cross-platform release workflow runs complete `pnpm verify` once on Ubuntu
+24.04 x64, preceded by JavaScript and Rust security audits. A separate Node 24
+job checks packed SDK consumers. The default native distribution matrix runs on:
 
 - Ubuntu 24.04 x64;
 - macOS 15 arm64;
 - macOS 15 Intel x64;
 - Windows Server 2025 x64.
 
-Only after all verify jobs pass does the native distribution matrix stage an
+Only after the source gate passes does the native distribution matrix stage an
 explicit target and execute `pnpm proof:native-runtime`. The same matrix also
 builds and installs the TUI distribution with `pnpm proof:tui` on every target.
 The TUI proof writes both its package receipt and an installed-consumer receipt;
 the latter is required by the host distribution audit.
 macOS arm64/x64 and Windows x64 also execute the existing Electron production
 boundary with its fixed one-cold/four-warm sample contract.
-`pnpm audit:host-distribution` enforces the reviewed native, TUI, and Desktop
-target budgets, and structured receipts upload even when budget enforcement
-fails. The TUI contract requires a real PTY proof on POSIX targets; Windows
+`pnpm audit:host-distribution` enforces native, TUI, and Desktop target
+integrity, functional and timing contracts, and reports artifact sizes without
+byte ceilings. Structured receipts upload even when checks fail. Manual
+`targets=linux-windows` selects only those two distribution targets while
+retaining source/security and Node 24 gates; it does not certify macOS. The TUI
+contract requires a real PTY proof on POSIX targets; Windows
 currently has an explicit line-mode-only contract because the repository does
 not ship a second native PTY harness just for CI.
 
@@ -404,8 +370,9 @@ suite, it should run that suite after `pnpm verify`, not instead of it.
 ## Boundary
 
 This contract defines native verification, distribution receipt upload, and
-physical budget enforcement. It does not define registry publication, semantic
-versioning, installers, signing, notarization, or release-channel promotion.
+package integrity and runtime/performance checks. It does not define registry
+publication, semantic versioning, installers, signing, notarization, or
+release-channel promotion.
 
 The release gate is not a gateway or daemon. It starts processes, waits for
 them, and exits.

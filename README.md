@@ -105,8 +105,10 @@ without depending on Electron, Tauri, or a packaged desktop runtime.
 one secure BrowserWindow, starts Assistant Host on an ephemeral loopback origin,
 loads the real Assistant Web UI, and closes the Host and System Service before
 exit. It ships one ASAR plus explicit System Service and keyring artifacts;
-there is no application `node_modules`, preload, generic IPC bridge, Gateway,
-or restart supervisor.
+there is no application `node_modules`, generic IPC bridge, Gateway, or restart
+supervisor. A narrow preload exposes validated Assistant and connection
+operations; renderer Node integration stays disabled with context isolation
+and sandboxing enabled.
 
 To start the real persistent Desktop directly from the repository:
 
@@ -118,6 +120,18 @@ This command builds the host System Service and Desktop artifacts, then opens
 the normal Provider onboarding and Assistant lifecycle. It does not use the
 isolated fake endpoint or receipt behavior reserved for packaged proof.
 
+If an older internal Store is rejected as incompatible, preserve it and start a
+separate profile instead of deleting or migrating it:
+
+```bash
+WANEX_DESKTOP_PROFILE_ID=preview-fresh pnpm start:desktop
+```
+
+Reuse that profile name on later launches to keep its conversations. A fresh
+profile needs its own configuration; changing the name does not upgrade old data.
+In PowerShell, set `$env:WANEX_DESKTOP_PROFILE_ID = "preview-fresh"` before
+running `pnpm start:desktop`.
+
 To package and prove Desktop on the current host:
 
 ```bash
@@ -125,9 +139,9 @@ pnpm stage:native -- --target darwin-arm64
 pnpm proof:desktop
 ```
 
-The proof drives five isolated lifecycle samples and a separate eleven-process
-same-profile journey through the visible Assistant DOM. The relaunch journey
-proves credential-free conversation continuity, attachment picker/paste/drop
+The proof drives five isolated lifecycle samples and separate same-profile
+relaunch journeys through the visible Assistant DOM. The relaunch journeys
+prove credential-free conversation continuity, attachment picker/paste/drop
 input, ordinary composer-driven image generation through `image_generate`,
 trusted Resource preview, explicit Plan review and approval followed by
 same-Session execution, bounded Goal auto-continuation with independent
@@ -226,10 +240,10 @@ apps/
   desktop/
   assistant-host/
   tui/
-  assistant-ui/
 crates/
   system-service/
 packages/
+  assistant-ui/
   protocol/
   storage/
   runtime/
@@ -261,7 +275,7 @@ explicit app runtime construction without a hidden restart-sensitive daemon.
 Wanex uses a current Node.js baseline. The repository requires `>=26` in
 `package.json` and intentionally does not pin a Node patch version with
 `.node-version`; local development and CI should use a recent Node release on
-or above that floor. The workspace pins the exact Corepack package manager via
+or above that floor. The workspace pins the exact pnpm version via
 `packageManager` and supports native `pnpm` `>=11 <12` through `engines.pnpm`.
 Corepack is not a runtime dependency, but when used it must resolve the
 project-pinned pnpm version. Generated first-RC packages separately target and

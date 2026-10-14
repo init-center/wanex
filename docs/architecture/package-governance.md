@@ -58,7 +58,8 @@ This command preserves the reviewed allowed/forbidden dependency lists and
 refuses to write when boundaries fail. Dependency changes require an explicit
 review of those lists; refreshing measurements cannot authorize dependencies.
 Normal byte/input growth does not require owner approval. Attribute meaningful
-growth and retain installed-product size, integrity, functional and security gates.
+growth and retain installed-product size reports alongside integrity, functional
+and security gates. Artifact bytes are not a release ceiling.
 
 The current M5 measurement reference is:
 

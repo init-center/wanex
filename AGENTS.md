@@ -26,6 +26,47 @@ Do not pull upper-layer concerns into lower-layer packages.
 
 ## Authoritative Current Route (Revised 2026-10-14)
 
+The user clarified that the verified 1782/1783 snapshot must be committed and
+pushed with [skip ci]. Do not conflate avoiding extra Actions runs with withholding
+an authorized push. Synchronize this snapshot, exclude the protected CSS backup,
+and do not dispatch or rerun Actions. Earlier no-push statements below describe
+the prior interpretation and do not block this explicit synchronization request.
+
+Implementation/1783 closes the current local snapshot after 1782: run complete
+verify and security audits, inspect only an already available Linux environment
+for the remaining target-native consumer gap, and consolidate product coverage.
+No new VM/test framework, UI changes, commit/push or Actions rerun. Preserve
+the distinction between current local evidence and c455c27 remote evidence.
+This local stage is complete: full verify, JS production/full audits and Rust
+audit passed (1783-verify.log / 1783-security-js.log / 1783-security-rust.log).
+Runtime 520 plus one existing platform skip, Desktop 163, Rust 196, Eval 64/64,
+31 unchanged SDK reports, four consumers and installed Server/TUI all passed.
+Release/CI and package governance now match reporting-only artifact bytes;
+README documents the narrow preload and non-destructive fresh-profile startup.
+The existing Docker CLI has no running daemon. Linux post-audit native-package
+consumer acceptance remains unverified; no new environment or Actions was started.
+Do not invent more kernel/package/proof work as a prerequisite to internal use.
+
+Implementation/1781 ran exactly once at c455c27c07682fb64d8774c0aa3d7750d4e12a7d:
+run 38508849742 passed source/security, Node24 and all Windows distribution checks.
+Linux native/TUI/Server passed; its distribution audit failed only because the
+old native byte ceiling remained (11,692,088 > 10,800,000). Downstream Linux SDK
+publication/native-consumer steps did not run. Do not call this full platform
+acceptance or rerun Actions. The snapshot was pushed with [skip ci].
+
+Implementation/1782 corrects the user's reported omission: remove all installed
+artifact byte ceilings, including Desktop ASAR preflight, not just facade limits.
+Keep measured sizes, valid positive byte counts, exact package layout, closure,
+authorization, functional/security, process-cleanup and timing checks. Runtime
+resource-safety limits remain. No new framework/package, compatibility flag or
+artificially increased budget. Validate locally and document original run versus
+local receipt re-evaluation separately. No further commit/push/Actions by default.
+The correction passed 97 focused policy checks, all 163 Desktop package tests,
+real ASAR preflight and local re-evaluation of both target receipts. It does not
+retroactively pass the failed Linux job or its skipped publication steps.
+
+The earlier route authorization and implementation history follow:
+
 Implementation/1781 resumes final snapshot acceptance after 1780. The user now
 explicitly authorizes review, commit/push with [skip ci], and exactly one manual
 desktop.yml run with targets=linux-windows. Preserve source/security/Node24 and
